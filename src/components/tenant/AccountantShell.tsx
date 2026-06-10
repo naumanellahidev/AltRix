@@ -1,17 +1,19 @@
-import { PropsWithChildren, useState } from "react";
+import { PropsWithChildren, useMemo, useState } from "react";
 import { NavLink } from "@/components/NavLink";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { Coins, FileText, CreditCard, TrendingUp, BarChart3, LayoutGrid, DollarSign, CalendarDays, LogOut, Sparkles, MessageSquare, Menu } from "lucide-react";
+import { LayoutGrid, LogOut, Sparkles, MessageSquare, Menu, FileText, CreditCard } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { GlobalCommandPalette } from "@/components/global/GlobalCommandPalette";
 import { NotificationsBell } from "@/components/global/NotificationsBell";
+import { StaffAttendanceWidget } from "./StaffAttendanceWidget";
 import { useUnreadMessagesOptimized } from "@/hooks/useUnreadMessagesOptimized";
 import { useTenantOptimized } from "@/hooks/useTenantOptimized";
 import { useSession } from "@/hooks/useSession";
 import { useOfflineUniversal } from "@/hooks/useOfflineUniversal";
 import { OfflineStatusIndicator } from "@/components/offline/OfflineStatusIndicator";
+import { resolvePermissions } from "@/lib/permissions";
 
 type Props = PropsWithChildren<{
   title: string;
@@ -22,13 +24,11 @@ type Props = PropsWithChildren<{
 export function AccountantShell({ title, subtitle, schoolSlug, children }: Props) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const { user } = useSession();
-  
-  // Use optimized tenant hook that caches and applies branding automatically
+
   const tenant = useTenantOptimized(schoolSlug);
   const schoolId = tenant.schoolId;
   const { unreadCount } = useUnreadMessagesOptimized(schoolId, user?.id ?? null);
 
-  // Offline support
   const offline = useOfflineUniversal({
     schoolId,
     userId: user?.id ?? null,
@@ -42,17 +42,37 @@ export function AccountantShell({ title, subtitle, schoolSlug, children }: Props
 
   const basePath = `/${schoolSlug}/accountant`;
 
-  const navItems = [
-    { to: basePath, icon: LayoutGrid, label: "Dashboard", end: true, badge: 0 },
-    { to: `${basePath}/fees`, icon: DollarSign, label: "Fee Plans", badge: 0 },
-    { to: `${basePath}/invoices`, icon: FileText, label: "Invoices", badge: 0 },
-    { to: `${basePath}/payments`, icon: CreditCard, label: "Payments", badge: 0 },
-    { to: `${basePath}/expenses`, icon: TrendingUp, label: "Expenses", badge: 0 },
-    { to: `${basePath}/payroll`, icon: Coins, label: "Payroll", badge: 0 },
-    { to: `${basePath}/reports`, icon: BarChart3, label: "Reports", badge: 0 },
-    { to: `${basePath}/messages`, icon: MessageSquare, label: "Messages", badge: unreadCount },
-    { to: `${basePath}/timetable`, icon: CalendarDays, label: "Timetable Builder", badge: 0 },
-  ];
+  // Auto-derive sidebar from the same centralized permission resolver used by
+  // the shared shells. This keeps the accountant shell, inherited finance
+  // shells, route guards, and future NAV_CATALOG additions in lockstep.
+  const navItems = useMemo(() => {
+    const allowedGroups = new Set(["overview", "finance", "operations", "communication"]);
+    const hidden = new Set(["finance", "notices", "holidays", "complaints", "counseling", "support"]);
+    const financeOrder = new Map([
+      ["", 0],
+      ["fees", 1],
+      ["invoices", 2],
+      ["payments", 3],
+      ["expenses", 4],
+      ["payroll", 5],
+      ["ledger", 6],
+      ["vendors", 7],
+      ["tax", 8],
+      ["reports", 9],
+      ["messages", 10],
+    ]);
+
+    return resolvePermissions(["accountant"]).visibleModules
+      .filter((m) => allowedGroups.has(m.group) && !hidden.has(m.key))
+      .sort((a, b) => (financeOrder.get(a.path) ?? 99) - (financeOrder.get(b.path) ?? 99))
+      .map((m) => ({
+        to: m.path ? `${basePath}/${m.path}` : basePath,
+        icon: m.icon,
+        label: m.label,
+        end: !m.path,
+        badge: m.key === "messages" ? unreadCount : 0,
+      }));
+  }, [basePath, unreadCount]);
 
   const bottomNavItems = [
     { to: basePath, icon: LayoutGrid, label: "Home", end: true },
@@ -65,7 +85,7 @@ export function AccountantShell({ title, subtitle, schoolSlug, children }: Props
     <>
       <div className="flex items-center justify-between">
         <div>
-          <p className="font-display text-lg font-semibold tracking-tight">EDUVERSE</p>
+          <p className="font-display text-lg font-semibold tracking-tight bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">AltRix</p>
           <p className="text-xs text-muted-foreground">/{schoolSlug} • Finance</p>
         </div>
         <div className="flex items-center gap-2">
@@ -79,6 +99,7 @@ export function AccountantShell({ title, subtitle, schoolSlug, children }: Props
             onSync={offline.syncPendingItems}
             variant="compact"
           />
+          {schoolId && <StaffAttendanceWidget schoolId={schoolId} />}
           <NotificationsBell schoolId={schoolId} schoolSlug={schoolSlug} role="accountant" />
           <Button
             variant="soft"
@@ -146,7 +167,7 @@ export function AccountantShell({ title, subtitle, schoolSlug, children }: Props
                 <Menu className="h-5 w-5" />
               </Button>
             </SheetTrigger>
-            <SheetContent side="left" className="w-[280px] p-4">
+            <SheetContent side="left" className="w-[280px] p-4 overflow-y-auto">
               <NavContent />
             </SheetContent>
           </Sheet>
@@ -166,6 +187,7 @@ export function AccountantShell({ title, subtitle, schoolSlug, children }: Props
             onSync={offline.syncPendingItems}
             variant="compact"
           />
+          {schoolId && <StaffAttendanceWidget schoolId={schoolId} />}
           <NotificationsBell schoolId={schoolId} schoolSlug={schoolSlug} role="accountant" />
           <Button
             variant="ghost"
@@ -177,7 +199,7 @@ export function AccountantShell({ title, subtitle, schoolSlug, children }: Props
         </div>
       </header>
 
-      <div className="mx-auto grid w-full max-w-7xl grid-cols-1 gap-4 px-4 py-4 lg:grid-cols-[280px_1fr] lg:gap-6 lg:px-6 lg:py-6">
+      <div className="grid w-full grid-cols-1 gap-4 px-4 py-4 lg:grid-cols-[280px_1fr] lg:gap-6 lg:px-6 lg:py-6">
         {/* Desktop Sidebar */}
         <aside className="sticky top-6 hidden self-start max-h-[calc(100vh-3rem)] overflow-y-auto rounded-3xl bg-surface p-4 shadow-elevated lg:block">
           <NavContent />

@@ -1,4 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
+import { HrLeavesModule } from "@/pages/tenant/hr-modules/HrLeavesModule";
+import { HrAttendanceModule } from "@/pages/tenant/hr-modules/HrAttendanceModule";
+import { ParentChildLinkingTab } from "@/components/principal/ParentChildLinkingTab";
+import PrincipalComplaintsModule from "@/pages/tenant/modules/PrincipalComplaintsModule";
+import PrincipalParentNotesModule from "@/pages/tenant/modules/PrincipalParentNotesModule";
+import FeesAdvancedModule from "@/pages/tenant/modules/FeesAdvancedModule";
+import AdmissionsModule from "@/pages/tenant/modules/AdmissionsModule";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   BarChart3,
@@ -14,10 +21,14 @@ import {
   UserPlus,
   FileText,
   ClipboardList,
+  Palette,
 } from "lucide-react";
 
-import { supabase } from "@/integrations/supabase/client";
+import { supabase, USE_FASTAPI } from "@/integrations/supabase/client";
+import { apiClient } from "@/lib/api-client";
 import { useTenant } from "@/hooks/useTenant";
+import { usePermissions } from "@/lib/permissions";
+import { isEduverseRole } from "@/lib/eduverse-roles";
 import { useDashboardAlerts } from "@/hooks/useDashboardAlerts";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -25,8 +36,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DashboardAlertsPanel, AlertsSummaryBadge } from "@/components/dashboard/DashboardAlertsPanel";
 import { AlertSettingsDialog } from "@/components/dashboard/AlertSettingsDialog";
 import { PrincipalTeachersTab } from "@/components/principal/PrincipalTeachersTab";
+import { LiveTeacherPresenceCard } from "@/components/principal/LiveTeacherPresenceCard";
 import { PrincipalStudentsTab } from "@/components/principal/PrincipalStudentsTab";
 import { SendMessageDialog } from "@/components/principal/SendMessageDialog";
+import { BrandingSettingsDialog } from "@/components/principal/BrandingSettingsDialog";
 import {
   ResponsiveContainer,
   AreaChart,
@@ -62,6 +75,28 @@ export function PrincipalHome() {
   );
 
   const basePath = `/${schoolSlug}/${role}`;
+  const fallbackRoles = useMemo(() => (isEduverseRole(role) ? [role] : []), [role]);
+  const perms = usePermissions(schoolId, fallbackRoles);
+
+  // Permission-driven tab visibility. Tabs (and their content) only render
+  // when the resolved bundle grants the corresponding action — so a user
+  // without staff/finance/etc. permissions never sees them at all.
+  const tabs = useMemo(() => {
+    const list: { value: string; label: string; visible: boolean }[] = [
+      { value: "overview",     label: "Overview",     visible: true },
+      { value: "teachers",     label: "Teachers",     visible: perms.actions.canManageStaff },
+      { value: "students",     label: "Students",     visible: perms.actions.canManageStudents },
+      { value: "leaves",       label: "Leaves",       visible: perms.actions.canManageStaff },
+      { value: "staff-attendance", label: "Staff Attendance", visible: perms.actions.canManageStaff },
+      { value: "parents",      label: "Parents",      visible: perms.actions.canManageStudents },
+      { value: "complaints",   label: "Complaints",   visible: perms.actions.canModerateComplaints },
+      { value: "parent-notes", label: "Parent Notes", visible: perms.actions.canManageStudents },
+      { value: "fees",         label: "Fees",         visible: perms.actions.canManageFinance },
+      { value: "admissions",   label: "Admissions",   visible: perms.actions.canManageAcademics || perms.actions.canWorkCrm },
+    ];
+    return list.filter((t) => t.visible);
+  }, [perms.actions]);
+  const tabValues = useMemo(() => new Set(tabs.map((t) => t.value)), [tabs]);
 
   // Real-time alerts hook
   const {
@@ -110,95 +145,149 @@ export function PrincipalHome() {
       const d7 = new Date(now);
       d7.setDate(now.getDate() - 7);
 
-      const [
-        studentsCount,
-        teachersCount,
-        totalStaffCount,
-        leadsCount,
-        openLeadsCount,
-        entries7,
-        present7,
-        payments,
-        expenses,
-        pendingInvoicesCount,
-        classesCount,
-        sectionsCount,
-      ] = await Promise.all([
-        supabase.from("students").select("id", { count: "exact", head: true }).eq("school_id", schoolId),
-        supabase.from("user_roles").select("id", { count: "exact", head: true }).eq("school_id", schoolId).eq("role", "teacher"),
-        supabase.from("school_memberships").select("id", { count: "exact", head: true }).eq("school_id", schoolId),
-        supabase.from("crm_leads").select("id", { count: "exact", head: true }).eq("school_id", schoolId),
-        supabase.from("crm_leads").select("id", { count: "exact", head: true }).eq("school_id", schoolId).not("stage_id", "is", null),
-        supabase
-          .from("attendance_entries")
-          .select("id", { count: "exact", head: true })
-          .eq("school_id", schoolId)
-          .gte("created_at", d7.toISOString()),
-        supabase
-          .from("attendance_entries")
-          .select("id", { count: "exact", head: true })
-          .eq("school_id", schoolId)
-          .eq("status", "present")
-          .gte("created_at", d7.toISOString()),
-        supabase
-          .from("finance_payments")
-          .select("amount,paid_at")
-          .eq("school_id", schoolId)
-          .gte("paid_at", monthStart.toISOString())
-          .order("paid_at", { ascending: true })
-          .limit(1000),
-        supabase
-          .from("finance_expenses")
-          .select("amount,expense_date")
-          .eq("school_id", schoolId)
-          .gte("expense_date", monthStart.toISOString().slice(0, 10))
-          .order("expense_date", { ascending: true })
-          .limit(1000),
-        supabase.from("finance_invoices").select("id", { count: "exact", head: true }).eq("school_id", schoolId).eq("status", "pending"),
-        supabase.from("academic_classes").select("id", { count: "exact", head: true }).eq("school_id", schoolId),
-        supabase.from("class_sections").select("id", { count: "exact", head: true }).eq("school_id", schoolId),
-      ]);
+      if (USE_FASTAPI) {
+        const [dashResp, attResp, trendResp] = await Promise.all([
+          apiClient.get("/reports/dashboard"),
+          apiClient.get("/reports/attendance-summary", {
+            params: { from_date: d7.toISOString().split("T")[0] }
+          }),
+          apiClient.get("/reports/finance-trend")
+        ]);
 
-      const revenueMtd = (payments.data ?? []).reduce((sum, r: any) => sum + Number(r.amount ?? 0), 0);
-      const expensesMtd = (expenses.data ?? []).reduce((sum, r: any) => sum + Number(r.amount ?? 0), 0);
+        const dbKpis = dashResp.data;
+        const attSummary = attResp.data;
+        const finTrend = trendResp.data;
 
-      setKpis({
-        students: studentsCount.count ?? 0,
-        teachers: teachersCount.count ?? 0,
-        totalStaff: totalStaffCount.count ?? 0,
-        leads: leadsCount.count ?? 0,
-        openLeads: openLeadsCount.count ?? 0,
-        attendanceEntries7d: entries7.count ?? 0,
-        attendancePresent7d: present7.count ?? 0,
-        revenueMtd,
-        expensesMtd,
-        pendingInvoices: pendingInvoicesCount.count ?? 0,
-        classes: classesCount.count ?? 0,
-        sections: sectionsCount.count ?? 0,
-      });
+        setKpis({
+          students: dbKpis.total_students ?? 0,
+          teachers: dbKpis.total_teachers ?? 0,
+          totalStaff: dbKpis.total_staff ?? 0,
+          leads: dbKpis.total_leads ?? 0,
+          openLeads: dbKpis.open_leads ?? 0,
+          attendanceEntries7d: attSummary.total ?? 0,
+          attendancePresent7d: attSummary.present ?? 0,
+          revenueMtd: dbKpis.collected_fees ?? 0,
+          expensesMtd: dbKpis.mtd_expenses ?? 0,
+          pendingInvoices: dbKpis.pending_payments ?? 0,
+          classes: dbKpis.total_classes ?? 0,
+          sections: dbKpis.total_sections ?? 0,
+        });
 
-      // Build day buckets for chart (MTD)
-      const byDay = new Map<string, { revenue: number; expenses: number }>();
-      const fmt = (d: Date) => d.toISOString().slice(5, 10);
-      for (let i = 0; i < 31; i++) {
-        const d = new Date(monthStart);
-        d.setDate(monthStart.getDate() + i);
-        if (d.getMonth() !== monthStart.getMonth()) break;
-        byDay.set(fmt(d), { revenue: 0, expenses: 0 });
+        // Build day buckets for chart (MTD)
+        const byDay = new Map<string, { revenue: number; expenses: number }>();
+        const fmt = (d: Date) => d.toISOString().slice(5, 10);
+        for (let i = 0; i < 31; i++) {
+          const d = new Date(monthStart);
+          d.setDate(monthStart.getDate() + i);
+          if (d.getMonth() !== monthStart.getMonth()) break;
+          byDay.set(fmt(d), { revenue: 0, expenses: 0 });
+        }
+        (finTrend.payments ?? []).forEach((p: any) => {
+          const k = fmt(new Date(p.paid_at));
+          const cur = byDay.get(k) ?? { revenue: 0, expenses: 0 };
+          cur.revenue += Number(p.amount ?? 0);
+          byDay.set(k, cur);
+        });
+        (finTrend.expenses ?? []).forEach((e: any) => {
+          const k = String(e.expense_date).slice(5, 10);
+          const cur = byDay.get(k) ?? { revenue: 0, expenses: 0 };
+          cur.expenses += Number(e.amount ?? 0);
+          byDay.set(k, cur);
+        });
+        setTrend(Array.from(byDay.entries()).map(([day, v]) => ({ day, revenue: v.revenue, expenses: v.expenses })));
+      } else {
+        const [
+          studentsCount,
+          teachersCount,
+          totalStaffCount,
+          leadsCount,
+          openLeadsCount,
+          entries7,
+          present7,
+          payments,
+          expenses,
+          pendingInvoicesCount,
+          classesCount,
+          sectionsCount,
+        ] = await Promise.all([
+          supabase.from("students").select("id", { count: "exact", head: true }).eq("school_id", schoolId),
+          supabase.from("user_roles").select("id", { count: "exact", head: true }).eq("school_id", schoolId).eq("role", "teacher"),
+          supabase.from("school_memberships").select("id", { count: "exact", head: true }).eq("school_id", schoolId),
+          supabase.from("crm_leads").select("id", { count: "exact", head: true }).eq("school_id", schoolId),
+          supabase.from("crm_leads").select("id", { count: "exact", head: true }).eq("school_id", schoolId).not("stage_id", "is", null),
+          supabase
+            .from("attendance_entries")
+            .select("id", { count: "exact", head: true })
+            .eq("school_id", schoolId)
+            .gte("created_at", d7.toISOString()),
+          supabase
+            .from("attendance_entries")
+            .select("id", { count: "exact", head: true })
+            .eq("school_id", schoolId)
+            .eq("status", "present")
+            .gte("created_at", d7.toISOString()),
+          supabase
+            .from("finance_payments")
+            .select("amount,paid_at")
+            .eq("school_id", schoolId)
+            .gte("paid_at", monthStart.toISOString())
+            .order("paid_at", { ascending: true })
+            .limit(1000),
+          supabase
+            .from("finance_expenses")
+            .select("amount,expense_date")
+            .eq("school_id", schoolId)
+            .gte("expense_date", monthStart.toISOString().slice(0, 10))
+            .order("expense_date", { ascending: true })
+            .limit(1000),
+          supabase.from("finance_invoices").select("id", { count: "exact", head: true }).eq("school_id", schoolId).eq("status", "pending"),
+          supabase.from("academic_classes").select("id", { count: "exact", head: true }).eq("school_id", schoolId),
+          supabase.from("class_sections").select("id", { count: "exact", head: true }).eq("school_id", schoolId),
+        ]);
+
+        const revenueMtd = (payments.data ?? []).reduce((sum, r: any) => sum + Number(r.amount ?? 0), 0);
+        const expensesMtd = (expenses.data ?? []).reduce((sum, r: any) => sum + Number(r.amount ?? 0), 0);
+
+        setKpis({
+          students: studentsCount.count ?? 0,
+          teachers: teachersCount.count ?? 0,
+          totalStaff: totalStaffCount.count ?? 0,
+          leads: leadsCount.count ?? 0,
+          openLeads: openLeadsCount.count ?? 0,
+          attendanceEntries7d: entries7.count ?? 0,
+          attendancePresent7d: present7.count ?? 0,
+          revenueMtd,
+          expensesMtd,
+          pendingInvoices: pendingInvoicesCount.count ?? 0,
+          classes: classesCount.count ?? 0,
+          sections: sectionsCount.count ?? 0,
+        });
+
+        // Build day buckets for chart (MTD)
+        const byDay = new Map<string, { revenue: number; expenses: number }>();
+        const fmt = (d: Date) => d.toISOString().slice(5, 10);
+        for (let i = 0; i < 31; i++) {
+          const d = new Date(monthStart);
+          d.setDate(monthStart.getDate() + i);
+          if (d.getMonth() !== monthStart.getMonth()) break;
+          byDay.set(fmt(d), { revenue: 0, expenses: 0 });
+        }
+        (payments.data ?? []).forEach((p: any) => {
+          const k = fmt(new Date(p.paid_at));
+          const cur = byDay.get(k) ?? { revenue: 0, expenses: 0 };
+          cur.revenue += Number(p.amount ?? 0);
+          byDay.set(k, cur);
+        });
+        (expenses.data ?? []).forEach((e: any) => {
+          const k = String(e.expense_date).slice(5, 10);
+          const cur = byDay.get(k) ?? { revenue: 0, expenses: 0 };
+          cur.expenses += Number(e.amount ?? 0);
+          byDay.set(k, cur);
+        });
+        setTrend(Array.from(byDay.entries()).map(([day, v]) => ({ day, revenue: v.revenue, expenses: v.expenses })));
       }
-      (payments.data ?? []).forEach((p: any) => {
-        const k = fmt(new Date(p.paid_at));
-        const cur = byDay.get(k) ?? { revenue: 0, expenses: 0 };
-        cur.revenue += Number(p.amount ?? 0);
-        byDay.set(k, cur);
-      });
-      (expenses.data ?? []).forEach((e: any) => {
-        const k = String(e.expense_date).slice(5, 10);
-        const cur = byDay.get(k) ?? { revenue: 0, expenses: 0 };
-        cur.expenses += Number(e.amount ?? 0);
-        byDay.set(k, cur);
-      });
-      setTrend(Array.from(byDay.entries()).map(([day, v]) => ({ day, revenue: v.revenue, expenses: v.expenses })));
+    } catch (err) {
+      console.error("Error refreshing dashboard:", err);
     } finally {
       setBusy(false);
     }
@@ -211,19 +300,24 @@ export function PrincipalHome() {
 
   return (
     <Tabs defaultValue="overview" className="space-y-4 lg:space-y-6">
-      <TabsList className="flex w-full gap-1 p-1 sm:gap-2">
-        <TabsTrigger value="overview" className="flex-1 px-2 py-2 text-xs sm:px-4 sm:text-sm">
-          Overview
-        </TabsTrigger>
-        <TabsTrigger value="teachers" className="flex-1 px-2 py-2 text-xs sm:px-4 sm:text-sm">
-          Teachers
-        </TabsTrigger>
-        <TabsTrigger value="students" className="flex-1 px-2 py-2 text-xs sm:px-4 sm:text-sm">
-          Students
-        </TabsTrigger>
-      </TabsList>
+      <div className="-mx-1 overflow-x-auto no-scrollbar">
+        <TabsList className="inline-flex w-max min-w-full gap-1 p-1">
+          {tabs.map((t) => (
+            <TabsTrigger
+              key={t.value}
+              value={t.value}
+              className="px-3 py-2 text-xs sm:px-4 sm:text-sm whitespace-nowrap"
+            >
+              {t.label}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+      </div>
 
       <TabsContent value="overview" className="space-y-4 lg:space-y-6">
+        {/* Live Teacher Presence */}
+        <LiveTeacherPresenceCard schoolId={schoolId} />
+
         {/* Real-time Alerts Panel */}
         {alerts.length > 0 && (
           <DashboardAlertsPanel
@@ -239,6 +333,7 @@ export function PrincipalHome() {
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <CardTitle className="text-base sm:text-lg">Quick Actions</CardTitle>
           <div className="flex items-center gap-2 shrink-0">
+            {schoolId && <BrandingSettingsDialog schoolId={schoolId} />}
             <AlertSettingsDialog schoolId={schoolId} onSettingsChanged={refreshAlerts} />
             <AlertsSummaryBadge criticalCount={criticalCount} warningCount={warningCount} />
           </div>
@@ -280,6 +375,10 @@ export function PrincipalHome() {
             <Button variant="soft" onClick={() => navigate(`${basePath}/reports`)} className="h-auto flex-col gap-1 px-2 py-3 sm:gap-2 sm:py-4">
               <BarChart3 className="h-4 w-4 sm:h-5 sm:w-5" />
               <span className="text-[10px] sm:text-xs">Reports</span>
+            </Button>
+            <Button variant="soft" onClick={() => navigate(`${basePath}/fee-vouchers`)} className="h-auto flex-col gap-1 px-2 py-3 sm:gap-2 sm:py-4">
+              <Coins className="h-4 w-4 sm:h-5 sm:w-5" />
+              <span className="text-[10px] sm:text-xs">Vouchers</span>
             </Button>
           </div>
         </CardContent>
@@ -618,14 +717,65 @@ export function PrincipalHome() {
       </TabsContent>
 
       {/* Teachers Tab */}
-      <TabsContent value="teachers">
-        {schoolId && <PrincipalTeachersTab schoolId={schoolId} />}
-      </TabsContent>
+      {tabValues.has("teachers") && (
+        <TabsContent value="teachers">
+          {schoolId && <PrincipalTeachersTab schoolId={schoolId} />}
+        </TabsContent>
+      )}
 
       {/* Students Tab */}
-      <TabsContent value="students">
-        {schoolId && <PrincipalStudentsTab schoolId={schoolId} />}
-      </TabsContent>
+      {tabValues.has("students") && (
+        <TabsContent value="students">
+          {schoolId && <PrincipalStudentsTab schoolId={schoolId} />}
+        </TabsContent>
+      )}
+
+      {/* Leave Requests Tab */}
+      {tabValues.has("leaves") && (
+        <TabsContent value="leaves">
+          <HrLeavesModule />
+        </TabsContent>
+      )}
+
+      {/* Staff Attendance Tab */}
+      {tabValues.has("staff-attendance") && (
+        <TabsContent value="staff-attendance">
+          <HrAttendanceModule />
+        </TabsContent>
+      )}
+
+      {/* Parent-Child Linking Tab */}
+      {tabValues.has("parents") && (
+        <TabsContent value="parents">
+          {schoolId && <ParentChildLinkingTab schoolId={schoolId} />}
+        </TabsContent>
+      )}
+
+      {/* Complaints Tab */}
+      {tabValues.has("complaints") && (
+        <TabsContent value="complaints">
+          <PrincipalComplaintsModule />
+        </TabsContent>
+      )}
+
+      {/* Parent Notes Tab */}
+      {tabValues.has("parent-notes") && (
+        <TabsContent value="parent-notes">
+          <PrincipalParentNotesModule />
+        </TabsContent>
+      )}
+
+      {tabValues.has("fees") && (
+        <TabsContent value="fees">
+          <FeesAdvancedModule />
+        </TabsContent>
+      )}
+
+      {tabValues.has("admissions") && (
+        <TabsContent value="admissions">
+          <AdmissionsModule />
+        </TabsContent>
+      )}
     </Tabs>
   );
 }

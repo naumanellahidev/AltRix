@@ -73,6 +73,7 @@ export function AttendanceReportsModule() {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
+    if (perms.loading) return;
     const load = async () => {
       if (!schoolId || !user?.id) return;
 
@@ -89,21 +90,21 @@ export function AttendanceReportsModule() {
         setSections((sec ?? []) as Section[]);
       } else {
         const { data: ta } = await supabase
-          .from("teacher_assignments")
+          .from("teacher_subject_assignments")
           .select("class_section_id")
           .eq("school_id", schoolId)
           .eq("teacher_user_id", user.id);
-        const ids = (ta ?? []).map((x: any) => x.class_section_id as string);
+        const ids = [...new Set((ta ?? []).map((x: any) => x.class_section_id as string))];
         if (ids.length === 0) {
           setSections([]);
           return;
         }
-        const { data: sec } = await supabase.from("class_sections").select("id,name,class_id").in("id", ids);
+        const { data: sec } = await supabase.from("class_sections").select("id,name,class_id").eq("school_id", schoolId).in("id", ids);
         setSections((sec ?? []) as Section[]);
       }
     };
     void load();
-  }, [schoolId, user?.id, perms.canManageStudents]);
+  }, [schoolId, user?.id, perms.loading, perms.canManageStudents]);
 
   const run = async () => {
     if (!schoolId) return;

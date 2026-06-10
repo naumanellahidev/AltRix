@@ -31,6 +31,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useRealtimeTable } from "@/hooks/useRealtime";
+import { useActiveCampus } from "@/hooks/useActiveCampus";
 import {
   ResponsiveContainer,
   AreaChart,
@@ -86,6 +87,8 @@ export function OwnerOverviewModule({ schoolId }: Props) {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [refreshing, setRefreshing] = useState(false);
+  const activeCampusId = useActiveCampus(schoolId);
+  const campusEq = (q: any) => (activeCampusId ? q.eq("campus_id", activeCampusId) : q);
 
   const basePath = `/${schoolSlug}/school_owner`;
 
@@ -146,7 +149,7 @@ export function OwnerOverviewModule({ schoolId }: Props) {
 
   // Fetch all KPI data
   const { data: kpis, refetch: refetchKpis, isLoading } = useQuery({
-    queryKey: ["owner_overview_kpis", schoolId],
+    queryKey: ["owner_overview_kpis", schoolId, activeCampusId],
     queryFn: async () => {
       if (!schoolId) return null;
 
@@ -160,33 +163,43 @@ export function OwnerOverviewModule({ schoolId }: Props) {
         staffRes,
         teachersRes,
         marksRes,
+        timetableRes,
+        teacherAssignRes,
       ] = await Promise.all([
-        // Students
-        supabase.from("students").select("id,status").eq("school_id", schoolId),
-        // Payments
-        supabase.from("finance_payments").select("amount,paid_at").eq("school_id", schoolId),
-        // Expenses
+        // Students (campus-scoped)
+        campusEq(supabase.from("students").select("id,status").eq("school_id", schoolId)),
+        // Payments — fee_payments now carries campus_id
+        campusEq(supabase.from("fee_payments").select("amount,paid_at").eq("school_id", schoolId).eq("status", "success")),
+        // Expenses (school-wide; not campus tagged)
         supabase.from("finance_expenses").select("amount,expense_date").eq("school_id", schoolId),
-        // Attendance (7 days)
-        supabase
-          .from("attendance_entries")
-          .select("status")
-          .eq("school_id", schoolId)
-          .gte("created_at", d7Ago.toISOString()),
-        // Leads
+        // Attendance (7 days, campus-scoped)
+        campusEq(
+          supabase
+            .from("attendance_entries")
+            .select("status")
+            .eq("school_id", schoolId)
+            .gte("created_at", d7Ago.toISOString())
+        ),
+        // Leads (school-wide)
         supabase.from("crm_leads").select("id,status,created_at").eq("school_id", schoolId),
-        // Invoices
-        supabase.from("finance_invoices").select("id,status,total").eq("school_id", schoolId),
+        // Invoices (campus-scoped)
+        campusEq(supabase.from("fee_invoices").select("id,status,total_amount").eq("school_id", schoolId)),
         // Staff
         supabase.from("school_memberships").select("id").eq("school_id", schoolId),
         // Teachers
         supabase.from("user_roles").select("id").eq("school_id", schoolId).eq("role", "teacher"),
-        // Marks (for academic index)
-        supabase
-          .from("student_marks")
-          .select("marks,assessment_id")
-          .eq("school_id", schoolId)
-          .not("marks", "is", null),
+        // Marks (campus-scoped)
+        campusEq(
+          supabase
+            .from("student_marks")
+            .select("marks,assessment_id")
+            .eq("school_id", schoolId)
+            .not("marks", "is", null)
+        ),
+        // Timetable entries (to compute teacher utilization)
+        supabase.from("timetable_entries").select("teacher_id").eq("school_id", schoolId),
+        // Teacher subject assignments (active teachers with assignments)
+        supabase.from("teacher_subject_assignments").select("teacher_id").eq("school_id", schoolId),
       ]);
 
       const students = studentsRes.data || [];
@@ -198,6 +211,8 @@ export function OwnerOverviewModule({ schoolId }: Props) {
       const staff = staffRes.data || [];
       const teachers = teachersRes.data || [];
       const marks = marksRes.data || [];
+      const timetable = timetableRes.data || [];
+      const teacherAssignments = teacherAssignRes.data || [];
 
       // Student counts
       const totalStudents = students.length;
@@ -253,12 +268,18 @@ export function OwnerOverviewModule({ schoolId }: Props) {
       const pendingInvoices = invoices.filter((i) => i.status === "pending" || i.status === "unpaid").length;
       const paidInvoices = invoices.filter((i) => i.status === "paid").length;
       const unpaidAmount = invoices
-        .filter((i) => i.status !== "paid")
-        .reduce((sum, i) => sum + Number(i.total || 0), 0);
+        .filter((i: any) => i.status !== "paid")
+        .reduce((sum: number, i: any) => sum + Number(i.total_amount || 0), 0);
       const collectionRate = invoices.length > 0 ? Math.round((paidInvoices / invoices.length) * 100) : 0;
 
-      // Teacher utilization (placeholder - would need timetable data)
-      const teacherUtilization = 78; // Placeholder
+      // Teacher utilization: % of teachers actively scheduled or assigned
+      const scheduledTeacherIds = new Set<string>([
+        ...timetable.map((t: any) => t.teacher_id).filter(Boolean),
+        ...teacherAssignments.map((t: any) => t.teacher_id).filter(Boolean),
+      ]);
+      const teacherUtilization = teachers.length > 0
+        ? Math.round((scheduledTeacherIds.size / teachers.length) * 100)
+        : 0;
 
       return {
         totalStudents,
@@ -330,7 +351,7 @@ export function OwnerOverviewModule({ schoolId }: Props) {
     enabled: !!schoolId,
   });
 
-  // AI Insights (mock - will be replaced with real AI)
+  // AI Insights — derived from real KPIs
   const insights = useMemo(() => {
     if (!kpis) return [];
     const list: { type: "warning" | "success" | "info"; message: string; action?: string }[] = [];

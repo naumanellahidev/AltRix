@@ -53,7 +53,7 @@ const SEVERITY_CONFIG = {
 };
 
 const WARNING_TYPES = [
-  { value: "", label: "All Types" },
+  { value: "__all", label: "All Types" },
   { value: "attendance", label: "Attendance" },
   { value: "academic", label: "Academic" },
   { value: "behavioral", label: "Behavioral" },
@@ -63,7 +63,7 @@ const WARNING_TYPES = [
 
 export function EarlyWarningSystem({ schoolId }: Props) {
   const qc = useQueryClient();
-  const [filterType, setFilterType] = useState("");
+  const [filterType, setFilterType] = useState("__all");
   const [filterStatus, setFilterStatus] = useState("active");
   const [selectedWarning, setSelectedWarning] = useState<any>(null);
   const [resolutionNotes, setResolutionNotes] = useState("");
@@ -83,7 +83,7 @@ export function EarlyWarningSystem({ schoolId }: Props) {
         .eq("school_id", schoolId)
         .order("created_at", { ascending: false });
 
-      if (filterType) {
+      if (filterType && filterType !== "__all") {
         query = query.eq("warning_type", filterType);
       }
 
@@ -120,7 +120,6 @@ export function EarlyWarningSystem({ schoolId }: Props) {
         .update({
           status: "acknowledged",
           acknowledged_at: new Date().toISOString(),
-          acknowledged_by: user?.id,
         })
         .eq("id", warningId);
 
@@ -134,15 +133,12 @@ export function EarlyWarningSystem({ schoolId }: Props) {
 
   const resolveMutation = useMutation({
     mutationFn: async ({ warningId, notes }: { warningId: string; notes: string }) => {
-      const { data: { user } } = await supabase.auth.getUser();
-      
       const { error } = await supabase
         .from("ai_early_warnings")
         .update({
           status: "resolved",
           resolved_at: new Date().toISOString(),
-          resolved_by: user?.id,
-          resolution_notes: notes,
+          description: notes ? `[Resolved] ${notes}` : undefined,
         })
         .eq("id", warningId);
 

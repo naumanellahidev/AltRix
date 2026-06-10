@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { CheckCircle, Clock, FileText, Send, Eye, Paperclip, AlertTriangle, WifiOff } from "lucide-react";
+import { CheckCircle, Clock, Send, Eye, Paperclip, WifiOff } from "lucide-react";
 import { FileUploadArea } from "@/components/assignments/FileUploadArea";
 import { AttachmentsList } from "@/components/assignments/AttachmentsList";
 import { useOfflineAssignments, useOfflineHomework, useOfflineEnrollments } from "@/hooks/useOfflineData";
@@ -21,24 +21,17 @@ type Assignment = {
   due_date: string | null; 
   status: string;
   max_marks: number;
-  assignment_type: string;
-  late_penalty_percent_per_day: number;
-  max_late_penalty_percent: number;
-  allow_late_submissions: boolean;
 };
 
 type Submission = {
   id: string;
   assignment_id: string;
-  submission_text: string | null;
+  content: string | null;
   attachment_urls: string[] | null;
   submitted_at: string;
   status: string;
-  marks_obtained: number | null;
+  marks: number | null;
   feedback: string | null;
-  days_late: number;
-  penalty_applied: number;
-  marks_before_penalty: number | null;
 };
 
 type Homework = { id: string; title: string; due_date: string; status: string };
@@ -86,10 +79,6 @@ export function StudentAssignmentsModule({ myStudent, schoolId }: { myStudent: a
       due_date: a.dueDate,
       status: a.status,
       max_marks: a.maxMarks,
-      assignment_type: 'assignment',
-      late_penalty_percent_per_day: 5,
-      max_late_penalty_percent: 50,
-      allow_late_submissions: true,
     })) as Assignment[];
   }, [cachedAssignments, mySectionIds]);
 
@@ -124,7 +113,7 @@ export function StudentAssignmentsModule({ myStudent, schoolId }: { myStudent: a
     (async () => {
       const { data: subs } = await supabase
         .from("assignment_submissions")
-        .select("id,assignment_id,submission_text,attachment_urls,submitted_at,status,marks_obtained,feedback,days_late,penalty_applied,marks_before_penalty")
+        .select("id,assignment_id,content,attachment_urls,submitted_at,status,marks,feedback")
         .eq("school_id", schoolId)
         .eq("student_id", myStudent.studentId);
       
@@ -141,7 +130,7 @@ export function StudentAssignmentsModule({ myStudent, schoolId }: { myStudent: a
     }
     const existing = submissions.get(assignment.id);
     setSelectedAssignment(assignment);
-    setSubmissionText(existing?.submission_text || "");
+    setSubmissionText(existing?.content || "");
     const existingFiles = (existing?.attachment_urls || []).map((path) => ({
       name: path.split("/").pop() || path,
       path,
@@ -180,15 +169,7 @@ export function StudentAssignmentsModule({ myStudent, schoolId }: { myStudent: a
       return;
     }
     
-    let daysLate = 0;
     const isLate = selectedAssignment.due_date && new Date(selectedAssignment.due_date) < new Date();
-    
-    if (isLate && selectedAssignment.due_date) {
-      const dueDate = new Date(selectedAssignment.due_date);
-      const now = new Date();
-      const diffTime = now.getTime() - dueDate.getTime();
-      daysLate = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    }
     
     setSubmitting(true);
     const existing = submissions.get(selectedAssignment.id);
@@ -198,11 +179,10 @@ export function StudentAssignmentsModule({ myStudent, schoolId }: { myStudent: a
       const { error } = await supabase
         .from("assignment_submissions")
         .update({
-          submission_text: submissionText,
+          content: submissionText,
           attachment_urls: attachmentUrls.length > 0 ? attachmentUrls : null,
           status: isLate ? "late" : "submitted",
           submitted_at: new Date().toISOString(),
-          days_late: daysLate,
         })
         .eq("id", existing.id);
       
@@ -219,10 +199,9 @@ export function StudentAssignmentsModule({ myStudent, schoolId }: { myStudent: a
           school_id: schoolId,
           assignment_id: selectedAssignment.id,
           student_id: myStudent.studentId,
-          submission_text: submissionText,
+          content: submissionText,
           attachment_urls: attachmentUrls.length > 0 ? attachmentUrls : null,
           status: isLate ? "late" : "submitted",
-          days_late: daysLate,
         });
       
       if (error) {
@@ -247,7 +226,7 @@ export function StudentAssignmentsModule({ myStudent, schoolId }: { myStudent: a
   const getSubmissionStatus = (assignment: Assignment) => {
     const sub = submissions.get(assignment.id);
     if (!sub) return { label: "Not Submitted", variant: "outline" as const, icon: Clock };
-    if (sub.status === "graded") return { label: `Graded: ${sub.marks_obtained}/${assignment.max_marks}`, variant: "default" as const, icon: CheckCircle };
+    if (sub.status === "graded") return { label: `Graded: ${sub.marks}/${assignment.max_marks}`, variant: "default" as const, icon: CheckCircle };
     if (sub.status === "late") return { label: "Submitted Late", variant: "secondary" as const, icon: Send };
     return { label: "Submitted", variant: "secondary" as const, icon: CheckCircle };
   };
@@ -315,7 +294,7 @@ export function StudentAssignmentsModule({ myStudent, schoolId }: { myStudent: a
                         <div className="flex items-center gap-2">
                           <CardTitle className="text-base">{a.title}</CardTitle>
                           <Badge variant="outline" className="text-xs capitalize">
-                            {a.assignment_type}
+                            assignment
                           </Badge>
                           {hasAttachments(a) && (
                             <Paperclip className="h-4 w-4 text-muted-foreground" />
@@ -409,34 +388,14 @@ export function StudentAssignmentsModule({ myStudent, schoolId }: { myStudent: a
           </DialogHeader>
           <div className="space-y-4 py-4">
             {selectedAssignment?.due_date && new Date(selectedAssignment.due_date) < new Date() && (
-              (() => {
-                const dueDate = new Date(selectedAssignment.due_date);
-                const now = new Date();
-                const daysLate = Math.ceil((now.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
-                const penaltyPercent = Math.min(
-                  daysLate * selectedAssignment.late_penalty_percent_per_day,
-                  selectedAssignment.max_late_penalty_percent
-                );
-                return (
-                  <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-950">
-                    <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400 mt-0.5" />
-                    <div className="text-sm">
-                      <p className="font-medium text-amber-800 dark:text-amber-200">
-                        Late Submission ({daysLate} day{daysLate !== 1 ? "s" : ""} overdue)
-                      </p>
-                      {selectedAssignment.late_penalty_percent_per_day > 0 ? (
-                        <p className="text-amber-700 dark:text-amber-300 mt-0.5">
-                          A {penaltyPercent}% penalty will be applied to your grade.
-                        </p>
-                      ) : (
-                        <p className="text-amber-700 dark:text-amber-300 mt-0.5">
-                          No late penalty configured for this assignment.
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                );
-              })()
+              <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-950">
+                <Clock className="h-5 w-5 text-amber-600 dark:text-amber-400 mt-0.5" />
+                <div className="text-sm">
+                  <p className="font-medium text-amber-800 dark:text-amber-200">
+                    This assignment is past due
+                  </p>
+                </div>
+              </div>
             )}
             
             <div>
@@ -483,29 +442,11 @@ export function StudentAssignmentsModule({ myStudent, schoolId }: { myStudent: a
           </DialogHeader>
           {viewSubmission && (
             <div className="space-y-4 py-4">
-              {viewSubmission.penalty_applied > 0 && viewSubmission.marks_before_penalty !== null && (
-                <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-950">
-                  <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400 mt-0.5" />
-                  <div className="text-sm">
-                    <p className="font-medium text-amber-800 dark:text-amber-200">
-                      Late Penalty Applied
-                    </p>
-                    <p className="text-amber-700 dark:text-amber-300 mt-0.5">
-                      Original: {viewSubmission.marks_before_penalty}/{selectedAssignment?.max_marks} → 
-                      After {viewSubmission.penalty_applied}% penalty: {viewSubmission.marks_obtained}/{selectedAssignment?.max_marks}
-                    </p>
-                    <p className="text-amber-600 dark:text-amber-400 text-xs mt-1">
-                      Submitted {viewSubmission.days_late} day{viewSubmission.days_late !== 1 ? "s" : ""} late
-                    </p>
-                  </div>
-                </div>
-              )}
-              
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <p className="text-sm text-muted-foreground">Your Mark</p>
                   <p className="text-2xl font-bold">
-                    {viewSubmission.marks_obtained ?? "—"} / {selectedAssignment?.max_marks}
+                    {viewSubmission.marks ?? "—"} / {selectedAssignment?.max_marks}
                   </p>
                 </div>
                 <div>
@@ -521,11 +462,11 @@ export function StudentAssignmentsModule({ myStudent, schoolId }: { myStudent: a
                 </div>
               )}
               
-              {viewSubmission.submission_text && (
+              {viewSubmission.content && (
                 <div>
                   <p className="text-sm font-medium mb-1">Your Submission</p>
                   <div className="rounded-lg border p-3 text-sm whitespace-pre-wrap max-h-40 overflow-auto">
-                    {viewSubmission.submission_text}
+                    {viewSubmission.content}
                   </div>
                 </div>
               )}

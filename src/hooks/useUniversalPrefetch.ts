@@ -465,15 +465,15 @@ async function prefetchAttendanceData(schoolId: string, cancelled: boolean, onPr
       // Then fetch entries for these sessions
       if (data.length > 0) {
         const sessionIds = data.map(s => s.id);
-        const { data: entries } = await supabase
+        const { data: entries } = await (supabase as any)
           .from('attendance_entries')
           .select('id, student_id, session_id, status, note, school_id')
           .eq('school_id', schoolId)
           .in('session_id', sessionIds);
         if (entries) {
-          const sessionMap = new Map(data.map(s => [s.id, s]));
-          const cachedEntries: CachedAttendance[] = entries.map(e => {
-            const session = sessionMap.get(e.session_id);
+          const sessionMap = new Map(data.map((s: any) => [s.id, s]));
+          const cachedEntries: CachedAttendance[] = entries.map((e: any) => {
+            const session = sessionMap.get(e.session_id) as any;
             return {
               id: e.id, schoolId: e.school_id, studentId: e.student_id,
               sessionId: e.session_id, sessionDate: session?.session_date || '',
@@ -559,19 +559,36 @@ async function prefetchAssessmentsAndGrades(schoolId: string, cancelled: boolean
 async function prefetchHrData(schoolId: string, cancelled: boolean, onProgress: (task: string) => void) {
   const tasks: Promise<void>[] = [];
 
-  // Staff Members (from directory)
+  // Staff Members (from directory) — exclude students, parents, owners, super/platform admins
   tasks.push((async () => {
-    const { data } = await supabase
-      .from('school_user_directory')
-      .select('user_id, email, display_name')
-      .eq('school_id', schoolId)
-      .limit(BATCH_SIZE);
-    if (!cancelled && data) {
-      const cached: CachedStaffMember[] = data.map(s => ({
-        id: s.user_id, schoolId, userId: s.user_id,
-        displayName: s.display_name || s.email || 'Unknown',
-        email: s.email, role: null, status: 'active', cachedAt: Date.now(),
-      }));
+    const [dirRes, rolesRes, ownersRes, platformRes] = await Promise.all([
+      supabase.from('school_user_directory')
+        .select('user_id, email, display_name')
+        .eq('school_id', schoolId)
+        .limit(BATCH_SIZE),
+      supabase.from('user_roles').select('user_id, role').eq('school_id', schoolId),
+      supabase.from('school_owner_assignments').select('owner_user_id').eq('school_id', schoolId),
+      supabase.from('platform_super_admins' as any).select('user_id'),
+    ]);
+    if (!cancelled && dirRes.data) {
+      const NON_STAFF = new Set(['student', 'parent', 'owner', 'school_owner']);
+      const excluded = new Set<string>();
+      (rolesRes.data ?? []).forEach((r: any) => {
+        if (r.user_id && NON_STAFF.has(String(r.role).toLowerCase())) excluded.add(r.user_id);
+      });
+      (ownersRes.data ?? []).forEach((o: any) => {
+        if (o.owner_user_id) excluded.add(o.owner_user_id);
+      });
+      ((platformRes as any).data ?? []).forEach((p: any) => {
+        if (p.user_id) excluded.add(p.user_id);
+      });
+      const cached: CachedStaffMember[] = dirRes.data
+        .filter((s: any) => s.user_id && !excluded.has(s.user_id))
+        .map(s => ({
+          id: s.user_id, schoolId, userId: s.user_id,
+          displayName: s.display_name || s.email || 'Unknown',
+          email: s.email, role: null, status: 'active', cachedAt: Date.now(),
+        }));
       await cacheStaffMembers(cached);
       onProgress('Staff Members');
     }

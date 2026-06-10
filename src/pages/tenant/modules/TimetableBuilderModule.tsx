@@ -1,7 +1,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { DndContext, type DragEndEvent, useDraggable, useDroppable, TouchSensor, MouseSensor, useSensor, useSensors, PointerSensor } from "@dnd-kit/core";
 import { useParams } from "react-router-dom";
-import { CalendarDays, Coffee, Download, Pencil, Plus, Printer, Trash2, Wrench } from "lucide-react";
+import { CalendarDays, Coffee, Download, Pencil, Plus, Printer, Trash2, Wrench, User, MapPin, Sparkles, BookOpen } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
 import { useTenant } from "@/hooks/useTenant";
@@ -90,11 +90,16 @@ function SubjectTile({ id, label }: { id: string; label: string }) {
       {...listeners}
       {...attributes}
       className={
-        "cursor-grab select-none rounded-2xl border bg-surface px-3 py-2 text-sm shadow-sm transition active:cursor-grabbing touch-none " +
-        (isDragging ? "opacity-70 z-50" : "")
+        "cursor-grab select-none rounded-xl border border-primary/10 bg-background/80 hover:bg-background hover:shadow-md px-3.5 py-2.5 text-xs font-bold text-foreground transition active:cursor-grabbing touch-none shadow-sm flex items-center justify-between gap-2 hover:-translate-y-0.5 duration-200 " +
+        (isDragging ? "opacity-60 z-50 ring-2 ring-primary border-primary" : "")
       }
     >
-      {label}
+      <span className="truncate">{label}</span>
+      <div className="flex flex-col gap-0.5 opacity-40">
+        <span className="w-1 h-1 rounded-full bg-foreground" />
+        <span className="w-1 h-1 rounded-full bg-foreground" />
+        <span className="w-1 h-1 rounded-full bg-foreground" />
+      </div>
     </div>
   );
 }
@@ -125,58 +130,74 @@ function TimetableCell({
     <div
       ref={setNodeRef}
       className={
-        "group relative min-h-[68px] rounded-2xl border bg-surface p-2 transition " +
-        (isOver ? "ring-2 ring-primary/40" : "") +
-        (hasConflicts ? " border-destructive/50 bg-destructive/5" : "")
+        "group relative min-h-[76px] rounded-2xl border transition-all duration-300 p-2.5 flex flex-col justify-between shadow-sm hover:scale-[1.02] " +
+        (isOver ? "ring-2 ring-primary/30 border-primary bg-primary/5 shadow-premium" : "") +
+        (title
+          ? hasConflicts
+            ? " bg-gradient-to-br from-red-500/5 to-red-500/10 border-red-500/30 text-red-900"
+            : " bg-gradient-to-br from-background to-primary/5 border-primary/10 text-foreground"
+          : " bg-background/40 border-primary/5 hover:border-primary/20 hover:bg-background/80 hover:shadow-md")
       }
     >
       {title ? (
-        <div className="space-y-0.5 pr-8">
-          <div className="flex items-center gap-1.5">
-            <p className="text-sm font-medium leading-snug">{title}</p>
-            <ConflictBadge conflicts={conflicts} />
+        <div className="space-y-1 pr-6 h-full flex flex-col justify-between w-full">
+          <div className="space-y-0.5">
+            <div className="flex items-center gap-1">
+              <BookOpen className={`h-3 w-3 ${hasConflicts ? "text-red-600" : "text-primary/70"}`} />
+              <span className={`text-[11px] font-bold tracking-tight leading-none ${hasConflicts ? "text-red-700" : "text-primary"}`}>{title}</span>
+              <ConflictBadge conflicts={conflicts} />
+            </div>
+            {subtitle && (
+              <div className="flex items-center gap-1 text-[10px] text-muted-foreground font-medium mt-0.5">
+                <User className="h-2.5 w-2.5 text-primary/60" />
+                <span className="truncate max-w-[120px]">{subtitle}</span>
+              </div>
+            )}
           </div>
-          {subtitle && <p className="text-xs text-muted-foreground">{subtitle}</p>}
-          {meta && <p className="text-xs text-muted-foreground">{meta}</p>}
+          {meta && (
+            <div className="inline-flex items-center gap-1 self-start rounded-md bg-primary/5 border border-primary/10 px-1.5 py-0.5 text-[9px] font-semibold text-primary uppercase mt-0.5">
+              <MapPin className="h-2.5 w-2.5 text-primary/70" />
+              <span>{meta}</span>
+            </div>
+          )}
         </div>
       ) : (
-        <div className="flex items-center justify-between h-full">
-          <p className="text-xs text-muted-foreground hidden sm:block">Drop subject</p>
-          <p className="text-xs text-muted-foreground sm:hidden">Tap +</p>
-          {/* Add button - always visible on mobile/tablet, hover on desktop */}
+        <div className="flex items-center justify-between h-full w-full">
+          <p className="text-[10px] font-medium text-muted-foreground/60 hidden sm:block">Empty Slot</p>
+          <p className="text-[10px] font-medium text-muted-foreground/60 sm:hidden">Empty</p>
           {onAdd && (
             <button
               type="button"
               onClick={onAdd}
-              className="inline-flex items-center justify-center rounded-lg bg-primary/10 p-2 text-primary hover:bg-primary/20 transition-opacity opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
+              className="inline-flex items-center justify-center rounded-xl bg-primary/10 p-2 text-primary hover:bg-primary/20 transition-all shadow-sm"
               aria-label="Add subject"
             >
-              <Plus className="h-4 w-4" />
+              <Plus className="h-3.5 w-3.5" />
             </button>
           )}
         </div>
       )}
 
-      {/* Action buttons - visible on hover for desktop, always visible on mobile when has content */}
-      <div className={`absolute right-2 top-2 items-center gap-1 ${title ? "flex sm:hidden sm:group-hover:flex" : "hidden"}`}>
+      {/* Action buttons */}
+      <div className={`absolute right-1.5 top-1.5 items-center gap-1 ${title ? "flex opacity-0 group-hover:opacity-100 transition-opacity duration-200" : "hidden"}`}>
         {onEdit && title && (
           <button
             type="button"
             onClick={onEdit}
-            className="inline-flex rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-accent-foreground bg-background/80 backdrop-blur-sm"
+            className="inline-flex rounded-lg p-1.5 text-muted-foreground hover:bg-primary/10 hover:text-primary bg-background border border-primary/5 shadow-sm animate-in fade-in zoom-in duration-200"
             aria-label="Edit"
           >
-            <Pencil className="h-4 w-4" />
+            <Pencil className="h-3 w-3" />
           </button>
         )}
         {onClear && title && (
           <button
             type="button"
             onClick={onClear}
-            className="inline-flex rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-accent-foreground bg-background/80 backdrop-blur-sm"
+            className="inline-flex rounded-lg p-1.5 text-muted-foreground hover:bg-red-500/10 hover:text-red-600 bg-background border border-red-500/5 shadow-sm animate-in fade-in zoom-in duration-200"
             aria-label="Clear"
           >
-            <Trash2 className="h-4 w-4" />
+            <Trash2 className="h-3 w-3" />
           </button>
         )}
       </div>
@@ -276,7 +297,10 @@ export function TimetableBuilderModule() {
         .eq("class_section_id", sectionId),
     ]);
 
-    const allowedSubjectIds = new Set((css ?? []).map((r) => (r as ClassSectionSubjectRow).subject_id));
+    const allowedSubjectIds = new Set([
+      ...(css ?? []).map((r) => (r as ClassSectionSubjectRow).subject_id),
+      ...(tsa ?? []).map((r) => (r as TeacherSubjectAssignmentRow).subject_id)
+    ]);
     setSubjects(((subj ?? []) as SubjectRow[]).filter((s) => allowedSubjectIds.has(s.id)));
     setTeacherAssignments((tsa ?? []) as TeacherSubjectAssignmentRow[]);
     setEntries((tte ?? []) as EntryRow[]);
@@ -298,6 +322,15 @@ export function TimetableBuilderModule() {
   useEffect(() => {
     void refreshSection();
   }, [refreshSection]);
+
+  useEffect(() => {
+    const handleApplied = () => {
+      void refreshAllEntries();
+      if (sectionId) void refreshSection();
+    };
+    window.addEventListener("timetable:applied", handleApplied);
+    return () => window.removeEventListener("timetable:applied", handleApplied);
+  }, [refreshAllEntries, refreshSection, sectionId]);
 
   // Realtime subscription for live updates
   useRealtimeTable({
@@ -444,30 +477,33 @@ export function TimetableBuilderModule() {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       {schoolId && (
-        <Card className="shadow-elevated no-print">
-          <CardHeader>
-            <CardTitle className="font-display text-xl">AI Timetable (Smart Suggestions)</CardTitle>
+        <Card className="shadow-premium border-primary/10 bg-surface/30 backdrop-blur-md rounded-3xl overflow-hidden no-print">
+          <CardHeader className="border-b border-primary/5 bg-primary/5">
+            <CardTitle className="font-display text-xl font-bold tracking-tight text-foreground flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-primary animate-pulse" />
+              AI Timetable (Smart Suggestions)
+            </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="pt-6">
             <SmartTimetableGenerator schoolId={schoolId} />
           </CardContent>
         </Card>
       )}
 
-      <Card className="shadow-elevated no-print">
-        <CardHeader>
-          <CardTitle className="font-display text-xl">Timetable Builder</CardTitle>
-          <p className="text-sm text-muted-foreground">Drag subjects into the grid to build a section timetable.</p>
+      <Card className="shadow-premium border-primary/10 bg-surface/30 backdrop-blur-md rounded-3xl overflow-hidden no-print">
+        <CardHeader className="border-b border-primary/5 bg-primary/5">
+          <CardTitle className="font-display text-xl font-bold tracking-tight text-foreground">Timetable Builder</CardTitle>
+          <p className="text-xs text-muted-foreground">Drag subjects into the grid to build a section timetable.</p>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+        <CardContent className="space-y-6 pt-6 px-6">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
             <Select value={sectionId} onValueChange={setSectionId}>
-              <SelectTrigger>
+              <SelectTrigger className="rounded-2xl border-primary/10 bg-background/50 hover:bg-background/80 transition-colors focus:ring-primary/30 h-10">
                 <SelectValue placeholder="Choose section" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="rounded-2xl border-primary/10">
                 {sections.map((s) => (
                   <SelectItem key={s.id} value={s.id}>
                     {sectionLabelById.get(s.id) ?? s.name}
@@ -476,25 +512,25 @@ export function TimetableBuilderModule() {
               </SelectContent>
             </Select>
 
-            <Button variant="soft" onClick={refreshSection} disabled={!sectionId || busy}>
+            <Button variant="soft" onClick={refreshSection} disabled={!sectionId || busy} className="rounded-2xl h-10 border border-primary/10 hover:bg-primary/10">
               <CalendarDays className="mr-2 h-4 w-4" /> Refresh
             </Button>
 
             <div className="flex flex-wrap gap-2 md:justify-self-end">
-              <Button variant="outline" onClick={exportCsv} disabled={!sectionId || entries.length === 0}>
+              <Button variant="outline" onClick={exportCsv} disabled={!sectionId || entries.length === 0} className="rounded-2xl h-10 border-primary/10">
                 <Download className="mr-2 h-4 w-4" /> Export CSV
               </Button>
-              <Button variant="outline" onClick={() => setToolsOpen(true)} disabled={!sectionId}>
+              <Button variant="outline" onClick={() => setToolsOpen(true)} disabled={!sectionId} className="rounded-2xl h-10 border-primary/10">
                 <Wrench className="mr-2 h-4 w-4" /> Tools
               </Button>
-              <Button variant="outline" onClick={() => setPrintPreviewOpen(true)} disabled={!sectionId}>
+              <Button variant="outline" onClick={() => setPrintPreviewOpen(true)} disabled={!sectionId} className="rounded-2xl h-10 border-primary/10">
                 <Printer className="mr-2 h-4 w-4" /> Print
               </Button>
             </div>
           </div>
 
           {sectionId && (
-            <div className="flex flex-wrap items-center justify-between gap-4 border-t pt-4">
+            <div className="flex flex-wrap items-center justify-between gap-4 border-t border-primary/5 pt-4">
               <PublishControls
                 schoolId={schoolId}
                 sectionId={sectionId}
@@ -513,16 +549,16 @@ export function TimetableBuilderModule() {
       </Card>
 
       {!perms.loading && perms.error && (
-        <div className="rounded-3xl bg-surface p-5 shadow-elevated no-print">
-          <p className="text-sm font-medium">Permissions</p>
-          <p className="mt-1 text-sm text-muted-foreground">{perms.error}</p>
+        <div className="rounded-3xl border border-red-500/10 bg-red-500/5 p-5 shadow-premium no-print">
+          <p className="text-sm font-semibold text-red-700">Permissions Error</p>
+          <p className="mt-1 text-xs text-red-600/90">{perms.error}</p>
         </div>
       )}
 
       {!perms.loading && !canEdit && (
-        <div className="rounded-3xl bg-accent p-5 shadow-elevated no-print">
-          <p className="text-sm font-medium text-accent-foreground">Read-only mode</p>
-          <p className="mt-1 text-sm text-muted-foreground">
+        <div className="rounded-3xl border border-amber-500/10 bg-amber-500/5 p-5 shadow-premium no-print">
+          <p className="text-sm font-semibold text-amber-700">Read-only mode</p>
+          <p className="mt-1 text-xs text-amber-600/90">
             You can view timetables, but only academic admins can edit periods and grid slots.
           </p>
         </div>
@@ -535,22 +571,23 @@ export function TimetableBuilderModule() {
       )}
 
       {!sectionId ? (
-        <div className="rounded-3xl bg-surface p-6 shadow-elevated">
-          <p className="text-sm text-muted-foreground">Select a section to start building its timetable.</p>
+        <div className="rounded-3xl border border-dashed border-primary/10 bg-surface/20 p-8 text-center shadow-premium">
+          <CalendarDays className="h-8 w-8 text-primary/40 mx-auto animate-pulse mb-2" />
+          <p className="text-sm font-semibold text-foreground/70">Select a section to start building its timetable.</p>
         </div>
       ) : !canEdit ? (
         <div className="print-area">
           {entries.length === 0 ? (
-            <div className="rounded-3xl bg-surface p-6 shadow-elevated">
+            <div className="rounded-3xl border border-dashed border-primary/10 bg-surface/20 p-8 text-center shadow-premium">
               <p className="text-sm text-muted-foreground">No timetable entries yet.</p>
             </div>
           ) : (
-            <Card className="shadow-elevated">
-              <CardHeader className="no-print">
-                <CardTitle className="font-display text-lg">Preview</CardTitle>
-                <p className="text-sm text-muted-foreground">Read-only timetable grid.</p>
+            <Card className="shadow-premium border-primary/10 bg-surface/30 backdrop-blur-md rounded-3xl overflow-hidden">
+              <CardHeader className="no-print border-b border-primary/5 bg-primary/5">
+                <CardTitle className="font-display text-lg font-bold">Preview</CardTitle>
+                <p className="text-xs text-muted-foreground">Read-only timetable grid.</p>
               </CardHeader>
-              <CardContent>
+              <CardContent className="pt-6">
                 <PeriodTimetableGrid periods={periods} entries={readOnlyEntries} printable={false} />
               </CardContent>
             </Card>
@@ -559,121 +596,132 @@ export function TimetableBuilderModule() {
       ) : (
         <DndContext sensors={sensors} onDragEnd={onDragEnd}>
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-[320px_1fr]">
-            <Card className="shadow-elevated no-print">
-              <CardHeader>
-                <CardTitle className="font-display text-lg">Subjects</CardTitle>
-                <p className="text-sm text-muted-foreground">Only subjects enabled for this section appear here.</p>
+            <Card className="shadow-premium border-primary/10 bg-surface/30 backdrop-blur-md rounded-3xl overflow-hidden no-print">
+              <CardHeader className="border-b border-primary/5 bg-primary/5">
+                <CardTitle className="font-display text-lg font-bold text-foreground">Subjects</CardTitle>
+                <p className="text-xs text-muted-foreground">Only subjects enabled for this section appear here.</p>
               </CardHeader>
-              <CardContent className="space-y-2">
+              <CardContent className="space-y-3 pt-6 px-6">
                 {subjects.map((s) => {
                   const teacherId = teacherBySubjectId.get(s.id);
                   const teacherLabel = teacherId ? teacherLabelByUserId.get(teacherId) ?? teacherId : null;
                   return (
-                    <div key={s.id} className="space-y-1">
+                    <div key={s.id} className="p-3 rounded-2xl bg-background/30 border border-primary/5 hover:border-primary/15 transition-all space-y-2">
                       <SubjectTile id={`sub:${s.id}`} label={s.name} />
-                      <p className="pl-2 text-xs text-muted-foreground">
-                        {teacherLabel ? `Teacher: ${teacherLabel}` : "No teacher assigned"}
-                      </p>
+                      <div className="flex items-center gap-1.5 pl-1.5 text-xs text-muted-foreground">
+                        <User className="h-3 w-3 text-primary/60" />
+                        <span className="truncate">
+                          {teacherLabel ? teacherLabel : "No teacher assigned"}
+                        </span>
+                      </div>
                     </div>
                   );
                 })}
                 {subjects.length === 0 && (
-                  <p className="text-sm text-muted-foreground">No subjects assigned to this section yet.</p>
+                  <p className="text-sm text-muted-foreground text-center py-4">No subjects assigned to this section yet.</p>
                 )}
               </CardContent>
             </Card>
 
-            <Card className="shadow-elevated print-area">
-              <CardHeader className="no-print">
-                <CardTitle className="font-display text-lg">Grid</CardTitle>
-                <p className="text-sm text-muted-foreground">Drop subject tiles into day × period slots.</p>
+            <Card className="shadow-premium border-primary/10 bg-surface/30 backdrop-blur-md rounded-3xl overflow-hidden print-area">
+              <CardHeader className="no-print border-b border-primary/5 bg-primary/5">
+                <CardTitle className="font-display text-lg font-bold text-foreground">Grid</CardTitle>
+                <p className="text-xs text-muted-foreground">Drop subject tiles into day × period slots.</p>
               </CardHeader>
-              <CardContent>
-                <div className="overflow-auto">
-                  <div
-                    className="grid gap-2"
-                    style={{ gridTemplateColumns: `160px repeat(${Math.max(periods.length, 1)}, minmax(180px, 1fr))` }}
-                  >
-                    <div className="sticky left-0 z-10 rounded-2xl bg-surface px-2 py-2 text-xs font-medium text-muted-foreground">
-                      Day
-                    </div>
-                    {periods.map((p) => (
-                      <div key={p.id} className={`rounded-2xl px-2 py-2 ${p.is_break ? "bg-accent/50" : "bg-surface"}`}>
-                        <p className="flex items-center gap-1.5 text-sm font-medium">
-                          {p.is_break && <Coffee className="h-3.5 w-3.5 text-muted-foreground" />}
-                          {p.label}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {timeLabel(p.start_time)}{p.start_time && p.end_time ? "–" : ""}{timeLabel(p.end_time)}
-                        </p>
-                      </div>
-                    ))}
-
-                    {DAYS.map((d) => (
-                      <Fragment key={`row:${d.id}`}>
-                        <div className="sticky left-0 z-10 flex items-center rounded-2xl bg-surface px-2 py-2 text-sm font-medium">
-                          {d.label}
-                        </div>
-                        {periods.map((p) => {
-                          const isBreak = breakPeriodIds.has(p.id);
-                          
-                          // Break periods show a special cell
-                          if (isBreak) {
-                            return (
-                              <div
-                                key={`cell:${d.id}:${p.id}`}
-                                className="flex min-h-[68px] items-center justify-center rounded-2xl border border-dashed border-accent bg-accent/30 p-2"
-                              >
-                                <div className="flex flex-col items-center gap-1 text-center">
-                                  <Coffee className="h-4 w-4 text-muted-foreground" />
-                                  <p className="text-xs font-medium text-muted-foreground">{p.label}</p>
-                                </div>
+              <CardContent className="pt-6">
+                <div className="overflow-auto rounded-2xl border border-primary/10 shadow-inner bg-background/50">
+                  <table className="w-full text-xs border-collapse">
+                    <thead>
+                      <tr>
+                        <th className="p-3 border-b border-r border-primary/10 bg-primary/5 font-semibold text-primary text-center">Period</th>
+                        {DAYS.map((d) => (
+                          <th key={d.id} className="p-3 border-b border-primary/10 bg-primary/5 font-semibold text-primary text-center min-w-[150px]">
+                            {d.label}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {periods.map((p) => {
+                        const isBreak = breakPeriodIds.has(p.id);
+                        return (
+                          <tr key={p.id} className="hover:bg-primary/5 transition-colors">
+                            <td className={`p-3 border-r border-b border-primary/10 bg-primary/5 text-center font-bold transition-all ${isBreak ? "bg-amber-500/5 text-amber-600/80" : "text-primary/80"}`}>
+                              <div className="flex flex-col items-center justify-center gap-0.5">
+                                <p className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider">
+                                  {isBreak && <Coffee className="h-3.5 w-3.5 text-amber-500" />}
+                                  {p.label}
+                                </p>
+                                <p className="text-[10px] text-muted-foreground font-medium">
+                                  {timeLabel(p.start_time)}{p.start_time && p.end_time ? "–" : ""}{timeLabel(p.end_time)}
+                                </p>
                               </div>
-                            );
-                          }
-
-                          const slotKey = `${d.id}:${p.id}`;
-                          const e = entryBySlot.get(slotKey) ?? null;
-                          const teacherLabel = e?.teacher_user_id
-                            ? teacherLabelByUserId.get(e.teacher_user_id) ?? e.teacher_user_id
-                            : null;
-
-                          const roomLabel = e?.room ? `Room: ${e.room}` : null;
-                          const subtitle = teacherLabel ? `Teacher: ${teacherLabel}` : null;
-                          const entryConflicts = e ? conflictMap.get(e.id) ?? [] : [];
-
-                          return (
-                            <TimetableCell
-                              key={`cell:${slotKey}`}
-                              id={`cell:${d.id}:${p.id}`}
-                              title={e?.subject_name ?? null}
-                              subtitle={subtitle}
-                              meta={roomLabel}
-                              conflicts={entryConflicts}
-                              onClear={e ? () => void clearSlot(d.id, p.id) : null}
-                              onEdit={
-                                e
-                                  ? () => {
-                                      setEditEntryId(e.id);
-                                      setEditTeacherUserId(e.teacher_user_id ?? "");
-                                      setEditRoom(e.room ?? "");
-                                    }
-                                  : null
+                            </td>
+                            {DAYS.map((d) => {
+                              if (isBreak) {
+                                return (
+                                  <td
+                                    key={`cell:${d.id}:${p.id}`}
+                                    className="p-3 border-b border-primary/10 align-middle text-center bg-amber-500/[0.02]"
+                                  >
+                                    <div className="flex flex-col items-center gap-1 py-3 text-center opacity-60">
+                                      <Coffee className="h-4 w-4 text-amber-500 animate-pulse" />
+                                      <p className="text-[10px] font-semibold text-amber-600/80 uppercase tracking-wider">{p.label}</p>
+                                    </div>
+                                  </td>
+                                );
                               }
-                              onAdd={
-                                !e && canEdit
-                                  ? () => {
-                                      setAddSlot({ day: d.id, periodId: p.id });
-                                      setAddSubjectId("");
+
+                              const slotKey = `${d.id}:${p.id}`;
+                              const e = entryBySlot.get(slotKey) ?? null;
+                              const teacherLabel = e?.teacher_user_id
+                                ? teacherLabelByUserId.get(e.teacher_user_id) ?? e.teacher_user_id
+                                : null;
+
+                              const roomLabel = e?.room ? e.room : null;
+                              const subtitle = teacherLabel ? teacherLabel : null;
+                              const entryConflicts = e ? conflictMap.get(e.id) ?? [] : [];
+
+                              return (
+                                <td
+                                  key={`cell:${slotKey}`}
+                                  className={`p-2 border-b border-primary/10 align-middle ${
+                                    entryConflicts.length > 0 ? "bg-red-500/[0.02]" : ""
+                                  }`}
+                                >
+                                  <TimetableCell
+                                    id={`cell:${d.id}:${p.id}`}
+                                    title={e?.subject_name ?? null}
+                                    subtitle={subtitle}
+                                    meta={roomLabel}
+                                    conflicts={entryConflicts}
+                                    onClear={e ? () => void clearSlot(d.id, p.id) : null}
+                                    onEdit={
+                                      e
+                                        ? () => {
+                                            setEditEntryId(e.id);
+                                            setEditTeacherUserId(e.teacher_user_id ?? "");
+                                            setEditRoom(e.room ?? "");
+                                          }
+                                        : null
                                     }
-                                  : null
-                              }
-                            />
-                          );
-                        })}
-                      </Fragment>
-                    ))}
-                  </div>
+                                    onAdd={
+                                      !e && canEdit
+                                        ? () => {
+                                            setAddSlot({ day: d.id, periodId: p.id });
+                                            setAddSubjectId("");
+                                          }
+                                        : null
+                                    }
+                                  />
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
                 </div>
               </CardContent>
             </Card>

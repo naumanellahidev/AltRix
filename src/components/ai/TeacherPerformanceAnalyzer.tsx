@@ -51,7 +51,7 @@ export function TeacherPerformanceAnalyzer({ schoolId }: Props) {
   const { data: performanceData, isLoading } = useQuery({
     queryKey: ["ai_teacher_performance", schoolId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from("ai_teacher_performance")
         .select(`
           *,
@@ -63,7 +63,7 @@ export function TeacherPerformanceAnalyzer({ schoolId }: Props) {
         .order("overall_score", { ascending: false });
 
       if (error) throw error;
-      return data;
+      return data as any[];
     },
     enabled: !!schoolId,
   });
@@ -88,7 +88,7 @@ export function TeacherPerformanceAnalyzer({ schoolId }: Props) {
     return performanceData.slice(0, 10).map(p => ({
       name: (p.profiles as any)?.display_name?.split(' ')[0] || 'Teacher',
       score: p.overall_score || 0,
-      tier: p.performance_tier || 'bronze',
+      tier: (p.overall_score || 0) >= 90 ? 'platinum' : (p.overall_score || 0) >= 75 ? 'gold' : (p.overall_score || 0) >= 60 ? 'silver' : 'bronze',
     }));
   }, [performanceData]);
 
@@ -241,7 +241,8 @@ export function TeacherPerformanceAnalyzer({ schoolId }: Props) {
       {/* Teacher Cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {performanceData.slice(0, 6).map((teacher, idx) => {
-          const tier = teacher.performance_tier as keyof typeof TIER_CONFIG || 'bronze';
+          const score = teacher.overall_score || 0;
+          const tier = (score >= 90 ? 'platinum' : score >= 75 ? 'gold' : score >= 60 ? 'silver' : 'bronze') as keyof typeof TIER_CONFIG;
           const config = TIER_CONFIG[tier] || TIER_CONFIG.bronze;
           const TierIcon = config.icon;
 
@@ -271,7 +272,7 @@ export function TeacherPerformanceAnalyzer({ schoolId }: Props) {
                         </Badge>
                       </div>
                       <p className="text-xs text-muted-foreground">
-                        {format(parseISO(teacher.analysis_month + "-01"), "MMMM yyyy")}
+                        {teacher.last_analyzed_at ? format(parseISO(teacher.last_analyzed_at), "MMM d, yyyy") : "Not analyzed yet"}
                       </p>
                     </div>
                   </div>
@@ -292,20 +293,14 @@ export function TeacherPerformanceAnalyzer({ schoolId }: Props) {
                       <p className="font-semibold">{teacher.engagement_score || 0}%</p>
                     </div>
                     <div className="rounded-lg bg-surface-2 p-2">
-                      <p className="text-muted-foreground">Impact</p>
-                      <p className="font-semibold">{teacher.student_improvement_score || 0}%</p>
+                      <p className="text-muted-foreground">Results</p>
+                      <p className="font-semibold">{teacher.results_score || 0}%</p>
                     </div>
                   </div>
 
-                  {/* Improvement Areas */}
-                  {teacher.improvement_areas && (teacher.improvement_areas as string[]).length > 0 && (
-                    <div className="mt-3 flex flex-wrap gap-1">
-                      {(teacher.improvement_areas as string[]).slice(0, 2).map((area, i) => (
-                        <Badge key={i} variant="outline" className="text-[10px]">
-                          {area}
-                        </Badge>
-                      ))}
-                    </div>
+                  {/* Feedback */}
+                  {teacher.feedback && (
+                    <p className="mt-3 text-xs text-muted-foreground line-clamp-2">{teacher.feedback}</p>
                   )}
 
                   {/* Training Flag */}
@@ -337,12 +332,12 @@ export function TeacherPerformanceAnalyzer({ schoolId }: Props) {
                 <CheckCircle2 className="h-4 w-4 text-emerald-500" />
                 Top Insights
               </h4>
-              {performanceData.slice(0, 3).flatMap(t => 
-                (t.ai_insights as string[] || []).slice(0, 1)
-              ).map((insight, idx) => (
+              {performanceData.slice(0, 3)
+                .filter(t => t.feedback)
+                .map((t, idx) => (
                 <p key={idx} className="text-sm text-muted-foreground flex items-start gap-2">
                   <span className="mt-1.5 h-1.5 w-1.5 rounded-full bg-primary shrink-0" />
-                  {insight}
+                  {t.feedback}
                 </p>
               ))}
             </div>

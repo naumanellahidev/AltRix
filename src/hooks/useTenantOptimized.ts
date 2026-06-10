@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase, USE_FASTAPI } from "@/integrations/supabase/client";
+import { apiClient } from "@/lib/api-client";
 
 // LocalStorage cache key builder
 const getTenantCacheKey = (slug: string) => `eduverse_tenant_${slug}`;
@@ -65,6 +66,9 @@ const appliedBrandingCache = new Map<string, boolean>();
 function applyBranding(schoolId: string, branding: TenantData["branding"]) {
   if (!branding || appliedBrandingCache.get(schoolId)) return;
   
+  // Only apply if all color values are present and valid
+  if (branding.accent_hue == null || branding.accent_saturation == null || branding.accent_lightness == null) return;
+  
   const root = document.documentElement;
   root.style.setProperty("--brand", `${branding.accent_hue} ${branding.accent_saturation}% ${branding.accent_lightness}%`);
   root.style.setProperty("--radius", `${0.85 * (branding.radius_scale || 1)}rem`);
@@ -85,6 +89,30 @@ export function useTenantOptimized(schoolSlug: string | undefined): TenantResult
         const cached = getCachedTenant(normalizedSlug);
         if (cached) return cached;
         throw new Error("No cached data available offline");
+      }
+
+      if (USE_FASTAPI) {
+        const schoolResp = await apiClient.get(`/schools/by-slug/${normalizedSlug}`);
+        const schoolData = schoolResp.data;
+        if (!schoolData) return null;
+
+        let branding = null;
+        try {
+          const brandingResp = await apiClient.get(`/schools/${schoolData.id}/branding`);
+          branding = brandingResp.data;
+        } catch (e) {
+          console.warn("Failed to fetch school branding:", e);
+        }
+
+        const tenantData: TenantData = {
+          id: schoolData.id,
+          slug: schoolData.slug,
+          name: schoolData.name,
+          branding: branding || null,
+        };
+
+        cacheTenant(normalizedSlug, tenantData);
+        return tenantData;
       }
 
       // Get school data

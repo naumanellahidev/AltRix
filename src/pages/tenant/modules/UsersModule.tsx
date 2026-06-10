@@ -1,7 +1,18 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
-import { Download, FileUp, KeyRound, UserMinus, UserPlus, Phone } from "lucide-react";
+import { Download, FileUp, KeyRound, Mail, Trash2, UserMinus, UserPlus, Phone, Pencil, UserCog } from "lucide-react";
 import { StaffProfileDialog } from "@/components/hr/StaffProfileDialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 import { supabase } from "@/integrations/supabase/client";
 import { useTenant } from "@/hooks/useTenant";
@@ -65,6 +76,7 @@ export function UsersModule() {
 
   const [govRoleByUser, setGovRoleByUser] = useState<Record<string, EduverseRole>>({});
   const [govReason, setGovReason] = useState<string>("");
+  const [profileDialogUserId, setProfileDialogUserId] = useState<string | null>(null);
   // Link-based flows removed: we set explicit passwords directly.
 
   const refresh = async () => {
@@ -72,30 +84,29 @@ export function UsersModule() {
 
     // Fetch directory data
     const { data: dir } = await supabase
-      .from("school_user_directory")
-      .select("user_id,email,display_name")
-      .eq("school_id", schoolId)
-      .order("email", { ascending: true });
+      .rpc("get_school_user_directory", { _school_id: schoolId });
 
     // Fetch phone numbers from profiles
     const userIds = (dir ?? []).map((d: any) => d.user_id);
     const { data: profiles } = userIds.length > 0
       ? await supabase
           .from("profiles")
-          .select("user_id, phone")
-          .in("user_id", userIds)
+          .select("id, phone")
+          .in("id", userIds)
       : { data: [] };
 
     const phoneByUser: Record<string, string | null> = {};
     (profiles ?? []).forEach((p: any) => {
-      phoneByUser[p.user_id] = p.phone;
+      phoneByUser[p.id] = p.phone;
     });
 
     setDirectory(
-      (dir ?? []).map((d: any) => ({
+      [...(dir ?? [])]
+        .sort((a: any, b: any) => (a.email ?? "").localeCompare(b.email ?? ""))
+        .map((d: any) => ({
         ...d,
         phone: phoneByUser[d.user_id] ?? null,
-      })) as DirectoryRow[]
+        })) as DirectoryRow[]
     );
 
     const { data: ur } = await supabase
@@ -555,7 +566,6 @@ export function UsersModule() {
                   <TableHead>Name</TableHead>
                   <TableHead>Phone</TableHead>
                   <TableHead>Roles</TableHead>
-                  {canGovernStaff && <TableHead className="text-right">Actions</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -564,15 +574,176 @@ export function UsersModule() {
                     <TableCell className="font-medium">{r.email}</TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
-                        <span>{r.display_name ?? "—"}</span>
                         {canGovernStaff && (
-                          <StaffProfileDialog
-                            userId={r.user_id}
-                            email={r.email}
-                            displayName={r.display_name}
-                            onUpdated={refresh}
-                          />
+                          <>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-8 w-8 p-0"
+                                  disabled={busy}
+                                  aria-label="Manage user"
+                                >
+                                  <Pencil className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="start" className="w-56">
+                                <DropdownMenuLabel className="truncate">{r.email}</DropdownMenuLabel>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem onSelect={() => setProfileDialogUserId(r.user_id)}>
+                                  <Pencil className="mr-2 h-4 w-4" /> Edit profile
+                                </DropdownMenuItem>
+                                <DropdownMenuSub>
+                                  <DropdownMenuSubTrigger>
+                                    <UserCog className="mr-2 h-4 w-4" /> Set role
+                                  </DropdownMenuSubTrigger>
+                                  <DropdownMenuSubContent>
+                                    {allowedRoles.map((x) => (
+                                      <DropdownMenuItem
+                                        key={x}
+                                        onSelect={async () => {
+                                          try {
+                                            setBusy(true);
+                                            await governanceInvoke({
+                                              action: "set_roles",
+                                              schoolSlug: tenant.slug,
+                                              targetUserId: r.user_id,
+                                              roles: [x],
+                                              reason: govReason.trim() || undefined,
+                                            });
+                                            toast.success(`Role set to ${roleLabel[x]}`);
+                                            await refresh();
+                                          } catch (e) {
+                                            toast.error((e as Error).message);
+                                          } finally {
+                                            setBusy(false);
+                                          }
+                                        }}
+                                      >
+                                        {roleLabel[x]}
+                                      </DropdownMenuItem>
+                                    ))}
+                                  </DropdownMenuSubContent>
+                                </DropdownMenuSub>
+                                <DropdownMenuItem
+                                  onSelect={async () => {
+                                    const next = window.prompt("Set a new password for this user (min 8 chars):");
+                                    if (!next) return;
+                                    if (next.trim().length < 8) return toast.error("Password must be at least 8 characters");
+                                    try {
+                                      setBusy(true);
+                                      await governanceInvoke({
+                                        action: "set_password",
+                                        schoolSlug: tenant.slug,
+                                        targetUserId: r.user_id,
+                                        password: next.trim(),
+                                        reason: govReason.trim() || undefined,
+                                      });
+                                      toast.success("Password updated");
+                                    } catch (e) {
+                                      toast.error((e as Error).message);
+                                    } finally {
+                                      setBusy(false);
+                                    }
+                                  }}
+                                >
+                                  <KeyRound className="mr-2 h-4 w-4" /> Set password
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onSelect={async () => {
+                                    const next = window.prompt(`Update email for ${r.email}:`, r.email);
+                                    if (!next) return;
+                                    const trimmed = next.trim().toLowerCase();
+                                    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+                                      return toast.error("Invalid email address");
+                                    }
+                                    if (trimmed === r.email.toLowerCase()) return;
+                                    try {
+                                      setBusy(true);
+                                      await governanceInvoke({
+                                        action: "set_email",
+                                        schoolSlug: tenant.slug,
+                                        targetUserId: r.user_id,
+                                        email: trimmed,
+                                        reason: govReason.trim() || undefined,
+                                      });
+                                      toast.success("Email updated");
+                                      await refresh();
+                                    } catch (e) {
+                                      toast.error((e as Error).message);
+                                    } finally {
+                                      setBusy(false);
+                                    }
+                                  }}
+                                >
+                                  <Mail className="mr-2 h-4 w-4" /> Set email
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                  onSelect={async () => {
+                                    try {
+                                      setBusy(true);
+                                      await governanceInvoke({
+                                        action: "deactivate",
+                                        schoolSlug: tenant.slug,
+                                        targetUserId: r.user_id,
+                                        reason: govReason.trim() || undefined,
+                                      });
+                                      toast.success("User deactivated (roles removed)");
+                                      await refresh();
+                                    } catch (e) {
+                                      toast.error((e as Error).message);
+                                    } finally {
+                                      setBusy(false);
+                                    }
+                                  }}
+                                >
+                                  <UserMinus className="mr-2 h-4 w-4" /> Deactivate
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  className="text-destructive focus:text-destructive"
+                                  onSelect={async () => {
+                                    const confirmed = window.confirm(`Delete user ${r.email}? This will remove all their roles and data from this school. This cannot be undone.`);
+                                    if (!confirmed) return;
+                                    try {
+                                      setBusy(true);
+                                      await governanceInvoke({
+                                        action: "deactivate",
+                                        schoolSlug: tenant.slug,
+                                        targetUserId: r.user_id,
+                                        reason: govReason.trim() || "User deleted by admin",
+                                      });
+                                      await supabase
+                                        .from("user_roles")
+                                        .delete()
+                                        .eq("school_id", schoolId!)
+                                        .eq("user_id", r.user_id);
+                                      toast.success("User removed from school");
+                                      await refresh();
+                                    } catch (e) {
+                                      toast.error((e as Error).message);
+                                    } finally {
+                                      setBusy(false);
+                                    }
+                                  }}
+                                >
+                                  <Trash2 className="mr-2 h-4 w-4" /> Delete
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                            <StaffProfileDialog
+                              userId={r.user_id}
+                              email={r.email}
+                              displayName={r.display_name}
+                              onUpdated={refresh}
+                              hideTrigger
+                              open={profileDialogUserId === r.user_id}
+                              onOpenChange={(o) => setProfileDialogUserId(o ? r.user_id : null)}
+                            />
+                          </>
                         )}
+                        <span>{r.display_name ?? "—"}</span>
                       </div>
                     </TableCell>
                     <TableCell>
@@ -590,113 +761,11 @@ export function UsersModule() {
                     <TableCell>
                       {(rolesByUser[r.user_id] ?? []).map((x) => roleLabel[x]).join(", ") || "—"}
                     </TableCell>
-                    {canGovernStaff && (
-                      <TableCell className="text-right">
-                        <div className="flex flex-col items-end gap-2 md:flex-row md:justify-end">
-                          <Select
-                            value={govRoleByUser[r.user_id] ?? "teacher"}
-                            onValueChange={(v) =>
-                              setGovRoleByUser((s) => ({ ...s, [r.user_id]: v as EduverseRole }))
-                            }
-                          >
-                            <SelectTrigger className="h-9 w-[180px]">
-                              <SelectValue placeholder="Select role" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {allowedRoles.map((x) => (
-                                <SelectItem key={x} value={x}>
-                                  {roleLabel[x]}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-
-                          <Button
-                            variant="soft"
-                            size="sm"
-                            onClick={async () => {
-                              try {
-                                setBusy(true);
-                                await governanceInvoke({
-                                  action: "set_roles",
-                                  schoolSlug: tenant.slug,
-                                  targetUserId: r.user_id,
-                                  roles: [govRoleByUser[r.user_id] ?? "teacher"],
-                                  reason: govReason.trim() || undefined,
-                                });
-                                toast.success("Role updated");
-                                await refresh();
-                              } catch (e) {
-                                toast.error((e as Error).message);
-                              } finally {
-                                setBusy(false);
-                              }
-                            }}
-                            disabled={busy}
-                          >
-                            <UserPlus className="mr-2 h-4 w-4" /> Set role
-                          </Button>
-
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={async () => {
-                              try {
-                                setBusy(true);
-                                await governanceInvoke({
-                                  action: "deactivate",
-                                  schoolSlug: tenant.slug,
-                                  targetUserId: r.user_id,
-                                  reason: govReason.trim() || undefined,
-                                });
-                                toast.success("User deactivated (roles removed)");
-                                await refresh();
-                              } catch (e) {
-                                toast.error((e as Error).message);
-                              } finally {
-                                setBusy(false);
-                              }
-                            }}
-                            disabled={busy}
-                          >
-                            <UserMinus className="mr-2 h-4 w-4" /> Deactivate
-                          </Button>
-
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={async () => {
-                              const next = window.prompt("Set a new password for this user (min 8 chars):");
-                              if (!next) return;
-                              if (next.trim().length < 8) return toast.error("Password must be at least 8 characters");
-                              try {
-                                setBusy(true);
-                                await governanceInvoke({
-                                  action: "set_password",
-                                  schoolSlug: tenant.slug,
-                                  targetUserId: r.user_id,
-                                  password: next.trim(),
-                                  reason: govReason.trim() || undefined,
-                                });
-                                toast.success("Password updated");
-                              } catch (e) {
-                                toast.error((e as Error).message);
-                              } finally {
-                                setBusy(false);
-                              }
-                            }}
-                            disabled={busy}
-                          >
-                            <KeyRound className="mr-2 h-4 w-4" /> Set password
-                          </Button>
-                        </div>
-                      </TableCell>
-                    )}
                   </TableRow>
                 ))}
                 {directory.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={canGovernStaff ? 5 : 4} className="text-muted-foreground">
+                    <TableCell colSpan={4} className="text-muted-foreground">
                       No users found.
                     </TableCell>
                   </TableRow>

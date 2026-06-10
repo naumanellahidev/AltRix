@@ -66,7 +66,7 @@ const TenantBootstrap = () => {
         >
           <Card className="shadow-elevated">
             <CardHeader>
-              <CardTitle className="font-display text-xl">EDUVERSE Bootstrap</CardTitle>
+              <CardTitle className="font-display text-xl">AltRix Bootstrap</CardTitle>
               <p className="text-sm text-muted-foreground">
                 One-time secure setup to create the first Super Admin (no public signup).
               </p>

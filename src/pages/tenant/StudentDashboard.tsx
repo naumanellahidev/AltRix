@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, lazy, Suspense } from "react";
 import { Navigate, Route, Routes, useParams } from "react-router-dom";
 
 import { supabase } from "@/integrations/supabase/client";
@@ -7,15 +7,29 @@ import { useTenantOptimized } from "@/hooks/useTenantOptimized";
 import { useMyStudentId } from "@/hooks/useMyStudentId";
 import { useUniversalPrefetch } from "@/hooks/useUniversalPrefetch";
 import { StudentShell } from "@/components/tenant/StudentShell";
-import { StudentHomeModule } from "@/pages/tenant/student-modules/StudentHomeModule";
-import { StudentAttendanceModule } from "@/pages/tenant/student-modules/StudentAttendanceModule";
-import { StudentGradesModule } from "@/pages/tenant/student-modules/StudentGradesModule";
-import { StudentTimetableModule } from "@/pages/tenant/student-modules/StudentTimetableModule";
-import { StudentAssignmentsModule } from "@/pages/tenant/student-modules/StudentAssignmentsModule";
-import { StudentCertificatesModule } from "@/pages/tenant/student-modules/StudentCertificatesModule";
-import { StudentSupportModule } from "@/pages/tenant/student-modules/StudentSupportModule";
-import { StudentMessagesModule } from "@/pages/tenant/student-modules/StudentMessagesModule";
-import { StudentAIModule } from "@/pages/tenant/student-modules/StudentAIModule";
+
+const StudentHomeModule = lazy(() => import("@/pages/tenant/student-modules/StudentHomeModule").then(m => ({ default: m.StudentHomeModule })));
+const StudentAttendanceModule = lazy(() => import("@/pages/tenant/student-modules/StudentAttendanceModule").then(m => ({ default: m.StudentAttendanceModule })));
+const StudentGradesModule = lazy(() => import("@/pages/tenant/student-modules/StudentGradesModule").then(m => ({ default: m.StudentGradesModule })));
+const StudentTimetableModule = lazy(() => import("@/pages/tenant/student-modules/StudentTimetableModule").then(m => ({ default: m.StudentTimetableModule })));
+const StudentAssignmentsModule = lazy(() => import("@/pages/tenant/student-modules/StudentAssignmentsModule").then(m => ({ default: m.StudentAssignmentsModule })));
+const StudentCertificatesModule = lazy(() => import("@/pages/tenant/student-modules/StudentCertificatesModule").then(m => ({ default: m.StudentCertificatesModule })));
+const StudentSupportModule = lazy(() => import("@/pages/tenant/student-modules/StudentSupportModule").then(m => ({ default: m.StudentSupportModule })));
+const StudentMessagesModule = lazy(() => import("@/pages/tenant/student-modules/StudentMessagesModule").then(m => ({ default: m.StudentMessagesModule })));
+const StudentAIModule = lazy(() => import("@/pages/tenant/student-modules/StudentAIModule").then(m => ({ default: m.StudentAIModule })));
+const StudentComplaintsModule = lazy(() => import("@/pages/tenant/student-modules/StudentComplaintsModule"));
+const NoticesModule = lazy(() => import("@/pages/tenant/modules/NoticesModule"));
+const HolidaysModule = lazy(() => import("@/pages/tenant/modules/HolidaysModule"));
+const DiaryModule = lazy(() => import("@/pages/tenant/modules/DiaryModule"));
+const ExamsModule = lazy(() => import("@/pages/tenant/modules/ExamsModule"));
+const ReportCardModule = lazy(() => import("@/pages/tenant/modules/ReportCardModule"));
+import { RouteGuard } from "@/components/tenant/RouteGuard";
+
+const DashboardLoader = () => (
+  <div className="flex h-[50vh] items-center justify-center">
+    <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+  </div>
+);
 
 // Cache key for student auth
 const STUDENT_AUTHZ_CACHE = "eduverse_student_authz_cache";
@@ -198,22 +212,36 @@ const StudentDashboard = () => {
     );
   }
 
-  const title = `${tenant.school?.name || "EDUVERSE"} • Student`;
+  const title = `${tenant.school?.name || "AltRix"} • Student`;
 
   return (
     <StudentShell title={title} subtitle="Read-only student portal" schoolSlug={tenant.slug}>
-      <Routes>
-        <Route index element={<StudentHomeModule myStudent={myStudent} />} />
-        <Route path="attendance" element={<StudentAttendanceModule myStudent={myStudent} schoolId={schoolId} />} />
-        <Route path="grades" element={<StudentGradesModule myStudent={myStudent} schoolId={schoolId} />} />
-        <Route path="timetable" element={<StudentTimetableModule myStudent={myStudent} schoolId={schoolId} />} />
-        <Route path="assignments" element={<StudentAssignmentsModule myStudent={myStudent} schoolId={schoolId} />} />
-        <Route path="certificates" element={<StudentCertificatesModule myStudent={myStudent} schoolId={schoolId} />} />
-        <Route path="ai-insights" element={<StudentAIModule myStudent={myStudent} schoolId={schoolId} />} />
-        <Route path="messages" element={<StudentMessagesModule />} />
-        <Route path="support" element={<StudentSupportModule myStudent={myStudent} schoolId={schoolId} />} />
-        <Route path="*" element={<Navigate to={`/${tenant.slug}/student`} replace />} />
-      </Routes>
+      <RouteGuard extraAllowedPaths={[
+        "attendance","grades","timetable","assignments","certificates",
+        "ai-insights","messages","support","notices","holidays","diary",
+        "exams","report-card","complaints",
+      ]}>
+      <Suspense fallback={<DashboardLoader />}>
+        <Routes>
+          <Route index element={<StudentHomeModule myStudent={myStudent} />} />
+          <Route path="attendance" element={<StudentAttendanceModule myStudent={myStudent} schoolId={schoolId} />} />
+          <Route path="grades" element={<StudentGradesModule myStudent={myStudent} schoolId={schoolId} />} />
+          <Route path="timetable" element={<StudentTimetableModule myStudent={myStudent} schoolId={schoolId} />} />
+          <Route path="assignments" element={<StudentAssignmentsModule myStudent={myStudent} schoolId={schoolId} />} />
+          <Route path="certificates" element={<StudentCertificatesModule myStudent={myStudent} schoolId={schoolId} />} />
+          <Route path="ai-insights" element={<StudentAIModule myStudent={myStudent} schoolId={schoolId} />} />
+          <Route path="messages" element={<StudentMessagesModule />} />
+          <Route path="support" element={<StudentSupportModule myStudent={myStudent} schoolId={schoolId} />} />
+          <Route path="notices" element={<NoticesModule schoolId={schoolId} canManage={false} />} />
+          <Route path="holidays" element={<HolidaysModule schoolId={schoolId} canManage={false} />} />
+          <Route path="diary" element={<DiaryModule schoolId={schoolId} canManage={false} />} />
+          <Route path="exams" element={<ExamsModule schoolId={schoolId} canManage={false} />} />
+          <Route path="report-card" element={<ReportCardModule schoolId={schoolId} canManage={false} studentIdLocked={myStudent.status === "ready" ? myStudent.studentId : null} />} />
+          <Route path="complaints" element={<StudentComplaintsModule schoolId={schoolId} />} />
+          <Route path="*" element={<Navigate to={`/${tenant.slug}/student`} replace />} />
+        </Routes>
+      </Suspense>
+      </RouteGuard>
     </StudentShell>
   );
 };

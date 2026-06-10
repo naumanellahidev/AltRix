@@ -1,5 +1,5 @@
-import { useMemo } from "react";
 import { Navigate, Route, Routes, useNavigate, useParams } from "react-router-dom";
+import { useMemo, lazy, Suspense } from "react";
 import { LogOut, UserRound } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
@@ -11,21 +11,36 @@ import { TeacherShell } from "@/components/tenant/TeacherShell";
 import { Button } from "@/components/ui/button";
 
 // Teacher modules
-import { TeacherHome } from "@/pages/tenant/role-homes/TeacherHome";
-import { TeacherStudentsModule } from "@/pages/tenant/teacher-modules/TeacherStudentsModule";
-import { TeacherAttendanceModule } from "@/pages/tenant/teacher-modules/TeacherAttendanceModule";
-import { TeacherHomeworkModule } from "@/pages/tenant/teacher-modules/TeacherHomeworkModule";
-import { TeacherAssignmentsModule } from "@/pages/tenant/teacher-modules/TeacherAssignmentsModule";
-import { TeacherBehaviorModule } from "@/pages/tenant/teacher-modules/TeacherBehaviorModule";
-import { TeacherReportsModule } from "@/pages/tenant/teacher-modules/TeacherReportsModule";
-import { TeacherTimetableModule } from "@/pages/tenant/teacher-modules/TeacherTimetableModule";
-import { TeacherAdminInboxModule } from "@/pages/tenant/teacher-modules/TeacherAdminInboxModule";
-import { TeacherWorkspaceMessagesModule } from "@/pages/tenant/teacher-modules/TeacherWorkspaceMessagesModule";
-import { TeacherGradebookModule } from "@/pages/tenant/teacher-modules/TeacherGradebookModule";
-import { TeacherProgressModule } from "@/pages/tenant/teacher-modules/TeacherProgressModule";
-import { TeacherLessonPlannerModule } from "@/pages/tenant/teacher-modules/TeacherLessonPlannerModule";
-import { TeacherLeavesModule } from "@/pages/tenant/teacher-modules/TeacherLeavesModule";
-import { TeacherAIModule } from "@/pages/tenant/teacher-modules/TeacherAIModule";
+const TeacherHome = lazy(() => import("@/pages/tenant/role-homes/TeacherHome").then(m => ({ default: m.TeacherHome })));
+const TeacherStudentsModule = lazy(() => import("@/pages/tenant/teacher-modules/TeacherStudentsModule").then(m => ({ default: m.TeacherStudentsModule })));
+const TeacherAttendanceModule = lazy(() => import("@/pages/tenant/teacher-modules/TeacherAttendanceModule").then(m => ({ default: m.TeacherAttendanceModule })));
+const TeacherHomeworkModule = lazy(() => import("@/pages/tenant/teacher-modules/TeacherHomeworkModule").then(m => ({ default: m.TeacherHomeworkModule })));
+const TeacherAssignmentsModule = lazy(() => import("@/pages/tenant/teacher-modules/TeacherAssignmentsModule").then(m => ({ default: m.TeacherAssignmentsModule })));
+const TeacherBehaviorModule = lazy(() => import("@/pages/tenant/teacher-modules/TeacherBehaviorModule").then(m => ({ default: m.TeacherBehaviorModule })));
+const TeacherReportsModule = lazy(() => import("@/pages/tenant/teacher-modules/TeacherReportsModule").then(m => ({ default: m.TeacherReportsModule })));
+const TeacherTimetableModule = lazy(() => import("@/pages/tenant/teacher-modules/TeacherTimetableModule").then(m => ({ default: m.TeacherTimetableModule })));
+const TeacherAdminInboxModule = lazy(() => import("@/pages/tenant/teacher-modules/TeacherAdminInboxModule").then(m => ({ default: m.TeacherAdminInboxModule })));
+const TeacherWorkspaceMessagesModule = lazy(() => import("@/pages/tenant/teacher-modules/TeacherWorkspaceMessagesModule").then(m => ({ default: m.TeacherWorkspaceMessagesModule })));
+const TeacherGradebookModule = lazy(() => import("@/pages/tenant/teacher-modules/TeacherGradebookModule").then(m => ({ default: m.TeacherGradebookModule })));
+const TeacherProgressModule = lazy(() => import("@/pages/tenant/teacher-modules/TeacherProgressModule").then(m => ({ default: m.TeacherProgressModule })));
+const TeacherLessonPlannerModule = lazy(() => import("@/pages/tenant/teacher-modules/TeacherLessonPlannerModule").then(m => ({ default: m.TeacherLessonPlannerModule })));
+const TeacherLeavesModule = lazy(() => import("@/pages/tenant/teacher-modules/TeacherLeavesModule").then(m => ({ default: m.TeacherLeavesModule })));
+const TeacherAIModule = lazy(() => import("@/pages/tenant/teacher-modules/TeacherAIModule").then(m => ({ default: m.TeacherAIModule })));
+const TeacherComplaintsModule = lazy(() => import("@/pages/tenant/teacher-modules/TeacherComplaintsModule").then(m => ({ default: m.TeacherComplaintsModule })));
+const TeacherParentNotesModule = lazy(() => import("@/pages/tenant/teacher-modules/TeacherParentNotesModule").then(m => ({ default: m.TeacherParentNotesModule })));
+const TeacherPresenceHistoryModule = lazy(() => import("@/pages/tenant/teacher-modules/TeacherPresenceHistoryModule").then(m => ({ default: m.TeacherPresenceHistoryModule })));
+const NoticesModule = lazy(() => import("@/pages/tenant/modules/NoticesModule"));
+const HolidaysModule = lazy(() => import("@/pages/tenant/modules/HolidaysModule"));
+const DiaryModule = lazy(() => import("@/pages/tenant/modules/DiaryModule"));
+const ExamsModule = lazy(() => import("@/pages/tenant/modules/ExamsModule"));
+const ReportCardModule = lazy(() => import("@/pages/tenant/modules/ReportCardModule"));
+import { RouteGuard } from "@/components/tenant/RouteGuard";
+
+const DashboardLoader = () => (
+  <div className="flex h-[50vh] items-center justify-center">
+    <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+  </div>
+);
 
 const TeacherDashboard = () => {
   const { schoolSlug } = useParams();
@@ -71,38 +86,11 @@ const TeacherDashboard = () => {
     return <Navigate to={`/${tenant.slug}/auth`} replace />;
   }
 
-  const title = tenant.status === "ready" ? `${tenant.school?.name} • Teacher` : "EDUVERSE";
+  const title = tenant.status === "ready" ? `${tenant.school?.name} • Teacher` : "AltRix";
 
   return (
-    <TeacherShell title={title} subtitle="Teacher workspace" schoolSlug={tenant.slug}>
+    <TeacherShell title={title} schoolSlug={tenant.slug}>
       <div className="flex flex-col gap-6">
-        {/* User info bar */}
-        <div className="rounded-2xl bg-accent/50 p-4">
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div>
-              <p className="text-sm text-muted-foreground">Signed in as {user.email}</p>
-            </div>
-            <div className="flex gap-2">
-              <Button
-                variant="soft"
-                size="sm"
-                onClick={() => navigate(`/${tenant.slug}/auth`)}
-              >
-                <UserRound className="mr-2 h-4 w-4" /> Switch role
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={async () => {
-                  await supabase.auth.signOut();
-                  navigate(`/${tenant.slug}/auth`);
-                }}
-              >
-                <LogOut className="mr-2 h-4 w-4" /> Logout
-              </Button>
-            </div>
-          </div>
-        </div>
 
         {/* Access check - only show if denied (not while checking with cache) */}
         {authzState === "denied" && (
@@ -126,24 +114,41 @@ const TeacherDashboard = () => {
 
         {/* Routes - show if OK or checking (with cached auth) */}
         {authzState !== "denied" && (
-          <Routes>
-            <Route index element={<TeacherHome />} />
-            <Route path="students" element={<TeacherStudentsModule />} />
-            <Route path="attendance" element={<TeacherAttendanceModule />} />
-            <Route path="homework" element={<TeacherHomeworkModule />} />
-            <Route path="assignments" element={<TeacherAssignmentsModule />} />
-            <Route path="behavior" element={<TeacherBehaviorModule />} />
-            <Route path="gradebook" element={<TeacherGradebookModule />} />
-            <Route path="progress" element={<TeacherProgressModule />} />
-            <Route path="lesson-plans" element={<TeacherLessonPlannerModule />} />
-            <Route path="reports" element={<TeacherReportsModule />} />
-            <Route path="timetable" element={<TeacherTimetableModule />} />
-            <Route path="leaves" element={<TeacherLeavesModule />} />
-            <Route path="ai-insights" element={<TeacherAIModule />} />
-            <Route path="messages" element={<TeacherWorkspaceMessagesModule />} />
-            <Route path="admin-inbox" element={<TeacherAdminInboxModule />} />
-            <Route path="*" element={<Navigate to={`/${tenant.slug}/teacher`} replace />} />
-          </Routes>
+          <RouteGuard extraAllowedPaths={[
+            "students","attendance","homework","assignments","behavior","gradebook",
+            "progress","lesson-plans","reports","report-cards","exams","diary",
+            "notices","holidays","timetable","leaves","ai-insights","messages",
+            "admin-inbox","complaints","parent-notes","presence-history",
+          ]}>
+          <Suspense fallback={<DashboardLoader />}>
+            <Routes>
+              <Route index element={<TeacherHome />} />
+              <Route path="students" element={<TeacherStudentsModule />} />
+              <Route path="attendance" element={<TeacherAttendanceModule />} />
+              <Route path="homework" element={<TeacherHomeworkModule />} />
+              <Route path="assignments" element={<TeacherAssignmentsModule />} />
+              <Route path="behavior" element={<TeacherBehaviorModule />} />
+              <Route path="gradebook" element={<TeacherGradebookModule />} />
+              <Route path="progress" element={<TeacherProgressModule />} />
+              <Route path="lesson-plans" element={<TeacherLessonPlannerModule />} />
+              <Route path="reports" element={<TeacherReportsModule />} />
+              <Route path="report-cards" element={<ReportCardModule schoolId={schoolId} canManage={true} />} />
+              <Route path="exams" element={<ExamsModule schoolId={schoolId} canManage={true} />} />
+              <Route path="diary" element={<DiaryModule schoolId={schoolId} canManage={true} />} />
+              <Route path="notices" element={<NoticesModule schoolId={schoolId} canManage={true} />} />
+              <Route path="holidays" element={<HolidaysModule schoolId={schoolId} canManage={false} />} />
+              <Route path="timetable" element={<TeacherTimetableModule />} />
+              <Route path="leaves" element={<TeacherLeavesModule />} />
+              <Route path="ai-insights" element={<TeacherAIModule />} />
+              <Route path="messages" element={<TeacherWorkspaceMessagesModule />} />
+              <Route path="admin-inbox" element={<TeacherAdminInboxModule />} />
+              <Route path="complaints" element={<TeacherComplaintsModule />} />
+              <Route path="parent-notes" element={<TeacherParentNotesModule />} />
+              <Route path="presence-history" element={<TeacherPresenceHistoryModule />} />
+              <Route path="*" element={<Navigate to={`/${tenant.slug}/teacher`} replace />} />
+            </Routes>
+          </Suspense>
+          </RouteGuard>
         )}
       </div>
     </TeacherShell>

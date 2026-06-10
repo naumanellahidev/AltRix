@@ -1,4 +1,4 @@
-import { PropsWithChildren, useState } from "react";
+import { PropsWithChildren, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { NavLink } from "@/components/NavLink";
 import { Button } from "@/components/ui/button";
@@ -23,15 +23,21 @@ import {
   Star,
   TrendingUp,
   Users,
+  ChevronDown,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { GlobalCommandPalette } from "@/components/global/GlobalCommandPalette";
 import { NotificationsBell } from "@/components/global/NotificationsBell";
+import { OwnerContextSwitcher } from "@/components/tenant/OwnerContextSwitcher";
 import { useUnreadMessagesOptimized } from "@/hooks/useUnreadMessagesOptimized";
 import { useTenantOptimized } from "@/hooks/useTenantOptimized";
 import { useSession } from "@/hooks/useSession";
 import { useOfflineUniversal } from "@/hooks/useOfflineUniversal";
 import { OfflineStatusIndicator } from "@/components/offline/OfflineStatusIndicator";
+import { buildMergedNav, GROUP_LABELS, GROUP_ORDER, DROPDOWN_MAPPING } from "@/lib/role-navigation";
+import { cn } from "@/lib/utils";
+import { useLocation } from "react-router-dom";
+
 
 type Props = PropsWithChildren<{
   title: string;
@@ -65,22 +71,54 @@ export function OwnerShell({ title, subtitle, schoolSlug, children }: Props) {
 
   const basePath = `/${schoolSlug}/school_owner`;
 
-  const navItems = [
+  const location = useLocation();
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
+
+  const toggleGroup = (groupKey: string) => {
+    setExpandedGroups((prev) => ({ ...prev, [groupKey]: !prev[groupKey] }));
+  };
+
+  const isGroupExpanded = (groupKey: string, childUrls: string[]) => {
+    if (expandedGroups[groupKey] !== undefined) {
+      return expandedGroups[groupKey];
+    }
+    return childUrls.some(
+      (url) => location.pathname === url || location.pathname.startsWith(url + "/")
+    );
+  };
+
+  const directNavItems = [
     { to: basePath, icon: LayoutGrid, label: "Overview", end: true },
     { to: `${basePath}/academics`, icon: GraduationCap, label: "Academics Intelligence" },
     { to: `${basePath}/admissions`, icon: TrendingUp, label: "Admissions & Growth" },
     { to: `${basePath}/finance`, icon: Coins, label: "Finance & Profitability" },
     { to: `${basePath}/hr`, icon: Users, label: "HR & Culture" },
+    { to: `${basePath}/ai`, icon: Sparkles, label: "AI Command Center" },
+    { to: `${basePath}/messages`, icon: MessageSquare, label: "Messages", badge: unreadCount },
+  ];
+
+  const operationsItems = [
     { to: `${basePath}/wellbeing`, icon: HeartPulse, label: "Student Wellbeing" },
     { to: `${basePath}/compliance`, icon: Scale, label: "Compliance & Governance" },
     { to: `${basePath}/campuses`, icon: Building2, label: "Multi-Campus View" },
     { to: `${basePath}/brand`, icon: Star, label: "Brand & Experience" },
     { to: `${basePath}/security`, icon: Shield, label: "System & Security" },
-    { to: `${basePath}/support`, icon: LifeBuoy, label: "Support Tickets" },
-    { to: `${basePath}/advisor`, icon: Brain, label: "AI Strategy Advisor" },
-    { to: `${basePath}/ai`, icon: Sparkles, label: "AI Command Center" },
-    { to: `${basePath}/messages`, icon: MessageSquare, label: "Messages", badge: unreadCount },
   ];
+
+  const strategyItems = [
+    { to: `${basePath}/advisor`, icon: Brain, label: "AI Strategy Advisor" },
+    { to: `${basePath}/support`, icon: LifeBuoy, label: "Support Tickets" },
+  ];
+
+
+  const inheritedNav = useMemo(() => {
+    const executivePaths = new Set(["", "admissions", "finance", "support", "messages"]);
+    const { grouped } = buildMergedNav(["school_owner"]);
+    return GROUP_ORDER.map((group) => ({
+      group,
+      items: grouped[group].filter((item) => !executivePaths.has(item.path)),
+    })).filter((section) => section.items.length > 0);
+  }, []);
 
   const bottomNavItems = [
     { to: basePath, icon: LayoutGrid, label: "Overview" },
@@ -89,12 +127,75 @@ export function OwnerShell({ title, subtitle, schoolSlug, children }: Props) {
     { to: `${basePath}/advisor`, icon: Brain, label: "AI Advisor" },
   ];
 
+  const renderNativeDropdown = (
+    groupKey: string,
+    label: string,
+    Icon: any,
+    items: typeof operationsItems
+  ) => {
+    const urls = items.map(item => item.to);
+    const isOpen = isGroupExpanded(groupKey, urls);
+    const isActive = urls.some(url => location.pathname === url || location.pathname.startsWith(url + "/"));
+
+    return (
+      <div key={groupKey} className="space-y-0.5">
+        <button
+          onClick={() => toggleGroup(groupKey)}
+          className={cn(
+            "w-full flex items-center justify-between rounded-xl px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-primary/10 hover:text-primary transition-colors",
+            isActive && "text-primary font-semibold"
+          )}
+        >
+          <span className="flex items-center gap-2.5">
+            <Icon className="h-4 w-4 shrink-0" />
+            <span className="truncate">{label}</span>
+          </span>
+          <ChevronDown
+            className={cn(
+              "h-4 w-4 shrink-0 transition-transform duration-200 text-muted-foreground/60",
+              isOpen ? "rotate-180" : "rotate-0"
+            )}
+          />
+        </button>
+
+        <div
+          className={cn(
+            "overflow-hidden transition-all duration-200 ease-in-out",
+            isOpen ? "max-h-[500px] opacity-100 mt-0.5" : "max-h-0 opacity-0 pointer-events-none"
+          )}
+        >
+          <div className="pl-4 ml-3 border-l border-border/40 space-y-0.5">
+            {items.map((item) => (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                className="flex items-center justify-between rounded-xl px-3 py-2 text-sm text-muted-foreground hover:bg-primary/10 hover:text-primary transition-colors"
+                activeClassName="bg-primary text-primary-foreground shadow-sm hover:text-primary-foreground"
+                onClick={() => setMobileNavOpen(false)}
+              >
+                <span className="flex items-center gap-2.5">
+                  <item.icon className="h-4 w-4 shrink-0" />
+                  <span className="truncate">{item.label}</span>
+                </span>
+                {"badge" in item && typeof item.badge === "number" && item.badge > 0 && (
+                  <Badge variant="destructive" className="h-5 px-1.5 text-[10px]">
+                    {item.badge > 99 ? "99+" : item.badge}
+                  </Badge>
+                )}
+              </NavLink>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const NavContent = () => (
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-between">
-        <div>
-          <p className="font-display text-lg font-semibold tracking-tight text-primary">
-            {schoolName || "EDUVERSE"}
+        <div className="min-w-0">
+          <p className="font-display text-lg font-semibold tracking-tight bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent truncate">
+            {schoolName || "AltRix"}
           </p>
           <p className="text-xs text-muted-foreground">School Owner • CEO View</p>
         </div>
@@ -121,15 +222,19 @@ export function OwnerShell({ title, subtitle, schoolSlug, children }: Props) {
         </div>
       </div>
 
+      <div className="mt-4">
+        <OwnerContextSwitcher schoolId={schoolId} schoolSlug={schoolSlug} />
+      </div>
+
       <ScrollArea className="mt-6 flex-1">
         <nav className="space-y-1 pr-2">
-          {navItems.map((item) => (
+          {directNavItems.slice(0, 5).map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
               end={item.end}
               className="flex items-center justify-between rounded-xl px-3 py-2.5 text-sm text-muted-foreground hover:bg-primary/10 hover:text-primary transition-colors"
-              activeClassName="bg-primary text-primary-foreground shadow-sm"
+              activeClassName="bg-primary text-primary-foreground shadow-sm hover:text-primary-foreground"
               onClick={() => setMobileNavOpen(false)}
             >
               <span className="flex items-center gap-2.5">
@@ -143,6 +248,138 @@ export function OwnerShell({ title, subtitle, schoolSlug, children }: Props) {
               )}
             </NavLink>
           ))}
+
+          {/* Operations & Governance Dropdown */}
+          {renderNativeDropdown("ops_gov", "Operations & Gov", Building2, operationsItems)}
+
+          {/* Strategy & Support Dropdown */}
+          {renderNativeDropdown("strategy_support", "Strategy & Support", Brain, strategyItems)}
+
+          {directNavItems.slice(5).map((item) => (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              end={item.end}
+              className="flex items-center justify-between rounded-xl px-3 py-2.5 text-sm text-muted-foreground hover:bg-primary/10 hover:text-primary transition-colors"
+              activeClassName="bg-primary text-primary-foreground shadow-sm hover:text-primary-foreground"
+              onClick={() => setMobileNavOpen(false)}
+            >
+              <span className="flex items-center gap-2.5">
+                <item.icon className="h-4 w-4 shrink-0" />
+                <span className="truncate">{item.label}</span>
+              </span>
+              {"badge" in item && item.badge && item.badge > 0 && (
+                <Badge variant="destructive" className="h-5 px-1.5 text-[10px]">
+                  {item.badge > 99 ? "99+" : item.badge}
+                </Badge>
+              )}
+            </NavLink>
+          ))}
+
+          {inheritedNav.map(({ group, items }) => {
+            const directItems: typeof items = [];
+            const dropdownGroups: Record<string, { label: string; icon: any; items: typeof items }> = {};
+
+            items.forEach((item) => {
+              const mapping = DROPDOWN_MAPPING[item.key];
+              if (mapping) {
+                if (!dropdownGroups[mapping.groupKey]) {
+                  dropdownGroups[mapping.groupKey] = {
+                    label: mapping.label,
+                    icon: mapping.icon,
+                    items: []
+                  };
+                }
+                dropdownGroups[mapping.groupKey].items.push(item);
+              } else {
+                directItems.push(item);
+              }
+            });
+
+            return (
+              <div key={group} className="pt-4 first:pt-0">
+                <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+                  {GROUP_LABELS[group]}
+                </p>
+                <div className="space-y-1">
+                  {directItems.map((item) => {
+                    const Icon = item.icon;
+                    return (
+                      <NavLink
+                        key={item.key}
+                        to={`${basePath}/${item.path}`}
+                        className="flex items-center justify-between rounded-xl px-3 py-2.5 text-sm text-muted-foreground hover:bg-primary/10 hover:text-primary transition-colors"
+                        activeClassName="bg-primary text-primary-foreground shadow-sm hover:text-primary-foreground"
+                        onClick={() => setMobileNavOpen(false)}
+                      >
+                        <span className="flex items-center gap-2.5">
+                          <Icon className="h-4 w-4 shrink-0" />
+                          <span className="truncate">{item.label}</span>
+                        </span>
+                      </NavLink>
+                    );
+                  })}
+
+                  {Object.entries(dropdownGroups).map(([groupKey, groupInfo]) => {
+                    const childUrls = groupInfo.items.map(item => `${basePath}/${item.path}`);
+                    const isOpen = isGroupExpanded(groupKey, childUrls);
+                    const isDropdownActive = childUrls.some(url => location.pathname === url || location.pathname.startsWith(url + "/"));
+                    const GroupIcon = groupInfo.icon;
+
+                    return (
+                      <div key={groupKey} className="space-y-0.5">
+                        <button
+                          onClick={() => toggleGroup(groupKey)}
+                          className={cn(
+                            "w-full flex items-center justify-between rounded-xl px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-primary/10 hover:text-primary transition-colors",
+                            isDropdownActive && "text-primary font-semibold"
+                          )}
+                        >
+                          <span className="flex items-center gap-2.5">
+                            <GroupIcon className="h-4 w-4 shrink-0" />
+                            <span className="truncate">{groupInfo.label}</span>
+                          </span>
+                          <ChevronDown
+                            className={cn(
+                              "h-4 w-4 shrink-0 transition-transform duration-200 text-muted-foreground/60",
+                              isOpen ? "rotate-180" : "rotate-0"
+                            )}
+                          />
+                        </button>
+
+                        <div
+                          className={cn(
+                            "overflow-hidden transition-all duration-200 ease-in-out",
+                            isOpen ? "max-h-[500px] opacity-100 mt-0.5" : "max-h-0 opacity-0 pointer-events-none"
+                          )}
+                        >
+                          <div className="pl-4 ml-3 border-l border-border/40 space-y-0.5">
+                            {groupInfo.items.map((item) => {
+                              const Icon = item.icon;
+                              return (
+                                <NavLink
+                                  key={item.key}
+                                  to={`${basePath}/${item.path}`}
+                                  className="flex items-center justify-between rounded-xl px-3 py-2 text-sm text-muted-foreground hover:bg-primary/10 hover:text-primary transition-colors"
+                                  activeClassName="bg-primary text-primary-foreground shadow-sm hover:text-primary-foreground"
+                                  onClick={() => setMobileNavOpen(false)}
+                                >
+                                  <span className="flex items-center gap-2.5">
+                                    <Icon className="h-4 w-4 shrink-0" />
+                                    <span className="truncate">{item.label}</span>
+                                  </span>
+                                </NavLink>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
         </nav>
       </ScrollArea>
 
@@ -182,7 +419,7 @@ export function OwnerShell({ title, subtitle, schoolSlug, children }: Props) {
                 <Menu className="h-5 w-5" />
               </Button>
             </SheetTrigger>
-            <SheetContent side="left" className="w-[300px] p-4">
+            <SheetContent side="left" className="w-[300px] p-4 overflow-y-auto">
               <NavContent />
             </SheetContent>
           </Sheet>
@@ -191,7 +428,8 @@ export function OwnerShell({ title, subtitle, schoolSlug, children }: Props) {
             {subtitle && <p className="text-xs text-muted-foreground">{subtitle}</p>}
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1">
+          <OwnerContextSwitcher schoolId={schoolId} schoolSlug={schoolSlug} compact />
           <OfflineStatusIndicator
             isOnline={offline.isOnline}
             isSyncing={offline.isSyncing}
@@ -213,7 +451,7 @@ export function OwnerShell({ title, subtitle, schoolSlug, children }: Props) {
         </div>
       </header>
 
-      <div className="mx-auto grid w-full max-w-7xl grid-cols-1 gap-4 px-4 py-4 lg:grid-cols-[300px_1fr] lg:gap-6 lg:px-6 lg:py-6">
+      <div className="grid w-full grid-cols-1 gap-4 px-4 py-4 lg:grid-cols-[300px_1fr] lg:gap-6 lg:px-6 lg:py-6">
         {/* Desktop Sidebar */}
         <aside className="sticky top-6 hidden self-start max-h-[calc(100vh-3rem)] overflow-y-auto rounded-3xl bg-surface p-4 shadow-elevated lg:block">
           <NavContent />

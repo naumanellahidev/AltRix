@@ -14,6 +14,7 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { aiToTextArray } from "@/lib/ai-render";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -37,16 +38,16 @@ export function PredictiveAcademicModel({ studentId, schoolId }: Props) {
   const { data: prediction, isLoading } = useQuery({
     queryKey: ["ai_academic_predictions", studentId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from("ai_academic_predictions")
         .select("*")
         .eq("student_id", studentId)
         .eq("school_id", schoolId)
-        .order("prediction_date", { ascending: false })
+        .order("created_at", { ascending: false })
         .maybeSingle();
 
       if (error) throw error;
-      return data;
+      return data as any;
     },
     enabled: !!studentId && !!schoolId,
   });
@@ -282,26 +283,29 @@ export function PredictiveAcademicModel({ studentId, schoolId }: Props) {
       )}
 
       {/* Focus Areas */}
-      {prediction.suggested_focus_areas && (prediction.suggested_focus_areas as string[]).length > 0 && (
-        <Card className="shadow-sm border-primary/20 bg-primary/5">
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Lightbulb className="h-5 w-5 text-primary" />
-              Suggested Focus Areas
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ul className="space-y-2">
-              {(prediction.suggested_focus_areas as string[]).map((area, idx) => (
-                <li key={idx} className="flex items-start gap-2 text-sm">
-                  <BookOpen className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-                  {area}
-                </li>
-              ))}
-            </ul>
-          </CardContent>
-        </Card>
-      )}
+      {(() => {
+        const focus = aiToTextArray(prediction.suggested_focus_areas);
+        return focus.length > 0 ? (
+          <Card className="shadow-sm border-primary/20 bg-primary/5">
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Lightbulb className="h-5 w-5 text-primary" />
+                Suggested Focus Areas
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ul className="space-y-2">
+                {focus.map((area, idx) => (
+                  <li key={idx} className="flex items-start gap-2 text-sm">
+                    <BookOpen className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                    {area}
+                  </li>
+                ))}
+              </ul>
+            </CardContent>
+          </Card>
+        ) : null;
+      })()}
     </div>
   );
 }

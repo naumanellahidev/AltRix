@@ -69,7 +69,7 @@ export function StudentQuickViewPopover({ studentId, schoolId, schoolSlug, child
       }
 
       // Fetch average grade - use separate queries
-      const { data: marksData } = await supabase
+      const { data: marksData } = await (supabase as any)
         .from("student_marks")
         .select("marks, assessment_id")
         .eq("student_id", studentId)
@@ -94,7 +94,7 @@ export function StudentQuickViewPopover({ studentId, schoolId, schoolSlug, child
         
         if (validMarks.length > 0) {
           const totalPercentage = validMarks.reduce((sum, m) => {
-            const maxMarks = assessmentMap.get(m.assessment_id) || 100;
+            const maxMarks = (assessmentMap.get(m.assessment_id) as number) || 100;
             const percentage = (m.marks! / maxMarks) * 100;
             return sum + percentage;
           }, 0);
@@ -103,8 +103,8 @@ export function StudentQuickViewPopover({ studentId, schoolId, schoolSlug, child
           // Calculate trend (compare last 2 assessments)
           if (validMarks.length >= 2) {
             const lastTwo = validMarks.slice(-2);
-            const olderMax = assessmentMap.get(lastTwo[0].assessment_id) || 100;
-            const newerMax = assessmentMap.get(lastTwo[1].assessment_id) || 100;
+            const olderMax = (assessmentMap.get(lastTwo[0].assessment_id) as number) || 100;
+            const newerMax = (assessmentMap.get(lastTwo[1].assessment_id) as number) || 100;
             const older = (lastTwo[0].marks! / olderMax) * 100;
             const newer = (lastTwo[1].marks! / newerMax) * 100;
             recentTrend = newer > older + 5 ? "up" : newer < older - 5 ? "down" : "stable";

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase, USE_FASTAPI } from "@/integrations/supabase/client";
+import { apiClient } from "@/lib/api-client";
 
 type TenantState =
   | { status: "idle" | "loading"; school: null; schoolId: null; error: null }
@@ -92,13 +93,31 @@ export function useTenant(schoolSlug: string | undefined) {
       setState({ status: "loading", school: null, schoolId: null, error: null });
     }
 
-    supabase
-      .rpc("get_school_public_by_slug", { _slug: normalizedSlug })
-      .maybeSingle()
-      .then(({ data, error }) => {
-        if (cancelled) return;
-        if (error) {
-          // If we have cached data, keep using it on error
+    if (USE_FASTAPI) {
+      apiClient
+        .get(`/schools/by-slug/${normalizedSlug}`)
+        .then((resp) => {
+          if (cancelled) return;
+          const data = resp.data;
+          if (!data) {
+            if (cachedData) {
+              setState({
+                status: "ready",
+                school: cachedData,
+                schoolId: cachedData.id,
+                error: null,
+              });
+            } else {
+              setState({ status: "error", school: null, schoolId: null, error: "School not found." });
+            }
+            return;
+          }
+          const tenantData = { id: data.id, slug: data.slug, name: data.name };
+          cacheTenant(normalizedSlug, tenantData);
+          setState({ status: "ready", school: tenantData, schoolId: data.id, error: null });
+        })
+        .catch((err) => {
+          if (cancelled) return;
           if (cachedData) {
             setState({
               status: "ready",
@@ -107,30 +126,46 @@ export function useTenant(schoolSlug: string | undefined) {
               error: null,
             });
           } else {
-            setState({ status: "error", school: null, schoolId: null, error: error.message });
+            setState({ status: "error", school: null, schoolId: null, error: err.message || "Failed to fetch school." });
           }
-          return;
-        }
-        if (!data) {
-          if (cachedData) {
-            setState({
-              status: "ready",
-              school: cachedData,
-              schoolId: cachedData.id,
-              error: null,
-            });
-          } else {
-            setState({ status: "error", school: null, schoolId: null, error: "School not found." });
+        });
+    } else {
+      supabase
+        .rpc("get_school_public_by_slug", { _slug: normalizedSlug })
+        .maybeSingle()
+        .then(({ data, error }) => {
+          if (cancelled) return;
+          if (error) {
+            if (cachedData) {
+              setState({
+                status: "ready",
+                school: cachedData,
+                schoolId: cachedData.id,
+                error: null,
+              });
+            } else {
+              setState({ status: "error", school: null, schoolId: null, error: error.message });
+            }
+            return;
           }
-          return;
-        }
-        
-        // Cache the fresh data
-        const tenantData = { id: data.id, slug: data.slug, name: data.name };
-        cacheTenant(normalizedSlug, tenantData);
-        
-        setState({ status: "ready", school: tenantData, schoolId: data.id, error: null });
-      });
+          if (!data) {
+            if (cachedData) {
+              setState({
+                status: "ready",
+                school: cachedData,
+                schoolId: cachedData.id,
+                error: null,
+              });
+            } else {
+              setState({ status: "error", school: null, schoolId: null, error: "School not found." });
+            }
+            return;
+          }
+          const tenantData = { id: data.id, slug: data.slug, name: data.name };
+          cacheTenant(normalizedSlug, tenantData);
+          setState({ status: "ready", school: tenantData, schoolId: data.id, error: null });
+        });
+    }
 
     return () => {
       cancelled = true;

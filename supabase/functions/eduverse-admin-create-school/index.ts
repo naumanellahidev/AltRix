@@ -16,6 +16,13 @@ type CreateSchoolRequest = {
   principalEmail: string;
   principalPassword: string;
   principalDisplayName?: string;
+  // Optional owner assignment (Phase 5):
+  //  - ownerUserId: pick an existing user as owner
+  //  - OR ownerEmail (+ ownerPassword/ownerDisplayName for new account creation)
+  ownerUserId?: string | null;
+  ownerEmail?: string | null;
+  ownerPassword?: string | null;
+  ownerDisplayName?: string | null;
 };
 
 const makeTraceId = () => crypto.randomUUID();
@@ -129,6 +136,110 @@ serve(async (req) => {
       { onConflict: "school_id,user_id" },
     );
 
+    // ---- Phase 5: optional School Owner assignment ----
+    let ownerUserId: string | null = null;
+    let ownerEmailResolved: string | null = null;
+    let ownerAssignmentExisted = false;
+    try {
+      if (body.ownerUserId) {
+        ownerUserId = body.ownerUserId;
+        const { data: ouser, error: ouserErr } = await admin.auth.admin.getUserById(ownerUserId);
+        if (ouserErr || !ouser?.user) {
+          return json(
+            { ok: false, error: `Selected owner user does not exist (id=${ownerUserId}).` },
+            404,
+            traceId,
+          );
+        }
+        ownerEmailResolved = ouser.user.email?.toLowerCase() ?? null;
+      } else if (body.ownerEmail) {
+        const ownerEmail = body.ownerEmail.trim().toLowerCase();
+        if (!ownerEmail.includes("@")) {
+          return json({ ok: false, error: "Invalid ownerEmail format." }, 400, traceId);
+        }
+        const existingOwner = existing?.users?.find((u) => (u.email ?? "").toLowerCase() === ownerEmail);
+        if (existingOwner) {
+          ownerUserId = existingOwner.id;
+        } else {
+          // Explicit "not found" path. If caller didn't provide a password we treat this as a
+          // lookup failure rather than silently creating a brand-new account.
+          if (!body.ownerPassword) {
+            return json(
+              {
+                ok: false,
+                code: "owner_email_not_found",
+                error: `No existing user found for ${ownerEmail}. Provide ownerPassword to create a new owner account, or pick from the existing owners list.`,
+              },
+              404,
+              traceId,
+            );
+          }
+          if (body.ownerPassword.length < 8) {
+            return json({ ok: false, error: "Owner password must be at least 8 characters (new owner)." }, 400, traceId);
+          }
+          const { data: createdOwner, error: ownerCreateErr } = await admin.auth.admin.createUser({
+            email: ownerEmail,
+            password: body.ownerPassword,
+            email_confirm: true,
+          });
+          if (ownerCreateErr) return json({ ok: false, error: ownerCreateErr.message }, 400, traceId);
+          ownerUserId = createdOwner.user?.id ?? null;
+        }
+        ownerEmailResolved = ownerEmail;
+      }
+
+      if (ownerUserId) {
+        // Backend validation: do not create a duplicate assignment row for the same
+        // (school_id, owner_user_id). Unique constraint backs this up at the DB level.
+        const { data: existingAssignment } = await admin
+          .from("school_owner_assignments")
+          .select("id")
+          .eq("school_id", school.id)
+          .eq("owner_user_id", ownerUserId)
+          .maybeSingle();
+        ownerAssignmentExisted = !!existingAssignment?.id;
+
+        const ownerDisplay = body.ownerDisplayName?.trim() || "School Owner";
+        await admin.from("profiles").upsert(
+          { user_id: ownerUserId, display_name: ownerDisplay },
+          { onConflict: "user_id" },
+        );
+        await admin.from("school_memberships").upsert(
+          { school_id: school.id, user_id: ownerUserId, status: "active", created_by: actorUserId },
+          { onConflict: "school_id,user_id" },
+        );
+        await admin.from("user_roles").upsert(
+          { school_id: school.id, user_id: ownerUserId, role: "school_owner", created_by: actorUserId },
+          { onConflict: "school_id,user_id,role" },
+        );
+
+        if (!ownerAssignmentExisted) {
+          const { error: soaErr } = await admin.from("school_owner_assignments").insert({
+            school_id: school.id,
+            owner_user_id: ownerUserId,
+            created_by: actorUserId,
+          });
+          // 23505 = unique_violation — handle the race where another request inserted between
+          // our pre-check and our insert.
+          if (soaErr && (soaErr as { code?: string }).code !== "23505") {
+            return json({ ok: false, error: `Owner assignment failed: ${soaErr.message}` }, 400, traceId);
+          }
+          if (soaErr) ownerAssignmentExisted = true;
+        }
+
+        if (ownerEmailResolved) {
+          await admin.from("school_user_directory").upsert(
+            { school_id: school.id, user_id: ownerUserId, email: ownerEmailResolved, display_name: ownerDisplay },
+            { onConflict: "school_id,user_id" },
+          );
+        }
+      }
+    } catch (ownerErr) {
+      console.error("owner assignment error:", ownerErr);
+      const err = ownerErr as { message?: string };
+      return json({ ok: false, error: `Owner assignment failed: ${err?.message ?? "unknown"}` }, 400, traceId);
+    }
+
     // Mark as bootstrapped (so bootstrap secret isn't required later)
     await admin
       .from("school_bootstrap")
@@ -148,10 +259,19 @@ serve(async (req) => {
       action: "school_created_direct",
       entity_type: "school",
       entity_id: slug,
-      metadata: { principalEmail },
+      metadata: {
+        principalEmail,
+        ownerUserId,
+        ownerEmail: ownerEmailResolved,
+        ownerAssignmentExisted,
+      },
     });
 
-    return json({ ok: true, school, principalUserId }, 200, traceId);
+    return json(
+      { ok: true, school, principalUserId, ownerUserId, ownerAssignmentExisted },
+      200,
+      traceId,
+    );
   } catch (e) {
     console.error("eduverse-admin-create-school error:", e);
     const err = e as { message?: string };

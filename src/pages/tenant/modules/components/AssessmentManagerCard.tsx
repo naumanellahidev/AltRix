@@ -13,6 +13,27 @@ type Subject = { id: string; name: string };
 type Section = { id: string; name: string; class_id: string };
 type ClassRow = { id: string; name: string };
 
+export type AssessmentType =
+  | "quiz" | "test" | "assignment" | "project" | "exam"
+  | "classwork" | "homework" | "midterm" | "final"
+  | "practical" | "oral" | "presentation" | "lab";
+
+export const ASSESSMENT_TYPES: { value: AssessmentType; label: string }[] = [
+  { value: "quiz", label: "Quiz" },
+  { value: "test", label: "Test" },
+  { value: "assignment", label: "Assignment" },
+  { value: "project", label: "Project" },
+  { value: "exam", label: "Exam" },
+  { value: "midterm", label: "Mid-term" },
+  { value: "final", label: "Final" },
+  { value: "classwork", label: "Classwork" },
+  { value: "homework", label: "Homework" },
+  { value: "practical", label: "Practical" },
+  { value: "oral", label: "Oral" },
+  { value: "presentation", label: "Presentation" },
+  { value: "lab", label: "Lab" },
+];
+
 type AssessmentRow = {
   id: string;
   title: string;
@@ -22,6 +43,9 @@ type AssessmentRow = {
   subject_id: string | null;
   class_section_id: string;
   is_published: boolean;
+  assessment_type: AssessmentType | null;
+  weightage_percent: number | null;
+  passing_marks: number | null;
 };
 
 type StudentRow = { id: string; first_name: string; last_name: string | null };
@@ -34,6 +58,9 @@ const assessmentSchema = z.object({
   term_label: z.string().trim().optional(),
   assessment_date: z.string().min(1, "Date is required"),
   max_marks: z.coerce.number().positive().max(1000),
+  assessment_type: z.string().min(1, "Type is required"),
+  weightage_percent: z.coerce.number().min(0).max(100).optional().nullable(),
+  passing_marks: z.coerce.number().min(0).max(1000).optional().nullable(),
 });
 
 function safeNum(v: unknown): number | null {
@@ -70,7 +97,11 @@ export function AssessmentManagerCard({
     term_label: "",
     assessment_date: new Date().toISOString().slice(0, 10),
     max_marks: 100,
+    assessment_type: "test" as AssessmentType,
+    weightage_percent: "" as string | number,
+    passing_marks: "" as string | number,
   });
+  const [filterType, setFilterType] = useState<string>("");
 
   // marks entry
   const [activeAssessmentId, setActiveAssessmentId] = useState<string | null>(null);
@@ -122,7 +153,7 @@ export function AssessmentManagerCard({
     try {
       let q = supabase
         .from("academic_assessments")
-        .select("id,title,assessment_date,max_marks,term_label,subject_id,class_section_id,is_published")
+        .select("id,title,assessment_date,max_marks,term_label,subject_id,class_section_id,is_published,assessment_type,weightage_percent,passing_marks")
         .eq("school_id", schoolId)
         .order("assessment_date", { ascending: false })
         .limit(200);
@@ -132,6 +163,7 @@ export function AssessmentManagerCard({
       if (filterTerm.trim()) q = q.eq("term_label", filterTerm.trim());
       if (filterFrom) q = q.gte("assessment_date", filterFrom);
       if (filterTo) q = q.lte("assessment_date", filterTo);
+      if (filterType) q = q.eq("assessment_type", filterType);
 
       const { data, error } = await q;
       if (error) return toast.error(error.message);
@@ -196,7 +228,7 @@ export function AssessmentManagerCard({
   useEffect(() => {
     void refreshAssessments();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [schoolId, filterSectionId, filterSubjectId, filterTerm, filterFrom, filterTo]);
+  }, [schoolId, filterSectionId, filterSubjectId, filterTerm, filterFrom, filterTo, filterType]);
 
   useEffect(() => {
     void refreshAllowedSubjects(form.class_section_id);
@@ -217,6 +249,9 @@ export function AssessmentManagerCard({
       term_label: filterTerm || "",
       assessment_date: new Date().toISOString().slice(0, 10),
       max_marks: 100,
+      assessment_type: (filterType as AssessmentType) || "test",
+      weightage_percent: "",
+      passing_marks: "",
     });
   };
 
@@ -229,6 +264,9 @@ export function AssessmentManagerCard({
       term_label: a.term_label ?? "",
       assessment_date: a.assessment_date,
       max_marks: a.max_marks,
+      assessment_type: (a.assessment_type as AssessmentType) || "test",
+      weightage_percent: a.weightage_percent ?? "",
+      passing_marks: a.passing_marks ?? "",
     });
   };
 
@@ -248,6 +286,9 @@ export function AssessmentManagerCard({
         term_label: parsed.data.term_label?.trim() || null,
         assessment_date: parsed.data.assessment_date,
         max_marks: parsed.data.max_marks,
+        assessment_type: parsed.data.assessment_type,
+        weightage_percent: parsed.data.weightage_percent === undefined || parsed.data.weightage_percent === null || (parsed.data.weightage_percent as any) === "" ? null : parsed.data.weightage_percent,
+        passing_marks: parsed.data.passing_marks === undefined || parsed.data.passing_marks === null || (parsed.data.passing_marks as any) === "" ? null : parsed.data.passing_marks,
       };
 
       const q = editId
@@ -388,6 +429,20 @@ export function AssessmentManagerCard({
           <Input type="date" value={filterTo} onChange={(e) => setFilterTo(e.target.value)} />
         </div>
 
+        <div className="grid grid-cols-1 gap-2 md:grid-cols-5">
+          <Select value={filterType || "__all"} onValueChange={(v) => setFilterType(v === "__all" ? "" : v)}>
+            <SelectTrigger>
+              <SelectValue placeholder="Filter: type" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all">All types</SelectItem>
+              {ASSESSMENT_TYPES.map((t) => (
+                <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
         <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
           <div className="text-xs text-muted-foreground">
             {busy ? "Working…" : `${assessments.length} assessments`}
@@ -471,6 +526,30 @@ export function AssessmentManagerCard({
                 placeholder="Max"
               />
             </div>
+            <div className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-3">
+              <Select value={form.assessment_type} onValueChange={(v) => setForm((p) => ({ ...p, assessment_type: v as AssessmentType }))}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Type" />
+                </SelectTrigger>
+                <SelectContent>
+                  {ASSESSMENT_TYPES.map((t) => (
+                    <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Input
+                type="number"
+                value={String(form.weightage_percent)}
+                onChange={(e) => setForm((p) => ({ ...p, weightage_percent: e.target.value }))}
+                placeholder="Weightage % (optional)"
+              />
+              <Input
+                type="number"
+                value={String(form.passing_marks)}
+                onChange={(e) => setForm((p) => ({ ...p, passing_marks: e.target.value }))}
+                placeholder="Passing marks (optional)"
+              />
+            </div>
             <div className="mt-3 flex flex-wrap gap-2">
               <Button variant="hero" onClick={saveAssessment} disabled={busy || !schoolId}>
                 {editId ? "Save changes" : "Create"}
@@ -493,10 +572,12 @@ export function AssessmentManagerCard({
             <TableHeader>
               <TableRow>
                 <TableHead>Title</TableHead>
+                <TableHead>Type</TableHead>
                 <TableHead>Section</TableHead>
                 <TableHead>Subject</TableHead>
                 <TableHead>Date</TableHead>
                 <TableHead className="text-right">Max</TableHead>
+                <TableHead className="text-right">Weight</TableHead>
                 <TableHead>Published</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
@@ -505,10 +586,16 @@ export function AssessmentManagerCard({
               {assessments.map((a) => (
                 <TableRow key={a.id}>
                   <TableCell className="font-medium">{a.title}</TableCell>
+                  <TableCell>
+                    <span className="inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium capitalize text-primary">
+                      {a.assessment_type ?? "test"}
+                    </span>
+                  </TableCell>
                   <TableCell className="text-muted-foreground">{sectionLabelById.get(a.class_section_id) ?? a.class_section_id}</TableCell>
                   <TableCell className="text-muted-foreground">{a.subject_id ? subjectNameById.get(a.subject_id) ?? "—" : "—"}</TableCell>
                   <TableCell className="text-muted-foreground">{new Date(a.assessment_date).toLocaleDateString()}</TableCell>
                   <TableCell className="text-right text-muted-foreground">{a.max_marks}</TableCell>
+                  <TableCell className="text-right text-muted-foreground">{a.weightage_percent != null ? `${a.weightage_percent}%` : "—"}</TableCell>
                   <TableCell>
                     <Button variant="soft" size="sm" onClick={() => void togglePublish(a)}>
                       {a.is_published ? "Published" : "Draft"}
@@ -538,7 +625,7 @@ export function AssessmentManagerCard({
               ))}
               {assessments.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-sm text-muted-foreground">
+                  <TableCell colSpan={10} className="text-sm text-muted-foreground">
                     No assessments found.
                   </TableCell>
                 </TableRow>

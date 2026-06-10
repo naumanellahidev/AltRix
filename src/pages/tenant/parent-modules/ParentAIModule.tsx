@@ -4,6 +4,7 @@ import { StudentDigitalTwinCard } from "@/components/ai/StudentDigitalTwinCard";
 import { PredictiveAcademicModel } from "@/components/ai/PredictiveAcademicModel";
 import { StudentCareerPathAI } from "@/components/ai/StudentCareerPathAI";
 import { ParentTrustDashboard } from "@/components/ai/ParentTrustDashboard";
+import { AISafeBoundary } from "@/components/ai/AISafeBoundary";
 import { Card, CardContent } from "@/components/ui/card";
 import { ChildInfo } from "@/hooks/useMyChildren";
 import { useSession } from "@/hooks/useSession";
@@ -69,33 +70,42 @@ const ParentAIModule = ({ child, schoolId }: Props) => {
 
         <TabsContent value="updates" className="mt-6">
           {user && (
-            <ParentTrustDashboard 
-              studentId={child.student_id} 
-              schoolId={schoolId}
-              parentUserId={user.id}
-            />
+            <AISafeBoundary label="parent-trust">
+              <ParentTrustDashboard
+                studentId={child.student_id}
+                schoolId={schoolId}
+                parentUserId={user.id}
+              />
+            </AISafeBoundary>
           )}
         </TabsContent>
 
         <TabsContent value="profile" className="mt-6">
-          <StudentDigitalTwinCard 
-            studentId={child.student_id} 
-            schoolId={schoolId} 
-          />
+          <AISafeBoundary label="digital-twin">
+            <StudentDigitalTwinCard
+              studentId={child.student_id}
+              schoolId={schoolId}
+              scope="learning"
+            />
+          </AISafeBoundary>
         </TabsContent>
 
         <TabsContent value="predictions" className="mt-6">
-          <PredictiveAcademicModel 
-            studentId={child.student_id} 
-            schoolId={schoolId} 
-          />
+          <AISafeBoundary label="predictions">
+            <PredictiveAcademicModel
+              studentId={child.student_id}
+              schoolId={schoolId}
+            />
+          </AISafeBoundary>
         </TabsContent>
 
         <TabsContent value="career" className="mt-6">
-          <StudentCareerPathAI 
-            studentId={child.student_id} 
-            schoolId={schoolId} 
-          />
+          <AISafeBoundary label="career">
+            <StudentCareerPathAI
+              studentId={child.student_id}
+              schoolId={schoolId}
+            />
+          </AISafeBoundary>
         </TabsContent>
       </Tabs>
 

@@ -45,6 +45,17 @@ export function SubjectCatalogCard({
 
   const remove = async (subjectId: string) => {
     if (!schoolId) return;
+    if (!confirm("Remove this subject? It will be unassigned from all sections and teachers.")) return;
+
+    // Clean up dependent rows first to avoid FK violations
+    const cleanups = await Promise.all([
+      supabase.from("teacher_subject_assignments").delete().eq("school_id", schoolId).eq("subject_id", subjectId),
+      supabase.from("class_section_subjects").delete().eq("school_id", schoolId).eq("subject_id", subjectId),
+      supabase.from("academic_assessments").delete().eq("school_id", schoolId).eq("subject_id", subjectId),
+    ]);
+    const cleanupErr = cleanups.find((r) => r.error)?.error;
+    if (cleanupErr) return toast.error(cleanupErr.message);
+
     const { error } = await supabase
       .from("subjects")
       .delete()

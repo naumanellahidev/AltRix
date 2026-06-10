@@ -13,13 +13,15 @@ const corsHeaders = {
 type GovernanceAction =
   | "deactivate" // remove all roles for user in a school
   | "set_roles" // replace roles for user in a school
-  | "set_password";
+  | "set_password"
+  | "set_email"; // update auth email for user
 
 type GovernanceRequest = {
   schoolSlug: string;
   targetUserId: string;
   roles?: string[]; // required for set_roles
   password?: string; // required for set_password
+  email?: string; // required for set_email
   reason?: string;
 };
 
@@ -84,16 +86,42 @@ serve(async (req) => {
     if (psaErr) return json({ ok: false, error: psaErr.message }, 400, traceId);
     const isPlatformSuperAdmin = !!psa?.user_id;
 
+    let actorRoles: string[] = [];
+    let isSchoolOwnerAssignment = false;
     if (!isPlatformSuperAdmin) {
       const { data: roleRows, error: roleErr } = await admin
         .from("user_roles")
         .select("role")
         .eq("school_id", school.id)
-        .eq("user_id", actorUserId)
-        .in("role", ["super_admin", "school_owner", "principal", "vice_principal", "hr_manager"])
-        .limit(1);
-      if (roleErr) return json({ ok: false, error: roleErr.message }, 400, traceId);
-      if (!roleRows || roleRows.length === 0) return json({ ok: false, error: "Forbidden" }, 403, traceId);
+        .eq("user_id", actorUserId);
+      if (roleErr) {
+        console.error("[governance] role lookup failed", roleErr);
+        return json({ ok: false, step: "permission_lookup", error: roleErr.message }, 200, traceId);
+      }
+      actorRoles = (roleRows ?? []).map((r: any) => String(r.role));
+
+      // Also check school_owner_assignments (multi-school owners)
+      const { data: ownerAssign } = await admin
+        .from("school_owner_assignments")
+        .select("id")
+        .eq("school_id", school.id)
+        .eq("owner_user_id", actorUserId)
+        .maybeSingle();
+      isSchoolOwnerAssignment = !!ownerAssign?.id;
+
+      const allowed = ["super_admin", "school_owner", "principal", "vice_principal", "hr_manager"];
+      const hasAllowedRole = actorRoles.some((r) => allowed.includes(r));
+      if (!hasAllowedRole && !isSchoolOwnerAssignment) {
+        return json(
+          {
+            ok: false,
+            step: "permission_check",
+            error: `You do not have permission to manage staff in this school. Required role: super_admin, school_owner, principal, vice_principal, or hr_manager. Your roles: ${actorRoles.join(", ") || "(none)"}.`,
+          },
+          200,
+          traceId,
+        );
+      }
     }
 
     // Snapshot existing roles for audit metadata
@@ -160,11 +188,17 @@ serve(async (req) => {
     if (action === "set_password") {
       const password = String(body.password ?? "");
       if (!password || password.length < 8) {
-        return json({ ok: false, error: "Password must be at least 8 characters." }, 400, traceId);
+        return json({ ok: false, error: "Password must be at least 8 characters." }, 200, traceId);
       }
 
       const { error: updErr } = await admin.auth.admin.updateUserById(targetUserId, { password });
-      if (updErr) return json({ ok: false, error: updErr.message }, 400, traceId);
+      if (updErr) {
+        const msg = updErr.message || "Failed to update password";
+        const friendly = /pwned|leaked|breach|weak/i.test(msg)
+          ? "This password is too weak or has been found in a known data breach. Please choose a stronger password."
+          : msg;
+        return json({ ok: false, error: friendly }, 200, traceId);
+      }
 
       await admin.from("audit_logs").insert({
         school_id: school.id,
@@ -178,6 +212,37 @@ serve(async (req) => {
       });
 
       return json({ ok: true }, 200, traceId);
+    }
+
+    if (action === "set_email") {
+      const email = String(body.email ?? "").trim().toLowerCase();
+      const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRe.test(email)) {
+        return json({ ok: false, error: "Invalid email address." }, 200, traceId);
+      }
+
+      const { error: updErr } = await admin.auth.admin.updateUserById(targetUserId, {
+        email,
+        email_confirm: true,
+      });
+      if (updErr) {
+        const msg = updErr.message || "Failed to update email";
+        const friendly = /already.*registered|duplicate|exists/i.test(msg)
+          ? "Another account already uses this email."
+          : msg;
+        return json({ ok: false, error: friendly }, 200, traceId);
+      }
+
+      await admin.from("audit_logs").insert({
+        school_id: school.id,
+        actor_user_id: actorUserId,
+        action: "staff_email_updated",
+        entity_type: "user",
+        entity_id: targetUserId,
+        metadata: { email, reason: body.reason ?? null },
+      });
+
+      return json({ ok: true, email }, 200, traceId);
     }
 
     return json({ ok: false, error: "Unknown action" }, 400, traceId);

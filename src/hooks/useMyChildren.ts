@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { useEffect, useState, useCallback } from "react";
+import { supabase, USE_FASTAPI } from "@/integrations/supabase/client";
+import { apiClient } from "@/lib/api-client";
 
 export interface ChildInfo {
   student_id: string;
@@ -7,6 +8,12 @@ export interface ChildInfo {
   last_name: string | null;
   class_name: string | null;
   section_name: string | null;
+  roll_number?: string | null;
+  student_code?: string | null;
+  profile_image_url?: string | null;
+  date_of_birth?: string | null;
+  gender?: string | null;
+  class_section_id?: string | null;
 }
 
 export function useMyChildren(schoolId: string | null) {
@@ -14,101 +21,64 @@ export function useMyChildren(schoolId: string | null) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const fetchChildren = useCallback(async () => {
     if (!schoolId) {
+      setChildren([]);
       setLoading(false);
       return;
     }
-
-    const fetchChildren = async () => {
-      setLoading(true);
-      setError(null);
-
-      try {
-        // Get student IDs for this parent
-        const { data: studentIds, error: rpcError } = await supabase
-          .rpc("my_children", { _school_id: schoolId });
-
+    setLoading(true);
+    setError(null);
+    try {
+      let list: ChildInfo[] = [];
+      if (USE_FASTAPI) {
+        const resp = await apiClient.get<any[]>("/students/my-children");
+        list = (resp.data ?? []).map((row: any) => ({
+          student_id: row.student_id,
+          first_name: row.first_name,
+          last_name: row.last_name,
+          class_name: row.class_name,
+          section_name: row.section_name,
+          roll_number: row.roll_number,
+          student_code: row.student_code,
+          profile_image_url: row.profile_image_url,
+          date_of_birth: row.date_of_birth,
+          gender: row.gender,
+          class_section_id: row.class_section_id,
+        }));
+      } else {
+        const { data, error: rpcError } = await (supabase as any).rpc(
+          "my_children_detailed",
+          { _school_id: schoolId },
+        );
         if (rpcError) throw rpcError;
 
-        if (!studentIds || studentIds.length === 0) {
-          setChildren([]);
-          setLoading(false);
-          return;
-        }
-
-        // Fetch student details with enrollment info
-        const { data: students, error: studentsError } = await supabase
-          .from("students")
-          .select("id, first_name, last_name")
-          .in("id", studentIds);
-
-        if (studentsError) throw studentsError;
-
-        // Fetch active enrollments
-        const { data: enrollments, error: enrollmentsError } = await supabase
-          .from("student_enrollments")
-          .select("student_id, class_section_id")
-          .in("student_id", studentIds)
-          .is("end_date", null)
-          .order("start_date", { ascending: false });
-
-        if (enrollmentsError) throw enrollmentsError;
-
-        // Get unique section IDs
-        const sectionIds = [...new Set(enrollments?.map((e) => e.class_section_id) || [])];
-
-        // Fetch sections
-        const { data: sections, error: sectionsError } = await supabase
-          .from("class_sections")
-          .select("id, name, class_id")
-          .in("id", sectionIds);
-
-        if (sectionsError) throw sectionsError;
-
-        // Fetch classes
-        const classIds = [...new Set(sections?.map((s) => s.class_id) || [])];
-        const { data: classes, error: classesError } = await supabase
-          .from("academic_classes")
-          .select("id, name")
-          .in("id", classIds);
-
-        if (classesError) throw classesError;
-
-        // Build lookup maps
-        const classMap = new Map(classes?.map((c) => [c.id, c.name]) || []);
-        const sectionMap = new Map(
-          sections?.map((s) => [s.id, { name: s.name, class_id: s.class_id }]) || []
-        );
-        const enrollmentMap = new Map(
-          enrollments?.map((e) => [e.student_id, e.class_section_id]) || []
-        );
-
-        // Build final child info
-        const childInfos: ChildInfo[] = (students || []).map((s) => {
-          const sectionId = enrollmentMap.get(s.id);
-          const section = sectionId ? sectionMap.get(sectionId) : null;
-          const className = section ? classMap.get(section.class_id) : null;
-
-          return {
-            student_id: s.id,
-            first_name: s.first_name,
-            last_name: s.last_name,
-            class_name: className || null,
-            section_name: section?.name || null,
-          };
-        });
-
-        setChildren(childInfos);
-      } catch (err: unknown) {
-        setError(err instanceof Error ? err.message : "Failed to fetch children");
-      } finally {
-        setLoading(false);
+        list = (data ?? []).map((row: any) => ({
+          student_id: row.student_id,
+          first_name: row.first_name,
+          last_name: row.last_name,
+          class_name: row.class_name,
+          section_name: row.section_name,
+          roll_number: row.roll_number,
+          student_code: row.student_code,
+          profile_image_url: row.profile_image_url,
+          date_of_birth: row.date_of_birth,
+          gender: row.gender,
+          class_section_id: row.class_section_id,
+        }));
       }
-    };
-
-    fetchChildren();
+      setChildren(list);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to fetch children");
+      setChildren([]);
+    } finally {
+      setLoading(false);
+    }
   }, [schoolId]);
 
-  return { children, loading, error };
+  useEffect(() => {
+    void fetchChildren();
+  }, [fetchChildren]);
+
+  return { children, loading, error, refetch: fetchChildren };
 }

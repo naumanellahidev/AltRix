@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import {
@@ -15,18 +15,37 @@ import {
   Hand,
   Lightbulb,
   Target,
+  Sparkles,
+  CalendarDays,
+  ListChecks,
+  GraduationCap,
+  RefreshCw,
+  Loader2,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { aiToTextArray } from "@/lib/ai-render";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 
 interface Props {
   studentId: string;
   schoolId: string;
   compact?: boolean;
+  /**
+   * Controls which sections of the rich AI profile are rendered.
+   * - "learning" (default in AI Insights → Learning Profile tab): only learning-style,
+   *   focus, subjects, wellbeing, executive summary, personality, motivators,
+   *   parent/teacher guidance, milestones. Hides predictions, career pathways,
+   *   study routine and 30‑day tasks (those live in their own tabs).
+   * - "full": renders everything (used on dashboards / standalone views).
+   */
+  scope?: "learning" | "full";
 }
 
 const learningStyleIcons = {
@@ -45,12 +64,34 @@ const learningStyleColors = {
   reading: "text-emerald-500 bg-emerald-500/10",
 };
 
-export function StudentDigitalTwinCard({ studentId, schoolId, compact = false }: Props) {
+export function StudentDigitalTwinCard({ studentId, schoolId, compact = false, scope = "full" }: Props) {
+  const showFullScope = scope === "full";
   const qc = useQueryClient();
+  const [generating, setGenerating] = useState(false);
+  const [showRich, setShowRich] = useState(true);
+
+  const generate = async () => {
+    setGenerating(true);
+    const t = toast.loading("Generating heavy AI profile… analyzing attendance, grades, behavior & predictions");
+    try {
+      const { data, error } = await supabase.functions.invoke("ai-student-analyzer", {
+        body: { schoolId, studentId, analysisType: "digital_twin" },
+      });
+      if (error) throw error;
+      if ((data as any)?.error) throw new Error((data as any).error);
+      toast.success("AI profile generated", { id: t });
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to generate AI profile", { id: t });
+    } finally {
+      setGenerating(false);
+      qc.invalidateQueries({ queryKey: ["ai_student_profile", studentId] });
+    }
+  };
+
   const { data: profile, isLoading } = useQuery({
     queryKey: ["ai_student_profile", studentId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from("ai_student_profiles")
         .select("*")
         .eq("student_id", studentId)
@@ -118,23 +159,12 @@ export function StudentDigitalTwinCard({ studentId, schoolId, compact = false }:
             AI profile not yet generated for this student
           </p>
           <p className="mt-1 text-xs text-muted-foreground">
-            Profile will be created as data is collected
+            Generate a deep AI profile with study routine, 30‑day tasks & predictions
           </p>
           <div className="mt-4">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={async () => {
-                try {
-                  await supabase.functions.invoke("ai-student-analyzer", {
-                    body: { schoolId, studentId, analysisType: "digital_twin" },
-                  });
-                } finally {
-                  qc.invalidateQueries({ queryKey: ["ai_student_profile", studentId] });
-                }
-              }}
-            >
-              Generate AI Profile
+            <Button onClick={generate} disabled={generating} size="sm" className="gap-2">
+              {generating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+              {generating ? "Generating…" : "Generate AI Profile"}
             </Button>
           </div>
         </CardContent>
@@ -144,6 +174,7 @@ export function StudentDigitalTwinCard({ studentId, schoolId, compact = false }:
 
   const LearningIcon = learningStyleIcons[profile.learning_style as keyof typeof learningStyleIcons] || Brain;
   const learningColor = learningStyleColors[profile.learning_style as keyof typeof learningStyleColors] || "text-primary bg-primary/10";
+  const rich = (profile.analysis_data || {}) as any;
 
   if (compact) {
     return (
@@ -193,9 +224,19 @@ export function StudentDigitalTwinCard({ studentId, schoolId, compact = false }:
                 </p>
               </div>
             </div>
-            <Badge className={riskLevel.color}>
-              Risk: {riskLevel.level}
-            </Badge>
+            <div className="flex items-center gap-2">
+              <Badge className={riskLevel.color}>Risk: {riskLevel.level}</Badge>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={generate}
+                disabled={generating}
+                className="h-8 gap-1.5"
+              >
+                {generating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+                {generating ? "Regenerating…" : "Regenerate"}
+              </Button>
+            </div>
           </div>
         </CardHeader>
 
@@ -387,6 +428,240 @@ export function StudentDigitalTwinCard({ studentId, schoolId, compact = false }:
             <p className="text-[10px] text-muted-foreground text-right">
               Last analyzed: {new Date(profile.last_analyzed_at).toLocaleDateString()}
             </p>
+          )}
+
+          {/* Learning-only summary (shown in AI Insights → Learning Profile tab) */}
+          {!showFullScope && (rich.executive_summary || rich.personality_traits || rich.motivators || rich.parent_guidance || rich.teacher_guidance || rich.milestones_3_months) && (
+            <div className="rounded-xl border border-primary/20 bg-gradient-to-br from-primary/5 to-transparent p-4 space-y-4">
+              <p className="text-sm font-semibold text-primary flex items-center gap-2">
+                <Sparkles className="h-4 w-4" /> Learning Profile Summary
+              </p>
+              {rich.executive_summary && (
+                <div className="space-y-1">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Executive Summary</p>
+                  <p className="text-sm leading-relaxed whitespace-pre-line">{rich.executive_summary}</p>
+                </div>
+              )}
+              {Array.isArray(rich.personality_traits) && rich.personality_traits.length > 0 && (
+                <div className="space-y-1">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Personality</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {rich.personality_traits.map((t: string, i: number) => (
+                      <Badge key={i} variant="secondary" className="text-[10px]">{t}</Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {Array.isArray(rich.motivators) && rich.motivators.length > 0 && (
+                <div className="space-y-1">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Motivators</p>
+                  <ul className="text-sm list-disc list-inside space-y-0.5">
+                    {rich.motivators.map((m: string, i: number) => <li key={i}>{m}</li>)}
+                  </ul>
+                </div>
+              )}
+              {Array.isArray(rich.parent_guidance) && rich.parent_guidance.length > 0 && (
+                <div className="space-y-1">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">For Parents</p>
+                  <ul className="text-sm list-disc list-inside space-y-0.5">
+                    {rich.parent_guidance.map((m: string, i: number) => <li key={i}>{m}</li>)}
+                  </ul>
+                </div>
+              )}
+              {Array.isArray(rich.teacher_guidance) && rich.teacher_guidance.length > 0 && (
+                <div className="space-y-1">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">For Teachers</p>
+                  <ul className="text-sm list-disc list-inside space-y-0.5">
+                    {rich.teacher_guidance.map((m: string, i: number) => <li key={i}>{m}</li>)}
+                  </ul>
+                </div>
+              )}
+              {Array.isArray(rich.milestones_3_months) && rich.milestones_3_months.length > 0 && (
+                <div className="space-y-1">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">3‑Month Milestones</p>
+                  <ul className="text-sm list-disc list-inside space-y-0.5">
+                    {rich.milestones_3_months.map((m: string, i: number) => <li key={i}>{m}</li>)}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Heavy AI Profile (study routine, tasks, predictions) — full scope only */}
+          {showFullScope && (rich.executive_summary || rich.study_routine || rich.next_30_days_tasks || rich.predictions) && (
+            <div className="rounded-xl border border-primary/20 bg-gradient-to-br from-primary/5 to-transparent p-4 space-y-4">
+              <button
+                type="button"
+                onClick={() => setShowRich((v) => !v)}
+                className="flex w-full items-center justify-between text-sm font-semibold text-primary"
+              >
+                <span className="flex items-center gap-2">
+                  <Sparkles className="h-4 w-4" /> Full AI Profile
+                </span>
+                {showRich ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              </button>
+
+              {showRich && (
+                <div className="space-y-4">
+                  {rich.executive_summary && (
+                    <div className="space-y-1">
+                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Executive Summary</p>
+                      <p className="text-sm leading-relaxed whitespace-pre-line">{rich.executive_summary}</p>
+                    </div>
+                  )}
+
+                  {Array.isArray(rich.personality_traits) && rich.personality_traits.length > 0 && (
+                    <div className="space-y-1">
+                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Personality</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {rich.personality_traits.map((t: string, i: number) => (
+                          <Badge key={i} variant="secondary" className="text-[10px]">{t}</Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {Array.isArray(rich.motivators) && rich.motivators.length > 0 && (
+                    <div className="space-y-1">
+                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Motivators</p>
+                      <ul className="text-sm list-disc list-inside space-y-0.5">
+                        {rich.motivators.map((m: string, i: number) => <li key={i}>{m}</li>)}
+                      </ul>
+                    </div>
+                  )}
+
+                  {rich.study_routine?.weekly_schedule && (
+                    <div className="space-y-2">
+                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+                        <CalendarDays className="h-3.5 w-3.5" /> Weekly Study Routine
+                      </p>
+                      <div className="grid gap-2">
+                        {rich.study_routine.weekly_schedule.map((d: any, i: number) => (
+                          <div key={i} className="rounded-lg bg-surface-2 p-2.5">
+                            <p className="text-xs font-semibold">{d.day}</p>
+                            <ul className="mt-1 space-y-1">
+                              {(d.blocks || []).map((b: any, j: number) => (
+                                <li key={j} className="text-xs text-muted-foreground">
+                                  <span className="font-medium text-foreground">{b.time}</span> · {b.subject} — {b.activity}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        ))}
+                      </div>
+                      {Array.isArray(rich.study_routine.daily_tips) && (
+                        <ul className="text-xs list-disc list-inside text-muted-foreground space-y-0.5">
+                          {rich.study_routine.daily_tips.map((t: string, i: number) => <li key={i}>{t}</li>)}
+                        </ul>
+                      )}
+                      {rich.study_routine.session_structure && (
+                        <p className="text-xs text-muted-foreground italic">{rich.study_routine.session_structure}</p>
+                      )}
+                    </div>
+                  )}
+
+                  {Array.isArray(rich.next_30_days_tasks) && rich.next_30_days_tasks.length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+                        <ListChecks className="h-3.5 w-3.5" /> Next 30 Days · Tasks
+                      </p>
+                      <div className="space-y-1.5">
+                        {rich.next_30_days_tasks.map((task: any, i: number) => (
+                          <div key={i} className="rounded-lg bg-surface-2 p-2.5">
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium">{task.title}</p>
+                                {task.description && (
+                                  <p className="text-xs text-muted-foreground mt-0.5">{task.description}</p>
+                                )}
+                              </div>
+                              <div className="flex flex-col items-end gap-1 shrink-0">
+                                <Badge variant="outline" className="text-[9px]">
+                                  {task.priority || "medium"}
+                                </Badge>
+                                {task.due_in_days != null && (
+                                  <span className="text-[10px] text-muted-foreground">in {task.due_in_days}d</span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {rich.predictions && (
+                    <div className="space-y-2">
+                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+                        <TrendingUp className="h-3.5 w-3.5" /> Predictions
+                      </p>
+                      <div className="grid grid-cols-3 gap-2">
+                        {rich.predictions.next_term_grade_percent != null && (
+                          <div className="rounded-lg bg-surface-2 p-2 text-center">
+                            <p className="text-[10px] text-muted-foreground">Next Term</p>
+                            <p className="text-sm font-semibold">{rich.predictions.next_term_grade_percent}%</p>
+                          </div>
+                        )}
+                        {rich.predictions.expected_attendance_percent != null && (
+                          <div className="rounded-lg bg-surface-2 p-2 text-center">
+                            <p className="text-[10px] text-muted-foreground">Attendance</p>
+                            <p className="text-sm font-semibold">{rich.predictions.expected_attendance_percent}%</p>
+                          </div>
+                        )}
+                        {rich.predictions.promotion_probability != null && (
+                          <div className="rounded-lg bg-surface-2 p-2 text-center">
+                            <p className="text-[10px] text-muted-foreground">Promotion</p>
+                            <p className="text-sm font-semibold">{rich.predictions.promotion_probability}%</p>
+                          </div>
+                        )}
+                      </div>
+                      {rich.predictions["12_month_outlook"] && (
+                        <p className="text-xs leading-relaxed text-muted-foreground">{rich.predictions["12_month_outlook"]}</p>
+                      )}
+                      {Array.isArray(rich.predictions.career_pathways) && rich.predictions.career_pathways.length > 0 && (
+                        <div className="space-y-1">
+                          <p className="text-[10px] font-medium text-muted-foreground flex items-center gap-1">
+                            <GraduationCap className="h-3 w-3" /> Career Pathways
+                          </p>
+                          <div className="flex flex-wrap gap-1">
+                            {aiToTextArray(rich.predictions.career_pathways).map((c, i) => (
+                              <Badge key={i} variant="secondary" className="text-[10px]">{c}</Badge>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {(Array.isArray(rich.parent_guidance) && rich.parent_guidance.length > 0) && (
+                    <div className="space-y-1">
+                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">For Parents</p>
+                      <ul className="text-sm list-disc list-inside space-y-0.5">
+                        {rich.parent_guidance.map((m: string, i: number) => <li key={i}>{m}</li>)}
+                      </ul>
+                    </div>
+                  )}
+
+                  {(Array.isArray(rich.teacher_guidance) && rich.teacher_guidance.length > 0) && (
+                    <div className="space-y-1">
+                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">For Teachers</p>
+                      <ul className="text-sm list-disc list-inside space-y-0.5">
+                        {rich.teacher_guidance.map((m: string, i: number) => <li key={i}>{m}</li>)}
+                      </ul>
+                    </div>
+                  )}
+
+                  {Array.isArray(rich.milestones_3_months) && rich.milestones_3_months.length > 0 && (
+                    <div className="space-y-1">
+                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">3‑Month Milestones</p>
+                      <ul className="text-sm list-disc list-inside space-y-0.5">
+                        {rich.milestones_3_months.map((m: string, i: number) => <li key={i}>{m}</li>)}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           )}
         </CardContent>
       </Card>

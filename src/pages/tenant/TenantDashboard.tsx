@@ -1,9 +1,10 @@
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, lazy, Suspense } from "react";
 import { Navigate, Route, Routes, useNavigate, useParams } from "react-router-dom";
 import { BarChart3, LogOut, UserRound, Coins, UserPlus, ClipboardList, GraduationCap, FileText, Users } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { supabase } from "@/integrations/supabase/client";
+import { supabase, USE_FASTAPI } from "@/integrations/supabase/client";
+import { apiClient } from "@/lib/api-client";
 import { useSession } from "@/hooks/useSession";
 import { useTenantOptimized } from "@/hooks/useTenantOptimized";
 import { useAuthz } from "@/hooks/useAuthz";
@@ -12,21 +13,68 @@ import { useUniversalPrefetch, getCachedStats } from "@/hooks/useUniversalPrefet
 import { isEduverseRole, roleLabel, type EduverseRole } from "@/lib/eduverse-roles";
 import { TenantShell } from "@/components/tenant/TenantShell";
 import { Button } from "@/components/ui/button";
-import { DashboardHome } from "@/pages/tenant/modules/DashboardHome";
-import { AdminConsole } from "@/pages/tenant/modules/AdminConsole";
-import { UsersModule } from "@/pages/tenant/modules/UsersModule";
-import { CrmModule } from "@/pages/tenant/modules/CrmModule";
-import { AcademicModule } from "@/pages/tenant/modules/AcademicModule";
-import { AttendanceModule } from "@/pages/tenant/modules/AttendanceModule";
-import { PlatformSchoolsModule } from "@/pages/tenant/modules/PlatformSchoolsModule";
-import { ReportsModule } from "@/pages/tenant/modules/ReportsModule";
-import { FinanceModule } from "@/pages/tenant/modules/FinanceModule";
-import { PrincipalHome } from "@/pages/tenant/role-homes/PrincipalHome";
-import { VicePrincipalHome } from "@/pages/tenant/role-homes/VicePrincipalHome";
-import { SupportModule } from "@/pages/tenant/modules/SupportModule";
-import { DirectoryModule } from "@/pages/tenant/modules/DirectoryModule";
-import { TimetableBuilderModule } from "@/pages/tenant/modules/TimetableBuilderModule";
-import { MessagesModule } from "@/pages/tenant/modules/MessagesModule";
+const DashboardHome = lazy(() => import("@/pages/tenant/modules/DashboardHome").then(m => ({ default: m.DashboardHome })));
+const AdminConsole = lazy(() => import("@/pages/tenant/modules/AdminConsole").then(m => ({ default: m.AdminConsole })));
+const PresenceDebugModule = lazy(() => import("@/pages/tenant/modules/PresenceDebugModule"));
+const UsersModule = lazy(() => import("@/pages/tenant/modules/UsersModule").then(m => ({ default: m.UsersModule })));
+const CrmModule = lazy(() => import("@/pages/tenant/modules/CrmModule").then(m => ({ default: m.CrmModule })));
+const AcademicModule = lazy(() => import("@/pages/tenant/modules/AcademicModule").then(m => ({ default: m.AcademicModule })));
+const AttendanceModule = lazy(() => import("@/pages/tenant/modules/AttendanceModule").then(m => ({ default: m.AttendanceModule })));
+const PlatformSchoolsModule = lazy(() => import("@/pages/tenant/modules/PlatformSchoolsModule").then(m => ({ default: m.PlatformSchoolsModule })));
+const ReportsModule = lazy(() => import("@/pages/tenant/modules/ReportsModule").then(m => ({ default: m.ReportsModule })));
+const FinanceModule = lazy(() => import("@/pages/tenant/modules/FinanceModule").then(m => ({ default: m.FinanceModule })));
+const PrincipalHome = lazy(() => import("@/pages/tenant/role-homes/PrincipalHome").then(m => ({ default: m.PrincipalHome })));
+const VicePrincipalHome = lazy(() => import("@/pages/tenant/role-homes/VicePrincipalHome").then(m => ({ default: m.VicePrincipalHome })));
+const CounselorHome = lazy(() => import("@/pages/tenant/role-homes/CounselorHome").then(m => ({ default: m.CounselorHome })));
+const AcademicCoordinatorHome = lazy(() => import("@/pages/tenant/role-homes/AcademicCoordinatorHome").then(m => ({ default: m.AcademicCoordinatorHome })));
+const SupportModule = lazy(() => import("@/pages/tenant/modules/SupportModule").then(m => ({ default: m.SupportModule })));
+const DirectoryModule = lazy(() => import("@/pages/tenant/modules/DirectoryModule").then(m => ({ default: m.DirectoryModule })));
+const TimetableBuilderModule = lazy(() => import("@/pages/tenant/modules/TimetableBuilderModule").then(m => ({ default: m.TimetableBuilderModule })));
+const MessagesModule = lazy(() => import("@/pages/tenant/modules/MessagesModule").then(m => ({ default: m.MessagesModule })));
+const HrLeavesModule = lazy(() => import("@/pages/tenant/hr-modules/HrLeavesModule").then(m => ({ default: m.HrLeavesModule })));
+const HrSalariesModule = lazy(() => import("@/pages/tenant/hr-modules/HrSalariesModule").then(m => ({ default: m.HrSalariesModule })));
+const HrContractsModule = lazy(() => import("@/pages/tenant/hr-modules/HrContractsModule").then(m => ({ default: m.HrContractsModule })));
+const HrReviewsModule = lazy(() => import("@/pages/tenant/hr-modules/HrReviewsModule").then(m => ({ default: m.HrReviewsModule })));
+const HrDocumentsModule = lazy(() => import("@/pages/tenant/hr-modules/HrDocumentsModule").then(m => ({ default: m.HrDocumentsModule })));
+const HrAttendanceModule = lazy(() => import("@/pages/tenant/hr-modules/HrAttendanceModule").then(m => ({ default: m.HrAttendanceModule })));
+const MarketingLeadsModule = lazy(() => import("@/pages/tenant/marketing-modules/MarketingLeadsModule").then(m => ({ default: m.MarketingLeadsModule })));
+const MarketingFollowUpsModule = lazy(() => import("@/pages/tenant/marketing-modules/MarketingFollowUpsModule").then(m => ({ default: m.MarketingFollowUpsModule })));
+const MarketingCallsModule = lazy(() => import("@/pages/tenant/marketing-modules/MarketingCallsModule").then(m => ({ default: m.MarketingCallsModule })));
+const MarketingSourcesModule = lazy(() => import("@/pages/tenant/marketing-modules/MarketingSourcesModule").then(m => ({ default: m.MarketingSourcesModule })));
+const MarketingCampaignsModule = lazy(() => import("@/pages/tenant/marketing-modules/MarketingCampaignsModule").then(m => ({ default: m.MarketingCampaignsModule })));
+const AccountantFeesModule = lazy(() => import("@/pages/tenant/accountant-modules/AccountantFeesModule").then(m => ({ default: m.AccountantFeesModule })));
+const FeesUnifiedModule = lazy(() => import("@/pages/tenant/modules/FeesUnifiedModule"));
+
+const AccountantInvoicesModule = lazy(() => import("@/pages/tenant/accountant-modules/AccountantInvoicesModule").then(m => ({ default: m.AccountantInvoicesModule })));
+const AccountantPaymentsModule = lazy(() => import("@/pages/tenant/accountant-modules/AccountantPaymentsModule").then(m => ({ default: m.AccountantPaymentsModule })));
+const AccountantExpensesModule = lazy(() => import("@/pages/tenant/accountant-modules/AccountantExpensesModule").then(m => ({ default: m.AccountantExpensesModule })));
+const AccountantPayrollModule = lazy(() => import("@/pages/tenant/accountant-modules/AccountantPayrollModule").then(m => ({ default: m.AccountantPayrollModule })));
+const AccountantLedgerModule = lazy(() => import("@/pages/tenant/accountant-modules/AccountantLedgerModule").then(m => ({ default: m.AccountantLedgerModule })));
+const AccountantVendorsModule = lazy(() => import("@/pages/tenant/accountant-modules/AccountantVendorsModule").then(m => ({ default: m.AccountantVendorsModule })));
+const AccountantTaxModule = lazy(() => import("@/pages/tenant/accountant-modules/AccountantTaxModule").then(m => ({ default: m.AccountantTaxModule })));
+const NoticesModule = lazy(() => import("@/pages/tenant/modules/NoticesModule"));
+const HolidaysModule = lazy(() => import("@/pages/tenant/modules/HolidaysModule"));
+const DiaryModule = lazy(() => import("@/pages/tenant/modules/DiaryModule"));
+const ExamsModule = lazy(() => import("@/pages/tenant/modules/ExamsModule"));
+const ReportCardModule = lazy(() => import("@/pages/tenant/modules/ReportCardModule"));
+const PrincipalComplaintsModule = lazy(() => import("@/pages/tenant/modules/PrincipalComplaintsModule"));
+const PrincipalParentNotesModule = lazy(() => import("@/pages/tenant/modules/PrincipalParentNotesModule"));
+const FeesAdvancedModule = lazy(() => import("@/pages/tenant/modules/FeesAdvancedModule"));
+const AdmissionsModule = lazy(() => import("@/pages/tenant/modules/AdmissionsModule"));
+const FeeVouchersModule = lazy(() => import("@/pages/tenant/modules/FeeVouchersModule"));
+import { RouteGuard } from "@/components/tenant/RouteGuard";
+import { createCatalogRouteElements } from "@/components/tenant/AutoCatalogRoutes";
+const AICounselorMode = lazy(() => import("@/components/ai/AICounselorMode").then(m => ({ default: m.AICounselorMode })));
+const CounselingModule = lazy(() => import("@/pages/tenant/modules/CounselingModule").then(m => ({ default: m.CounselingModule })));
+const AttendanceHeatmapPage = lazy(() => import("@/pages/tenant/principal/AttendanceHeatmapPage"));
+const CollaborationHubPage = lazy(() => import("@/components/principal/CollaborationHub").then(m => ({ default: m.CollaborationHub })));
+const BudgetSimulatorPage = lazy(() => import("@/pages/tenant/principal/BudgetSimulatorPage"));
+
+const DashboardLoader = () => (
+  <div className="flex h-[50vh] items-center justify-center">
+    <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+  </div>
+);
 
 const TenantDashboard = () => {
   const { schoolSlug, role: roleParam } = useParams();
@@ -69,8 +117,8 @@ const TenantDashboard = () => {
 
   const title = useMemo(() => {
     if (tenant.status === "ready" && role) return `${tenant.school?.name} • ${roleLabel[role]}`;
-    if (tenant.status === "ready") return tenant.school?.name || "EDUVERSE";
-    return "EDUVERSE";
+    if (tenant.status === "ready") return tenant.school?.name || "AltRix";
+    return "AltRix";
   }, [tenant.status, tenant.school, role]);
 
   // Calculate month start for MTD queries
@@ -158,6 +206,10 @@ const TenantDashboard = () => {
   const { data: revenueMtd = cachedKPIs?.revenueMtd ?? 0 } = useQuery({
     queryKey: ["dashboard_kpi_revenue", schoolId],
     queryFn: async () => {
+      if (USE_FASTAPI) {
+        const resp = await apiClient.get<any>("/reports/dashboard");
+        return resp.data.collected_fees ?? 0;
+      }
       const { data, error } = await supabase
         .from("finance_payments")
         .select("amount")
@@ -175,6 +227,13 @@ const TenantDashboard = () => {
   const { data: leadsData } = useQuery({
     queryKey: ["dashboard_kpi_leads", schoolId],
     queryFn: async () => {
+      if (USE_FASTAPI) {
+        const resp = await apiClient.get<any>("/reports/dashboard");
+        return {
+          total: resp.data.pending_admissions ?? 0,
+          open: resp.data.pending_admissions ?? 0,
+        };
+      }
       const [totalRes, openRes] = await Promise.all([
         supabase.from("crm_leads").select("id", { count: "exact", head: true }).eq("school_id", schoolId!),
         supabase.from("crm_leads").select("id", { count: "exact", head: true }).eq("school_id", schoolId!).not("stage_id", "is", null),
@@ -192,6 +251,18 @@ const TenantDashboard = () => {
   const { data: attendanceData } = useQuery({
     queryKey: ["dashboard_kpi_attendance", schoolId],
     queryFn: async () => {
+      if (USE_FASTAPI) {
+        const resp = await apiClient.get<any>("/reports/attendance-summary", {
+          params: {
+            from_date: d7Ago.toISOString().split("T")[0]
+          }
+        });
+        return {
+          total: resp.data.total ?? 0,
+          present: resp.data.present ?? 0,
+          rate: resp.data.attendance_rate ?? 0,
+        };
+      }
       const [entriesRes, presentRes] = await Promise.all([
         supabase
           .from("attendance_entries")
@@ -221,6 +292,10 @@ const TenantDashboard = () => {
   const { data: studentsCount = cachedKPIs?.totalStudents ?? 0 } = useQuery({
     queryKey: ["dashboard_kpi_students", schoolId],
     queryFn: async () => {
+      if (USE_FASTAPI) {
+        const resp = await apiClient.get<any>("/reports/dashboard");
+        return resp.data.total_students ?? 0;
+      }
       const { count, error } = await supabase
         .from("students")
         .select("id", { count: "exact", head: true })
@@ -236,6 +311,10 @@ const TenantDashboard = () => {
   const { data: pendingInvoices = cachedKPIs?.pendingInvoices ?? 0 } = useQuery({
     queryKey: ["dashboard_kpi_invoices", schoolId],
     queryFn: async () => {
+      if (USE_FASTAPI) {
+        const resp = await apiClient.get<any>("/reports/dashboard");
+        return resp.data.pending_payments ?? 0;
+      }
       const { count, error } = await supabase
         .from("finance_invoices")
         .select("id", { count: "exact", head: true })
@@ -252,6 +331,13 @@ const TenantDashboard = () => {
   const { data: staffData } = useQuery({
     queryKey: ["dashboard_kpi_staff", schoolId],
     queryFn: async () => {
+      if (USE_FASTAPI) {
+        const resp = await apiClient.get<any>("/reports/dashboard");
+        return {
+          total: resp.data.total_teachers ?? 0,
+          teachers: resp.data.total_teachers ?? 0,
+        };
+      }
       const [totalRes, teachersRes] = await Promise.all([
         supabase.from("school_memberships").select("id", { count: "exact", head: true }).eq("school_id", schoolId!),
         supabase.from("user_roles").select("id", { count: "exact", head: true }).eq("school_id", schoolId!).eq("role", "teacher"),
@@ -296,7 +382,7 @@ const TenantDashboard = () => {
   };
 
   return (
-    <TenantShell title={title} subtitle="Role-isolated workspace" role={role} schoolSlug={tenant.slug}>
+    <TenantShell title={title} role={role} schoolSlug={tenant.slug}>
       <div className="flex flex-col gap-6">
         {/* Offline indicator */}
         {!isOnline && (
@@ -380,34 +466,9 @@ const TenantDashboard = () => {
           </div>
         </div>
 
-        <div className="rounded-3xl bg-surface p-6 shadow-elevated">
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div>
-              <p className="font-display text-xl font-semibold tracking-tight">Workspace</p>
-              <p className="text-sm text-muted-foreground">You are signed in as {user.email}</p>
-            </div>
-            <div className="flex gap-2">
-              <Button
-                variant="soft"
-                onClick={() => navigate(`/${tenant.slug}/auth`)}
-                className="justify-start"
-              >
-                <UserRound className="mr-2 h-4 w-4" /> Switch role
-              </Button>
-              <Button
-                variant="outline"
-                onClick={async () => {
-                  await supabase.auth.signOut();
-                  navigate(`/${tenant.slug}/auth`);
-                }}
-              >
-                <LogOut className="mr-2 h-4 w-4" /> Logout
-              </Button>
-            </div>
-          </div>
-
-          {authzState === "denied" && (
-            <div className="mt-5 rounded-2xl bg-destructive/10 p-4 text-sm">
+        {authzState === "denied" && (
+          <div className="rounded-3xl bg-surface p-6 shadow-elevated">
+            <div className="rounded-2xl bg-destructive/10 p-4 text-sm">
               <p className="font-medium text-destructive">Access Denied</p>
               <p className="mt-1">{authzMessage ?? "You do not have access to this role."}</p>
               <div className="mt-3">
@@ -422,30 +483,86 @@ const TenantDashboard = () => {
                 </Button>
               </div>
             </div>
-          )}
-        </div>
+          </div>
+        )}
 
         {authzState !== "denied" && (
-          <Routes>
-            <Route index element={
-              role === "principal" ? <PrincipalHome /> : 
-              role === "vice_principal" ? <VicePrincipalHome /> : 
-              <DashboardHome />
-            } />
-            <Route path="admin" element={<AdminConsole />} />
-            <Route path="schools" element={<PlatformSchoolsModule />} />
-            <Route path="messages" element={<MessagesModule schoolId={tenant.schoolId} />} />
-            <Route path="users" element={<UsersModule />} />
-            <Route path="directory" element={<DirectoryModule />} />
-            <Route path="crm" element={<CrmModule />} />
-            <Route path="academic" element={<AcademicModule />} />
-            <Route path="timetable" element={<TimetableBuilderModule />} />
-            <Route path="attendance" element={<AttendanceModule />} />
-            <Route path="finance" element={<FinanceModule />} />
-            <Route path="reports" element={<ReportsModule />} />
-            <Route path="support" element={<SupportModule schoolId={tenant.schoolId} />} />
-            <Route path="*" element={<Navigate to={`/${tenant.slug}/${role}`} replace />} />
-          </Routes>
+          <RouteGuard>
+            <Suspense fallback={<DashboardLoader />}>
+              <Routes>
+                <Route index element={
+                  role === "principal" ? <PrincipalHome /> :
+                  role === "vice_principal" ? <VicePrincipalHome /> :
+                  role === "counselor" ? <CounselorHome /> :
+                  role === "academic_coordinator" ? <AcademicCoordinatorHome /> :
+                  <DashboardHome />
+                } />
+                <Route path="admin" element={<AdminConsole />} />
+                <Route path="presence-debug" element={<PresenceDebugModule />} />
+                <Route path="schools" element={<PlatformSchoolsModule />} />
+                <Route path="messages" element={<MessagesModule schoolId={tenant.schoolId} />} />
+                <Route path="users" element={<UsersModule />} />
+                <Route path="directory" element={<DirectoryModule />} />
+                <Route path="crm" element={<CrmModule />} />
+                <Route path="leads" element={<MarketingLeadsModule />} />
+                <Route path="follow-ups" element={<MarketingFollowUpsModule />} />
+                <Route path="calls" element={<MarketingCallsModule />} />
+                <Route path="sources" element={<MarketingSourcesModule />} />
+                <Route path="campaigns" element={<MarketingCampaignsModule />} />
+                <Route path="academic" element={<AcademicModule />} />
+                <Route path="timetable" element={<TimetableBuilderModule />} />
+                <Route path="attendance" element={<AttendanceModule />} />
+                <Route path="finance" element={<FinanceModule />} />
+                <Route path="fees" element={<FeesUnifiedModule />} />
+                <Route path="invoices" element={<AccountantInvoicesModule />} />
+                <Route path="payments" element={<AccountantPaymentsModule />} />
+                <Route path="expenses" element={<AccountantExpensesModule />} />
+                <Route path="payroll" element={<AccountantPayrollModule />} />
+                <Route path="ledger" element={<AccountantLedgerModule />} />
+                <Route path="vendors" element={<AccountantVendorsModule />} />
+                <Route path="tax" element={<AccountantTaxModule />} />
+                <Route path="fees-pro" element={<Navigate to={`/${tenant.slug}/${role}/fees?tab=advanced`} replace />} />
+                <Route path="fee-vouchers" element={<Navigate to={`/${tenant.slug}/${role}/fees?tab=vouchers`} replace />} />
+
+                <Route path="admissions" element={<AdmissionsModule />} />
+                <Route path="reports" element={<ReportsModule />} />
+                <Route path="leaves" element={<HrLeavesModule />} />
+                <Route path="staff-attendance" element={<HrAttendanceModule />} />
+                <Route path="salaries" element={<HrSalariesModule />} />
+                <Route path="contracts" element={<HrContractsModule />} />
+                <Route path="reviews" element={<HrReviewsModule />} />
+                <Route path="documents" element={<HrDocumentsModule />} />
+                <Route path="notices" element={<NoticesModule schoolId={tenant.schoolId} canManage={true} />} />
+                <Route path="holidays" element={<HolidaysModule schoolId={tenant.schoolId} canManage={["principal","vice_principal","school_admin","academic_coordinator","hr_manager","school_owner","super_admin"].includes(role || "")} />} />
+                <Route path="diary" element={<DiaryModule schoolId={tenant.schoolId} canManage={["teacher","principal","vice_principal","school_admin","academic_coordinator"].includes(role || "")} />} />
+                <Route path="exams" element={<ExamsModule schoolId={tenant.schoolId} canManage={["teacher","principal","vice_principal","school_admin","academic_coordinator","school_owner"].includes(role || "")} />} />
+                <Route path="report-cards" element={<ReportCardModule schoolId={tenant.schoolId} canManage={["teacher","principal","vice_principal","school_admin","academic_coordinator"].includes(role || "")} />} />
+                <Route path="support" element={<SupportModule schoolId={tenant.schoolId} />} />
+                <Route path="complaints" element={<PrincipalComplaintsModule />} />
+                <Route path="parent-notes" element={<PrincipalParentNotesModule />} />
+                <Route path="counseling" element={<CounselingModule schoolId={tenant.schoolId} />} />
+                <Route path="ai-counselor" element={<AICounselorMode schoolId={tenant.schoolId} />} />
+                {/* Principal-only extras */}
+                <Route path="attendance-heatmap" element={<AttendanceHeatmapPage />} />
+                <Route path="collaboration" element={<CollaborationHubPage />} />
+                <Route path="budget-simulator" element={<BudgetSimulatorPage />} />
+                {createCatalogRouteElements({
+                  roles: role ? [role] : [],
+                  ctx: { schoolId: tenant.schoolId, schoolSlug: tenant.slug, role },
+                  exclude: [
+                    "admin","presence-debug","schools","messages","users","directory","crm",
+                    "leads","follow-ups","calls","sources","campaigns","academic","timetable",
+                    "attendance","finance","fees","fees-pro","fee-vouchers","invoices","payments",
+                    "expenses","payroll","ledger","vendors","tax","admissions","reports","leaves",
+                    "staff-attendance","salaries","contracts","reviews","documents","notices","holidays","diary",
+                    "exams","report-cards","support","complaints","parent-notes","counseling",
+                    "attendance-heatmap","collaboration","budget-simulator",
+                  ],
+                })}
+                <Route path="*" element={<Navigate to={`/${tenant.slug}/${role}`} replace />} />
+              </Routes>
+            </Suspense>
+          </RouteGuard>
         )}
       </div>
     </TenantShell>

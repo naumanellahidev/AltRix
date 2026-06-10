@@ -33,7 +33,6 @@ interface LeaveRequest {
   status: string;
   reason: string | null;
   created_at: string;
-  reviewed_at: string | null;
   reviewer_notes: string | null;
 }
 
@@ -55,12 +54,15 @@ export function TeacherLeavesModule() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("hr_leave_types")
-        .select("id, name, days_per_year")
+        .select("id, name, max_days")
         .eq("school_id", schoolId!)
-        .eq("is_active", true)
         .order("name");
       if (error) throw error;
-      return data as LeaveType[];
+      return (data ?? []).map((d: any) => ({
+        id: d.id,
+        name: d.name,
+        days_per_year: d.max_days,
+      })) as LeaveType[];
     },
     enabled: !!schoolId && !isOffline,
   });
@@ -73,7 +75,7 @@ export function TeacherLeavesModule() {
         .from("hr_leave_requests")
         .select(`
           id, leave_type_id, start_date, end_date, days_count, status, reason, 
-          created_at, reviewed_at,
+          created_at,
           hr_leave_types(name)
         `)
         .eq("school_id", schoolId!)

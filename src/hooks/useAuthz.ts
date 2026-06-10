@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState, useMemo } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase, USE_FASTAPI } from "@/integrations/supabase/client";
+import { apiClient } from "@/lib/api-client";
 import type { EduverseRole } from "@/lib/eduverse-roles";
 
 interface AuthzResult {
@@ -143,6 +144,43 @@ export function useAuthz({ schoolId, userId, role, requiredRoles }: AuthzOptions
       // If offline and we have cached data, use it
       if (!navigator.onLine && cachedResult) {
         return cachedResult;
+      }
+
+      if (USE_FASTAPI) {
+        try {
+          const resp = await apiClient.get("/auth/me");
+          const userData = resp.data;
+          
+          const isPlatformAdmin = !!userData.is_super_admin;
+          const userRoles: string[] = userData.roles || [];
+          const isMember = userRoles.length > 0;
+          const hasRole = rolesArray.some(r => userRoles.includes(r));
+
+          let result: AuthzResult;
+          if (isPlatformAdmin) {
+            result = { state: "ok", message: null, isPlatformAdmin: true, isMember: true, hasRole: true };
+          } else if (schoolId && !isMember) {
+            result = { state: "denied", message: "You are not a member of this school.", isPlatformAdmin: false, isMember: false, hasRole: false };
+          } else if ((role || requiredRoles?.length) && !hasRole) {
+            result = { 
+              state: "denied", 
+              message: `You do not have the required role in this school.`, 
+              isPlatformAdmin: false, 
+              isMember, 
+              hasRole: false 
+            };
+          } else {
+            result = { state: "ok", message: null, isPlatformAdmin: false, isMember, hasRole };
+          }
+
+          if (schoolId && userId) {
+            setCachedAuthz(schoolId, userId, rolesArray, result);
+          }
+          return result;
+        } catch (e: any) {
+          console.error("Authz check via FastAPI failed:", e);
+          return { state: "denied", message: e.message || "Failed to retrieve authorizations", isPlatformAdmin: false, isMember: false, hasRole: false };
+        }
       }
 
       // Run all checks in parallel for speed

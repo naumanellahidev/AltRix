@@ -102,7 +102,7 @@ interface FeeReminder {
   sent_at: string | null;
 }
 
-const MotionCard = motion(Card);
+const MotionCard = motion.create(Card);
 
 export function StudentFeeTracker({ schoolId }: StudentFeeTrackerProps) {
   const queryClient = useQueryClient();

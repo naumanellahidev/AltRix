@@ -248,12 +248,15 @@ export function AcademicModule() {
     if (!schoolId) return;
     if (!linkStudentId) return toast.error("Pick a student");
     if (!linkUserId) return toast.error("Pick a user");
-    const row = directoryUsers.find((u) => u.user_id === linkUserId);
-    if (!row?.profile_id) return toast.error("That user does not have a profile yet (ask them to sign in once).");
+
+    // Ensure a profile row exists for this user (auto-create if missing)
+    await supabase
+      .from("profiles")
+      .upsert({ id: linkUserId }, { onConflict: "id" });
 
     const { error } = await supabase
       .from("students")
-      .update({ profile_id: row.profile_id })
+      .update({ profile_id: linkUserId })
       .eq("school_id", schoolId)
       .eq("id", linkStudentId);
     if (error) return toast.error(error.message);

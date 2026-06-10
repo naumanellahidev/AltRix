@@ -41,11 +41,11 @@ export function MessageReactions({ messageId, schoolId, currentUserId, isMine = 
     if (!messageId || !currentUserId) return;
 
     const [{ data: reactionsData }, { data: pinData }] = await Promise.all([
-      supabase
+      (supabase as any)
         .from("admin_message_reactions")
         .select("emoji, user_id")
         .eq("message_id", messageId),
-      supabase
+      (supabase as any)
         .from("admin_message_pins")
         .select("id")
         .eq("message_id", messageId)
@@ -145,7 +145,7 @@ export function MessageReactions({ messageId, schoolId, currentUserId, isMine = 
 
       if (existing) {
         // Remove reaction
-        await supabase
+        await (supabase as any)
           .from("admin_message_reactions")
           .delete()
           .eq("message_id", messageId)
@@ -153,7 +153,7 @@ export function MessageReactions({ messageId, schoolId, currentUserId, isMine = 
           .eq("emoji", emoji);
       } else {
         // Add reaction
-        await supabase.from("admin_message_reactions").insert({
+        await (supabase as any).from("admin_message_reactions").insert({
           message_id: messageId,
           user_id: currentUserId,
           school_id: schoolId,
@@ -176,14 +176,14 @@ export function MessageReactions({ messageId, schoolId, currentUserId, isMine = 
 
     try {
       if (isPinned) {
-        await supabase
+        await (supabase as any)
           .from("admin_message_pins")
           .delete()
           .eq("message_id", messageId)
           .eq("user_id", currentUserId);
         toast({ title: "Message unpinned" });
       } else {
-        await supabase.from("admin_message_pins").insert({
+        await (supabase as any).from("admin_message_pins").insert({
           message_id: messageId,
           user_id: currentUserId,
           school_id: schoolId,
@@ -309,7 +309,7 @@ export function PinnedMessagesCount({ schoolId, currentUserId }: { schoolId: str
   const fetchCount = useCallback(async () => {
     if (!schoolId || !currentUserId) return;
     
-    const { count: pinnedCount } = await supabase
+    const { count: pinnedCount } = await (supabase as any)
       .from("admin_message_pins")
       .select("*", { count: "exact", head: true })
       .eq("school_id", schoolId)

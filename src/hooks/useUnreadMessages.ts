@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase, USE_FASTAPI } from "@/integrations/supabase/client";
+import { apiClient } from "@/lib/api-client";
 
 interface UnreadMessagesResult {
   unreadCount: number;
@@ -25,15 +26,21 @@ export function useUnreadMessages(schoolId: string | null): UnreadMessagesResult
       }
       setUserId(user.user.id);
 
-      // Count unread messages where user is a recipient
-      const { count } = await supabase
-        .from("admin_message_recipients")
-        .select("id, admin_messages!inner(school_id)", { count: "exact", head: true })
-        .eq("recipient_user_id", user.user.id)
-        .eq("is_read", false)
-        .eq("admin_messages.school_id", schoolId);
+      let count = 0;
+      if (USE_FASTAPI) {
+        const resp = await apiClient.get<{ count: number }>("/messages/unread-count");
+        count = resp.data.count;
+      } else {
+        const { count: c } = await supabase
+          .from("admin_message_recipients")
+          .select("id, admin_messages!inner(school_id)", { count: "exact", head: true })
+          .eq("recipient_user_id", user.user.id)
+          .eq("is_read", false)
+          .eq("admin_messages.school_id", schoolId);
+        count = c || 0;
+      }
 
-      setUnreadCount(count || 0);
+      setUnreadCount(count);
     } catch (err) {
       console.error("Error fetching unread messages:", err);
     }

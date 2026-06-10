@@ -1,17 +1,28 @@
-import { PropsWithChildren, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { PropsWithChildren, useMemo, useState } from "react";
+import { OfflineStatusIndicator } from "@/components/offline/OfflineStatusIndicator";
+import { useNavigate, useLocation } from "react-router-dom";
 import { NavLink } from "@/components/NavLink";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
-import { BarChart3, CalendarDays, Coins, GraduationCap, Headphones, KanbanSquare, LayoutGrid, LogOut, Menu, MessageSquare, Settings, ShieldCheck, Sparkles, Users } from "lucide-react";
+import { LogOut, Menu, Settings, Sparkles, Mic, GraduationCap, MessageSquare, Users, LayoutGrid, CalendarDays, ClipboardCheck, FileSpreadsheet, HeartHandshake, ChevronDown, Activity } from "lucide-react";
 import type { EduverseRole } from "@/lib/eduverse-roles";
 import { supabase } from "@/integrations/supabase/client";
 import { GlobalCommandPalette } from "@/components/global/GlobalCommandPalette";
 import { NotificationsBell } from "@/components/global/NotificationsBell";
+import { VoiceController } from "@/components/common/VoiceController";
+import { VOICE_COMMANDS } from "@/utils/voiceCommands";
+import { DashboardNotificationsBanner } from "@/components/global/DashboardNotificationsBanner";
 import { useUnreadMessagesOptimized } from "@/hooks/useUnreadMessagesOptimized";
 import { useTenantOptimized } from "@/hooks/useTenantOptimized";
 import { useSession } from "@/hooks/useSession";
+import { useUserRole } from "@/hooks/useUserRole";
+import { useOfflineUniversal } from "@/hooks/useOfflineUniversal";
+import { buildMergedNav, GROUP_LABELS, GROUP_ORDER, DROPDOWN_MAPPING } from "@/lib/role-navigation";
+import { resolvePermissions } from "@/lib/permissions";
+import { cn } from "@/lib/utils";
+import { StaffAttendanceWidget } from "./StaffAttendanceWidget";
+
 
 type Props = PropsWithChildren<{
   title: string;
@@ -23,96 +34,356 @@ type Props = PropsWithChildren<{
 export function TenantShell({ title, subtitle, role, schoolSlug, children }: Props) {
   const navigate = useNavigate();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+const [voiceOpen, setVoiceOpen] = useState(false);
+  const location = useLocation();
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
+
+  const toggleGroup = (groupKey: string) => {
+    setExpandedGroups((prev) => ({ ...prev, [groupKey]: !prev[groupKey] }));
+  };
+
+  const isGroupExpanded = (groupKey: string, childUrls: string[]) => {
+    if (expandedGroups[groupKey] !== undefined) {
+      return expandedGroups[groupKey];
+    }
+    return childUrls.some(
+      (url) => location.pathname === url || location.pathname.startsWith(url + "/")
+    );
+  };
+
   const { user } = useSession();
-  
+
+
   // Use optimized tenant hook that caches and applies branding automatically
   const tenant = useTenantOptimized(schoolSlug);
   const schoolId = tenant.schoolId;
+
+  const isStaff = useMemo(() => {
+    return ["teacher", "principal", "vice_principal", "academic_coordinator", "counselor", "hr_manager", "accountant", "marketing_staff"].includes(role);
+  }, [role]);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
     navigate(`/${schoolSlug}/auth`);
   };
 
+  const handleVoiceCommand = (cmd: string) => {
+    const key = cmd.toLowerCase().trim();
+    const cfg = VOICE_COMMANDS[key];
+
+    if (!cfg) {
+      import("sonner").then(({ toast }) => toast.error(`Unknown command: "${cmd}"`));
+      return;
+    }
+    if (cfg.roles && cfg.roles.length > 0 && !cfg.roles.includes(role as any)) {
+      import("sonner").then(({ toast }) => toast.warning("Command not available for your role"));
+      return;
+    }
+
+    // Audible confirmation via Web Speech API
+    const speak = (text: string) => {
+      try {
+        const u = new SpeechSynthesisUtterance(text);
+        u.volume = 0.6; u.rate = 1.1;
+        window.speechSynthesis.cancel();
+        window.speechSynthesis.speak(u);
+      } catch { /* silently ignore if speechSynthesis unsupported */ }
+    };
+
+    if (cfg.action === "logout") { speak("Signing out"); handleLogout(); return; }
+    if (cfg.action === "open-search") {
+      speak("Opening search");
+      window.dispatchEvent(new Event("eduverse:open-search"));
+      return;
+    }
+    if (cfg.route !== undefined) {
+      const fullPath = `/${schoolSlug}/${role}${cfg.route}`;
+      speak(`Opening ${key}`);
+      navigate(fullPath);
+    }
+  };
+
+
+  // Offline support
+  const offline = useOfflineUniversal({
+    schoolId,
+    userId: user?.id ?? null,
+    role,
+  });
   const { unreadCount } = useUnreadMessagesOptimized(schoolId, user?.id ?? null);
 
-  const navItems = [
-    { to: `/${schoolSlug}/${role}`, icon: LayoutGrid, label: "Dashboard", show: true, badge: 0 },
-    { to: `/${schoolSlug}/${role}/messages`, icon: MessageSquare, label: "Messages", show: true, badge: unreadCount },
-    { to: `/${schoolSlug}/${role}/admin`, icon: ShieldCheck, label: "Admin", show: role === "super_admin", badge: 0 },
-    { to: `/${schoolSlug}/${role}/schools`, icon: ShieldCheck, label: "Schools", show: role === "super_admin", badge: 0 },
-    { to: `/${schoolSlug}/${role}/users`, icon: Users, label: "Staff", show: true, badge: 0 },
-    { to: `/${schoolSlug}/${role}/crm`, icon: KanbanSquare, label: "CRM", show: true, badge: 0 },
-    { to: `/${schoolSlug}/${role}/academic`, icon: GraduationCap, label: "Academic", show: true, badge: 0 },
-    { to: `/${schoolSlug}/${role}/timetable`, icon: CalendarDays, label: "Timetable", show: true, badge: 0 },
-    { to: `/${schoolSlug}/${role}/attendance`, icon: GraduationCap, label: "Attendance", show: true, badge: 0 },
-    { to: `/${schoolSlug}/${role}/finance`, icon: Coins, label: "Finance", show: ["principal", "vice_principal", "accountant", "super_admin", "school_owner"].includes(role), badge: 0 },
-    { to: `/${schoolSlug}/${role}/reports`, icon: BarChart3, label: "Reports", show: true, badge: 0 },
-    { to: `/${schoolSlug}/${role}/support`, icon: Headphones, label: "Support", show: ["principal", "vice_principal", "super_admin", "school_owner", "hr_manager"].includes(role), badge: 0 },
-    { to: `/${schoolSlug}/${role}?settings=1`, icon: Settings, label: "Settings", show: true, badge: 0 },
-  ].filter(item => item.show);
+  // WordPress-style permission-driven sidebar.
+  // The catalog is filtered by the union of the user's actual assigned roles
+  // (read from user_roles). The visible URL role prefix stays as the current
+  // route's role so existing dashboards & routes keep working unchanged.
+  const { roles: assignedRoles } = useUserRole(schoolId, user?.id ?? null);
+  const effectiveRoles = useMemo<EduverseRole[]>(() => {
+    // Fall back to the current shell role until roles load, so the UI never
+    // flashes empty for users whose user_roles row hasn't loaded yet.
+    if (assignedRoles.length === 0) return [role];
+    // Always include the current shell role (defensive).
+    return Array.from(new Set<EduverseRole>([...assignedRoles, role]));
+  }, [assignedRoles, role]);
 
-  // Bottom navigation items for mobile (limited to 5 key items)
-  const bottomNavItems = [
-    { to: `/${schoolSlug}/${role}`, icon: LayoutGrid, label: "Home" },
-    { to: `/${schoolSlug}/${role}/messages`, icon: MessageSquare, label: "Messages", badge: unreadCount },
-    { to: `/${schoolSlug}/${role}/academic`, icon: GraduationCap, label: "Academic" },
-    { to: `/${schoolSlug}/${role}/users`, icon: Users, label: "Staff" },
-  ];
+  // Build sidebar from the centralized permission resolver so visibility
+  // stays in lockstep with route-guard access checks.
+  const { grouped } = useMemo(() => {
+    const perms = resolvePermissions(effectiveRoles);
+    // buildMergedNav already groups; rebuild from filtered modules so we
+    // honour exactly the same set the resolver allows.
+    const items = perms.visibleModules;
+    const g: Record<string, typeof items> = {
+      overview: [], academics: [], people: [], finance: [],
+      operations: [], communication: [], admin: [],
+    };
+    for (const it of items) g[it.group].push(it);
+    return { grouped: g as ReturnType<typeof buildMergedNav>["grouped"] };
+  }, [effectiveRoles]);
+
+  // Mobile bottom bar ΓÇö role-aware. Keep to 5 items + "More" so nothing overflows.
+  const bottomNavItems = useMemo<Array<{ to: string; icon: typeof LayoutGrid; label: string; badge?: number }>>(() => {
+    const base = (path: string) => `/${schoolSlug}/${role}${path ? `/${path}` : ""}`;
+    const home = { to: base(""), icon: LayoutGrid, label: "Home" };
+    const messages = { to: base("messages"), icon: MessageSquare, label: "Messages", badge: unreadCount };
+
+    if (role === "academic_coordinator") {
+      return [
+        home,
+        { to: base("academic"), icon: GraduationCap, label: "Academic" },
+        { to: base("timetable"), icon: CalendarDays, label: "Timetable" },
+        { to: base("attendance"), icon: ClipboardCheck, label: "Attend" },
+        { to: base("exams"), icon: FileSpreadsheet, label: "Exams" },
+      ];
+    }
+
+    return [
+      home,
+      messages,
+      { to: base("academic"), icon: GraduationCap, label: "Academic" },
+      { to: base("users"), icon: Users, label: "Staff" },
+    ];
+  }, [role, schoolSlug, unreadCount]);
 
   const NavContent = () => (
     <>
       <div className="flex items-center justify-between">
-        <div>
-          <p className="font-display text-lg font-semibold tracking-tight">EDUVERSE</p>
-          <p className="text-xs text-muted-foreground">/{schoolSlug} • {role}</p>
+        <div className="min-w-0">
+          <p className="font-display text-lg font-semibold tracking-tight bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+            AltRix
+          </p>
+          <p className="text-[11px] text-muted-foreground truncate">
+            {tenant.school?.name ?? schoolSlug} • {role}
+          </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           <NotificationsBell schoolId={schoolId} schoolSlug={schoolSlug} role={role} />
+            {/* Voice Button */}
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="Voice command"
+              onClick={() => setVoiceOpen(true)}
+              className="rounded-xl"
+            >
+              <Mic className="h-5 w-5" />
+            </Button>
           <Button
             variant="soft"
             size="icon"
             aria-label="Search"
+            className="rounded-xl"
             onClick={() => window.dispatchEvent(new Event("eduverse:open-search"))}
           >
-            <Sparkles />
+            <Sparkles className="h-4 w-4" />
           </Button>
         </div>
       </div>
 
-      <nav className="mt-6 space-y-1">
-        {navItems.map((item) => (
-          <NavLink
-            key={item.to}
-            to={item.to}
-            end={item.to === `/${schoolSlug}/${role}`}
-            className="flex items-center justify-between rounded-xl px-3 py-2 text-sm text-muted-foreground hover:bg-primary/10 hover:text-primary transition-colors"
-            activeClassName="bg-primary text-primary-foreground shadow-sm"
-            onClick={() => setMobileNavOpen(false)}
-          >
-            <span className="flex items-center gap-2">
-              <item.icon className="h-4 w-4" /> {item.label}
-            </span>
-            {item.badge > 0 && (
-              <Badge variant="destructive" className="h-5 px-1.5 text-[10px]">
-                {item.badge > 99 ? "99+" : item.badge}
-              </Badge>
-            )}
-          </NavLink>
-        ))}
+      <nav className="mt-5 space-y-3">
+        {GROUP_ORDER.map((g) => {
+          // Insert principal-only groups after the "operations" group
+          if (g === "operations" && role === "principal") {
+            return (
+              <div key="principal-extras" className="space-y-0.5">
+                {/* Attendance Heatmap */}
+                <NavLink
+                  to={`/${schoolSlug}/${role}/attendance-heatmap`}
+                  className="group flex items-center rounded-xl px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                  activeClassName="bg-primary text-primary-foreground shadow-soft"
+                >
+                  <span className="flex items-center gap-2.5">
+                    <Activity className="h-4 w-4 shrink-0" /> Attendance Heatmap
+                  </span>
+                </NavLink>
+                {/* Collaboration Hub */}
+                <NavLink
+                  to={`/${schoolSlug}/${role}/collaboration`}
+                  className="group flex items-center rounded-xl px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                  activeClassName="bg-primary text-primary-foreground shadow-soft"
+                >
+                  <span className="flex items-center gap-2.5">
+                    <MessageSquare className="h-4 w-4 shrink-0" /> Collaboration Hub
+                  </span>
+                </NavLink>
+                {/* Budget Simulator */}
+                <NavLink
+                  to={`/${schoolSlug}/${role}/budget-simulator`}
+                  className="group flex items-center rounded-xl px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                  activeClassName="bg-primary text-primary-foreground shadow-soft"
+                >
+                  <span className="flex items-center gap-2.5">
+                    <FileSpreadsheet className="h-4 w-4 shrink-0" /> Budget Simulator
+                  </span>
+                </NavLink>
+              </div>
+            );
+          }
+
+          const items = grouped[g];
+          if (!items?.length) return null;
+
+          const directItems: typeof items = [];
+          const dropdownGroups: Record<string, { label: string; icon: any; items: typeof items }> = {};
+
+          items.forEach((item) => {
+            const mapping = DROPDOWN_MAPPING[item.key];
+            if (mapping) {
+              if (!dropdownGroups[mapping.groupKey]) {
+                dropdownGroups[mapping.groupKey] = {
+                  label: mapping.label,
+                  icon: mapping.icon,
+                  items: []
+                };
+              }
+              dropdownGroups[mapping.groupKey].items.push(item);
+            } else {
+              directItems.push(item);
+            }
+          });
+
+          return (
+            <div key={g}>
+              <p className="px-2 mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+                {GROUP_LABELS[g]}
+              </p>
+              <div className="space-y-0.5">
+                {/* Direct Items */}
+                {directItems.map((item) => {
+                  const to = item.path ? `/${schoolSlug}/${role}/${item.path}` : `/${schoolSlug}/${role}`;
+                  const badge = item.key === "messages" ? unreadCount : 0;
+                  const Icon = item.icon;
+                  return (
+                    <NavLink
+                      key={item.key}
+                      to={to}
+                      end={!item.path}
+                      className="group flex items-center justify-between rounded-xl px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-all duration-150"
+                      activeClassName="bg-primary text-primary-foreground shadow-soft hover:bg-primary hover:text-primary-foreground"
+                      onClick={() => setMobileNavOpen(false)}
+                    >
+                      <span className="flex items-center gap-2.5">
+                        <Icon className="h-4 w-4 shrink-0" /> {item.label}
+                      </span>
+                      {badge > 0 && (
+                        <Badge variant="destructive" className="h-5 px-1.5 text-[10px] rounded-full">
+                          {badge > 99 ? "99+" : badge}
+                        </Badge>
+                      )}
+                    </NavLink>
+                  );
+                })}
+
+                {/* Collapsible Dropdown Groups */}
+                {Object.entries(dropdownGroups).map(([groupKey, groupInfo]) => {
+                  const childUrls = groupInfo.items.map(item =>
+                    item.path ? `/${schoolSlug}/${role}/${item.path}` : `/${schoolSlug}/${role}`
+                  );
+                  const isOpen = isGroupExpanded(groupKey, childUrls);
+                  const isDropdownActive = childUrls.some(url => location.pathname === url || location.pathname.startsWith(url + "/"));
+                  const GroupIcon = groupInfo.icon;
+
+                  return (
+                    <div key={groupKey} className="space-y-0.5">
+                      <button
+                        onClick={() => toggleGroup(groupKey)}
+                        className={cn(
+                          "w-full flex items-center justify-between rounded-xl px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-all duration-150",
+                          isDropdownActive && "text-foreground font-semibold"
+                        )}
+                      >
+                        <span className="flex items-center gap-2.5">
+                          <GroupIcon className="h-4 w-4 shrink-0" />
+                          <span className="truncate">{groupInfo.label}</span>
+                        </span>
+                        <ChevronDown
+                          className={cn(
+                            "h-4 w-4 shrink-0 transition-transform duration-200 text-muted-foreground/60",
+                            isOpen ? "rotate-180" : "rotate-0"
+                          )}
+                        />
+                      </button>
+
+                      <div
+                        className={cn(
+                          "overflow-hidden transition-all duration-200 ease-in-out",
+                          isOpen ? "max-h-[500px] opacity-100 mt-0.5" : "max-h-0 opacity-0 pointer-events-none"
+                        )}
+                      >
+                        <div className="pl-4 ml-3 border-l border-border/40 space-y-0.5">
+                          {groupInfo.items.map((item) => {
+                            const to = item.path ? `/${schoolSlug}/${role}/${item.path}` : `/${schoolSlug}/${role}`;
+                            const badge = item.key === "messages" ? unreadCount : 0;
+                            const Icon = item.icon;
+                            return (
+                              <NavLink
+                                key={item.key}
+                                to={to}
+                                className="group flex items-center justify-between rounded-xl px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-all duration-150"
+                                activeClassName="bg-primary text-primary-foreground shadow-soft hover:bg-primary hover:text-primary-foreground"
+                                onClick={() => setMobileNavOpen(false)}
+                              >
+                                <span className="flex items-center gap-2.5">
+                                  <Icon className="h-4 w-4 shrink-0" /> {item.label}
+                                </span>
+                                {badge > 0 && (
+                                  <Badge variant="destructive" className="h-5 px-1.5 text-[10px] rounded-full">
+                                    {badge > 99 ? "99+" : badge}
+                                  </Badge>
+                                )}
+                              </NavLink>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+        <NavLink
+          to={`/${schoolSlug}/${role}?settings=1`}
+          end
+          className="group flex items-center gap-2.5 rounded-xl px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-all duration-150"
+          activeClassName="bg-primary text-primary-foreground shadow-soft"
+          onClick={() => setMobileNavOpen(false)}
+        >
+          <Settings className="h-4 w-4 shrink-0" /> Settings
+        </NavLink>
       </nav>
 
-      <div className="mt-6 rounded-2xl bg-accent p-4">
-        <p className="text-sm font-medium text-accent-foreground">Foundation status</p>
+      <div className="mt-5 rounded-2xl border border-primary/15 bg-gradient-to-br from-primary/10 via-accent/40 to-transparent p-4">
+        <p className="text-sm font-semibold text-foreground">All systems online</p>
         <p className="mt-1 text-xs text-muted-foreground">
-          Modules will light up as we add CRM, academics, finance, HR, comms, and BI.
+          Modules light up as your school activates them.
         </p>
       </div>
 
-      <div className="mt-6">
+      <div className="mt-4">
         <Button
           variant="ghost"
-          className="w-full justify-start gap-2 text-muted-foreground hover:text-destructive"
+          className="w-full justify-start gap-2 rounded-xl text-muted-foreground hover:text-destructive"
           onClick={handleLogout}
         >
           <LogOut className="h-4 w-4" />
@@ -121,42 +392,66 @@ export function TenantShell({ title, subtitle, role, schoolSlug, children }: Pro
       </div>
     </>
   );
-
   return (
     <div className="min-h-screen bg-background pb-20 lg:pb-0">
       <GlobalCommandPalette basePath={`/${schoolSlug}/${role}`} />
-      
+
       {/* Mobile Header */}
       <header className="sticky top-0 z-40 flex items-center justify-between border-b bg-background/95 px-4 py-3 backdrop-blur lg:hidden">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 min-w-0 flex-1">
           <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
             <SheetTrigger asChild>
               <Button variant="ghost" size="icon">
                 <Menu className="h-5 w-5" />
               </Button>
             </SheetTrigger>
-            <SheetContent side="left" className="w-[280px] p-4">
+            <SheetContent side="left" className="w-[280px] p-4 overflow-y-auto">
               <NavContent />
             </SheetContent>
           </Sheet>
-          <div>
-            <p className="font-display text-base font-semibold tracking-tight">{title}</p>
-            {subtitle && <p className="text-xs text-muted-foreground">{subtitle}</p>}
+          <div className="min-w-0">
+            <p className="font-display text-base font-semibold tracking-tight truncate">{title}</p>
+            {user?.email && (
+              <p className="text-[11px] text-muted-foreground truncate">
+                You are signed in as {user.email}
+              </p>
+            )}
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <NotificationsBell schoolId={schoolId} schoolSlug={schoolSlug} role={role} />
+        <div className="flex items-center gap-1.5 shrink-0">
+          <OfflineStatusIndicator
+            isOnline={offline.isOnline}
+            isSyncing={offline.isSyncing}
+            stats={offline.stats}
+            lastSyncAt={offline.lastSyncAt}
+            syncProgress={offline.syncProgress}
+            storageInfo={offline.storageInfo}
+            onSync={offline.syncPendingItems}
+            variant="compact"
+          />
+          {schoolId && <StaffAttendanceWidget schoolId={schoolId} />}
+          <NotificationsBell schoolId={schoolId} schoolSlug={schoolSlug} role="tenant" />
           <Button
             variant="ghost"
             size="icon"
+            aria-label="Search"
             onClick={() => window.dispatchEvent(new Event("eduverse:open-search"))}
           >
             <Sparkles className="h-5 w-5" />
           </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="text-muted-foreground hover:text-destructive"
+            onClick={handleLogout}
+            aria-label="Logout"
+          >
+            <LogOut className="h-5 w-5" />
+          </Button>
         </div>
       </header>
-      
-      <div className="mx-auto grid w-full max-w-7xl grid-cols-1 gap-4 px-4 py-4 lg:grid-cols-[280px_1fr] lg:gap-6 lg:px-6 lg:py-6">
+
+      <div className="grid w-full grid-cols-1 gap-4 px-4 py-4 lg:grid-cols-[280px_1fr] lg:gap-6 lg:px-6 lg:py-6">
         {/* Desktop Sidebar */}
         <aside className="sticky top-6 hidden self-start max-h-[calc(100vh-3rem)] overflow-y-auto rounded-3xl bg-surface p-4 shadow-elevated lg:block">
           <NavContent />
@@ -165,27 +460,49 @@ export function TenantShell({ title, subtitle, role, schoolSlug, children }: Pro
         {/* Main Content */}
         <section className="rounded-2xl bg-surface p-4 shadow-elevated lg:rounded-3xl lg:p-6">
           <header className="mb-4 hidden lg:mb-6 lg:block">
-            <p className="font-display text-2xl font-semibold tracking-tight">{title}</p>
-            {subtitle && <p className="mt-1 text-sm text-muted-foreground">{subtitle}</p>}
+            <div className="flex items-center justify-between">
+              <div className="min-w-0">
+                <h1 className="font-display text-2xl font-semibold tracking-tight">{title}</h1>
+                {user?.email && (
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    You are signed in as {user.email}
+                  </p>
+                )}
+              </div>
+              <div className="flex items-center gap-3 shrink-0">
+                {schoolId && isStaff && <StaffAttendanceWidget schoolId={schoolId} />}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleLogout}
+                  className="rounded-xl"
+                >
+                  <LogOut className="mr-2 h-4 w-4" /> Logout
+                </Button>
+              </div>
+            </div>
           </header>
+          <div className="mb-4 lg:mb-5">
+            <DashboardNotificationsBanner schoolId={schoolId} schoolSlug={schoolSlug} role={role} />
+          </div>
           {children}
         </section>
       </div>
 
       {/* Mobile Bottom Navigation */}
-      <nav className="fixed bottom-0 left-0 right-0 z-50 flex items-center justify-around border-t bg-background/95 px-2 py-2 backdrop-blur lg:hidden">
+      <nav className="fixed bottom-3 left-1/2 z-50 flex -translate-x-1/2 items-center justify-around gap-0.5 rounded-3xl border border-border/60 bg-background/90 px-1.5 py-1.5 shadow-elevated backdrop-blur-xl lg:hidden w-[calc(100%-1rem)] max-w-md">
         {bottomNavItems.map((item) => (
           <NavLink
             key={item.to}
             to={item.to}
             end={item.to === `/${schoolSlug}/${role}`}
-            className="flex flex-1 flex-col items-center gap-1 rounded-xl px-2 py-2 text-muted-foreground transition-colors relative"
-            activeClassName="text-primary-foreground bg-primary shadow-sm"
+            className="relative flex flex-1 flex-col items-center gap-0.5 rounded-2xl px-1 py-1.5 text-muted-foreground transition-all duration-200 min-w-0"
+            activeClassName="text-primary-foreground bg-primary shadow-soft"
           >
-            <item.icon className="h-5 w-5" />
-            <span className="text-[10px] font-medium">{item.label}</span>
-            {"badge" in item && item.badge !== undefined && item.badge > 0 && (
-              <span className="absolute -top-0.5 right-1/4 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-[8px] font-bold text-destructive-foreground">
+            <item.icon className="h-[18px] w-[18px]" />
+            <span className="text-[9px] font-medium leading-tight truncate max-w-full">{item.label}</span>
+            {item.badge !== undefined && item.badge > 0 && (
+              <span className="absolute -top-0.5 right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[8px] font-bold text-destructive-foreground">
                 {item.badge > 9 ? "9+" : item.badge}
               </span>
             )}
@@ -193,12 +510,18 @@ export function TenantShell({ title, subtitle, role, schoolSlug, children }: Pro
         ))}
         <button
           onClick={() => setMobileNavOpen(true)}
-          className="flex flex-1 flex-col items-center gap-1 rounded-xl px-2 py-2 text-muted-foreground transition-colors"
+          className="flex flex-1 flex-col items-center gap-0.5 rounded-2xl px-1 py-1.5 text-muted-foreground transition-colors min-w-0"
         >
-          <Menu className="h-5 w-5" />
-          <span className="text-[10px] font-medium">More</span>
+          <Menu className="h-[18px] w-[18px]" />
+          <span className="text-[9px] font-medium leading-tight">More</span>
         </button>
       </nav>
+      {voiceOpen && (
+        <VoiceController
+          onCommand={handleVoiceCommand}
+          onClose={() => setVoiceOpen(false)}
+        />
+      )}
     </div>
   );
 }

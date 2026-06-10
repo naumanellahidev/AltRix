@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, FileText, Eye, Trash2, CheckCircle, XCircle, Clock } from "lucide-react";
+import { ReportExportMenu } from "@/components/accountant/ReportExportMenu";
 
 import { supabase } from "@/integrations/supabase/client";
 import { useTenant } from "@/hooks/useTenant";
@@ -285,7 +286,39 @@ export function AccountantInvoicesModule() {
             <CardTitle className="font-display text-xl">Invoices</CardTitle>
             <p className="text-sm text-muted-foreground">Generate and manage student invoices</p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
+            {(() => {
+              const exportRows = filteredInvoices.map((inv) => ({
+                invoice_no: inv.invoice_no,
+                student: getStudentName(inv.student_id),
+                subtotal: inv.subtotal,
+                discount: inv.discount_total,
+                late_fee: inv.late_fee_total,
+                total: inv.total,
+                status: inv.status,
+                issue_date: inv.issue_date,
+                due_date: inv.due_date || "",
+                notes: inv.notes || "",
+              }));
+              const totalAmount = filteredInvoices.reduce((s, i) => s + (i.total || 0), 0);
+              const paidCount = filteredInvoices.filter((i) => i.status === "paid").length;
+              return (
+                <ReportExportMenu
+                  baseName="invoices"
+                  rows={exportRows}
+                  print={{
+                    title: "Invoices Report",
+                    subtitle: `Generated ${new Date().toLocaleDateString()} • Filter: ${statusFilter}`,
+                    summary: [
+                      { label: "Invoices", value: filteredInvoices.length },
+                      { label: "Total billed", value: totalAmount.toLocaleString() },
+                      { label: "Paid", value: paidCount },
+                      { label: "Outstanding", value: filteredInvoices.length - paidCount },
+                    ],
+                  }}
+                />
+              );
+            })()}
             <Select value={statusFilter} onValueChange={setStatusFilter}>
               <SelectTrigger className="w-[140px]">
                 <SelectValue />
@@ -369,7 +402,8 @@ export function AccountantInvoicesModule() {
           </div>
         </CardHeader>
         <CardContent>
-          <ScrollArea className="h-[400px] rounded-xl border bg-surface">
+          <div className="max-h-[480px] overflow-auto rounded-xl border bg-surface">
+            <div className="min-w-[900px]">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -387,7 +421,7 @@ export function AccountantInvoicesModule() {
                   <TableRow key={inv.id}>
                     <TableCell className="font-medium">{inv.invoice_no}</TableCell>
                     <TableCell>{getStudentName(inv.student_id)}</TableCell>
-                    <TableCell>{inv.total.toLocaleString()}</TableCell>
+                    <TableCell>{Number(inv.total ?? 0).toLocaleString()}</TableCell>
                     <TableCell>{getStatusBadge(inv.status)}</TableCell>
                     <TableCell>{new Date(inv.issue_date).toLocaleDateString()}</TableCell>
                     <TableCell>{inv.due_date ? new Date(inv.due_date).toLocaleDateString() : "—"}</TableCell>
@@ -443,7 +477,8 @@ export function AccountantInvoicesModule() {
                 )}
               </TableBody>
             </Table>
-          </ScrollArea>
+            </div>
+          </div>
         </CardContent>
       </Card>
 
@@ -476,19 +511,19 @@ export function AccountantInvoicesModule() {
               <div className="rounded-lg border p-4 space-y-2">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Subtotal</span>
-                  <span>{selectedInvoice.subtotal.toLocaleString()}</span>
+                  <span>{Number(selectedInvoice.subtotal ?? 0).toLocaleString()}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Discount</span>
-                  <span>-{selectedInvoice.discount_total.toLocaleString()}</span>
+                  <span>-{Number(selectedInvoice.discount_total ?? 0).toLocaleString()}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Late Fee</span>
-                  <span>+{selectedInvoice.late_fee_total.toLocaleString()}</span>
+                  <span>+{Number(selectedInvoice.late_fee_total ?? 0).toLocaleString()}</span>
                 </div>
                 <div className="flex justify-between border-t pt-2 font-semibold">
                   <span>Total</span>
-                  <span>{selectedInvoice.total.toLocaleString()}</span>
+                  <span>{Number(selectedInvoice.total ?? 0).toLocaleString()}</span>
                 </div>
               </div>
               {selectedInvoice.notes && (

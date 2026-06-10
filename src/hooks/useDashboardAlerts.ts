@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase, USE_FASTAPI } from "@/integrations/supabase/client";
+import { apiClient } from "@/lib/api-client";
 import { useRealtimeTable } from "@/hooks/useRealtime";
 import { toast } from "@/components/ui/sonner";
 
@@ -39,150 +40,152 @@ export function useDashboardAlerts(schoolId: string | null) {
 
   const enabled = !!schoolId;
 
-  // Fetch alert settings
-  const fetchSettings = useCallback(async () => {
-    if (!schoolId) return DEFAULT_THRESHOLDS;
-
-    const { data } = await supabase
-      .from("school_alert_settings")
-      .select("*")
-      .eq("school_id", schoolId)
-      .maybeSingle();
-
-    if (data) {
-      const newThresholds = {
-        attendanceWarning: data.attendance_warning_threshold ?? 75,
-        attendanceCritical: data.attendance_critical_threshold ?? 60,
-        pendingInvoices: data.pending_invoices_threshold ?? 10,
-        ticketHours: data.support_ticket_hours ?? 24,
-      };
-      setThresholds(newThresholds);
-      return newThresholds;
-    }
-
-    return DEFAULT_THRESHOLDS;
-  }, [schoolId]);
-
-  // Fetch initial data with thresholds
-  const fetchData = useCallback(async (currentThresholds?: AlertThresholds) => {
+  // Combined fetch that reloads settings + alerts data
+  const fetchAllDashboardAlerts = useCallback(async () => {
     if (!schoolId) return;
 
-    const useThresholds = currentThresholds ?? thresholds;
-    const now = new Date();
-    const d7 = new Date(now);
-    d7.setDate(now.getDate() - 7);
-
     try {
-      const [
-        openTickets,
-        entries7d,
-        present7d,
-        pendingInvoices,
-      ] = await Promise.all([
-        supabase
-          .from("support_conversations")
-          .select("id,student_id,status,created_at")
-          .eq("school_id", schoolId)
-          .eq("status", "open")
-          .order("created_at", { ascending: false })
-          .limit(20),
-        supabase
-          .from("attendance_entries")
-          .select("id", { count: "exact", head: true })
-          .eq("school_id", schoolId)
-          .gte("created_at", d7.toISOString()),
-        supabase
-          .from("attendance_entries")
-          .select("id", { count: "exact", head: true })
-          .eq("school_id", schoolId)
-          .eq("status", "present")
-          .gte("created_at", d7.toISOString()),
-        supabase
-          .from("finance_invoices")
-          .select("id", { count: "exact", head: true })
-          .eq("school_id", schoolId)
-          .eq("status", "pending"),
-      ]);
+      if (USE_FASTAPI) {
+        const resp = await apiClient.get<{
+          alerts: DashboardAlert[];
+          newTicketsCount: number;
+          attendanceRate: number;
+          thresholds: AlertThresholds;
+        }>("/schools/dashboard/alerts");
 
-      const newAlerts: DashboardAlert[] = [];
+        setAlerts(resp.data.alerts ?? []);
+        setNewTicketsCount(resp.data.newTicketsCount ?? 0);
+        setAttendanceRate(resp.data.attendanceRate ?? 100);
+        setThresholds(resp.data.thresholds ?? DEFAULT_THRESHOLDS);
+        setInitialized(true);
+      } else {
+        const now = new Date();
+        const d7 = new Date(now);
+        d7.setDate(now.getDate() - 7);
 
-      // Support ticket alerts - use configurable hours
-      const tickets = openTickets.data ?? [];
-      setNewTicketsCount(tickets.length);
-      
-      if (tickets.length > 0) {
-        const recentTickets = tickets.filter(t => {
-          const createdAt = new Date(t.created_at);
-          const hoursAgo = (now.getTime() - createdAt.getTime()) / (1000 * 60 * 60);
-          return hoursAgo < useThresholds.ticketHours;
-        });
+        // Fetch settings first
+        let currentThresholds = DEFAULT_THRESHOLDS;
+        const { data: settingsData } = await (supabase as any)
+          .from("school_alert_settings")
+          .select("*")
+          .eq("school_id", schoolId)
+          .maybeSingle();
+
+        if (settingsData) {
+          const d = settingsData as any;
+          currentThresholds = {
+            attendanceWarning: d.attendance_warning_threshold ?? 75,
+            attendanceCritical: d.attendance_critical_threshold ?? 60,
+            pendingInvoices: d.pending_invoices_threshold ?? 10,
+            ticketHours: d.support_ticket_hours ?? 24,
+          };
+          setThresholds(currentThresholds);
+        }
+
+        const [
+          openTickets,
+          entries7d,
+          present7d,
+          pendingInvoices,
+        ] = await Promise.all([
+          supabase
+            .from("support_conversations")
+            .select("id,student_id,status,created_at")
+            .eq("school_id", schoolId)
+            .eq("status", "open")
+            .order("created_at", { ascending: false })
+            .limit(20),
+          supabase
+            .from("attendance_entries")
+            .select("id", { count: "exact", head: true })
+            .eq("school_id", schoolId)
+            .gte("created_at", d7.toISOString()),
+          supabase
+            .from("attendance_entries")
+            .select("id", { count: "exact", head: true })
+            .eq("school_id", schoolId)
+            .eq("status", "present")
+            .gte("created_at", d7.toISOString()),
+          supabase
+            .from("finance_invoices")
+            .select("id", { count: "exact", head: true })
+            .eq("school_id", schoolId)
+            .eq("status", "pending"),
+        ]);
+
+        const newAlerts: DashboardAlert[] = [];
+
+        // Support ticket alerts
+        const tickets = openTickets.data ?? [];
+        setNewTicketsCount(tickets.length);
         
-        if (recentTickets.length > 0) {
+        if (tickets.length > 0) {
+          const recentTickets = tickets.filter(t => {
+            const createdAt = new Date(t.created_at);
+            const hoursAgo = (now.getTime() - createdAt.getTime()) / (1000 * 60 * 60);
+            return hoursAgo < currentThresholds.ticketHours;
+          });
+          
+          if (recentTickets.length > 0) {
+            newAlerts.push({
+              id: `support-${Date.now()}`,
+              type: "support_ticket",
+              title: "New Support Tickets",
+              message: `${recentTickets.length} new ticket${recentTickets.length > 1 ? "s" : ""} in the last ${currentThresholds.ticketHours}h`,
+              severity: recentTickets.length >= 5 ? "critical" : "warning",
+              timestamp: new Date().toISOString(),
+              dismissed: false,
+            });
+          }
+        }
+
+        // Attendance alerts
+        const totalEntries = entries7d.count ?? 0;
+        const presentEntries = present7d.count ?? 0;
+        const rate = totalEntries > 0 ? Math.round((presentEntries / totalEntries) * 100) : 100;
+        setAttendanceRate(rate);
+
+        if (rate < currentThresholds.attendanceWarning && totalEntries > 0) {
           newAlerts.push({
-            id: `support-${Date.now()}`,
-            type: "support_ticket",
-            title: "New Support Tickets",
-            message: `${recentTickets.length} new ticket${recentTickets.length > 1 ? "s" : ""} in the last ${useThresholds.ticketHours}h`,
-            severity: recentTickets.length >= 5 ? "critical" : "warning",
+            id: `attendance-${Date.now()}`,
+            type: "low_attendance",
+            title: "Low Attendance Alert",
+            message: `Weekly attendance is at ${rate}%, below the ${currentThresholds.attendanceWarning}% threshold`,
+            severity: rate < currentThresholds.attendanceCritical ? "critical" : "warning",
             timestamp: new Date().toISOString(),
             dismissed: false,
           });
         }
+
+        // Pending invoices alert
+        const invoiceCount = pendingInvoices.count ?? 0;
+        if (invoiceCount >= currentThresholds.pendingInvoices) {
+          newAlerts.push({
+            id: `invoices-${Date.now()}`,
+            type: "pending_invoice",
+            title: "Pending Invoices",
+            message: `${invoiceCount} invoices pending payment`,
+            severity: invoiceCount >= currentThresholds.pendingInvoices * 2 ? "critical" : "info",
+            timestamp: new Date().toISOString(),
+            dismissed: false,
+          });
+        }
+
+        setAlerts(newAlerts);
+        setInitialized(true);
       }
-
-      // Attendance alerts - use configurable thresholds
-      const totalEntries = entries7d.count ?? 0;
-      const presentEntries = present7d.count ?? 0;
-      const rate = totalEntries > 0 ? Math.round((presentEntries / totalEntries) * 100) : 100;
-      setAttendanceRate(rate);
-
-      if (rate < useThresholds.attendanceWarning && totalEntries > 0) {
-        newAlerts.push({
-          id: `attendance-${Date.now()}`,
-          type: "low_attendance",
-          title: "Low Attendance Alert",
-          message: `Weekly attendance is at ${rate}%, below the ${useThresholds.attendanceWarning}% threshold`,
-          severity: rate < useThresholds.attendanceCritical ? "critical" : "warning",
-          timestamp: new Date().toISOString(),
-          dismissed: false,
-        });
-      }
-
-      // Pending invoices alert - use configurable threshold
-      const invoiceCount = pendingInvoices.count ?? 0;
-      if (invoiceCount >= useThresholds.pendingInvoices) {
-        newAlerts.push({
-          id: `invoices-${Date.now()}`,
-          type: "pending_invoice",
-          title: "Pending Invoices",
-          message: `${invoiceCount} invoices pending payment`,
-          severity: invoiceCount >= useThresholds.pendingInvoices * 2 ? "critical" : "info",
-          timestamp: new Date().toISOString(),
-          dismissed: false,
-        });
-      }
-
-      setAlerts(newAlerts);
-      setInitialized(true);
     } catch (error) {
       console.error("Failed to fetch dashboard alerts:", error);
     }
-  }, [schoolId, thresholds]);
+  }, [schoolId]);
 
-  // Initialize: fetch settings then data
+  // Fetch initial data
   useEffect(() => {
-    const init = async () => {
-      const loadedThresholds = await fetchSettings();
-      await fetchData(loadedThresholds);
-    };
-    void init();
-  }, [fetchSettings, fetchData]);
+    void fetchAllDashboardAlerts();
+  }, [fetchAllDashboardAlerts]);
 
-  // Combined refresh that reloads settings + data
-  const refresh = useCallback(async () => {
-    const loadedThresholds = await fetchSettings();
-    await fetchData(loadedThresholds);
-  }, [fetchSettings, fetchData]);
+  // Combined refresh trigger
+  const refresh = useCallback(() => fetchAllDashboardAlerts(), [fetchAllDashboardAlerts]);
 
   // Real-time subscription for support tickets
   useRealtimeTable({
@@ -192,7 +195,6 @@ export function useDashboardAlerts(schoolId: string | null) {
     enabled,
     onChange: (payload: any) => {
       if (payload.eventType === "INSERT" && payload.new?.status === "open") {
-        // New ticket arrived
         setNewTicketsCount((prev) => prev + 1);
         
         const newAlert: DashboardAlert = {
@@ -208,22 +210,18 @@ export function useDashboardAlerts(schoolId: string | null) {
         
         setAlerts((prev) => [newAlert, ...prev.filter(a => a.type !== "support_ticket" || a.id.includes("new-"))]);
         
-        // Show toast notification
         toast.info("New Support Ticket", {
           description: "A new support request has been submitted",
           action: {
             label: "View",
-            onClick: () => {
-              // Navigate handled by parent
-            },
+            onClick: () => {},
           },
         });
       } else if (payload.eventType === "UPDATE" && payload.new?.status === "resolved") {
         setNewTicketsCount((prev) => Math.max(0, prev - 1));
       }
       
-      // Refresh data
-      void fetchData();
+      void fetchAllDashboardAlerts();
     },
   });
 
@@ -234,8 +232,7 @@ export function useDashboardAlerts(schoolId: string | null) {
     filter: schoolId ? `school_id=eq.${schoolId}` : undefined,
     enabled,
     onChange: () => {
-      // Refresh attendance rate
-      void fetchData();
+      void fetchAllDashboardAlerts();
     },
   });
 

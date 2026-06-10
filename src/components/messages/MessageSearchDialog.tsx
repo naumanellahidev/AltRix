@@ -67,7 +67,7 @@ export function MessageSearchDialog({ schoolId, currentUserId, profileMap, onSel
     setHasSearched(true);
 
     try {
-      const { data, error } = await supabase.rpc("search_messages", {
+      const { data, error } = await (supabase as any).rpc("search_messages", {
         _school_id: schoolId,
         _user_id: currentUserId,
         _query: query.trim(),
@@ -75,7 +75,7 @@ export function MessageSearchDialog({ schoolId, currentUserId, profileMap, onSel
       });
 
       if (error) throw error;
-      setResults((data as SearchResult[]) || []);
+      setResults((data as unknown as SearchResult[]) || []);
     } catch (error) {
       console.error("Search error:", error);
       setResults([]);

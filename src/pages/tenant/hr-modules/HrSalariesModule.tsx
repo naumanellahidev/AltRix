@@ -18,6 +18,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { StaffCombobox } from "@/components/ui/staff-combobox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog,
@@ -153,17 +154,16 @@ export function HrSalariesModule() {
   });
 
   const { data: staffMembers = [] } = useQuery({
-    queryKey: ["school_memberships_staff", schoolId],
+    queryKey: ["school_staff_directory", schoolId],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("school_memberships")
-        .select("user_id, profiles:user_id(display_name)")
-        .eq("school_id", schoolId!);
+      const { data, error } = await supabase.rpc("get_school_staff_directory", {
+        _school_id: schoolId!,
+      });
       if (error) throw error;
       return (data || []).map((m: any) => ({
         id: m.user_id,
-        full_name: m.profiles?.display_name || "Unknown",
-        email: "",
+        full_name: m.display_name || m.email || "Unknown",
+        email: m.email || "",
       })) as StaffMember[];
     },
     enabled: !!schoolId,
@@ -483,18 +483,13 @@ export function HrSalariesModule() {
                   <div className="space-y-4 py-4">
                     <div className="space-y-2">
                       <Label>Staff Member</Label>
-                      <Select value={formUserId} onValueChange={setFormUserId} disabled={!!editingRecord}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select staff member" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {staffMembers.map((staff) => (
-                            <SelectItem key={staff.id} value={staff.id}>
-                              {staff.full_name} ({staff.email})
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <StaffCombobox
+                        staff={staffMembers}
+                        value={formUserId}
+                        onChange={setFormUserId}
+                        disabled={!!editingRecord}
+                        placeholder="Select staff member"
+                      />
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">

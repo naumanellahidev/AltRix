@@ -14,6 +14,7 @@ import {
   Award,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { aiToTextArray } from "@/lib/ai-render";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -36,7 +37,7 @@ export function StudentCareerPathAI({ studentId, schoolId }: Props) {
   const { data: career, isLoading } = useQuery({
     queryKey: ["ai_career_suggestions", studentId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from("ai_career_suggestions")
         .select("*")
         .eq("student_id", studentId)
@@ -44,7 +45,7 @@ export function StudentCareerPathAI({ studentId, schoolId }: Props) {
         .maybeSingle();
 
       if (error) throw error;
-      return data;
+      return data as any;
     },
     enabled: !!studentId && !!schoolId,
   });
@@ -165,39 +166,43 @@ export function StudentCareerPathAI({ studentId, schoolId }: Props) {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {career.suggested_fields && (career.suggested_fields as string[]).length > 0 ? (
-              <div className="space-y-3">
-                {(career.suggested_fields as string[]).map((field, idx) => {
-                  const score = (career.field_match_scores as Record<string, number>)?.[field] || 0;
-                  return (
-                    <motion.div
-                      key={field}
-                      initial={{ opacity: 0, x: -10 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: idx * 0.1 }}
-                      className="flex items-center justify-between rounded-xl border p-3"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
-                          <span className="text-sm font-bold text-primary">{idx + 1}</span>
+            {(() => {
+              const fields = aiToTextArray(career.suggested_fields);
+              const scores = (career.field_match_scores || {}) as Record<string, number>;
+              return fields.length > 0 ? (
+                <div className="space-y-3">
+                  {fields.map((field, idx) => {
+                    const score = scores[field] || 0;
+                    return (
+                      <motion.div
+                        key={`${field}-${idx}`}
+                        initial={{ opacity: 0, x: -10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: idx * 0.1 }}
+                        className="flex items-center justify-between rounded-xl border p-3"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
+                            <span className="text-sm font-bold text-primary">{idx + 1}</span>
+                          </div>
+                          <span className="font-medium">{field}</span>
                         </div>
-                        <span className="font-medium">{field}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Progress value={score} className="w-20 h-2" />
-                        <span className="text-sm font-semibold text-muted-foreground w-10 text-right">
-                          {score}%
-                        </span>
-                      </div>
-                    </motion.div>
-                  );
-                })}
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground py-8 text-center">
-                Career field suggestions will appear as data is analyzed
-              </p>
-            )}
+                        <div className="flex items-center gap-2">
+                          <Progress value={score} className="w-20 h-2" />
+                          <span className="text-sm font-semibold text-muted-foreground w-10 text-right">
+                            {score}%
+                          </span>
+                        </div>
+                      </motion.div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground py-8 text-center">
+                  Career field suggestions will appear as data is analyzed
+                </p>
+              );
+            })()}
           </CardContent>
         </Card>
 
@@ -240,53 +245,59 @@ export function StudentCareerPathAI({ studentId, schoolId }: Props) {
       </div>
 
       {/* Detected Interests */}
-      {career.detected_interests && (career.detected_interests as string[]).length > 0 && (
-        <Card className="shadow-sm">
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-sm">
-              <Star className="h-4 w-4 text-amber-500" />
-              Detected Interests
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-wrap gap-2">
-              {(career.detected_interests as string[]).map((interest, idx) => (
-                <Badge key={idx} variant="secondary" className="text-xs">
-                  {interest}
-                </Badge>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      {(() => {
+        const interests = aiToTextArray(career.detected_interests);
+        return interests.length > 0 ? (
+          <Card className="shadow-sm">
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center gap-2 text-sm">
+                <Star className="h-4 w-4 text-amber-500" />
+                Detected Interests
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-wrap gap-2">
+                {interests.map((interest, idx) => (
+                  <Badge key={`${interest}-${idx}`} variant="secondary" className="text-xs">
+                    {interest}
+                  </Badge>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        ) : null;
+      })()}
 
       {/* Recommended Subjects */}
-      {career.recommended_subjects && (career.recommended_subjects as string[]).length > 0 && (
-        <Card className="shadow-elevated border-primary/20 bg-gradient-to-br from-primary/5 to-transparent">
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <BookOpen className="h-5 w-5 text-primary" />
-              Recommended Subjects to Focus On
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {(career.recommended_subjects as string[]).map((subject, idx) => (
-                <motion.div
-                  key={subject}
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ delay: idx * 0.05 }}
-                  className="flex items-center gap-2 rounded-xl bg-background/50 p-3"
-                >
-                  <Award className="h-4 w-4 text-primary shrink-0" />
-                  <span className="text-sm font-medium">{subject}</span>
-                </motion.div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      {(() => {
+        const subjects = aiToTextArray(career.recommended_subjects);
+        return subjects.length > 0 ? (
+          <Card className="shadow-elevated border-primary/20 bg-gradient-to-br from-primary/5 to-transparent">
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <BookOpen className="h-5 w-5 text-primary" />
+                Recommended Subjects to Focus On
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {subjects.map((subject, idx) => (
+                  <motion.div
+                    key={`${subject}-${idx}`}
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: idx * 0.05 }}
+                    className="flex items-center gap-2 rounded-xl bg-background/50 p-3"
+                  >
+                    <Award className="h-4 w-4 text-primary shrink-0" />
+                    <span className="text-sm font-medium">{subject}</span>
+                  </motion.div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        ) : null;
+      })()}
 
       {/* AI Note */}
       <div className="flex items-start gap-3 rounded-xl border bg-muted/30 p-4 text-xs text-muted-foreground">

@@ -3,10 +3,11 @@ import { NavLink } from "@/components/NavLink";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { Briefcase, Calendar, CalendarDays, Coins, FileText, LayoutGrid, Star, Users as UsersIcon, ClipboardList, Headphones, LogOut, Sparkles, MessageSquare, Menu } from "lucide-react";
+import { Briefcase, Calendar, Coins, FileText, LayoutGrid, Megaphone, PartyPopper, Star, Users as UsersIcon, ClipboardList, Headphones, LogOut, Sparkles, MessageSquare, Menu, UserPlus, ClipboardCheck, LogOut as ExitIcon, Wallet, BarChart3 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { GlobalCommandPalette } from "@/components/global/GlobalCommandPalette";
 import { NotificationsBell } from "@/components/global/NotificationsBell";
+import { StaffAttendanceWidget } from "./StaffAttendanceWidget";
 import { useUnreadMessagesOptimized } from "@/hooks/useUnreadMessagesOptimized";
 import { useTenantOptimized } from "@/hooks/useTenantOptimized";
 import { useSession } from "@/hooks/useSession";
@@ -44,16 +45,22 @@ export function HrShell({ title, subtitle, schoolSlug, children }: Props) {
 
   const navItems = [
     { to: basePath, icon: LayoutGrid, label: "Dashboard", end: true, badge: 0 },
-    { to: `${basePath}/users`, icon: UsersIcon, label: "Staff & Users", badge: 0 },
-    { to: `${basePath}/leaves`, icon: Calendar, label: "Leave Management", badge: 0 },
+    { to: `${basePath}/users`, icon: UsersIcon, label: "Staff Directory", badge: 0 },
+    { to: `${basePath}/recruitment`, icon: UserPlus, label: "Recruitment", badge: 0 },
+    { to: `${basePath}/onboarding`, icon: ClipboardCheck, label: "Onboarding", badge: 0 },
+    { to: `${basePath}/offboarding`, icon: ExitIcon, label: "Offboarding", badge: 0 },
     { to: `${basePath}/attendance`, icon: ClipboardList, label: "Staff Attendance", badge: 0 },
+    { to: `${basePath}/leaves`, icon: Calendar, label: "Leave Management", badge: 0 },
     { to: `${basePath}/salaries`, icon: Coins, label: "Salaries", badge: 0 },
+    { to: `${basePath}/payroll`, icon: Wallet, label: "Payroll Runs", badge: 0 },
     { to: `${basePath}/contracts`, icon: FileText, label: "Contracts", badge: 0 },
     { to: `${basePath}/reviews`, icon: Star, label: "Performance Reviews", badge: 0 },
     { to: `${basePath}/documents`, icon: Briefcase, label: "Documents", badge: 0 },
+    { to: `${basePath}/analytics`, icon: BarChart3, label: "HR Analytics", badge: 0 },
+    { to: `${basePath}/notices`, icon: Megaphone, label: "Notices", badge: 0 },
+    { to: `${basePath}/holidays`, icon: PartyPopper, label: "Holidays", badge: 0 },
     { to: `${basePath}/support`, icon: Headphones, label: "Support Inbox", badge: 0 },
     { to: `${basePath}/messages`, icon: MessageSquare, label: "Messages", badge: unreadCount },
-    { to: `${basePath}/timetable`, icon: CalendarDays, label: "Timetable Builder", badge: 0 },
   ];
 
   const bottomNavItems = [
@@ -67,7 +74,7 @@ export function HrShell({ title, subtitle, schoolSlug, children }: Props) {
     <>
       <div className="flex items-center justify-between">
         <div>
-          <p className="font-display text-lg font-semibold tracking-tight">EDUVERSE</p>
+          <p className="font-display text-lg font-semibold tracking-tight bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">AltRix</p>
           <p className="text-xs text-muted-foreground">/{schoolSlug} • HR</p>
         </div>
         <div className="flex items-center gap-2">
@@ -81,6 +88,7 @@ export function HrShell({ title, subtitle, schoolSlug, children }: Props) {
             onSync={offline.syncPendingItems}
             variant="compact"
           />
+          {schoolId && <StaffAttendanceWidget schoolId={schoolId} />}
           <NotificationsBell schoolId={schoolId} schoolSlug={schoolSlug} role="hr_manager" />
           <Button
             variant="soft"
@@ -148,7 +156,7 @@ export function HrShell({ title, subtitle, schoolSlug, children }: Props) {
                 <Menu className="h-5 w-5" />
               </Button>
             </SheetTrigger>
-            <SheetContent side="left" className="w-[280px] p-4">
+            <SheetContent side="left" className="w-[280px] p-4 overflow-y-auto">
               <NavContent />
             </SheetContent>
           </Sheet>
@@ -168,6 +176,7 @@ export function HrShell({ title, subtitle, schoolSlug, children }: Props) {
             onSync={offline.syncPendingItems}
             variant="compact"
           />
+          {schoolId && <StaffAttendanceWidget schoolId={schoolId} />}
           <NotificationsBell schoolId={schoolId} schoolSlug={schoolSlug} role="hr_manager" />
           <Button
             variant="ghost"
@@ -179,7 +188,7 @@ export function HrShell({ title, subtitle, schoolSlug, children }: Props) {
         </div>
       </header>
 
-      <div className="mx-auto grid w-full max-w-7xl grid-cols-1 gap-4 px-4 py-4 lg:grid-cols-[280px_1fr] lg:gap-6 lg:px-6 lg:py-6">
+      <div className="grid w-full grid-cols-1 gap-4 px-4 py-4 lg:grid-cols-[280px_1fr] lg:gap-6 lg:px-6 lg:py-6">
         {/* Desktop Sidebar */}
         <aside className="sticky top-6 hidden self-start max-h-[calc(100vh-3rem)] overflow-y-auto rounded-3xl bg-surface p-4 shadow-elevated lg:block">
           <NavContent />

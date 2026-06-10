@@ -91,7 +91,7 @@ export function OfflineAnalyticsDashboard({
     if (typeof stats.totalRevenue === 'number') {
       items.push({
         label: 'Revenue MTD',
-        value: `$${stats.totalRevenue.toLocaleString()}`,
+        value: `PKR ${stats.totalRevenue.toLocaleString()}`,
         icon: <BarChart3 className="h-4 w-4" />,
         color: 'text-emerald-600',
       });

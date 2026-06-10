@@ -73,7 +73,16 @@ import { FeeDefaultersReport } from "@/components/accountant/FeeDefaultersReport
 
 const COLORS = ["hsl(var(--primary))", "hsl(var(--chart-2))", "hsl(var(--chart-3))", "hsl(var(--chart-4))", "hsl(var(--chart-5))"];
 
-const MotionCard = motion(Card);
+const MotionCard = motion.create(Card);
+
+const compactFormatter = new Intl.NumberFormat("en", {
+  notation: "compact",
+  maximumFractionDigits: 1,
+});
+const formatCompact = (n: number) => {
+  const sign = n < 0 ? "-" : "";
+  return sign + compactFormatter.format(Math.abs(n));
+};
 
 export function AccountantHomeModule() {
   const { schoolSlug } = useParams();
@@ -601,22 +610,22 @@ export function AccountantHomeModule() {
 
         <TabsContent value="overview" className="space-y-6">
           {/* Financial Health Score + Quick Stats */}
-          <div className="grid gap-4 lg:grid-cols-[300px_1fr]">
+          <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,260px)_minmax(0,1fr)]">
             {/* Health Score Card */}
             <MotionCard 
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              className="shadow-elevated bg-gradient-to-br from-background to-muted/30"
+              className="shadow-elevated bg-gradient-to-br from-background to-muted/30 min-w-0"
             >
               <CardHeader className="pb-2">
                 <CardTitle className="flex items-center gap-2 text-base">
-                  <Shield className="h-5 w-5 text-primary" />
-                  Financial Health
+                  <Shield className="h-5 w-5 text-primary shrink-0" />
+                  <span className="truncate">Financial Health</span>
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="flex items-center justify-center">
-                  <div className="relative h-[140px] w-[140px]">
+                  <div className="relative h-[120px] w-[120px] sm:h-[140px] sm:w-[140px]">
                     <ResponsiveContainer width="100%" height="100%">
                       <RadialBarChart
                         cx="50%"
@@ -643,19 +652,19 @@ export function AccountantHomeModule() {
                   </div>
                 </div>
                 <div className="mt-4 space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Collection Rate</span>
-                    <span className="font-medium">{stats.collectionRate.toFixed(1)}%</span>
+                  <div className="flex justify-between gap-2 text-sm">
+                    <span className="text-muted-foreground truncate">Collection Rate</span>
+                    <span className="font-medium shrink-0">{stats.collectionRate.toFixed(1)}%</span>
                   </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Profit Margin</span>
-                    <span className={`font-medium ${stats.profitMargin >= 0 ? "text-primary" : "text-destructive"}`}>
+                  <div className="flex justify-between gap-2 text-sm">
+                    <span className="text-muted-foreground truncate">Profit Margin</span>
+                    <span className={`font-medium shrink-0 ${stats.profitMargin >= 0 ? "text-primary" : "text-destructive"}`}>
                       {stats.profitMargin.toFixed(1)}%
                     </span>
                   </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Overdue Rate</span>
-                    <span className={`font-medium ${stats.overdueInvoices === 0 ? "text-primary" : "text-destructive"}`}>
+                  <div className="flex justify-between gap-2 text-sm">
+                    <span className="text-muted-foreground truncate">Overdue Rate</span>
+                    <span className={`font-medium shrink-0 ${stats.overdueInvoices === 0 ? "text-primary" : "text-destructive"}`}>
                       {invoices.length > 0 ? ((stats.overdueInvoices / invoices.length) * 100).toFixed(1) : 0}%
                     </span>
                   </div>
@@ -664,27 +673,27 @@ export function AccountantHomeModule() {
             </MotionCard>
 
             {/* Key Metrics Grid */}
-            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+            <div className="grid auto-rows-fr grid-cols-2 gap-3 min-w-0 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-4">
               <MotionCard 
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.1 }}
-                className="shadow-elevated hover:shadow-lg transition-shadow"
+                className="shadow-elevated hover:shadow-lg transition-shadow min-w-0"
               >
-                <CardContent className="pt-4">
-                  <div className="flex items-center justify-between">
-                    <div className="rounded-lg bg-primary/10 p-2">
+                <CardContent className="flex h-full flex-col gap-2 p-4">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="rounded-lg bg-primary/10 p-2 shrink-0">
                       <TrendingUp className="h-4 w-4 text-primary" />
                     </div>
                     {stats.revenueGrowth !== 0 && (
-                      <div className={`flex items-center text-xs ${stats.revenueGrowth > 0 ? "text-primary" : "text-destructive"}`}>
+                      <div className={`flex items-center gap-0.5 text-xs whitespace-nowrap ${stats.revenueGrowth > 0 ? "text-primary" : "text-destructive"}`}>
                         {stats.revenueGrowth > 0 ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
                         {Math.abs(stats.revenueGrowth).toFixed(1)}%
                       </div>
                     )}
                   </div>
-                  <p className="mt-3 text-2xl font-bold tracking-tight">{stats.totalRevenue.toLocaleString()}</p>
-                  <p className="text-xs text-muted-foreground">Total Revenue</p>
+                  <p className="text-lg sm:text-xl font-bold tracking-tight truncate" title={stats.totalRevenue.toLocaleString()}>{formatCompact(stats.totalRevenue)}</p>
+                  <p className="text-xs text-muted-foreground truncate">Total Revenue</p>
                 </CardContent>
               </MotionCard>
 
@@ -692,22 +701,22 @@ export function AccountantHomeModule() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.15 }}
-                className="shadow-elevated hover:shadow-lg transition-shadow"
+                className="shadow-elevated hover:shadow-lg transition-shadow min-w-0"
               >
-                <CardContent className="pt-4">
-                  <div className="flex items-center justify-between">
-                    <div className="rounded-lg bg-destructive/10 p-2">
+                <CardContent className="flex h-full flex-col gap-2 p-4">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="rounded-lg bg-destructive/10 p-2 shrink-0">
                       <TrendingDown className="h-4 w-4 text-destructive" />
                     </div>
                     {stats.expenseGrowth !== 0 && (
-                      <div className={`flex items-center text-xs ${stats.expenseGrowth > 0 ? "text-destructive" : "text-primary"}`}>
+                      <div className={`flex items-center gap-0.5 text-xs whitespace-nowrap ${stats.expenseGrowth > 0 ? "text-destructive" : "text-primary"}`}>
                         {stats.expenseGrowth > 0 ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
                         {Math.abs(stats.expenseGrowth).toFixed(1)}%
                       </div>
                     )}
                   </div>
-                  <p className="mt-3 text-2xl font-bold tracking-tight text-destructive">{stats.totalExpenses.toLocaleString()}</p>
-                  <p className="text-xs text-muted-foreground">Total Expenses</p>
+                  <p className="text-lg sm:text-xl font-bold tracking-tight text-destructive truncate" title={stats.totalExpenses.toLocaleString()}>{formatCompact(stats.totalExpenses)}</p>
+                  <p className="text-xs text-muted-foreground truncate">Total Expenses</p>
                 </CardContent>
               </MotionCard>
 
@@ -715,15 +724,15 @@ export function AccountantHomeModule() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.2 }}
-                className="shadow-elevated hover:shadow-lg transition-shadow"
+                className="shadow-elevated hover:shadow-lg transition-shadow min-w-0"
               >
-                <CardContent className="pt-4">
+                <CardContent className="flex h-full flex-col gap-2 p-4">
                   <div className="rounded-lg bg-chart-3/10 p-2 w-fit">
                     <Coins className="h-4 w-4 text-chart-3" />
                   </div>
-                  <p className="mt-3 text-2xl font-bold tracking-tight">{stats.monthlyPayroll.toLocaleString()}</p>
-                  <p className="text-xs text-muted-foreground">Monthly Payroll</p>
-                  <p className="text-xs text-muted-foreground/70">{stats.activeEmployees} employees</p>
+                  <p className="text-lg sm:text-xl font-bold tracking-tight truncate" title={stats.monthlyPayroll.toLocaleString()}>{formatCompact(stats.monthlyPayroll)}</p>
+                  <p className="text-xs text-muted-foreground truncate">Monthly Payroll</p>
+                  <p className="text-[11px] text-muted-foreground/70 truncate">{stats.activeEmployees} employees</p>
                 </CardContent>
               </MotionCard>
 
@@ -731,20 +740,21 @@ export function AccountantHomeModule() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.25 }}
-                className="shadow-elevated hover:shadow-lg transition-shadow"
+                className="shadow-elevated hover:shadow-lg transition-shadow min-w-0"
               >
-                <CardContent className="pt-4">
+                <CardContent className="flex h-full flex-col gap-2 p-4">
                   <div className="rounded-lg bg-chart-4/10 p-2 w-fit">
                     <PiggyBank className="h-4 w-4 text-chart-4" />
                   </div>
-                  <p className={`mt-3 text-2xl font-bold tracking-tight ${stats.netProfit >= 0 ? "text-primary" : "text-destructive"}`}>
-                    {stats.netProfit >= 0 ? "+" : ""}{stats.netProfit.toLocaleString()}
+                  <p className={`text-lg sm:text-xl font-bold tracking-tight truncate ${stats.netProfit >= 0 ? "text-primary" : "text-destructive"}`} title={stats.netProfit.toLocaleString()}>
+                    {stats.netProfit >= 0 ? "+" : ""}{formatCompact(stats.netProfit)}
                   </p>
-                  <p className="text-xs text-muted-foreground">Net Profit</p>
+                  <p className="text-xs text-muted-foreground truncate">Net Profit</p>
                 </CardContent>
               </MotionCard>
             </div>
           </div>
+
 
           {/* Quick Actions */}
           <Card className="shadow-elevated overflow-hidden">
@@ -818,9 +828,9 @@ export function AccountantHomeModule() {
             </div>
           )}
 
-          <div className="grid gap-6 lg:grid-cols-5">
+          <div className="grid gap-6 lg:grid-cols-5 min-w-0">
             {/* Cash Flow Chart */}
-            <Card className="shadow-elevated lg:col-span-3">
+            <Card className="shadow-elevated lg:col-span-3 min-w-0 overflow-hidden">
               <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <div>
                   <CardTitle className="text-base font-semibold">Cash Flow (Last 30 Days)</CardTitle>
@@ -966,22 +976,24 @@ export function AccountantHomeModule() {
               <CardContent className="space-y-3">
                 <div className="rounded-lg bg-accent p-3">
                   <p className="text-xs text-muted-foreground">Monthly Cost</p>
-                  <p className="text-xl font-bold">{stats.monthlyPayroll.toLocaleString()}</p>
+                  <p className="text-xl font-bold tabular-nums break-words">{stats.monthlyPayroll.toLocaleString()}</p>
                 </div>
                 <div className="grid grid-cols-2 gap-2 text-center">
-                  <div className="rounded-lg border p-2">
-                    <p className="text-lg font-semibold">{stats.activeEmployees}</p>
-                    <p className="text-xs text-muted-foreground">Employees</p>
+                  <div className="rounded-lg border p-2 min-w-0">
+                    <p className="text-lg font-semibold tabular-nums truncate">{stats.activeEmployees}</p>
+                    <p className="text-xs text-muted-foreground truncate">Employees</p>
                   </div>
-                  <div className="rounded-lg border p-2">
-                    <p className="text-lg font-semibold">{stats.avgSalary.toLocaleString()}</p>
-                    <p className="text-xs text-muted-foreground">Avg Salary</p>
+                  <div className="rounded-lg border p-2 min-w-0">
+                    <p className="text-lg font-semibold tabular-nums truncate" title={stats.avgSalary.toLocaleString()}>
+                      {stats.avgSalary.toLocaleString()}
+                    </p>
+                    <p className="text-xs text-muted-foreground truncate">Avg Salary</p>
                   </div>
                 </div>
                 {stats.pendingPayRuns > 0 && (
                   <div className="flex items-center gap-2 rounded-lg bg-warning/10 p-2 text-warning">
-                    <Clock className="h-4 w-4" />
-                    <span className="text-sm font-medium">{stats.pendingPayRuns} pending runs</span>
+                    <Clock className="h-4 w-4 shrink-0" />
+                    <span className="text-sm font-medium truncate">{stats.pendingPayRuns} pending runs</span>
                   </div>
                 )}
               </CardContent>
@@ -993,24 +1005,24 @@ export function AccountantHomeModule() {
                 <CardTitle className="text-base font-semibold">School Metrics</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
-                <div className="flex items-center gap-3">
-                  <div className="rounded-lg bg-chart-5/10 p-2">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="rounded-lg bg-chart-5/10 p-2 shrink-0">
                     <GraduationCap className="h-5 w-5 text-chart-5" />
                   </div>
-                  <div>
-                    <p className="text-xl font-bold">{stats.totalStudents}</p>
-                    <p className="text-xs text-muted-foreground">Total Students</p>
+                  <div className="min-w-0">
+                    <p className="text-xl font-bold tabular-nums">{stats.totalStudents}</p>
+                    <p className="text-xs text-muted-foreground truncate">Total Students</p>
                   </div>
                 </div>
                 <Separator />
                 <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Revenue/Student</span>
-                    <span className="font-medium">{stats.revenuePerStudent.toLocaleString()}</span>
+                  <div className="flex items-baseline justify-between gap-3">
+                    <span className="text-xs text-muted-foreground shrink-0">Revenue/Student</span>
+                    <span className="text-sm font-semibold tabular-nums text-right">{stats.revenuePerStudent.toLocaleString()}</span>
                   </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Cost/Student</span>
-                    <span className="font-medium">{stats.costPerStudent.toLocaleString()}</span>
+                  <div className="flex items-baseline justify-between gap-3">
+                    <span className="text-xs text-muted-foreground shrink-0">Cost/Student</span>
+                    <span className="text-sm font-semibold tabular-nums text-right">{stats.costPerStudent.toLocaleString()}</span>
                   </div>
                 </div>
               </CardContent>
@@ -1024,18 +1036,18 @@ export function AccountantHomeModule() {
               <CardContent className="space-y-3">
                 <div className={`rounded-lg p-3 ${stats.cashPosition >= 0 ? "bg-primary/10" : "bg-destructive/10"}`}>
                   <p className="text-xs text-muted-foreground">Estimated Balance</p>
-                  <p className={`text-xl font-bold ${stats.cashPosition >= 0 ? "text-primary" : "text-destructive"}`}>
+                  <p className={`text-xl font-bold tabular-nums break-words ${stats.cashPosition >= 0 ? "text-primary" : "text-destructive"}`}>
                     {stats.cashPosition.toLocaleString()}
                   </p>
                 </div>
                 <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Annual Payroll</span>
-                    <span className="font-medium">{stats.annualPayrollProjection.toLocaleString()}</span>
+                  <div className="flex items-baseline justify-between gap-3">
+                    <span className="text-xs text-muted-foreground shrink-0">Annual Payroll</span>
+                    <span className="text-sm font-semibold tabular-nums text-right">{stats.annualPayrollProjection.toLocaleString()}</span>
                   </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Gross Profit</span>
-                    <span className={`font-medium ${stats.grossProfit >= 0 ? "text-primary" : "text-destructive"}`}>
+                  <div className="flex items-baseline justify-between gap-3">
+                    <span className="text-xs text-muted-foreground shrink-0">Gross Profit</span>
+                    <span className={`text-sm font-semibold tabular-nums text-right ${stats.grossProfit >= 0 ? "text-primary" : "text-destructive"}`}>
                       {stats.grossProfit.toLocaleString()}
                     </span>
                   </div>
@@ -1047,7 +1059,7 @@ export function AccountantHomeModule() {
 
         <TabsContent value="analytics" className="space-y-6">
           {/* Monthly Comparison Chart */}
-          <Card className="shadow-elevated">
+          <Card className="shadow-elevated overflow-hidden">
             <CardHeader>
               <CardTitle className="text-lg">6-Month Revenue vs Expenses</CardTitle>
             </CardHeader>
@@ -1092,9 +1104,9 @@ export function AccountantHomeModule() {
             </CardContent>
           </Card>
 
-          <div className="grid gap-6 lg:grid-cols-2">
+          <div className="grid gap-6 lg:grid-cols-2 min-w-0">
             {/* Expense Breakdown */}
-            <Card className="shadow-elevated">
+            <Card className="shadow-elevated overflow-hidden min-w-0">
               <CardHeader>
                 <CardTitle className="text-lg">Expense Breakdown</CardTitle>
               </CardHeader>

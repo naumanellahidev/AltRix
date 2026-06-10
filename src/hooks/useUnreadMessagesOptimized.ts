@@ -1,6 +1,7 @@
 import { useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase, USE_FASTAPI } from "@/integrations/supabase/client";
+import { apiClient } from "@/lib/api-client";
 import { useRealtimeTable } from "@/hooks/useRealtime";
 
 interface UnreadMessagesResult {
@@ -19,14 +20,19 @@ export function useUnreadMessagesOptimized(
     queryFn: async () => {
       if (!schoolId || !userId) return 0;
 
-      const { count } = await supabase
-        .from("admin_message_recipients")
-        .select("id, admin_messages!inner(school_id)", { count: "exact", head: true })
-        .eq("recipient_user_id", userId)
-        .eq("is_read", false)
-        .eq("admin_messages.school_id", schoolId);
+      if (USE_FASTAPI) {
+        const resp = await apiClient.get<{ count: number }>("/messages/unread-count");
+        return resp.data.count;
+      } else {
+        const { count } = await supabase
+          .from("admin_message_recipients")
+          .select("id, admin_messages!inner(school_id)", { count: "exact", head: true })
+          .eq("recipient_user_id", userId)
+          .eq("is_read", false)
+          .eq("admin_messages.school_id", schoolId);
 
-      return count || 0;
+        return count || 0;
+      }
     },
     enabled: !!schoolId && !!userId,
     staleTime: 10 * 1000, // Cache for 10 seconds

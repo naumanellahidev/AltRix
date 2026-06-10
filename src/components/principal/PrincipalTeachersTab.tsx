@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { TeacherPerformanceReport } from "./TeacherPerformanceReport";
+import { LiveTeacherPresenceCard } from "./LiveTeacherPresenceCard";
 import {
   BookOpen,
   CalendarDays,
@@ -11,7 +13,8 @@ import {
   Search,
   User,
 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase, USE_FASTAPI } from "@/integrations/supabase/client";
+import { apiClient } from "@/lib/api-client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -113,6 +116,8 @@ export function PrincipalTeachersTab({ schoolId }: PrincipalTeachersTabProps) {
   const [periods, setPeriods] = useState<Period[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [filterSection, setFilterSection] = useState<string>("all");
+  const [filterClass, setFilterClass] = useState<string>("all");
   const [selectedTeacherId, setSelectedTeacherId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"daily" | "weekly" | "monthly">("weekly");
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -120,39 +125,86 @@ export function PrincipalTeachersTab({ schoolId }: PrincipalTeachersTabProps) {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const [
-        { data: teacherRolesData },
-        { data: directoryData },
-        { data: classesData },
-        { data: sectionsData },
-        { data: subjectsData },
-        { data: assignmentsData },
-        { data: subjectAssignmentsData },
-        { data: timetableData },
-        { data: periodsData },
-      ] = await Promise.all([
-        supabase
-          .from("user_roles")
-          .select("user_id")
-          .eq("school_id", schoolId)
-          .eq("role", "teacher"),
-        supabase
-          .from("school_user_directory")
-          .select("user_id, email, display_name")
-          .eq("school_id", schoolId),
-        supabase.from("academic_classes").select("id, name").eq("school_id", schoolId).order("name"),
-        supabase.from("class_sections").select("id, name, class_id").eq("school_id", schoolId),
-        supabase.from("subjects").select("id, name, code").eq("school_id", schoolId),
-        supabase.from("teacher_assignments").select("teacher_user_id, class_section_id").eq("school_id", schoolId),
-        supabase.from("teacher_subject_assignments").select("teacher_user_id, class_section_id, subject_id").eq("school_id", schoolId),
-        supabase.from("timetable_entries").select("id, subject_name, day_of_week, period_id, room, teacher_user_id, class_section_id").eq("school_id", schoolId),
-        supabase.from("timetable_periods").select("id, label, sort_order, start_time, end_time, is_break").eq("school_id", schoolId).order("sort_order"),
-      ]);
+      let teacherRolesData: any[] = [];
+      let directoryData: any[] = [];
+      let classesData: any[] = [];
+      let sectionsData: any[] = [];
+      let subjectsData: any[] = [];
+      let assignmentsData: any[] = [];
+      let subjectAssignmentsData: any[] = [];
+      let timetableData: any[] = [];
+      let periodsData: any[] = [];
 
-      // Get teacher user IDs from user_roles
+      if (USE_FASTAPI) {
+        const [
+          dirRes,
+          classesRes,
+          sectionsRes,
+          subjectsRes,
+          assignmentsRes,
+          subAssignmentsRes,
+          timetableRes,
+          periodsRes,
+        ] = await Promise.all([
+          apiClient.get("/teachers/directory"),
+          apiClient.get("/academic/classes"),
+          apiClient.get("/academic/sections"),
+          apiClient.get("/academic/subjects"),
+          apiClient.get("/teachers/class-assignments"),
+          apiClient.get("/teachers/subject-assignments"),
+          apiClient.get("/academic/timetable"),
+          apiClient.get("/academic/periods"),
+        ]);
+
+        directoryData = dirRes.data || [];
+        classesData = classesRes.data || [];
+        sectionsData = sectionsRes.data || [];
+        subjectsData = subjectsRes.data || [];
+        assignmentsData = assignmentsRes.data || [];
+        subjectAssignmentsData = subAssignmentsRes.data || [];
+        timetableData = timetableRes.data || [];
+        periodsData = periodsRes.data || [];
+        
+        teacherRolesData = (directoryData || []).map((t: any) => ({ user_id: t.user_id }));
+      } else {
+        const [
+          teacherRolesRes,
+          directoryRes,
+          classesRes,
+          sectionsRes,
+          subjectsRes,
+          assignmentsRes,
+          subjectAssignmentsRes,
+          timetableRes,
+          periodsRes,
+        ] = await Promise.all([
+          supabase
+            .from("user_roles")
+            .select("user_id")
+            .eq("school_id", schoolId)
+            .eq("role", "teacher"),
+          supabase.rpc("get_school_user_directory", { _school_id: schoolId }),
+          supabase.from("academic_classes").select("id, name").eq("school_id", schoolId).order("name"),
+          supabase.from("class_sections").select("id, name, class_id").eq("school_id", schoolId),
+          supabase.from("subjects").select("id, name, code").eq("school_id", schoolId),
+          (supabase as any).from("teacher_assignments").select("teacher_user_id, class_section_id").eq("school_id", schoolId),
+          (supabase as any).from("teacher_subject_assignments").select("teacher_user_id, class_section_id, subject_id").eq("school_id", schoolId),
+          supabase.from("timetable_entries").select("id, subject_name, day_of_week, period_id, room, teacher_user_id, class_section_id").eq("school_id", schoolId),
+          supabase.from("timetable_periods").select("id, label, sort_order, start_time, end_time, is_break").eq("school_id", schoolId).order("sort_order"),
+        ]);
+
+        teacherRolesData = teacherRolesRes.data || [];
+        directoryData = directoryRes.data || [];
+        classesData = classesRes.data || [];
+        sectionsData = sectionsRes.data || [];
+        subjectsData = subjectsRes.data || [];
+        assignmentsData = assignmentsRes.data || [];
+        subjectAssignmentsData = subjectAssignmentsRes.data || [];
+        timetableData = timetableRes.data || [];
+        periodsData = periodsRes.data || [];
+      }
+
       const teacherUserIds = new Set((teacherRolesData ?? []).map((r: { user_id: string }) => r.user_id));
-      
-      // Filter directory to only teachers
       const teachersList = (directoryData ?? []).filter((d: Teacher) => teacherUserIds.has(d.user_id));
 
       setTeachers(teachersList as Teacher[]);
@@ -163,6 +215,8 @@ export function PrincipalTeachersTab({ schoolId }: PrincipalTeachersTabProps) {
       setTeacherSubjectAssignments((subjectAssignmentsData ?? []) as TeacherSubjectAssignment[]);
       setTimetableEntries((timetableData ?? []) as TimetableEntry[]);
       setPeriods((periodsData ?? []) as Period[]);
+    } catch (err) {
+      console.error("Error loading teachers data:", err);
     } finally {
       setLoading(false);
     }
@@ -232,14 +286,24 @@ export function PrincipalTeachersTab({ schoolId }: PrincipalTeachersTabProps) {
   }, [teachers, teacherAssignments, teacherSubjectAssignments, timetableEntries, getSectionLabel, getSubjectName]);
 
   const filteredTeachers = useMemo(() => {
-    if (!searchQuery) return teacherDetails;
-    const q = searchQuery.toLowerCase();
-    return teacherDetails.filter(
-      (t) =>
-        t.display_name?.toLowerCase().includes(q) ||
-        t.email.toLowerCase().includes(q)
-    );
-  }, [teacherDetails, searchQuery]);
+    let result = teacherDetails;
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      result = result.filter(
+        (t) =>
+          t.display_name?.toLowerCase().includes(q) ||
+          t.email.toLowerCase().includes(q),
+      );
+    }
+    if (filterSection !== "all") {
+      result = result.filter((t) => t.sectionDetails.some((s) => s.sectionId === filterSection));
+    }
+    if (filterClass !== "all") {
+      const classSectionIds = new Set(sections.filter((s) => s.class_id === filterClass).map((s) => s.id));
+      result = result.filter((t) => t.sectionDetails.some((s) => classSectionIds.has(s.sectionId)));
+    }
+    return result;
+  }, [teacherDetails, searchQuery, filterSection, filterClass, sections]);
 
   const selectedTeacher = useMemo(() => {
     return teacherDetails.find((t) => t.user_id === selectedTeacherId) ?? null;
@@ -303,6 +367,7 @@ export function PrincipalTeachersTab({ schoolId }: PrincipalTeachersTabProps) {
 
   return (
     <div className="space-y-3 sm:space-y-4">
+      <LiveTeacherPresenceCard schoolId={schoolId} />
       {/* Header Stats */}
       <div className="grid grid-cols-2 gap-2 sm:gap-3 md:grid-cols-4">
         <div className="rounded-xl border bg-surface-2 p-3 sm:rounded-2xl sm:p-4">
@@ -329,15 +394,50 @@ export function PrincipalTeachersTab({ schoolId }: PrincipalTeachersTabProps) {
         </div>
       </div>
 
-      {/* Search */}
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          placeholder="Search teachers by name or email..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="pl-9 text-sm"
-        />
+      {/* Search + Filters */}
+      <div className="flex flex-col gap-2 sm:flex-row sm:gap-3">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="Search teachers by name or email..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-9 text-sm"
+          />
+        </div>
+        <Select value={filterClass} onValueChange={(v) => { setFilterClass(v); setFilterSection("all"); }}>
+          <SelectTrigger className="w-full sm:w-[160px]">
+            <SelectValue placeholder="All Classes" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Classes</SelectItem>
+            {classes.map((c) => (
+              <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={filterSection} onValueChange={setFilterSection}>
+          <SelectTrigger className="w-full sm:w-[180px]">
+            <SelectValue placeholder="All Sections" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Sections</SelectItem>
+            {sections
+              .filter((s) => filterClass === "all" || s.class_id === filterClass)
+              .map((s) => (
+                <SelectItem key={s.id} value={s.id}>{getSectionLabel(s.id)}</SelectItem>
+              ))}
+          </SelectContent>
+        </Select>
+        {(searchQuery || filterSection !== "all" || filterClass !== "all") && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => { setSearchQuery(""); setFilterSection("all"); setFilterClass("all"); }}
+          >
+            Clear
+          </Button>
+        )}
       </div>
 
       <div className="flex flex-col gap-3 lg:grid lg:grid-cols-3 lg:gap-4">
@@ -419,9 +519,10 @@ export function PrincipalTeachersTab({ schoolId }: PrincipalTeachersTabProps) {
               </div>
             ) : (
               <Tabs defaultValue="overview" className="space-y-3 sm:space-y-4">
-                <TabsList className="w-full grid grid-cols-2 sm:w-auto sm:inline-flex">
+                <TabsList className="w-full grid grid-cols-3 sm:w-auto sm:inline-flex">
                   <TabsTrigger value="overview" className="text-xs sm:text-sm">Overview</TabsTrigger>
                   <TabsTrigger value="timetable" className="text-xs sm:text-sm">Timetable</TabsTrigger>
+                  <TabsTrigger value="performance" className="text-xs sm:text-sm">Performance</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="overview" className="space-y-3 sm:space-y-4">
@@ -546,6 +647,14 @@ export function PrincipalTeachersTab({ schoolId }: PrincipalTeachersTabProps) {
                       </div>
                     </ScrollArea>
                   </div>
+                </TabsContent>
+
+                <TabsContent value="performance" className="space-y-3 sm:space-y-4">
+                  <TeacherPerformanceReport
+                    schoolId={schoolId}
+                    teacherUserId={selectedTeacher.user_id}
+                    teacherName={selectedTeacher.display_name || selectedTeacher.email.split("@")[0]}
+                  />
                 </TabsContent>
               </Tabs>
             )}

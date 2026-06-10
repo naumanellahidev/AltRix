@@ -1188,15 +1188,37 @@ export function MessagesModule({ schoolId, isStudentPortal = false }: Props) {
   const showChatOnMobile = isMobile && selectedConversation;
 
   return (
-    <div className="space-y-0">
+    <div className="space-y-5">
+      {/* Premium hero header */}
+      <div className="relative overflow-hidden rounded-2xl border bg-gradient-to-br from-violet-500/10 via-background to-background p-5 md:p-6">
+        <div className="absolute -top-20 -right-12 h-48 w-48 rounded-full bg-violet-500/15 blur-3xl pointer-events-none" />
+        <div className="relative flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-violet-500 to-fuchsia-500 text-white flex items-center justify-center shadow-lg shadow-violet-500/30 shrink-0">
+              <MessageCircle className="h-6 w-6" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[10px] uppercase tracking-[0.18em] text-violet-600 dark:text-violet-400 font-semibold">
+                Direct Messages
+              </p>
+              <h2 className="font-display text-2xl font-bold tracking-tight truncate">Conversations</h2>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Real-time chats with staff, parents and students
+                {totalUnread > 0 && <span className="text-primary font-semibold"> · {totalUnread} unread</span>}
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Push Notification Banner */}
       <PushNotificationBanner
         permission={pushPermission}
         supported={pushSupported}
         onRequestPermission={requestPermission}
       />
-      
-      <div className="flex h-[calc(100vh-12rem)] max-h-[calc(100dvh-10rem)] min-h-[400px] overflow-hidden rounded-2xl border bg-background shadow-elevated sm:h-[calc(100vh-12rem)]">
+
+      <div className="flex h-[calc(100vh-16rem)] max-h-[calc(100dvh-14rem)] min-h-[400px] overflow-hidden rounded-2xl border bg-background shadow-elevated sm:h-[calc(100vh-16rem)]">
       {/* Conversation List */}
       <div
         className={cn(

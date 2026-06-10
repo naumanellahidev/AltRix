@@ -45,7 +45,7 @@ export function ScheduledMessagesTab({ schoolId, currentUserId, profileMap, onSe
 
   const fetchScheduled = async () => {
     setLoading(true);
-    const { data } = await supabase
+    const { data } = await (supabase as any)
       .from("scheduled_messages")
       .select("*")
       .eq("school_id", schoolId)
@@ -53,7 +53,7 @@ export function ScheduledMessagesTab({ schoolId, currentUserId, profileMap, onSe
       .in("status", ["pending"])
       .order("scheduled_at", { ascending: true });
 
-    setMessages((data as ScheduledMessage[]) || []);
+    setMessages((data as unknown as ScheduledMessage[]) || []);
     setLoading(false);
   };
 

@@ -14,7 +14,8 @@ export type OfflineActionType =
   | 'payment'
   | 'leave_request'
   | 'lead_update'
-  | 'call_log';
+  | 'call_log'
+  | 'generic_mutation';
 
 export interface OfflineQueueItem {
   id: string;

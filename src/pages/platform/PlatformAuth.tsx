@@ -6,10 +6,19 @@ import { KeyRound, Mail, ShieldCheck } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/hooks/useSession";
+import { MASTER_SUPER_ADMIN_EMAIL } from "@/hooks/usePlatformSuperAdmin";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  getRecentEmails,
+  getResetCooldownRemaining,
+  rememberRecentEmail,
+  rememberResetEmail,
+  requestPasswordResetLink,
+  startResetCooldown,
+} from "@/lib/password-reset";
 
 const emailSchema = z.string().email();
 const passwordSchema = z.string().min(8);
@@ -23,6 +32,14 @@ export default function PlatformAuth() {
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [resetCooldown, setResetCooldown] = useState(0);
+  const [recentEmails, setRecentEmails] = useState<string[]>(() => getRecentEmails());
+
+  // Prefill with most recent email on first mount
+  useEffect(() => {
+    if (!email && recentEmails.length > 0) setEmail(recentEmails[0]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const title = useMemo(() => "Platform Super Admin", []);
 
@@ -30,6 +47,13 @@ export default function PlatformAuth() {
     if (loading) return;
     if (user) navigate("/super_admin", { replace: true });
   }, [loading, user, navigate]);
+
+  useEffect(() => {
+    const tick = () => setResetCooldown(email.trim() ? getResetCooldownRemaining(email) : 0);
+    tick();
+    const timer = window.setInterval(tick, 1000);
+    return () => window.clearInterval(timer);
+  }, [email]);
 
   const doPasswordLogin = async () => {
     setMessage(null);
@@ -45,6 +69,13 @@ export default function PlatformAuth() {
         password,
       });
       if (error) return setMessage(error.message);
+      // Hard gate: only the master email may enter the platform territory.
+      if (parsedEmail.data.toLowerCase() !== MASTER_SUPER_ADMIN_EMAIL) {
+        await supabase.auth.signOut();
+        return setMessage("Access denied. Master Super Admin only.");
+      }
+      rememberRecentEmail(parsedEmail.data);
+      setRecentEmails(getRecentEmails());
       navigate("/super_admin");
     } finally {
       setBusy(false);
@@ -55,13 +86,22 @@ export default function PlatformAuth() {
     setMessage(null);
     const parsedEmail = emailSchema.safeParse(email.trim());
     if (!parsedEmail.success) return setMessage("Please enter your email first.");
+    const cooldown = getResetCooldownRemaining(parsedEmail.data);
+    if (cooldown > 0) {
+      setResetCooldown(cooldown);
+      return setMessage(`Please wait ${cooldown}s before requesting another reset link.`);
+    }
 
     setBusy(true);
     try {
-      const redirectTo = `${window.location.origin}/auth/update-password`;
-      const { error } = await supabase.auth.resetPasswordForEmail(parsedEmail.data, { redirectTo });
-      if (error) return setMessage(error.message);
-      setMessage("Password reset email sent. Open the link to set a new password.");
+      const result = await requestPasswordResetLink(parsedEmail.data, "/auth");
+      if (!result.ok) return setMessage(result.error || "Unable to send reset link. Please try again shortly.");
+      const seconds = result.cooldownSeconds || 60;
+      rememberResetEmail(parsedEmail.data);
+      startResetCooldown(parsedEmail.data, seconds);
+      setResetCooldown(seconds);
+      const remaining = typeof result.remainingRequests === "number" ? ` You have ${result.remainingRequests} reset request${result.remainingRequests === 1 ? "" : "s"} left today.` : "";
+      setMessage(`We sent a password reset link to ${parsedEmail.data}. Check your inbox and spam folder.${remaining}`);
     } finally {
       setBusy(false);
     }
@@ -98,8 +138,26 @@ export default function PlatformAuth() {
             <CardContent className="space-y-4">
               <div className="space-y-2">
                 <label className="text-sm font-medium">Email</label>
-                <Input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@domain.com" />
+                <Input
+                  id="login-email"
+                  name="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="name@domain.com"
+                  type="email"
+                  autoComplete="username"
+                  inputMode="email"
+                  list="saved-emails"
+                />
+                {recentEmails.length > 0 && (
+                  <datalist id="saved-emails">
+                    {recentEmails.map((e) => (
+                      <option key={e} value={e} />
+                    ))}
+                  </datalist>
+                )}
               </div>
+
 
               <Tabs defaultValue="password">
                 <TabsList className="w-full">
@@ -112,25 +170,61 @@ export default function PlatformAuth() {
                 </TabsList>
 
                 <TabsContent value="password" className="mt-4 space-y-3">
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Password</label>
-                    <Input
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder="••••••••"
-                      type="password"
-                    />
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      if (!busy) void doPasswordLogin();
+                    }}
+                    className="space-y-3"
+                  >
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Password</label>
+                      <Input
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder="••••••••"
+                        type="password"
+                      />
+                    </div>
+                    <Button type="submit" variant="hero" size="xl" className="w-full" disabled={busy}>
+                      Sign in
+                    </Button>
+                  </form>
+
+                  <div className="pt-2 border-t border-border/60">
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <p className="text-sm font-medium text-foreground">Forget password?</p>
+                      <KeyRound className="h-4 w-4 text-muted-foreground" />
+                    </div>
+                    <p className="text-xs text-muted-foreground mb-2">
+                      Enter your admin email above and we'll send a secure reset link.
+                    </p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="default"
+                      className="w-full"
+                      onClick={() => { if (!busy && resetCooldown <= 0) void doResetPassword(); }}
+                      disabled={busy || resetCooldown > 0}
+                    >
+                      {resetCooldown > 0 ? `Send reset link again in ${resetCooldown}s` : "Send password reset link"}
+                    </Button>
                   </div>
-                  <Button variant="hero" size="xl" className="w-full" disabled={busy} onClick={doPasswordLogin}>
-                    Sign in
-                  </Button>
                 </TabsContent>
 
                 <TabsContent value="reset" className="mt-4 space-y-3">
-                  <p className="text-sm text-muted-foreground">We’ll email you a secure link to set a new password.</p>
-                  <Button variant="hero" size="xl" className="w-full" disabled={busy} onClick={doResetPassword}>
-                    Send reset email
-                  </Button>
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      if (!busy) void doResetPassword();
+                    }}
+                    className="space-y-3"
+                  >
+                    <p className="text-sm text-muted-foreground">We'll email you a secure link to set a new password.</p>
+                    <Button type="submit" variant="hero" size="xl" className="w-full" disabled={busy}>
+                      {resetCooldown > 0 ? `Send again in ${resetCooldown}s` : "Send reset email"}
+                    </Button>
+                  </form>
                 </TabsContent>
               </Tabs>
 

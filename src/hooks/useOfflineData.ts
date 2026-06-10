@@ -1,7 +1,7 @@
 // Universal Offline Data Hook
 // Provides cached data retrieval for all modules when offline
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import * as offlineDb from '@/lib/offline-db';
 
 type DataLoader<T> = () => Promise<T>;
@@ -32,6 +32,12 @@ export function useOfflineData<T>(
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
   const [isUsingCache, setIsUsingCache] = useState(false);
 
+  // Use refs to avoid infinite re-render loops from unstable callbacks
+  const onlineLoaderRef = useRef(onlineLoader);
+  const offlineLoaderRef = useRef(offlineLoader);
+  onlineLoaderRef.current = onlineLoader;
+  offlineLoaderRef.current = offlineLoader;
+
   // Track online/offline status
   useEffect(() => {
     const handleOnline = () => setIsOffline(false);
@@ -56,20 +62,17 @@ export function useOfflineData<T>(
 
     try {
       if (navigator.onLine) {
-        // Try online first
-        const result = await onlineLoader();
+        const result = await onlineLoaderRef.current();
         setData(result);
         setIsUsingCache(false);
       } else {
-        // Offline - use cache
-        const cached = await offlineLoader();
+        const cached = await offlineLoaderRef.current();
         setData(cached);
         setIsUsingCache(true);
       }
     } catch (error) {
-      // If online fetch fails, try cache
       try {
-        const cached = await offlineLoader();
+        const cached = await offlineLoaderRef.current();
         if (cached && (Array.isArray(cached) ? cached.length > 0 : Object.keys(cached as object).length > 0)) {
           setData(cached);
           setIsUsingCache(true);
@@ -80,7 +83,7 @@ export function useOfflineData<T>(
     } finally {
       setLoading(false);
     }
-  }, [enabled, onlineLoader, offlineLoader]);
+  }, [enabled]);
 
   useEffect(() => {
     void loadData();
@@ -466,21 +469,49 @@ export function useOfflineStaffMembers(schoolId: string | null, enabled = true) 
     async () => {
       if (!schoolId) return [];
       const { supabase } = await import('@/integrations/supabase/client');
-      const { data } = await supabase
-        .from('school_user_directory')
-        .select('user_id, email, display_name')
-        .eq('school_id', schoolId)
-        .order('email', { ascending: true });
-      return (data ?? []).map((s: any) => ({
-        id: s.user_id,
-        schoolId,
-        userId: s.user_id,
-        displayName: s.display_name || s.email,
-        email: s.email,
-        role: null,
-        status: 'active',
-        cachedAt: Date.now(),
-      }));
+      const [dirRes, rolesRes, ownersRes, platformRes] = await Promise.all([
+        supabase.from('school_user_directory')
+          .select('user_id, email, display_name')
+          .eq('school_id', schoolId)
+          .order('email', { ascending: true }),
+        supabase.from('user_roles').select('user_id, role').eq('school_id', schoolId),
+        supabase.from('school_owner_assignments').select('owner_user_id').eq('school_id', schoolId),
+        supabase.from('platform_super_admins' as any).select('user_id'),
+      ]);
+
+      // Exclude users with a non-staff role: student, parent, owner. Per-school super_admin IS staff;
+      // platform super master admin is filtered separately via platform_super_admins below.
+      const NON_STAFF = new Set(['student', 'parent', 'owner', 'school_owner']);
+      const excluded = new Set<string>();
+      (rolesRes.data ?? []).forEach((r: any) => {
+        if (r.user_id && NON_STAFF.has(String(r.role).toLowerCase())) excluded.add(r.user_id);
+      });
+      (ownersRes.data ?? []).forEach((o: any) => {
+        if (o.owner_user_id) excluded.add(o.owner_user_id);
+      });
+      ((platformRes as any).data ?? []).forEach((p: any) => {
+        if (p.user_id) excluded.add(p.user_id);
+      });
+
+      // Build role map for staff (first non-excluded role wins)
+      const roleMap = new Map<string, string>();
+      (rolesRes.data ?? []).forEach((r: any) => {
+        if (!r.user_id || excluded.has(r.user_id)) return;
+        if (!roleMap.has(r.user_id)) roleMap.set(r.user_id, r.role);
+      });
+
+      return (dirRes.data ?? [])
+        .filter((s: any) => s.user_id && !excluded.has(s.user_id))
+        .map((s: any) => ({
+          id: s.user_id,
+          schoolId,
+          userId: s.user_id,
+          displayName: s.display_name || s.email,
+          email: s.email,
+          role: roleMap.get(s.user_id) ?? null,
+          status: 'active',
+          cachedAt: Date.now(),
+        }));
     },
     () => schoolId ? offlineDb.getCachedStaffMembers(schoolId) : Promise.resolve([]),
     [],

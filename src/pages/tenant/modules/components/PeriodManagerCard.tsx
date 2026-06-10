@@ -140,7 +140,6 @@ export function PeriodManagerCard({
         start_time: values.start_time ? values.start_time : null,
         end_time: values.end_time ? values.end_time : null,
         is_break: values.is_break,
-        ...(editing ? {} : { created_by: userId }),
       } as const;
 
       const q = editing

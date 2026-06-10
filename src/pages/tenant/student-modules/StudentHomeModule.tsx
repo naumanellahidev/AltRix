@@ -1,18 +1,27 @@
 import { useEffect, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchStudentLabelMap } from "@/lib/student-display";
 import { StudentDigitalTwinCard } from "@/components/ai/StudentDigitalTwinCard";
-import { 
-  CalendarDays, 
-  BookOpen, 
-  ScrollText, 
+import {
+  DashboardHeader,
+  QuickActionGrid,
+  StatTile,
+  ProgressRing,
+  SmartCard,
+  SectionTitle,
+} from "@/components/ui/dashboard-kit";
+import {
+  CalendarDays,
+  BookOpen,
+  ScrollText,
   GraduationCap,
   Brain,
   TrendingUp,
   Clock,
-  AlertTriangle
+  AlertTriangle,
+  MessageSquare,
+  Award,
+  HeartHandshake,
 } from "lucide-react";
 
 interface StudentStats {
@@ -27,6 +36,7 @@ export function StudentHomeModule({ myStudent }: { myStudent: any }) {
   const [label, setLabel] = useState<string | null>(null);
   const [stats, setStats] = useState<StudentStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [schoolId, setSchoolId] = useState<string | null>(null);
 
   useEffect(() => {
     if (myStudent.status !== "ready") {
@@ -36,25 +46,23 @@ export function StudentHomeModule({ myStudent }: { myStudent: any }) {
       return;
     }
     let cancelled = false;
-    
+
     (async () => {
       setLoading(true);
       try {
-        // Fetch student label
         const map = await fetchStudentLabelMap(supabase, { studentIds: [myStudent.studentId] });
         if (cancelled) return;
         setLabel(map[myStudent.studentId] ?? myStudent.studentId);
 
-        // Get student's school_id
         const { data: student } = await supabase
           .from("students")
           .select("school_id")
           .eq("id", myStudent.studentId)
           .single();
-        
-        if (!student || cancelled) return;
 
-        // Fetch attendance stats (last 30 days)
+        if (!student || cancelled) return;
+        setSchoolId(student.school_id);
+
         const thirtyDaysAgo = new Date();
         thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
@@ -65,21 +73,21 @@ export function StudentHomeModule({ myStudent }: { myStudent: any }) {
           .gte("created_at", thirtyDaysAgo.toISOString());
 
         const totalDays = attendance?.length || 0;
-        const presentDays = attendance?.filter((a) => a.status === "present" || a.status === "late").length || 0;
+        const presentDays =
+          attendance?.filter((a) => a.status === "present" || a.status === "late").length || 0;
         const attendanceRate = totalDays > 0 ? Math.round((presentDays / totalDays) * 100) : 100;
 
-        // Fetch assignments
         const { data: assignments } = await supabase
           .from("assignments")
           .select("id, status, due_date")
           .eq("school_id", student.school_id);
 
         const totalAssignments = assignments?.length || 0;
-        const pendingAssignments = assignments?.filter(
-          (a) => a.status === "active" && a.due_date && new Date(a.due_date) >= new Date()
-        ).length || 0;
+        const pendingAssignments =
+          assignments?.filter(
+            (a) => a.status === "active" && a.due_date && new Date(a.due_date) >= new Date(),
+          ).length || 0;
 
-        // Fetch grades
         const { data: marks } = await supabase
           .from("student_marks")
           .select("marks, academic_assessments!inner(max_marks)")
@@ -89,15 +97,14 @@ export function StudentHomeModule({ myStudent }: { myStudent: any }) {
         if (marks && marks.length > 0) {
           const validMarks = marks.filter((m) => m.marks != null && m.academic_assessments);
           if (validMarks.length > 0) {
-            const percentages = validMarks.map((m) => 
-              (m.marks! / (m.academic_assessments as any).max_marks) * 100
+            const percentages = validMarks.map(
+              (m) => (m.marks! / (m.academic_assessments as any).max_marks) * 100,
             );
             averageGrade = Math.round(percentages.reduce((a, b) => a + b, 0) / percentages.length);
           }
         }
 
         if (cancelled) return;
-
         setStats({
           attendanceRate,
           totalAssignments,
@@ -111,27 +118,10 @@ export function StudentHomeModule({ myStudent }: { myStudent: any }) {
         if (!cancelled) setLoading(false);
       }
     })();
-    
+
     return () => {
       cancelled = true;
     };
-  }, [myStudent.status, myStudent.studentId]);
-
-  // Get school ID for AI components
-  const [schoolId, setSchoolId] = useState<string | null>(null);
-  
-  useEffect(() => {
-    if (myStudent.status !== "ready") return;
-    
-    (async () => {
-      const { data: student } = await supabase
-        .from("students")
-        .select("school_id")
-        .eq("id", myStudent.studentId)
-        .single();
-      
-      if (student) setSchoolId(student.school_id);
-    })();
   }, [myStudent.status, myStudent.studentId]);
 
   if (myStudent.status === "loading") {
@@ -144,164 +134,133 @@ export function StudentHomeModule({ myStudent }: { myStudent: any }) {
 
   if (myStudent.status === "error") {
     return (
-      <div className="rounded-3xl bg-destructive/10 p-6 text-center">
-        <AlertTriangle className="mx-auto h-8 w-8 text-destructive" />
-        <p className="mt-3 font-display text-lg font-semibold">Account Not Linked</p>
-        <p className="mt-2 text-sm text-muted-foreground">{myStudent.error}</p>
-        <p className="mt-1 text-xs text-muted-foreground">
-          Contact your school administration to link your student profile.
+      <SmartCard
+        title="Account Not Linked"
+        subtitle={myStudent.error}
+        icon={AlertTriangle}
+        tone="destructive"
+      >
+        <p className="text-xs text-muted-foreground">
+          Contact your school administration to link your student profile to this login.
         </p>
-      </div>
+      </SmartCard>
     );
   }
 
+  const firstName = label?.split(" ")[0] || "Student";
+  const greeting = (() => {
+    const h = new Date().getHours();
+    if (h < 12) return "Good morning";
+    if (h < 18) return "Good afternoon";
+    return "Good evening";
+  })();
+
+  const quickActions = [
+    { label: "Attendance", icon: CalendarDays, to: "attendance", tone: "success" as const },
+    { label: "Grades", icon: GraduationCap, to: "grades", tone: "info" as const },
+    { label: "Timetable", icon: Clock, to: "timetable" },
+    { label: "Assignments", icon: ScrollText, to: "assignments", badge: stats?.pendingAssignments },
+    { label: "Messages", icon: MessageSquare, to: "messages" },
+    { label: "Report Card", icon: Award, to: "report-card", tone: "warning" as const },
+    { label: "Diary", icon: BookOpen, to: "diary" },
+    { label: "Support", icon: HeartHandshake, to: "support" },
+  ];
+
+  const initials = (label || "")
+    .split(" ")
+    .map((s) => s[0])
+    .filter(Boolean)
+    .slice(0, 2)
+    .join("");
+
   return (
-    <div className="space-y-6">
-      {/* Welcome Header */}
-      <div>
-        <h1 className="font-display text-2xl font-bold tracking-tight">
-          Welcome back, {label?.split(" ")[0] || "Student"}!
-        </h1>
-        <p className="mt-1 text-muted-foreground">
-          Here's an overview of your academic journey
-        </p>
-      </div>
+    <div className="space-y-5 sm:space-y-6">
+      {/* Top header */}
+      <DashboardHeader
+        name={label || "Student"}
+        role="Student Portal"
+        subtitle={`${greeting}, ${firstName}`}
+        initials={initials}
+      />
 
-      {/* Quick Stats Grid */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <Card className="shadow-sm">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <CalendarDays className="h-5 w-5 text-emerald-500" />
-              {stats && stats.attendanceRate >= 90 && (
-                <Badge variant="secondary" className="bg-emerald-500/10 text-emerald-600 text-[10px]">
-                  Great!
-                </Badge>
-              )}
-            </div>
-            <p className="mt-3 text-2xl font-bold">
-              {loading ? "—" : `${stats?.attendanceRate || 0}%`}
+      {/* KPI tiles + ring */}
+      <div className="grid gap-3 sm:gap-4 lg:grid-cols-[280px_1fr]">
+        <div className="card-premium card-premium-hover flex items-center gap-5 p-5 animate-rise">
+          <ProgressRing
+            value={stats?.attendanceRate ?? 0}
+            size={96}
+            stroke={10}
+            tone={
+              (stats?.attendanceRate ?? 0) >= 90
+                ? "success"
+                : (stats?.attendanceRate ?? 0) >= 75
+                  ? "primary"
+                  : "warning"
+            }
+            sublabel="30 days"
+          />
+          <div className="min-w-0">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Attendance
             </p>
-            <p className="text-xs text-muted-foreground">Attendance Rate</p>
-          </CardContent>
-        </Card>
-
-        <Card className="shadow-sm">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <ScrollText className="h-5 w-5 text-blue-500" />
-              {stats && stats.pendingAssignments > 0 && (
-                <Badge variant="secondary" className="bg-amber-500/10 text-amber-600 text-[10px]">
-                  {stats.pendingAssignments} due
-                </Badge>
-              )}
-            </div>
-            <p className="mt-3 text-2xl font-bold">
-              {loading ? "—" : stats?.totalAssignments || 0}
+            <p className="font-display text-xl font-semibold tracking-tight">
+              {loading ? "—" : `${stats?.attendanceRate ?? 0}%`}
             </p>
-            <p className="text-xs text-muted-foreground">Assignments</p>
-          </CardContent>
-        </Card>
-
-        <Card className="shadow-sm">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <BookOpen className="h-5 w-5 text-purple-500" />
-            </div>
-            <p className="mt-3 text-2xl font-bold">
-              {loading ? "—" : stats?.assessmentCount || 0}
+            <p className="mt-1 text-xs text-muted-foreground">
+              Keep it above 90% for best results.
             </p>
-            <p className="text-xs text-muted-foreground">Assessments</p>
-          </CardContent>
-        </Card>
-
-        <Card className="shadow-sm">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <TrendingUp className="h-5 w-5 text-primary" />
-              {stats?.averageGrade != null && stats.averageGrade >= 80 && (
-                <Badge variant="secondary" className="bg-primary/10 text-primary text-[10px]">
-                  Excellent
-                </Badge>
-              )}
-            </div>
-            <p className="mt-3 text-2xl font-bold">
-              {loading ? "—" : stats?.averageGrade != null ? `${stats.averageGrade}%` : "—"}
-            </p>
-            <p className="text-xs text-muted-foreground">Average Grade</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* AI Digital Twin - Main Feature */}
-      {schoolId && myStudent.status === "ready" && (
-        <div className="space-y-4">
-          <div className="flex items-center gap-2">
-            <Brain className="h-5 w-5 text-primary" />
-            <h2 className="font-display text-lg font-semibold">Your AI Learning Profile</h2>
           </div>
-          <StudentDigitalTwinCard 
-            studentId={myStudent.studentId} 
-            schoolId={schoolId} 
+        </div>
+
+        <div className="grid grid-cols-3 gap-3 sm:gap-4">
+          <StatTile
+            label="Avg Grade"
+            value={loading ? "—" : stats?.averageGrade != null ? `${stats.averageGrade}%` : "—"}
+            icon={TrendingUp}
+            tone={
+              stats?.averageGrade != null && stats.averageGrade >= 80
+                ? "success"
+                : stats?.averageGrade != null && stats.averageGrade >= 50
+                  ? "info"
+                  : "warning"
+            }
+          />
+          <StatTile
+            label="Assignments"
+            value={loading ? "—" : stats?.totalAssignments ?? 0}
+            icon={ScrollText}
+            tone="info"
+            delta={
+              stats && stats.pendingAssignments > 0
+                ? { value: `${stats.pendingAssignments} due soon`, positive: false }
+                : undefined
+            }
+          />
+          <StatTile
+            label="Assessments"
+            value={loading ? "—" : stats?.assessmentCount ?? 0}
+            icon={BookOpen}
           />
         </div>
+      </div>
+
+      {/* Quick Actions */}
+      <div>
+        <SectionTitle title="Quick actions" />
+        <QuickActionGrid actions={quickActions} columns={{ base: 4, sm: 4, md: 4, lg: 8 }} />
+      </div>
+
+      {/* AI Digital Twin */}
+      {schoolId && myStudent.status === "ready" && (
+        <SmartCard
+          title="Your AI Learning Profile"
+          subtitle="Personalized insights powered by AI"
+          icon={Brain}
+          tone="info"
+        >
+          <StudentDigitalTwinCard studentId={myStudent.studentId} schoolId={schoolId} />
+        </SmartCard>
       )}
-
-      {/* Quick Links */}
-      <Card className="shadow-sm">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium">Quick Access</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <a 
-              href="attendance" 
-              className="flex flex-col items-center gap-2 rounded-xl bg-muted/50 p-4 transition-colors hover:bg-muted"
-            >
-              <CalendarDays className="h-6 w-6 text-muted-foreground" />
-              <span className="text-xs font-medium">Attendance</span>
-            </a>
-            <a 
-              href="grades" 
-              className="flex flex-col items-center gap-2 rounded-xl bg-muted/50 p-4 transition-colors hover:bg-muted"
-            >
-              <GraduationCap className="h-6 w-6 text-muted-foreground" />
-              <span className="text-xs font-medium">Grades</span>
-            </a>
-            <a 
-              href="timetable" 
-              className="flex flex-col items-center gap-2 rounded-xl bg-muted/50 p-4 transition-colors hover:bg-muted"
-            >
-              <Clock className="h-6 w-6 text-muted-foreground" />
-              <span className="text-xs font-medium">Timetable</span>
-            </a>
-            <a 
-              href="assignments" 
-              className="flex flex-col items-center gap-2 rounded-xl bg-muted/50 p-4 transition-colors hover:bg-muted"
-            >
-              <ScrollText className="h-6 w-6 text-muted-foreground" />
-              <span className="text-xs font-medium">Assignments</span>
-            </a>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Student Info Card */}
-      <Card className="shadow-sm bg-accent/30">
-        <CardContent className="py-4">
-          <div className="flex items-start gap-3">
-            <div className="rounded-xl bg-primary/10 p-2.5">
-              <GraduationCap className="h-5 w-5 text-primary" />
-            </div>
-            <div>
-              <p className="font-medium">{label || myStudent.studentId}</p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Student Portal • Read-only access to your academic records, timetable, and more.
-              </p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 }

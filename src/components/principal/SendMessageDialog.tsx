@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { Send, MessageSquare, Search, Users, GraduationCap, Briefcase, UserCheck, Paperclip, X, FileText, Image, Loader2 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase, USE_FASTAPI } from "@/integrations/supabase/client";
+import { apiClient } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
@@ -56,47 +57,52 @@ export function SendMessageDialog({ schoolId, trigger, onMessageSent }: SendMess
     const fetchUsers = async () => {
       setLoading(true);
       try {
-        // Fetch all users with their roles in this school
-        const { data: roles } = await supabase
-          .from("user_roles")
-          .select("user_id, role")
-          .eq("school_id", schoolId);
+        if (USE_FASTAPI) {
+          const response = await apiClient.get("/schools/users-directory");
+          setUsers((response.data ?? []) as User[]);
+        } else {
+          // Fetch all users with their roles in this school
+          const { data: roles } = await supabase
+            .from("user_roles")
+            .select("user_id, role")
+            .eq("school_id", schoolId);
 
-        if (!roles || roles.length === 0) {
-          setUsers([]);
-          setLoading(false);
-          return;
-        }
-
-        const userIds = [...new Set(roles.map((r) => r.user_id))];
-
-        // Fetch profiles for these users
-        const { data: profiles } = await supabase
-          .from("profiles")
-          .select("user_id, display_name")
-          .in("user_id", userIds);
-
-        const profileMap = new Map(
-          (profiles ?? []).map((p) => [p.user_id, p.display_name])
-        );
-
-        // Build user list with roles
-        const userList: User[] = roles.map((r) => ({
-          user_id: r.user_id,
-          display_name: profileMap.get(r.user_id) || "Unknown User",
-          role: r.role,
-        }));
-
-        // Remove duplicates (keep first occurrence)
-        const uniqueUsers = userList.reduce((acc, user) => {
-          const existing = acc.find((u) => u.user_id === user.user_id);
-          if (!existing) {
-            acc.push(user);
+          if (!roles || roles.length === 0) {
+            setUsers([]);
+            setLoading(false);
+            return;
           }
-          return acc;
-        }, [] as User[]);
 
-        setUsers(uniqueUsers);
+          const userIds = [...new Set(roles.map((r) => r.user_id))];
+
+          // Fetch profiles for these users
+          const { data: profiles } = await (supabase as any)
+            .from("profiles")
+            .select("id, display_name")
+            .in("id", userIds);
+
+          const profileMap = new Map(
+            ((profiles as any[]) ?? []).map((p: any) => [p.id, p.display_name])
+          );
+
+          // Build user list with roles
+          const userList: User[] = roles.map((r) => ({
+            user_id: r.user_id,
+            display_name: profileMap.get(r.user_id) || "Unknown User",
+            role: r.role,
+          }));
+
+          // Remove duplicates (keep first occurrence)
+          const uniqueUsers = userList.reduce((acc, user) => {
+            const existing = acc.find((u) => u.user_id === user.user_id);
+            if (!existing) {
+              acc.push(user);
+            }
+            return acc;
+          }, [] as User[]);
+
+          setUsers(uniqueUsers);
+        }
       } catch (error) {
         console.error("Error fetching users:", error);
       } finally {
@@ -269,43 +275,53 @@ export function SendMessageDialog({ schoolId, trigger, onMessageSent }: SendMess
         setUploadingFiles(false);
       }
 
-      // Create a single admin message with attachments
-      const { data: messageData, error: messageError } = await supabase
-        .from("admin_messages")
-        .insert({
-          school_id: schoolId,
-          sender_user_id: senderId,
+      if (USE_FASTAPI) {
+        await apiClient.post("/messages", {
           subject: subject.trim() || "Message from Principal",
           content: content.trim(),
           priority: "normal",
-          status: "sent",
+          recipient_user_ids: selectedUsers.map((u) => u.user_id),
           attachment_urls: attachmentUrls,
-        })
-        .select("id")
-        .single();
+        });
+      } else {
+        // Create a single admin message with attachments
+        const { data: messageData, error: messageError } = await supabase
+          .from("admin_messages")
+          .insert({
+            school_id: schoolId,
+            sender_user_id: senderId,
+            subject: subject.trim() || "Message from Principal",
+            content: content.trim(),
+            priority: "normal",
+            status: "sent",
+            attachment_urls: attachmentUrls,
+          })
+          .select("id")
+          .single();
 
-      if (messageError) {
-        throw messageError;
+        if (messageError) {
+          throw messageError;
+        }
+
+        // Create recipient records for tracking
+        const recipientRecords = selectedUsers.map((user) => ({
+          message_id: messageData.id,
+          recipient_user_id: user.user_id,
+        }));
+
+        await supabase.from("admin_message_recipients").insert(recipientRecords);
+
+        // Also create notifications for each recipient
+        const notifications = selectedUsers.map((user) => ({
+          school_id: schoolId,
+          user_id: user.user_id,
+          title: subject.trim() || "New Message from Principal",
+          body: content.trim().substring(0, 100) + (content.length > 100 ? "..." : ""),
+          type: "admin_message",
+        }));
+
+        await supabase.from("app_notifications").insert(notifications);
       }
-
-      // Create recipient records for tracking
-      const recipientRecords = selectedUsers.map((user) => ({
-        message_id: messageData.id,
-        recipient_user_id: user.user_id,
-      }));
-
-      await supabase.from("admin_message_recipients").insert(recipientRecords);
-
-      // Also create notifications for each recipient
-      const notifications = selectedUsers.map((user) => ({
-        school_id: schoolId,
-        user_id: user.user_id,
-        title: subject.trim() || "New Message from Principal",
-        body: content.trim().substring(0, 100) + (content.length > 100 ? "..." : ""),
-        type: "admin_message",
-      }));
-
-      await supabase.from("app_notifications").insert(notifications);
 
       toast({
         title: "Message sent successfully",

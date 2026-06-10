@@ -17,6 +17,12 @@ import {
   Sparkles,
   Menu,
   Brain,
+  FileText,
+  Megaphone,
+  NotebookPen,
+  PartyPopper,
+  HeartHandshake,
+  ShieldAlert,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -80,8 +86,15 @@ export function ParentShell({
     { to: `${basePath}/ai-insights`, icon: Brain, label: "AI Insights", badge: 0 },
     { to: `${basePath}/attendance`, icon: Calendar, label: "Attendance", badge: 0 },
     { to: `${basePath}/grades`, icon: GraduationCap, label: "Grades", badge: 0 },
+    { to: `${basePath}/report-card`, icon: FileText, label: "Report Card", badge: 0 },
+    { to: `${basePath}/exams`, icon: GraduationCap, label: "Exams", badge: 0 },
+    { to: `${basePath}/diary`, icon: NotebookPen, label: "Diary", badge: 0 },
+    { to: `${basePath}/behavior`, icon: HeartHandshake, label: "Behavior Notes", badge: 0 },
+    { to: `${basePath}/notices`, icon: Megaphone, label: "Notices", badge: 0 },
+    { to: `${basePath}/holidays`, icon: PartyPopper, label: "Holidays", badge: 0 },
     { to: `${basePath}/fees`, icon: Receipt, label: "Fees", badge: 0 },
     { to: `${basePath}/messages`, icon: MessageSquare, label: "Messages", badge: unreadCount },
+    { to: `${basePath}/complaints`, icon: ShieldAlert, label: "Complaints", badge: 0 },
     { to: `${basePath}/timetable`, icon: Clock, label: "Timetable", badge: 0 },
     { to: `${basePath}/notifications`, icon: Bell, label: "Notifications", badge: 0 },
     { to: `${basePath}/support`, icon: LifeBuoy, label: "Support", badge: 0 },
@@ -98,7 +111,7 @@ export function ParentShell({
     <>
       <div className="flex items-center justify-between">
         <div>
-          <p className="font-display text-lg font-semibold tracking-tight">EDUVERSE</p>
+          <p className="font-display text-lg font-semibold tracking-tight bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">AltRix</p>
           <p className="text-xs text-muted-foreground">/{schoolSlug} • Parent</p>
         </div>
         <div className="flex items-center gap-2">
@@ -125,27 +138,84 @@ export function ParentShell({
       </div>
 
       {/* Child Selector */}
-      {childList.length > 1 && (
+      {childList.length > 0 && (
         <div className="mt-4">
-          <p className="text-xs font-medium text-muted-foreground mb-2">Viewing Child</p>
+          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-2">
+            {childList.length > 1 ? "Viewing child" : "Your child"}
+          </p>
           <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" className="w-full justify-between">
-                <span className="truncate">
-                  {selectedChild ? formatChildName(selectedChild) : "Select child"}
+            <DropdownMenuTrigger asChild disabled={childList.length <= 1}>
+              <button
+                className="w-full flex items-center gap-3 rounded-2xl border border-border/60 bg-surface px-3 py-2.5 text-left transition-colors hover:bg-accent disabled:opacity-90 disabled:cursor-default"
+                aria-label="Switch child"
+              >
+                <span className="relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary/10 text-sm font-semibold text-primary">
+                  {selectedChild?.profile_image_url ? (
+                    <img
+                      src={selectedChild.profile_image_url}
+                      alt={selectedChild.first_name ?? "Child"}
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    (selectedChild?.first_name?.[0] ?? "S").toUpperCase()
+                  )}
                 </span>
-                <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
-              </Button>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-semibold text-foreground">
+                    {selectedChild
+                      ? [selectedChild.first_name, selectedChild.last_name]
+                          .filter(Boolean)
+                          .join(" ")
+                      : "Select child"}
+                  </span>
+                  <span className="block truncate text-[11px] text-muted-foreground">
+                    {selectedChild
+                      ? [selectedChild.class_name, selectedChild.section_name]
+                          .filter(Boolean)
+                          .join(" • ") || (selectedChild.roll_number ? `Roll ${selectedChild.roll_number}` : "Student")
+                      : ""}
+                  </span>
+                </span>
+                {childList.length > 1 && (
+                  <ChevronDown className="h-4 w-4 shrink-0 opacity-60" />
+                )}
+              </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="w-56">
-              {childList.map((child) => (
-                <DropdownMenuItem
-                  key={child.student_id}
-                  onClick={() => onSelectChild(child)}
-                >
-                  {formatChildName(child)}
-                </DropdownMenuItem>
-              ))}
+            <DropdownMenuContent align="start" className="w-64">
+              {childList.map((child) => {
+                const isActive = child.student_id === selectedChild?.student_id;
+                return (
+                  <DropdownMenuItem
+                    key={child.student_id}
+                    onClick={() => onSelectChild(child)}
+                    className="gap-3 py-2"
+                  >
+                    <span className="relative flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary/10 text-xs font-semibold text-primary">
+                      {child.profile_image_url ? (
+                        <img
+                          src={child.profile_image_url}
+                          alt={child.first_name ?? "Child"}
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        (child.first_name?.[0] ?? "S").toUpperCase()
+                      )}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-medium">
+                        {[child.first_name, child.last_name].filter(Boolean).join(" ") || "Student"}
+                      </span>
+                      <span className="block truncate text-[11px] text-muted-foreground">
+                        {[child.class_name, child.section_name].filter(Boolean).join(" • ") ||
+                          (child.roll_number ? `Roll ${child.roll_number}` : "")}
+                      </span>
+                    </span>
+                    {isActive && (
+                      <Badge className="bg-primary/15 text-primary text-[10px] h-5 px-1.5">Active</Badge>
+                    )}
+                  </DropdownMenuItem>
+                );
+              })}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -206,7 +276,7 @@ export function ParentShell({
                 <Menu className="h-5 w-5" />
               </Button>
             </SheetTrigger>
-            <SheetContent side="left" className="w-[280px] p-4">
+            <SheetContent side="left" className="w-[280px] p-4 overflow-y-auto">
               <NavContent />
             </SheetContent>
           </Sheet>
@@ -241,7 +311,7 @@ export function ParentShell({
         </div>
       </header>
 
-      <div className="mx-auto grid w-full max-w-7xl grid-cols-1 gap-4 px-4 py-4 lg:grid-cols-[280px_1fr] lg:gap-6 lg:px-6 lg:py-6">
+      <div className="grid w-full grid-cols-1 gap-4 px-4 py-4 lg:grid-cols-[280px_1fr] lg:gap-6 lg:px-6 lg:py-6">
         {/* Desktop Sidebar */}
         <aside className="sticky top-6 hidden self-start max-h-[calc(100vh-3rem)] overflow-y-auto rounded-3xl bg-surface p-4 shadow-elevated lg:block">
           <NavContent />

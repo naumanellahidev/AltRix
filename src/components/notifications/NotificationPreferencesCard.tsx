@@ -71,14 +71,14 @@ export function NotificationPreferencesCard({ schoolId }: Props) {
     setChildren(students || []);
 
     // Get existing preferences
-    const { data: prefs } = await supabase
+    const { data: prefs } = await (supabase as any)
       .from("parent_notification_preferences")
       .select("*")
       .eq("user_id", user.user.id)
       .in("student_id", studentIds);
 
     const prefsMap = new Map<string, NotificationPreference>();
-    prefs?.forEach((p) => {
+    (prefs as any[] || []).forEach((p: any) => {
       prefsMap.set(p.student_id, p as NotificationPreference);
     });
     setPreferences(prefsMap);
@@ -100,7 +100,7 @@ export function NotificationPreferencesCard({ schoolId }: Props) {
 
     if (existing) {
       // Update existing
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from("parent_notification_preferences")
         .update({ [field]: value })
         .eq("id", existing.id);
@@ -128,7 +128,7 @@ export function NotificationPreferencesCard({ schoolId }: Props) {
         low_grade_threshold: 60,
       };
 
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from("parent_notification_preferences")
         .insert(newPref)
         .select()
@@ -158,7 +158,7 @@ export function NotificationPreferencesCard({ schoolId }: Props) {
     const existing = preferences.get(studentId);
 
     if (existing) {
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from("parent_notification_preferences")
         .update({ low_grade_threshold: value })
         .eq("id", existing.id);
@@ -186,7 +186,7 @@ export function NotificationPreferencesCard({ schoolId }: Props) {
         low_grade_threshold: value,
       };
 
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from("parent_notification_preferences")
         .insert(newPref)
         .select()

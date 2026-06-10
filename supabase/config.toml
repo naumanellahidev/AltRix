@@ -1,52 +1,22 @@
-project_id = "hlpwltagcbuyflxcwcat"
+project_id = "nhossjmkdjeeacbajelq"
 
-[functions.eduverse-admin-create-school]
+[functions.jazzcash-initiate]
+verify_jwt = true
+
+[functions.jazzcash-callback]
 verify_jwt = false
 
-[functions.eduverse-admin-create-user]
+[functions.jazzcash-reconcile]
 verify_jwt = false
 
-[functions.eduverse-admin-impersonate]
+[functions.easypaisa-initiate]
+verify_jwt = true
+
+[functions.easypaisa-callback]
 verify_jwt = false
 
-[functions.eduverse-admin-unlock-bootstrap]
+[functions.easypaisa-reconcile]
 verify_jwt = false
 
-[functions.eduverse-bootstrap]
-verify_jwt = false
-
-[functions.eduverse-bulk-staff-import]
-verify_jwt = false
-
-[functions.eduverse-invite]
-verify_jwt = false
-
-[functions.eduverse-recover-master]
-verify_jwt = false
-
-[functions.eduverse-staff-governance]
-verify_jwt = false
-
-[functions.owner-ai-advisor]
-verify_jwt = false
-
-[functions.process-scheduled-messages]
-verify_jwt = false
-
-[functions.ai-student-analyzer]
-verify_jwt = false
-
-[functions.ai-timetable-generator]
-verify_jwt = false
-
-[functions.ai-reputation-analyzer]
-verify_jwt = false
-
-[functions.ai-teacher-analyzer]
-verify_jwt = false
-
-[functions.ai-early-warning]
-verify_jwt = false
-
-[functions.ai-parent-update-generator]
+[functions.password-reset-request]
 verify_jwt = false

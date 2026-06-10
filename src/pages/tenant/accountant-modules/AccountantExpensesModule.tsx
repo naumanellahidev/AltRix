@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, TrendingDown, Trash2, Edit, Filter, WifiOff, RefreshCw } from "lucide-react";
+import { ReportExportMenu } from "@/components/accountant/ReportExportMenu";
 
 import { supabase } from "@/integrations/supabase/client";
 import { useTenant } from "@/hooks/useTenant";
@@ -95,13 +96,13 @@ export function AccountantExpensesModule() {
   const { data: expenses = [], isLoading } = useQuery({
     queryKey: ["finance_expenses", schoolId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from("finance_expenses")
         .select("*")
         .eq("school_id", schoolId!)
         .order("expense_date", { ascending: false });
       if (error) throw error;
-      return data as Expense[];
+      return data as unknown as Expense[];
     },
     enabled: !!schoolId,
   });
@@ -293,7 +294,33 @@ export function AccountantExpensesModule() {
               <CardTitle className="font-display text-xl">Expenses</CardTitle>
               <p className="text-sm text-muted-foreground">Track and manage all expenses</p>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3">
+              {(() => {
+                const exportRows = filteredExpenses.map((e) => ({
+                  date: e.expense_date,
+                  description: e.description,
+                  category: formatCategory(e.category),
+                  amount: e.amount,
+                  vendor: e.vendor || "",
+                  reference: e.reference || "",
+                  method: getMethodName(e.payment_method_id),
+                }));
+                const total = filteredExpenses.reduce((s, e) => s + (e.amount || 0), 0);
+                return (
+                  <ReportExportMenu
+                    baseName="expenses"
+                    rows={exportRows}
+                    print={{
+                      title: "Expenses Report",
+                      subtitle: `Generated ${new Date().toLocaleDateString()} • Category: ${categoryFilter}`,
+                      summary: [
+                        { label: "Entries", value: filteredExpenses.length },
+                        { label: "Total spend", value: total.toLocaleString() },
+                      ],
+                    }}
+                  />
+                );
+              })()}
               <Select value={categoryFilter} onValueChange={setCategoryFilter}>
                 <SelectTrigger className="w-[160px]">
                   <Filter className="mr-2 h-4 w-4" />
@@ -407,8 +434,10 @@ export function AccountantExpensesModule() {
             </div>
           </CardHeader>
           <CardContent>
-            <ScrollArea className="h-[400px] rounded-xl border bg-surface">
-              <Table>
+            <div className="h-[400px] overflow-auto rounded-xl border bg-surface">
+              <div className="min-w-max">
+                <Table className="min-w-[900px]">
+
                 <TableHeader>
                   <TableRow>
                     <TableHead>Date</TableHead>
@@ -471,7 +500,8 @@ export function AccountantExpensesModule() {
                   )}
                 </TableBody>
               </Table>
-            </ScrollArea>
+              </div>
+            </div>
           </CardContent>
         </Card>
 

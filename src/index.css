@@ -44,7 +44,15 @@ All colors MUST be HSL.
     --input: 220 21% 88%;
     --ring: var(--brand);
 
-    --radius: 0.85rem;
+    --radius: 1rem;
+
+    /* Status palette (semantic, HSL) */
+    --success: 152 65% 40%;
+    --success-foreground: 0 0% 100%;
+    --warning: 38 95% 52%;
+    --warning-foreground: 30 60% 12%;
+    --info: 210 100% 50%;
+    --info-foreground: 0 0% 100%;
 
     /* Typography */
     --font-display: ui-sans-serif;
@@ -165,9 +173,217 @@ All colors MUST be HSL.
   .text-balance {
     text-wrap: balance;
   }
+
+  /* Premium card utility — used across all dashboards */
+  .card-premium {
+    @apply rounded-2xl border border-border/60 bg-surface shadow-soft transition-all duration-200;
+  }
+  .card-premium-hover {
+    @apply hover:shadow-elevated hover:-translate-y-0.5 hover:border-primary/30;
+  }
+  .card-glass {
+    background: hsl(var(--surface) / 0.7);
+    backdrop-filter: saturate(140%) blur(12px);
+    -webkit-backdrop-filter: saturate(140%) blur(12px);
+    @apply rounded-2xl border border-border/50 shadow-soft;
+  }
+
+  /* Quick-action icon tile */
+  .icon-tile {
+    @apply inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-accent text-accent-foreground transition-all duration-200;
+  }
+  .icon-tile-hover {
+    @apply group-hover:scale-110 group-hover:bg-primary group-hover:text-primary-foreground;
+  }
+
+  /* Subtle entrance */
+  .animate-rise {
+    animation: enter-fade 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  }
+
+  /* Hide scrollbar but keep scroll */
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 }
 
+/* ============================================================
+   Super Master Admin — luxury palette scope
+   Applied via `super-admin-scope` class on the main shell area.
+   Forces every shadcn card/button/input/table inside to use the
+   sidebar's dark-navy + amber-gold palette, so existing platform
+   pages inherit the premium look without rewriting layouts.
+============================================================ */
+body.super-admin-mode {
+  --background: 230 40% 7%;
+  --foreground: 220 30% 96%;
+  --card: 230 35% 11%;
+  --card-foreground: 220 30% 96%;
+  --popover: 230 35% 11%;
+  --popover-foreground: 220 30% 96%;
+  --primary: 45 95% 58%;
+  --primary-foreground: 230 40% 8%;
+  --secondary: 230 30% 14%;
+  --secondary-foreground: 220 15% 70%;
+  --muted: 230 25% 16%;
+  --muted-foreground: 220 15% 70%;
+  --accent: 230 25% 18%;
+  --accent-foreground: 45 95% 58%;
+  --border: 230 25% 20%;
+  --input: 230 25% 20%;
+  --ring: 45 95% 58%;
+}
+
+.super-admin-scope {
+  --sa-bg: 230 40% 7%;
+  --sa-surface: 230 35% 11%;
+  --sa-surface-2: 230 30% 14%;
+  --sa-border: 230 25% 20%;
+  --sa-border-strong: 45 80% 50% / 0.35;
+  --sa-text: 220 30% 96%;
+  --sa-text-muted: 220 15% 70%;
+  --sa-text-dim: 220 12% 55%;
+  --sa-accent: 45 95% 58%;
+  --sa-accent-2: 35 90% 55%;
+
+  color: hsl(var(--sa-text));
+}
+
+.super-admin-scope .card-premium,
+.super-admin-scope [class*="rounded-lg border"],
+.super-admin-scope [class*="rounded-xl border"],
+.super-admin-scope [class*="rounded-2xl border"] {
+  background: linear-gradient(180deg, hsl(var(--sa-surface)) 0%, hsl(var(--sa-bg)) 100%) !important;
+  border-color: hsl(var(--sa-border)) !important;
+  color: hsl(var(--sa-text));
+  box-shadow: 0 1px 0 hsl(0 0% 100% / 0.03) inset, 0 12px 32px -16px hsl(230 60% 2% / 0.6) !important;
+}
+
+.super-admin-scope .card-premium:hover {
+  border-color: hsl(var(--sa-border-strong)) !important;
+}
+
+/* Headings & text */
+.super-admin-scope h1,
+.super-admin-scope h2,
+.super-admin-scope h3,
+.super-admin-scope h4 { color: hsl(var(--sa-text)); }
+.super-admin-scope .text-muted-foreground,
+.super-admin-scope [class*="text-slate-5"],
+.super-admin-scope [class*="text-slate-6"],
+.super-admin-scope [class*="text-gray-5"],
+.super-admin-scope [class*="text-gray-6"] { color: hsl(var(--sa-text-muted)) !important; }
+
+/* Primary buttons → gold */
+.super-admin-scope button[data-variant="default"],
+.super-admin-scope .btn-primary,
+.super-admin-scope button.bg-primary,
+.super-admin-scope a.bg-primary {
+  background: linear-gradient(135deg, hsl(var(--sa-accent)), hsl(var(--sa-accent-2))) !important;
+  color: hsl(230 40% 8%) !important;
+  border: 0 !important;
+  box-shadow: 0 6px 18px -8px hsl(var(--sa-accent) / 0.55);
+}
+.super-admin-scope button[data-variant="default"]:hover,
+.super-admin-scope button.bg-primary:hover {
+  filter: brightness(1.05);
+}
+
+/* Outline / ghost buttons */
+.super-admin-scope button[data-variant="outline"],
+.super-admin-scope button[data-variant="secondary"],
+.super-admin-scope button[data-variant="ghost"] {
+  background: hsl(0 0% 100% / 0.04) !important;
+  border-color: hsl(var(--sa-border)) !important;
+  color: hsl(var(--sa-text)) !important;
+}
+.super-admin-scope button[data-variant="outline"]:hover,
+.super-admin-scope button[data-variant="ghost"]:hover {
+  background: hsl(0 0% 100% / 0.08) !important;
+  border-color: hsl(var(--sa-accent) / 0.4) !important;
+}
+
+/* Inputs / selects / textareas */
+.super-admin-scope input,
+.super-admin-scope textarea,
+.super-admin-scope select,
+.super-admin-scope [role="combobox"] {
+  background: hsl(0 0% 100% / 0.04) !important;
+  border-color: hsl(var(--sa-border)) !important;
+  color: hsl(var(--sa-text)) !important;
+}
+.super-admin-scope input::placeholder,
+.super-admin-scope textarea::placeholder { color: hsl(var(--sa-text-dim)) !important; }
+.super-admin-scope input:focus-visible,
+.super-admin-scope textarea:focus-visible,
+.super-admin-scope [role="combobox"]:focus-visible {
+  border-color: hsl(var(--sa-accent) / 0.55) !important;
+  box-shadow: 0 0 0 3px hsl(var(--sa-accent) / 0.18) !important;
+}
+
+/* Tables */
+.super-admin-scope table { color: hsl(var(--sa-text)); }
+.super-admin-scope thead th {
+  background: hsl(var(--sa-surface-2)) !important;
+  color: hsl(var(--sa-text-muted)) !important;
+  border-color: hsl(var(--sa-border)) !important;
+  text-transform: uppercase;
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+}
+.super-admin-scope tbody tr {
+  border-color: hsl(var(--sa-border)) !important;
+}
+.super-admin-scope tbody tr:hover {
+  background: hsl(var(--sa-accent) / 0.05) !important;
+}
+
+/* Tabs (Radix) */
+.super-admin-scope [role="tablist"] {
+  background: hsl(var(--sa-surface-2)) !important;
+  border: 1px solid hsl(var(--sa-border)) !important;
+  border-radius: 12px;
+  padding: 4px;
+}
+.super-admin-scope [role="tab"] {
+  color: hsl(var(--sa-text-muted)) !important;
+  border-radius: 8px !important;
+}
+.super-admin-scope [role="tab"][data-state="active"] {
+  background: linear-gradient(135deg, hsl(var(--sa-accent)), hsl(var(--sa-accent-2))) !important;
+  color: hsl(230 40% 8%) !important;
+  box-shadow: 0 4px 12px -4px hsl(var(--sa-accent) / 0.5);
+}
+
+/* Badges */
+.super-admin-scope [class*="bg-secondary"],
+.super-admin-scope [class*="bg-muted"] {
+  background: hsl(0 0% 100% / 0.06) !important;
+  color: hsl(var(--sa-text-muted)) !important;
+  border-color: hsl(var(--sa-border)) !important;
+}
+
+/* Section dividers / borders */
+.super-admin-scope hr,
+.super-admin-scope .border,
+.super-admin-scope .border-t,
+.super-admin-scope .border-b,
+.super-admin-scope .border-l,
+.super-admin-scope .border-r {
+  border-color: hsl(var(--sa-border)) !important;
+}
+
+/* "Walking pattern" — soft entry on each route */
+.super-admin-scope > * {
+  animation: enter-fade 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+/* Global print rules — kill browser-default headers (date/URL/title) and
+   keep margins via the body, so any window.print() call gets a clean A4. */
+@page { size: A4; margin: 0; }
+
 @media print {
+  html, body { margin: 0 !important; }
+  body { padding: 10mm !important; }
   /* Hide navigation + action controls across all portals */
   aside,
   nav,
@@ -196,4 +412,67 @@ All colors MUST be HSL.
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
+
+  /* Isolated print fallback (window.print) */
+  body.printing-report-card * { visibility: hidden !important; }
+  body.printing-report-card #report-card-print,
+  body.printing-report-card #report-card-print * { visibility: visible !important; }
+  body.printing-report-card #report-card-print {
+    position: absolute !important;
+    left: 0 !important; top: 0 !important;
+    width: 100% !important; margin: 0 !important; padding: 16px !important;
+    box-shadow: none !important; border: none !important;
+    background: #ffffff !important;
+  }
+  body.printing-report-card #report-card-print .print\:hidden { display: none !important; }
+  /* Hide browser-injected URL/header by suggesting no margins (user must also disable headers/footers in print dialog) */
+  @page { margin: 8mm; }
 }
+
+/* PDF export: ensure pure white card, hide editable controls */
+#report-card-print.exporting-pdf {
+  background: #ffffff !important;
+  color: #000 !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+  --tw-ring-shadow: 0 0 #0000 !important;
+  --tw-ring-offset-shadow: 0 0 #0000 !important;
+  outline: none !important;
+}
+#report-card-print.exporting-pdf input,
+#report-card-print.exporting-pdf textarea {
+  border: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+}
+/* Hide any element marked print:hidden during html2canvas export */
+#report-card-print.exporting-pdf .print\:hidden {
+  display: none !important;
+}
+
+/* PDF export: enforce centered, uniform table layout */
+#report-card-print.exporting-pdf table {
+  table-layout: fixed !important;
+  width: 100% !important;
+  border-collapse: collapse !important;
+}
+#report-card-print.exporting-pdf table colgroup col {
+  width: 20% !important;
+}
+#report-card-print.exporting-pdf table th,
+#report-card-print.exporting-pdf table td {
+  text-align: center !important;
+  vertical-align: middle !important;
+  padding: 6px 4px !important;
+}
+#report-card-print.exporting-pdf table td > div {
+  justify-content: center !important;
+}
+#report-card-print.exporting-pdf input,
+#report-card-print.exporting-pdf table td > div > span {
+  text-align: center !important;
+  margin: 0 auto !important;
+}
+
+

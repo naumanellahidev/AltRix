@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase, USE_FASTAPI } from "@/integrations/supabase/client";
 import { type EduverseRole } from "@/lib/eduverse-roles";
+import { apiClient } from "@/lib/api-client";
 
 interface UseUserRoleResult {
   roles: EduverseRole[];
@@ -26,15 +27,33 @@ export function useUserRole(schoolId: string | null, userId: string | null): Use
 
     const fetchRoles = async () => {
       setLoading(true);
-      const { data } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("school_id", schoolId)
-        .eq("user_id", userId);
+      if (USE_FASTAPI) {
+        try {
+          const resp = await apiClient.get<Array<{ role: string }>>("/auth/user-roles", {
+            params: { school_id: schoolId, user_id: userId }
+          });
+          if (!cancelled) {
+            setRoles(resp.data.map((r) => r.role as EduverseRole));
+            setLoading(false);
+          }
+        } catch (err) {
+          console.error("Failed to fetch user roles:", err);
+          if (!cancelled) {
+            setRoles([]);
+            setLoading(false);
+          }
+        }
+      } else {
+        const { data } = await supabase
+          .from("user_roles")
+          .select("role")
+          .eq("school_id", schoolId)
+          .eq("user_id", userId);
 
-      if (!cancelled) {
-        setRoles((data || []).map((r) => r.role as EduverseRole));
-        setLoading(false);
+        if (!cancelled) {
+          setRoles((data || []).map((r) => r.role as EduverseRole));
+          setLoading(false);
+        }
       }
     };
 

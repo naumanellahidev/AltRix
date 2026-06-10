@@ -1,5 +1,6 @@
 import { useState, useCallback } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase, USE_FASTAPI } from "@/integrations/supabase/client";
+import { apiClient } from "@/lib/api-client";
 import { toast } from "@/hooks/use-toast";
 
 export interface StudentRow {
@@ -35,12 +36,25 @@ export function useAttendanceData(schoolId: string | null) {
     async (
       sectionId: string,
       sessionDate: string,
-      periodLabel: string
-    ): Promise<{ sessionId: string; rows: StudentRow[] } | null> => {
+      periodLabel: string,
+      options?: { readOnly?: boolean }
+    ): Promise<{ sessionId: string | null; rows: StudentRow[] } | null> => {
       if (!schoolId) return null;
       setLoading(true);
 
       try {
+        if (USE_FASTAPI) {
+          const resp = await apiClient.get("/attendance/get-or-create", {
+            params: {
+              section_id: sectionId,
+              session_date: sessionDate,
+              period_label: periodLabel,
+              read_only: !!options?.readOnly,
+            },
+          });
+          return resp.data;
+        }
+
         // Get or create session
         const { data: existingSession } = await supabase
           .from("attendance_sessions")
@@ -51,9 +65,29 @@ export function useAttendanceData(schoolId: string | null) {
           .eq("period_label", periodLabel)
           .maybeSingle();
 
-        let sid = existingSession?.id;
+        let sid: string | null = existingSession?.id ?? null;
 
         if (!sid) {
+          if (options?.readOnly) {
+            // Viewer cannot create sessions — just return an empty roster
+            const { data: enrollments } = await supabase
+              .from("student_enrollments")
+              .select("student_id")
+              .eq("school_id", schoolId)
+              .eq("class_section_id", sectionId);
+            const studentIds = (enrollments ?? []).map((e) => e.student_id);
+            const { data: students } = studentIds.length
+              ? await supabase.from("students").select("id, first_name, last_name").in("id", studentIds)
+              : { data: [] as any[] };
+            const rows: StudentRow[] = (students ?? []).map((s: any) => ({
+              student_id: s.id,
+              first_name: s.first_name,
+              last_name: s.last_name,
+              status: "present",
+            }));
+            return { sessionId: null, rows };
+          }
+
           const { data: user } = await supabase.auth.getUser();
           const { data: newSession, error } = await supabase
             .from("attendance_sessions")
@@ -118,6 +152,17 @@ export function useAttendanceData(schoolId: string | null) {
     async (sessionId: string, rows: StudentRow[]): Promise<boolean> => {
       if (!schoolId) return false;
 
+      if (USE_FASTAPI) {
+        try {
+          await apiClient.post(`/attendance/sessions/${sessionId}/save`, rows);
+          toast({ title: "Attendance saved successfully" });
+          return true;
+        } catch (err: any) {
+          toast({ title: "Failed to save", description: err.message, variant: "destructive" });
+          return false;
+        }
+      }
+
       const payload = rows.map((r) => ({
         session_id: sessionId,
         school_id: schoolId,
@@ -144,6 +189,13 @@ export function useAttendanceData(schoolId: string | null) {
     async (sectionId: string, limit = 30): Promise<AttendanceSession[]> => {
       if (!schoolId) return [];
 
+      if (USE_FASTAPI) {
+        const resp = await apiClient.get(`/attendance/history/${sectionId}`, {
+          params: { limit },
+        });
+        return resp.data;
+      }
+
       const { data } = await supabase
         .from("attendance_sessions")
         .select("id, session_date, period_label, created_at")
@@ -161,6 +213,11 @@ export function useAttendanceData(schoolId: string | null) {
   const loadStudentAttendanceStats = useCallback(
     async (sectionId: string): Promise<StudentAttendanceStats[]> => {
       if (!schoolId) return [];
+
+      if (USE_FASTAPI) {
+        const resp = await apiClient.get(`/attendance/stats/${sectionId}`);
+        return resp.data;
+      }
 
       // Get all sessions for this section
       const { data: sessions } = await supabase
@@ -235,6 +292,11 @@ export function useAttendanceData(schoolId: string | null) {
   const loadSessionEntries = useCallback(
     async (sessionId: string): Promise<StudentRow[]> => {
       if (!schoolId) return [];
+
+      if (USE_FASTAPI) {
+        const resp = await apiClient.get(`/attendance/sessions/${sessionId}/roster`);
+        return resp.data;
+      }
 
       // Get session info to find the section
       const { data: session } = await supabase

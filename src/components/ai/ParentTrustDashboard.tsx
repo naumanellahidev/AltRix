@@ -192,14 +192,14 @@ export function ParentTrustDashboard({ studentId, schoolId, parentUserId }: Prop
           )}
 
           {/* Teacher Notes */}
-          {latestUpdate?.teacher_notes && (latestUpdate.teacher_notes as string[]).length > 0 && (
+          {latestUpdate?.teacher_notes && (latestUpdate.teacher_notes as unknown as string[]).length > 0 && (
             <div className="mt-4 rounded-xl bg-amber-500/10 p-4">
               <div className="flex items-center gap-2 mb-2">
                 <MessageSquare className="h-4 w-4 text-amber-600" />
                 <span className="text-sm font-medium text-amber-700">Teacher Notes</span>
               </div>
               <ul className="space-y-1">
-                {(latestUpdate.teacher_notes as string[]).map((note, idx) => (
+                {(latestUpdate.teacher_notes as unknown as string[]).map((note, idx) => (
                   <li key={idx} className="text-sm text-amber-800">
                     • {note}
                   </li>
@@ -209,14 +209,14 @@ export function ParentTrustDashboard({ studentId, schoolId, parentUserId }: Prop
           )}
 
           {/* Behavior Remarks */}
-          {latestUpdate?.behavior_remarks && (latestUpdate.behavior_remarks as string[]).length > 0 && (
+          {latestUpdate?.behavior_remarks && (latestUpdate.behavior_remarks as unknown as string[]).length > 0 && (
             <div className="mt-4 rounded-xl bg-blue-500/10 p-4">
               <div className="flex items-center gap-2 mb-2">
                 <Heart className="h-4 w-4 text-blue-600" />
                 <span className="text-sm font-medium text-blue-700">Behavior</span>
               </div>
               <ul className="space-y-1">
-                {(latestUpdate.behavior_remarks as string[]).map((remark, idx) => (
+                {(latestUpdate.behavior_remarks as unknown as string[]).map((remark, idx) => (
                   <li key={idx} className="text-sm text-blue-800">
                     • {remark}
                   </li>

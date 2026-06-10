@@ -42,7 +42,7 @@ import {
 import { toast } from "sonner";
 
 interface Props {
-  schoolId: string;
+  schoolId: string | null;
 }
 
 const PRIORITY_CONFIG = {
@@ -210,10 +210,10 @@ export function AICounselorMode({ schoolId }: Props) {
                 <ScrollArea className="h-[400px]">
                   <div className="space-y-3 pr-4">
                     {pendingQueue.map((item, idx) => {
-                      const priority = item.priority as keyof typeof PRIORITY_CONFIG || "normal";
-                      const priorityConfig = PRIORITY_CONFIG[priority];
-                      const status = item.status as keyof typeof STATUS_CONFIG || "pending";
-                      const statusConfig = STATUS_CONFIG[status];
+                      const priorityKey = (item.priority && (item.priority in PRIORITY_CONFIG) ? item.priority : "normal") as keyof typeof PRIORITY_CONFIG;
+                      const priorityConfig = PRIORITY_CONFIG[priorityKey];
+                      const statusKey = (item.status && (item.status in STATUS_CONFIG) ? item.status : "pending") as keyof typeof STATUS_CONFIG;
+                      const statusConfig = STATUS_CONFIG[statusKey];
 
                       return (
                         <motion.div

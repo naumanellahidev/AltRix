@@ -127,7 +127,7 @@ export function useOfflineSync(schoolId: string | null, userId: string | null) {
             };
 
           // Use logged_at instead of log_date based on schema
-          const { error } = await supabase.from("timetable_period_logs").upsert(
+          const { error } = await (supabase as any).from("timetable_period_logs").upsert(
             {
               school_id: schoolId,
               timetable_entry_id,

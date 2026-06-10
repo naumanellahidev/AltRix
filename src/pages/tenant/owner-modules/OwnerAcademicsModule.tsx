@@ -33,6 +33,8 @@ import {
   PolarRadiusAxis,
   Radar,
 } from "recharts";
+import { useActiveCampus } from "@/hooks/useActiveCampus";
+import { OwnerTeacherEffectiveness } from "./OwnerTeacherEffectiveness";
 
 interface Props {
   schoolId: string | null;
@@ -42,20 +44,24 @@ const COLORS = ["hsl(var(--primary))", "hsl(var(--chart-2))", "hsl(var(--chart-3
 
 export function OwnerAcademicsModule({ schoolId }: Props) {
   const [activeTab, setActiveTab] = useState("overview");
+  const activeCampusId = useActiveCampus(schoolId);
+  const campusEq = (q: any) => (activeCampusId ? q.eq("campus_id", activeCampusId) : q);
 
   // Fetch academic data
   const { data: academicData, isLoading } = useQuery({
-    queryKey: ["owner_academics", schoolId],
+    queryKey: ["owner_academics", schoolId, activeCampusId],
     queryFn: async () => {
       if (!schoolId) return null;
 
-      const [classesRes, sectionsRes, studentsRes, marksRes, teachersRes, subjectsRes] = await Promise.all([
+      const [classesRes, sectionsRes, studentsRes, marksRes, teachersRes, subjectsRes, assessmentsRes, atRiskRes] = await Promise.all([
         supabase.from("academic_classes").select("*").eq("school_id", schoolId),
-        supabase.from("class_sections").select("*").eq("school_id", schoolId),
-        supabase.from("students").select("id,status,first_name,last_name").eq("school_id", schoolId),
-        supabase.from("student_marks").select("marks,student_id,assessment_id").eq("school_id", schoolId).not("marks", "is", null),
+        campusEq(supabase.from("class_sections").select("*").eq("school_id", schoolId)),
+        campusEq(supabase.from("students").select("id,status,first_name,last_name").eq("school_id", schoolId)),
+        campusEq(supabase.from("student_marks").select("marks,student_id,assessment_id").eq("school_id", schoolId).not("marks", "is", null)),
         supabase.from("user_roles").select("user_id").eq("school_id", schoolId).eq("role", "teacher"),
         supabase.from("subjects").select("*").eq("school_id", schoolId),
+        supabase.from("academic_assessments").select("id,max_marks,subject_id").eq("school_id", schoolId),
+        (supabase as any).rpc("get_at_risk_students", { _school_id: schoolId, _class_section_id: null }),
       ]);
 
       const classes = classesRes.data || [];
@@ -64,26 +70,30 @@ export function OwnerAcademicsModule({ schoolId }: Props) {
       const marks = marksRes.data || [];
       const teachers = teachersRes.data || [];
       const subjects = subjectsRes.data || [];
+      const assessments = assessmentsRes.data || [];
+      const assessmentMap = new Map(assessments.map((a: any) => [a.id, a]));
 
-      // Calculate averages
-      const avgMarks = marks.length > 0
-        ? marks.reduce((sum, m) => sum + Number(m.marks || 0), 0) / marks.length
-        : 0;
-
-      // Student performance distribution
-      const studentPerformance: Record<string, number[]> = {};
-      marks.forEach((m) => {
-        if (!studentPerformance[m.student_id]) studentPerformance[m.student_id] = [];
-        studentPerformance[m.student_id].push(Number(m.marks || 0));
-      });
-
-      const performanceDistribution = {
-        excellent: 0, // 90+
-        good: 0, // 75-89
-        average: 0, // 50-74
-        belowAverage: 0, // <50
+      // Normalize marks → percentage using assessment.max_marks
+      const pctOf = (m: any) => {
+        const a: any = assessmentMap.get(m.assessment_id);
+        const max = Number(a?.max_marks || 0);
+        if (!max) return null;
+        return (Number(m.marks || 0) / max) * 100;
       };
 
+      const pctMarks = marks.map(pctOf).filter((v): v is number => v !== null);
+      const avgMarks = pctMarks.length > 0 ? pctMarks.reduce((a, b) => a + b, 0) / pctMarks.length : 0;
+
+      // Per-student averages (as %)
+      const studentPerformance: Record<string, number[]> = {};
+      marks.forEach((m) => {
+        const p = pctOf(m);
+        if (p === null) return;
+        if (!studentPerformance[m.student_id]) studentPerformance[m.student_id] = [];
+        studentPerformance[m.student_id].push(p);
+      });
+
+      const performanceDistribution = { excellent: 0, good: 0, average: 0, belowAverage: 0 };
       Object.values(studentPerformance).forEach((scores) => {
         const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
         if (avg >= 90) performanceDistribution.excellent++;
@@ -92,14 +102,32 @@ export function OwnerAcademicsModule({ schoolId }: Props) {
         else performanceDistribution.belowAverage++;
       });
 
-      // At-risk students (avg < 50)
-      const atRiskStudents = Object.entries(studentPerformance)
-        .filter(([_, scores]) => {
-          const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
-          return avg < 50;
-        })
-        .map(([studentId]) => students.find((s) => s.id === studentId))
-        .filter(Boolean);
+      // Real subject-level averages
+      const subjectScores: Record<string, number[]> = {};
+      marks.forEach((m) => {
+        const a: any = assessmentMap.get(m.assessment_id);
+        if (!a?.subject_id) return;
+        const p = pctOf(m);
+        if (p === null) return;
+        if (!subjectScores[a.subject_id]) subjectScores[a.subject_id] = [];
+        subjectScores[a.subject_id].push(p);
+      });
+      const subjectAverages = subjects.map((s: any) => {
+        const arr = subjectScores[s.id] || [];
+        const avg = arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : null;
+        return { id: s.id, name: s.name, avg, sampleSize: arr.length };
+      });
+
+      // At-risk via RPC (handles attendance + grade decline)
+      const atRiskRows = (atRiskRes as any)?.data || [];
+      const atRiskStudents = atRiskRows.map((r: any) => ({
+        id: r.student_id,
+        first_name: r.first_name,
+        last_name: r.last_name,
+        reason: r.risk_reason,
+        attendance_rate: r.attendance_rate,
+        avg_grade: r.avg_grade_percentage,
+      }));
 
       return {
         totalClasses: classes.length,
@@ -114,6 +142,7 @@ export function OwnerAcademicsModule({ schoolId }: Props) {
         classes,
         sections,
         subjects,
+        subjectAverages,
       };
     },
     enabled: !!schoolId,
@@ -291,42 +320,48 @@ export function OwnerAcademicsModule({ schoolId }: Props) {
                   <div className="flex items-center justify-between text-sm">
                     <span>Pass Rate</span>
                     <span className="font-medium">
-                      {academicData?.performanceDistribution
-                        ? Math.round(
-                            ((academicData.performanceDistribution.excellent +
-                              academicData.performanceDistribution.good +
-                              academicData.performanceDistribution.average) /
-                              Math.max(
-                                1,
-                                Object.values(academicData.performanceDistribution).reduce((a, b) => a + b, 0)
-                              )) *
-                              100
-                          )
-                        : 0}
+                      {(() => {
+                        const d = academicData?.performanceDistribution;
+                        if (!d) return 0;
+                        const total = Math.max(1, d.excellent + d.good + d.average + d.belowAverage);
+                        return Math.round(((d.excellent + d.good + d.average) / total) * 100);
+                      })()}
                       %
                     </span>
                   </div>
-                  <Progress value={85} className="mt-2 h-2" />
+                  <Progress
+                    value={(() => {
+                      const d = academicData?.performanceDistribution;
+                      if (!d) return 0;
+                      const total = Math.max(1, d.excellent + d.good + d.average + d.belowAverage);
+                      return Math.round(((d.excellent + d.good + d.average) / total) * 100);
+                    })()}
+                    className="mt-2 h-2"
+                  />
                 </div>
 
                 <div>
                   <div className="flex items-center justify-between text-sm">
                     <span>Excellence Rate (90%+)</span>
                     <span className="font-medium">
-                      {academicData?.performanceDistribution
-                        ? Math.round(
-                            (academicData.performanceDistribution.excellent /
-                              Math.max(
-                                1,
-                                Object.values(academicData.performanceDistribution).reduce((a, b) => a + b, 0)
-                              )) *
-                              100
-                          )
-                        : 0}
+                      {(() => {
+                        const d = academicData?.performanceDistribution;
+                        if (!d) return 0;
+                        const total = Math.max(1, d.excellent + d.good + d.average + d.belowAverage);
+                        return Math.round((d.excellent / total) * 100);
+                      })()}
                       %
                     </span>
                   </div>
-                  <Progress value={academicData?.performanceDistribution.excellent || 0} className="mt-2 h-2" />
+                  <Progress
+                    value={(() => {
+                      const d = academicData?.performanceDistribution;
+                      if (!d) return 0;
+                      const total = Math.max(1, d.excellent + d.good + d.average + d.belowAverage);
+                      return Math.round((d.excellent / total) * 100);
+                    })()}
+                    className="mt-2 h-2"
+                  />
                 </div>
               </CardContent>
             </Card>
@@ -340,21 +375,28 @@ export function OwnerAcademicsModule({ schoolId }: Props) {
             </CardHeader>
             <CardContent>
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {(academicData?.subjects || []).map((subject) => (
-                  <div key={subject.id} className="rounded-xl bg-muted/50 p-4">
-                    <div className="flex items-center justify-between">
-                      <span className="font-medium">{subject.name}</span>
-                      <Badge variant="outline">Active</Badge>
+                {(academicData?.subjectAverages || []).map((subject: any) => {
+                  const hasData = subject.avg !== null;
+                  const value = hasData ? Math.round(subject.avg) : 0;
+                  const tone = !hasData ? "outline" : value >= 75 ? "default" : value >= 50 ? "secondary" : "destructive";
+                  return (
+                    <div key={subject.id} className="rounded-xl bg-muted/50 p-4">
+                      <div className="flex items-center justify-between">
+                        <span className="font-medium">{subject.name}</span>
+                        <Badge variant={tone as any}>
+                          {hasData ? `${value}%` : "No data"}
+                        </Badge>
+                      </div>
+                      <div className="mt-2 flex items-center gap-2">
+                        <Progress value={value} className="h-2 flex-1" />
+                        <span className="text-xs text-muted-foreground whitespace-nowrap">
+                          {subject.sampleSize} marks
+                        </span>
+                      </div>
                     </div>
-                    <div className="mt-2 flex items-center gap-2">
-                      <Progress value={75 + Math.random() * 20} className="h-2 flex-1" />
-                      <span className="text-sm text-muted-foreground">
-                        {Math.round(75 + Math.random() * 20)}%
-                      </span>
-                    </div>
-                  </div>
-                ))}
-                {(!academicData?.subjects || academicData.subjects.length === 0) && (
+                  );
+                })}
+                {(!academicData?.subjectAverages || academicData.subjectAverages.length === 0) && (
                   <p className="col-span-full text-center text-muted-foreground py-8">
                     No subjects configured yet
                   </p>
@@ -369,7 +411,7 @@ export function OwnerAcademicsModule({ schoolId }: Props) {
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
                 <AlertTriangle className="h-4 w-4 text-red-600" />
-                At-Risk Students (Performance &lt; 50%)
+                At-Risk Students (low attendance, low grades, or declining)
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -385,7 +427,15 @@ export function OwnerAcademicsModule({ schoolId }: Props) {
                           <p className="font-medium">
                             {student.first_name} {student.last_name || ""}
                           </p>
-                          <p className="text-xs text-muted-foreground">Requires intervention</p>
+                          <p className="text-xs text-muted-foreground">
+                            {student.reason || "Requires intervention"}
+                            {typeof student.attendance_rate === "number" && (
+                              <> · Attendance {Math.round(student.attendance_rate)}%</>
+                            )}
+                            {typeof student.avg_grade === "number" && student.avg_grade > 0 && (
+                              <> · Avg {Math.round(student.avg_grade)}%</>
+                            )}
+                          </p>
                         </div>
                         <Badge variant="destructive">At Risk</Badge>
                       </div>
@@ -401,17 +451,8 @@ export function OwnerAcademicsModule({ schoolId }: Props) {
           </Card>
         </TabsContent>
 
-        <TabsContent value="teachers" className="mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Teacher Effectiveness Rankings</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-center text-muted-foreground py-8">
-                Teacher performance analytics will be available once assessment data is linked to teachers.
-              </p>
-            </CardContent>
-          </Card>
+        <TabsContent value="teachers" className="mt-6 space-y-4">
+          {schoolId && <OwnerTeacherEffectiveness schoolId={schoolId} />}
         </TabsContent>
       </Tabs>
     </div>

@@ -45,11 +45,11 @@ export function SchoolReputationDashboard({ schoolId }: Props) {
   const { data: reputationData, isLoading } = useQuery({
     queryKey: ["ai_school_reputation", schoolId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from("ai_school_reputation")
         .select("*")
         .eq("school_id", schoolId)
-        .order("report_month", { ascending: false })
+        .order("created_at", { ascending: false })
         .limit(12);
 
       if (error) throw error;

@@ -1,4 +1,5 @@
 import { useState, useCallback } from "react";
+import { toast } from "sonner";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Bell, Check, CheckCheck, MessageSquare, AlertTriangle, Info, Calendar, GraduationCap, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -74,10 +75,13 @@ export function NotificationsBell({ schoolId, schoolSlug, role }: NotificationsB
         const getRolePath = (r: string | undefined): string => {
           switch (r) {
             case "principal":
+              return "principal";
             case "vice_principal":
+              return "vice_principal";
             case "school_admin":
+              return "school_admin";
             case "academic_coordinator":
-              return "admin";
+              return "academic_coordinator";
             case "teacher":
               return "teacher";
             case "student":
@@ -93,7 +97,7 @@ export function NotificationsBell({ schoolId, schoolSlug, role }: NotificationsB
             case "school_owner":
               return "school_owner";
             default:
-              return r || "admin";
+              return r || "";
           }
         };
         
@@ -111,6 +115,45 @@ export function NotificationsBell({ schoolId, schoolSlug, role }: NotificationsB
           // Navigate to messages with query param
           navigate(`${messagesPath}?open_message=${notification.entity_id}`);
         }
+        return;
+      }
+
+      // Fee voucher / proof → navigate to fees module
+      const isFeeNotif =
+        notification.type === "fee_voucher" ||
+        notification.type === "fee_proof_submitted" ||
+        notification.type === "fee_proof_pending" ||
+        notification.type === "fee_proof_verified" ||
+        notification.type === "fee_proof_rejected" ||
+        notification.entity_type === "fee_invoice";
+
+      if (isFeeNotif) {
+        // Hard-guard: never build a malformed URL that could bounce to /auth
+        if (!schoolSlug || !role) {
+          toast.warning("Unable to open notification", {
+            description: `Missing ${!schoolSlug ? "school" : "role"} information. Please refresh and try again.`,
+          });
+          return;
+        }
+        const rolePathMap: Record<string, string> = {
+          parent: "parent", student: "student",
+          hr_manager: "hr", accountant: "accountant", marketing_staff: "marketing",
+          principal: "principal", vice_principal: "vice_principal",
+          school_admin: "school_admin", academic_coordinator: "academic_coordinator",
+          school_owner: "school_owner", super_admin: "super_admin", teacher: "teacher",
+        };
+        const rolePath = rolePathMap[role];
+        if (!rolePath) {
+          toast.warning("Unable to open notification", {
+            description: `Unknown role "${role}". Please contact support.`,
+          });
+          return;
+        }
+        const feesPath = role === "parent" || role === "student"
+          ? `/${schoolSlug}/${rolePath}/fees`
+          : `/${schoolSlug}/${rolePath}/fee-vouchers`;
+        navigate(feesPath);
+        return;
       }
     },
     [markRead, navigate, location.pathname, schoolSlug, role]
@@ -269,40 +312,14 @@ export function NotificationsBell({ schoolId, schoolSlug, role }: NotificationsB
               <Button
                 variant="ghost"
                 className="w-full h-8 text-xs text-muted-foreground"
-                onClick={() => {
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  void markAllRead();
                   setOpen(false);
-                  // Navigate to notifications page
-                  if (schoolSlug && role) {
-                    const getRolePath = (r: string): string => {
-                      switch (r) {
-                        case "principal":
-                        case "vice_principal":
-                        case "school_admin":
-                        case "academic_coordinator":
-                          return "admin";
-                        case "teacher":
-                          return "teacher";
-                        case "student":
-                          return "student";
-                        case "parent":
-                          return "parent";
-                        case "hr_manager":
-                          return "hr";
-                        case "accountant":
-                          return "accountant";
-                        case "marketing_staff":
-                          return "marketing";
-                        case "school_owner":
-                          return "school_owner";
-                        default:
-                          return r;
-                      }
-                    };
-                    navigate(`/${schoolSlug}/${getRolePath(role)}/notifications`);
-                  }
                 }}
               >
-                View all notifications
+                Mark all read & close
               </Button>
             </div>
           </>

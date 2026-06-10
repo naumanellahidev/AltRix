@@ -16,6 +16,9 @@ import {
   Wallet,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { exportToCSV } from "@/lib/csv";
+import { FeeDefaultersReport } from "@/components/accountant/FeeDefaultersReport";
+import { SalaryBudgetForecast } from "@/components/accountant/SalaryBudgetForecast";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -39,6 +42,7 @@ import {
   Line,
 } from "recharts";
 import { format, subMonths, startOfMonth, startOfYear, endOfMonth } from "date-fns";
+import { useActiveCampus } from "@/hooks/useActiveCampus";
 
 interface Props {
   schoolId: string | null;
@@ -49,21 +53,25 @@ const COLORS = ["hsl(var(--primary))", "hsl(var(--chart-2))", "hsl(var(--chart-3
 export function OwnerFinanceModule({ schoolId }: Props) {
   const [activeTab, setActiveTab] = useState("overview");
   const [periodFilter, setPeriodFilter] = useState("12m");
+  const activeCampusId = useActiveCampus(schoolId);
+  const campusEq = (q: any) => (activeCampusId ? q.eq("campus_id", activeCampusId) : q);
 
   // Date ranges
   const monthStart = useMemo(() => startOfMonth(new Date()), []);
   const yearStart = useMemo(() => startOfYear(new Date()), []);
 
+  const trendMonths = periodFilter === "3m" ? 3 : periodFilter === "6m" ? 6 : periodFilter === "ytd" ? Math.max(1, new Date().getMonth() + 1) : 12;
+
   // Fetch financial data
   const { data: financeData, isLoading } = useQuery({
-    queryKey: ["owner_finance", schoolId],
+    queryKey: ["owner_finance", schoolId, activeCampusId, trendMonths],
     queryFn: async () => {
       if (!schoolId) return null;
 
       const [paymentsRes, expensesRes, invoicesRes, payRunsRes, salariesRes] = await Promise.all([
-        supabase.from("finance_payments").select("*").eq("school_id", schoolId),
+        campusEq(supabase.from("fee_payments").select("*").eq("school_id", schoolId).eq("status", "success")),
         supabase.from("finance_expenses").select("*").eq("school_id", schoolId),
-        supabase.from("finance_invoices").select("*").eq("school_id", schoolId),
+        campusEq(supabase.from("fee_invoices").select("*").eq("school_id", schoolId)),
         supabase.from("hr_pay_runs").select("*").eq("school_id", schoolId),
         supabase.from("hr_salary_records").select("*").eq("school_id", schoolId).eq("is_active", true),
       ]);
@@ -93,12 +101,12 @@ export function OwnerFinanceModule({ schoolId }: Props) {
       );
 
       // Invoice metrics
-      const totalInvoiced = invoices.reduce((sum, i) => sum + Number(i.total || 0), 0);
+      const totalInvoiced = invoices.reduce((sum, i: any) => sum + Number(i.total_amount || i.total || 0), 0);
       const paidInvoices = invoices.filter((i) => i.status === "paid");
-      const collectedAmount = paidInvoices.reduce((sum, i) => sum + Number(i.total || 0), 0);
+      const collectedAmount = paidInvoices.reduce((sum, i: any) => sum + Number(i.total_amount || i.total || 0), 0);
       const collectionRate = totalInvoiced > 0 ? Math.round((collectedAmount / totalInvoiced) * 100) : 0;
       const pendingInvoices = invoices.filter((i) => i.status !== "paid");
-      const unpaidAmount = pendingInvoices.reduce((sum, i) => sum + Number(i.total || 0), 0);
+      const unpaidAmount = pendingInvoices.reduce((sum, i: any) => sum + Number(i.total_amount || i.total || 0), 0);
 
       // Expense breakdown by category
       const expenseByCategory: Record<string, number> = {};
@@ -107,9 +115,9 @@ export function OwnerFinanceModule({ schoolId }: Props) {
         expenseByCategory[cat] = (expenseByCategory[cat] || 0) + Number(e.amount || 0);
       });
 
-      // Monthly trend (12 months)
+      // Monthly trend (driven by period filter)
       const monthlyTrend: { month: string; revenue: number; expenses: number; profit: number; payroll: number }[] = [];
-      for (let i = 11; i >= 0; i--) {
+      for (let i = trendMonths - 1; i >= 0; i--) {
         const start = startOfMonth(subMonths(new Date(), i));
         const end = startOfMonth(subMonths(new Date(), i - 1));
 
@@ -210,7 +218,21 @@ export function OwnerFinanceModule({ schoolId }: Props) {
               <SelectItem value="ytd">Year to Date</SelectItem>
             </SelectContent>
           </Select>
-          <Button variant="outline" size="icon">
+          <Button
+            variant="outline"
+            size="icon"
+            aria-label="Export financial summary as CSV"
+            onClick={() => {
+              const rows = (financeData?.monthlyTrend || []).map((m) => ({
+                month: m.month,
+                revenue: m.revenue,
+                expenses: m.expenses,
+                payroll: m.payroll,
+                profit: m.profit,
+              }));
+              if (rows.length) exportToCSV(rows, `finance-summary-${new Date().toISOString().slice(0,10)}`);
+            }}
+          >
             <Download className="h-4 w-4" />
           </Button>
         </div>
@@ -309,11 +331,13 @@ export function OwnerFinanceModule({ schoolId }: Props) {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList>
+        <TabsList className="flex-wrap h-auto">
           <TabsTrigger value="overview">Cash Flow</TabsTrigger>
           <TabsTrigger value="expenses">Expense Breakdown</TabsTrigger>
           <TabsTrigger value="profitability">Profitability</TabsTrigger>
           <TabsTrigger value="collections">Collections</TabsTrigger>
+          <TabsTrigger value="defaulters">Fee Defaulters</TabsTrigger>
+          <TabsTrigger value="forecast">Salary Forecast</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="mt-6">
@@ -513,6 +537,14 @@ export function OwnerFinanceModule({ schoolId }: Props) {
               </CardContent>
             </Card>
           </div>
+        </TabsContent>
+
+        <TabsContent value="defaulters" className="mt-6">
+          {schoolId ? <FeeDefaultersReport schoolId={schoolId} /> : null}
+        </TabsContent>
+
+        <TabsContent value="forecast" className="mt-6">
+          <SalaryBudgetForecast />
         </TabsContent>
       </Tabs>
     </div>

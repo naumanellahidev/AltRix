@@ -1,12 +1,31 @@
 import { useEffect, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Calendar, GraduationCap, Receipt, Bell, Brain, TrendingUp, AlertTriangle, Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { ChildInfo } from "@/hooks/useMyChildren";
 import { StudentDigitalTwinCard } from "@/components/ai/StudentDigitalTwinCard";
 import { ParentTrustDashboard } from "@/components/ai/ParentTrustDashboard";
 import { useSession } from "@/hooks/useSession";
+import {
+  DashboardHeader,
+  QuickActionGrid,
+  StatTile,
+  ProgressRing,
+  SmartCard,
+  SectionTitle,
+} from "@/components/ui/dashboard-kit";
+import {
+  Calendar,
+  GraduationCap,
+  Receipt,
+  Bell,
+  Brain,
+  AlertTriangle,
+  Sparkles,
+  MessageSquare,
+  ScrollText,
+  HeartPulse,
+  BookOpen,
+  HeartHandshake,
+} from "lucide-react";
 
 interface ParentHomeModuleProps {
   child: ChildInfo | null;
@@ -31,7 +50,6 @@ const ParentHomeModule = ({ child, schoolId }: ParentHomeModuleProps) => {
       setLoading(true);
 
       try {
-        // Fetch attendance stats (last 30 days)
         const thirtyDaysAgo = new Date();
         thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
@@ -42,10 +60,10 @@ const ParentHomeModule = ({ child, schoolId }: ParentHomeModuleProps) => {
           .gte("created_at", thirtyDaysAgo.toISOString());
 
         const totalDays = attendance?.length || 0;
-        const presentDays = attendance?.filter((a) => a.status === "present" || a.status === "late").length || 0;
+        const presentDays =
+          attendance?.filter((a) => a.status === "present" || a.status === "late").length || 0;
         const attendanceRate = totalDays > 0 ? Math.round((presentDays / totalDays) * 100) : 100;
 
-        // Fetch pending assignments
         const { count: pendingAssignments } = await supabase
           .from("assignments")
           .select("id", { count: "exact", head: true })
@@ -53,22 +71,19 @@ const ParentHomeModule = ({ child, schoolId }: ParentHomeModuleProps) => {
           .eq("status", "active")
           .gte("due_date", new Date().toISOString().split("T")[0]);
 
-        // Fetch unpaid invoices
         const { count: unpaidFees } = await supabase
           .from("finance_invoices")
           .select("id", { count: "exact", head: true })
           .eq("student_id", child.student_id)
           .eq("status", "unpaid");
 
-        // Fetch unread notifications
-        const { data: user } = await supabase.auth.getUser();
+        const { data: u } = await supabase.auth.getUser();
         const { count: unreadNotifications } = await supabase
           .from("app_notifications")
           .select("id", { count: "exact", head: true })
-          .eq("user_id", user.user?.id || "")
+          .eq("user_id", u.user?.id || "")
           .is("read_at", null);
 
-        // Fetch recent grade
         const { data: recentMarks } = await supabase
           .from("student_marks")
           .select("marks, academic_assessments!inner(max_marks)")
@@ -79,7 +94,9 @@ const ParentHomeModule = ({ child, schoolId }: ParentHomeModuleProps) => {
         let recentGrade: number | null = null;
         if (recentMarks && recentMarks.length > 0 && recentMarks[0].marks != null) {
           const mark = recentMarks[0];
-          recentGrade = Math.round((mark.marks! / (mark.academic_assessments as any).max_marks) * 100);
+          recentGrade = Math.round(
+            (mark.marks! / (mark.academic_assessments as any).max_marks) * 100,
+          );
         }
 
         setStats({
@@ -101,182 +118,156 @@ const ParentHomeModule = ({ child, schoolId }: ParentHomeModuleProps) => {
 
   if (!child) {
     return (
-      <div className="text-center text-muted-foreground py-12">
-        <AlertTriangle className="mx-auto h-8 w-8 mb-3" />
-        <p>Please select a child to view their dashboard.</p>
-      </div>
+      <SmartCard
+        title="Select a child"
+        subtitle="Pick a child to view their dashboard"
+        icon={AlertTriangle}
+        tone="warning"
+      >
+        <p className="text-xs text-muted-foreground">
+          If you don't see your children listed, please contact the school administration.
+        </p>
+      </SmartCard>
     );
   }
 
-  const childName = [child.first_name, child.last_name].filter(Boolean).join(" ") || "Your Child";
+  const childName =
+    [child.first_name, child.last_name].filter(Boolean).join(" ") || "Your Child";
   const classSection = [child.class_name, child.section_name].filter(Boolean).join(" / ");
+  const initials = childName
+    .split(" ")
+    .map((s) => s[0])
+    .filter(Boolean)
+    .slice(0, 2)
+    .join("");
+
+  const quickActions = [
+    { label: "Attendance", icon: Calendar, to: "attendance", tone: "success" as const },
+    { label: "Grades", icon: GraduationCap, to: "grades", tone: "info" as const },
+    {
+      label: "Fees",
+      icon: Receipt,
+      to: "fees",
+      tone: "warning" as const,
+      badge: stats.unpaidFees,
+    },
+    {
+      label: "Messages",
+      icon: MessageSquare,
+      to: "messages",
+      badge: stats.unreadNotifications,
+    },
+    { label: "Behavior", icon: HeartPulse, to: "behavior" },
+    { label: "Diary", icon: BookOpen, to: "diary" },
+    { label: "Timetable", icon: Calendar, to: "timetable" },
+    { label: "Support", icon: HeartHandshake, to: "support" },
+  ];
 
   return (
-    <div className="space-y-6">
-      {/* Welcome Header */}
-      <div>
-        <h1 className="font-display text-2xl font-bold tracking-tight">
-          Welcome, Parent!
-        </h1>
-        <p className="text-muted-foreground">
-          Viewing dashboard for <span className="font-medium text-foreground">{childName}</span>
-          {classSection && <span className="text-muted-foreground"> • {classSection}</span>}
-        </p>
-      </div>
+    <div className="space-y-5 sm:space-y-6">
+      {/* Header showing the linked child */}
+      <DashboardHeader
+        name={childName}
+        role={classSection || "Student"}
+        subtitle="Parent view"
+        initials={initials}
+        right={
+          stats.unreadNotifications > 0 ? (
+            <span className="inline-flex items-center gap-1 rounded-full bg-warning/15 px-2.5 py-1 text-xs font-medium text-warning">
+              <Bell className="h-3.5 w-3.5" />
+              {stats.unreadNotifications} new
+            </span>
+          ) : undefined
+        }
+      />
 
-      {/* Quick Stats Grid */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Card className="shadow-sm">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Attendance Rate</CardTitle>
-            <Calendar className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-baseline gap-2">
-              <span className="text-2xl font-bold">
-                {loading ? "—" : `${stats.attendanceRate}%`}
-              </span>
-              {!loading && stats.attendanceRate >= 90 && (
-                <Badge variant="secondary" className="bg-emerald-500/10 text-emerald-600 text-[10px]">
-                  Excellent
-                </Badge>
-              )}
-            </div>
-            <p className="text-xs text-muted-foreground">Last 30 days</p>
-          </CardContent>
-        </Card>
-
-        <Card className="shadow-sm">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Latest Grade</CardTitle>
-            <GraduationCap className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-baseline gap-2">
-              <span className="text-2xl font-bold">
-                {loading ? "—" : stats.recentGrade != null ? `${stats.recentGrade}%` : "—"}
-              </span>
-              {!loading && stats.recentGrade != null && stats.recentGrade >= 80 && (
-                <Badge variant="secondary" className="bg-primary/10 text-primary text-[10px]">
-                  Great!
-                </Badge>
-              )}
-            </div>
-            <p className="text-xs text-muted-foreground">Most recent assessment</p>
-          </CardContent>
-        </Card>
-
-        <Card className="shadow-sm">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Unpaid Fees</CardTitle>
-            <Receipt className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-baseline gap-2">
-              <span className="text-2xl font-bold">
-                {loading ? "—" : stats.unpaidFees}
-              </span>
-              {!loading && stats.unpaidFees > 0 && (
-                <Badge variant="destructive" className="text-[10px]">
-                  Pending
-                </Badge>
-              )}
-            </div>
-            <p className="text-xs text-muted-foreground">Invoices pending</p>
-          </CardContent>
-        </Card>
-
-        <Card className="shadow-sm">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Notifications</CardTitle>
-            <Bell className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-baseline gap-2">
-              <span className="text-2xl font-bold">
-                {loading ? "—" : stats.unreadNotifications}
-              </span>
-              {!loading && stats.unreadNotifications > 0 && (
-                <Badge variant="secondary" className="bg-amber-500/10 text-amber-600 text-[10px]">
-                  New
-                </Badge>
-              )}
-            </div>
-            <p className="text-xs text-muted-foreground">Unread</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* AI Section Header */}
-      {schoolId && (
-        <div className="flex items-center gap-2 pt-2">
-          <Sparkles className="h-5 w-5 text-primary" />
-          <h2 className="font-display text-lg font-semibold">AI-Powered Insights</h2>
+      {/* KPI block: ring + tiles */}
+      <div className="grid gap-3 sm:gap-4 lg:grid-cols-[280px_1fr]">
+        <div className="card-premium card-premium-hover flex items-center gap-5 p-5 animate-rise">
+          <ProgressRing
+            value={stats.attendanceRate}
+            size={96}
+            stroke={10}
+            tone={
+              stats.attendanceRate >= 90
+                ? "success"
+                : stats.attendanceRate >= 75
+                  ? "primary"
+                  : "warning"
+            }
+            sublabel="30 days"
+          />
+          <div className="min-w-0">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Attendance
+            </p>
+            <p className="font-display text-xl font-semibold tracking-tight">
+              {loading ? "—" : `${stats.attendanceRate}%`}
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">Last 30 days summary.</p>
+          </div>
         </div>
-      )}
+
+        <div className="grid grid-cols-3 gap-3 sm:gap-4">
+          <StatTile
+            label="Latest grade"
+            value={loading ? "—" : stats.recentGrade != null ? `${stats.recentGrade}%` : "—"}
+            icon={GraduationCap}
+            tone={
+              stats.recentGrade != null && stats.recentGrade >= 80
+                ? "success"
+                : stats.recentGrade != null && stats.recentGrade >= 50
+                  ? "info"
+                  : "warning"
+            }
+          />
+          <StatTile
+            label="Unpaid fees"
+            value={loading ? "—" : stats.unpaidFees}
+            icon={Receipt}
+            tone={stats.unpaidFees > 0 ? "destructive" : "success"}
+          />
+          <StatTile
+            label="Open tasks"
+            value={loading ? "—" : stats.pendingAssignments}
+            icon={ScrollText}
+            tone="info"
+          />
+        </div>
+      </div>
+
+      {/* Quick actions */}
+      <div>
+        <SectionTitle title="Quick actions" />
+        <QuickActionGrid actions={quickActions} columns={{ base: 4, sm: 4, md: 4, lg: 8 }} />
+      </div>
 
       {/* AI Trust Dashboard */}
       {schoolId && user && (
-        <ParentTrustDashboard 
-          studentId={child.student_id} 
-          schoolId={schoolId}
-          parentUserId={user.id}
-        />
+        <SmartCard
+          title="AI-powered insights"
+          subtitle="Trust signals for your child"
+          icon={Sparkles}
+          tone="info"
+        >
+          <ParentTrustDashboard
+            studentId={child.student_id}
+            schoolId={schoolId}
+            parentUserId={user.id}
+          />
+        </SmartCard>
       )}
 
-      {/* AI Digital Twin - Compact View */}
+      {/* Learning profile (compact) */}
       {schoolId && (
-        <div className="space-y-3">
-          <div className="flex items-center gap-2">
-            <Brain className="h-4 w-4 text-muted-foreground" />
-            <h3 className="text-sm font-medium text-muted-foreground">Learning Profile</h3>
-          </div>
-          <StudentDigitalTwinCard 
-            studentId={child.student_id} 
+        <SmartCard title="Learning profile" subtitle="AI digital twin" icon={Brain}>
+          <StudentDigitalTwinCard
+            studentId={child.student_id}
             schoolId={schoolId}
             compact
           />
-        </div>
+        </SmartCard>
       )}
-
-      {/* Quick Links */}
-      <Card className="shadow-sm">
-        <CardHeader>
-          <CardTitle className="text-sm font-medium">Quick Links</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <a 
-              href="attendance" 
-              className="flex flex-col items-center gap-2 rounded-xl bg-muted/50 p-4 transition-colors hover:bg-muted"
-            >
-              <Calendar className="h-6 w-6 text-muted-foreground" />
-              <span className="text-xs font-medium">Attendance</span>
-            </a>
-            <a 
-              href="grades" 
-              className="flex flex-col items-center gap-2 rounded-xl bg-muted/50 p-4 transition-colors hover:bg-muted"
-            >
-              <GraduationCap className="h-6 w-6 text-muted-foreground" />
-              <span className="text-xs font-medium">Grades</span>
-            </a>
-            <a 
-              href="fees" 
-              className="flex flex-col items-center gap-2 rounded-xl bg-muted/50 p-4 transition-colors hover:bg-muted"
-            >
-              <Receipt className="h-6 w-6 text-muted-foreground" />
-              <span className="text-xs font-medium">Fees</span>
-            </a>
-            <a 
-              href="messages" 
-              className="flex flex-col items-center gap-2 rounded-xl bg-muted/50 p-4 transition-colors hover:bg-muted"
-            >
-              <TrendingUp className="h-6 w-6 text-muted-foreground" />
-              <span className="text-xs font-medium">Messages</span>
-            </a>
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 };

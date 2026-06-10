@@ -1,29 +1,73 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, lazy, Suspense } from "react";
 import { Navigate, Route, Routes, useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/hooks/useSession";
 import { useTenantOptimized } from "@/hooks/useTenantOptimized";
 import { useUniversalPrefetch } from "@/hooks/useUniversalPrefetch";
 import { OwnerShell } from "@/components/tenant/OwnerShell";
+import { RouteGuard } from "@/components/tenant/RouteGuard";
+import { createCatalogRouteElements } from "@/components/tenant/AutoCatalogRoutes";
 
-// Import all owner modules
-import { OwnerOverviewModule } from "@/pages/tenant/owner-modules/OwnerOverviewModule";
-import { OwnerAcademicsModule } from "@/pages/tenant/owner-modules/OwnerAcademicsModule";
-import { OwnerAdmissionsModule } from "@/pages/tenant/owner-modules/OwnerAdmissionsModule";
-import { OwnerFinanceModule } from "@/pages/tenant/owner-modules/OwnerFinanceModule";
-import { OwnerHrModule } from "@/pages/tenant/owner-modules/OwnerHrModule";
-import { OwnerWellbeingModule } from "@/pages/tenant/owner-modules/OwnerWellbeingModule";
-import { OwnerComplianceModule } from "@/pages/tenant/owner-modules/OwnerComplianceModule";
-import { OwnerCampusesModule } from "@/pages/tenant/owner-modules/OwnerCampusesModule";
-import { OwnerBrandModule } from "@/pages/tenant/owner-modules/OwnerBrandModule";
-import { OwnerSecurityModule } from "@/pages/tenant/owner-modules/OwnerSecurityModule";
-import { OwnerSupportModule } from "@/pages/tenant/owner-modules/OwnerSupportModule";
-import { OwnerAdvisorModule } from "@/pages/tenant/owner-modules/OwnerAdvisorModule";
-import { OwnerAIModule } from "@/pages/tenant/owner-modules/OwnerAIModule";
-import { MessagesModule } from "@/pages/tenant/modules/MessagesModule";
+// Import all owner modules dynamically
+const OwnerOverviewModule = lazy(() => import("@/pages/tenant/owner-modules/OwnerOverviewModule").then(m => ({ default: m.OwnerOverviewModule })));
+const OwnerAcademicsModule = lazy(() => import("@/pages/tenant/owner-modules/OwnerAcademicsModule").then(m => ({ default: m.OwnerAcademicsModule })));
+const OwnerAdmissionsModule = lazy(() => import("@/pages/tenant/owner-modules/OwnerAdmissionsModule").then(m => ({ default: m.OwnerAdmissionsModule })));
+const OwnerFinanceModule = lazy(() => import("@/pages/tenant/owner-modules/OwnerFinanceModule").then(m => ({ default: m.OwnerFinanceModule })));
+const OwnerHrModule = lazy(() => import("@/pages/tenant/owner-modules/OwnerHrModule").then(m => ({ default: m.OwnerHrModule })));
+const OwnerWellbeingModule = lazy(() => import("@/pages/tenant/owner-modules/OwnerWellbeingModule").then(m => ({ default: m.OwnerWellbeingModule })));
+const OwnerComplianceModule = lazy(() => import("@/pages/tenant/owner-modules/OwnerComplianceModule").then(m => ({ default: m.OwnerComplianceModule })));
+const OwnerCampusesModule = lazy(() => import("@/pages/tenant/owner-modules/OwnerCampusesModule").then(m => ({ default: m.OwnerCampusesModule })));
+const OwnerBrandModule = lazy(() => import("@/pages/tenant/owner-modules/OwnerBrandModule").then(m => ({ default: m.OwnerBrandModule })));
+const OwnerSecurityModule = lazy(() => import("@/pages/tenant/owner-modules/OwnerSecurityModule").then(m => ({ default: m.OwnerSecurityModule })));
+const OwnerSupportModule = lazy(() => import("@/pages/tenant/owner-modules/OwnerSupportModule").then(m => ({ default: m.OwnerSupportModule })));
+const OwnerAdvisorModule = lazy(() => import("@/pages/tenant/owner-modules/OwnerAdvisorModule").then(m => ({ default: m.OwnerAdvisorModule })));
+const OwnerAIModule = lazy(() => import("@/pages/tenant/owner-modules/OwnerAIModule").then(m => ({ default: m.OwnerAIModule })));
+const MessagesModule = lazy(() => import("@/pages/tenant/modules/MessagesModule").then(m => ({ default: m.MessagesModule })));
+const UsersModule = lazy(() => import("@/pages/tenant/modules/UsersModule").then(m => ({ default: m.UsersModule })));
+const CrmModule = lazy(() => import("@/pages/tenant/modules/CrmModule").then(m => ({ default: m.CrmModule })));
+const AcademicModule = lazy(() => import("@/pages/tenant/modules/AcademicModule").then(m => ({ default: m.AcademicModule })));
+const AttendanceModule = lazy(() => import("@/pages/tenant/modules/AttendanceModule").then(m => ({ default: m.AttendanceModule })));
+const ReportsModule = lazy(() => import("@/pages/tenant/modules/ReportsModule").then(m => ({ default: m.ReportsModule })));
+const FinanceModule = lazy(() => import("@/pages/tenant/modules/FinanceModule").then(m => ({ default: m.FinanceModule })));
+const TimetableBuilderModule = lazy(() => import("@/pages/tenant/modules/TimetableBuilderModule").then(m => ({ default: m.TimetableBuilderModule })));
+const HrLeavesModule = lazy(() => import("@/pages/tenant/hr-modules/HrLeavesModule").then(m => ({ default: m.HrLeavesModule })));
+const HrSalariesModule = lazy(() => import("@/pages/tenant/hr-modules/HrSalariesModule").then(m => ({ default: m.HrSalariesModule })));
+const HrContractsModule = lazy(() => import("@/pages/tenant/hr-modules/HrContractsModule").then(m => ({ default: m.HrContractsModule })));
+const HrReviewsModule = lazy(() => import("@/pages/tenant/hr-modules/HrReviewsModule").then(m => ({ default: m.HrReviewsModule })));
+const HrDocumentsModule = lazy(() => import("@/pages/tenant/hr-modules/HrDocumentsModule").then(m => ({ default: m.HrDocumentsModule })));
+const MarketingLeadsModule = lazy(() => import("@/pages/tenant/marketing-modules/MarketingLeadsModule").then(m => ({ default: m.MarketingLeadsModule })));
+const MarketingFollowUpsModule = lazy(() => import("@/pages/tenant/marketing-modules/MarketingFollowUpsModule").then(m => ({ default: m.MarketingFollowUpsModule })));
+const MarketingCallsModule = lazy(() => import("@/pages/tenant/marketing-modules/MarketingCallsModule").then(m => ({ default: m.MarketingCallsModule })));
+const MarketingSourcesModule = lazy(() => import("@/pages/tenant/marketing-modules/MarketingSourcesModule").then(m => ({ default: m.MarketingSourcesModule })));
+const MarketingCampaignsModule = lazy(() => import("@/pages/tenant/marketing-modules/MarketingCampaignsModule").then(m => ({ default: m.MarketingCampaignsModule })));
+const AccountantFeesModule = lazy(() => import("@/pages/tenant/accountant-modules/AccountantFeesModule").then(m => ({ default: m.AccountantFeesModule })));
+const AccountantInvoicesModule = lazy(() => import("@/pages/tenant/accountant-modules/AccountantInvoicesModule").then(m => ({ default: m.AccountantInvoicesModule })));
+const AccountantPaymentsModule = lazy(() => import("@/pages/tenant/accountant-modules/AccountantPaymentsModule").then(m => ({ default: m.AccountantPaymentsModule })));
+const AccountantExpensesModule = lazy(() => import("@/pages/tenant/accountant-modules/AccountantExpensesModule").then(m => ({ default: m.AccountantExpensesModule })));
+const AccountantPayrollModule = lazy(() => import("@/pages/tenant/accountant-modules/AccountantPayrollModule").then(m => ({ default: m.AccountantPayrollModule })));
+const AccountantLedgerModule = lazy(() => import("@/pages/tenant/accountant-modules/AccountantLedgerModule").then(m => ({ default: m.AccountantLedgerModule })));
+const AccountantVendorsModule = lazy(() => import("@/pages/tenant/accountant-modules/AccountantVendorsModule").then(m => ({ default: m.AccountantVendorsModule })));
+const AccountantTaxModule = lazy(() => import("@/pages/tenant/accountant-modules/AccountantTaxModule").then(m => ({ default: m.AccountantTaxModule })));
+const NoticesModule = lazy(() => import("@/pages/tenant/modules/NoticesModule"));
+const HolidaysModule = lazy(() => import("@/pages/tenant/modules/HolidaysModule"));
+const DiaryModule = lazy(() => import("@/pages/tenant/modules/DiaryModule"));
+const ExamsModule = lazy(() => import("@/pages/tenant/modules/ExamsModule"));
+const ReportCardModule = lazy(() => import("@/pages/tenant/modules/ReportCardModule"));
+const PrincipalComplaintsModule = lazy(() => import("@/pages/tenant/modules/PrincipalComplaintsModule"));
+const PrincipalParentNotesModule = lazy(() => import("@/pages/tenant/modules/PrincipalParentNotesModule"));
+const FeesAdvancedModule = lazy(() => import("@/pages/tenant/modules/FeesAdvancedModule"));
+const FeeVouchersModule = lazy(() => import("@/pages/tenant/modules/FeeVouchersModule"));
+const FeesUnifiedModule = lazy(() => import("@/pages/tenant/modules/FeesUnifiedModule"));
+const CounselingModule = lazy(() => import("@/pages/tenant/modules/CounselingModule").then(m => ({ default: m.CounselingModule })));
+
+const DashboardLoader = () => (
+  <div className="flex h-[50vh] items-center justify-center">
+    <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+  </div>
+);
 
 // Cache key for owner auth
-const OWNER_AUTHZ_CACHE = "eduverse_owner_authz_cache";
+const OWNER_AUTHZ_CACHE = "eduverse_owner_authz_cache_strict_v2";
 const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours
 
 interface CachedOwnerAuthz {
@@ -75,7 +119,7 @@ export default function OwnerDashboard() {
 
   const title = useMemo(() => {
     if (tenant.status === "ready") return `${tenant.school.name} • Owner`;
-    return "EDUVERSE • Owner";
+    return "AltRix • Owner";
   }, [tenant.status, tenant.school]);
 
   // Universal prefetch for offline support
@@ -123,36 +167,18 @@ export default function OwnerDashboard() {
     let cancelled = false;
 
     (async () => {
-      // Check platform super admin
-      const { data: psa } = await supabase
-        .from("platform_super_admins")
-        .select("user_id")
-        .eq("user_id", userId)
-        .maybeSingle();
-      if (cancelled) return;
-      if (psa?.user_id) {
-        setAuthzState("ok");
-        setCachedOwnerAuthz(schoolIdVal, userId, true);
-        return;
-      }
-
-      // Check school_owner role
-      const { data: roleRow, error: roleErr } = await supabase
-        .from("user_roles")
-        .select("id")
-        .eq("school_id", schoolIdVal)
-        .eq("user_id", userId)
-        .eq("role", "school_owner")
-        .maybeSingle();
+      const { data: ownedSchools, error: ownerErr } = await (supabase as any).rpc("owner_schools_strict");
 
       if (cancelled) return;
-      if (roleErr) {
+      if (ownerErr) {
         setAuthzState("denied");
-        setAuthzMessage(roleErr.message);
+        setAuthzMessage(ownerErr.message);
         setCachedOwnerAuthz(schoolIdVal, userId, false);
         return;
       }
-      if (!roleRow) {
+
+      const ownsCurrentSchool = Array.isArray(ownedSchools) && ownedSchools.some((school: any) => school.id === schoolIdVal);
+      if (!ownsCurrentSchool) {
         setAuthzState("denied");
         setAuthzMessage("You do not have the School Owner role for this institution.");
         setCachedOwnerAuthz(schoolIdVal, userId, false);
@@ -215,22 +241,77 @@ export default function OwnerDashboard() {
           <p className="mt-3 text-sm text-muted-foreground">Verifying executive access…</p>
         </div>
       ) : (
-        <Routes>
-          <Route index element={<OwnerOverviewModule schoolId={schoolId} />} />
-          <Route path="academics" element={<OwnerAcademicsModule schoolId={schoolId} />} />
-          <Route path="admissions" element={<OwnerAdmissionsModule schoolId={schoolId} />} />
-          <Route path="finance" element={<OwnerFinanceModule schoolId={schoolId} />} />
-          <Route path="hr" element={<OwnerHrModule schoolId={schoolId} />} />
-          <Route path="wellbeing" element={<OwnerWellbeingModule schoolId={schoolId} />} />
-          <Route path="compliance" element={<OwnerComplianceModule schoolId={schoolId} />} />
-          <Route path="campuses" element={<OwnerCampusesModule schoolId={schoolId} />} />
-          <Route path="brand" element={<OwnerBrandModule schoolId={schoolId} />} />
-          <Route path="security" element={<OwnerSecurityModule schoolId={schoolId} />} />
-          <Route path="support" element={<OwnerSupportModule schoolId={schoolId} />} />
-          <Route path="advisor" element={<OwnerAdvisorModule schoolId={schoolId} />} />
-          <Route path="ai" element={<OwnerAIModule schoolId={schoolId} />} />
-          <Route path="messages" element={<MessagesModule schoolId={schoolId} />} />
-        </Routes>
+        <RouteGuard extraAllowedPaths={[
+          "academics","admissions","finance","hr","wellbeing","compliance",
+          "campuses","brand","security","support","advisor","ai","messages",
+          "ledger","vendors","tax",
+        ]}>
+        <Suspense fallback={<DashboardLoader />}>
+          <Routes>
+            <Route index element={<OwnerOverviewModule schoolId={schoolId} />} />
+            <Route path="academics" element={<OwnerAcademicsModule schoolId={schoolId} />} />
+            <Route path="academic" element={<AcademicModule />} />
+            <Route path="timetable" element={<TimetableBuilderModule />} />
+            <Route path="attendance" element={<AttendanceModule />} />
+            <Route path="exams" element={<ExamsModule schoolId={schoolId} canManage />} />
+            <Route path="report-cards" element={<ReportCardModule schoolId={schoolId} canManage />} />
+            <Route path="diary" element={<DiaryModule schoolId={schoolId} canManage />} />
+            <Route path="admissions" element={<OwnerAdmissionsModule schoolId={schoolId} />} />
+            <Route path="users" element={<UsersModule />} />
+            <Route path="leaves" element={<HrLeavesModule />} />
+            <Route path="salaries" element={<HrSalariesModule />} />
+            <Route path="contracts" element={<HrContractsModule />} />
+            <Route path="reviews" element={<HrReviewsModule />} />
+            <Route path="documents" element={<HrDocumentsModule />} />
+            <Route path="crm" element={<CrmModule />} />
+            <Route path="leads" element={<MarketingLeadsModule />} />
+            <Route path="follow-ups" element={<MarketingFollowUpsModule />} />
+            <Route path="calls" element={<MarketingCallsModule />} />
+            <Route path="sources" element={<MarketingSourcesModule />} />
+            <Route path="campaigns" element={<MarketingCampaignsModule />} />
+            <Route path="parent-notes" element={<PrincipalParentNotesModule />} />
+            <Route path="finance" element={<OwnerFinanceModule schoolId={schoolId} />} />
+            <Route path="fees" element={<FeesUnifiedModule />} />
+            <Route path="invoices" element={<AccountantInvoicesModule />} />
+            <Route path="payments" element={<AccountantPaymentsModule />} />
+            <Route path="expenses" element={<AccountantExpensesModule />} />
+            <Route path="payroll" element={<AccountantPayrollModule />} />
+            <Route path="ledger" element={<AccountantLedgerModule />} />
+            <Route path="vendors" element={<AccountantVendorsModule />} />
+            <Route path="tax" element={<AccountantTaxModule />} />
+            <Route path="fees-pro" element={<Navigate to={`/${schoolSlug}/owner/fees?tab=advanced`} replace />} />
+            <Route path="fee-vouchers" element={<Navigate to={`/${schoolSlug}/owner/fees?tab=vouchers`} replace />} />
+            <Route path="hr" element={<OwnerHrModule schoolId={schoolId} />} />
+            <Route path="wellbeing" element={<OwnerWellbeingModule schoolId={schoolId} />} />
+            <Route path="compliance" element={<OwnerComplianceModule schoolId={schoolId} />} />
+            <Route path="campuses" element={<OwnerCampusesModule schoolId={schoolId} />} />
+            <Route path="brand" element={<OwnerBrandModule schoolId={schoolId} />} />
+            <Route path="security" element={<OwnerSecurityModule schoolId={schoolId} />} />
+            <Route path="support" element={<OwnerSupportModule schoolId={schoolId} />} />
+            <Route path="advisor" element={<OwnerAdvisorModule schoolId={schoolId} />} />
+            <Route path="ai" element={<OwnerAIModule schoolId={schoolId} />} />
+            <Route path="messages" element={<MessagesModule schoolId={schoolId} />} />
+            <Route path="notices" element={<NoticesModule schoolId={schoolId} canManage />} />
+            <Route path="holidays" element={<HolidaysModule schoolId={schoolId} canManage />} />
+            <Route path="reports" element={<ReportsModule />} />
+            <Route path="complaints" element={<PrincipalComplaintsModule />} />
+            <Route path="counseling" element={<CounselingModule schoolId={schoolId} />} />
+            {createCatalogRouteElements({
+              roles: ["school_owner"],
+              ctx: { schoolId, schoolSlug: tenant.slug, role: "school_owner" },
+              exclude: [
+                "academics","academic","timetable","attendance","exams","report-cards","diary",
+                "admissions","users","leaves","salaries","contracts","reviews","documents",
+                "crm","leads","follow-ups","calls","sources","campaigns","parent-notes",
+                "finance","fees","fees-pro","fee-vouchers","invoices","payments","expenses",
+                "payroll","ledger","vendors","tax",
+                "hr","wellbeing","compliance","campuses","brand","security","support",
+                "advisor","ai","messages","notices","holidays","reports","complaints","counseling",
+              ],
+            })}
+          </Routes>
+        </Suspense>
+        </RouteGuard>
       )}
     </OwnerShell>
   );

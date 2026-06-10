@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase, USE_FASTAPI } from "@/integrations/supabase/client";
+import { apiClient } from "@/lib/api-client";
 import { toast } from "@/components/ui/sonner";
 
 export type AlertSettings = {
@@ -27,23 +28,27 @@ export function useAlertSettings(schoolId: string | null) {
     queryFn: async () => {
       if (!schoolId) return null;
 
-      const { data, error } = await supabase
-        .from("school_alert_settings")
-        .select("*")
-        .eq("school_id", schoolId)
-        .maybeSingle();
+      if (USE_FASTAPI) {
+        const resp = await apiClient.get<AlertSettings>("/schools/alert-settings");
+        return resp.data;
+      } else {
+        const { data, error } = await (supabase as any)
+          .from("school_alert_settings")
+          .select("*")
+          .eq("school_id", schoolId)
+          .maybeSingle();
 
-      if (error) throw error;
+        if (error) throw error;
 
-      // Return settings or defaults if none exist
-      if (!data) {
-        return {
-          school_id: schoolId,
-          ...DEFAULT_SETTINGS,
-        } as AlertSettings;
+        if (!data) {
+          return {
+            school_id: schoolId,
+            ...DEFAULT_SETTINGS,
+          } as AlertSettings;
+        }
+
+        return data as AlertSettings;
       }
-
-      return data as AlertSettings;
     },
     enabled: !!schoolId,
   });
@@ -60,11 +65,15 @@ export function useAlertSettings(schoolId: string | null) {
         support_ticket_hours: settings.support_ticket_hours ?? DEFAULT_SETTINGS.support_ticket_hours,
       };
 
-      const { error } = await supabase
-        .from("school_alert_settings")
-        .upsert(payload, { onConflict: "school_id" });
+      if (USE_FASTAPI) {
+        await apiClient.post("/schools/alert-settings", payload);
+      } else {
+        const { error } = await (supabase as any)
+          .from("school_alert_settings")
+          .upsert(payload, { onConflict: "school_id" });
 
-      if (error) throw error;
+        if (error) throw error;
+      }
 
       return payload;
     },

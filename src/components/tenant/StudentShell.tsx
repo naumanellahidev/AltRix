@@ -4,7 +4,7 @@ import { NavLink } from "@/components/NavLink";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { BookOpen, CalendarDays, GraduationCap, Headphones, LayoutGrid, ScrollText, MessageSquare, Sparkles, Menu, LogOut, Brain } from "lucide-react";
+import { BookOpen, CalendarDays, FileText, GraduationCap, Headphones, LayoutGrid, Megaphone, NotebookPen, ScrollText, MessageSquare, Sparkles, Menu, LogOut, Brain, PartyPopper, ShieldAlert } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { GlobalCommandPalette } from "@/components/global/GlobalCommandPalette";
 import { NotificationsBell } from "@/components/global/NotificationsBell";
@@ -51,8 +51,14 @@ export function StudentShell({ title, subtitle, schoolSlug, children }: Props) {
     { to: `${basePath}/grades`, icon: BookOpen, label: "Grades", badge: 0 },
     { to: `${basePath}/timetable`, icon: ScrollText, label: "Timetable", badge: 0 },
     { to: `${basePath}/assignments`, icon: ScrollText, label: "Assignments", badge: 0 },
+    { to: `${basePath}/exams`, icon: GraduationCap, label: "Exams", badge: 0 },
+    { to: `${basePath}/report-card`, icon: FileText, label: "Report Card", badge: 0 },
+    { to: `${basePath}/diary`, icon: NotebookPen, label: "Diary", badge: 0 },
+    { to: `${basePath}/notices`, icon: Megaphone, label: "Notices", badge: 0 },
+    { to: `${basePath}/holidays`, icon: PartyPopper, label: "Holidays", badge: 0 },
     { to: `${basePath}/certificates`, icon: GraduationCap, label: "Certificates", badge: 0 },
     { to: `${basePath}/messages`, icon: MessageSquare, label: "Messages", badge: unreadCount },
+    { to: `${basePath}/complaints`, icon: ShieldAlert, label: "Complaints", badge: 0 },
     { to: `${basePath}/support`, icon: Headphones, label: "Support", badge: 0 },
   ];
 
@@ -67,7 +73,7 @@ export function StudentShell({ title, subtitle, schoolSlug, children }: Props) {
     <>
       <div className="flex items-center justify-between">
         <div>
-          <p className="font-display text-lg font-semibold tracking-tight">EDUVERSE</p>
+          <p className="font-display text-lg font-semibold tracking-tight bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">AltRix</p>
           <p className="text-xs text-muted-foreground">/{schoolSlug} • Student</p>
         </div>
         <div className="flex items-center gap-2">
@@ -148,7 +154,7 @@ export function StudentShell({ title, subtitle, schoolSlug, children }: Props) {
                 <Menu className="h-5 w-5" />
               </Button>
             </SheetTrigger>
-            <SheetContent side="left" className="w-[280px] p-4">
+            <SheetContent side="left" className="w-[280px] p-4 overflow-y-auto">
               <NavContent />
             </SheetContent>
           </Sheet>
@@ -179,7 +185,7 @@ export function StudentShell({ title, subtitle, schoolSlug, children }: Props) {
         </div>
       </header>
 
-      <div className="mx-auto grid w-full max-w-7xl grid-cols-1 gap-4 px-4 py-4 lg:grid-cols-[280px_1fr] lg:gap-6 lg:px-6 lg:py-6">
+      <div className="grid w-full grid-cols-1 gap-4 px-4 py-4 lg:grid-cols-[280px_1fr] lg:gap-6 lg:px-6 lg:py-6">
         {/* Desktop Sidebar */}
         <aside className="sticky top-6 hidden self-start max-h-[calc(100vh-3rem)] overflow-y-auto rounded-3xl bg-surface p-4 shadow-elevated lg:block">
           <NavContent />
@@ -187,10 +193,27 @@ export function StudentShell({ title, subtitle, schoolSlug, children }: Props) {
 
         {/* Main Content */}
         <section className="rounded-2xl bg-surface p-4 shadow-elevated lg:rounded-3xl lg:p-6">
-          <header className="mb-4 hidden lg:mb-6 lg:block">
-            <p className="font-display text-2xl font-semibold tracking-tight">{title}</p>
-            {subtitle && <p className="mt-1 text-sm text-muted-foreground">{subtitle}</p>}
-          </header>
+          {/* Desktop Header */}
+      <header className="mb-4 hidden lg:mb-6 lg:block">
+        <div className="flex items-center justify-between">
+          <div className="min-w-0">
+            <h1 className="font-display text-2xl font-semibold tracking-tight">{title}</h1>
+            {user?.email && (
+              <p className="mt-1 text-sm text-muted-foreground">
+                You are signed in as {user.email}
+              </p>
+            )}
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleLogout}
+            className="rounded-xl"
+          >
+            <LogOut className="mr-2 h-4 w-4" /> Logout
+          </Button>
+        </div>
+      </header>
           {children}
         </section>
       </div>

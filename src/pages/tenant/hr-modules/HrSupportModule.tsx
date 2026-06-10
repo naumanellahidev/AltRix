@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { useParams } from "react-router-dom";
 import { useTenant } from "@/hooks/useTenant";
-import { SupportInbox } from "@/pages/tenant/modules/components/SupportInbox";
+import { SupportModule } from "@/pages/tenant/modules/SupportModule";
 
 export function HrSupportModule() {
   const { schoolSlug } = useParams();
@@ -15,5 +15,5 @@ export function HrSupportModule() {
     return <p className="text-sm text-muted-foreground">Loading...</p>;
   }
 
-  return <SupportInbox schoolId={schoolId} />;
+  return <SupportModule schoolId={schoolId} />;
 }

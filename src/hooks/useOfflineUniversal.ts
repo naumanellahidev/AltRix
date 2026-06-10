@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase, rawSupabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import {
   addToOfflineQueue,
@@ -77,32 +77,7 @@ export function useOfflineUniversal({
     setSyncMetadata(metadata);
   }, []);
 
-  // Monitor online status
-  useEffect(() => {
-    const handleOnline = () => {
-      setIsOnline(true);
-      toast.success("Back online! Syncing pending changes...");
-      if (autoSync) syncPendingItems();
-    };
-    
-    const handleOffline = () => {
-      setIsOnline(false);
-      toast.warning("You're offline. Changes will be saved locally.");
-    };
 
-    window.addEventListener("online", handleOnline);
-    window.addEventListener("offline", handleOffline);
-    
-    refreshStats();
-    
-    const interval = setInterval(refreshStats, syncIntervalMs);
-
-    return () => {
-      window.removeEventListener("online", handleOnline);
-      window.removeEventListener("offline", handleOffline);
-      clearInterval(interval);
-    };
-  }, [refreshStats, autoSync, syncIntervalMs]);
 
   // Sync single item
   const syncItem = useCallback(async (item: OfflineQueueItem): Promise<boolean> => {
@@ -112,7 +87,7 @@ export function useOfflineUniversal({
       switch (item.type) {
         case 'attendance': {
           const { session_id, student_id, status, note } = item.data as any;
-          const { error } = await supabase.from("attendance_entries").upsert(
+          const { error } = await rawSupabase.from("attendance_entries").upsert(
             { school_id: schoolId, session_id, student_id, status, note: note || null, created_by: userId },
             { onConflict: "school_id,session_id,student_id" }
           );
@@ -122,7 +97,7 @@ export function useOfflineUniversal({
         
         case 'period_log': {
           const { timetable_entry_id, logged_at, topic_covered, notes, status } = item.data as any;
-          const { error } = await supabase.from("teacher_period_logs").upsert(
+          const { error } = await rawSupabase.from("teacher_period_logs").upsert(
             { school_id: schoolId, timetable_entry_id, logged_at, topic_covered: topic_covered || "", notes: notes || null, status: status || "completed", teacher_user_id: userId },
             { onConflict: "school_id,timetable_entry_id,logged_at" }
           );
@@ -132,7 +107,7 @@ export function useOfflineUniversal({
         
         case 'behavior_note': {
           const { student_id, title, content, note_type, is_shared_with_parents } = item.data as any;
-          const { error } = await supabase.from("behavior_notes").insert({
+          const { error } = await rawSupabase.from("behavior_notes").insert({
             school_id: schoolId, student_id, title, content, note_type, is_shared_with_parents, teacher_user_id: userId, created_by: userId,
           });
           if (error) throw error;
@@ -141,7 +116,7 @@ export function useOfflineUniversal({
         
         case 'homework': {
           const { class_section_id, title, description, due_date, attachment_urls } = item.data as any;
-          const { error } = await supabase.from("homework").insert({
+          const { error } = await rawSupabase.from("homework").insert({
             school_id: schoolId, class_section_id, title, description: description || null, due_date, attachment_urls: attachment_urls || null, teacher_user_id: userId, created_by: userId,
           });
           if (error) throw error;
@@ -150,7 +125,7 @@ export function useOfflineUniversal({
         
         case 'quick_grade': {
           const { assessment_id, student_id, marks } = item.data as any;
-          const { error } = await supabase.from("student_marks").upsert(
+          const { error } = await rawSupabase.from("student_marks").upsert(
             { school_id: schoolId, assessment_id, student_id, marks, created_by: userId },
             { onConflict: "school_id,assessment_id,student_id" }
           );
@@ -160,7 +135,7 @@ export function useOfflineUniversal({
         
         case 'message': {
           const { recipient_user_ids, subject, content, priority } = item.data as any;
-          const { data: message, error: msgError } = await supabase
+          const { data: message, error: msgError } = await rawSupabase
             .from("admin_messages")
             .insert({ school_id: schoolId, sender_user_id: userId, subject, content, priority: priority || "normal", created_by: userId })
             .select("id")
@@ -171,14 +146,14 @@ export function useOfflineUniversal({
             message_id: message.id,
             recipient_user_id: recipientId,
           }));
-          const { error: recError } = await supabase.from("admin_message_recipients").insert(recipients);
+          const { error: recError } = await rawSupabase.from("admin_message_recipients").insert(recipients);
           if (recError) throw recError;
           break;
         }
 
         case 'support_ticket': {
           const { subject, message: ticketMessage, priority } = item.data as any;
-          const { error } = await supabase.from("admin_messages").insert({
+          const { error } = await rawSupabase.from("admin_messages").insert({
             school_id: schoolId, sender_user_id: userId, subject, content: ticketMessage, priority: priority || "normal", status: "open", created_by: userId,
           });
           if (error) throw error;
@@ -187,7 +162,7 @@ export function useOfflineUniversal({
 
         case 'expense': {
           const { description, amount, category, expense_date, vendor, reference } = item.data as any;
-          const { error } = await supabase.from("finance_expenses").insert({
+          const { error } = await rawSupabase.from("finance_expenses").insert({
             school_id: schoolId, description, amount, category: category || "general", expense_date: expense_date || new Date().toISOString().split('T')[0], vendor, reference, created_by: userId,
           });
           if (error) throw error;
@@ -196,7 +171,7 @@ export function useOfflineUniversal({
 
         case 'payment': {
           const { invoice_id, student_id, amount, paid_at, reference, notes } = item.data as any;
-          const { error } = await supabase.from("finance_payments").insert({
+          const { error } = await rawSupabase.from("finance_payments").insert({
             school_id: schoolId, invoice_id, student_id, amount, paid_at: paid_at || new Date().toISOString(), reference, notes, received_by: userId, created_by: userId,
           });
           if (error) throw error;
@@ -205,7 +180,7 @@ export function useOfflineUniversal({
 
         case 'leave_request': {
           const { leave_type_id, start_date, end_date, days_count, reason } = item.data as any;
-          const { error } = await supabase.from("hr_leave_requests").insert({
+          const { error } = await rawSupabase.from("hr_leave_requests").insert({
             school_id: schoolId, user_id: userId, leave_type_id, start_date, end_date, days_count, reason, status: "pending", created_by: userId,
           });
           if (error) throw error;
@@ -220,16 +195,48 @@ export function useOfflineUniversal({
           if (score !== undefined) updates.score = score;
           if (next_follow_up_at) updates.next_follow_up_at = next_follow_up_at;
           
-          const { error } = await supabase.from("crm_leads").update(updates).eq("id", lead_id).eq("school_id", schoolId);
+          const { error } = await rawSupabase.from("crm_leads").update(updates).eq("id", lead_id).eq("school_id", schoolId);
           if (error) throw error;
           break;
         }
 
         case 'call_log': {
           const { lead_id, outcome, duration_seconds, notes, called_at } = item.data as any;
-          const { error } = await supabase.from("crm_call_logs").insert({
+          const { error } = await rawSupabase.from("crm_call_logs").insert({
             school_id: schoolId, lead_id, outcome: outcome || "completed", duration_seconds: duration_seconds || 0, notes, called_at: called_at || new Date().toISOString(), created_by: userId,
           });
+          if (error) throw error;
+          break;
+        }
+
+        case 'generic_mutation': {
+          const { table, action, payload, filters } = item.data as {
+            table: string;
+            action: 'insert' | 'update' | 'upsert' | 'delete';
+            payload: any;
+            filters?: { method: string; args: any[] }[];
+          };
+          
+          let query = rawSupabase.from(table);
+          if (action === 'insert') {
+            query = query.insert(payload) as any;
+          } else if (action === 'update') {
+            query = query.update(payload) as any;
+          } else if (action === 'delete') {
+            query = query.delete() as any;
+          } else if (action === 'upsert') {
+            query = query.upsert(payload) as any;
+          }
+          
+          if (filters && filters.length > 0) {
+            for (const filter of filters) {
+              if (typeof (query as any)[filter.method] === 'function') {
+                query = (query as any)[filter.method](...filter.args);
+              }
+            }
+          }
+          
+          const { error } = await query;
           if (error) throw error;
           break;
         }
@@ -342,6 +349,42 @@ export function useOfflineUniversal({
       priority,
     }, 'high');
   }, [queueOfflineAction]);
+
+  // Monitor online status and custom sync triggers
+  useEffect(() => {
+    const handleOnline = () => {
+      setIsOnline(true);
+      toast.success("Back online! Syncing pending changes...");
+      if (autoSync) syncPendingItems();
+    };
+    
+    const handleOffline = () => {
+      setIsOnline(false);
+      toast.warning("You're offline. Changes will be saved locally.");
+    };
+
+    const handleQueueChanged = () => {
+      refreshStats();
+      if (navigator.onLine && autoSync) {
+        syncPendingItems();
+      }
+    };
+
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+    window.addEventListener("eduverse:offline-queue-changed", handleQueueChanged);
+    
+    refreshStats();
+    
+    const interval = setInterval(refreshStats, syncIntervalMs);
+
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+      window.removeEventListener("eduverse:offline-queue-changed", handleQueueChanged);
+      clearInterval(interval);
+    };
+  }, [refreshStats, autoSync, syncIntervalMs, syncPendingItems]);
 
   return {
     isOnline,

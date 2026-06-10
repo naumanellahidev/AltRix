@@ -30,7 +30,8 @@ import {
   ReferenceLine,
 } from "recharts";
 
-import { supabase } from "@/integrations/supabase/client";
+import { supabase, USE_FASTAPI } from "@/integrations/supabase/client";
+import { apiClient } from "@/lib/api-client";
 import { useTenant } from "@/hooks/useTenant";
 
 import { Button } from "@/components/ui/button";
@@ -110,14 +111,19 @@ export function SalaryBudgetForecast() {
   const { data: budgetTargets = [] } = useQuery({
     queryKey: ["salary_budget_targets", schoolId, selectedYear],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("salary_budget_targets")
-        .select("*")
-        .eq("school_id", schoolId!)
-        .eq("fiscal_year", selectedYear)
-        .order("role", { ascending: true });
-      if (error) throw error;
-      return (data || []) as BudgetTarget[];
+      if (USE_FASTAPI) {
+        const { data } = await apiClient.get(`/finance/budget-targets?school_id=${schoolId}&year=${selectedYear}`);
+        return (data || []) as BudgetTarget[];
+      } else {
+        const { data, error } = await supabase
+          .from("salary_budget_targets")
+          .select("*")
+          .eq("school_id", schoolId!)
+          .eq("fiscal_year", selectedYear)
+          .order("role", { ascending: true });
+        if (error) throw error;
+        return (data || []) as BudgetTarget[];
+      }
     },
     enabled: !!schoolId,
   });
@@ -126,17 +132,22 @@ export function SalaryBudgetForecast() {
   const { data: salaryRecords = [] } = useQuery({
     queryKey: ["hr_salary_records_forecast", schoolId],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("hr_salary_records")
-        .select("id, user_id, base_salary, allowances, deductions, is_active")
-        .eq("school_id", schoolId!)
-        .eq("is_active", true);
-      if (error) throw error;
-      return (data || []).map((r) => ({
-        ...r,
-        allowances: r.allowances || 0,
-        deductions: r.deductions || 0,
-      })) as SalaryRecord[];
+      if (USE_FASTAPI) {
+        const { data } = await apiClient.get(`/finance/salary-records?school_id=${schoolId}`);
+        return (data || []) as SalaryRecord[];
+      } else {
+        const { data, error } = await supabase
+          .from("hr_salary_records")
+          .select("id, user_id, base_salary, allowances, deductions, is_active")
+          .eq("school_id", schoolId!)
+          .eq("is_active", true);
+        if (error) throw error;
+        return (data || []).map((r) => ({
+          ...r,
+          allowances: r.allowances || 0,
+          deductions: r.deductions || 0,
+        })) as SalaryRecord[];
+      }
     },
     enabled: !!schoolId,
   });
@@ -145,12 +156,17 @@ export function SalaryBudgetForecast() {
   const { data: staffRoles = [] } = useQuery({
     queryKey: ["staff_roles_forecast", schoolId],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("user_roles")
-        .select("user_id, role")
-        .eq("school_id", schoolId!);
-      if (error) throw error;
-      return (data || []) as StaffWithRole[];
+      if (USE_FASTAPI) {
+        const { data } = await apiClient.get(`/finance/staff-roles?school_id=${schoolId}`);
+        return (data || []) as StaffWithRole[];
+      } else {
+        const { data, error } = await supabase
+          .from("user_roles")
+          .select("user_id, role")
+          .eq("school_id", schoolId!);
+        if (error) throw error;
+        return (data || []) as StaffWithRole[];
+      }
     },
     enabled: !!schoolId,
   });
@@ -275,54 +291,70 @@ export function SalaryBudgetForecast() {
       return;
     }
 
-    if (editingBudget) {
-      const { error } = await supabase
-        .from("salary_budget_targets")
-        .update({
-          role: formRole || null,
-          department: formDepartment || null,
-          budget_amount: amount,
-          notes: formNotes.trim() || null,
-        })
-        .eq("id", editingBudget.id);
-
-      if (error) {
-        toast.error(error.message);
-        return;
-      }
-      toast.success("Budget updated");
-    } else {
-      const { error } = await supabase.from("salary_budget_targets").insert([
-        {
+    try {
+      if (USE_FASTAPI) {
+        const body = {
+          id: editingBudget?.id || undefined,
           school_id: schoolId,
           fiscal_year: selectedYear,
           role: formRole || null,
           department: formDepartment || null,
           budget_amount: amount,
           notes: formNotes.trim() || null,
-        },
-      ]);
+        };
+        await apiClient.post("/finance/budget-targets", body);
+        toast.success(editingBudget ? "Budget updated" : "Budget target added");
+      } else {
+        if (editingBudget) {
+          const { error } = await supabase
+            .from("salary_budget_targets")
+            .update({
+              role: formRole || null,
+              department: formDepartment || null,
+              budget_amount: amount,
+              notes: formNotes.trim() || null,
+            })
+            .eq("id", editingBudget.id);
 
-      if (error) {
-        toast.error(error.message);
-        return;
+          if (error) throw error;
+          toast.success("Budget updated");
+        } else {
+          const { error } = await supabase.from("salary_budget_targets").insert([
+            {
+              school_id: schoolId,
+              fiscal_year: selectedYear,
+              role: formRole || null,
+              department: formDepartment || null,
+              budget_amount: amount,
+              notes: formNotes.trim() || null,
+            },
+          ]);
+
+          if (error) throw error;
+          toast.success("Budget target added");
+        }
       }
-      toast.success("Budget target added");
+      setDialogOpen(false);
+      resetForm();
+      queryClient.invalidateQueries({ queryKey: ["salary_budget_targets", schoolId, selectedYear] });
+    } catch (err: any) {
+      toast.error(err.message || "Failed to save budget target");
     }
-
-    setDialogOpen(false);
-    resetForm();
-    queryClient.invalidateQueries({ queryKey: ["salary_budget_targets", schoolId, selectedYear] });
   };
 
   const handleDeleteBudget = async (id: string) => {
-    const { error } = await supabase.from("salary_budget_targets").delete().eq("id", id);
-    if (error) {
-      toast.error(error.message);
-      return;
+    try {
+      if (USE_FASTAPI) {
+        await apiClient.delete(`/finance/budget-targets/${id}`);
+      } else {
+        const { error } = await supabase.from("salary_budget_targets").delete().eq("id", id);
+        if (error) throw error;
+      }
+      toast.success("Budget target deleted");
+      queryClient.invalidateQueries({ queryKey: ["salary_budget_targets", schoolId, selectedYear] });
+    } catch (err: any) {
+      toast.error(err.message || "Failed to delete budget target");
     }
-    toast.success("Budget target deleted");
-    queryClient.invalidateQueries({ queryKey: ["salary_budget_targets", schoolId, selectedYear] });
   };
 
   const getVarianceColor = (variance: number) => {

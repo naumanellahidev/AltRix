@@ -120,15 +120,15 @@ export function WorkspaceMessagesTab({ schoolId, canCompose = true }: Props) {
 
     // Fetch profiles from profiles table using user_id
     if (userIds.size > 0) {
-      const { data: profiles } = await supabase
+      const { data: profiles } = await (supabase as any)
         .from("profiles")
-        .select("user_id, display_name")
-        .in("user_id", Array.from(userIds));
+        .select("id, display_name")
+        .in("id", Array.from(userIds));
 
       const map: Record<string, string> = {};
-      profiles?.forEach((p) => {
-        if (p.user_id && p.display_name) {
-          map[p.user_id] = p.display_name;
+      (profiles as any[] || []).forEach((p: any) => {
+        if (p.id && p.display_name) {
+          map[p.id] = p.display_name;
         }
       });
 
@@ -376,15 +376,15 @@ export function WorkspaceMessagesTab({ schoolId, canCompose = true }: Props) {
         const userIds = data.map((r) => r.recipient_user_id);
         
         // Fetch from profiles
-        const { data: profiles } = await supabase
+        const { data: profiles } = await (supabase as any)
           .from("profiles")
-          .select("user_id, display_name")
-          .in("user_id", userIds);
+          .select("id, display_name")
+          .in("id", userIds);
 
         const nameMap: Record<string, string> = {};
-        profiles?.forEach((p) => {
-          if (p.user_id && p.display_name) {
-            nameMap[p.user_id] = p.display_name;
+        (profiles as any[] || []).forEach((p: any) => {
+          if (p.id && p.display_name) {
+            nameMap[p.id] = p.display_name;
           }
         });
 

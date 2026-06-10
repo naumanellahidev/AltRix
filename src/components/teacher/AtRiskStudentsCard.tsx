@@ -10,6 +10,8 @@ interface AtRiskStudent {
   first_name: string;
   last_name: string | null;
   class_section_id: string;
+  class_name: string | null;
+  section_name: string | null;
   attendance_rate: number;
   avg_grade_percentage: number;
   recent_grade_avg: number;
@@ -32,14 +34,14 @@ export function AtRiskStudentsCard({ schoolId, sectionIds }: Props) {
   const loadAtRiskStudents = async () => {
     setLoading(true);
     
-    const { data, error } = await supabase.rpc("get_at_risk_students", {
+    const { data, error } = await (supabase as any).rpc("get_at_risk_students", {
       _school_id: schoolId,
       _class_section_id: null,
     });
 
     if (!error && data) {
       // Filter by section if provided
-      let filtered = data as AtRiskStudent[];
+      let filtered = data as unknown as AtRiskStudent[];
       if (sectionIds && sectionIds.length > 0) {
         filtered = filtered.filter((s) => sectionIds.includes(s.class_section_id));
       }
@@ -130,6 +132,11 @@ export function AtRiskStudentsCard({ schoolId, sectionIds }: Props) {
                   <div>
                     <p className="text-sm font-medium">
                       {student.first_name} {student.last_name}
+                      {(student.class_name || student.section_name) && (
+                        <span className="ml-2 text-xs font-normal text-muted-foreground">
+                          {[student.class_name, student.section_name].filter(Boolean).join(" • ")}
+                        </span>
+                      )}
                     </p>
                     <p className="text-xs text-muted-foreground">
                       Attendance: {student.attendance_rate.toFixed(0)}% • 

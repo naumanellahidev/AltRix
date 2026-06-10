@@ -158,7 +158,7 @@ export function GradeThresholdsCard({ schoolId }: { schoolId: string }) {
                 <TableHead>Grade</TableHead>
                 <TableHead>Min %</TableHead>
                 <TableHead>Max %</TableHead>
-                <TableHead>GPA Points</TableHead>
+                
                 <TableHead>Order</TableHead>
                 <TableHead></TableHead>
               </TableRow>
@@ -186,15 +186,6 @@ export function GradeThresholdsCard({ schoolId }: { schoolId: string }) {
                       type="number"
                       value={t.max_percentage}
                       onChange={(e) => updateThreshold(t.id, "max_percentage", parseFloat(e.target.value) || 0)}
-                      className="w-20"
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <Input
-                      type="number"
-                      step="0.1"
-                      value={t.grade_points}
-                      onChange={(e) => updateThreshold(t.id, "grade_points", parseFloat(e.target.value) || 0)}
                       className="w-20"
                     />
                   </TableCell>
@@ -244,16 +235,6 @@ export function GradeThresholdsCard({ schoolId }: { schoolId: string }) {
                 type="number"
                 value={newThreshold.max_percentage}
                 onChange={(e) => setNewThreshold({ ...newThreshold, max_percentage: parseFloat(e.target.value) || 0 })}
-                className="w-20"
-              />
-            </div>
-            <div>
-              <Label className="text-xs">GPA</Label>
-              <Input
-                type="number"
-                step="0.1"
-                value={newThreshold.grade_points}
-                onChange={(e) => setNewThreshold({ ...newThreshold, grade_points: parseFloat(e.target.value) || 0 })}
                 className="w-20"
               />
             </div>

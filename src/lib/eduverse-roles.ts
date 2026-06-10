@@ -23,7 +23,7 @@ export const roleLabel: Record<EduverseRole, string> = {
   principal: "Principal",
   vice_principal: "Vice Principal",
   school_admin: "School Admin",
-  academic_coordinator: "School Admin",
+  academic_coordinator: "Academic Coordinator",
   teacher: "Teacher",
   accountant: "Accountant",
   hr_manager: "HR Manager",

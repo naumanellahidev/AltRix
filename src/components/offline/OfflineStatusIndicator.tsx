@@ -134,8 +134,9 @@ export function OfflineStatusIndicator({
           variant="outline"
           size="sm"
           className={cn(
-            "fixed bottom-20 right-4 z-40 gap-2 rounded-full shadow-lg transition-all lg:bottom-4",
-            !isOnline && "border-amber-500 bg-amber-500/10 text-amber-700 hover:bg-amber-500/20",
+            "fixed bottom-20 right-4 z-40 gap-2 rounded-full transition-all lg:bottom-4 backdrop-blur-sm",
+            isOnline && "bg-transparent border-emerald-500/20 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/5 hover:border-emerald-500/30 shadow-none",
+            !isOnline && "border-amber-500 bg-amber-500/10 text-amber-700 hover:bg-amber-500/20 shadow-lg",
             isSyncing && "animate-pulse",
             className
           )}

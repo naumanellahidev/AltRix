@@ -61,26 +61,27 @@ export function PeriodLogDialog({
       school_id: schoolId,
       teacher_user_id: user.user.id,
       timetable_entry_id: entry.id,
-      log_date: new Date().toISOString().split("T")[0],
+      logged_at: new Date().toISOString().slice(0, 10),
       status,
       notes: notes.trim() || null,
-      topics_covered: topicsCovered.trim() || null,
+      topic_covered: topicsCovered.trim() || null,
     };
 
     let error;
     if (existingLog) {
-      const result = await supabase
+      const result = await (supabase as any)
         .from("teacher_period_logs")
         .update({
           status,
           notes: notes.trim() || null,
-          topics_covered: topicsCovered.trim() || null,
-          updated_at: new Date().toISOString(),
+          topic_covered: topicsCovered.trim() || null,
         })
         .eq("id", existingLog.id);
       error = result.error;
     } else {
-      const result = await supabase.from("teacher_period_logs").insert(logData);
+      const result = await (supabase as any)
+        .from("teacher_period_logs")
+        .upsert(logData, { onConflict: "school_id,timetable_entry_id,logged_at" });
       error = result.error;
     }
 

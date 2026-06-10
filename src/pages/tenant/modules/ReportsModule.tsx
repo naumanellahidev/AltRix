@@ -121,6 +121,7 @@ export function ReportsModule() {
   const [gradesBusy, setGradesBusy] = useState(false);
 
   useEffect(() => {
+    if (perms.loading) return;
     const load = async () => {
       if (!schoolId || !user?.id) return;
 
@@ -139,12 +140,12 @@ export function ReportsModule() {
       }
 
       const { data: ta } = await supabase
-        .from("teacher_assignments")
+        .from("teacher_subject_assignments")
         .select("class_section_id")
         .eq("school_id", schoolId)
         .eq("teacher_user_id", user.id);
 
-      const ids = (ta ?? []).map((x: any) => x.class_section_id as string);
+      const ids = [...new Set((ta ?? []).map((x: any) => x.class_section_id as string))];
       if (ids.length === 0) {
         setSections([]);
         return;
@@ -153,13 +154,14 @@ export function ReportsModule() {
       const { data: sec } = await supabase
         .from("class_sections")
         .select("id,name,class_id")
+        .eq("school_id", schoolId)
         .in("id", ids);
 
       setSections((sec ?? []) as Section[]);
     };
 
     void load();
-  }, [schoolId, user?.id, perms.canManageStudents]);
+  }, [schoolId, user?.id, perms.loading, perms.canManageStudents]);
 
   const classById = useMemo(() => new Map(classes.map((c) => [c.id, c.name])), [classes]);
   const sectionById = useMemo(() => new Map(sections.map((s) => [s.id, s])), [sections]);

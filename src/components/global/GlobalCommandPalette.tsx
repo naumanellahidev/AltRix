@@ -116,7 +116,7 @@ export function GlobalCommandPalette({ basePath }: Props) {
     try {
       // Search all three entity types in parallel
       const [studentsRes, staffRes, leadsRes] = await Promise.all([
-        supabase.rpc("directory_search", {
+        (supabase as any).rpc("directory_search", {
           _school_id: schoolId,
           _entity: "students",
           _q: debouncedQuery,
@@ -124,7 +124,7 @@ export function GlobalCommandPalette({ basePath }: Props) {
           _limit: 5,
           _offset: 0,
         }),
-        supabase.rpc("directory_search", {
+        (supabase as any).rpc("directory_search", {
           _school_id: schoolId,
           _entity: "staff",
           _q: debouncedQuery,
@@ -132,7 +132,7 @@ export function GlobalCommandPalette({ basePath }: Props) {
           _limit: 5,
           _offset: 0,
         }),
-        supabase.rpc("directory_search", {
+        (supabase as any).rpc("directory_search", {
           _school_id: schoolId,
           _entity: "leads",
           _q: debouncedQuery,
@@ -143,9 +143,9 @@ export function GlobalCommandPalette({ basePath }: Props) {
       ]);
 
       const allResults: SearchResult[] = [
-        ...((studentsRes.data ?? []) as SearchResult[]),
-        ...((staffRes.data ?? []) as SearchResult[]),
-        ...((leadsRes.data ?? []) as SearchResult[]),
+        ...((studentsRes.data ?? []) as unknown as SearchResult[]),
+        ...((staffRes.data ?? []) as unknown as SearchResult[]),
+        ...((leadsRes.data ?? []) as unknown as SearchResult[]),
       ];
 
       setResults(allResults);

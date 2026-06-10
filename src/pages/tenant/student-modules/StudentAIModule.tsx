@@ -3,6 +3,7 @@ import { Brain, Target, Briefcase, Sparkles } from "lucide-react";
 import { StudentDigitalTwinCard } from "@/components/ai/StudentDigitalTwinCard";
 import { PredictiveAcademicModel } from "@/components/ai/PredictiveAcademicModel";
 import { StudentCareerPathAI } from "@/components/ai/StudentCareerPathAI";
+import { AISafeBoundary } from "@/components/ai/AISafeBoundary";
 import { Card, CardContent } from "@/components/ui/card";
 
 interface Props {
@@ -72,24 +73,31 @@ export function StudentAIModule({ myStudent, schoolId }: Props) {
         </TabsList>
 
         <TabsContent value="profile" className="mt-6">
-          <StudentDigitalTwinCard 
-            studentId={myStudent.studentId!} 
-            schoolId={schoolId} 
-          />
+          <AISafeBoundary label="digital-twin">
+            <StudentDigitalTwinCard
+              studentId={myStudent.studentId!}
+              schoolId={schoolId}
+              scope="learning"
+            />
+          </AISafeBoundary>
         </TabsContent>
 
         <TabsContent value="predictions" className="mt-6">
-          <PredictiveAcademicModel 
-            studentId={myStudent.studentId!} 
-            schoolId={schoolId} 
-          />
+          <AISafeBoundary label="predictions">
+            <PredictiveAcademicModel
+              studentId={myStudent.studentId!}
+              schoolId={schoolId}
+            />
+          </AISafeBoundary>
         </TabsContent>
 
         <TabsContent value="career" className="mt-6">
-          <StudentCareerPathAI 
-            studentId={myStudent.studentId!} 
-            schoolId={schoolId} 
-          />
+          <AISafeBoundary label="career">
+            <StudentCareerPathAI
+              studentId={myStudent.studentId!}
+              schoolId={schoolId}
+            />
+          </AISafeBoundary>
         </TabsContent>
       </Tabs>
 

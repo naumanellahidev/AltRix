@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase, USE_FASTAPI } from "@/integrations/supabase/client";
+import { apiClient } from "@/lib/api-client";
 
 interface PushNotificationOptions {
   schoolId: string | null;
@@ -79,23 +80,40 @@ export function usePushNotifications({ schoolId, userId, enabled = true }: PushN
           filter: `recipient_user_id=eq.${userId}`,
         },
         async (payload) => {
-          // Fetch the message details
-          const { data: message } = await supabase
-            .from("admin_messages")
-            .select("content, sender_user_id")
-            .eq("id", payload.new.message_id)
-            .maybeSingle();
+          let message: { content: string; sender_user_id: string } | null = null;
+          let senderName = "Someone";
+
+          if (USE_FASTAPI) {
+            try {
+              const msgResp = await apiClient.get<any>(`/messages/${payload.new.message_id}`);
+              message = msgResp.data;
+              if (message) {
+                const profileResp = await apiClient.get<any>(`/auth/profiles/${message.sender_user_id}`);
+                senderName = profileResp.data.display_name || profileResp.data.full_name || "Someone";
+              }
+            } catch (err) {
+              console.error("Failed to fetch notification details from FastAPI", err);
+            }
+          } else {
+            const { data: msgData } = await supabase
+              .from("admin_messages")
+              .select("content, sender_user_id")
+              .eq("id", payload.new.message_id)
+              .maybeSingle();
+            message = msgData;
+
+            if (message) {
+              const { data: senderProfile } = await (supabase as any)
+                .from("profiles")
+                .select("display_name")
+                .eq("id", message.sender_user_id)
+                .maybeSingle();
+              senderName = senderProfile?.display_name || "Someone";
+            }
+          }
 
           if (!message) return;
 
-          // Fetch sender name
-          const { data: senderProfile } = await supabase
-            .from("profiles")
-            .select("display_name")
-            .eq("user_id", message.sender_user_id)
-            .maybeSingle();
-
-          const senderName = senderProfile?.display_name || "Someone";
           const preview = message.content.length > 50 
             ? message.content.substring(0, 50) + "..." 
             : message.content;

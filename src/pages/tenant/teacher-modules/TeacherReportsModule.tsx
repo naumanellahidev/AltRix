@@ -127,7 +127,7 @@ export function TeacherReportsModule() {
 
     // Get all results
     const assignmentIds = assignmentData?.map((a) => a.id) || [];
-    const { data: resultsData } = await supabase
+    const { data: resultsData } = await (supabase as any)
       .from("student_results")
       .select("student_id, assignment_id, marks_obtained, grade")
       .in("assignment_id", assignmentIds);
@@ -151,10 +151,10 @@ export function TeacherReportsModule() {
     const studentReports: StudentReport[] = (students || []).map((student) => {
       // Assignments
       const studentResults = resultsData?.filter((r) => r.student_id === student.id) || [];
-      const assignmentMap = new Map(assignmentData?.map((a) => [a.id, a]) || []);
+      const assignmentMap = new Map(assignmentData?.map((a: any) => [a.id, a]) || []);
 
       const assignments = studentResults.map((r) => {
-        const assignment = assignmentMap.get(r.assignment_id);
+        const assignment = assignmentMap.get(r.assignment_id) as any;
         return {
           title: assignment?.title || "Unknown",
           marks: r.marks_obtained,

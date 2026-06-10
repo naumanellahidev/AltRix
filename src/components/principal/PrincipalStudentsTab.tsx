@@ -13,7 +13,8 @@ import {
   Users,
   X,
 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase, USE_FASTAPI } from "@/integrations/supabase/client";
+import { apiClient } from "@/lib/api-client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -49,6 +50,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
 import { format, subDays } from "date-fns";
+import { StudentFormDialog, EMPTY_STUDENT_FORM, type StudentFormValues, type ParentUserOption } from "@/components/academic/StudentFormDialog";
 
 interface Student {
   id: string;
@@ -60,6 +62,10 @@ interface Student {
   status: string;
   profile_id: string | null;
   created_at: string;
+  address?: string | null;
+  phone?: string | null;
+  parent_phone?: string | null;
+  parent_email?: string | null;
 }
 
 interface ClassRow {
@@ -98,8 +104,10 @@ export function PrincipalStudentsTab({ schoolId }: PrincipalStudentsTabProps) {
   const [attendanceStats, setAttendanceStats] = useState<Map<string, AttendanceStats>>(new Map());
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [filterClass, setFilterClass] = useState<string>("all");
   const [filterSection, setFilterSection] = useState<string>("all");
   const [filterStatus, setFilterStatus] = useState<string>("all");
+  const [filterAttendance, setFilterAttendance] = useState<string>("all");
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
 
   // Form states for add/edit
@@ -113,45 +121,120 @@ export function PrincipalStudentsTab({ schoolId }: PrincipalStudentsTabProps) {
     date_of_birth: "",
     section_id: "",
     status: "enrolled",
+    address: "",
+    phone: "",
+    parent_phone: "",
+    parent_email: "",
   });
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [parentUsers, setParentUsers] = useState<ParentUserOption[]>([]);
+  const [subjects, setSubjects] = useState<{ id: string; name: string }[]>([]);
+  const [editInitial, setEditInitial] = useState<Partial<StudentFormValues> | null>(null);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
       const sevenDaysAgo = subDays(new Date(), 7).toISOString();
 
-      const [
-        { data: studentsData },
-        { data: classesData },
-        { data: sectionsData },
-        { data: enrollmentsData },
-        { data: attendanceData },
-      ] = await Promise.all([
-        supabase
-          .from("students")
-          .select("id, first_name, last_name, parent_name, student_code, date_of_birth, status, profile_id, created_at")
-          .eq("school_id", schoolId)
-          .order("first_name"),
-        supabase.from("academic_classes").select("id, name").eq("school_id", schoolId).order("name"),
-        supabase.from("class_sections").select("id, name, class_id").eq("school_id", schoolId),
-        supabase.from("student_enrollments").select("student_id, class_section_id").eq("school_id", schoolId),
-        supabase
-          .from("attendance_entries")
-          .select("student_id, status")
-          .eq("school_id", schoolId)
-          .gte("created_at", sevenDaysAgo),
-      ]);
+      let studentsData: any[] = [];
+      let classesData: any[] = [];
+      let sectionsData: any[] = [];
+      let enrollmentsData: any[] = [];
+      let attendanceData: any[] = [];
+      let subjectsData: any[] = [];
+      let parentUsersData: any[] = [];
 
-      setStudents((studentsData ?? []) as Student[]);
-      setClasses((classesData ?? []) as ClassRow[]);
-      setSections((sectionsData ?? []) as SectionRow[]);
-      setEnrollments((enrollmentsData ?? []) as Enrollment[]);
+      if (USE_FASTAPI) {
+        const [
+          studentsRes,
+          classesRes,
+          sectionsRes,
+          enrollmentsRes,
+          attendanceRes,
+          subjectsRes,
+          parentsRes,
+        ] = await Promise.all([
+          apiClient.get("/students", { params: { page_size: 1000 } }),
+          apiClient.get("/academic/classes"),
+          apiClient.get("/academic/sections"),
+          apiClient.get("/students/enrollments"),
+          apiClient.get("/attendance/recent-entries", { params: { from_date: sevenDaysAgo } }),
+          apiClient.get("/academic/subjects"),
+          apiClient.get("/students/parents"),
+        ]);
+
+        studentsData = studentsRes.data?.items || studentsRes.data || [];
+        classesData = classesRes.data || [];
+        sectionsData = sectionsRes.data || [];
+        enrollmentsData = enrollmentsRes.data || [];
+        attendanceData = attendanceRes.data || [];
+        subjectsData = subjectsRes.data || [];
+        parentUsersData = parentsRes.data || [];
+      } else {
+        const [
+          studentsRes,
+          classesRes,
+          sectionsRes,
+          enrollmentsRes,
+          attendanceRes,
+          subjectsRes,
+          parentRolesRes,
+        ] = await Promise.all([
+          (supabase as any)
+            .from("students")
+            .select("id, first_name, last_name, parent_name, student_code, date_of_birth, status, profile_id, created_at, address, phone, parent_phone, parent_email")
+            .eq("school_id", schoolId)
+            .order("first_name"),
+          supabase.from("academic_classes").select("id, name").eq("school_id", schoolId).order("name"),
+          supabase.from("class_sections").select("id, name, class_id").eq("school_id", schoolId),
+          supabase.from("student_enrollments").select("student_id, class_section_id").eq("school_id", schoolId),
+          supabase
+            .from("attendance_entries")
+            .select("student_id, status")
+            .eq("school_id", schoolId)
+            .gte("created_at", sevenDaysAgo),
+          supabase.from("subjects").select("id, name").eq("school_id", schoolId).order("name"),
+          supabase.from("user_roles").select("user_id").eq("school_id", schoolId).eq("role", "parent"),
+        ]);
+
+        studentsData = studentsRes.data || [];
+        classesData = classesRes.data || [];
+        sectionsData = sectionsRes.data || [];
+        enrollmentsData = enrollmentsRes.data || [];
+        attendanceData = attendanceRes.data || [];
+        subjectsData = subjectsRes.data || [];
+
+        // Load parent user options via directory RPC, filtered by parent role
+        const parentIds = new Set((parentRolesRes.data ?? []).map((r: any) => r.user_id));
+        if (parentIds.size > 0) {
+          const { data: dir } = await (supabase as any).rpc("get_school_user_directory", {
+            _school_id: schoolId,
+          });
+          parentUsersData = ((dir ?? []) as any[])
+            .filter((u) => parentIds.has(u.user_id))
+            .map((u) => ({
+              user_id: u.user_id,
+              email: u.email ?? "",
+              full_name: u.display_name ?? u.email ?? "Parent",
+            }));
+        }
+      }
+
+      setStudents(studentsData as unknown as Student[]);
+      setClasses(classesData as ClassRow[]);
+      setSections(sectionsData as SectionRow[]);
+      setEnrollments(enrollmentsData as Enrollment[]);
+      setSubjects(subjectsData as { id: string; name: string }[]);
+      setParentUsers(parentUsersData.map((u: any) => ({
+        user_id: u.user_id,
+        email: u.email ?? "",
+        full_name: u.full_name || u.display_name || u.email || "Parent",
+      })));
 
       // Process attendance stats
       const statsMap = new Map<string, AttendanceStats>();
-      (attendanceData ?? []).forEach((entry: any) => {
+      attendanceData.forEach((entry: any) => {
         const existing = statsMap.get(entry.student_id) || {
           student_id: entry.student_id,
           total: 0,
@@ -166,6 +249,8 @@ export function PrincipalStudentsTab({ schoolId }: PrincipalStudentsTabProps) {
         statsMap.set(entry.student_id, existing);
       });
       setAttendanceStats(statsMap);
+    } catch (err) {
+      console.error("Error loading students data:", err);
     } finally {
       setLoading(false);
     }
@@ -223,8 +308,16 @@ export function PrincipalStudentsTab({ schoolId }: PrincipalStudentsTabProps) {
           s.first_name.toLowerCase().includes(q) ||
           s.last_name?.toLowerCase().includes(q) ||
           s.parent_name?.toLowerCase().includes(q) ||
-          s.student_code?.toLowerCase().includes(q)
+          s.student_code?.toLowerCase().includes(q) ||
+          s.parent_email?.toLowerCase().includes(q) ||
+          s.parent_phone?.toLowerCase().includes(q) ||
+          s.phone?.toLowerCase().includes(q),
       );
+    }
+
+    if (filterClass !== "all") {
+      const classSectionIds = new Set(sections.filter((s) => s.class_id === filterClass).map((s) => s.id));
+      result = result.filter((s) => s.sectionId && classSectionIds.has(s.sectionId));
     }
 
     if (filterSection !== "all") {
@@ -235,8 +328,18 @@ export function PrincipalStudentsTab({ schoolId }: PrincipalStudentsTabProps) {
       result = result.filter((s) => s.status === filterStatus);
     }
 
+    if (filterAttendance !== "all") {
+      result = result.filter((s) => {
+        if (s.attendanceRate === null) return filterAttendance === "no_data";
+        if (filterAttendance === "low") return s.attendanceRate < 75;
+        if (filterAttendance === "good") return s.attendanceRate >= 75 && s.attendanceRate < 90;
+        if (filterAttendance === "excellent") return s.attendanceRate >= 90;
+        return true;
+      });
+    }
+
     return result;
-  }, [enrichedStudents, searchQuery, filterSection, filterStatus]);
+  }, [enrichedStudents, searchQuery, filterClass, filterSection, filterStatus, filterAttendance, sections]);
 
   const selectedStudent = useMemo(() => {
     return enrichedStudents.find((s) => s.id === selectedStudentId) ?? null;
@@ -266,28 +369,47 @@ export function PrincipalStudentsTab({ schoolId }: PrincipalStudentsTabProps) {
 
     setSubmitting(true);
     try {
-      const { data: student, error } = await supabase
-        .from("students")
-        .insert({
-          school_id: schoolId,
+      if (USE_FASTAPI) {
+        await apiClient.post("/students", {
           first_name: formData.first_name.trim(),
-          last_name: formData.last_name.trim() || null,
+          last_name: formData.last_name.trim() || "",
           parent_name: formData.parent_name.trim(),
           date_of_birth: formData.date_of_birth || null,
-          status: formData.status,
-        })
-        .select("id")
-        .single();
+          status: formData.status === "enrolled" ? "active" : formData.status,
+          address: formData.address.trim() || null,
+          phone: formData.phone.trim() || null,
+          parent_phone: formData.parent_phone.trim() || null,
+          parent_email: formData.parent_email.trim() || null,
+          section_id: formData.section_id,
+        });
+      } else {
+        const { data: student, error } = await supabase
+          .from("students")
+          .insert({
+            school_id: schoolId,
+            first_name: formData.first_name.trim(),
+            last_name: formData.last_name.trim() || null,
+            parent_name: formData.parent_name.trim(),
+            date_of_birth: formData.date_of_birth || null,
+            status: formData.status,
+            address: formData.address.trim() || null,
+            phone: formData.phone.trim() || null,
+            parent_phone: formData.parent_phone.trim() || null,
+            parent_email: formData.parent_email.trim() || null,
+          } as any)
+          .select("id")
+          .single();
 
-      if (error) throw error;
+        if (error) throw error;
 
-      const { error: enrollError } = await supabase.from("student_enrollments").insert({
-        school_id: schoolId,
-        student_id: student.id,
-        class_section_id: formData.section_id,
-      });
+        const { error: enrollError } = await supabase.from("student_enrollments").insert({
+          school_id: schoolId,
+          student_id: student.id,
+          class_section_id: formData.section_id,
+        });
 
-      if (enrollError) throw enrollError;
+        if (enrollError) throw enrollError;
+      }
 
       toast.success("Student added successfully");
       setShowAddDialog(false);
@@ -307,34 +429,53 @@ export function PrincipalStudentsTab({ schoolId }: PrincipalStudentsTabProps) {
 
     setSubmitting(true);
     try {
-      const { error } = await supabase
-        .from("students")
-        .update({
+      if (USE_FASTAPI) {
+        await apiClient.patch(`/students/${editingStudent.id}`, {
           first_name: formData.first_name.trim(),
-          last_name: formData.last_name.trim() || null,
+          last_name: formData.last_name.trim() || "",
           parent_name: formData.parent_name.trim(),
           date_of_birth: formData.date_of_birth || null,
-          status: formData.status,
-        })
-        .eq("id", editingStudent.id);
+          status: formData.status === "enrolled" ? "active" : formData.status,
+          address: formData.address.trim() || null,
+          phone: formData.phone.trim() || null,
+          parent_phone: formData.parent_phone.trim() || null,
+          parent_email: formData.parent_email.trim() || null,
+          section_id: formData.section_id,
+        });
+      } else {
+        const { error } = await supabase
+          .from("students")
+          .update({
+            first_name: formData.first_name.trim(),
+            last_name: formData.last_name.trim() || null,
+            parent_name: formData.parent_name.trim(),
+            date_of_birth: formData.date_of_birth || null,
+            status: formData.status,
+            address: formData.address.trim() || null,
+            phone: formData.phone.trim() || null,
+            parent_phone: formData.parent_phone.trim() || null,
+            parent_email: formData.parent_email.trim() || null,
+          } as any)
+          .eq("id", editingStudent.id);
 
-      if (error) throw error;
+        if (error) throw error;
 
-      // Update enrollment if section changed
-      const currentEnrollment = enrollments.find((e) => e.student_id === editingStudent.id);
-      if (formData.section_id && formData.section_id !== currentEnrollment?.class_section_id) {
-        if (currentEnrollment) {
-          await supabase
-            .from("student_enrollments")
-            .update({ class_section_id: formData.section_id })
-            .eq("school_id", schoolId)
-            .eq("student_id", editingStudent.id);
-        } else {
-          await supabase.from("student_enrollments").insert({
-            school_id: schoolId,
-            student_id: editingStudent.id,
-            class_section_id: formData.section_id,
-          });
+        // Update enrollment if section changed
+        const currentEnrollment = enrollments.find((e) => e.student_id === editingStudent.id);
+        if (formData.section_id && formData.section_id !== currentEnrollment?.class_section_id) {
+          if (currentEnrollment) {
+            await supabase
+              .from("student_enrollments")
+              .update({ class_section_id: formData.section_id })
+              .eq("school_id", schoolId)
+              .eq("student_id", editingStudent.id);
+          } else {
+            await supabase.from("student_enrollments").insert({
+              school_id: schoolId,
+              student_id: editingStudent.id,
+              class_section_id: formData.section_id,
+            });
+          }
         }
       }
 
@@ -355,25 +496,29 @@ export function PrincipalStudentsTab({ schoolId }: PrincipalStudentsTabProps) {
 
     setSubmitting(true);
     try {
-      // Delete enrollments first (with school_id filter for RLS)
-      const { error: enrollError } = await supabase
-        .from("student_enrollments")
-        .delete()
-        .eq("school_id", schoolId)
-        .eq("student_id", editingStudent.id);
+      if (USE_FASTAPI) {
+        await apiClient.delete(`/students/${editingStudent.id}`);
+      } else {
+        // Delete enrollments first (with school_id filter for RLS)
+        const { error: enrollError } = await supabase
+          .from("student_enrollments")
+          .delete()
+          .eq("school_id", schoolId)
+          .eq("student_id", editingStudent.id);
 
-      if (enrollError) {
-        console.error("Enrollment delete error:", enrollError);
+        if (enrollError) {
+          console.error("Enrollment delete error:", enrollError);
+        }
+
+        // Then delete student (with school_id filter for RLS)
+        const { error } = await supabase
+          .from("students")
+          .delete()
+          .eq("school_id", schoolId)
+          .eq("id", editingStudent.id);
+
+        if (error) throw error;
       }
-
-      // Then delete student (with school_id filter for RLS)
-      const { error } = await supabase
-        .from("students")
-        .delete()
-        .eq("school_id", schoolId)
-        .eq("id", editingStudent.id);
-
-      if (error) throw error;
 
       toast.success("Student deleted successfully");
       setShowDeleteDialog(false);
@@ -395,18 +540,37 @@ export function PrincipalStudentsTab({ schoolId }: PrincipalStudentsTabProps) {
       date_of_birth: "",
       section_id: "",
       status: "enrolled",
+      address: "",
+      phone: "",
+      parent_phone: "",
+      parent_email: "",
     });
   };
 
   const openEditDialog = (student: typeof enrichedStudents[0]) => {
-    setEditingStudent(student);
-    setFormData({
+    setEditingStudent(student as unknown as Student);
+    setEditInitial({
       first_name: student.first_name,
       last_name: student.last_name || "",
-      parent_name: student.parent_name || "",
       date_of_birth: student.date_of_birth || "",
       section_id: student.sectionId || "",
       status: student.status,
+      student_code: student.student_code || "",
+      address: (student as any).address || "",
+      city: (student as any).city || "",
+      area: (student as any).area || "",
+      phone: (student as any).phone || "",
+      parent_full_name: student.parent_name || "",
+      parent_phone: (student as any).parent_phone || "",
+      parent_email: (student as any).parent_email || "",
+      profile_image_url: (student as any).profile_image_url || "",
+      roll_number: (student as any).roll_number || "",
+      registration_number: (student as any).registration_number || "",
+      admission_date: (student as any).admission_date || "",
+      gender: (student as any).gender || "",
+      emergency_contact: (student as any).emergency_contact || "",
+      medical_notes: (student as any).medical_notes || "",
+      notes: (student as any).notes || "",
     });
     setShowEditDialog(true);
   };
@@ -458,17 +622,30 @@ export function PrincipalStudentsTab({ schoolId }: PrincipalStudentsTabProps) {
           />
         </div>
         <div className="flex flex-wrap gap-2">
+          <Select value={filterClass} onValueChange={(v) => { setFilterClass(v); setFilterSection("all"); }}>
+            <SelectTrigger className="flex-1 sm:w-[140px] sm:flex-none">
+              <SelectValue placeholder="All Classes" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Classes</SelectItem>
+              {classes.map((c) => (
+                <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <Select value={filterSection} onValueChange={setFilterSection}>
             <SelectTrigger className="flex-1 sm:w-[160px] sm:flex-none">
               <SelectValue placeholder="All Sections" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Sections</SelectItem>
-              {sections.map((s) => (
-                <SelectItem key={s.id} value={s.id}>
-                  {getSectionLabel(s.id)}
-                </SelectItem>
-              ))}
+              {sections
+                .filter((s) => filterClass === "all" || s.class_id === filterClass)
+                .map((s) => (
+                  <SelectItem key={s.id} value={s.id}>
+                    {getSectionLabel(s.id)}
+                  </SelectItem>
+                ))}
             </SelectContent>
           </Select>
           <Select value={filterStatus} onValueChange={setFilterStatus}>
@@ -482,6 +659,33 @@ export function PrincipalStudentsTab({ schoolId }: PrincipalStudentsTabProps) {
               <SelectItem value="withdrawn">Withdrawn</SelectItem>
             </SelectContent>
           </Select>
+          <Select value={filterAttendance} onValueChange={setFilterAttendance}>
+            <SelectTrigger className="flex-1 sm:w-[150px] sm:flex-none">
+              <SelectValue placeholder="Attendance" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Any Attendance</SelectItem>
+              <SelectItem value="excellent">Excellent (≥90%)</SelectItem>
+              <SelectItem value="good">Good (75–89%)</SelectItem>
+              <SelectItem value="low">Low (&lt;75%)</SelectItem>
+              <SelectItem value="no_data">No Data</SelectItem>
+            </SelectContent>
+          </Select>
+          {(searchQuery || filterClass !== "all" || filterSection !== "all" || filterStatus !== "all" || filterAttendance !== "all") && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setSearchQuery("");
+                setFilterClass("all");
+                setFilterSection("all");
+                setFilterStatus("all");
+                setFilterAttendance("all");
+              }}
+            >
+              Clear
+            </Button>
+          )}
           <Button onClick={() => setShowAddDialog(true)} size="sm" className="flex-1 sm:flex-none">
             <Plus className="mr-1 h-4 w-4" /> 
             <span className="hidden sm:inline">Add Student</span>
@@ -677,189 +881,37 @@ export function PrincipalStudentsTab({ schoolId }: PrincipalStudentsTabProps) {
         </Card>
       </div>
 
-      {/* Add Student Dialog */}
-      <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-        <DialogContent className="sm:max-w-[500px]">
-          <DialogHeader>
-            <DialogTitle>Add New Student</DialogTitle>
-            <DialogDescription>
-              Add a new student to the school. Parent name is required for identification.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label>First Name *</Label>
-                <Input
-                  value={formData.first_name}
-                  onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
-                  placeholder="First name"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Last Name</Label>
-                <Input
-                  value={formData.last_name}
-                  onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
-                  placeholder="Last name"
-                />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label>Parent/Guardian Name *</Label>
-              <Input
-                value={formData.parent_name}
-                onChange={(e) => setFormData({ ...formData, parent_name: e.target.value })}
-                placeholder="Parent or guardian's full name"
-              />
-              <p className="text-xs text-muted-foreground">
-                Required to differentiate students with similar names
-              </p>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label>Date of Birth</Label>
-                <Input
-                  type="date"
-                  value={formData.date_of_birth}
-                  onChange={(e) => setFormData({ ...formData, date_of_birth: e.target.value })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Status</Label>
-                <Select
-                  value={formData.status}
-                  onValueChange={(v) => setFormData({ ...formData, status: v })}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="enrolled">Enrolled</SelectItem>
-                    <SelectItem value="inquiry">Inquiry</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label>Section *</Label>
-              <Select
-                value={formData.section_id}
-                onValueChange={(v) => setFormData({ ...formData, section_id: v })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select section" />
-                </SelectTrigger>
-                <SelectContent>
-                  {sections.map((s) => (
-                    <SelectItem key={s.id} value={s.id}>
-                      {getSectionLabel(s.id)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowAddDialog(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleAddStudent} disabled={submitting}>
-              {submitting ? "Adding..." : "Add Student"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Add Student Dialog (full form) */}
+      <StudentFormDialog
+        open={showAddDialog}
+        onOpenChange={setShowAddDialog}
+        schoolId={schoolId}
+        classes={classes}
+        sections={sections}
+        subjects={subjects}
+        parentUsers={parentUsers}
+        onSaved={() => void fetchData()}
+      />
 
-      {/* Edit Student Dialog */}
-      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-        <DialogContent className="sm:max-w-[500px]">
-          <DialogHeader>
-            <DialogTitle>Edit Student</DialogTitle>
-            <DialogDescription>Update student information.</DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label>First Name *</Label>
-                <Input
-                  value={formData.first_name}
-                  onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
-                  placeholder="First name"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Last Name</Label>
-                <Input
-                  value={formData.last_name}
-                  onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
-                  placeholder="Last name"
-                />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label>Parent/Guardian Name *</Label>
-              <Input
-                value={formData.parent_name}
-                onChange={(e) => setFormData({ ...formData, parent_name: e.target.value })}
-                placeholder="Parent or guardian's full name"
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label>Date of Birth</Label>
-                <Input
-                  type="date"
-                  value={formData.date_of_birth}
-                  onChange={(e) => setFormData({ ...formData, date_of_birth: e.target.value })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Status</Label>
-                <Select
-                  value={formData.status}
-                  onValueChange={(v) => setFormData({ ...formData, status: v })}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="enrolled">Enrolled</SelectItem>
-                    <SelectItem value="inquiry">Inquiry</SelectItem>
-                    <SelectItem value="withdrawn">Withdrawn</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label>Section</Label>
-              <Select
-                value={formData.section_id}
-                onValueChange={(v) => setFormData({ ...formData, section_id: v })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select section" />
-                </SelectTrigger>
-                <SelectContent>
-                  {sections.map((s) => (
-                    <SelectItem key={s.id} value={s.id}>
-                      {getSectionLabel(s.id)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowEditDialog(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleEditStudent} disabled={submitting}>
-              {submitting ? "Saving..." : "Save Changes"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Edit Student Dialog (full form) */}
+      <StudentFormDialog
+        open={showEditDialog}
+        onOpenChange={(o) => {
+          setShowEditDialog(o);
+          if (!o) {
+            setEditingStudent(null);
+            setEditInitial(null);
+          }
+        }}
+        schoolId={schoolId}
+        studentId={editingStudent?.id ?? null}
+        initial={editInitial ?? undefined}
+        classes={classes}
+        sections={sections}
+        subjects={subjects}
+        parentUsers={parentUsers}
+        onSaved={() => void fetchData()}
+      />
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>

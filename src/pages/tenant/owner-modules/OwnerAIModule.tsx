@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   AICommandCenter,
@@ -13,13 +14,17 @@ interface Props {
   schoolId: string | null;
 }
 
+export type AITabValue = "overview" | "warnings" | "reputation" | "teachers" | "timetable" | "counseling";
+
 export function OwnerAIModule({ schoolId }: Props) {
+  const [tab, setTab] = useState<AITabValue>("overview");
+
   if (!schoolId) {
     return <p className="text-sm text-muted-foreground">Loading...</p>;
   }
 
   return (
-    <Tabs defaultValue="overview" className="space-y-6">
+    <Tabs value={tab} onValueChange={(v) => setTab(v as AITabValue)} className="space-y-6">
       <TabsList className="flex flex-wrap gap-1">
         <TabsTrigger value="overview" className="gap-2">
           <Brain className="h-4 w-4" />
@@ -48,7 +53,7 @@ export function OwnerAIModule({ schoolId }: Props) {
       </TabsList>
 
       <TabsContent value="overview">
-        <AICommandCenter schoolId={schoolId} />
+        <AICommandCenter schoolId={schoolId} onNavigate={setTab} />
       </TabsContent>
 
       <TabsContent value="warnings">

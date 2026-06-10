@@ -37,7 +37,8 @@ import {
   PieChart,
   Pie,
 } from "recharts";
-import { format, subMonths, startOfMonth } from "date-fns";
+import { format, subMonths, startOfMonth, startOfYear } from "date-fns";
+import { useActiveCampus } from "@/hooks/useActiveCampus";
 
 interface Props {
   schoolId: string | null;
@@ -45,22 +46,37 @@ interface Props {
 
 const COLORS = ["hsl(var(--primary))", "hsl(var(--chart-2))", "hsl(var(--chart-3))", "hsl(var(--chart-4))", "hsl(var(--chart-5))"];
 
+function periodCutoff(p: string): Date {
+  const now = new Date();
+  if (p === "3m") return subMonths(now, 3);
+  if (p === "6m") return subMonths(now, 6);
+  if (p === "ytd") return startOfYear(now);
+  return subMonths(now, 12);
+}
+
 export function OwnerAdmissionsModule({ schoolId }: Props) {
   const [activeTab, setActiveTab] = useState("funnel");
   const [periodFilter, setPeriodFilter] = useState("12m");
+  const activeCampusId = useActiveCampus(schoolId);
 
   // Fetch CRM data
   const { data: crmData, isLoading } = useQuery({
-    queryKey: ["owner_admissions", schoolId],
+    queryKey: ["owner_admissions", schoolId, activeCampusId, periodFilter],
+    enabled: !!schoolId,
     queryFn: async () => {
       if (!schoolId) return null;
+      const since = periodCutoff(periodFilter).toISOString();
 
-      const [leadsRes, stagesRes, activitiesRes, campaignsRes, callsRes] = await Promise.all([
-        supabase.from("crm_leads").select("*").eq("school_id", schoolId),
+      const baseLeads = supabase.from("crm_leads").select("*").eq("school_id", schoolId).gte("created_at", since);
+      const leadsQuery = activeCampusId ? baseLeads.eq("campus_id", activeCampusId) : baseLeads;
+
+      const [leadsRes, stagesRes, activitiesRes, campaignsRes, callsRes, dirRes] = await Promise.all([
+        leadsQuery,
         supabase.from("crm_stages").select("*").eq("school_id", schoolId).order("sort_order"),
-        supabase.from("crm_activities").select("*").eq("school_id", schoolId),
+        supabase.from("crm_activities").select("*").eq("school_id", schoolId).gte("created_at", since),
         supabase.from("crm_campaigns").select("*").eq("school_id", schoolId),
-        supabase.from("crm_call_logs").select("*").eq("school_id", schoolId),
+        supabase.from("crm_call_logs").select("*").eq("school_id", schoolId).gte("created_at", since),
+        supabase.rpc("get_school_user_directory", { _school_id: schoolId }),
       ]);
 
       const leads = leadsRes.data || [];
@@ -68,6 +84,12 @@ export function OwnerAdmissionsModule({ schoolId }: Props) {
       const activities = activitiesRes.data || [];
       const campaigns = campaignsRes.data || [];
       const calls = callsRes.data || [];
+      const directory: Array<{ user_id: string; display_name: string | null; email: string | null }> = (dirRes.data as any) || [];
+      const nameOf = (uid: string) => {
+        if (uid === "Unassigned" || uid === "Unknown") return uid;
+        const u = directory.find((d) => d.user_id === uid);
+        return u?.display_name || u?.email || `${uid.slice(0, 8)}…`;
+      };
 
       // Calculate metrics
       const totalLeads = leads.length;
@@ -106,16 +128,17 @@ export function OwnerAdmissionsModule({ schoolId }: Props) {
       }
 
       // Counselor performance
-      const counselorPerf: Record<string, { assigned: number; won: number; calls: number }> = {};
+      const counselorPerf: Record<string, { name: string; assigned: number; won: number; calls: number }> = {};
       leads.forEach((l) => {
         const assignee = l.assigned_to || "Unassigned";
-        if (!counselorPerf[assignee]) counselorPerf[assignee] = { assigned: 0, won: 0, calls: 0 };
+        if (!counselorPerf[assignee]) counselorPerf[assignee] = { name: nameOf(assignee), assigned: 0, won: 0, calls: 0 };
         counselorPerf[assignee].assigned++;
         if (l.status === "won") counselorPerf[assignee].won++;
       });
       calls.forEach((c) => {
         const caller = c.created_by || "Unknown";
-        if (counselorPerf[caller]) counselorPerf[caller].calls++;
+        if (!counselorPerf[caller]) counselorPerf[caller] = { name: nameOf(caller), assigned: 0, won: 0, calls: 0 };
+        counselorPerf[caller].calls++;
       });
 
       return {
@@ -134,7 +157,6 @@ export function OwnerAdmissionsModule({ schoolId }: Props) {
         campaignBudget: campaigns.reduce((sum, c) => sum + Number(c.budget || 0), 0),
       };
     },
-    enabled: !!schoolId,
   });
 
   const sourceChartData = useMemo(() => {
@@ -357,7 +379,7 @@ export function OwnerAdmissionsModule({ schoolId }: Props) {
                       .map(([userId, perf]) => (
                         <div key={userId} className="rounded-xl bg-muted/50 p-4">
                           <div className="flex items-center justify-between">
-                            <span className="font-medium truncate">{userId.slice(0, 8)}...</span>
+                            <span className="font-medium truncate">{perf.name}</span>
                             <Badge variant="outline">
                               {perf.assigned > 0 ? Math.round((perf.won / perf.assigned) * 100) : 0}% conv.
                             </Badge>

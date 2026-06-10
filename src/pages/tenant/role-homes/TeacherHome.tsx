@@ -1,6 +1,19 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
-import { BarChart3, BookOpen, CalendarCheck, ClipboardCheck, MessageSquare, TableIcon, TrendingUp, Users } from "lucide-react";
+import {
+  BarChart3,
+  BookOpen,
+  CalendarCheck,
+  ClipboardCheck,
+  MessageSquare,
+  TrendingUp,
+  Users,
+  GraduationCap,
+  CalendarDays,
+  Coins,
+  ScrollText,
+  HeartHandshake,
+} from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useTenantOptimized } from "@/hooks/useTenantOptimized";
 import { useSession } from "@/hooks/useSession";
@@ -14,6 +27,13 @@ import { QuickActionsBar } from "@/components/teacher/QuickActionsBar";
 import { OfflineIndicator } from "@/components/teacher/OfflineIndicator";
 import { useOfflineSync } from "@/hooks/useOfflineSync";
 import { useTeacherKeyboardShortcuts } from "@/hooks/useTeacherKeyboardShortcuts";
+import {
+  DashboardHeader,
+  QuickActionGrid,
+  StatTile,
+  SectionTitle,
+  SmartCard,
+} from "@/components/ui/dashboard-kit";
 
 interface Stats {
   totalStudents: number;
@@ -123,24 +143,24 @@ export function TeacherHome() {
       }
 
       // Get assigned sections for this teacher
-      const { data: assignments } = await supabase
+      const { data: assignments } = await (supabase as any)
         .from("teacher_assignments")
         .select("class_section_id")
         .eq("school_id", schoolId)
         .eq("teacher_user_id", user.id);
 
-      const assignedSectionIds = [...new Set(assignments?.map((a) => a.class_section_id) || [])];
+      const assignedSectionIds = [...new Set((assignments as any[])?.map((a: any) => a.class_section_id as string) || [])] as string[];
       setSectionIds(assignedSectionIds);
       const assignedSections = assignedSectionIds.length;
 
       // Get total students in assigned sections
       let totalStudents = 0;
       if (assignedSectionIds.length > 0) {
-        const { count } = await supabase
+        const { count } = await (supabase as any)
           .from("student_enrollments")
           .select("id", { count: "exact", head: true })
           .eq("school_id", schoolId)
-          .in("class_section_id", assignedSectionIds);
+          .in("class_section_id", assignedSectionIds as string[]);
         totalStudents = count || 0;
       }
 
@@ -161,12 +181,12 @@ export function TeacherHome() {
       // Get today's attendance sessions - only for THIS teacher's sections
       let todayAttendanceCount = 0;
       if (assignedSectionIds.length > 0) {
-        const { count } = await supabase
+        const { count } = await (supabase as any)
           .from("attendance_sessions")
           .select("id", { count: "exact", head: true })
           .eq("school_id", schoolId)
           .eq("session_date", today)
-          .in("class_section_id", assignedSectionIds);
+          .in("class_section_id", assignedSectionIds as string[]);
         todayAttendanceCount = count || 0;
       }
 
@@ -225,27 +245,41 @@ export function TeacherHome() {
     );
   }
 
-  return (
-    <div className="space-y-6">
-      {/* Offline Notice */}
-      {isOffline && (
-        <div className="rounded-2xl bg-accent p-4">
-          <p className="text-sm font-medium">📶 Offline Mode</p>
-          <p className="text-xs text-muted-foreground mt-1">
-            Showing cached data. Some features may be limited until you're back online.
-          </p>
-        </div>
-      )}
+  const teacherBase = `/${schoolSlug}/teacher`;
+  const teacherActions = [
+    { label: "Attendance", icon: ClipboardCheck, to: `${teacherBase}/attendance`, tone: "success" as const },
+    { label: "Gradebook", icon: GraduationCap, to: `${teacherBase}/gradebook`, tone: "info" as const },
+    { label: "Homework", icon: BookOpen, to: `${teacherBase}/homework`, badge: stats.pendingHomework },
+    { label: "Assignments", icon: ScrollText, to: `${teacherBase}/assignments` },
+    { label: "Lessons", icon: CalendarDays, to: `${teacherBase}/lesson-plans` },
+    { label: "Reports", icon: BarChart3, to: `${teacherBase}/reports`, tone: "info" as const },
+    { label: "Messages", icon: MessageSquare, to: `${teacherBase}/messages`, badge: stats.unreadMessages },
+    { label: "Leaves", icon: HeartHandshake, to: `${teacherBase}/leaves`, tone: "warning" as const },
+  ];
 
-      {/* Offline Indicator */}
-      <OfflineIndicator
-        isOnline={isOnline}
-        pendingCount={pendingCount}
-        isSyncing={isSyncing}
-        onSync={syncPendingEntries}
+  return (
+    <div className="space-y-5 sm:space-y-6">
+      {/* Header */}
+      <DashboardHeader
+        name="Teacher Workspace"
+        role="Teacher"
+        subtitle={tenant.status === "ready" ? tenant.school?.name ?? undefined : undefined}
+        right={
+          <OfflineIndicator
+            isOnline={isOnline}
+            pendingCount={pendingCount}
+            isSyncing={isSyncing}
+            onSync={syncPendingEntries}
+          />
+        }
       />
 
-      {/* Today's Focus Card - NEW Prominent Section */}
+      {/* Offline Notice */}
+      {isOffline && (
+        <SmartCard title="Offline mode" subtitle="Showing cached data — some features may be limited." icon={CalendarCheck} tone="warning" />
+      )}
+
+      {/* Today's Focus */}
       {tenant.status === "ready" && schoolSlug && (
         <TodaysFocusCard
           schoolId={tenant.schoolId}
@@ -254,82 +288,22 @@ export function TeacherHome() {
         />
       )}
 
-      {/* Stats Grid - Compact Version */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-        <Card className="bg-gradient-to-br from-primary/5 to-transparent">
-          <CardContent className="p-3 sm:p-4">
-            <div className="flex items-center gap-2">
-              <Users className="h-4 w-4 text-primary shrink-0" />
-              <div className="min-w-0">
-                <p className="text-xl sm:text-2xl font-bold">{stats.totalStudents}</p>
-                <p className="text-[10px] sm:text-xs text-muted-foreground truncate">Students</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-primary/5 to-transparent">
-          <CardContent className="p-3 sm:p-4">
-            <div className="flex items-center gap-2">
-              <CalendarCheck className="h-4 w-4 text-primary shrink-0" />
-              <div className="min-w-0">
-                <p className="text-xl sm:text-2xl font-bold">{stats.assignedSections}</p>
-                <p className="text-[10px] sm:text-xs text-muted-foreground truncate">Sections</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-primary/5 to-transparent">
-          <CardContent className="p-3 sm:p-4">
-            <div className="flex items-center gap-2">
-              <BookOpen className="h-4 w-4 text-primary shrink-0" />
-              <div className="min-w-0">
-                <p className="text-xl sm:text-2xl font-bold">{stats.pendingHomework}</p>
-                <p className="text-[10px] sm:text-xs text-muted-foreground truncate">Homework</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-primary/5 to-transparent">
-          <CardContent className="p-3 sm:p-4">
-            <div className="flex items-center gap-2">
-              <ClipboardCheck className="h-4 w-4 text-primary shrink-0" />
-              <div className="min-w-0">
-                <p className="text-xl sm:text-2xl font-bold">{stats.todayAttendance}</p>
-                <p className="text-[10px] sm:text-xs text-muted-foreground truncate">Attendance</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-primary/5 to-transparent">
-          <CardContent className="p-3 sm:p-4">
-            <div className="flex items-center gap-2">
-              <MessageSquare className="h-4 w-4 text-primary shrink-0" />
-              <div className="min-w-0">
-                <p className="text-xl sm:text-2xl font-bold">{stats.unreadMessages}</p>
-                <p className="text-[10px] sm:text-xs text-muted-foreground truncate">Messages</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-primary/5 to-transparent">
-          <CardContent className="p-3 sm:p-4">
-            <div className="flex items-center gap-2">
-              <BarChart3 className="h-4 w-4 text-primary shrink-0" />
-              <div className="min-w-0">
-                <p className="text-xl sm:text-2xl font-bold">—</p>
-                <p className="text-[10px] sm:text-xs text-muted-foreground truncate">Analytics</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+      {/* KPI Tiles */}
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-5">
+        <StatTile label="Students" value={stats.totalStudents} icon={Users} tone="info" />
+        <StatTile label="Sections" value={stats.assignedSections} icon={CalendarCheck} />
+        <StatTile label="Homework" value={stats.pendingHomework} icon={BookOpen} tone={stats.pendingHomework > 0 ? "warning" : "success"} />
+        <StatTile label="Attendance" value={stats.todayAttendance} icon={ClipboardCheck} tone="success" />
+        <StatTile label="Messages" value={stats.unreadMessages} icon={MessageSquare} tone={stats.unreadMessages > 0 ? "destructive" : "default"} />
       </div>
 
-      {/* Timetable Preview & Performance Widget */}
+      {/* Quick actions */}
+      <div>
+        <SectionTitle title="Quick actions" />
+        <QuickActionGrid actions={teacherActions} columns={{ base: 4, sm: 4, md: 4, lg: 8 }} />
+      </div>
+
+      {/* Schedule + Performance */}
       {tenant.status === "ready" && schoolSlug && (
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           <MyScheduleWidget schoolId={tenant.schoolId} schoolSlug={schoolSlug} />
@@ -337,7 +311,7 @@ export function TeacherHome() {
         </div>
       )}
 
-      {/* Analytics Cards - At-Risk Students & Class Performance */}
+      {/* Analytics */}
       {tenant.status === "ready" && (
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           <AtRiskStudentsCard schoolId={tenant.schoolId} sectionIds={sectionIds} />
@@ -345,20 +319,20 @@ export function TeacherHome() {
         </div>
       )}
 
-      {/* Recent Homework */}
-      <Card>
+      {/* Upcoming Homework */}
+      <Card className="card-premium">
         <CardHeader>
-          <CardTitle className="text-lg">Upcoming Homework</CardTitle>
+          <CardTitle className="text-base sm:text-lg">Upcoming Homework</CardTitle>
         </CardHeader>
         <CardContent>
           {recentHomework.length === 0 ? (
             <p className="text-sm text-muted-foreground">No upcoming homework assignments.</p>
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-2">
               {recentHomework.map((hw) => (
-                <div key={hw.id} className="flex items-center justify-between rounded-lg border p-3">
-                  <p className="text-sm font-medium">{hw.title}</p>
-                  <p className="text-xs text-muted-foreground">Due: {hw.due_date}</p>
+                <div key={hw.id} className="flex items-center justify-between rounded-xl border border-border/60 bg-surface-2 p-3">
+                  <p className="text-sm font-medium truncate">{hw.title}</p>
+                  <p className="text-xs text-muted-foreground shrink-0">Due: {hw.due_date}</p>
                 </div>
               ))}
             </div>
@@ -366,7 +340,7 @@ export function TeacherHome() {
         </CardContent>
       </Card>
 
-      {/* Quick Actions Floating Bar */}
+      {/* Floating Quick Actions */}
       {schoolSlug && <QuickActionsBar schoolSlug={schoolSlug} />}
     </div>
   );
