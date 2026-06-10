@@ -1,0 +1,22 @@
+{
+  "budget_targets": [
+    {
+      "id": "1730e8d0-5bf2-47ac-a8db-62f92f3ca501",
+      "school_id": "70b40b4e-ae36-4c1e-82b0-61e08dc5d4d8",
+      "fiscal_year": 2026,
+      "role": "principal",
+      "department": null,
+      "budget_amount": 700000,
+      "notes": null
+    },
+    {
+      "id": "f345fb2d-73d5-4fe3-a435-59eaa1af1722",
+      "school_id": "70b40b4e-ae36-4c1e-82b0-61e08dc5d4d8",
+      "fiscal_year": 2026,
+      "role": null,
+      "department": null,
+      "budget_amount": 3000000,
+      "notes": null
+    }
+  ]
+}

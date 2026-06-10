@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX IF NOT EXISTS ai_student_profiles_school_student_uq ON public.ai_student_profiles (school_id, student_id);

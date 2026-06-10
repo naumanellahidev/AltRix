@@ -1,0 +1,17 @@
+{
+  "conversations": [
+    {
+      "id": "demo-convo-1",
+      "school_id": "70b40b4e-ae36-4c1e-82b0-61e08dc5d4d8",
+      "title": "General Parent-Teacher Discussion",
+      "created_at": "2026-06-09T09:03:28.588480"
+    },
+    {
+      "id": "demo-convo-2",
+      "school_id": "70b40b4e-ae36-4c1e-82b0-61e08dc5d4d8",
+      "title": "Campus Development & Safety Updates",
+      "created_at": "2026-06-09T09:03:28.589995"
+    }
+  ],
+  "messages": []
+}

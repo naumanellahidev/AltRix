@@ -1,0 +1,452 @@
+"""
+Students router: full CRUD + parent/guardian management.
+"""
+from typing import List, Optional
+from uuid import UUID
+
+from fastapi import APIRouter, Query, status, HTTPException
+from pydantic import BaseModel
+# pyrefly: ignore [missing-import]
+from sqlalchemy import func, or_, select, text
+
+from app.dependencies import CurrentUser, DbSession
+from app.exceptions import NotFoundError, ForbiddenError
+from app.models.people import Student, Guardian
+from app.schemas import (
+    StudentCreate, StudentUpdate, StudentOut,
+    GuardianCreate, GuardianOut,
+    MessageResponse, MyStudentIdOut,
+)
+from app.utils.pagination import PaginationParams, PaginatedResponse
+from app.utils.permissions import expand_roles, ACADEMIC_GOV
+
+router = APIRouter(prefix="/students", tags=["Students"])
+
+
+@router.get("", response_model=PaginatedResponse[StudentOut])
+async def list_students(
+    current_user: CurrentUser,
+    db: DbSession,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=200),
+    search: Optional[str] = Query(None),
+    section_id: Optional[UUID] = Query(None),
+    campus_id: Optional[UUID] = Query(None),
+    status: Optional[str] = Query(None),
+):
+    if not current_user.school_id:
+        return PaginatedResponse.create([], 0, page, page_size)
+
+    query = select(Student).where(Student.school_id == current_user.school_id)
+
+    if search:
+        like = f"%{search}%"
+        query = query.where(
+            or_(
+                Student.first_name.ilike(like),
+                Student.last_name.ilike(like),
+                Student.registration_number.ilike(like),
+                Student.roll_number.ilike(like),
+            )
+        )
+    if section_id:
+        query = query.where(Student.section_id == section_id)
+    if campus_id:
+        query = query.where(Student.campus_id == campus_id)
+    if status:
+        query = query.where(Student.status == status)
+
+    # Count total
+    count_result = await db.execute(select(func.count()).select_from(query.subquery()))
+    total = count_result.scalar() or 0
+
+    # Paginate
+    offset = (page - 1) * page_size
+    result = await db.execute(
+        query.order_by(Student.last_name, Student.first_name).offset(offset).limit(page_size)
+    )
+    students = result.scalars().all()
+
+    return PaginatedResponse.create(students, total, page, page_size)
+
+
+@router.post("", response_model=StudentOut, status_code=status.HTTP_201_CREATED)
+async def create_student(body: StudentCreate, current_user: CurrentUser, db: DbSession):
+    if not current_user.school_id:
+        raise ForbiddenError("No school context")
+    effective_roles = expand_roles(current_user.roles)
+    if not (current_user.is_super_admin or any(r in effective_roles for r in [*ACADEMIC_GOV, "teacher"])):
+        raise ForbiddenError()
+    student = Student(school_id=current_user.school_id, **body.model_dump())
+    db.add(student)
+    await db.flush()
+    
+    if student.section_id:
+        try:
+            class_id_res = await db.execute(
+                text("SELECT class_id FROM class_sections WHERE id = :section_id"),
+                {"section_id": student.section_id}
+            )
+            class_id = class_id_res.scalar()
+            
+            await db.execute(
+                text("""
+                    INSERT INTO student_enrollments (school_id, student_id, class_section_id, class_id)
+                    VALUES (:school_id, :student_id, :class_section_id, :class_id)
+                """),
+                {
+                    "school_id": student.school_id,
+                    "student_id": student.id,
+                    "class_section_id": student.section_id,
+                    "class_id": class_id
+                }
+            )
+            await db.flush()
+        except Exception as e:
+            import logging
+            logging.getLogger("app.students").warning(f"Failed to auto-insert student_enrollments: {e}")
+
+    await db.refresh(student)
+    return student
+
+
+@router.get("/my-children")
+async def list_parent_children(current_user: CurrentUser, db: DbSession):
+    """List students associated with the current user as a parent/guardian."""
+    sql = """
+        SELECT 
+            s.id AS student_id,
+            s.first_name,
+            s.last_name,
+            c.name AS class_name,
+            sec.name AS section_name,
+            s.roll_number,
+            s.registration_number AS student_code,
+            s.photo_url AS profile_image_url,
+            s.date_of_birth,
+            s.gender,
+            s.section_id AS class_section_id
+        FROM guardians g
+        JOIN students s ON g.student_id = s.id
+        LEFT JOIN student_enrollments se ON s.id = se.student_id AND se.school_id = s.school_id
+        LEFT JOIN class_sections sec ON se.class_section_id = sec.id
+        LEFT JOIN academic_classes c ON se.class_id = c.id
+        WHERE g.user_id = :uid AND g.school_id = :school_id
+    """
+    res = await db.execute(
+        text(sql),
+        {"uid": current_user.id, "school_id": current_user.school_id}
+    )
+    rows = res.fetchall()
+    return [
+        {
+            "student_id": str(r[0]),
+            "first_name": r[1],
+            "last_name": r[2],
+            "class_name": r[3],
+            "section_name": r[4],
+            "roll_number": r[5],
+            "student_code": r[6],
+            "profile_image_url": r[7],
+            "date_of_birth": r[8],
+            "gender": r[9],
+            "class_section_id": str(r[10]) if r[10] else None,
+        }
+        for r in rows
+    ]
+
+
+@router.get("/my-student-id", response_model=MyStudentIdOut)
+async def get_my_student_id(
+    school_id: UUID,
+    current_user: CurrentUser,
+    db: DbSession,
+):
+    """Retrieve the student ID linked to the current user in this school."""
+    result = await db.execute(
+        select(Student.id).where(
+            Student.school_id == school_id,
+            Student.user_id == current_user.id
+        ).limit(1)
+    )
+    student_id = result.scalar_one_or_none()
+    return MyStudentIdOut(student_id=student_id)
+
+
+class GuardianCreateAll(BaseModel):
+    student_id: UUID
+    full_name: str
+    relationship: Optional[str] = "father"
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    user_id: Optional[UUID] = None
+    is_primary: Optional[bool] = True
+
+
+class GuardianUpdateAll(BaseModel):
+    user_id: Optional[UUID] = None
+    full_name: Optional[str] = None
+    relationship: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    is_primary: Optional[bool] = None
+
+
+@router.get("/enrollments")
+async def get_student_enrollments(current_user: CurrentUser, db: DbSession):
+    if not current_user.school_id:
+        return []
+    try:
+        sql = "SELECT student_id, class_section_id FROM student_enrollments WHERE school_id = :school_id"
+        res = await db.execute(text(sql), {"school_id": current_user.school_id})
+        return [
+            {
+                "student_id": str(r[0]),
+                "class_section_id": str(r[1]),
+            }
+            for r in res.fetchall()
+        ]
+    except Exception as e:
+        import logging
+        logging.getLogger("app.students").warning(f"Error fetching student enrollments: {e}")
+        return []
+
+
+@router.get("/parents")
+async def get_parents_directory(current_user: CurrentUser, db: DbSession):
+    if not current_user.school_id:
+        return []
+    try:
+        sql = """
+            SELECT DISTINCT d.user_id, d.display_name, d.email FROM public.school_user_directory d
+            JOIN public.user_roles r ON d.user_id = r.user_id AND d.school_id = r.school_id
+            WHERE r.school_id = :school_id AND r.role = 'parent'
+        """
+        res = await db.execute(text(sql), {"school_id": current_user.school_id})
+        return [
+            {
+                "user_id": str(r[0]),
+                "full_name": r[1] or (r[2].split("@")[0] if r[2] else "Parent"),
+                "email": r[2] or "",
+            }
+            for r in res.fetchall()
+        ]
+    except Exception as e:
+        import logging
+        logging.getLogger("app.students").warning(f"Error fetching parents: {e}")
+        return []
+
+
+@router.get("/guardians")
+async def get_all_guardians(current_user: CurrentUser, db: DbSession):
+    if not current_user.school_id:
+        return []
+    try:
+        result = await db.execute(
+            select(Guardian).where(Guardian.school_id == current_user.school_id).order_by(Guardian.created_at.desc())
+        )
+        return result.scalars().all()
+    except Exception as e:
+        import logging
+        logging.getLogger("app.students").warning(f"Error fetching all guardians: {e}")
+        return []
+
+
+@router.post("/guardians")
+async def create_school_guardian(body: GuardianCreateAll, current_user: CurrentUser, db: DbSession):
+    if not current_user.school_id:
+        raise ForbiddenError("No school context")
+    try:
+        guardian = Guardian(
+            school_id=current_user.school_id,
+            student_id=body.student_id,
+            full_name=body.full_name,
+            relationship=body.relationship,
+            phone=body.phone,
+            email=body.email,
+            user_id=body.user_id,
+            is_primary=body.is_primary,
+        )
+        db.add(guardian)
+        await db.flush()
+        await db.refresh(guardian)
+        return guardian
+    except Exception as e:
+        import logging
+        logging.getLogger("app.students").error(f"Error creating guardian: {e}")
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=f"Database service error: {str(e)}")
+
+
+@router.patch("/guardians/{guardian_id}")
+async def update_school_guardian(guardian_id: UUID, body: GuardianUpdateAll, current_user: CurrentUser, db: DbSession):
+    if not current_user.school_id:
+        raise ForbiddenError("No school context")
+    try:
+        result = await db.execute(
+            select(Guardian).where(Guardian.id == guardian_id, Guardian.school_id == current_user.school_id)
+        )
+        guardian = result.scalar_one_or_none()
+        if not guardian:
+            raise NotFoundError("Guardian", str(guardian_id))
+        
+        for field, value in body.model_dump(exclude_none=True).items():
+            setattr(guardian, field, value)
+        await db.flush()
+        await db.refresh(guardian)
+        return guardian
+    except Exception as e:
+        import logging
+        logging.getLogger("app.students").error(f"Error updating guardian: {e}")
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=f"Database service error: {str(e)}")
+
+
+@router.delete("/guardians/{guardian_id}")
+async def delete_school_guardian(guardian_id: UUID, current_user: CurrentUser, db: DbSession):
+    if not current_user.school_id:
+        raise ForbiddenError("No school context")
+    try:
+        result = await db.execute(
+            select(Guardian).where(Guardian.id == guardian_id, Guardian.school_id == current_user.school_id)
+        )
+        guardian = result.scalar_one_or_none()
+        if not guardian:
+            raise NotFoundError("Guardian", str(guardian_id))
+        await db.delete(guardian)
+        return {"status": "success"}
+    except Exception as e:
+        import logging
+        logging.getLogger("app.students").error(f"Error deleting guardian: {e}")
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=f"Database service error: {str(e)}")
+
+
+@router.get("/{student_id}", response_model=StudentOut)
+async def get_student(student_id: UUID, current_user: CurrentUser, db: DbSession):
+    result = await db.execute(select(Student).where(Student.id == student_id))
+    student = result.scalar_one_or_none()
+    if not student:
+        raise NotFoundError("Student", str(student_id))
+    return student
+
+
+@router.patch("/{student_id}", response_model=StudentOut)
+async def update_student(student_id: UUID, body: StudentUpdate, current_user: CurrentUser, db: DbSession):
+    result = await db.execute(select(Student).where(Student.id == student_id))
+    student = result.scalar_one_or_none()
+    if not student:
+        raise NotFoundError("Student", str(student_id))
+    
+    for field, value in body.model_dump(exclude_none=True).items():
+        setattr(student, field, value)
+    await db.flush()
+
+    if "section_id" in body.model_dump(exclude_none=True):
+        try:
+            await db.execute(
+                text("DELETE FROM student_enrollments WHERE student_id = :student_id"),
+                {"student_id": student.id}
+            )
+            if student.section_id:
+                class_id_res = await db.execute(
+                    text("SELECT class_id FROM class_sections WHERE id = :section_id"),
+                    {"section_id": student.section_id}
+                )
+                class_id = class_id_res.scalar()
+                
+                await db.execute(
+                    text("""
+                        INSERT INTO student_enrollments (school_id, student_id, class_section_id, class_id)
+                        VALUES (:school_id, :student_id, :class_section_id, :class_id)
+                    """),
+                    {
+                        "school_id": student.school_id,
+                        "student_id": student.id,
+                        "class_section_id": student.section_id,
+                        "class_id": class_id
+                    }
+                )
+            await db.flush()
+        except Exception as e:
+            import logging
+            logging.getLogger("app.students").warning(f"Failed to auto-update student_enrollments: {e}")
+
+    await db.refresh(student)
+    return student
+
+
+@router.delete("/{student_id}", response_model=MessageResponse)
+async def delete_student(student_id: UUID, current_user: CurrentUser, db: DbSession):
+    effective_roles = expand_roles(current_user.roles)
+    if not (current_user.is_super_admin or any(r in effective_roles for r in ACADEMIC_GOV)):
+        raise ForbiddenError()
+    result = await db.execute(select(Student).where(Student.id == student_id))
+    student = result.scalar_one_or_none()
+    if not student:
+        raise NotFoundError("Student", str(student_id))
+        
+    try:
+        await db.execute(
+            text("DELETE FROM student_enrollments WHERE student_id = :student_id"),
+            {"student_id": student.id}
+        )
+        await db.flush()
+    except Exception as e:
+        import logging
+        logging.getLogger("app.students").warning(f"Failed to delete student enrollment: {e}")
+
+    await db.delete(student)
+    return MessageResponse(message="Student deleted")
+
+
+# ─── GUARDIANS / PARENTS ─────────────────────────────────────────────────────
+
+@router.get("/{student_id}/guardians", response_model=List[GuardianOut])
+async def list_guardians(student_id: UUID, current_user: CurrentUser, db: DbSession):
+    result = await db.execute(
+        select(Guardian).where(Guardian.student_id == student_id).order_by(Guardian.is_primary.desc())
+    )
+    return result.scalars().all()
+
+
+@router.post("/{student_id}/guardians", response_model=GuardianOut, status_code=status.HTTP_201_CREATED)
+async def add_guardian(student_id: UUID, body: GuardianCreate, current_user: CurrentUser, db: DbSession):
+    if not current_user.school_id:
+        raise ForbiddenError("No school context")
+    guardian = Guardian(
+        school_id=current_user.school_id,
+        student_id=student_id,
+        **{k: v for k, v in body.model_dump().items() if k != "student_id"},
+    )
+    db.add(guardian)
+    await db.flush()
+    await db.refresh(guardian)
+    return guardian
+
+
+@router.patch("/{student_id}/guardians/{guardian_id}", response_model=GuardianOut)
+async def update_guardian(
+    student_id: UUID, guardian_id: UUID, body: GuardianCreate,
+    current_user: CurrentUser, db: DbSession,
+):
+    result = await db.execute(
+        select(Guardian).where(Guardian.id == guardian_id, Guardian.student_id == student_id)
+    )
+    guardian = result.scalar_one_or_none()
+    if not guardian:
+        raise NotFoundError("Guardian", str(guardian_id))
+    for field, value in body.model_dump(exclude_none=True, exclude={"student_id"}).items():
+        setattr(guardian, field, value)
+    await db.flush()
+    await db.refresh(guardian)
+    return guardian
+
+
+@router.delete("/{student_id}/guardians/{guardian_id}", response_model=MessageResponse)
+async def delete_guardian(student_id: UUID, guardian_id: UUID, current_user: CurrentUser, db: DbSession):
+    result = await db.execute(
+        select(Guardian).where(Guardian.id == guardian_id, Guardian.student_id == student_id)
+    )
+    guardian = result.scalar_one_or_none()
+    if not guardian:
+        raise NotFoundError("Guardian", str(guardian_id))
+    await db.delete(guardian)
+    return MessageResponse(message="Guardian removed")
