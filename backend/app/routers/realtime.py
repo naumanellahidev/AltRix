@@ -49,6 +49,16 @@ async def websocket_endpoint(
     # 3. Connect to the WebSocket manager
     await ws_manager.connect(websocket, user_id, rooms)
 
+    # Broadcast online presence
+    if school_id:
+        await ws_manager.broadcast_to_school(school_id, {
+            "type": "presence:update",
+            "data": {
+                "user_id": user_id,
+                "status": "online"
+            }
+        })
+
     try:
         # 4. Listen for messages from client (e.g. ping/pong)
         while True:
@@ -65,3 +75,16 @@ async def websocket_endpoint(
         logger.info(f"WebSocket disconnected for user {user_id}")
     finally:
         await ws_manager.disconnect(websocket, user_id, rooms)
+        # Broadcast offline presence
+        if school_id:
+            try:
+                await ws_manager.broadcast_to_school(school_id, {
+                    "type": "presence:update",
+                    "data": {
+                        "user_id": user_id,
+                        "status": "offline"
+                    }
+                })
+            except Exception as e:
+                logger.error(f"Error broadcasting offline presence: {e}")
+

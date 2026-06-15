@@ -72,10 +72,11 @@ const ParentHomeModule = ({ child, schoolId }: ParentHomeModuleProps) => {
           .gte("due_date", new Date().toISOString().split("T")[0]);
 
         const { count: unpaidFees } = await supabase
-          .from("finance_invoices")
+          .from("fee_invoices")
           .select("id", { count: "exact", head: true })
           .eq("student_id", child.student_id)
-          .eq("status", "unpaid");
+          .not("status", "eq", "paid")
+          .not("status", "eq", "cancelled");
 
         const { data: u } = await supabase.auth.getUser();
         const { count: unreadNotifications } = await supabase

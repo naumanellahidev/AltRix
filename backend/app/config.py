@@ -40,6 +40,9 @@ class Settings(BaseSettings):
 
     # Redis
     redis_url: str = "redis://localhost:6379/0"
+    redis_pool_size: int = 10
+    cache_ttl_seconds: int = 300
+    cache_enabled: bool = True
 
     # JWT
     jwt_algorithm: str = "HS256"
@@ -55,6 +58,16 @@ class Settings(BaseSettings):
 
     # AI
     gemini_api_key: str = ""
+
+    # Sentry
+    sentry_dsn: str = ""
+    sentry_traces_sample_rate: float = 0.1
+    sentry_profiles_sample_rate: float = 0.1
+
+    # Rate Limiting
+    rate_limit_login: str = "5/minute"
+    rate_limit_password_reset: str = "3/5minutes"
+    rate_limit_api: str = "100/minute"
 
     @property
     def cors_origins(self) -> List[str]:

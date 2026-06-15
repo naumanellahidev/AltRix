@@ -19,11 +19,46 @@ export type AppNotification = {
   created_at: string;
 };
 
+function playNotificationSound() {
+  try {
+    const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioContextClass) return;
+    const ctx = new AudioContextClass();
+    const now = ctx.currentTime;
+    
+    // First chime note (C5)
+    const osc1 = ctx.createOscillator();
+    const gain1 = ctx.createGain();
+    osc1.type = "sine";
+    osc1.frequency.setValueAtTime(523.25, now);
+    gain1.gain.setValueAtTime(0.08, now);
+    gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+    osc1.connect(gain1);
+    gain1.connect(ctx.destination);
+    osc1.start(now);
+    osc1.stop(now + 0.35);
+    
+    // Second harmonic note (E5) slightly delayed
+    const osc2 = ctx.createOscillator();
+    const gain2 = ctx.createGain();
+    osc2.type = "sine";
+    osc2.frequency.setValueAtTime(659.25, now + 0.08);
+    gain2.gain.setValueAtTime(0.06, now + 0.08);
+    gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
+    osc2.connect(gain2);
+    gain2.connect(ctx.destination);
+    osc2.start(now + 0.08);
+    osc2.stop(now + 0.45);
+  } catch (e) {
+    console.warn("Failed to play notification chime:", e);
+  }
+}
+
 export function useNotifications(schoolId: string | null) {
-  const { user } = useSession();
+  const { user, loading } = useSession();
   const qc = useQueryClient();
 
-  const enabled = !!user?.id && !!schoolId;
+  const enabled = !loading && !!user?.id && !!schoolId;
 
   const queryKey = useMemo(() => ["app_notifications", schoolId, user?.id], [schoolId, user?.id]);
 
@@ -56,8 +91,29 @@ export function useNotifications(schoolId: string | null) {
     table: "app_notifications",
     filter: user?.id ? `user_id=eq.${user.id}` : undefined,
     enabled,
-    onChange: () => {
+    onChange: (payload: any) => {
       void qc.invalidateQueries({ queryKey });
+      
+      // If it's a new notification, play premium chime and show toast alert
+      if (payload && payload.eventType === "INSERT") {
+        const newNotif = payload.new as AppNotification;
+        if (newNotif) {
+          playNotificationSound();
+          toast(newNotif.title, {
+            description: newNotif.body || "New update received",
+            action: {
+              label: "View",
+              onClick: () => {
+                window.dispatchEvent(
+                  new CustomEvent("eduverse:open-notification", {
+                    detail: { notification: newNotif },
+                  })
+                );
+              },
+            },
+          });
+        }
+      }
     },
   });
 

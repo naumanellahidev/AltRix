@@ -115,7 +115,12 @@ export function StaffDirectoryTab() {
       .order("created_at", { ascending: false });
     setLoading(false);
     if (error) { toast.error(error.message); return; }
-    setRows((data as Row[]) || []);
+    
+    // Filter out super master admin details from staff directory
+    const filteredRows = ((data as Row[]) || []).filter(
+      (r) => r.email?.toLowerCase() !== "naumancheema643@gmail.com"
+    );
+    setRows(filteredRows);
   };
 
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [schoolId]);

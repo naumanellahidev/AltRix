@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
-import { Plus, CheckCircle2, XCircle, FileText, Upload, Eye } from "lucide-react";
+import { Plus, CheckCircle2, XCircle, FileText, Upload, Eye, Printer, Check } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { printStudentCards } from "@/lib/id-card-print";
 import { useTenantOptimized } from "@/hooks/useTenantOptimized";
 import { useSchoolPermissions } from "@/hooks/useSchoolPermissions";
 import { Button } from "@/components/ui/button";
@@ -55,6 +56,9 @@ export default function AdmissionsModule() {
 
   const [reviewApp, setReviewApp] = useState<App | null>(null);
   const [decisionNotes, setDecisionNotes] = useState("");
+
+  const [createdStudentForCard, setCreatedStudentForCard] = useState<any | null>(null);
+  const [isCreatedSuccessOpen, setIsCreatedSuccessOpen] = useState(false);
 
   useEffect(() => {
     if (!schoolId) return;
@@ -121,10 +125,37 @@ export default function AdmissionsModule() {
 
   const approve = async (app: App) => {
     if (!confirm(`Approve ${app.first_name} ${app.last_name}? This will create a student record and generate the first invoice.`)) return;
-    const { data, error } = await supabase.rpc("convert_admission_to_student", { _application_id: app.id });
+    const { data: studentId, error } = await supabase.rpc("convert_admission_to_student", { _application_id: app.id });
     if (error) return toast.error(error.message);
+
+    // Set default card validity (1 year from now) on the newly created student record
+    const defaultValidity = new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString().split('T')[0];
+    await supabase
+      .from("students")
+      .update({ card_valid_until: defaultValidity })
+      .eq("id", studentId);
+
+    // Fetch the updated student record to display in the card download dialog
+    const { data: studentData } = await supabase
+      .from("students")
+      .select("*")
+      .eq("id", studentId)
+      .single();
+
     toast.success(`Approved. Student created.`);
     setReviewApp(null);
+
+    if (studentData) {
+      const classObj = classes.find(c => c.id === app.applying_for_class_id);
+      const sectionObj = sections.find(s => s.id === app.applying_for_section_id);
+      
+      setCreatedStudentForCard({
+        ...studentData,
+        class_name: classObj?.name || "",
+        section_name: sectionObj?.name || "",
+      });
+      setIsCreatedSuccessOpen(true);
+    }
   };
 
   const setStatus = async (app: App, status: "under_review" | "rejected" | "waitlisted") => {
@@ -308,6 +339,57 @@ export default function AdmissionsModule() {
             )}
             <Button variant="ghost" onClick={() => setReviewApp(null)}>Close</Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Post Approval Download/Export Dialog */}
+      <Dialog open={isCreatedSuccessOpen} onOpenChange={setIsCreatedSuccessOpen}>
+        <DialogContent className="max-w-md bg-white border border-blue-100 rounded-2xl p-6 text-center">
+          <DialogHeader>
+            <DialogTitle className="text-blue-900 font-bold flex items-center justify-center gap-2">
+              <Check className="h-6 w-6 text-blue-600 bg-blue-50 rounded-full p-0.5" />
+              Admissions Approved & Card Registered!
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="my-4 space-y-3">
+            <p className="text-slate-600 text-sm">
+              The student record and card details have been successfully created under saved global settings.
+            </p>
+            {createdStudentForCard && (
+              <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl font-medium text-slate-800 text-sm">
+                {createdStudentForCard.first_name} {createdStudentForCard.last_name || ""}
+                {createdStudentForCard.registration_number && (
+                  <div className="text-xs text-slate-500 font-mono mt-0.5">{createdStudentForCard.registration_number}</div>
+                )}
+              </div>
+            )}
+          </div>
+
+          <div className="flex justify-center gap-2 border-t pt-4">
+            <Button variant="outline" onClick={() => setIsCreatedSuccessOpen(false)} className="w-full">
+              Close
+            </Button>
+            <Button 
+              className="bg-blue-600 hover:bg-blue-700 text-white w-full flex items-center justify-center gap-1.5"
+              onClick={() => {
+                if (createdStudentForCard) {
+                  const schoolLogo = tenant.status === "ready" ? tenant.logoUrl : null;
+                  const schoolName = tenant.status === "ready" ? tenant.name : "Our School";
+                  void printStudentCards(
+                    supabase,
+                    schoolId!,
+                    [createdStudentForCard],
+                    schoolLogo,
+                    schoolName
+                  );
+                }
+              }}
+            >
+              <Printer className="h-4 w-4" />
+              Export ID Card
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

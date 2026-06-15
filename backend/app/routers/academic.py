@@ -1,7 +1,7 @@
 """
 Academic router: classes, sections, subjects, timetable, holidays.
 """
-from typing import List
+from typing import List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, status
@@ -302,3 +302,95 @@ async def delete_holiday(holiday_id: UUID, current_user: CurrentUser, db: DbSess
         raise NotFoundError("Holiday", str(holiday_id))
     await db.delete(holiday)
     return MessageResponse(message="Holiday deleted")
+
+
+# ─── SECTION SUBJECTS ─────────────────────────────────────────────────────────
+from pydantic import BaseModel
+
+class SectionSubjectCreate(BaseModel):
+    class_section_id: UUID
+    subject_id: UUID
+
+class SectionSubjectOut(BaseModel):
+    id: UUID
+    school_id: UUID
+    class_section_id: UUID
+    subject_id: UUID
+
+    model_config = {"from_attributes": True}
+
+@router.get("/section-subjects", response_model=List[SectionSubjectOut])
+async def list_section_subjects(
+    current_user: CurrentUser,
+    db: DbSession,
+    class_section_id: Optional[UUID] = None,
+):
+    if not current_user.school_id:
+        return []
+    query = select(ClassSectionSubject).where(ClassSectionSubject.school_id == current_user.school_id)
+    if class_section_id:
+        query = query.where(ClassSectionSubject.class_section_id == class_section_id)
+    result = await db.execute(query)
+    return result.scalars().all()
+
+@router.post("/section-subjects", response_model=SectionSubjectOut, status_code=status.HTTP_201_CREATED)
+async def create_section_subject(
+    body: SectionSubjectCreate,
+    current_user: CurrentUser,
+    db: DbSession,
+):
+    if not current_user.school_id:
+        raise ForbiddenError("No school context")
+    effective_roles = expand_roles(current_user.roles)
+    if not (current_user.is_super_admin or any(r in effective_roles for r in ACADEMIC_GOV)):
+        raise ForbiddenError()
+    
+    # Check if duplicate
+    dup_res = await db.execute(
+        select(ClassSectionSubject).where(
+            ClassSectionSubject.school_id == current_user.school_id,
+            ClassSectionSubject.class_section_id == body.class_section_id,
+            ClassSectionSubject.subject_id == body.subject_id
+        )
+    )
+    dup = dup_res.scalar_one_or_none()
+    if dup:
+        return dup
+
+    link = ClassSectionSubject(
+        school_id=current_user.school_id,
+        class_section_id=body.class_section_id,
+        subject_id=body.subject_id
+    )
+    db.add(link)
+    await db.flush()
+    await db.refresh(link)
+    return link
+
+@router.delete("/section-subjects/{link_id}", response_model=MessageResponse)
+async def delete_section_subject(link_id: UUID, current_user: CurrentUser, db: DbSession):
+    if not current_user.school_id:
+        raise ForbiddenError("No school context")
+    result = await db.execute(
+        select(ClassSectionSubject).where(
+            ClassSectionSubject.id == link_id,
+            ClassSectionSubject.school_id == current_user.school_id
+        )
+    )
+    link = result.scalar_one_or_none()
+    if not link:
+        raise NotFoundError("SectionSubject link", str(link_id))
+    await db.delete(link)
+    return MessageResponse(message="Subject unassigned from section successfully")
+
+@router.delete("/section-subjects/by-subject/{subject_id}", response_model=MessageResponse)
+async def delete_section_subjects_by_subject(subject_id: UUID, current_user: CurrentUser, db: DbSession):
+    if not current_user.school_id:
+        raise ForbiddenError("No school context")
+    await db.execute(
+        delete(ClassSectionSubject).where(
+            ClassSectionSubject.school_id == current_user.school_id,
+            ClassSectionSubject.subject_id == subject_id
+        )
+    )
+    return MessageResponse(message="Subject assignments removed successfully")

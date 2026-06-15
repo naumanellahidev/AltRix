@@ -31,6 +31,7 @@ interface Props {
   invoices: Invoice[];
   payments: Payment[];
   students: Student[];
+  expenses: any[];
   onRefresh: () => void;
 }
 
@@ -71,7 +72,7 @@ function printHtml(title: string, bodyHtml: string) {
   w.document.close();
 }
 
-export function FeesAnalyticsTab({ schoolId, currency, invoices, payments, students, onRefresh }: Props) {
+export function FeesAnalyticsTab({ schoolId, currency, invoices, payments, students, expenses = [], onRefresh }: Props) {
   const [range, setRange] = useState<"30" | "90" | "ytd" | "all">("30");
   const [waiverOpen, setWaiverOpen] = useState(false);
   const [waiverInv, setWaiverInv] = useState<Invoice | null>(null);
@@ -109,6 +110,11 @@ export function FeesAnalyticsTab({ schoolId, currency, invoices, payments, stude
     return payments.filter(p => p.status === "success" && new Date(p.paid_at) >= fromDate);
   }, [payments, fromDate]);
 
+  const filteredExpenses = useMemo(() => {
+    if (!fromDate) return expenses;
+    return expenses.filter(e => new Date(e.expense_date) >= fromDate);
+  }, [expenses, fromDate]);
+
   // ----- KPIs -----
   const kpis = useMemo(() => {
     const billed = filteredInvoices.reduce((s, i) => s + Number(i.total_amount || 0), 0);
@@ -122,20 +128,25 @@ export function FeesAnalyticsTab({ schoolId, currency, invoices, payments, stude
       .reduce((s, i) => s + Math.max(Number(i.total_amount) - Number(i.paid_amount), 0), 0);
     const collectionRate = billed > 0 ? (collected / billed) * 100 : 0;
     const paidInvoices = filteredInvoices.filter(i => i.status === "paid").length;
+
+    const totalExpenses = filteredExpenses.reduce((s, e) => s + Number(e.amount || 0), 0);
+    const netProfit = collected - totalExpenses;
+
     return {
       billed, collected, outstanding, overdueCount, overdueAmount,
       collectionRate, paidInvoices, totalInvoices: filteredInvoices.length,
+      totalExpenses, netProfit
     };
-  }, [filteredInvoices]);
+  }, [filteredInvoices, filteredExpenses]);
 
   // ----- Monthly trend (last 6 months) -----
   const trend = useMemo(() => {
-    const months: { key: string; label: string; billed: number; collected: number }[] = [];
+    const months: { key: string; label: string; billed: number; collected: number; expenses: number }[] = [];
     for (let i = 5; i >= 0; i--) {
       const d = startOfMonth(new Date());
       d.setMonth(d.getMonth() - i);
       const key = format(d, "yyyy-MM");
-      months.push({ key, label: format(d, "MMM"), billed: 0, collected: 0 });
+      months.push({ key, label: format(d, "MMM"), billed: 0, collected: 0, expenses: 0 });
     }
     const idx: Record<string, number> = Object.fromEntries(months.map((m, i) => [m.key, i]));
     invoices.forEach(i => {
@@ -147,10 +158,14 @@ export function FeesAnalyticsTab({ schoolId, currency, invoices, payments, stude
       const k = format(new Date(p.paid_at), "yyyy-MM");
       if (k in idx) months[idx[k]].collected += Number(p.amount || 0);
     });
+    expenses.forEach(e => {
+      const k = String(e.expense_date).slice(0, 7); // yyyy-MM
+      if (k in idx) months[idx[k]].expenses += Number(e.amount || 0);
+    });
     return months;
-  }, [invoices, payments]);
+  }, [invoices, payments, expenses]);
 
-  const trendMax = Math.max(1, ...trend.flatMap(t => [t.billed, t.collected]));
+  const trendMax = Math.max(1, ...trend.flatMap(t => [t.billed, t.collected, t.expenses]));
 
   // ----- Defaulters (overdue + partial overdue) -----
   const defaulters = useMemo(() => {
@@ -178,6 +193,13 @@ export function FeesAnalyticsTab({ schoolId, currency, invoices, payments, stude
     filteredPayments.forEach(p => { m[p.method] = (m[p.method] || 0) + Number(p.amount || 0); });
     return Object.entries(m).sort((a, b) => b[1] - a[1]);
   }, [filteredPayments]);
+
+  // ----- Expense category breakdown -----
+  const expenseCategoryBreakdown = useMemo(() => {
+    const c: Record<string, number> = {};
+    filteredExpenses.forEach(e => { c[e.category] = (c[e.category] || 0) + Number(e.amount || 0); });
+    return Object.entries(c).sort((a, b) => b[1] - a[1]);
+  }, [filteredExpenses]);
 
   // ----- Actions -----
   const applyWaiver = async () => {
@@ -326,7 +348,7 @@ export function FeesAnalyticsTab({ schoolId, currency, invoices, payments, stude
       </div>
 
       {/* KPI cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
         <KpiCard
           icon={<DollarSign className="h-4 w-4" />}
           label="Total Billed"
@@ -341,7 +363,7 @@ export function FeesAnalyticsTab({ schoolId, currency, invoices, payments, stude
           accent="primary"
         />
         <KpiCard
-          icon={<TrendingUp className="h-4 w-4" />}
+          icon={<TrendingUp className="h-4 w-4 text-amber-500" />}
           label="Outstanding"
           value={`${currency} ${kpis.outstanding.toLocaleString()}`}
           sub={`${kpis.totalInvoices - kpis.paidInvoices} unpaid`}
@@ -352,6 +374,19 @@ export function FeesAnalyticsTab({ schoolId, currency, invoices, payments, stude
           value={`${currency} ${kpis.overdueAmount.toLocaleString()}`}
           sub={`${kpis.overdueCount} invoices`}
           accent="destructive"
+        />
+        <KpiCard
+          icon={<DollarSign className="h-4 w-4 text-rose-500" />}
+          label="Expenses"
+          value={`${currency} ${kpis.totalExpenses.toLocaleString()}`}
+          sub="Operating expenses"
+        />
+        <KpiCard
+          icon={<TrendingUp className={`h-4 w-4 ${kpis.netProfit >= 0 ? "text-emerald-500" : "text-rose-500"}`} />}
+          label="Net Cash Flow"
+          value={`${currency} ${kpis.netProfit.toLocaleString()}`}
+          sub={kpis.netProfit >= 0 ? "Surplus" : "Deficit"}
+          accent={kpis.netProfit >= 0 ? "success" : "destructive"}
         />
       </div>
 
@@ -371,8 +406,8 @@ export function FeesAnalyticsTab({ schoolId, currency, invoices, payments, stude
         </CardContent>
       </Card>
 
-      {/* Trend + Method breakdown */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      {/* Trend + Breakdown Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
         <Card className="lg:col-span-2">
           <CardHeader><CardTitle className="text-base">6-Month Trend</CardTitle></CardHeader>
           <CardContent>
@@ -381,14 +416,19 @@ export function FeesAnalyticsTab({ schoolId, currency, invoices, payments, stude
                 <div key={m.key} className="flex-1 flex flex-col items-center gap-1">
                   <div className="flex items-end gap-1 h-32 w-full justify-center">
                     <div
-                      className="w-3 rounded-t bg-muted-foreground/30"
+                      className="w-2.5 rounded-t bg-muted-foreground/30"
                       style={{ height: `${(m.billed / trendMax) * 100}%` }}
                       title={`Billed ${currency} ${m.billed.toLocaleString()}`}
                     />
                     <div
-                      className="w-3 rounded-t bg-primary"
+                      className="w-2.5 rounded-t bg-primary"
                       style={{ height: `${(m.collected / trendMax) * 100}%` }}
                       title={`Collected ${currency} ${m.collected.toLocaleString()}`}
+                    />
+                    <div
+                      className="w-2.5 rounded-t bg-rose-500"
+                      style={{ height: `${(m.expenses / trendMax) * 100}%` }}
+                      title={`Expenses ${currency} ${m.expenses.toLocaleString()}`}
                     />
                   </div>
                   <span className="text-[10px] text-muted-foreground">{m.label}</span>
@@ -398,6 +438,7 @@ export function FeesAnalyticsTab({ schoolId, currency, invoices, payments, stude
             <div className="mt-3 flex items-center gap-4 text-xs text-muted-foreground">
               <span className="flex items-center gap-1"><span className="h-2 w-3 bg-muted-foreground/30 rounded" /> Billed</span>
               <span className="flex items-center gap-1"><span className="h-2 w-3 bg-primary rounded" /> Collected</span>
+              <span className="flex items-center gap-1"><span className="h-2 w-3 bg-rose-500 rounded" /> Expenses</span>
             </div>
           </CardContent>
         </Card>
@@ -414,6 +455,27 @@ export function FeesAnalyticsTab({ schoolId, currency, invoices, payments, stude
                 <div key={method} className="space-y-1">
                   <div className="flex items-center justify-between text-sm">
                     <span className="capitalize">{method.replace(/_/g, " ")}</span>
+                    <span className="font-medium">{currency} {amt.toLocaleString()}</span>
+                  </div>
+                  <Progress value={pct} className="h-1.5" />
+                </div>
+              );
+            })}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader><CardTitle className="text-base">Expense Categories</CardTitle></CardHeader>
+          <CardContent className="space-y-2">
+            {expenseCategoryBreakdown.length === 0 && (
+              <p className="text-sm text-muted-foreground">No expenses in range.</p>
+            )}
+            {expenseCategoryBreakdown.map(([cat, amt]) => {
+              const pct = kpis.totalExpenses > 0 ? (amt / kpis.totalExpenses) * 100 : 0;
+              return (
+                <div key={cat} className="space-y-1">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="capitalize">{cat.replace(/_/g, " ")}</span>
                     <span className="font-medium">{currency} {amt.toLocaleString()}</span>
                   </div>
                   <Progress value={pct} className="h-1.5" />
@@ -594,11 +656,12 @@ export function FeesAnalyticsTab({ schoolId, currency, invoices, payments, stude
 
 function KpiCard({
   icon, label, value, sub, accent,
-}: { icon: React.ReactNode; label: string; value: string; sub: string; accent?: "primary" | "destructive" }) {
+}: { icon: React.ReactNode; label: string; value: string; sub: string; accent?: "primary" | "destructive" | "success" }) {
   const ring =
     accent === "primary" ? "border-primary/30 bg-primary/5"
       : accent === "destructive" ? "border-destructive/30 bg-destructive/5"
-        : "";
+        : accent === "success" ? "border-emerald-500/30 bg-emerald-500/5"
+          : "";
   return (
     <Card className={ring}>
       <CardContent className="pt-5">

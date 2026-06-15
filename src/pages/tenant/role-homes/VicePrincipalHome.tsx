@@ -174,9 +174,10 @@ export function VicePrincipalHome() {
           .eq("status", "absent")
           .gte("created_at", d7.toISOString()),
         supabase
-          .from("finance_payments")
+          .from("fee_payments")
           .select("amount,paid_at")
           .eq("school_id", schoolId)
+          .eq("status", "success")
           .gte("paid_at", monthStart.toISOString())
           .order("paid_at", { ascending: true })
           .limit(1000),
@@ -187,7 +188,7 @@ export function VicePrincipalHome() {
           .gte("expense_date", monthStart.toISOString().slice(0, 10))
           .order("expense_date", { ascending: true })
           .limit(1000),
-        supabase.from("finance_invoices").select("id", { count: "exact", head: true }).eq("school_id", schoolId).eq("status", "pending"),
+        supabase.from("fee_invoices").select("id", { count: "exact", head: true }).eq("school_id", schoolId).not("status", "eq", "paid").not("status", "eq", "cancelled"),
         supabase.from("academic_classes").select("id", { count: "exact", head: true }).eq("school_id", schoolId),
         supabase.from("class_sections").select("id", { count: "exact", head: true }).eq("school_id", schoolId),
         supabase.from("assignment_submissions").select("id", { count: "exact", head: true }).eq("school_id", schoolId).is("marks", null),
@@ -534,7 +535,7 @@ export function VicePrincipalHome() {
 
         <Card
           className="cursor-pointer transition-shadow hover:shadow-lg"
-          onClick={() => navigate(`${basePath}/finance`)}
+          onClick={() => navigate(`${basePath}/fees`)}
         >
           <CardHeader className="pb-2">
             <div className="flex items-center gap-3">
@@ -542,7 +543,7 @@ export function VicePrincipalHome() {
                 <Coins className="h-5 w-5 text-primary" />
               </div>
               <div>
-                <CardTitle className="text-base">Finance</CardTitle>
+                <CardTitle className="text-base">Fees Center</CardTitle>
                 <p className="text-xs text-muted-foreground">Fees & expenses</p>
               </div>
             </div>

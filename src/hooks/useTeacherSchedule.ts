@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { supabase, USE_FASTAPI } from "@/integrations/supabase/client";
-import { apiClient } from "@/lib/api-client";
+import { supabase, USE_FASTAPI, setUseFastAPI } from "@/integrations/supabase/client";
+import { apiClient, isNetworkOrProxyError } from "@/lib/api-client";
 import { getCachedTimetable, cacheTimetable, CachedTimetableEntry } from "@/lib/offline-db";
 
 export interface ScheduleEntry {
@@ -57,7 +57,8 @@ function cachePeriodLogs(schoolId: string, date: string, logs: Map<string, Perio
 
 export function useTeacherSchedule(
   schoolId: string | null,
-  dayOfWeek: number
+  dayOfWeek: number,
+  selectedDate?: string
 ): UseTeacherScheduleResult {
   const [entries, setEntries] = useState<ScheduleEntry[]>([]);
   const [periodLogs, setPeriodLogs] = useState<Map<string, PeriodLog>>(new Map());
@@ -98,7 +99,7 @@ export function useTeacherSchedule(
       setLoading(true);
       setError(null);
 
-      const todayDate = new Date().toISOString().split("T")[0];
+      const dateStr = selectedDate || new Date().toISOString().split("T")[0];
 
       // Try to load from cache first (for instant display)
       try {
@@ -119,7 +120,7 @@ export function useTeacherSchedule(
           setEntries(mappedEntries);
           
           // Also load cached period logs
-          const cachedLogs = getCachedPeriodLogs(schoolId!, todayDate);
+          const cachedLogs = getCachedPeriodLogs(schoolId!, dateStr);
           if (cachedLogs.size > 0) {
             setPeriodLogs(cachedLogs);
           }
@@ -146,34 +147,14 @@ export function useTeacherSchedule(
         let enrichedEntries: ScheduleEntry[] = [];
         let logsMap = new Map<string, PeriodLog>();
 
-        if (USE_FASTAPI) {
-          // Get current user
-          const { data: userData, error: userError } = await supabase.auth.getUser();
-          if (userError || !userData.user) {
-            throw new Error("Not authenticated");
-          }
-          const userId = userData.user.id;
+        // Get current user
+        const { data: userData, error: userError } = await supabase.auth.getUser();
+        if (userError || !userData.user) {
+          throw new Error("Not authenticated");
+        }
+        const userId = userData.user.id;
 
-          const resp = await apiClient.get<{ entries: ScheduleEntry[]; periodLogs: Record<string, PeriodLog> }>("/teachers/schedule", {
-            params: {
-              teacher_user_id: userId,
-              day_of_week: dayOfWeek,
-            },
-          });
-          
-          if (cancelled) return;
-          enrichedEntries = resp.data.entries ?? [];
-          Object.entries(resp.data.periodLogs ?? {}).forEach(([key, log]) => {
-            logsMap.set(key, log);
-          });
-        } else {
-          // Get current user
-          const { data: userData, error: userError } = await supabase.auth.getUser();
-          if (userError || !userData.user) {
-            throw new Error("Not authenticated");
-          }
-          const userId = userData.user.id;
-
+        const runSupabaseSchedule = async () => {
           // Fetch periods for this school
           const { data: periods, error: periodsError } = await supabase
             .from("timetable_periods")
@@ -239,8 +220,8 @@ export function useTeacherSchedule(
               subjectName: e.subject_name,
               periodId: e.period_id ?? "",
               periodLabel: period?.label ?? "",
-              startTime: e.start_time ?? period?.startTime ?? null,
-              endTime: e.end_time ?? period?.endTime ?? null,
+              startTime: e.startTime ?? period?.startTime ?? null,
+              endTime: e.endTime ?? period?.endTime ?? null,
               sortOrder: period?.sortOrder ?? 999,
               room: e.room,
               sectionLabel: e.class_section_id ? sectionMap.get(e.class_section_id) ?? null : null,
@@ -258,9 +239,9 @@ export function useTeacherSchedule(
           if (entryIds.length > 0) {
             const { data: logs } = await (supabase as any)
               .from("teacher_period_logs")
-              .select("id, timetable_entry_id, status, notes, topics_covered")
+              .select("id, timetable_entry_id, status, notes, topic_covered")
               .eq("teacher_user_id", userId)
-              .eq("log_date", todayDate)
+              .eq("logged_at", dateStr)
               .in("timetable_entry_id", entryIds);
 
             ((logs as any[]) ?? []).forEach((log: any) => {
@@ -269,10 +250,41 @@ export function useTeacherSchedule(
                 timetableEntryId: log.timetable_entry_id,
                 status: log.status,
                 notes: log.notes,
-                topicsCovered: log.topics_covered,
+                topicsCovered: log.topic_covered,
               });
             });
           }
+        };
+
+        let useFastApiActive = USE_FASTAPI;
+        if (useFastApiActive) {
+          try {
+            const resp = await apiClient.get<{ entries: ScheduleEntry[]; periodLogs: Record<string, PeriodLog> }>("/teachers/schedule", {
+              params: {
+                teacher_user_id: userId,
+                day_of_week: dayOfWeek,
+                period_date: dateStr,
+              },
+            });
+            
+            if (cancelled) return;
+            enrichedEntries = resp.data.entries ?? [];
+            Object.entries(resp.data.periodLogs ?? {}).forEach(([key, log]) => {
+              logsMap.set(key, log);
+            });
+          } catch (apiErr: any) {
+            if (isNetworkOrProxyError(apiErr)) {
+              console.warn("Failed to load teacher schedule via FastAPI, falling back to Supabase", apiErr);
+              setUseFastAPI(false);
+              useFastApiActive = false;
+            } else {
+              throw apiErr;
+            }
+          }
+        }
+
+        if (!useFastApiActive) {
+          await runSupabaseSchedule();
         }
 
         // Cache entries for offline use
@@ -298,7 +310,7 @@ export function useTeacherSchedule(
 
         if (logsMap.size > 0) {
           // Cache period logs
-          cachePeriodLogs(schoolId!, todayDate, logsMap);
+          cachePeriodLogs(schoolId!, dateStr, logsMap);
         }
 
         if (cancelled) return;
@@ -340,7 +352,7 @@ export function useTeacherSchedule(
     return () => {
       cancelled = true;
     };
-  }, [schoolId, dayOfWeek, refreshKey]);
+  }, [schoolId, dayOfWeek, refreshKey, selectedDate]);
 
   return { entries, periodLogs, loading, error, isOffline, refetch };
 }

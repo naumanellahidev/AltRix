@@ -19,6 +19,7 @@ import { StudentAttendanceStatsCard } from "@/components/attendance/StudentAtten
 import { AttendancePercentageBadge } from "@/components/attendance/AttendancePercentageBadge";
 import { OfflineDataBanner } from "@/components/offline/OfflineDataBanner";
 import { useOfflineSections, useOfflineClasses, useOfflineTeacherAssignments } from "@/hooks/useOfflineData";
+import { toast } from "@/hooks/use-toast";
 
 interface Section {
   id: string;
@@ -156,36 +157,57 @@ export function AttendanceModule() {
 
   const loadSession = async () => {
     if (!selectedSection) return;
-    const result = await loadSessionData(selectedSection, sessionDate, periodLabel, { readOnly: !canEdit });
-    if (result) {
-      setSessionId(result.sessionId);
-      setRows(result.rows);
-      setFocusedRow(0);
-      loadStats();
+    try {
+      const result = await loadSessionData(selectedSection, sessionDate, periodLabel, { readOnly: !canEdit });
+      if (result) {
+        setSessionId(result.sessionId);
+        setRows(result.rows);
+        setFocusedRow(0);
+        loadStats();
+      }
+    } catch (err: any) {
+      console.error("Failed to load session:", err);
+      toast({ title: "Failed to load session", description: err?.message || "An unexpected error occurred.", variant: "destructive" });
     }
   };
 
   const loadStats = async () => {
     if (!selectedSection) return;
     setLoadingStats(true);
-    const s = await loadStudentAttendanceStats(selectedSection);
-    setStudentStats(s);
-    setLoadingStats(false);
+    try {
+      const s = await loadStudentAttendanceStats(selectedSection);
+      setStudentStats(s);
+    } catch (err: any) {
+      console.error("Failed to load attendance stats:", err);
+    } finally {
+      setLoadingStats(false);
+    }
   };
 
   const handleSaveAttendance = async () => {
     if (!sessionId) return;
     setSaving(true);
-    await saveAttendance(sessionId, rows);
-    loadStats();
-    setSaving(false);
+    try {
+      await saveAttendance(sessionId, rows);
+      loadStats();
+    } catch (err: any) {
+      console.error("Failed to save attendance:", err);
+      toast({ title: "Failed to save attendance", description: err?.message || "An unexpected error occurred.", variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleOpenHistory = async () => {
     if (!selectedSection) return;
-    const history = await loadSessionHistory(selectedSection);
-    setHistoryData(history);
-    setShowHistory(true);
+    try {
+      const history = await loadSessionHistory(selectedSection);
+      setHistoryData(history);
+      setShowHistory(true);
+    } catch (err: any) {
+      console.error("Failed to load history:", err);
+      toast({ title: "Failed to load history", description: err?.message || "An unexpected error occurred.", variant: "destructive" });
+    }
   };
 
   const handleHistorySave = async (historySessionId: string, historyRows: StudentRow[]): Promise<boolean> => {
@@ -368,7 +390,7 @@ export function AttendanceModule() {
                   </div>
                 )}
 
-                <div tabIndex={canEdit ? 0 : -1} onKeyDown={canEdit ? handleKeyDown : undefined} className="focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 rounded-md">
+                <div tabIndex={canEdit ? 0 : -1} onKeyDown={canEdit ? handleKeyDown : undefined} className="focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 rounded-md overflow-x-auto">
                   <Table ref={tableRef}>
                     <TableHeader>
                       <TableRow>

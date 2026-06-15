@@ -3,7 +3,7 @@ Attendance models: sessions and entries for student attendance,
 plus staff attendance.
 """
 import uuid
-from sqlalchemy import Column, DateTime, ForeignKey, String, Text
+from sqlalchemy import Column, DateTime, Date, ForeignKey, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
 
@@ -17,7 +17,7 @@ class AttendanceSession(Base):
     school_id = Column(UUID(as_uuid=True), ForeignKey("schools.id"), nullable=False)
     campus_id = Column(UUID(as_uuid=True), ForeignKey("campuses.id"), nullable=True)
     class_section_id = Column(UUID(as_uuid=True), ForeignKey("class_sections.id"), nullable=False)
-    session_date = Column(String, nullable=False)
+    session_date = Column(Date, nullable=False)
     period_label = Column(String, nullable=True)
     created_by = Column(UUID(as_uuid=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=True)

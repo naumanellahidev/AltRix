@@ -303,7 +303,15 @@ export function SmartTimetableGenerator({ schoolId }: Props) {
 
       // Programmatic CSP Solver (Frontend)
       const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-      const activeDaysList = ["monday", "tuesday", "wednesday", "thursday", "friday"];
+      
+      // Dynamically detect active days of the week based on existing entries
+      const activeDays = new Set<number>([1, 2, 3, 4, 5]); // default Mon-Fri (1-5)
+      (existingEntriesRes.data || []).forEach((e: any) => {
+        if (e.day_of_week !== null && e.day_of_week !== undefined) {
+          activeDays.add(e.day_of_week);
+        }
+      });
+      const activeDaysList = Array.from(activeDays).sort().map(d => dayNames[d].toLowerCase());
       const nonBreakPeriods = (periodsRes.data || []).filter(p => !p.is_break);
 
       const scheduledEntries: Array<{
@@ -445,8 +453,22 @@ export function SmartTimetableGenerator({ schoolId }: Props) {
 
       let backtrackCount = 0;
       const MAX_BACKTRACKS = 2000;
+      let bestScheduledEntries: Array<{
+        section_id: string;
+        day: string;
+        period_index: number;
+        subject_name: string;
+        teacher_id: string | null;
+        teacher_name: string | null;
+        room: string;
+      }> = [];
 
       function solve(index: number, allowDoubleSubjectPerDay = false): boolean {
+        // Track the best partial solution reached during backtracking
+        if (scheduledEntries.length > bestScheduledEntries.length) {
+          bestScheduledEntries = [...scheduledEntries];
+        }
+
         if (index >= unplacedLessons.length) {
           return true;
         }
@@ -535,6 +557,7 @@ export function SmartTimetableGenerator({ schoolId }: Props) {
 
       backtrackCount = 0;
       let solved = solve(0, false);
+      let absoluteBest = [...bestScheduledEntries];
 
       if (!solved) {
         sectionOccupiedSlots.clear();
@@ -556,19 +579,23 @@ export function SmartTimetableGenerator({ schoolId }: Props) {
         });
 
         // Re-add baseline kept entries
-        for (const entry of scheduledEntries) {
-          const slotKey = `${entry.day}:${entry.period_index}`;
-          sectionOccupiedSlots.add(`${entry.section_id}:${slotKey}`);
-          if (entry.teacher_id) {
-            teacherOccupiedSlots.add(`${String(entry.teacher_id).toLowerCase()}:${slotKey}`);
-          }
-          if (entry.room && entry.room !== "TBD" && entry.room !== "none" && entry.room !== "—") {
-            roomOccupiedSlots.add(`${String(entry.room).toLowerCase().trim()}:${slotKey}`);
-          }
-        }
+        const baselineEntries = [...scheduledEntries];
+
+        // Reset bestScheduledEntries for relaxed solve
+        bestScheduledEntries = [...baselineEntries];
 
         backtrackCount = 0;
         solved = solve(0, true);
+
+        if (!solved) {
+          // Compare best from relaxed solver against best from strict solver
+          if (bestScheduledEntries.length < absoluteBest.length) {
+            bestScheduledEntries = absoluteBest;
+          }
+          // Restore to the best partial solution found
+          scheduledEntries.length = 0;
+          scheduledEntries.push(...bestScheduledEntries);
+        }
       }
 
       const timetableData = {
@@ -854,6 +881,35 @@ export function SmartTimetableGenerator({ schoolId }: Props) {
     onError: (e: any) => toast.error(e?.message || "Failed to apply"),
   });
 
+  // Fetch periods for the grid rendering
+  const { data: dbPeriods } = useQuery({
+    queryKey: ["timetable_periods", schoolId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("timetable_periods")
+        .select("*")
+        .eq("school_id", schoolId)
+        .order("sort_order");
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!schoolId,
+  });
+
+  const displayPeriods = useMemo(() => {
+    if (dbPeriods && dbPeriods.length > 0) {
+      return dbPeriods;
+    }
+    // Fallback to 8 default periods
+    return Array.from({ length: 8 }, (_, idx) => ({
+      id: `default-period-${idx}`,
+      label: `P${idx + 1}`,
+      is_break: false,
+      start_time: null,
+      end_time: null,
+    }));
+  }, [dbPeriods]);
+
   const renderTimetableGrid = (data: Json) => {
     const baseGrid = normalizeSuggestion(data, previewSectionId);
     const timetableData = editMode && editedGrid ? editedGrid : baseGrid;
@@ -881,106 +937,135 @@ export function SmartTimetableGenerator({ schoolId }: Props) {
             </tr>
           </thead>
           <tbody>
-            {PERIODS.map((period) => (
-              <tr key={period} className="hover:bg-primary/5 transition-colors">
-                <td className="p-3 border-r border-b border-primary/10 bg-primary/5 font-bold text-center text-primary/80">P{period}</td>
-                {DAYS.map((day) => {
-                  const periodKey = `P${period}`;
-                  const cell = timetableData?.[day]?.[periodKey];
-                  const isEditing = editMode && editingCell?.day === day && editingCell?.period === periodKey;
+            {displayPeriods.map((periodObj, idx) => {
+              const isBreak = periodObj.is_break;
+              const periodKey = `P${idx + 1}`;
+              return (
+                <tr key={periodObj.id || idx} className="hover:bg-primary/5 transition-colors">
+                  <td className={`p-3 border-r border-b border-primary/10 bg-primary/5 text-center font-bold transition-all ${isBreak ? "bg-amber-500/5 text-amber-600/80" : "text-primary/80"}`}>
+                    <div className="flex flex-col items-center justify-center gap-0.5">
+                      <p className="flex items-center justify-center gap-1 text-[11px] font-bold uppercase tracking-wider">
+                        {isBreak && <Coffee className="h-3.5 w-3.5 text-amber-500" />}
+                        {periodObj.label}
+                      </p>
+                      {periodObj.start_time && periodObj.end_time && (
+                        <p className="text-[9px] text-muted-foreground font-medium">
+                          {String(periodObj.start_time).slice(0, 5)}–{String(periodObj.end_time).slice(0, 5)}
+                        </p>
+                      )}
+                    </div>
+                  </td>
+                  {DAYS.map((day) => {
+                    if (isBreak) {
+                      return (
+                        <td
+                          key={`${day}-${idx}`}
+                          className="p-3 border-b border-primary/10 align-middle text-center bg-amber-500/[0.02]"
+                        >
+                          <div className="flex flex-col items-center gap-1 py-1.5 text-center opacity-60">
+                            <Coffee className="h-3.5 w-3.5 text-amber-500 animate-pulse" />
+                            <p className="text-[9px] font-semibold text-amber-600/80 uppercase tracking-wider">{periodObj.label}</p>
+                          </div>
+                        </td>
+                      );
+                    }
 
-                  if (editMode && isEditing) {
+                    const cell = timetableData?.[day]?.[periodKey];
+                    const isEditing = editMode && editingCell?.day === day && editingCell?.period === periodKey;
+
+                    if (editMode && isEditing) {
+                      return (
+                        <td key={`${day}-${idx}`} className="p-2 border-b border-primary/10 align-top bg-surface shadow-lg rounded-lg">
+                          <div className="space-y-2">
+                            <select
+                              className="w-full rounded-xl border border-primary/20 bg-background px-2 py-1 text-[11px] focus:outline-none focus:ring-2 focus:ring-primary/40"
+                              value={cell?.subject ?? ""}
+                              onChange={(e) => updateCell(day, periodKey, "subject", e.target.value)}
+                            >
+                              <option value="">— Select —</option>
+                              {(subjects ?? []).map((s) => (
+                                <option key={s.id} value={s.name}>{s.name}</option>
+                              ))}
+                            </select>
+                            <select
+                              className="w-full rounded-xl border border-primary/20 bg-background px-2 py-1 text-[10px] focus:outline-none focus:ring-2 focus:ring-primary/40"
+                              value={cell?.teacher ?? ""}
+                              onChange={(e) => updateCell(day, periodKey, "teacher", e.target.value)}
+                            >
+                              <option value="">— Teacher —</option>
+                              {(teachers ?? []).map((t: any) => {
+                                const name = t.profiles?.display_name ?? "";
+                                return name ? <option key={t.user_id} value={name}>{name}</option> : null;
+                              })}
+                            </select>
+                            <input
+                              className="w-full rounded-xl border border-primary/20 bg-background px-2 py-1 text-[10px] focus:outline-none focus:ring-2 focus:ring-primary/40"
+                              placeholder="Room name"
+                              value={cell?.room ?? ""}
+                              onChange={(e) => updateCell(day, periodKey, "room", e.target.value)}
+                            />
+                            <button
+                              className="w-full rounded-xl bg-gradient-to-r from-primary to-primary/80 px-2 py-1 text-[10px] text-primary-foreground font-semibold hover:opacity-90 transition-opacity"
+                              onClick={() => setEditingCell(null)}
+                            >
+                              Done
+                            </button>
+                          </div>
+                        </td>
+                      );
+                    }
+
+                    const currentSection = previewSectionId || latestSuggestion.class_section_id;
+                    const cellKey = `${currentSection}:${day}:${periodKey}`;
+                    const cellConflicts = suggestionConflicts.byCell.get(cellKey) || [];
+                    const hasConflicts = cellConflicts.length > 0;
+
                     return (
-                      <td key={`${day}-${period}`} className="p-2 border-b border-primary/10 align-top bg-surface shadow-lg rounded-lg">
-                        <div className="space-y-2">
-                          <select
-                            className="w-full rounded-xl border border-primary/20 bg-background px-2 py-1 text-[11px] focus:outline-none focus:ring-2 focus:ring-primary/40"
-                            value={cell?.subject ?? ""}
-                            onChange={(e) => updateCell(day, periodKey, "subject", e.target.value)}
-                          >
-                            <option value="">— Select —</option>
-                            {(subjects ?? []).map((s) => (
-                              <option key={s.id} value={s.name}>{s.name}</option>
-                            ))}
-                          </select>
-                          <select
-                            className="w-full rounded-xl border border-primary/20 bg-background px-2 py-1 text-[10px] focus:outline-none focus:ring-2 focus:ring-primary/40"
-                            value={cell?.teacher ?? ""}
-                            onChange={(e) => updateCell(day, periodKey, "teacher", e.target.value)}
-                          >
-                            <option value="">— Teacher —</option>
-                            {(teachers ?? []).map((t: any) => {
-                              const name = t.profiles?.display_name ?? "";
-                              return name ? <option key={t.user_id} value={name}>{name}</option> : null;
-                            })}
-                          </select>
-                          <input
-                            className="w-full rounded-xl border border-primary/20 bg-background px-2 py-1 text-[10px] focus:outline-none focus:ring-2 focus:ring-primary/40"
-                            placeholder="Room name"
-                            value={cell?.room ?? ""}
-                            onChange={(e) => updateCell(day, periodKey, "room", e.target.value)}
-                          />
-                          <button
-                            className="w-full rounded-xl bg-gradient-to-r from-primary to-primary/80 px-2 py-1 text-[10px] text-primary-foreground font-semibold hover:opacity-90 transition-opacity"
-                            onClick={() => setEditingCell(null)}
-                          >
-                            Done
-                          </button>
-                        </div>
+                      <td
+                        key={`${day}-${idx}`}
+                        className={`p-3 border-b border-primary/10 align-middle text-center transition-all ${
+                          editMode ? "cursor-pointer hover:bg-primary/10" : ""
+                        } ${hasConflicts ? "bg-red-500/5" : ""}`}
+                        onClick={() => editMode && setEditingCell({ day, period: periodKey })}
+                        title={hasConflicts ? cellConflicts.join("\n") : undefined}
+                      >
+                        {cell && cell.subject !== "—" ? (
+                          <div className={`p-2.5 rounded-2xl bg-gradient-to-br border shadow-sm hover:scale-[1.02] transition-all duration-200 relative ${
+                            hasConflicts 
+                              ? "from-red-500/5 to-red-500/10 border-red-500/30 text-red-900" 
+                              : "from-background to-primary/5 border-primary/10"
+                          }`}>
+                            <p className={`font-bold flex items-center justify-center gap-1 ${hasConflicts ? "text-red-700" : "text-primary"}`}>
+                              <BookOpen className="h-3 w-3 opacity-70" />
+                              {cell.subject}
+                            </p>
+                            <p className="text-[10px] text-muted-foreground truncate mt-1 flex items-center justify-center gap-0.5">
+                              <User className="h-2.5 w-2.5 opacity-60" />
+                              {cell.teacher}
+                            </p>
+                            {cell.room && (
+                              <p className="text-[9px] text-muted-foreground mt-0.5 flex items-center justify-center gap-0.5">
+                                <MapPin className="h-2.5 w-2.5 opacity-55" />
+                                {cell.room}
+                              </p>
+                            )}
+                            {hasConflicts && (
+                              <div className="absolute -top-1.5 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-600 text-[9px] font-bold text-white shadow-sm animate-pulse" title={cellConflicts.join(", ")}>
+                                !
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground italic text-[11px] opacity-40">
+                            {editMode ? "+ assign" : "—"}
+                          </span>
+                        )}
                       </td>
                     );
-                  }
-
-                  const currentSection = previewSectionId || latestSuggestion.class_section_id;
-                  const cellKey = `${currentSection}:${day}:${periodKey}`;
-                  const cellConflicts = suggestionConflicts.byCell.get(cellKey) || [];
-                  const hasConflicts = cellConflicts.length > 0;
-
-                  return (
-                    <td
-                      key={`${day}-${period}`}
-                      className={`p-3 border-b border-primary/10 align-middle text-center transition-all ${
-                        editMode ? "cursor-pointer hover:bg-primary/10" : ""
-                      } ${hasConflicts ? "bg-red-500/5" : ""}`}
-                      onClick={() => editMode && setEditingCell({ day, period: periodKey })}
-                      title={hasConflicts ? cellConflicts.join("\n") : undefined}
-                    >
-                      {cell && cell.subject !== "—" ? (
-                        <div className={`p-2.5 rounded-2xl bg-gradient-to-br border shadow-sm hover:scale-[1.02] transition-all duration-200 relative ${
-                          hasConflicts 
-                            ? "from-red-500/5 to-red-500/10 border-red-500/30 text-red-900" 
-                            : "from-background to-primary/5 border-primary/10"
-                        }`}>
-                          <p className={`font-bold flex items-center justify-center gap-1 ${hasConflicts ? "text-red-700" : "text-primary"}`}>
-                            <BookOpen className="h-3 w-3 opacity-70" />
-                            {cell.subject}
-                          </p>
-                          <p className="text-[10px] text-muted-foreground truncate mt-1 flex items-center justify-center gap-0.5">
-                            <User className="h-2.5 w-2.5 opacity-60" />
-                            {cell.teacher}
-                          </p>
-                          {cell.room && (
-                            <p className="text-[9px] text-muted-foreground mt-0.5 flex items-center justify-center gap-0.5">
-                              <MapPin className="h-2.5 w-2.5 opacity-55" />
-                              {cell.room}
-                            </p>
-                          )}
-                          {hasConflicts && (
-                            <div className="absolute -top-1.5 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-600 text-[9px] font-bold text-white shadow-sm animate-pulse" title={cellConflicts.join(", ")}>
-                              !
-                            </div>
-                          )}
-                        </div>
-                      ) : (
-                        <span className="text-muted-foreground italic text-[11px] opacity-40">
-                          {editMode ? "+ assign" : "—"}
-                        </span>
-                      )}
-                    </td>
-                  );
-                })}
-              </tr>
-            ))}
+                  })}
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>

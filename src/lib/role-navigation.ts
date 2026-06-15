@@ -83,6 +83,10 @@ export const NAV_CATALOG: NavItem[] = [
     roles: ["super_admin","school_owner","principal","vice_principal","school_admin","marketing_staff"] },
   { key: "parent-notes", label: "Parent Notes", icon: NotebookPen, group: "people", path: "parent-notes",
     roles: ["super_admin","school_owner","principal","vice_principal","school_admin","counselor"] },
+  { key: "student-cards", label: "Student ID Cards", icon: CreditCard, group: "people", path: "student-cards",
+    roles: ["super_admin","school_owner","principal","vice_principal","school_admin","teacher"] },
+  { key: "inquiries", label: "Inquiries Center", icon: UserPlus, group: "people", path: "inquiries",
+    roles: ["super_admin","school_owner","principal","vice_principal"] },
 
   // Finance
   { key: "fees", label: "Fees Center", icon: DollarSign, group: "finance", path: "fees",
@@ -101,30 +105,34 @@ export const NAV_CATALOG: NavItem[] = [
     roles: ["super_admin","school_owner","principal","vice_principal","accountant"] },
   { key: "tax", label: "Tax Center", icon: Receipt, group: "finance", path: "tax",
     roles: ["super_admin","school_owner","principal","vice_principal","accountant"] },
-  { key: "finance", label: "Finance", icon: Wallet, group: "finance", path: "finance",
+  { key: "budget-simulator", label: "Budget Simulator", icon: Coins, group: "finance", path: "budget-simulator",
     roles: ["super_admin","school_owner","principal","vice_principal","accountant"] },
 
   // Operations
-  { key: "notices", label: "Notices", icon: Megaphone, group: "operations", path: "notices",
-    roles: ["super_admin","school_owner","principal","vice_principal","school_admin","academic_coordinator","teacher","student","parent","hr_manager","marketing_staff","accountant","counselor"] },
-  { key: "holidays", label: "Holidays", icon: PartyPopper, group: "operations", path: "holidays",
-    roles: ["super_admin","school_owner","principal","vice_principal","school_admin","academic_coordinator","teacher","student","parent","hr_manager","counselor"] },
-  { key: "reports", label: "Reports", icon: BarChart3, group: "operations", path: "reports",
-    roles: ["super_admin","school_owner","principal","vice_principal","school_admin","academic_coordinator","hr_manager","accountant","marketing_staff","counselor"] },
   { key: "complaints", label: "Complaints", icon: ShieldAlert, group: "operations", path: "complaints",
     roles: ["super_admin","school_owner","principal","vice_principal","school_admin"] },
+  { key: "at-risk", label: "At-Risk Students", icon: AlertTriangle, group: "operations", path: "at-risk",
+    roles: ["super_admin","school_owner","principal","vice_principal","school_admin","academic_coordinator","counselor"] },
   { key: "counseling", label: "Counseling Center", icon: Heart, group: "operations", path: "counseling",
     roles: ["super_admin","school_owner","principal","vice_principal","school_admin","academic_coordinator","counselor"] },
   { key: "behavior", label: "Behavior Notes", icon: NotebookPen, group: "operations", path: "behavior",
     roles: ["super_admin","school_owner","principal","vice_principal","school_admin","academic_coordinator","counselor"] },
-  { key: "at-risk", label: "At-Risk Students", icon: AlertTriangle, group: "operations", path: "at-risk",
-    roles: ["super_admin","school_owner","principal","vice_principal","school_admin","academic_coordinator","counselor"] },
+  { key: "attendance-heatmap", label: "Attendance Heatmap", icon: BarChart3, group: "operations", path: "attendance-heatmap",
+    roles: ["super_admin","school_owner","principal","vice_principal"] },
+  { key: "reports", label: "Reports", icon: BarChart3, group: "operations", path: "reports",
+    roles: ["super_admin","school_owner","principal","vice_principal","school_admin","academic_coordinator","hr_manager","accountant","marketing_staff","counselor"] },
+  { key: "notices", label: "Notices", icon: Megaphone, group: "operations", path: "notices",
+    roles: ["super_admin","school_owner","principal","vice_principal","school_admin","academic_coordinator","teacher","student","parent","hr_manager","marketing_staff","accountant","counselor"] },
+  { key: "holidays", label: "Holidays", icon: PartyPopper, group: "operations", path: "holidays",
+    roles: ["super_admin","school_owner","principal","vice_principal","school_admin","academic_coordinator","teacher","student","parent","hr_manager","counselor"] },
   { key: "ai-counselor", label: "AI Counselor", icon: Sparkles, group: "operations", path: "ai-counselor",
     roles: ["super_admin","school_owner","principal","vice_principal","school_admin","academic_coordinator","counselor"] },
 
   // Communication
   { key: "messages", label: "Messages", icon: MessageSquare, group: "communication", path: "messages",
     roles: ["super_admin","school_owner","principal","vice_principal","school_admin","academic_coordinator","teacher","accountant","hr_manager","counselor","marketing_staff","parent","student"] },
+  { key: "collaboration", label: "Collaboration Hub", icon: MessageSquare, group: "communication", path: "collaboration",
+    roles: ["super_admin","school_owner","principal","vice_principal","school_admin","academic_coordinator","teacher","accountant","hr_manager","counselor","marketing_staff","parent"] },
   { key: "support", label: "Support", icon: Headphones, group: "communication", path: "support",
     roles: ["super_admin","school_owner","principal","vice_principal","hr_manager","counselor"] },
 
@@ -133,14 +141,6 @@ export const NAV_CATALOG: NavItem[] = [
     roles: ["super_admin"] },
   { key: "schools", label: "Schools", icon: Briefcase, group: "admin", path: "schools",
     roles: ["super_admin"] },
-
-  // Principal-only extras
-  { key: "attendance-heatmap", label: "Attendance Heatmap", icon: BarChart3, group: "operations", path: "attendance-heatmap",
-    roles: ["super_admin","school_owner","principal","vice_principal"] },
-  { key: "collaboration", label: "Collaboration Hub", icon: MessageSquare, group: "communication", path: "collaboration",
-    roles: ["super_admin","school_owner","principal","vice_principal","school_admin"] },
-  { key: "budget-simulator", label: "Budget Simulator", icon: Coins, group: "finance", path: "budget-simulator",
-    roles: ["super_admin","school_owner","principal","vice_principal","accountant"] },
 ];
 
 export const GROUP_LABELS: Record<NavGroup, string> = {

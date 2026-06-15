@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase, USE_FASTAPI } from "@/integrations/supabase/client";
+import { apiClient } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
@@ -54,32 +55,54 @@ export function BrandingSettingsDialog({ schoolId, trigger }: BrandingSettingsDi
     
     // Fetch branding
     (async () => {
-      const { data } = await supabase
-        .from("school_branding")
-        .select("accent_hue,accent_saturation,accent_lightness")
-        .eq("school_id", schoolId)
-        .maybeSingle();
-      if (data) {
-        setHue(data.accent_hue ?? 210);
-        setSaturation(data.accent_saturation ?? 100);
-        setLightness(data.accent_lightness ?? 50);
+      try {
+        if (USE_FASTAPI) {
+          const { data } = await apiClient.get(`/schools/${schoolId}/branding`);
+          if (data) {
+            setHue(data.accent_hue ?? 210);
+            setSaturation(data.accent_saturation ?? 100);
+            setLightness(data.accent_lightness ?? 50);
+          }
+        } else {
+          const { data } = await supabase
+            .from("school_branding")
+            .select("accent_hue,accent_saturation,accent_lightness")
+            .eq("school_id", schoolId)
+            .maybeSingle();
+          if (data) {
+            setHue(data.accent_hue ?? 210);
+            setSaturation(data.accent_saturation ?? 100);
+            setLightness(data.accent_lightness ?? 50);
+          }
+        }
+      } catch (err) {
+        console.warn("Failed to fetch branding:", err);
       }
     })();
 
-    // Fetch school location safely (fallback if schema is not migrated)
+    // Fetch school location safely
     (async () => {
       try {
-        const { data, error } = await supabase
-          .from("schools")
-          .select("latitude,longitude,altitude")
-          .eq("id", schoolId)
-          .maybeSingle();
-        if (error) {
-          console.warn("Location columns missing in database:", error.message);
-        } else if (data) {
-          setLatitude(data.latitude !== null ? String(data.latitude) : "");
-          setLongitude(data.longitude !== null ? String(data.longitude) : "");
-          setAltitude(data.altitude !== null ? String(data.altitude) : "");
+        if (USE_FASTAPI) {
+          const { data } = await apiClient.get(`/schools/${schoolId}`);
+          if (data) {
+            setLatitude(data.latitude !== null && data.latitude !== undefined ? String(data.latitude) : "");
+            setLongitude(data.longitude !== null && data.longitude !== undefined ? String(data.longitude) : "");
+            setAltitude(data.altitude !== null && data.altitude !== undefined ? String(data.altitude) : "");
+          }
+        } else {
+          const { data, error } = await supabase
+            .from("schools")
+            .select("latitude,longitude,altitude")
+            .eq("id", schoolId)
+            .maybeSingle();
+          if (error) {
+            console.warn("Location columns missing in database:", error.message);
+          } else if (data) {
+            setLatitude(data.latitude !== null ? String(data.latitude) : "");
+            setLongitude(data.longitude !== null ? String(data.longitude) : "");
+            setAltitude(data.altitude !== null ? String(data.altitude) : "");
+          }
         }
       } catch (err) {
         console.warn("Failed to fetch coordinates:", err);
@@ -178,42 +201,66 @@ export function BrandingSettingsDialog({ schoolId, trigger }: BrandingSettingsDi
 
     // 1. Update branding
     let brandingError = null;
-    const { error: colorErr } = await supabase
-      .from("school_branding")
-      .update({
-        accent_hue: hue,
-        accent_saturation: saturation,
-        accent_lightness: lightness,
-      })
-      .eq("school_id", schoolId);
-
-    if (colorErr) {
-      // If no row exists, try insert
-      const { error: insertErr } = await supabase
-        .from("school_branding")
-        .insert({
-          school_id: schoolId,
+    if (USE_FASTAPI) {
+      try {
+        await apiClient.put(`/schools/${schoolId}/branding`, {
           accent_hue: hue,
           accent_saturation: saturation,
           accent_lightness: lightness,
         });
-      brandingError = insertErr;
+      } catch (err: any) {
+        brandingError = err;
+      }
+    } else {
+      const { error: colorErr } = await supabase
+        .from("school_branding")
+        .update({
+          accent_hue: hue,
+          accent_saturation: saturation,
+          accent_lightness: lightness,
+        })
+        .eq("school_id", schoolId);
+
+      if (colorErr) {
+        // If no row exists, try insert
+        const { error: insertErr } = await supabase
+          .from("school_branding")
+          .insert({
+            school_id: schoolId,
+            accent_hue: hue,
+            accent_saturation: saturation,
+            accent_lightness: lightness,
+          });
+        brandingError = insertErr;
+      }
     }
 
-    // 2. Update school location coordinates safely (fallback if schema is not migrated)
+    // 2. Update school location coordinates safely
     let schoolErr = null;
-    try {
-      const { error } = await supabase
-        .from("schools")
-        .update({
+    if (USE_FASTAPI) {
+      try {
+        await apiClient.patch(`/schools/${schoolId}`, {
           latitude: latVal,
           longitude: lngVal,
           altitude: altVal,
-        })
-        .eq("id", schoolId);
-      schoolErr = error;
-    } catch (err: any) {
-      schoolErr = err;
+        });
+      } catch (err: any) {
+        schoolErr = err;
+      }
+    } else {
+      try {
+        const { error } = await supabase
+          .from("schools")
+          .update({
+            latitude: latVal,
+            longitude: lngVal,
+            altitude: altVal,
+          })
+          .eq("id", schoolId);
+        schoolErr = error;
+      } catch (err: any) {
+        schoolErr = err;
+      }
     }
 
     if (brandingError || schoolErr) {

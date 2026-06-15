@@ -164,7 +164,7 @@ export function PrincipalStudentsTab({ schoolId }: PrincipalStudentsTabProps) {
           apiClient.get("/students/parents"),
         ]);
 
-        studentsData = studentsRes.data?.items || studentsRes.data || [];
+        studentsData = studentsRes.data?.data || studentsRes.data || [];
         classesData = classesRes.data || [];
         sectionsData = sectionsRes.data || [];
         enrollmentsData = enrollmentsRes.data || [];

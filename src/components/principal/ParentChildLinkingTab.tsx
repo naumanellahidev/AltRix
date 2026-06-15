@@ -80,7 +80,7 @@ export function ParentChildLinkingTab({ schoolId }: Props) {
         ]);
 
         guardianData = guardiansRes.data || [];
-        studentData = studentsRes.data?.items || studentsRes.data || [];
+        studentData = studentsRes.data?.data || studentsRes.data || [];
         parentList = (parentsRes.data || []).map((p: any) => ({
           user_id: p.user_id,
           email: p.email || "",

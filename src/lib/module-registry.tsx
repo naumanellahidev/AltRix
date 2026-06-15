@@ -27,7 +27,6 @@ import { AccountantTaxModule } from "@/pages/tenant/accountant-modules/Accountan
 import { AccountantReportsModule } from "@/pages/tenant/accountant-modules/AccountantReportsModule";
 
 import FeesUnifiedModule from "@/pages/tenant/modules/FeesUnifiedModule";
-import { FinanceModule } from "@/pages/tenant/modules/FinanceModule";
 import { ReportsModule } from "@/pages/tenant/modules/ReportsModule";
 import { MessagesModule } from "@/pages/tenant/modules/MessagesModule";
 import { UsersModule } from "@/pages/tenant/modules/UsersModule";
@@ -44,12 +43,23 @@ import PrincipalComplaintsModule from "@/pages/tenant/modules/PrincipalComplaint
 import PrincipalParentNotesModule from "@/pages/tenant/modules/PrincipalParentNotesModule";
 import AdmissionsModule from "@/pages/tenant/modules/AdmissionsModule";
 import { SupportModule } from "@/pages/tenant/modules/SupportModule";
+import { StudentCardsModule } from "@/pages/tenant/modules/StudentCardsModule";
+import { InquiriesModule } from "@/pages/tenant/modules/InquiriesModule";
 
 import { HrLeavesModule } from "@/pages/tenant/hr-modules/HrLeavesModule";
 import { HrSalariesModule } from "@/pages/tenant/hr-modules/HrSalariesModule";
 import { HrContractsModule } from "@/pages/tenant/hr-modules/HrContractsModule";
 import { HrReviewsModule } from "@/pages/tenant/hr-modules/HrReviewsModule";
 import { HrDocumentsModule } from "@/pages/tenant/hr-modules/HrDocumentsModule";
+import { HrAttendanceModule } from "@/pages/tenant/hr-modules/HrAttendanceModule";
+import { HrRecruitmentModule } from "@/pages/tenant/hr-modules/HrRecruitmentModule";
+import { HrOnboardingModule } from "@/pages/tenant/hr-modules/HrOnboardingModule";
+import { HrOffboardingModule } from "@/pages/tenant/hr-modules/HrOffboardingModule";
+import { HrAnalyticsModule } from "@/pages/tenant/hr-modules/HrAnalyticsModule";
+
+import BudgetSimulatorPage from "@/pages/tenant/principal/BudgetSimulatorPage";
+import AttendanceHeatmapPage from "@/pages/tenant/principal/AttendanceHeatmapPage";
+import { CollaborationHub } from "@/components/principal/CollaborationHub";
 
 import { MarketingLeadsModule } from "@/pages/tenant/marketing-modules/MarketingLeadsModule";
 import { MarketingFollowUpsModule } from "@/pages/tenant/marketing-modules/MarketingFollowUpsModule";
@@ -97,7 +107,7 @@ export interface ModuleEntry {
 export const MODULE_REGISTRY: Record<string, ModuleEntry> = {
   // Finance
   fees:     { Component: FeesUnifiedModule },
-  finance:  { Component: FinanceModule },
+  finance:  { Component: FeesUnifiedModule },
   invoices: { Component: AccountantInvoicesModule },
   payments: { Component: AccountantPaymentsModule },
   expenses: { Component: AccountantExpensesModule },
@@ -121,6 +131,11 @@ export const MODULE_REGISTRY: Record<string, ModuleEntry> = {
   contracts:      { Component: HrContractsModule },
   reviews:        { Component: HrReviewsModule },
   documents:      { Component: HrDocumentsModule },
+  "staff-attendance": { Component: HrAttendanceModule },
+  recruitment:    { Component: HrRecruitmentModule },
+  onboarding:     { Component: HrOnboardingModule },
+  offboarding:    { Component: HrOffboardingModule },
+  "hr-analytics": { Component: HrAnalyticsModule },
   admissions:     { Component: AdmissionsModule },
   crm:            { Component: CrmModule },
   leads:          { Component: MarketingLeadsModule },
@@ -129,6 +144,8 @@ export const MODULE_REGISTRY: Record<string, ModuleEntry> = {
   sources:        { Component: MarketingSourcesModule },
   campaigns:      { Component: MarketingCampaignsModule },
   "parent-notes": { Component: PrincipalParentNotesModule },
+  "student-cards": { Component: StudentCardsModule },
+  inquiries: { Component: InquiriesModule },
 
   // Operations
   notices:    { Component: NoticesModule,  propsFor: (c) => ({ schoolId: c.schoolId, canManage: true }) },
@@ -143,6 +160,9 @@ export const MODULE_REGISTRY: Record<string, ModuleEntry> = {
   // Communication
   messages: { Component: MessagesModule, propsFor: (c) => ({ schoolId: c.schoolId }) },
   support:  { Component: SupportModule,  propsFor: (c) => ({ schoolId: c.schoolId }) },
+  "attendance-heatmap": { Component: AttendanceHeatmapPage },
+  "budget-simulator":   { Component: BudgetSimulatorPage },
+  collaboration:        { Component: CollaborationHub },
 };
 
 /**

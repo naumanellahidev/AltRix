@@ -164,20 +164,27 @@ export default function PlatformRevenuePage() {
 
   // Editable Plan Templates state (same defaults as PlatformBillingPage)
   const [planTemplates] = useState<PlanTemplates>(() => {
-    const saved = localStorage.getItem("platform_plan_templates");
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        console.error("Error parsing plan templates", e);
-      }
-    }
-    return {
+    const defaultTemplates = {
       Basic: { monthly: 15000, yearly: 150000 },
       Standard: { monthly: 30000, yearly: 300000 },
       Premium: { monthly: 45000, yearly: 450000 },
       Enterprise: { monthly: 75000, yearly: 750000 },
     };
+    const saved = localStorage.getItem("platform_plan_templates");
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        return {
+          Basic: parsed?.Basic || defaultTemplates.Basic,
+          Standard: parsed?.Standard || defaultTemplates.Standard,
+          Premium: parsed?.Premium || defaultTemplates.Premium,
+          Enterprise: parsed?.Enterprise || defaultTemplates.Enterprise,
+        };
+      } catch (e) {
+        console.error("Error parsing plan templates", e);
+      }
+    }
+    return defaultTemplates;
   });
 
   // Filter States
@@ -227,7 +234,7 @@ export default function PlatformRevenuePage() {
             is_active: s.is_active ?? true,
             plan_tier: "Basic",
             billing_cycle: "monthly",
-            billing_amount: planTemplates.Basic.monthly,
+            billing_amount: planTemplates.Basic?.monthly ?? 15000,
             next_billing_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
             billing_status: "Active",
             billing_email: s.email || "",
@@ -241,7 +248,7 @@ export default function PlatformRevenuePage() {
           is_active: s.is_active ?? true,
           plan_tier: s.plan_tier || "Basic",
           billing_cycle: s.billing_cycle || "monthly",
-          billing_amount: s.billing_amount || planTemplates.Basic.monthly,
+          billing_amount: s.billing_amount || (planTemplates.Basic?.monthly ?? 15000),
           next_billing_date: s.next_billing_date || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
           billing_status: s.billing_status || "Active",
           billing_email: s.billing_email || s.email || "",
@@ -424,8 +431,8 @@ export default function PlatformRevenuePage() {
     if (simulatorPlanTier === "Average") {
       simulatedRate = metrics.arps;
     } else {
-      const template = planTemplates[simulatorPlanTier];
-      simulatedRate = template.monthly;
+      const template = planTemplates[simulatorPlanTier as keyof typeof planTemplates];
+      simulatedRate = template ? template.monthly : 0;
     }
 
     // Adjust rate by price increase slider
@@ -1226,10 +1233,10 @@ export default function PlatformRevenuePage() {
                       </SelectTrigger>
                       <SelectContent className="bg-zinc-950 border-zinc-800 text-zinc-200">
                         <SelectItem value="Average">Average Contract Value (ARPS)</SelectItem>
-                        <SelectItem value="Basic">Basic (Rs. {planTemplates.Basic.monthly.toLocaleString()}/mo)</SelectItem>
-                        <SelectItem value="Standard">Standard (Rs. {planTemplates.Standard.monthly.toLocaleString()}/mo)</SelectItem>
-                        <SelectItem value="Premium">Premium (Rs. {planTemplates.Premium.monthly.toLocaleString()}/mo)</SelectItem>
-                        <SelectItem value="Enterprise">Enterprise (Rs. {planTemplates.Enterprise.monthly.toLocaleString()}/mo)</SelectItem>
+                        <SelectItem value="Basic">Basic (Rs. {(planTemplates.Basic?.monthly ?? 15000).toLocaleString()}/mo)</SelectItem>
+                        <SelectItem value="Standard">Standard (Rs. {(planTemplates.Standard?.monthly ?? 30000).toLocaleString()}/mo)</SelectItem>
+                        <SelectItem value="Premium">Premium (Rs. {(planTemplates.Premium?.monthly ?? 45000).toLocaleString()}/mo)</SelectItem>
+                        <SelectItem value="Enterprise">Enterprise (Rs. {(planTemplates.Enterprise?.monthly ?? 75000).toLocaleString()}/mo)</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>

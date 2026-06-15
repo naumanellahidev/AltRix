@@ -36,6 +36,7 @@ const DrawerContent = React.forwardRef<
       )}
       {...props}
     >
+      <DrawerPrimitive.Title className="sr-only">Drawer Panel</DrawerPrimitive.Title>
       <div className="mx-auto mt-4 h-2 w-[100px] rounded-full bg-muted" />
       {children}
     </DrawerPrimitive.Content>

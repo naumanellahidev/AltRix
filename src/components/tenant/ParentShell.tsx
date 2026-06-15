@@ -1,7 +1,87 @@
-import { ReactNode, useState } from "react";
+import { ReactNode, useState, useEffect } from "react";
 import { NavLink } from "@/components/NavLink";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { useNavigate } from "react-router-dom";
+import { supabase, USE_FASTAPI } from "@/integrations/supabase/client";
+import { apiClient } from "@/lib/api-client";
+import { DashboardNotificationsBanner } from "@/components/global/DashboardNotificationsBanner";
+
+function getNotificationTargetRoute(notification: any, schoolSlug: string, role: string): string {
+  const t = (notification.entity_type || notification.type || "").toLowerCase();
+  
+  const getRolePath = (r: string): string => {
+    switch (r) {
+      case "principal":
+        return "principal";
+      case "vice_principal":
+        return "vice_principal";
+      case "school_admin":
+        return "school_admin";
+      case "academic_coordinator":
+        return "academic_coordinator";
+      case "hr_manager":
+        return "hr";
+      case "marketing_staff":
+        return "marketing";
+      default:
+        return r || "";
+    }
+  };
+
+  const rolePath = getRolePath(role);
+  const base = `/${schoolSlug}/${rolePath}`;
+
+  if (t.includes("admin_message") || t.includes("message")) {
+    if (role === "parent") {
+      return `/${schoolSlug}/parent/messages`;
+    }
+    const rolePathMap: Record<string, string> = {
+      parent: "parent", student: "student",
+      hr_manager: "hr", accountant: "accountant", marketing_staff: "marketing",
+      principal: "principal", vice_principal: "vice_principal",
+      school_admin: "school_admin", academic_coordinator: "academic_coordinator",
+      school_owner: "school_owner", super_admin: "super_admin", teacher: "teacher",
+    };
+    const targetRolePath = rolePathMap[role] || rolePath;
+    return `/${schoolSlug}/${targetRolePath}/messages?open_message=${notification.entity_id || ""}`;
+  }
+  
+  if (t.includes("notice")) return `${base}/notices`;
+  if (t.includes("homework") || t.includes("diary")) return `${base}/diary`;
+  if (t.includes("assignment")) return `${base}/assignments`;
+  if (t.includes("exam") || t.includes("assessment")) return `${base}/exams`;
+  if (t.includes("grade") || t.includes("report")) {
+    return rolePath === "student" || rolePath === "parent"
+      ? `${base}/grades`
+      : `${base}/report-cards`;
+  }
+  if (t.includes("attendance")) return `${base}/attendance`;
+  
+  const isFeeNotif =
+    notification.type === "fee_voucher" ||
+    notification.type === "fee_proof_submitted" ||
+    notification.type === "fee_proof_pending" ||
+    notification.type === "fee_proof_verified" ||
+    notification.type === "fee_proof_rejected" ||
+    notification.entity_type === "fee_invoice";
+
+  if (isFeeNotif) {
+    const rolePathMap: Record<string, string> = {
+      parent: "parent", student: "student",
+      hr_manager: "hr", accountant: "accountant", marketing_staff: "marketing",
+      principal: "principal", vice_principal: "vice_principal",
+      school_admin: "school_admin", academic_coordinator: "academic_coordinator",
+      school_owner: "school_owner", super_admin: "super_admin", teacher: "teacher",
+    };
+    const targetRolePath = rolePathMap[role] || rolePath;
+    return role === "parent" || role === "student"
+      ? `/${schoolSlug}/${targetRolePath}/fees`
+      : `/${schoolSlug}/${targetRolePath}/fee-vouchers`;
+  }
+  
+  return base;
+}
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import {
   Home,
@@ -64,7 +144,38 @@ export function ParentShell({
   // Use optimized tenant hook that caches and applies branding automatically
   const tenant = useTenantOptimized(schoolSlug);
   const schoolId = tenant.schoolId;
-  const { unreadCount } = useUnreadMessagesOptimized(schoolId, user?.id ?? null);
+  const { unreadParentCount } = useUnreadMessagesOptimized(schoolId, user?.id ?? null);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const handleOpenNotification = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      const notification = customEvent.detail?.notification;
+      if (!notification || !schoolSlug) return;
+      
+      // Mark as read
+      if (!notification.read_at) {
+        if (USE_FASTAPI) {
+          apiClient.post(`/notifications/${notification.id}/read`).catch(console.error);
+        } else {
+          supabase
+            .from("app_notifications")
+            .update({ read_at: new Date().toISOString() })
+            .eq("id", notification.id)
+            .then();
+        }
+      }
+      
+      // Navigate to target path
+      const route = getNotificationTargetRoute(notification, schoolSlug, "parent");
+      navigate(route);
+    };
+
+    window.addEventListener("eduverse:open-notification", handleOpenNotification as EventListener);
+    return () => {
+      window.removeEventListener("eduverse:open-notification", handleOpenNotification as EventListener);
+    };
+  }, [schoolSlug, navigate]);
 
   // Offline support
   const offline = useOfflineUniversal({
@@ -93,7 +204,7 @@ export function ParentShell({
     { to: `${basePath}/notices`, icon: Megaphone, label: "Notices", badge: 0 },
     { to: `${basePath}/holidays`, icon: PartyPopper, label: "Holidays", badge: 0 },
     { to: `${basePath}/fees`, icon: Receipt, label: "Fees", badge: 0 },
-    { to: `${basePath}/messages`, icon: MessageSquare, label: "Messages", badge: unreadCount },
+    { to: `${basePath}/messages`, icon: MessageSquare, label: "Messages", badge: unreadParentCount },
     { to: `${basePath}/complaints`, icon: ShieldAlert, label: "Complaints", badge: 0 },
     { to: `${basePath}/timetable`, icon: Clock, label: "Timetable", badge: 0 },
     { to: `${basePath}/notifications`, icon: Bell, label: "Notifications", badge: 0 },
@@ -102,7 +213,7 @@ export function ParentShell({
 
   const bottomNavItems = [
     { to: basePath, icon: Home, label: "Home", end: true },
-    { to: `${basePath}/messages`, icon: MessageSquare, label: "Messages", badge: unreadCount },
+    { to: `${basePath}/messages`, icon: MessageSquare, label: "Messages", badge: unreadParentCount },
     { to: `${basePath}/grades`, icon: GraduationCap, label: "Grades" },
     { to: `${basePath}/attendance`, icon: Calendar, label: "Attendance" },
   ];
@@ -327,6 +438,9 @@ export function ParentShell({
               </p>
             )}
           </header>
+          <div className="mb-4 lg:mb-5">
+            <DashboardNotificationsBanner schoolId={schoolId} schoolSlug={schoolSlug} role="parent" />
+          </div>
           {children}
         </section>
       </div>

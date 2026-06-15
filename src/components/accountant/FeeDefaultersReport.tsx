@@ -113,7 +113,7 @@ interface Defaulter {
   className: string | null;
 }
 
-const MotionCard = motion(Card);
+const MotionCard = motion.create(Card);
 
 const PRIORITY_COLORS: Record<PriorityLevel, string> = {
   critical: "hsl(var(--destructive))",

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { CalendarDays, Check, ChevronRight, Clock, Coffee, DoorOpen, Info, LogIn, Pencil, Wifi, WifiOff, X } from "lucide-react";
+import { CalendarDays, Check, ChevronRight, Clock, Coffee, DoorOpen, Info, LogIn, Pencil, RotateCcw, Wifi, WifiOff, X } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 interface MyScheduleWidgetProps {
   schoolId: string | null;
@@ -40,17 +42,35 @@ function getStatusIcon(status: string) {
     case "partial":
       return <Clock className="h-3.5 w-3.5 text-muted-foreground" />;
     case "cancelled":
-      return <X className="h-3.5 w-3.5 text-destructive" />;
+      return <X className="h-3.5 w-3.5 text-muted-foreground" />;
     default:
       return null;
   }
 }
 
+function getDateForDayOfWeek(targetDayOfWeek: number, referenceDate: Date): string {
+  const refDayOfWeek = referenceDate.getDay();
+  const diff = targetDayOfWeek - refDayOfWeek;
+  const targetDate = new Date(referenceDate);
+  targetDate.setDate(referenceDate.getDate() + diff);
+  
+  const yyyy = targetDate.getFullYear();
+  const mm = String(targetDate.getMonth() + 1).padStart(2, '0');
+  const dd = String(targetDate.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function formatDateBeautifully(dateStr: string): string {
+  const [yyyy, mm, dd] = dateStr.split("-").map(Number);
+  const date = new Date(yyyy, mm - 1, dd);
+  return date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+}
+
 export function MyScheduleWidget({ schoolId, schoolSlug }: MyScheduleWidgetProps) {
-  // Determine initial day: today if weekday, else Monday
   const { user } = useSession();
-  const { rows: presenceRows, setStatus: setPresenceStatus, saving: presenceSaving, realtimeStatus } =
-    useTeacherPresence(schoolId, user?.id ?? null);
+
+  // Reference date for the active week
+  const [currentWeekRefDate, setCurrentWeekRefDate] = useState(() => new Date());
 
   // Determine initial day: today if weekday, else Monday
   const [selectedDay, setSelectedDay] = useState(() => {
@@ -58,7 +78,14 @@ export function MyScheduleWidget({ schoolId, schoolSlug }: MyScheduleWidgetProps
     return today >= 1 && today <= 5 ? today : 1;
   });
 
-  const { entries, periodLogs, loading, error, isOffline, refetch } = useTeacherSchedule(schoolId, selectedDay);
+  const calculatedDate = useMemo(() => {
+    return getDateForDayOfWeek(selectedDay, currentWeekRefDate);
+  }, [selectedDay, currentWeekRefDate]);
+
+  const { rows: presenceRows, setStatus: setPresenceStatus, saving: presenceSaving, realtimeStatus } =
+    useTeacherPresence(schoolId, user?.id ?? null, calculatedDate);
+
+  const { entries, periodLogs, loading, error, isOffline, refetch } = useTeacherSchedule(schoolId, selectedDay, calculatedDate);
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [dialogEntry, setDialogEntry] = useState<ScheduleEntry | null>(null);
@@ -71,8 +98,16 @@ export function MyScheduleWidget({ schoolId, schoolSlug }: MyScheduleWidgetProps
   const [reasonText, setReasonText] = useState("");
   const [infoLog, setInfoLog] = useState<{ entry: ScheduleEntry; log: PeriodLog } | null>(null);
 
+  const todayStr = useMemo(() => {
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const dd = String(today.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  }, []);
+
+  const isToday = calculatedDate === todayStr;
   const todayDayOfWeek = new Date().getDay();
-  const isToday = selectedDay === todayDayOfWeek;
 
   // Determine current period index (only for today)
   const currentPeriodIndex = useMemo(() => {
@@ -97,13 +132,25 @@ export function MyScheduleWidget({ schoolId, schoolSlug }: MyScheduleWidgetProps
     return -1;
   }, [entries, isToday]);
 
+  const handleResetToToday = () => {
+    const today = new Date();
+    setCurrentWeekRefDate(today);
+    const day = today.getDay();
+    const mappedDay = day >= 1 && day <= 5 ? day : 1;
+    setSelectedDay(mappedDay);
+    refetch();
+  };
+
   const handleOpenLog = (entry: ScheduleEntry) => {
     setDialogEntry(entry);
     setDialogOpen(true);
   };
 
-  const handleLogSaved = () => {
+  const handleLogSaved = (logStatus: string) => {
     refetch();
+    if (logStatus === "completed" && dialogEntry) {
+      setPresenceStatus(dialogEntry.id, "completed");
+    }
   };
 
   // Map ScheduleEntry to PeriodLogDialog's expected format
@@ -139,7 +186,7 @@ export function MyScheduleWidget({ schoolId, schoolSlug }: MyScheduleWidgetProps
           <div>
             <CardTitle className="text-lg">My Schedule</CardTitle>
             <p className="text-sm text-muted-foreground">
-              {FULL_DAY_NAMES[selectedDay]} {isToday && "(Today)"}
+              {FULL_DAY_NAMES[selectedDay]}, {formatDateBeautifully(calculatedDate)} {isToday && "(Today)"}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -167,49 +214,100 @@ export function MyScheduleWidget({ schoolId, schoolSlug }: MyScheduleWidgetProps
                 </>
               )}
             </span>
-            <CalendarDays className="h-5 w-5 text-muted-foreground" />
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-muted-foreground hover:text-primary hover:bg-primary/5 rounded-md transition-colors"
+              onClick={handleResetToToday}
+              title="Reset to Today"
+            >
+              <RotateCcw className="h-4 w-4" />
+            </Button>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 text-muted-foreground hover:text-primary hover:bg-primary/5 rounded-md transition-colors"
+                  title="Select Date"
+                >
+                  <CalendarDays className="h-5 w-5" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0 border border-border/80 shadow-lg" align="end">
+                <Calendar
+                  mode="single"
+                  selected={currentWeekRefDate}
+                  onSelect={(date) => {
+                    if (date) {
+                      setCurrentWeekRefDate(date);
+                      const day = date.getDay();
+                      const mappedDay = day >= 1 && day <= 5 ? day : 1;
+                      setSelectedDay(mappedDay);
+                    }
+                  }}
+                  initialFocus
+                />
+              </PopoverContent>
+            </Popover>
           </div>
         </CardHeader>
         <CardContent>
           {/* Day Selector */}
-          <div className="flex gap-1 mb-4">
-            {WEEKDAYS.map((day) => (
-              <Button
-                key={day}
-                variant={selectedDay === day ? "default" : "outline"}
-                size="sm"
-                className="flex-1 px-2"
-                onClick={() => setSelectedDay(day)}
-              >
-                {DAY_NAMES[day]}
-                {day === todayDayOfWeek && <span className="ml-1 text-xs">•</span>}
-              </Button>
-            ))}
+          <div className="flex p-1 bg-muted/65 rounded-lg gap-1 mb-5 border border-muted-foreground/5 shadow-inner">
+            {WEEKDAYS.map((day) => {
+              const isSelected = selectedDay === day;
+              const isTodayDay = day === todayDayOfWeek;
+              return (
+                <button
+                  key={day}
+                  type="button"
+                  onClick={() => setSelectedDay(day)}
+                  className={`flex-1 py-1.5 px-3 text-xs font-semibold rounded-md transition-all duration-200 flex items-center justify-center gap-1 ${
+                    isSelected
+                      ? "bg-background text-foreground shadow-sm border border-border/40"
+                      : "text-muted-foreground hover:text-foreground hover:bg-background/40"
+                  }`}
+                >
+                  <span>{DAY_NAMES[day]}</span>
+                  {isTodayDay && (
+                    <span className="h-1.5 w-1.5 rounded-full bg-primary" title="Today" />
+                  )}
+                </button>
+              );
+            })}
           </div>
 
           {/* Loading State */}
           {loading && (
-            <div className="space-y-2">
+            <div className="space-y-3">
               {[1, 2, 3].map((i) => (
-                <Skeleton key={i} className="h-16 w-full rounded-lg" />
+                <div key={i} className="flex items-center justify-between rounded-xl border border-border/20 p-4 bg-card">
+                  <div className="flex-1 space-y-2">
+                    <Skeleton className="h-4 w-1/4 rounded" />
+                    <Skeleton className="h-3 w-1/2 rounded" />
+                  </div>
+                  <Skeleton className="h-8 w-20 rounded-md" />
+                </div>
               ))}
             </div>
           )}
 
           {/* Offline Notice */}
           {!loading && isOffline && entries.length > 0 && (
-            <div className="mb-3 rounded-lg border border-muted bg-muted/30 p-2">
-              <p className="text-xs text-muted-foreground text-center">
-                📶 Showing cached schedule (offline)
+            <div className="mb-4 rounded-xl border border-border/60 bg-muted/30 p-2.5">
+              <p className="text-xs text-muted-foreground text-center flex items-center justify-center gap-1.5">
+                <span>📶</span> Showing cached schedule (offline)
               </p>
             </div>
           )}
 
           {/* Error State */}
           {!loading && error && (
-            <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-3">
-              <p className="text-sm text-destructive">{error}</p>
-              <Button variant="outline" size="sm" className="mt-2" onClick={refetch}>
+            <div className="rounded-xl border border-destructive/20 bg-destructive/5 p-4 text-center">
+              <p className="text-sm font-semibold text-destructive">{error}</p>
+              <Button variant="outline" size="sm" className="mt-3 border-destructive/20 text-destructive hover:bg-destructive/5" onClick={refetch}>
                 Retry
               </Button>
             </div>
@@ -217,159 +315,254 @@ export function MyScheduleWidget({ schoolId, schoolSlug }: MyScheduleWidgetProps
 
           {/* Empty State */}
           {!loading && !error && entries.length === 0 && (
-            <div className="flex flex-col items-center justify-center py-8 text-center">
-              <Coffee className="h-8 w-8 text-muted-foreground mb-2" />
-              <p className="text-sm text-muted-foreground">
-                No classes scheduled for {FULL_DAY_NAMES[selectedDay]}.
+            <div className="flex flex-col items-center justify-center py-10 px-4 text-center border border-dashed border-border/60 rounded-xl bg-muted/10">
+              <div className="p-3 bg-muted rounded-full mb-3 text-muted-foreground/75">
+                <Coffee className="h-5 w-5" />
+              </div>
+              <p className="text-sm font-semibold text-foreground">No Classes Scheduled</p>
+              <p className="text-xs text-muted-foreground mt-1 max-w-[240px] mx-auto">
+                There are no scheduled classes for you on {FULL_DAY_NAMES[selectedDay]}.
               </p>
             </div>
           )}
 
           {/* Schedule Entries */}
           {!loading && !error && entries.length > 0 && (
-            <div className="space-y-2">
-              {entries.slice(0, 6).map((entry, index) => {
-                const log = periodLogs.get(entry.id);
-                const isCurrent = index === currentPeriodIndex;
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {entries.slice(0, 6).map((entry, index) => {
+                  const log = periodLogs.get(entry.id);
+                  const isCurrent = index === currentPeriodIndex;
+                  const presence = presenceRows.get(entry.id);
+                  const isIn = presence?.status === "in_class";
+                  const isLate = presence?.status === "late";
+                  const isOut = presence?.status === "left";
+                  const isCompletedPresence = presence?.status === "completed";
+                  const hasLog = !!log;
 
-                return (
-                  <div
-                    key={entry.id}
-                    className={`flex items-center justify-between rounded-lg border p-3 transition-colors ${
-                      isCurrent ? "border-primary bg-primary/5" : ""
-                    } ${log ? "border-green-500/40 bg-green-500/10 dark:bg-green-500/15" : ""}`}
-                  >
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <p className="text-sm font-medium truncate">{entry.subjectName}</p>
-                        {log && (
-                          <>
-                            <span
-                              className="flex items-center gap-0.5"
-                              title={`${log.status}${log.topicsCovered ? `: ${log.topicsCovered}` : ""}`}
-                            >
-                              {getStatusIcon(log.status)}
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() => setInfoLog({ entry, log })}
-                              className="text-muted-foreground hover:text-primary transition-colors"
-                              title="View details"
-                            >
-                              <Info className="h-3.5 w-3.5" />
-                            </button>
-                          </>
-                        )}
-                        {isCurrent && (
-                          <Badge variant="default" className="text-xs px-1.5 py-0">
-                            Now
-                          </Badge>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <span>{entry.periodLabel}</span>
-                        {entry.startTime && (
-                          <span>
-                            • {formatTime(entry.startTime)} - {formatTime(entry.endTime)}
+                  // Determine if this lecture is in the future
+                  let isFuture = false;
+                  if (calculatedDate > todayStr) {
+                    isFuture = true;
+                  } else if (calculatedDate === todayStr && entry.startTime) {
+                    const [h, m] = entry.startTime.split(":").map(Number);
+                    const startMin = h * 60 + m;
+                    const now = new Date();
+                    const curMin = now.getHours() * 60 + now.getMinutes();
+                    isFuture = curMin < startMin;
+                  }
+
+                  return (
+                    <div
+                      key={entry.id}
+                      className={`flex flex-col justify-between rounded-xl border p-4 transition-all duration-200 shadow-[0_1px_2px_rgba(0,0,0,0.02)] ${
+                        isCurrent
+                          ? "border-primary/20 bg-primary/[0.02] dark:bg-primary/[0.01] border-l-[4px] border-l-primary"
+                          : hasLog || isCompletedPresence
+                          ? "border-primary/10 bg-primary/[0.005] border-l-[4px] border-l-primary/30"
+                          : isIn || isLate
+                          ? "border-primary/20 bg-primary/[0.01] border-l-[4px] border-l-primary/60"
+                          : isOut
+                          ? "border-border/50 bg-card border-l-[4px] border-l-primary/20"
+                          : "border-border/40 bg-card border-l-[4px] border-l-transparent"
+                      }`}
+                    >
+                                       {/* Top Header: Period & Status on Row 1, Time on Row 2 */}
+                      <div className="border-b border-border/40 pb-2 mb-3 space-y-1.5">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[10px] font-bold text-muted-foreground/80 tracking-wider uppercase bg-muted/60 px-2 py-0.5 rounded whitespace-nowrap">
+                            {entry.periodLabel}
                           </span>
+                          
+                          {/* Status Indicators */}
+                          <div className="flex items-center gap-1.5 flex-shrink-0">
+                            {hasLog && (
+                              <span
+                                className="inline-flex items-center gap-1 bg-primary/10 text-primary px-2 py-0.5 rounded-full text-[10px] font-medium border border-primary/20 cursor-pointer hover:bg-primary/15 transition-colors"
+                                onClick={() => setInfoLog({ entry, log })}
+                                title="Click to view log details"
+                              >
+                                {getStatusIcon(log.status)}
+                                <span className="capitalize">{log.status}</span>
+                                <Info className="h-3 w-3 text-primary/80 ml-0.5" />
+                              </span>
+                            )}
+                            {isCurrent && !hasLog && (
+                              <span className="inline-flex items-center bg-primary text-primary-foreground px-2 py-0.5 rounded-full text-[10px] font-semibold tracking-wide shadow-sm animate-pulse">
+                                Active
+                              </span>
+                            )}
+                            {!hasLog && (isIn || isLate) && (
+                              <span className="inline-flex items-center bg-primary/10 text-primary px-2 py-0.5 rounded-full text-[10px] font-medium border border-primary/20">
+                                In Class {isLate && "(Late)"}
+                              </span>
+                            )}
+                            {!hasLog && isOut && (
+                              <span className="inline-flex items-center bg-muted text-muted-foreground px-2 py-0.5 rounded-full text-[10px] font-medium border border-border/30">
+                                Checked Out
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {entry.startTime && (
+                          <div className="text-xs font-semibold tabular-nums text-muted-foreground flex items-center gap-1.5 whitespace-nowrap">
+                            <Clock className="h-3.5 w-3.5 text-muted-foreground/70 flex-shrink-0" />
+                            {formatTime(entry.startTime)} - {formatTime(entry.endTime)}
+                          </div>
                         )}
                       </div>
-                    </div>
-                    <div className="flex items-center gap-2 ml-2">
-                      {entry.sectionLabel && (
-                        <Badge variant="outline" className="text-xs whitespace-nowrap hidden sm:inline-flex">
-                          {entry.sectionLabel}
-                        </Badge>
-                      )}
-                      {entry.room && (
-                        <Badge variant="secondary" className="text-xs">
-                          {entry.room}
-                        </Badge>
-                      )}
-                      {isToday && (() => {
-                        const presence = presenceRows.get(entry.id);
-                        const isIn = presence?.status === "in_class";
-                        const isLate = presence?.status === "late";
-                        const isOut = presence?.status === "left";
-                        const busy = presenceSaving === entry.id;
-                        const handleSet = async (
-                          status: "in_class" | "left",
-                          reason?: string | null,
-                        ) => {
-                          await setPresenceStatus(entry.id, status, {
-                            reason: reason ?? null,
-                            startTime: entry.startTime,
-                          });
-                        };
-                        const askReasonAndSet = (status: "in_class" | "left") => {
-                          setReasonDialog({
-                            entryId: entry.id,
-                            label: `${entry.subjectName} • ${entry.periodLabel}`,
-                            reasonType: status === "in_class" ? "late" : "left",
-                            onSubmit: (reason) => handleSet(status, reason),
-                          });
-                        };
-                        const onGreen = () => {
-                          // If after start, will become Late — ask for reason
-                          if (entry.startTime) {
-                            const [h, m] = entry.startTime.split(":").map(Number);
-                            const startMin = h * 60 + m;
-                            const now = new Date();
-                            if (now.getHours() * 60 + now.getMinutes() > startMin) {
-                              askReasonAndSet("in_class");
-                              return;
+
+                      {/* Middle Row: Subject Name, Badges & Action Button */}
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-base font-bold text-foreground tracking-tight">
+                            {entry.subjectName}
+                          </p>
+                          
+                          <div className="flex items-center gap-1.5 mt-1.5">
+                            {entry.sectionLabel && (
+                              <span className="inline-flex items-center bg-muted text-muted-foreground px-2 py-0.5 rounded text-[10px] font-medium border border-border/30">
+                                {entry.sectionLabel}
+                              </span>
+                            )}
+                            {entry.room && (
+                              <span className="inline-flex items-center bg-muted/60 text-muted-foreground px-2 py-0.5 rounded text-[10px] font-medium border border-border/30">
+                                Room {entry.room}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Right Action Button */}
+                        <div className="self-end flex-shrink-0">
+                          {(() => {
+                            const busy = presenceSaving === entry.id;
+                            const handleSet = async (
+                              status: "in_class" | "left" | "completed",
+                              reason?: string | null,
+                            ) => {
+                              await setPresenceStatus(entry.id, status, {
+                                reason: reason ?? null,
+                                startTime: entry.startTime,
+                              });
+                            };
+                            const askReasonAndSet = (status: "in_class" | "left") => {
+                              setReasonDialog({
+                                entryId: entry.id,
+                                label: `${entry.subjectName} • ${entry.periodLabel}`,
+                                reasonType: status === "in_class" ? "late" : "left",
+                                onSubmit: (reason) => handleSet(status, reason),
+                              });
+                            };
+                            const onGreen = () => {
+                              if (entry.startTime) {
+                                const [h, m] = entry.startTime.split(":").map(Number);
+                                const startMin = h * 60 + m;
+                                const now = new Date();
+                                if (now.getHours() * 60 + now.getMinutes() > startMin + 5) {
+                                  askReasonAndSet("in_class");
+                                  return;
+                                }
+                              }
+                              handleSet("in_class");
+                            };
+
+                            if (hasLog) {
+                              return (
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-8 px-2.5 text-xs text-muted-foreground hover:text-primary hover:bg-primary/5 flex items-center gap-1.5 rounded-md border border-border/40"
+                                  onClick={() => handleOpenLog(entry)}
+                                  title="Edit lecture log"
+                                >
+                                  <Pencil className="h-3.5 w-3.5" />
+                                  <span>Edit Log</span>
+                                </Button>
+                              );
                             }
-                          }
-                          handleSet("in_class");
-                        };
-                        return (
-                          <>
-                            <Button
-                              type="button"
-                              size="icon"
-                              disabled={busy}
-                              onClick={onGreen}
-                              title="I'm in class"
-                              className={`h-7 w-7 rounded-full ${
-                                isIn || isLate
-                                  ? isLate
-                                    ? "bg-accent text-accent-foreground hover:bg-accent/90"
-                                    : "bg-primary text-primary-foreground hover:bg-primary/90"
-                                  : "bg-background text-primary border border-primary/40 hover:bg-primary/10"
-                              }`}
-                            >
-                              <LogIn className="h-3.5 w-3.5" />
-                            </Button>
-                            <Button
-                              type="button"
-                              size="icon"
-                              disabled={busy}
-                              onClick={() => askReasonAndSet("left")}
-                              title="Left the class"
-                              className={`h-7 w-7 rounded-full ${
-                                isOut
-                                  ? "bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                  : "bg-background text-destructive border border-destructive/40 hover:bg-destructive/10"
-                              }`}
-                            >
-                              <DoorOpen className="h-3.5 w-3.5" />
-                            </Button>
-                          </>
-                        );
-                      })()}
-                      <Button
-                        variant={log ? "ghost" : "outline"}
-                        size="icon"
-                        className="h-7 w-7"
-                        onClick={() => handleOpenLog(entry)}
-                        title={log ? "Edit log" : "Mark complete"}
-                      >
-                        {log ? <Pencil className="h-3.5 w-3.5" /> : <Check className="h-3.5 w-3.5" />}
-                      </Button>
+
+                            if (isOut || isCompletedPresence) {
+                              return (
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="default"
+                                  disabled={busy}
+                                  className="h-8 px-3 text-xs bg-primary text-primary-foreground hover:bg-primary/90 flex items-center gap-1.5 rounded-md shadow-sm font-medium"
+                                  onClick={() => handleOpenLog(entry)}
+                                >
+                                  <Check className="h-3.5 w-3.5" />
+                                  <span>Log Class</span>
+                                </Button>
+                              );
+                            }
+
+                            if (isIn || isLate) {
+                              return (
+                                <div className="flex items-center gap-1">
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    disabled={busy}
+                                    className="h-8 px-2.5 text-xs border-primary/20 text-primary hover:bg-primary/5 flex items-center gap-1.5 rounded-md font-medium"
+                                    onClick={() => askReasonAndSet("left")}
+                                  >
+                                    <DoorOpen className="h-3.5 w-3.5" />
+                                    <span>Check Out</span>
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    size="icon"
+                                    variant="ghost"
+                                    disabled={busy}
+                                    className="h-8 w-8 text-muted-foreground hover:text-primary hover:bg-primary/5 rounded-md"
+                                    onClick={() => handleOpenLog(entry)}
+                                    title="Log class directly"
+                                  >
+                                    <Pencil className="h-3.5 w-3.5" />
+                                  </Button>
+                                </div>
+                              );
+                            }
+
+                            return (
+                              <div className="flex items-center gap-1">
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="default"
+                                  disabled={busy || isFuture}
+                                  className="h-8 px-2.5 text-xs bg-primary text-primary-foreground hover:bg-primary/90 flex items-center gap-1.5 rounded-md shadow-sm font-medium"
+                                  onClick={onGreen}
+                                  title={isFuture ? "Check-in is only available once the lecture starts" : undefined}
+                                >
+                                  <LogIn className="h-3.5 w-3.5" />
+                                  <span>Check In</span>
+                                </Button>
+                                <Button
+                                  type="button"
+                                  size="icon"
+                                  variant="ghost"
+                                  disabled={busy || isFuture}
+                                  className="h-8 w-8 text-muted-foreground hover:text-primary hover:bg-primary/5 rounded-md"
+                                  onClick={() => handleOpenLog(entry)}
+                                  title={isFuture ? "Logging is only available once the lecture starts" : "Log class directly"}
+                                >
+                                  <Pencil className="h-3.5 w-3.5" />
+                                </Button>
+                              </div>
+                            );
+                          })()}
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
               {entries.length > 6 && (
                 <p className="text-xs text-muted-foreground text-center">
                   +{entries.length - 6} more periods

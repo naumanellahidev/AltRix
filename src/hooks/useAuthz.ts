@@ -148,7 +148,11 @@ export function useAuthz({ schoolId, userId, role, requiredRoles }: AuthzOptions
 
       if (USE_FASTAPI) {
         try {
-          const resp = await apiClient.get("/auth/me");
+          const resp = await apiClient.get("/auth/me", {
+            headers: {
+              "X-School-Id": schoolId || undefined,
+            },
+          });
           const userData = resp.data;
           
           const isPlatformAdmin = !!userData.is_super_admin;

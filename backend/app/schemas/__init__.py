@@ -65,6 +65,9 @@ class SchoolUpdate(BaseModel):
     website: Optional[str] = None
     tagline: Optional[str] = None
     is_active: Optional[bool] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    altitude: Optional[float] = None
 
 
 class SchoolOut(BaseModel):
@@ -82,6 +85,9 @@ class SchoolOut(BaseModel):
     owner_user_id: Optional[UUID] = None
     subscription_plan: Optional[str] = None
     subscription_status: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    altitude: Optional[float] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
@@ -189,6 +195,7 @@ class StudentCreate(BaseModel):
     roll_number: Optional[str] = None
     photo_url: Optional[str] = None
     blood_group: Optional[str] = None
+    card_valid_until: Optional[str] = None
     address: Optional[str] = None
     phone: Optional[str] = None
     email: Optional[str] = None
@@ -207,6 +214,7 @@ class StudentUpdate(BaseModel):
     roll_number: Optional[str] = None
     photo_url: Optional[str] = None
     blood_group: Optional[str] = None
+    card_valid_until: Optional[str] = None
     address: Optional[str] = None
     phone: Optional[str] = None
     email: Optional[str] = None
@@ -228,12 +236,107 @@ class StudentOut(BaseModel):
     gender: Optional[str] = None
     photo_url: Optional[str] = None
     blood_group: Optional[str] = None
+    card_valid_until: Optional[str] = None
     address: Optional[str] = None
     phone: Optional[str] = None
     email: Optional[str] = None
     status: Optional[str] = None
     admission_date: Optional[str] = None
     created_at: Optional[datetime] = None
+
+    model_config = {"from_attributes": True}
+
+
+# ─── SCHOOL ID CARD SETTINGS ──────────────────────────────────────────────────
+
+class SchoolIdCardSettingsCreate(BaseModel):
+    card_layout: Optional[str] = "vertical"
+    primary_color: Optional[str] = "#1e40af"
+    text_color: Optional[str] = "#ffffff"
+    card_title: Optional[str] = "STUDENT IDENTIFICATION"
+    show_logo: Optional[bool] = True
+    show_qr_code: Optional[bool] = True
+    show_roll_number: Optional[bool] = True
+    show_class: Optional[bool] = True
+    show_dob: Optional[bool] = True
+    show_blood_group: Optional[bool] = True
+    show_emergency_contact: Optional[bool] = True
+    show_signature: Optional[bool] = False
+    signature_text: Optional[str] = "Authorized Signature"
+    design_style: Optional[str] = "modern"
+
+
+class SchoolIdCardSettingsUpdate(BaseModel):
+    card_layout: Optional[str] = None
+    primary_color: Optional[str] = None
+    text_color: Optional[str] = None
+    card_title: Optional[str] = None
+    show_logo: Optional[bool] = None
+    show_qr_code: Optional[bool] = None
+    show_roll_number: Optional[bool] = None
+    show_class: Optional[bool] = None
+    show_dob: Optional[bool] = None
+    show_blood_group: Optional[bool] = None
+    show_emergency_contact: Optional[bool] = None
+    show_signature: Optional[bool] = None
+    signature_text: Optional[str] = None
+    design_style: Optional[str] = None
+
+
+class SchoolIdCardSettingsOut(BaseModel):
+    id: UUID
+    school_id: UUID
+    card_layout: str
+    primary_color: str
+    text_color: str
+    card_title: str
+    show_logo: bool
+    show_qr_code: bool
+    show_roll_number: bool
+    show_class: bool
+    show_dob: bool
+    show_blood_group: bool
+    show_emergency_contact: bool
+    show_signature: bool
+    signature_text: str
+    design_style: str
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+    model_config = {"from_attributes": True}
+
+
+# ─── SCHOOL INQUIRY SETTINGS ──────────────────────────────────────────────────
+
+class SchoolInquirySettingsCreate(BaseModel):
+    form_title: Optional[str] = "Admissions & Inquiry Form"
+    show_logo: Optional[bool] = True
+    success_message: Optional[str] = "Thank you for inquiring! Our admissions counselor will get in touch with you shortly."
+    accent_color: Optional[str] = "#f59e0b"
+    fields_config: Optional[dict] = {"parentName": True, "email": True, "phone": True, "studentName": True, "studentGrade": True, "priorSchool": True, "message": True}
+    required_config: Optional[dict] = {"email": True, "phone": True, "studentName": True, "studentGrade": False}
+
+
+class SchoolInquirySettingsUpdate(BaseModel):
+    form_title: Optional[str] = None
+    show_logo: Optional[bool] = None
+    success_message: Optional[str] = None
+    accent_color: Optional[str] = None
+    fields_config: Optional[dict] = None
+    required_config: Optional[dict] = None
+
+
+class SchoolInquirySettingsOut(BaseModel):
+    id: UUID
+    school_id: UUID
+    form_title: str
+    show_logo: bool
+    success_message: str
+    accent_color: str
+    fields_config: dict
+    required_config: dict
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
 
     model_config = {"from_attributes": True}
 

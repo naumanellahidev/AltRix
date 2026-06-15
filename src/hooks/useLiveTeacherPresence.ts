@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { supabase, USE_FASTAPI } from "@/integrations/supabase/client";
-import { apiClient } from "@/lib/api-client";
+import { supabase, USE_FASTAPI, setUseFastAPI } from "@/integrations/supabase/client";
+import { apiClient, isNetworkOrProxyError } from "@/lib/api-client";
 
 export interface LiveTeacherStatus {
   teacherUserId: string;
   teacherName: string;
-  status: "in_class" | "left" | "late" | "not_checked_in";
+  status: "in_class" | "left" | "late" | "completed" | "not_checked_in";
   enteredAt: string | null;
   leftAt: string | null;
   updatedAt: string | null;
@@ -17,6 +17,7 @@ export interface LiveTeacherStatus {
   startTime: string | null;
   endTime: string | null;
   timetableEntryId: string;
+  reason?: string | null;
 }
 
 interface TimetableEntry {
@@ -68,55 +69,73 @@ export function useLiveTeacherPresence(schoolId: string | null) {
   const loadStatic = useCallback(async () => {
     if (!schoolId) return;
     setLoading(true);
-    try {
-      if (USE_FASTAPI) {
-        const resp = await apiClient.get<any>("/teachers/live-presence");
-        setEntries(resp.data.entries ?? []);
-        setPeriods(resp.data.periods ?? []);
-        
-        const sMap = new Map<string, { name: string; class_name: string | null }>();
-        Object.entries(resp.data.sections ?? {}).forEach(([key, s]: [string, any]) => {
-          sMap.set(key, { name: s.name, class_name: s.class_name });
-        });
-        setSections(sMap);
-        
-        const tMap = new Map<string, string>();
-        Object.entries(resp.data.teachers ?? {}).forEach(([key, val]: [string, any]) => {
-          tMap.set(key, val);
-        });
-        setTeachers(tMap);
-      } else {
-        const today = new Date().getDay();
-        const [ttRes, periodsRes, sectionsRes, dirRes] = await Promise.all([
-          supabase
-            .from("timetable_entries")
-            .select("id, subject_name, teacher_user_id, class_section_id, room, period_id, day_of_week, start_time, end_time")
-            .eq("school_id", schoolId)
-            .eq("day_of_week", today),
-          supabase
-            .from("timetable_periods")
-            .select("id, label, start_time, end_time, sort_order, is_break")
-            .eq("school_id", schoolId)
-            .order("sort_order"),
-          supabase
-            .from("class_sections")
-            .select("id, name, class_id, academic_classes(name)")
-            .eq("school_id", schoolId),
-          supabase.rpc("get_school_user_directory", { _school_id: schoolId }),
-        ]);
 
-        setEntries((ttRes.data as TimetableEntry[] | null) ?? []);
-        setPeriods((periodsRes.data as Period[] | null) ?? []);
-        const sMap = new Map<string, { name: string; class_name: string | null }>();
-        (sectionsRes.data as any[] | null)?.forEach((s) => {
-          sMap.set(s.id, { name: s.name, class_name: s.academic_classes?.name ?? null });
-        });
-        setSections(sMap);
-        const tMap = new Map<string, string>();
-        (dirRes.data as any[] | null)?.forEach((u) => {
-          tMap.set(u.user_id, u.display_name ?? u.email ?? "Teacher");
-        });
-        setTeachers(tMap);
+    const runSupabaseLoad = async () => {
+      const today = new Date().getDay();
+      const [ttRes, periodsRes, sectionsRes, dirRes] = await Promise.all([
+        supabase
+          .from("timetable_entries")
+          .select("id, subject_name, teacher_user_id, class_section_id, room, period_id, day_of_week, start_time, end_time")
+          .eq("school_id", schoolId)
+          .eq("day_of_week", today),
+        supabase
+          .from("timetable_periods")
+          .select("id, label, start_time, end_time, sort_order, is_break")
+          .eq("school_id", schoolId)
+          .order("sort_order"),
+        supabase
+          .from("class_sections")
+          .select("id, name, class_id, academic_classes(name)")
+          .eq("school_id", schoolId),
+        supabase.rpc("get_school_user_directory", { _school_id: schoolId }),
+      ]);
+
+      setEntries((ttRes.data as TimetableEntry[] | null) ?? []);
+      setPeriods((periodsRes.data as Period[] | null) ?? []);
+      const sMap = new Map<string, { name: string; class_name: string | null }>();
+      (sectionsRes.data as any[] | null)?.forEach((s) => {
+        sMap.set(s.id, { name: s.name, class_name: s.academic_classes?.name ?? null });
+      });
+      setSections(sMap);
+      const tMap = new Map<string, string>();
+      (dirRes.data as any[] | null)?.forEach((u) => {
+        tMap.set(u.user_id, u.display_name ?? u.email ?? "Teacher");
+      });
+      setTeachers(tMap);
+    };
+
+    try {
+      let useFastApiActive = USE_FASTAPI;
+      if (useFastApiActive) {
+        try {
+          const resp = await apiClient.get<any>("/teachers/live-presence");
+          setEntries(resp.data.entries ?? []);
+          setPeriods(resp.data.periods ?? []);
+          
+          const sMap = new Map<string, { name: string; class_name: string | null }>();
+          Object.entries(resp.data.sections ?? {}).forEach(([key, s]: [string, any]) => {
+            sMap.set(key, { name: s.name, class_name: s.class_name });
+          });
+          setSections(sMap);
+          
+          const tMap = new Map<string, string>();
+          Object.entries(resp.data.teachers ?? {}).forEach(([key, val]: [string, any]) => {
+            tMap.set(key, val);
+          });
+          setTeachers(tMap);
+        } catch (apiErr: any) {
+          if (isNetworkOrProxyError(apiErr)) {
+            console.warn("Failed to load static teacher live presence via FastAPI, falling back to Supabase", apiErr);
+            setUseFastAPI(false);
+            useFastApiActive = false;
+          } else {
+            throw apiErr;
+          }
+        }
+      }
+
+      if (!useFastApiActive) {
+        await runSupabaseLoad();
       }
     } catch (e) {
       console.error("Failed to load static teacher live presence", e);
@@ -127,37 +146,55 @@ export function useLiveTeacherPresence(schoolId: string | null) {
 
   const loadPresence = useCallback(async () => {
     if (!schoolId) return;
+
+    const runSupabasePresence = async () => {
+      const { data } = await (supabase as any)
+        .from("teacher_period_presence")
+        .select("timetable_entry_id, status, entered_at, left_at, updated_at, reason")
+        .eq("school_id", schoolId)
+        .eq("period_date", todayISO());
+      const map = new Map<string, { status: string; entered_at: string | null; left_at: string | null; updated_at: string; reason: string | null }>();
+      (data as any[] | null)?.forEach((r) => {
+        map.set(r.timetable_entry_id, {
+          status: r.status,
+          entered_at: r.entered_at,
+          left_at: r.left_at,
+          updated_at: r.updated_at,
+          reason: r.reason ?? null,
+        });
+      });
+      setPresenceRows(map);
+    };
+
     try {
-      if (USE_FASTAPI) {
-        const resp = await apiClient.get<any>("/teachers/live-presence");
-        const presenceMap = new Map<string, { status: string; entered_at: string | null; left_at: string | null; updated_at: string; reason: string | null }>();
-        Object.entries(resp.data.presenceRows ?? {}).forEach(([key, r]: [string, any]) => {
-          presenceMap.set(key, {
-            status: r.status,
-            entered_at: r.entered_at,
-            left_at: r.left_at,
-            updated_at: r.updated_at,
-            reason: r.reason ?? null,
+      let useFastApiActive = USE_FASTAPI;
+      if (useFastApiActive) {
+        try {
+          const resp = await apiClient.get<any>("/teachers/live-presence");
+          const presenceMap = new Map<string, { status: string; entered_at: string | null; left_at: string | null; updated_at: string; reason: string | null }>();
+          Object.entries(resp.data.presenceRows ?? {}).forEach(([key, r]: [string, any]) => {
+            presenceMap.set(key, {
+              status: r.status,
+              entered_at: r.entered_at,
+              left_at: r.left_at,
+              updated_at: r.updated_at,
+              reason: r.reason ?? null,
+            });
           });
-        });
-        setPresenceRows(presenceMap);
-      } else {
-        const { data } = await (supabase as any)
-          .from("teacher_period_presence")
-          .select("timetable_entry_id, status, entered_at, left_at, updated_at, reason")
-          .eq("school_id", schoolId)
-          .eq("period_date", todayISO());
-        const map = new Map<string, { status: string; entered_at: string | null; left_at: string | null; updated_at: string; reason: string | null }>();
-        (data as any[] | null)?.forEach((r) => {
-          map.set(r.timetable_entry_id, {
-            status: r.status,
-            entered_at: r.entered_at,
-            left_at: r.left_at,
-            updated_at: r.updated_at,
-            reason: r.reason ?? null,
-          });
-        });
-        setPresenceRows(map);
+          setPresenceRows(presenceMap);
+        } catch (apiErr: any) {
+          if (isNetworkOrProxyError(apiErr)) {
+            console.warn("Failed to load teacher presence data via FastAPI, falling back to Supabase", apiErr);
+            setUseFastAPI(false);
+            useFastApiActive = false;
+          } else {
+            throw apiErr;
+          }
+        }
+      }
+
+      if (!useFastApiActive) {
+        await runSupabasePresence();
       }
     } catch (e) {
       console.error("Failed to load teacher presence data", e);
@@ -272,9 +309,14 @@ export function useLiveTeacherPresence(schoolId: string | null) {
       const start = timeToMin(e.start_time ?? p?.start_time ?? null);
       const end = timeToMin(e.end_time ?? p?.end_time ?? null);
       if (start == null || end == null) return;
-      if (curMin < start || curMin > end) return;
       if (p?.is_break) return;
+
       const presence = presenceRows.get(e.id);
+      const isCompleted = presence?.status === "completed";
+
+      if (!isCompleted) {
+        if (curMin < start || curMin > end) return;
+      }
       const sec = e.class_section_id ? sections.get(e.class_section_id) : undefined;
       result.push({
         teacherUserId: e.teacher_user_id,
@@ -291,6 +333,7 @@ export function useLiveTeacherPresence(schoolId: string | null) {
         startTime: e.start_time ?? p?.start_time ?? null,
         endTime: e.end_time ?? p?.end_time ?? null,
         timetableEntryId: e.id,
+        reason: presence?.reason ?? null,
       });
     });
     return result.sort((a, b) => a.teacherName.localeCompare(b.teacherName));
@@ -307,7 +350,7 @@ export function useLiveTeacherPresence(schoolId: string | null) {
       sectionLabel: string | null;
       className: string | null;
       room: string | null;
-      status: "in_class" | "left" | "late" | "not_checked_in";
+      status: "in_class" | "left" | "late" | "completed" | "not_checked_in";
       enteredAt: string | null;
       leftAt: string | null;
       reason: string | null;

@@ -28,6 +28,7 @@ export function SupportInbox({ schoolId }: { schoolId?: string }) {
   const [busy, setBusy] = useState(false);
   const [labels, setLabels] = useState<Record<string, string>>({});
   const [statusFilter, setStatusFilter] = useState<"all" | "open" | "resolved">("all");
+  const [searchQuery, setSearchQuery] = useState("");
 
   const refreshConversations = async () => {
     let q = supabase
@@ -127,6 +128,53 @@ export function SupportInbox({ schoolId }: { schoolId?: string }) {
       });
       if (error) throw error;
       setDraft("");
+
+      // Notify student
+      try {
+        const { data: student } = await supabase
+          .from("students")
+          .select("user_id")
+          .eq("id", selected.student_id)
+          .maybeSingle();
+
+        if (student?.user_id) {
+          await supabase.from("app_notifications").insert({
+            school_id: selected.school_id,
+            user_id: student.user_id,
+            type: "support",
+            title: "Support Ticket Reply",
+            body: `School support has replied to your ticket.`,
+            entity_type: "support_conversations",
+            entity_id: selected.id
+          });
+        }
+      } catch (e) {
+        console.warn("Failed to notify student:", e);
+      }
+
+      // Notify guardians
+      try {
+        const { data: guardians } = await supabase
+          .from("student_guardians")
+          .select("user_id")
+          .eq("student_id", selected.student_id);
+
+        const parentIds = (guardians ?? []).map((g: any) => g.user_id).filter(Boolean);
+        if (parentIds.length > 0) {
+          const notifs = parentIds.map(pid => ({
+            school_id: selected.school_id,
+            user_id: pid,
+            type: "support",
+            title: "Support Ticket Reply",
+            body: `School support has replied to the support ticket for your child.`,
+            entity_type: "support_conversations",
+            entity_id: selected.id
+          }));
+          await supabase.from("app_notifications").insert(notifs);
+        }
+      } catch (e) {
+        console.warn("Failed to notify guardians:", e);
+      }
       
       // If ticket was resolved, reopen it when staff replies
       if (selected.status === "resolved") {
@@ -165,9 +213,19 @@ export function SupportInbox({ schoolId }: { schoolId?: string }) {
   };
 
   const filteredConversations = useMemo(() => {
-    if (statusFilter === "all") return conversations;
-    return conversations.filter(c => c.status === statusFilter);
-  }, [conversations, statusFilter]);
+    let list = conversations;
+    if (statusFilter !== "all") {
+      list = list.filter(c => c.status === statusFilter);
+    }
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      list = list.filter(c => {
+        const studentName = (labels[c.student_id] ?? c.student_id).toLowerCase();
+        return studentName.includes(q);
+      });
+    }
+    return list;
+  }, [conversations, statusFilter, searchQuery, labels]);
 
   const selectedLabel = useMemo(() => {
     if (!selected) return "Select a ticket";
@@ -202,6 +260,16 @@ export function SupportInbox({ schoolId }: { schoolId?: string }) {
           </Button>
         </div>
         
+        {/* Search Input */}
+        <div className="relative mb-3">
+          <Input
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search student name…"
+            className="text-xs"
+          />
+        </div>
+
         {/* Status Filter */}
         <div className="flex gap-2 mb-4">
           <Button

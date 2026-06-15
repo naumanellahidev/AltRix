@@ -14,7 +14,7 @@ from sqlalchemy import func, or_, select, text
 
 from app.dependencies import CurrentUser, DbSession
 from app.exceptions import NotFoundError, ForbiddenError
-from app.models.people import TeacherProfile, TeacherSubjectAssignment
+from app.models.people import TeacherProfile, TeacherSubjectAssignment, TeacherAssignment
 from app.schemas import TeacherCreate, TeacherOut, MessageResponse
 from app.utils.pagination import PaginationParams, PaginatedResponse
 from app.utils.permissions import expand_roles, STAFF_GOV
@@ -160,18 +160,7 @@ async def create_teacher(body: TeacherCreate, current_user: CurrentUser, db: DbS
     return teacher
 
 
-# ─── SUBJECT ASSIGNMENT DELETE (static prefix /assignments/) ──────────────────
 
-@router.delete("/assignments/{assignment_id}", response_model=MessageResponse)
-async def remove_assignment(assignment_id: UUID, current_user: CurrentUser, db: DbSession):
-    result = await db.execute(
-        select(TeacherSubjectAssignment).where(TeacherSubjectAssignment.id == assignment_id)
-    )
-    assignment = result.scalar_one_or_none()
-    if not assignment:
-        raise NotFoundError("Assignment", str(assignment_id))
-    await db.delete(assignment)
-    return MessageResponse(message="Assignment removed")
 
 
 # ─── BADGES ───────────────────────────────────────────────────────────────────
@@ -228,6 +217,7 @@ async def get_teacher_schedule(
     day_of_week: int,
     current_user: CurrentUser,
     db: DbSession,
+    period_date: Optional[str] = Query(None),
 ):
     if not current_user.school_id:
         raise ForbiddenError("No school context")
@@ -308,12 +298,20 @@ async def get_teacher_schedule(
 
     enriched.sort(key=lambda x: x["sortOrder"])
 
-    # 5. Fetch today's period logs
+    # 5. Fetch period logs
+    import datetime
+    log_date = datetime.date.today()
+    if period_date:
+        try:
+            log_date = datetime.date.fromisoformat(period_date)
+        except ValueError:
+            pass
+
     logs_sql = """
-        SELECT id, timetable_entry_id, status, notes, topics_covered FROM teacher_period_logs
-        WHERE teacher_user_id = :uid AND log_date = CURRENT_DATE
+        SELECT id, timetable_entry_id, status, notes, topic_covered FROM teacher_period_logs
+        WHERE teacher_user_id = :uid AND logged_at = :log_date
     """
-    logs_res = await db.execute(text(logs_sql), {"uid": teacher_user_id})
+    logs_res = await db.execute(text(logs_sql), {"uid": teacher_user_id, "log_date": log_date})
     logs = logs_res.fetchall()
     logs_map = {
         str(r[1]): {
@@ -342,7 +340,8 @@ async def get_live_teacher_presence(current_user: CurrentUser, db: DbSession):
     import datetime
     python_day = datetime.datetime.now().weekday()
     js_day = (python_day + 1) % 7
-    today_iso = datetime.date.today().isoformat()
+    today_date = datetime.date.today()
+    today_iso = today_date.isoformat()
 
     try:
         # 1. Fetch periods
@@ -423,7 +422,7 @@ async def get_live_teacher_presence(current_user: CurrentUser, db: DbSession):
         """
         presence_res = await db.execute(
             text(presence_sql),
-            {"school_id": current_user.school_id, "today": today_iso}
+            {"school_id": current_user.school_id, "today": today_date}
         )
         presence_rows = {
             str(r[0]): {
@@ -525,6 +524,13 @@ async def get_teacher_presence(
     if not current_user.school_id:
         raise ForbiddenError("No school context")
 
+    import datetime
+    from fastapi import HTTPException
+    try:
+        p_date = datetime.date.fromisoformat(period_date)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid period_date format. Expected YYYY-MM-DD.")
+
     sql = """
         SELECT id, timetable_entry_id, status, entered_at, left_at, period_date
         FROM teacher_period_presence
@@ -537,7 +543,7 @@ async def get_teacher_presence(
         {
             "school_id": current_user.school_id,
             "teacher_user_id": teacher_user_id,
-            "period_date": period_date,
+            "period_date": p_date,
         }
     )
     rows = res.fetchall()
@@ -564,14 +570,41 @@ async def upsert_teacher_presence(
     if not current_user.school_id:
         raise ForbiddenError("No school context")
 
+    import datetime
+    from fastapi import HTTPException
+    try:
+        p_date = datetime.date.fromisoformat(body.period_date)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid period_date format. Expected YYYY-MM-DD.")
+
+    entered_dt = None
+    if body.entered_at:
+        try:
+            val = body.entered_at
+            if val.endswith('Z'):
+                val = val[:-1] + '+00:00'
+            entered_dt = datetime.datetime.fromisoformat(val)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid entered_at format. Expected ISO-8601.")
+
+    left_dt = None
+    if body.left_at:
+        try:
+            val = body.left_at
+            if val.endswith('Z'):
+                val = val[:-1] + '+00:00'
+            left_dt = datetime.datetime.fromisoformat(val)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid left_at format. Expected ISO-8601.")
+
     sql = """
         INSERT INTO teacher_period_presence (
             school_id, teacher_user_id, timetable_entry_id, period_date, status, reason, entered_at, left_at
         ) VALUES (
             :school_id, :teacher_user_id, :timetable_entry_id, :period_date, :status, :reason,
-            CAST(:entered_at AS timestamp with time zone), CAST(:left_at AS timestamp with time zone)
+            :entered_at, :left_at
         )
-        ON CONFLICT (school_id, teacher_user_id, timetable_entry_id, period_date)
+        ON CONFLICT (school_id, timetable_entry_id, period_date, teacher_user_id)
         DO UPDATE SET
             status = EXCLUDED.status,
             reason = EXCLUDED.reason,
@@ -584,15 +617,173 @@ async def upsert_teacher_presence(
             "school_id": current_user.school_id,
             "teacher_user_id": teacher_user_id,
             "timetable_entry_id": body.timetable_entry_id,
-            "period_date": body.period_date,
+            "period_date": p_date,
             "status": body.status,
             "reason": body.reason,
-            "entered_at": body.entered_at,
-            "left_at": body.left_at,
+            "entered_at": entered_dt,
+            "left_at": left_dt,
         }
     )
     await db.flush()
     return MessageResponse(message="Presence updated successfully")
+
+
+# ─── TEACHER ASSIGNMENTS & SUBJECT ASSIGNMENTS (static paths) ─────────────────
+from datetime import datetime
+
+class SectionAssignmentCreate(BaseModel):
+    teacher_user_id: UUID
+    class_section_id: UUID
+    subject_id: Optional[UUID] = None
+
+class SectionAssignmentOut(BaseModel):
+    id: UUID
+    school_id: UUID
+    teacher_user_id: UUID
+    class_section_id: UUID
+    subject_id: Optional[UUID] = None
+    created_at: Optional[datetime] = None
+
+    model_config = {"from_attributes": True}
+
+class TeacherSubjectAssignmentCreate(BaseModel):
+    teacher_user_id: UUID
+    class_section_id: UUID
+    subject_id: UUID
+
+class TeacherSubjectAssignmentOut(BaseModel):
+    id: UUID
+    school_id: UUID
+    teacher_user_id: UUID
+    class_section_id: UUID
+    subject_id: UUID
+    created_at: Optional[datetime] = None
+
+    model_config = {"from_attributes": True}
+
+@router.get("/assignments", response_model=List[SectionAssignmentOut])
+async def list_assignments(
+    current_user: CurrentUser,
+    db: DbSession,
+    teacher_user_id: Optional[UUID] = Query(None),
+):
+    if not current_user.school_id:
+        return []
+    query = select(TeacherAssignment).where(TeacherAssignment.school_id == current_user.school_id)
+    if teacher_user_id:
+        query = query.where(TeacherAssignment.teacher_user_id == teacher_user_id)
+    result = await db.execute(query)
+    return result.scalars().all()
+
+@router.post("/assignments", response_model=SectionAssignmentOut, status_code=status.HTTP_201_CREATED)
+async def create_assignment(body: SectionAssignmentCreate, current_user: CurrentUser, db: DbSession):
+    if not current_user.school_id:
+        raise ForbiddenError("No school context")
+    effective_roles = expand_roles(current_user.roles)
+    if not (current_user.is_super_admin or any(r in effective_roles for r in STAFF_GOV)):
+        raise ForbiddenError()
+    
+    # Check if duplicate
+    dup_res = await db.execute(
+        select(TeacherAssignment).where(
+            TeacherAssignment.school_id == current_user.school_id,
+            TeacherAssignment.teacher_user_id == body.teacher_user_id,
+            TeacherAssignment.class_section_id == body.class_section_id,
+            TeacherAssignment.subject_id == body.subject_id
+        )
+    )
+    dup = dup_res.scalar_one_or_none()
+    if dup:
+        return dup
+
+    assignment = TeacherAssignment(
+        school_id=current_user.school_id,
+        teacher_user_id=body.teacher_user_id,
+        class_section_id=body.class_section_id,
+        subject_id=body.subject_id
+    )
+    db.add(assignment)
+    await db.flush()
+    await db.refresh(assignment)
+    return assignment
+
+@router.delete("/assignments/{assignment_id}", response_model=MessageResponse)
+async def delete_assignment(assignment_id: UUID, current_user: CurrentUser, db: DbSession):
+    if not current_user.school_id:
+        raise ForbiddenError("No school context")
+    result = await db.execute(
+        select(TeacherAssignment).where(
+            TeacherAssignment.id == assignment_id,
+            TeacherAssignment.school_id == current_user.school_id
+        )
+    )
+    assignment = result.scalar_one_or_none()
+    if not assignment:
+        raise NotFoundError("TeacherAssignment", str(assignment_id))
+    await db.delete(assignment)
+    return MessageResponse(message="Teacher assignment removed successfully")
+
+@router.get("/subject-assignments", response_model=List[TeacherSubjectAssignmentOut])
+async def list_subject_assignments(
+    current_user: CurrentUser,
+    db: DbSession,
+    teacher_user_id: Optional[UUID] = Query(None),
+):
+    if not current_user.school_id:
+        return []
+    query = select(TeacherSubjectAssignment).where(TeacherSubjectAssignment.school_id == current_user.school_id)
+    if teacher_user_id:
+        query = query.where(TeacherSubjectAssignment.teacher_user_id == teacher_user_id)
+    result = await db.execute(query)
+    return result.scalars().all()
+
+@router.post("/subject-assignments", response_model=TeacherSubjectAssignmentOut, status_code=status.HTTP_201_CREATED)
+async def create_subject_assignment(body: TeacherSubjectAssignmentCreate, current_user: CurrentUser, db: DbSession):
+    if not current_user.school_id:
+        raise ForbiddenError("No school context")
+    effective_roles = expand_roles(current_user.roles)
+    if not (current_user.is_super_admin or any(r in effective_roles for r in STAFF_GOV)):
+        raise ForbiddenError()
+
+    # Check duplicate
+    dup_res = await db.execute(
+        select(TeacherSubjectAssignment).where(
+            TeacherSubjectAssignment.school_id == current_user.school_id,
+            TeacherSubjectAssignment.teacher_user_id == body.teacher_user_id,
+            TeacherSubjectAssignment.class_section_id == body.class_section_id,
+            TeacherSubjectAssignment.subject_id == body.subject_id
+        )
+    )
+    dup = dup_res.scalar_one_or_none()
+    if dup:
+        return dup
+
+    assignment = TeacherSubjectAssignment(
+        school_id=current_user.school_id,
+        teacher_user_id=body.teacher_user_id,
+        class_section_id=body.class_section_id,
+        subject_id=body.subject_id
+    )
+    db.add(assignment)
+    await db.flush()
+    await db.refresh(assignment)
+    return assignment
+
+@router.delete("/subject-assignments/{assignment_id}", response_model=MessageResponse)
+async def delete_subject_assignment(assignment_id: UUID, current_user: CurrentUser, db: DbSession):
+    if not current_user.school_id:
+        raise ForbiddenError("No school context")
+    result = await db.execute(
+        select(TeacherSubjectAssignment).where(
+            TeacherSubjectAssignment.id == assignment_id,
+            TeacherSubjectAssignment.school_id == current_user.school_id
+        )
+    )
+    assignment = result.scalar_one_or_none()
+    if not assignment:
+        raise NotFoundError("TeacherSubjectAssignment", str(assignment_id))
+    await db.delete(assignment)
+    return MessageResponse(message="Teacher subject assignment removed successfully")
 
 
 # ─── INDIVIDUAL TEACHER CRUD (path-parameter routes — must be last) ───────────

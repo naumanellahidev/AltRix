@@ -1,4 +1,4 @@
-import { PropsWithChildren, useState, useMemo } from "react";
+import { PropsWithChildren, useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { NavLink } from "@/components/NavLink";
 import { Button } from "@/components/ui/button";
@@ -31,7 +31,9 @@ import {
   Users,
   HeartHandshake,
 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase, USE_FASTAPI } from "@/integrations/supabase/client";
+import { apiClient } from "@/lib/api-client";
+import { DashboardNotificationsBanner } from "@/components/global/DashboardNotificationsBanner";
 import { GlobalCommandPalette } from "@/components/global/GlobalCommandPalette";
 import { NotificationsBell } from "@/components/global/NotificationsBell";
 import { StaffAttendanceWidget } from "./StaffAttendanceWidget";
@@ -41,6 +43,82 @@ import { useSession } from "@/hooks/useSession";
 import { useTenantOptimized } from "@/hooks/useTenantOptimized";
 import { useOfflineUniversal } from "@/hooks/useOfflineUniversal";
 import { OfflineStatusIndicator } from "@/components/offline/OfflineStatusIndicator";
+
+function getNotificationTargetRoute(notification: any, schoolSlug: string, role: string): string {
+  const t = (notification.entity_type || notification.type || "").toLowerCase();
+  
+  const getRolePath = (r: string): string => {
+    switch (r) {
+      case "principal":
+        return "principal";
+      case "vice_principal":
+        return "vice_principal";
+      case "school_admin":
+        return "school_admin";
+      case "academic_coordinator":
+        return "academic_coordinator";
+      case "hr_manager":
+        return "hr";
+      case "marketing_staff":
+        return "marketing";
+      default:
+        return r || "";
+    }
+  };
+
+  const rolePath = getRolePath(role);
+  const base = `/${schoolSlug}/${rolePath}`;
+
+  if (t.includes("admin_message") || t.includes("message")) {
+    if (role === "parent") {
+      return `/${schoolSlug}/parent/messages`;
+    }
+    const rolePathMap: Record<string, string> = {
+      parent: "parent", student: "student",
+      hr_manager: "hr", accountant: "accountant", marketing_staff: "marketing",
+      principal: "principal", vice_principal: "vice_principal",
+      school_admin: "school_admin", academic_coordinator: "academic_coordinator",
+      school_owner: "school_owner", super_admin: "super_admin", teacher: "teacher",
+    };
+    const targetRolePath = rolePathMap[role] || rolePath;
+    return `/${schoolSlug}/${targetRolePath}/messages?open_message=${notification.entity_id || ""}`;
+  }
+  
+  if (t.includes("notice")) return `${base}/notices`;
+  if (t.includes("homework") || t.includes("diary")) return `${base}/diary`;
+  if (t.includes("assignment")) return `${base}/assignments`;
+  if (t.includes("exam") || t.includes("assessment")) return `${base}/exams`;
+  if (t.includes("grade") || t.includes("report")) {
+    return rolePath === "student" || rolePath === "parent"
+      ? `${base}/grades`
+      : `${base}/report-cards`;
+  }
+  if (t.includes("attendance")) return `${base}/attendance`;
+  
+  const isFeeNotif =
+    notification.type === "fee_voucher" ||
+    notification.type === "fee_proof_submitted" ||
+    notification.type === "fee_proof_pending" ||
+    notification.type === "fee_proof_verified" ||
+    notification.type === "fee_proof_rejected" ||
+    notification.entity_type === "fee_invoice";
+
+  if (isFeeNotif) {
+    const rolePathMap: Record<string, string> = {
+      parent: "parent", student: "student",
+      hr_manager: "hr", accountant: "accountant", marketing_staff: "marketing",
+      principal: "principal", vice_principal: "vice_principal",
+      school_admin: "school_admin", academic_coordinator: "academic_coordinator",
+      school_owner: "school_owner", super_admin: "super_admin", teacher: "teacher",
+    };
+    const targetRolePath = rolePathMap[role] || rolePath;
+    return role === "parent" || role === "student"
+      ? `/${schoolSlug}/${targetRolePath}/fees`
+      : `/${schoolSlug}/${targetRolePath}/fee-vouchers`;
+  }
+  
+  return base;
+}
 
 type Props = PropsWithChildren<{
   title: string;
@@ -59,7 +137,37 @@ export function TeacherShell({ title, subtitle, schoolSlug, children }: Props) {
   const schoolId = tenant.schoolId;
   
   const badges = useTeacherBadges(schoolId, user?.id ?? null);
-  const { unreadCount: unreadAdminMessages } = useUnreadMessagesOptimized(schoolId, user?.id ?? null);
+  const { unreadCount: unreadAdminMessages, unreadParentCount } = useUnreadMessagesOptimized(schoolId, user?.id ?? null);
+
+  useEffect(() => {
+    const handleOpenNotification = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      const notification = customEvent.detail?.notification;
+      if (!notification || !schoolSlug) return;
+      
+      // Mark as read
+      if (!notification.read_at) {
+        if (USE_FASTAPI) {
+          apiClient.post(`/notifications/${notification.id}/read`).catch(console.error);
+        } else {
+          supabase
+            .from("app_notifications")
+            .update({ read_at: new Date().toISOString() })
+            .eq("id", notification.id)
+            .then();
+        }
+      }
+      
+      // Navigate to target path
+      const route = getNotificationTargetRoute(notification, schoolSlug, "teacher");
+      navigate(route);
+    };
+
+    window.addEventListener("eduverse:open-notification", handleOpenNotification as EventListener);
+    return () => {
+      window.removeEventListener("eduverse:open-notification", handleOpenNotification as EventListener);
+    };
+  }, [schoolSlug, navigate]);
 
   // Offline support
   const offline = useOfflineUniversal({
@@ -98,27 +206,27 @@ export function TeacherShell({ title, subtitle, schoolSlug, children }: Props) {
 
   const navItems = [
     { to: basePath, icon: LayoutGrid, label: "Dashboard", end: true, badge: 0 },
-    { to: `${basePath}/students`, icon: Users, label: "My Students", badge: 0 },
+    { to: `${basePath}/timetable`, icon: CalendarDays, label: "Timetable", badge: 0 },
     { to: `${basePath}/attendance`, icon: ClipboardCheck, label: "Attendance", badge: 0 },
-    { to: `${basePath}/homework`, icon: BookOpen, label: "Homework", badge: 0 },
-    { to: `${basePath}/assignments`, icon: FileText, label: "Assignments", badge: badges.pendingAssignments },
-    { to: `${basePath}/behavior`, icon: NotebookPen, label: "Behavior Notes", badge: 0 },
-    { to: `${basePath}/parent-notes`, icon: HeartHandshake, label: "Parent Notes", badge: 0 },
-    { to: `${basePath}/complaints`, icon: ShieldAlert, label: "Complaints", badge: 0 },
+    { to: `${basePath}/students`, icon: Users, label: "My Students", badge: 0 },
     { to: `${basePath}/gradebook`, icon: TableIcon, label: "Gradebook", badge: 0 },
-    { to: `${basePath}/progress`, icon: TrendingUp, label: "Student Progress", badge: 0 },
+    { to: `${basePath}/assignments`, icon: FileText, label: "Assignments", badge: badges.pendingAssignments },
+    { to: `${basePath}/homework`, icon: BookOpen, label: "Homework", badge: 0 },
     { to: `${basePath}/lesson-plans`, icon: BookCheck, label: "Lesson Planner", badge: 0 },
+    { to: `${basePath}/diary`, icon: BookOpen, label: "Diary", badge: 0 },
     { to: `${basePath}/exams`, icon: GraduationCap, label: "Exams", badge: 0 },
     { to: `${basePath}/report-cards`, icon: FileText, label: "Report Cards", badge: 0 },
-    { to: `${basePath}/diary`, icon: BookOpen, label: "Diary", badge: 0 },
+    { to: `${basePath}/progress`, icon: TrendingUp, label: "Student Progress", badge: 0 },
+    { to: `${basePath}/reports`, icon: GraduationCap, label: "Reports", badge: 0 },
+    { to: `${basePath}/messages`, icon: MessageSquare, label: "Messages", badge: unreadAdminMessages },
+    { to: `${basePath}/parent-notes`, icon: HeartHandshake, label: "Parent Notes", badge: badges.unreadMessages },
+    { to: `${basePath}/behavior`, icon: NotebookPen, label: "Behavior Notes", badge: 0 },
+    { to: `${basePath}/complaints`, icon: ShieldAlert, label: "Complaints", badge: 0 },
     { to: `${basePath}/notices`, icon: Megaphone, label: "Notices", badge: 0 },
     { to: `${basePath}/holidays`, icon: PartyPopper, label: "Holidays", badge: 0 },
-    { to: `${basePath}/reports`, icon: GraduationCap, label: "Reports", badge: 0 },
-    { to: `${basePath}/timetable`, icon: CalendarDays, label: "Timetable", badge: 0 },
     { to: `${basePath}/presence-history`, icon: ClipboardCheck, label: "Presence History", badge: 0 },
     { to: `${basePath}/leaves`, icon: Umbrella, label: "Apply Leave", badge: 0 },
     { to: `${basePath}/ai-insights`, icon: Brain, label: "AI Insights", badge: 0 },
-    { to: `${basePath}/messages`, icon: MessageSquare, label: "Messages", badge: unreadAdminMessages },
   ];
 
   const bottomNavItems = [
@@ -298,6 +406,9 @@ export function TeacherShell({ title, subtitle, schoolSlug, children }: Props) {
               </div>
             </div>
           </header>
+          <div className="mb-4 lg:mb-5">
+            <DashboardNotificationsBanner schoolId={schoolId} schoolSlug={schoolSlug} role="teacher" />
+          </div>
           {children}
         </section>
       </div>

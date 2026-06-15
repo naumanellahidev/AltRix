@@ -39,3 +39,35 @@ class UnauthorizedError(HTTPException):
             detail=detail,
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+
+class RateLimitError(HTTPException):
+    def __init__(self, detail: str = "Too many requests. Please try again later.", retry_after: int = 60):
+        super().__init__(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=detail,
+            headers={"Retry-After": str(retry_after)},
+        )
+
+
+class ServiceUnavailableError(HTTPException):
+    def __init__(self, detail: str = "Service temporarily unavailable"):
+        super().__init__(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=detail,
+        )
+
+
+class CampusIsolationError(HTTPException):
+    def __init__(self, detail: str = "Access denied: resource belongs to a different campus"):
+        super().__init__(status_code=status.HTTP_403_FORBIDDEN, detail=detail)
+
+
+class OwnershipError(HTTPException):
+    def __init__(self, detail: str = "Access denied: you don't own this resource"):
+        super().__init__(status_code=status.HTTP_403_FORBIDDEN, detail=detail)
+
+
+class SchoolIsolationError(HTTPException):
+    def __init__(self, detail: str = "Access denied: resource belongs to a different school"):
+        super().__init__(status_code=status.HTTP_403_FORBIDDEN, detail=detail)

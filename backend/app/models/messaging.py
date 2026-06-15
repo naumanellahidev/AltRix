@@ -2,6 +2,10 @@
 Messaging models: admin messages (school-wide), chat channels, messages.
 """
 import uuid
+from datetime import datetime, timezone
+from typing import Optional, List
+from sqlalchemy.ext.hybrid import hybrid_property
+
 from sqlalchemy import Boolean, Column, DateTime, ForeignKey, String, Text
 from sqlalchemy.dialects.postgresql import UUID, ARRAY
 from sqlalchemy.sql import func
@@ -63,14 +67,74 @@ class Notice(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     school_id = Column(UUID(as_uuid=True), ForeignKey("schools.id"), nullable=False)
-    campus_id = Column(UUID(as_uuid=True), ForeignKey("campuses.id"), nullable=True)
     title = Column(String, nullable=False)
-    content = Column(Text, nullable=True)
-    notice_type = Column(String, nullable=True, default="general")
-    target_roles = Column(ARRAY(String), nullable=True)
-    is_published = Column(Boolean, default=False, nullable=True)
-    published_at = Column(DateTime(timezone=True), nullable=True)
+    body = Column(Text, nullable=True)
+    audience = Column(String, nullable=False, default="all")
+    priority = Column(String, nullable=False, default="normal")
+    pinned = Column(Boolean, nullable=False, default=False)
+    publish_at = Column(DateTime(timezone=True), nullable=True)
     expires_at = Column(DateTime(timezone=True), nullable=True)
     created_by = Column(UUID(as_uuid=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=True)
     updated_at = Column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
+
+    # Property wrappers for backward compatibility
+    @property
+    def campus_id(self) -> Optional[uuid.UUID]:
+        return None
+
+    @campus_id.setter
+    def campus_id(self, val: Optional[uuid.UUID]):
+        pass
+
+    @property
+    def content(self) -> Optional[str]:
+        return self.body
+
+    @content.setter
+    def content(self, val: Optional[str]):
+        self.body = val
+
+    @property
+    def notice_type(self) -> Optional[str]:
+        return "general"
+
+    @notice_type.setter
+    def notice_type(self, val: Optional[str]):
+        pass
+
+    @property
+    def target_roles(self) -> List[str]:
+        return [self.audience] if self.audience else []
+
+    @target_roles.setter
+    def target_roles(self, val: Optional[List[str]]):
+        if val:
+            self.audience = val[0]
+        else:
+            self.audience = "all"
+
+    @hybrid_property
+    def is_published(self) -> bool:
+        return self.publish_at is not None
+
+    @is_published.setter
+    def is_published(self, val: bool):
+        if val:
+            if not self.publish_at:
+                self.publish_at = datetime.now(timezone.utc)
+        else:
+            self.publish_at = None
+
+    @is_published.expression
+    def is_published(cls):
+        return cls.publish_at.isnot(None)
+
+    @property
+    def published_at(self) -> Optional[datetime]:
+        return self.publish_at
+
+    @published_at.setter
+    def published_at(self, val: Optional[datetime]):
+        self.publish_at = val
+

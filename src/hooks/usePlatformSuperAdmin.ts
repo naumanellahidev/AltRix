@@ -6,6 +6,7 @@ type PlatformAuthz = {
   loading: boolean;
   allowed: boolean;
   message: string | null;
+  isNetworkError?: boolean;
 };
 
 /**
@@ -22,16 +23,16 @@ export const MASTER_SUPER_ADMIN_EMAIL = "naumancheema643@gmail.com";
  *   2. The session email matches the hard-coded master email
  */
 export function usePlatformSuperAdmin(userId: string | null | undefined): PlatformAuthz {
-  const [state, setState] = useState<PlatformAuthz>({ loading: true, allowed: false, message: null });
+  const [state, setState] = useState<PlatformAuthz>({ loading: true, allowed: false, message: null, isNetworkError: false });
 
   useEffect(() => {
     if (!userId) {
-      setState({ loading: false, allowed: false, message: "Not signed in." });
+      setState({ loading: false, allowed: false, message: "Not signed in.", isNetworkError: false });
       return;
     }
 
     let cancelled = false;
-    setState({ loading: true, allowed: false, message: null });
+    setState({ loading: true, allowed: false, message: null, isNetworkError: false });
 
     (async () => {
       try {
@@ -57,20 +58,21 @@ export function usePlatformSuperAdmin(userId: string | null | undefined): Platfo
                 loading: false,
                 allowed: false,
                 message: "Access denied. Master Super Admin only.",
+                isNetworkError: false,
               });
             }
             return;
           }
 
           const { data: psa, error } = await supabase
-            .from("platform_super_admins")
-            .select("user_id")
-            .eq("user_id", userId)
-            .maybeSingle();
+             .from("platform_super_admins")
+             .select("user_id")
+             .eq("user_id", userId)
+             .maybeSingle();
 
           if (error) {
             if (!cancelled) {
-              setState({ loading: false, allowed: false, message: error.message });
+              setState({ loading: false, allowed: false, message: error.message, isNetworkError: false });
             }
             return;
           }
@@ -83,14 +85,24 @@ export function usePlatformSuperAdmin(userId: string | null | undefined): Platfo
             loading: false,
             allowed,
             message,
+            isNetworkError: false,
           });
         }
       } catch (err: any) {
         if (!cancelled) {
+          const isNetwork = 
+            err.code === "ERR_NETWORK" || 
+            err.message?.toLowerCase().includes("network") ||
+            err.response?.status === 502 ||
+            (USE_FASTAPI && !err.response);
+
           setState({
             loading: false,
             allowed: false,
-            message: err.message || "Failed to verify platform super admin.",
+            message: isNetwork 
+              ? "FastAPI Backend is unreachable. Please verify that the backend server is running on port 8000."
+              : (err.response?.data?.message || err.message || "Failed to verify platform super admin."),
+            isNetworkError: isNetwork,
           });
         }
       }

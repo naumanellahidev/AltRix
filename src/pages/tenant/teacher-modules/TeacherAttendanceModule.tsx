@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef, useCallback, useMemo } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useTenant } from "@/hooks/useTenant";
 import { useAttendanceData, StudentRow, AttendanceSession, StudentAttendanceStats } from "@/hooks/useAttendanceData";
@@ -43,6 +43,8 @@ export function TeacherAttendanceModule() {
   const [showStats, setShowStats] = useState(false);
   const [loadingStats, setLoadingStats] = useState(false);
   const tableRef = useRef<HTMLTableElement>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const autoLoadedRef = useRef(false);
 
   const {
     loadSessionData,
@@ -122,7 +124,16 @@ export function TeacherAttendanceModule() {
       }));
 
       setSections(enriched);
-      if (enriched.length > 0) {
+
+      // Check if a section was passed via URL search params (e.g. from dashboard card)
+      const sectionParam = searchParams.get("section");
+      const matchedSection = sectionParam
+        ? enriched.find((s) => s.id === sectionParam)
+        : null;
+
+      if (matchedSection) {
+        setSelectedSection(matchedSection.id);
+      } else if (enriched.length > 0) {
         setSelectedSection(enriched[0].id);
       }
       setLoading(false);
@@ -131,42 +142,82 @@ export function TeacherAttendanceModule() {
     fetchSections();
   }, [tenant.status, tenant.schoolId]);
 
-  const loadSession = async () => {
+  // Auto-load session when navigated from dashboard card with ?section= param
+  useEffect(() => {
+    if (autoLoadedRef.current) return;
+    const sectionParam = searchParams.get("section");
+    if (!sectionParam || !selectedSection || selectedSection !== sectionParam) return;
+    if (sections.length === 0) return;
+
+    autoLoadedRef.current = true;
+    const periodParam = searchParams.get("period");
+    if (periodParam) {
+      setPeriodLabel(periodParam);
+    }
+
+    // Clear the search param so refreshes don't re-trigger
+    setSearchParams({}, { replace: true });
+    // Trigger session load
+    loadSession(periodParam || undefined);
+  }, [selectedSection, sections, searchParams]);
+
+  const loadSession = async (customPeriod?: string) => {
     if (!selectedSection) return;
 
-    const result = await loadSessionData(selectedSection, sessionDate, periodLabel);
-    if (result) {
-      setSessionId(result.sessionId);
-      setRows(result.rows);
-      setFocusedRow(0);
+    try {
+      const result = await loadSessionData(selectedSection, sessionDate, customPeriod || periodLabel);
+      if (result) {
+        setSessionId(result.sessionId);
+        setRows(result.rows);
+        setFocusedRow(0);
 
-      // Also load stats in background
-      loadStats();
+        // Also load stats in background
+        loadStats();
+      }
+    } catch (err: any) {
+      console.error("Failed to load session:", err);
+      toast({ title: "Failed to load session", description: err?.message || "An unexpected error occurred.", variant: "destructive" });
     }
   };
 
   const loadStats = async () => {
     if (!selectedSection) return;
     setLoadingStats(true);
-    const stats = await loadStudentAttendanceStats(selectedSection);
-    setStudentStats(stats);
-    setLoadingStats(false);
+    try {
+      const stats = await loadStudentAttendanceStats(selectedSection);
+      setStudentStats(stats);
+    } catch (err: any) {
+      console.error("Failed to load attendance stats:", err);
+    } finally {
+      setLoadingStats(false);
+    }
   };
 
   const handleSaveAttendance = async () => {
     if (!sessionId) return;
     setSaving(true);
-    await saveAttendance(sessionId, rows);
-    // Reload stats after saving
-    loadStats();
-    setSaving(false);
+    try {
+      await saveAttendance(sessionId, rows);
+      // Reload stats after saving
+      loadStats();
+    } catch (err: any) {
+      console.error("Failed to save attendance:", err);
+      toast({ title: "Failed to save attendance", description: err?.message || "An unexpected error occurred.", variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleOpenHistory = async () => {
     if (!selectedSection) return;
-    const history = await loadSessionHistory(selectedSection);
-    setHistoryData(history);
-    setShowHistory(true);
+    try {
+      const history = await loadSessionHistory(selectedSection);
+      setHistoryData(history);
+      setShowHistory(true);
+    } catch (err: any) {
+      console.error("Failed to load history:", err);
+      toast({ title: "Failed to load history", description: err?.message || "An unexpected error occurred.", variant: "destructive" });
+    }
   };
 
   const handleHistorySave = async (historySessionId: string, historyRows: StudentRow[]): Promise<boolean> => {
@@ -379,7 +430,7 @@ export function TeacherAttendanceModule() {
                 <div
                   tabIndex={0}
                   onKeyDown={handleKeyDown}
-                  className="focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 rounded-md"
+                  className="focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 rounded-md overflow-x-auto"
                 >
                   <Table ref={tableRef}>
                     <TableHeader>

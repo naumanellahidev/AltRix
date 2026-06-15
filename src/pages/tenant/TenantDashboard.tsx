@@ -22,7 +22,6 @@ const AcademicModule = lazy(() => import("@/pages/tenant/modules/AcademicModule"
 const AttendanceModule = lazy(() => import("@/pages/tenant/modules/AttendanceModule").then(m => ({ default: m.AttendanceModule })));
 const PlatformSchoolsModule = lazy(() => import("@/pages/tenant/modules/PlatformSchoolsModule").then(m => ({ default: m.PlatformSchoolsModule })));
 const ReportsModule = lazy(() => import("@/pages/tenant/modules/ReportsModule").then(m => ({ default: m.ReportsModule })));
-const FinanceModule = lazy(() => import("@/pages/tenant/modules/FinanceModule").then(m => ({ default: m.FinanceModule })));
 const PrincipalHome = lazy(() => import("@/pages/tenant/role-homes/PrincipalHome").then(m => ({ default: m.PrincipalHome })));
 const VicePrincipalHome = lazy(() => import("@/pages/tenant/role-homes/VicePrincipalHome").then(m => ({ default: m.VicePrincipalHome })));
 const CounselorHome = lazy(() => import("@/pages/tenant/role-homes/CounselorHome").then(m => ({ default: m.CounselorHome })));
@@ -156,7 +155,7 @@ const TenantDashboard = () => {
 
   useRealtimeTable({
     channel: `dashboard-kpi-payments-${schoolId}`,
-    table: "finance_payments",
+    table: "fee_payments",
     filter: schoolId ? `school_id=eq.${schoolId}` : undefined,
     enabled: !!schoolId && isOnline,
     onChange: invalidateKpiQueries,
@@ -188,7 +187,7 @@ const TenantDashboard = () => {
 
   useRealtimeTable({
     channel: `dashboard-kpi-invoices-${schoolId}`,
-    table: "finance_invoices",
+    table: "fee_invoices",
     filter: schoolId ? `school_id=eq.${schoolId}` : undefined,
     enabled: !!schoolId && isOnline,
     onChange: invalidateKpiQueries,
@@ -211,9 +210,10 @@ const TenantDashboard = () => {
         return resp.data.collected_fees ?? 0;
       }
       const { data, error } = await supabase
-        .from("finance_payments")
+        .from("fee_payments")
         .select("amount")
         .eq("school_id", schoolId!)
+        .eq("status", "success")
         .gte("paid_at", monthStart.toISOString())
         .limit(1000);
       if (error) throw error;
@@ -230,8 +230,8 @@ const TenantDashboard = () => {
       if (USE_FASTAPI) {
         const resp = await apiClient.get<any>("/reports/dashboard");
         return {
-          total: resp.data.pending_admissions ?? 0,
-          open: resp.data.pending_admissions ?? 0,
+          total: resp.data.total_leads ?? 0,
+          open: resp.data.open_leads ?? 0,
         };
       }
       const [totalRes, openRes] = await Promise.all([
@@ -316,10 +316,11 @@ const TenantDashboard = () => {
         return resp.data.pending_payments ?? 0;
       }
       const { count, error } = await supabase
-        .from("finance_invoices")
+        .from("fee_invoices")
         .select("id", { count: "exact", head: true })
         .eq("school_id", schoolId!)
-        .eq("status", "pending");
+        .not("status", "eq", "paid")
+        .not("status", "eq", "cancelled");
       if (error) throw error;
       return count ?? 0;
     },
@@ -334,7 +335,7 @@ const TenantDashboard = () => {
       if (USE_FASTAPI) {
         const resp = await apiClient.get<any>("/reports/dashboard");
         return {
-          total: resp.data.total_teachers ?? 0,
+          total: resp.data.total_staff ?? 0,
           teachers: resp.data.total_teachers ?? 0,
         };
       }
@@ -392,24 +393,30 @@ const TenantDashboard = () => {
         )}
 
         {/* Primary KPIs */}
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-5">
           {/* Revenue KPI */}
-          <div className="rounded-3xl bg-surface p-5 shadow-elevated">
+          <div 
+            className="rounded-3xl bg-surface p-5 shadow-elevated border border-transparent hover:border-emerald-500/30 hover:shadow-emerald-500/5 cursor-pointer transition-all duration-300 group"
+            onClick={() => navigate(`/${tenant.slug}/${role}/fees`)}
+          >
             <div className="flex items-center justify-between">
-              <p className="text-sm text-muted-foreground">Revenue (MTD)</p>
-              <Coins className="h-4 w-4 text-primary" />
+              <p className="text-sm text-muted-foreground group-hover:text-emerald-600 transition-colors">Revenue (MTD)</p>
+              <Coins className="h-4 w-4 text-emerald-500 transition-transform group-hover:scale-110" />
             </div>
-            <p className="mt-3 font-display text-2xl font-semibold tracking-tight text-primary">
-              {revenueMtd.toLocaleString()}
+            <p className="mt-3 font-display text-2xl font-semibold tracking-tight text-emerald-600">
+              ${revenueMtd.toLocaleString()}
             </p>
             <p className="mt-1 text-xs text-muted-foreground">This month</p>
           </div>
 
           {/* Students KPI */}
-          <div className="rounded-3xl bg-surface p-5 shadow-elevated">
+          <div 
+            className="rounded-3xl bg-surface p-5 shadow-elevated border border-transparent hover:border-primary/30 hover:shadow-primary/5 cursor-pointer transition-all duration-300 group"
+            onClick={() => navigate(`/${tenant.slug}/${role}/academic`)}
+          >
             <div className="flex items-center justify-between">
-              <p className="text-sm text-muted-foreground">Students</p>
-              <GraduationCap className="h-4 w-4 text-muted-foreground" />
+              <p className="text-sm text-muted-foreground group-hover:text-primary transition-colors">Students</p>
+              <GraduationCap className="h-4 w-4 text-primary transition-transform group-hover:scale-110" />
             </div>
             <p className="mt-3 font-display text-2xl font-semibold tracking-tight">
               {studentsCount.toLocaleString()}
@@ -418,10 +425,13 @@ const TenantDashboard = () => {
           </div>
 
           {/* Staff KPI */}
-          <div className="rounded-3xl bg-surface p-5 shadow-elevated">
+          <div 
+            className="rounded-3xl bg-surface p-5 shadow-elevated border border-transparent hover:border-violet-500/30 hover:shadow-violet-500/5 cursor-pointer transition-all duration-300 group"
+            onClick={() => navigate(`/${tenant.slug}/${role}/users`)}
+          >
             <div className="flex items-center justify-between">
-              <p className="text-sm text-muted-foreground">Staff</p>
-              <Users className="h-4 w-4 text-muted-foreground" />
+              <p className="text-sm text-muted-foreground group-hover:text-violet-600 transition-colors">Staff</p>
+              <Users className="h-4 w-4 text-violet-500 transition-transform group-hover:scale-110" />
             </div>
             <p className="mt-3 font-display text-2xl font-semibold tracking-tight">
               {displayStaffData.total}
@@ -430,10 +440,13 @@ const TenantDashboard = () => {
           </div>
 
           {/* Admissions KPI */}
-          <div className="rounded-3xl bg-surface p-5 shadow-elevated">
+          <div 
+            className="rounded-3xl bg-surface p-5 shadow-elevated border border-transparent hover:border-blue-500/30 hover:shadow-blue-500/5 cursor-pointer transition-all duration-300 group"
+            onClick={() => navigate(`/${tenant.slug}/${role}/crm`)}
+          >
             <div className="flex items-center justify-between">
-              <p className="text-sm text-muted-foreground">Admissions</p>
-              <UserPlus className="h-4 w-4 text-muted-foreground" />
+              <p className="text-sm text-muted-foreground group-hover:text-blue-600 transition-colors">Admissions</p>
+              <UserPlus className="h-4 w-4 text-blue-500 transition-transform group-hover:scale-110" />
             </div>
             <p className="mt-3 font-display text-2xl font-semibold tracking-tight">
               {displayLeadsData.open}
@@ -442,27 +455,18 @@ const TenantDashboard = () => {
           </div>
 
           {/* Pending Invoices KPI */}
-          <div className="rounded-3xl bg-surface p-5 shadow-elevated">
+          <div 
+            className="rounded-3xl bg-surface p-5 shadow-elevated border border-transparent hover:border-rose-500/30 hover:shadow-rose-500/5 cursor-pointer transition-all duration-300 group"
+            onClick={() => navigate(`/${tenant.slug}/${role}/fees`)}
+          >
             <div className="flex items-center justify-between">
-              <p className="text-sm text-muted-foreground">Pending</p>
-              <FileText className="h-4 w-4 text-muted-foreground" />
+              <p className="text-sm text-muted-foreground group-hover:text-rose-600 transition-colors">Pending</p>
+              <FileText className={`h-4 w-4 text-rose-500 transition-transform group-hover:scale-110 ${pendingInvoices > 0 ? "animate-pulse" : ""}`} />
             </div>
-            <p className="mt-3 font-display text-2xl font-semibold tracking-tight">
+            <p className="mt-3 font-display text-2xl font-semibold tracking-tight text-rose-600">
               {pendingInvoices}
             </p>
             <p className="mt-1 text-xs text-muted-foreground">Invoices</p>
-          </div>
-
-          {/* Attendance KPI */}
-          <div className="rounded-3xl bg-surface p-5 shadow-elevated">
-            <div className="flex items-center justify-between">
-              <p className="text-sm text-muted-foreground">Attendance</p>
-              <ClipboardList className="h-4 w-4 text-muted-foreground" />
-            </div>
-            <p className="mt-3 font-display text-2xl font-semibold tracking-tight">
-              {displayAttendanceData.rate}%
-            </p>
-            <p className="mt-1 text-xs text-muted-foreground">7-day rate</p>
           </div>
         </div>
 
@@ -512,7 +516,6 @@ const TenantDashboard = () => {
                 <Route path="academic" element={<AcademicModule />} />
                 <Route path="timetable" element={<TimetableBuilderModule />} />
                 <Route path="attendance" element={<AttendanceModule />} />
-                <Route path="finance" element={<FinanceModule />} />
                 <Route path="fees" element={<FeesUnifiedModule />} />
                 <Route path="invoices" element={<AccountantInvoicesModule />} />
                 <Route path="payments" element={<AccountantPaymentsModule />} />
@@ -552,7 +555,7 @@ const TenantDashboard = () => {
                   exclude: [
                     "admin","presence-debug","schools","messages","users","directory","crm",
                     "leads","follow-ups","calls","sources","campaigns","academic","timetable",
-                    "attendance","finance","fees","fees-pro","fee-vouchers","invoices","payments",
+                    "attendance","fees","fees-pro","fee-vouchers","invoices","payments",
                     "expenses","payroll","ledger","vendors","tax","admissions","reports","leaves",
                     "staff-attendance","salaries","contracts","reviews","documents","notices","holidays","diary",
                     "exams","report-cards","support","complaints","parent-notes","counseling",

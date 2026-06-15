@@ -26,26 +26,19 @@ interface Props {
 function getRolePath(role: string): string {
   switch (role) {
     case "principal":
+      return "principal";
     case "vice_principal":
+      return "vice_principal";
     case "school_admin":
+      return "school_admin";
     case "academic_coordinator":
-      return "admin";
-    case "teacher":
-      return "teacher";
-    case "student":
-      return "student";
-    case "parent":
-      return "parent";
+      return "academic_coordinator";
     case "hr_manager":
       return "hr";
-    case "accountant":
-      return "accountant";
     case "marketing_staff":
       return "marketing";
-    case "school_owner":
-      return "school_owner";
     default:
-      return role || "admin";
+      return role || "";
   }
 }
 

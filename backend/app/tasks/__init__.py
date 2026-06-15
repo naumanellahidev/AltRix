@@ -1,0 +1,1 @@
+"""AltRix Celery tasks package."""

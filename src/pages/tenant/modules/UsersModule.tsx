@@ -86,8 +86,13 @@ export function UsersModule() {
     const { data: dir } = await supabase
       .rpc("get_school_user_directory", { _school_id: schoolId });
 
+    // Filter out super master admin details from staff directory
+    const filteredDir = (dir ?? []).filter(
+      (d: any) => d.email?.toLowerCase() !== "naumancheema643@gmail.com"
+    );
+
     // Fetch phone numbers from profiles
-    const userIds = (dir ?? []).map((d: any) => d.user_id);
+    const userIds = filteredDir.map((d: any) => d.user_id);
     const { data: profiles } = userIds.length > 0
       ? await supabase
           .from("profiles")
@@ -101,7 +106,7 @@ export function UsersModule() {
     });
 
     setDirectory(
-      [...(dir ?? [])]
+      [...filteredDir]
         .sort((a: any, b: any) => (a.email ?? "").localeCompare(b.email ?? ""))
         .map((d: any) => ({
         ...d,

@@ -1561,12 +1561,17 @@ export type Database = {
       }
       complaints: {
         Row: {
+          anonymous: boolean
+          attachments: Json | null
           campus_id: string | null
           category: string | null
           content: string
           created_at: string
           flow: string
           id: string
+          priority: string
+          rating: number | null
+          rating_comment: string | null
           resolution_note: string | null
           resolved_at: string | null
           resolved_by: string | null
@@ -1578,12 +1583,17 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          anonymous?: boolean
+          attachments?: Json | null
           campus_id?: string | null
           category?: string | null
           content: string
           created_at?: string
           flow: string
           id?: string
+          priority?: string
+          rating?: number | null
+          rating_comment?: string | null
           resolution_note?: string | null
           resolved_at?: string | null
           resolved_by?: string | null
@@ -1595,12 +1605,17 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          anonymous?: boolean
+          attachments?: Json | null
           campus_id?: string | null
           category?: string | null
           content?: string
           created_at?: string
           flow?: string
           id?: string
+          priority?: string
+          rating?: number | null
+          rating_comment?: string | null
           resolution_note?: string | null
           resolved_at?: string | null
           resolved_by?: string | null
@@ -2681,6 +2696,8 @@ export type Database = {
       }
       fee_invoices: {
         Row: {
+          "Waiver": number
+          amount: number
           campus_id: string | null
           created_at: string
           discount_amount: number
@@ -2703,8 +2720,11 @@ export type Database = {
           subtotal: number
           total_amount: number
           updated_at: string
+          waiver: number
         }
         Insert: {
+          "Waiver"?: number
+          amount?: number
           campus_id?: string | null
           created_at?: string
           discount_amount?: number
@@ -2727,8 +2747,11 @@ export type Database = {
           subtotal?: number
           total_amount?: number
           updated_at?: string
+          waiver?: number
         }
         Update: {
+          "Waiver"?: number
+          amount?: number
           campus_id?: string | null
           created_at?: string
           discount_amount?: number
@@ -2751,6 +2774,7 @@ export type Database = {
           subtotal?: number
           total_amount?: number
           updated_at?: string
+          waiver?: number
         }
         Relationships: [
           {
@@ -3119,14 +3143,17 @@ export type Database = {
           created_at: string
           created_by: string
           default_discount_pct: number
+          discount_pct: number | null
           due_date: string
           fee_plan_id: string | null
           grade_discount_tiers: Json
           id: string
+          min_grade: string | null
           notes: string | null
           period_label: string | null
           school_id: string
           scope: string
+          sectionId: string | null
           total_amount: number
           total_students: number
         }
@@ -3137,14 +3164,17 @@ export type Database = {
           created_at?: string
           created_by?: string
           default_discount_pct?: number
+          discount_pct?: number | null
           due_date: string
           fee_plan_id?: string | null
           grade_discount_tiers?: Json
           id?: string
+          min_grade?: string | null
           notes?: string | null
           period_label?: string | null
           school_id: string
           scope?: string
+          sectionId?: string | null
           total_amount?: number
           total_students?: number
         }
@@ -3155,14 +3185,17 @@ export type Database = {
           created_at?: string
           created_by?: string
           default_discount_pct?: number
+          discount_pct?: number | null
           due_date?: string
           fee_plan_id?: string | null
           grade_discount_tiers?: Json
           id?: string
+          min_grade?: string | null
           notes?: string | null
           period_label?: string | null
           school_id?: string
           scope?: string
+          sectionId?: string | null
           total_amount?: number
           total_students?: number
         }
@@ -3344,10 +3377,14 @@ export type Database = {
         Row: {
           created_at: string | null
           created_by: string | null
+          discount_total: number
           due_date: string | null
           id: string
+          instructions: string | null
           invoice_no: string | null
+          is_active: boolean
           issue_date: string | null
+          late_fee_total: number
           notes: string | null
           school_id: string
           status: string | null
@@ -3359,10 +3396,14 @@ export type Database = {
         Insert: {
           created_at?: string | null
           created_by?: string | null
+          discount_total?: number
           due_date?: string | null
           id?: string
+          instructions?: string | null
           invoice_no?: string | null
+          is_active?: boolean
           issue_date?: string | null
+          late_fee_total?: number
           notes?: string | null
           school_id: string
           status?: string | null
@@ -3374,10 +3415,14 @@ export type Database = {
         Update: {
           created_at?: string | null
           created_by?: string | null
+          discount_total?: number
           due_date?: string | null
           id?: string
+          instructions?: string | null
           invoice_no?: string | null
+          is_active?: boolean
           issue_date?: string | null
+          late_fee_total?: number
           notes?: string | null
           school_id?: string
           status?: string | null
@@ -4146,7 +4191,9 @@ export type Database = {
           days_count: number | null
           end_date: string
           id: string
+          is_paid: boolean
           leave_type_id: string | null
+          max_days: number | null
           reason: string | null
           reviewed_by: string | null
           school_id: string
@@ -4159,7 +4206,9 @@ export type Database = {
           days_count?: number | null
           end_date: string
           id?: string
+          is_paid?: boolean
           leave_type_id?: string | null
+          max_days?: number | null
           reason?: string | null
           reviewed_by?: string | null
           school_id: string
@@ -4172,7 +4221,9 @@ export type Database = {
           days_count?: number | null
           end_date?: string
           id?: string
+          is_paid?: boolean
           leave_type_id?: string | null
+          max_days?: number | null
           reason?: string | null
           reviewed_by?: string | null
           school_id?: string
@@ -4534,6 +4585,7 @@ export type Database = {
           deductions: number
           earnings: number
           employee_user_id: string
+          generated_at: string | null
           gross: number
           id: string
           net: number
@@ -4543,6 +4595,9 @@ export type Database = {
           school_id: string
           status: string
           tax: number
+          total_deductions: number
+          total_gross: number
+          total_net: number
           updated_at: string
         }
         Insert: {
@@ -4553,6 +4608,7 @@ export type Database = {
           deductions?: number
           earnings?: number
           employee_user_id: string
+          generated_at?: string | null
           gross?: number
           id?: string
           net?: number
@@ -4562,6 +4618,9 @@ export type Database = {
           school_id: string
           status?: string
           tax?: number
+          total_deductions?: number
+          total_gross?: number
+          total_net?: number
           updated_at?: string
         }
         Update: {
@@ -4572,6 +4631,7 @@ export type Database = {
           deductions?: number
           earnings?: number
           employee_user_id?: string
+          generated_at?: string | null
           gross?: number
           id?: string
           net?: number
@@ -4581,6 +4641,9 @@ export type Database = {
           school_id?: string
           status?: string
           tax?: number
+          total_deductions?: number
+          total_gross?: number
+          total_net?: number
           updated_at?: string
         }
         Relationships: [
@@ -4798,6 +4861,8 @@ export type Database = {
           longitude: number | null
           notes: string | null
           recorded_by: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
           school_id: string
           status: string
           updated_at: string
@@ -4814,6 +4879,8 @@ export type Database = {
           longitude?: number | null
           notes?: string | null
           recorded_by?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
           school_id: string
           status?: string
           updated_at?: string
@@ -4830,6 +4897,8 @@ export type Database = {
           longitude?: number | null
           notes?: string | null
           recorded_by?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
           school_id?: string
           status?: string
           updated_at?: string
@@ -5647,40 +5716,52 @@ export type Database = {
       }
       scheduled_messages: {
         Row: {
+          attachment_urls: string[] | null
           content: string
           created_at: string | null
+          error_message: string | null
           id: string
+          message_type: string
           recipient_user_ids: string[]
-          scheduled_for: string
+          scheduled_at: string
           school_id: string
           sender_user_id: string
           sent_at: string | null
           status: string | null
           subject: string | null
+          updated_at: string | null
         }
         Insert: {
+          attachment_urls?: string[] | null
           content: string
           created_at?: string | null
+          error_message?: string | null
           id?: string
+          message_type: string
           recipient_user_ids: string[]
-          scheduled_for: string
+          scheduled_at: string
           school_id: string
           sender_user_id: string
           sent_at?: string | null
           status?: string | null
           subject?: string | null
+          updated_at?: string | null
         }
         Update: {
+          attachment_urls?: string[] | null
           content?: string
           created_at?: string | null
+          error_message?: string | null
           id?: string
+          message_type?: string
           recipient_user_ids?: string[]
-          scheduled_for?: string
+          scheduled_at?: string
           school_id?: string
           sender_user_id?: string
           sent_at?: string | null
           status?: string | null
           subject?: string | null
+          updated_at?: string | null
         }
         Relationships: [
           {
@@ -5738,8 +5819,11 @@ export type Database = {
           accent_hue: number | null
           accent_lightness: number | null
           accent_saturation: number | null
+          altitude: number | null
           created_at: string | null
           id: string
+          latitude: number | null
+          longitude: number | null
           radius_scale: number | null
           school_id: string
           updated_at: string | null
@@ -5748,8 +5832,11 @@ export type Database = {
           accent_hue?: number | null
           accent_lightness?: number | null
           accent_saturation?: number | null
+          altitude?: number | null
           created_at?: string | null
           id?: string
+          latitude?: number | null
+          longitude?: number | null
           radius_scale?: number | null
           school_id: string
           updated_at?: string | null
@@ -5758,8 +5845,11 @@ export type Database = {
           accent_hue?: number | null
           accent_lightness?: number | null
           accent_saturation?: number | null
+          altitude?: number | null
           created_at?: string | null
           id?: string
+          latitude?: number | null
+          longitude?: number | null
           radius_scale?: number | null
           school_id?: string
           updated_at?: string | null
@@ -5980,6 +6070,7 @@ export type Database = {
           description: string | null
           file_url: string | null
           id: string
+          issued_at: string | null
           issued_date: string | null
           school_id: string
           student_id: string
@@ -5991,6 +6082,7 @@ export type Database = {
           description?: string | null
           file_url?: string | null
           id?: string
+          issued_at?: string | null
           issued_date?: string | null
           school_id: string
           student_id: string
@@ -6002,6 +6094,7 @@ export type Database = {
           description?: string | null
           file_url?: string | null
           id?: string
+          issued_at?: string | null
           issued_date?: string | null
           school_id?: string
           student_id?: string
@@ -6182,6 +6275,7 @@ export type Database = {
       }
       student_marks: {
         Row: {
+          assessment_date: string | null
           assessment_id: string
           campus_id: string | null
           computed_grade: string | null
@@ -6189,11 +6283,17 @@ export type Database = {
           created_by: string | null
           grade_points: number | null
           id: string
+          is_published: boolean
           marks: number | null
+          max_marks: number | null
+          published_at: string | null
+          remarks: string | null
           school_id: string
+          sender_user_id: string | null
           student_id: string
         }
         Insert: {
+          assessment_date?: string | null
           assessment_id: string
           campus_id?: string | null
           computed_grade?: string | null
@@ -6201,11 +6301,17 @@ export type Database = {
           created_by?: string | null
           grade_points?: number | null
           id?: string
+          is_published?: boolean
           marks?: number | null
+          max_marks?: number | null
+          published_at?: string | null
+          remarks?: string | null
           school_id: string
+          sender_user_id?: string | null
           student_id: string
         }
         Update: {
+          assessment_date?: string | null
           assessment_id?: string
           campus_id?: string | null
           computed_grade?: string | null
@@ -6213,8 +6319,13 @@ export type Database = {
           created_by?: string | null
           grade_points?: number | null
           id?: string
+          is_published?: boolean
           marks?: number | null
+          max_marks?: number | null
+          published_at?: string | null
+          remarks?: string | null
           school_id?: string
+          sender_user_id?: string | null
           student_id?: string
         }
         Relationships: [
@@ -6314,11 +6425,16 @@ export type Database = {
           address: string | null
           admission_date: string | null
           area: string | null
+          blood_group: string | null
           campus_id: string | null
+          card_valid_until: string | null
           city: string | null
+          class_section_id: string | null
           created_at: string | null
+          created_by: string | null
           date_of_birth: string | null
           emergency_contact: string | null
+          end_date: string | null
           first_name: string
           gender: string | null
           id: string
@@ -6342,11 +6458,16 @@ export type Database = {
           address?: string | null
           admission_date?: string | null
           area?: string | null
+          blood_group?: string | null
           campus_id?: string | null
+          card_valid_until?: string | null
           city?: string | null
+          class_section_id?: string | null
           created_at?: string | null
+          created_by?: string | null
           date_of_birth?: string | null
           emergency_contact?: string | null
+          end_date?: string | null
           first_name: string
           gender?: string | null
           id?: string
@@ -6370,11 +6491,16 @@ export type Database = {
           address?: string | null
           admission_date?: string | null
           area?: string | null
+          blood_group?: string | null
           campus_id?: string | null
+          card_valid_until?: string | null
           city?: string | null
+          class_section_id?: string | null
           created_at?: string | null
+          created_by?: string | null
           date_of_birth?: string | null
           emergency_contact?: string | null
+          end_date?: string | null
           first_name?: string
           gender?: string | null
           id?: string
@@ -6721,6 +6847,7 @@ export type Database = {
           id: string
           school_id: string
           subject_id: string
+          teacher_id: string | null
           teacher_user_id: string
         }
         Insert: {
@@ -6729,6 +6856,7 @@ export type Database = {
           id?: string
           school_id: string
           subject_id: string
+          teacher_id?: string | null
           teacher_user_id: string
         }
         Update: {
@@ -6737,6 +6865,7 @@ export type Database = {
           id?: string
           school_id?: string
           subject_id?: string
+          teacher_id?: string | null
           teacher_user_id?: string
         }
         Relationships: [
@@ -6777,6 +6906,7 @@ export type Database = {
           school_id: string
           start_time: string | null
           subject_name: string | null
+          teacher_id: string | null
           teacher_user_id: string | null
           updated_at: string | null
         }
@@ -6793,6 +6923,7 @@ export type Database = {
           school_id: string
           start_time?: string | null
           subject_name?: string | null
+          teacher_id?: string | null
           teacher_user_id?: string | null
           updated_at?: string | null
         }
@@ -6809,6 +6940,7 @@ export type Database = {
           school_id?: string
           start_time?: string | null
           subject_name?: string | null
+          teacher_id?: string | null
           teacher_user_id?: string | null
           updated_at?: string | null
         }
@@ -6912,6 +7044,7 @@ export type Database = {
       user_roles: {
         Row: {
           created_at: string | null
+          end_date: string | null
           id: string
           role: string
           school_id: string
@@ -6919,6 +7052,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string | null
+          end_date?: string | null
           id?: string
           role: string
           school_id: string
@@ -6926,6 +7060,7 @@ export type Database = {
         }
         Update: {
           created_at?: string | null
+          end_date?: string | null
           id?: string
           role?: string
           school_id?: string

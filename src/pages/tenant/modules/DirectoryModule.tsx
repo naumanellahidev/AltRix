@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Edit, Plus, Search } from "lucide-react";
+import { Edit, Plus, Search, Printer, Check } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
+import { printStudentCards } from "@/lib/id-card-print";
 import { useTenant } from "@/hooks/useTenant";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -67,6 +68,10 @@ export function DirectoryModule() {
   const [createOpen, setCreateOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<EditEntity | null>(null);
 
+  // Post Student Creation Card Export States
+  const [createdStudentForCard, setCreatedStudentForCard] = useState<any | null>(null);
+  const [isCreatedSuccessOpen, setIsCreatedSuccessOpen] = useState(false);
+
   // Create/edit forms
   const [studentFirst, setStudentFirst] = useState("");
   const [studentLast, setStudentLast] = useState("");
@@ -97,8 +102,22 @@ export function DirectoryModule() {
       });
       if (error) throw error;
       const rows = (data ?? []) as SearchRow[];
-      const total = rows.length ? Number(rows[0].total_count ?? 0) : 0;
-      return { rows, total };
+      const filteredRows = rows.filter((r) => {
+        if (r.entity === "staff") {
+          const lowerTitle = r.title?.toLowerCase() ?? "";
+          const lowerSubtitle = r.subtitle?.toLowerCase() ?? "";
+          if (
+            lowerTitle.includes("naumancheema643") ||
+            lowerSubtitle.includes("naumancheema643") ||
+            lowerTitle.includes("nauman cheema")
+          ) {
+            return false;
+          }
+        }
+        return true;
+      });
+      const total = filteredRows.length ? Number(filteredRows[0].total_count ?? 0) : 0;
+      return { rows: filteredRows, total };
     },
   });
 
@@ -181,15 +200,26 @@ export function DirectoryModule() {
     if (!schoolId) return;
     if (tab === "students") {
       if (!studentFirst.trim()) return toast.error("First name required");
-      const { error } = await supabase.from("students").insert({
+      const defaultValidity = new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString().split('T')[0];
+      const { data, error } = await supabase.from("students").insert({
         school_id: schoolId,
         first_name: studentFirst.trim(),
         last_name: studentLast.trim() || null,
         status: studentStatus,
-      });
+        card_valid_until: defaultValidity,
+      }).select("*").single();
+
       if (error) return toast.error(error.message);
-      toast.success("Student created");
+      toast.success("Student created successfully!");
       setCreateOpen(false);
+      
+      setCreatedStudentForCard(data);
+      setIsCreatedSuccessOpen(true);
+
+      setStudentFirst("");
+      setStudentLast("");
+      setStudentStatus("active");
+
       search.refetch();
       return;
     }
@@ -628,6 +658,57 @@ export function DirectoryModule() {
               </Button>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Post Creation Download/Export Dialog */}
+      <Dialog open={isCreatedSuccessOpen} onOpenChange={setIsCreatedSuccessOpen}>
+        <DialogContent className="max-w-md bg-white border border-blue-100 rounded-2xl p-6 text-center">
+          <DialogHeader>
+            <DialogTitle className="text-blue-900 font-bold flex items-center justify-center gap-2">
+              <Check className="h-6 w-6 text-blue-600 bg-blue-50 rounded-full p-0.5" />
+              Student Created & Card Registered!
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="my-4 space-y-3">
+            <p className="text-slate-600 text-sm">
+              The student record and card details have been successfully created under saved global settings.
+            </p>
+            {createdStudentForCard && (
+              <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl font-medium text-slate-800 text-sm">
+                {createdStudentForCard.first_name} {createdStudentForCard.last_name || ""}
+                {createdStudentForCard.registration_number && (
+                  <div className="text-xs text-slate-500 font-mono mt-0.5">{createdStudentForCard.registration_number}</div>
+                )}
+              </div>
+            )}
+          </div>
+
+          <div className="flex justify-center gap-2 border-t pt-4">
+            <Button variant="outline" onClick={() => setIsCreatedSuccessOpen(false)} className="w-full">
+              Close
+            </Button>
+            <Button 
+              className="bg-blue-600 hover:bg-blue-700 text-white w-full flex items-center justify-center gap-1.5"
+              onClick={() => {
+                if (createdStudentForCard) {
+                  const schoolLogo = tenant.status === "ready" ? tenant.logoUrl : null;
+                  const schoolName = tenant.status === "ready" ? tenant.name : "Our School";
+                  void printStudentCards(
+                    supabase,
+                    schoolId!,
+                    [createdStudentForCard],
+                    schoolLogo,
+                    schoolName
+                  );
+                }
+              }}
+            >
+              <Printer className="h-4 w-4" />
+              Export ID Card
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

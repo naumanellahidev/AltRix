@@ -12,7 +12,6 @@ import { createCatalogRouteElements } from "@/components/tenant/AutoCatalogRoute
 const OwnerOverviewModule = lazy(() => import("@/pages/tenant/owner-modules/OwnerOverviewModule").then(m => ({ default: m.OwnerOverviewModule })));
 const OwnerAcademicsModule = lazy(() => import("@/pages/tenant/owner-modules/OwnerAcademicsModule").then(m => ({ default: m.OwnerAcademicsModule })));
 const OwnerAdmissionsModule = lazy(() => import("@/pages/tenant/owner-modules/OwnerAdmissionsModule").then(m => ({ default: m.OwnerAdmissionsModule })));
-const OwnerFinanceModule = lazy(() => import("@/pages/tenant/owner-modules/OwnerFinanceModule").then(m => ({ default: m.OwnerFinanceModule })));
 const OwnerHrModule = lazy(() => import("@/pages/tenant/owner-modules/OwnerHrModule").then(m => ({ default: m.OwnerHrModule })));
 const OwnerWellbeingModule = lazy(() => import("@/pages/tenant/owner-modules/OwnerWellbeingModule").then(m => ({ default: m.OwnerWellbeingModule })));
 const OwnerComplianceModule = lazy(() => import("@/pages/tenant/owner-modules/OwnerComplianceModule").then(m => ({ default: m.OwnerComplianceModule })));
@@ -28,7 +27,6 @@ const CrmModule = lazy(() => import("@/pages/tenant/modules/CrmModule").then(m =
 const AcademicModule = lazy(() => import("@/pages/tenant/modules/AcademicModule").then(m => ({ default: m.AcademicModule })));
 const AttendanceModule = lazy(() => import("@/pages/tenant/modules/AttendanceModule").then(m => ({ default: m.AttendanceModule })));
 const ReportsModule = lazy(() => import("@/pages/tenant/modules/ReportsModule").then(m => ({ default: m.ReportsModule })));
-const FinanceModule = lazy(() => import("@/pages/tenant/modules/FinanceModule").then(m => ({ default: m.FinanceModule })));
 const TimetableBuilderModule = lazy(() => import("@/pages/tenant/modules/TimetableBuilderModule").then(m => ({ default: m.TimetableBuilderModule })));
 const HrLeavesModule = lazy(() => import("@/pages/tenant/hr-modules/HrLeavesModule").then(m => ({ default: m.HrLeavesModule })));
 const HrSalariesModule = lazy(() => import("@/pages/tenant/hr-modules/HrSalariesModule").then(m => ({ default: m.HrSalariesModule })));
@@ -242,7 +240,7 @@ export default function OwnerDashboard() {
         </div>
       ) : (
         <RouteGuard extraAllowedPaths={[
-          "academics","admissions","finance","hr","wellbeing","compliance",
+          "academics","admissions","fees","hr","wellbeing","compliance",
           "campuses","brand","security","support","advisor","ai","messages",
           "ledger","vendors","tax",
         ]}>
@@ -270,7 +268,7 @@ export default function OwnerDashboard() {
             <Route path="sources" element={<MarketingSourcesModule />} />
             <Route path="campaigns" element={<MarketingCampaignsModule />} />
             <Route path="parent-notes" element={<PrincipalParentNotesModule />} />
-            <Route path="finance" element={<OwnerFinanceModule schoolId={schoolId} />} />
+            <Route path="finance" element={<Navigate to={`/${schoolSlug}/owner/fees`} replace />} />
             <Route path="fees" element={<FeesUnifiedModule />} />
             <Route path="invoices" element={<AccountantInvoicesModule />} />
             <Route path="payments" element={<AccountantPaymentsModule />} />
@@ -303,7 +301,7 @@ export default function OwnerDashboard() {
                 "academics","academic","timetable","attendance","exams","report-cards","diary",
                 "admissions","users","leaves","salaries","contracts","reviews","documents",
                 "crm","leads","follow-ups","calls","sources","campaigns","parent-notes",
-                "finance","fees","fees-pro","fee-vouchers","invoices","payments","expenses",
+                "fees","fees-pro","fee-vouchers","invoices","payments","expenses",
                 "payroll","ledger","vendors","tax",
                 "hr","wellbeing","compliance","campuses","brand","security","support",
                 "advisor","ai","messages","notices","holidays","reports","complaints","counseling",

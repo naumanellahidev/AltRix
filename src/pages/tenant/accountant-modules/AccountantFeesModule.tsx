@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, Trash2, Edit, DollarSign, WifiOff, RefreshCw } from "lucide-react";
+import { Plus, Trash2, Edit, DollarSign, WifiOff, RefreshCw, Calendar, Sparkles, HelpCircle, Layers, CheckCircle2 } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
 import { useTenant } from "@/hooks/useTenant";
@@ -13,9 +13,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Dialog,
   DialogContent,
@@ -245,175 +244,247 @@ export function AccountantFeesModule() {
   return (
     <div className="space-y-6">
       <OfflineDataBanner isOffline={isOffline} isUsingCache={isUsingCache} onRefresh={refreshOffline} />
-      <Card className="shadow-elevated">
-        <CardHeader className="flex flex-row items-center justify-between">
+      
+      {/* Dynamic Summary Card */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card className="bg-surface border shadow-sm relative overflow-hidden group hover:shadow-md transition-all">
+          <CardContent className="p-5 flex items-center justify-between">
+            <div className="space-y-1">
+              <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Active Structures</p>
+              <h3 className="text-2xl font-bold font-display">{feePlans.filter(p => p.is_active).length} Plans</h3>
+            </div>
+            <div className="p-3 rounded-2xl bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400">
+              <Layers className="h-5 w-5" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-surface border shadow-sm relative overflow-hidden group hover:shadow-md transition-all">
+          <CardContent className="p-5 flex items-center justify-between">
+            <div className="space-y-1">
+              <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Total Configured Segments</p>
+              <h3 className="text-2xl font-bold font-display">{installments.length} Installments</h3>
+            </div>
+            <div className="p-3 rounded-2xl bg-violet-50 dark:bg-violet-950/30 text-violet-600 dark:text-violet-400">
+              <Sparkles className="h-5 w-5" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-surface border shadow-sm relative overflow-hidden group hover:shadow-md transition-all">
+          <CardContent className="p-5 flex items-center justify-between">
+            <div className="space-y-1">
+              <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Offline Caching</p>
+              <h3 className="text-2xl font-bold font-display">{isOffline ? "Offline Mode" : "Real-time Live"}</h3>
+            </div>
+            <div className="p-3 rounded-2xl bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400">
+              <CheckCircle2 className="h-5 w-5" />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card className="shadow-sm border">
+        <CardHeader className="flex flex-row items-center justify-between border-b pb-4">
           <div>
-            <CardTitle className="font-display text-xl">Fee Plans</CardTitle>
-            <p className="text-sm text-muted-foreground">Create and manage fee structures with installments</p>
+            <CardTitle className="font-display text-lg font-bold">Billing Plan Definitions</CardTitle>
+            <p className="text-xs text-muted-foreground">Define base tuition rates and structured payment milestones.</p>
           </div>
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
-              <Button variant="hero" onClick={openCreate}>
-                <Plus className="mr-2 h-4 w-4" /> Create Fee Plan
+              <Button variant="default" onClick={openCreate} className="rounded-xl shadow-sm">
+                <Plus className="mr-1.5 h-4 w-4" /> Create Fee Plan
               </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="sm:max-w-[425px] rounded-2xl">
               <DialogHeader>
-                <DialogTitle>{editingPlan ? "Edit Fee Plan" : "Create Fee Plan"}</DialogTitle>
-                <DialogDescription>Configure fee plan details and settings</DialogDescription>
+                <DialogTitle>{editingPlan ? "Modify Billing Structure" : "New Billing Structure"}</DialogTitle>
+                <DialogDescription>Setup a unified template that can be assigned to students.</DialogDescription>
               </DialogHeader>
-              <div className="space-y-4 py-4">
-                <div className="space-y-2">
-                  <Label>Plan Name</Label>
+              <div className="space-y-4 py-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="planName">Plan Title</Label>
                   <Input
+                    id="planName"
                     value={formName}
                     onChange={(e) => setFormName(e.target.value)}
-                    placeholder="e.g. 2026 Tuition Fee"
+                    placeholder="e.g. 2026 Primary Grade Tuition"
+                    className="rounded-xl"
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label>Currency</Label>
-                  <Input
-                    value={formCurrency}
-                    onChange={(e) => setFormCurrency(e.target.value)}
-                    placeholder="PKR"
-                  />
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="planCurrency">Currency Code</Label>
+                    <Input
+                      id="planCurrency"
+                      value={formCurrency}
+                      onChange={(e) => setFormCurrency(e.target.value)}
+                      placeholder="PKR"
+                      className="rounded-xl"
+                    />
+                  </div>
+                  <div className="flex items-center gap-3 pt-6 pl-2">
+                    <Switch id="planActive" checked={formActive} onCheckedChange={setFormActive} />
+                    <Label htmlFor="planActive" className="cursor-pointer">Active Plan</Label>
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label>Notes (optional)</Label>
+                <div className="space-y-1.5">
+                  <Label htmlFor="planNotes">Internal Description</Label>
                   <Input
+                    id="planNotes"
                     value={formNotes}
                     onChange={(e) => setFormNotes(e.target.value)}
-                    placeholder="Additional notes..."
+                    placeholder="Add brief details or payment terms..."
+                    className="rounded-xl"
                   />
-                </div>
-                <div className="flex items-center gap-2">
-                  <Switch checked={formActive} onCheckedChange={setFormActive} />
-                  <Label>Active</Label>
                 </div>
               </div>
               <DialogFooter>
-                <Button variant="outline" onClick={() => setDialogOpen(false)}>
+                <Button variant="outline" onClick={() => setDialogOpen(false)} className="rounded-xl">
                   Cancel
                 </Button>
-                <Button onClick={handleSave}>{editingPlan ? "Update" : "Create"}</Button>
+                <Button onClick={handleSave} className="rounded-xl">{editingPlan ? "Update Structure" : "Create Structure"}</Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
         </CardHeader>
       </Card>
 
-      <div className="grid gap-4">
-        {feePlans.map((plan) => (
-          <Card key={plan.id} className="shadow-elevated">
-            <CardHeader className="flex flex-row items-start justify-between pb-2">
-              <div className="flex items-center gap-3">
-                <div className="rounded-lg bg-primary/10 p-2">
-                  <DollarSign className="h-5 w-5 text-primary" />
-                </div>
-                <div>
-                  <CardTitle className="text-lg">{plan.name}</CardTitle>
-                  <p className="text-sm text-muted-foreground">
-                    Currency: {plan.currency} • Created {new Date(plan.created_at).toLocaleDateString()}
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <Badge variant={plan.is_active ? "default" : "secondary"}>
-                  {plan.is_active ? "Active" : "Inactive"}
-                </Badge>
-                <Button variant="ghost" size="icon" onClick={() => openEdit(plan)}>
-                  <Edit className="h-4 w-4" />
-                </Button>
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <Button variant="ghost" size="icon">
-                      <Trash2 className="h-4 w-4" />
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {feePlans.map((plan) => {
+          const planInsts = getInstallmentsForPlan(plan.id);
+          const planTotal = planInsts.reduce((sum, i) => sum + i.amount, 0);
+
+          return (
+            <Card key={plan.id} className="relative overflow-hidden bg-surface shadow-sm border border-muted hover:border-primary/40 hover:shadow-md transition-all duration-300 flex flex-col justify-between rounded-2xl group">
+              <div className="p-5 flex-1 flex flex-col justify-between space-y-4">
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2.5 rounded-xl bg-primary/10 text-primary">
+                      <DollarSign className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <h3 className="font-display font-bold text-base group-hover:text-primary transition-colors">{plan.name}</h3>
+                      <p className="text-[11px] text-muted-foreground mt-0.5">
+                        Created {new Date(plan.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <Badge variant={plan.is_active ? "default" : "secondary"} className="rounded-md px-2 py-0.5 text-[10px]">
+                      {plan.is_active ? "Active" : "Inactive"}
+                    </Badge>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg text-muted-foreground hover:text-foreground" onClick={() => openEdit(plan)}>
+                      <Edit className="h-4 w-4" />
                     </Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Delete fee plan?</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        This will also delete all installments. This action cannot be undone.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Cancel</AlertDialogCancel>
-                      <AlertDialogAction onClick={() => handleDelete(plan.id)}>Delete</AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
-              </div>
-            </CardHeader>
-            <CardContent>
-              {plan.notes && <p className="mb-4 text-sm text-muted-foreground">{plan.notes}</p>}
-
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <p className="text-sm font-medium">Installments</p>
-                  <Button variant="outline" size="sm" onClick={() => openInstallmentDialog(plan.id)}>
-                    <Plus className="mr-1 h-3 w-3" /> Add Installment
-                  </Button>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg text-muted-foreground hover:text-destructive">
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent className="rounded-2xl">
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Void Billing Structure?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            Voids "{plan.name}" and removes all associated payment installments. This action cannot be reversed.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel className="rounded-xl">Cancel</AlertDialogCancel>
+                          <AlertDialogAction onClick={() => handleDelete(plan.id)} className="rounded-xl bg-destructive text-destructive-foreground hover:bg-destructive/95">Void Structure</AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </div>
                 </div>
 
-                <ScrollArea className="h-[150px] rounded-xl border bg-surface">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Label</TableHead>
-                        <TableHead>Amount</TableHead>
-                        <TableHead>Due Day</TableHead>
-                        <TableHead className="text-right">Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {getInstallmentsForPlan(plan.id).map((inst) => (
-                        <TableRow key={inst.id}>
-                          <TableCell className="font-medium">{inst.label}</TableCell>
-                          <TableCell>
-                            {plan.currency} {inst.amount.toLocaleString()}
-                          </TableCell>
-                          <TableCell>{inst.due_day || "—"}</TableCell>
-                          <TableCell className="text-right">
+                {plan.notes && (
+                  <p className="text-xs text-muted-foreground bg-muted/40 p-2.5 rounded-xl border border-muted/50 leading-relaxed">
+                    {plan.notes}
+                  </p>
+                )}
+
+                {/* Visual Timeline Distribution */}
+                <div className="space-y-3 pt-2">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Installments Schedule</p>
+                    <Button variant="outline" size="sm" className="h-7 px-2.5 text-xs rounded-lg border border-primary/20 text-primary hover:bg-primary/5 hover:border-primary/40" onClick={() => openInstallmentDialog(plan.id)}>
+                      <Plus className="mr-1 h-3 w-3" /> Add Installment
+                    </Button>
+                  </div>
+
+                  <div className="space-y-2 max-h-[200px] overflow-y-auto pr-1">
+                    {planInsts.map((inst, index) => {
+                      const pct = planTotal > 0 ? (inst.amount / planTotal) * 100 : 0;
+                      return (
+                        <div key={inst.id} className="relative flex items-center justify-between p-3 rounded-xl bg-muted/30 border border-muted/50 hover:bg-muted/70 hover:border-primary/25 transition-all">
+                          <div className="flex items-center gap-3">
+                            <div className="flex items-center justify-center w-6 h-6 rounded-full bg-primary/10 text-primary text-[10px] font-bold">
+                              {index + 1}
+                            </div>
+                            <div>
+                              <p className="text-xs font-semibold text-foreground">{inst.label}</p>
+                              {inst.due_day && (
+                                <p className="text-[10px] text-muted-foreground flex items-center gap-1 mt-0.5">
+                                  <Calendar className="h-3 w-3" />
+                                  <span>Due: Day {inst.due_day} of cycle</span>
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <div className="text-right">
+                              <p className="text-xs font-bold text-foreground">
+                                {plan.currency} {inst.amount.toLocaleString()}
+                              </p>
+                              <p className="text-[9px] text-muted-foreground font-medium mt-0.5">
+                                {pct.toFixed(0)}% of total
+                              </p>
+                            </div>
                             <Button
                               variant="ghost"
                               size="icon"
+                              className="h-7 w-7 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10"
                               onClick={() => handleDeleteInstallment(inst.id)}
                             >
-                              <Trash2 className="h-4 w-4" />
+                              <Trash2 className="h-3.5 w-3.5" />
                             </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                      {getInstallmentsForPlan(plan.id).length === 0 && (
-                        <TableRow>
-                          <TableCell colSpan={4} className="text-center text-muted-foreground">
-                            No installments configured
-                          </TableCell>
-                        </TableRow>
-                      )}
-                    </TableBody>
-                  </Table>
-                </ScrollArea>
+                          </div>
+                        </div>
+                      );
+                    })}
 
-                <div className="flex justify-end text-sm font-medium">
-                  Total: {plan.currency}{" "}
-                  {getInstallmentsForPlan(plan.id)
-                    .reduce((sum, i) => sum + i.amount, 0)
-                    .toLocaleString()}
+                    {planInsts.length === 0 && (
+                      <div className="py-6 text-center text-xs text-muted-foreground border border-dashed rounded-xl">
+                        No installments configured. Create one to define structure value.
+                      </div>
+                    )}
+                  </div>
                 </div>
+
+                {/* Plan Total Summation Card */}
+                {planInsts.length > 0 && (
+                  <div className="flex items-center justify-between p-3.5 rounded-xl bg-primary/5 border border-primary/10">
+                    <span className="text-xs font-semibold text-muted-foreground">Total Plan Value</span>
+                    <span className="text-sm font-bold text-primary">
+                      {plan.currency} {planTotal.toLocaleString()}
+                    </span>
+                  </div>
+                )}
               </div>
-            </CardContent>
-          </Card>
-        ))}
+            </Card>
+          );
+        })}
 
         {feePlans.length === 0 && (
-          <Card className="shadow-elevated">
-            <CardContent className="py-12 text-center">
-              <DollarSign className="mx-auto h-12 w-12 text-muted-foreground/50" />
-              <p className="mt-4 text-lg font-medium">No Fee Plans</p>
-              <p className="text-sm text-muted-foreground">Create your first fee plan to get started</p>
+          <Card className="lg:col-span-2 shadow-sm border border-dashed">
+            <CardContent className="py-16 text-center space-y-3">
+              <DollarSign className="mx-auto h-12 w-12 text-muted-foreground/30 animate-pulse" />
+              <p className="text-sm font-bold">No Billing Plans Found</p>
+              <p className="text-xs text-muted-foreground max-w-sm mx-auto">
+                Billing plans must be created before they can be distributed to students. Establish your first structure above.
+              </p>
             </CardContent>
           </Card>
         )}
@@ -421,44 +492,52 @@ export function AccountantFeesModule() {
 
       {/* Add Installment Dialog */}
       <Dialog open={installmentDialog} onOpenChange={setInstallmentDialog}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-[400px] rounded-2xl">
           <DialogHeader>
             <DialogTitle>Add Installment</DialogTitle>
-            <DialogDescription>Add a new payment installment to this fee plan</DialogDescription>
+            <DialogDescription>Define a scheduled billing item for this plan.</DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label>Label</Label>
+          <div className="space-y-4 py-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="instLabel">Label / Milestone</Label>
               <Input
+                id="instLabel"
                 value={instLabel}
                 onChange={(e) => setInstLabel(e.target.value)}
-                placeholder="e.g. Term 1 Fee"
+                placeholder="e.g. Admission Fee, Term 1, Tuition Oct"
+                className="rounded-xl"
               />
             </div>
-            <div className="space-y-2">
-              <Label>Amount</Label>
-              <Input
-                type="number"
-                value={instAmount}
-                onChange={(e) => setInstAmount(e.target.value)}
-                placeholder="0"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Due Day (optional)</Label>
-              <Input
-                type="number"
-                value={instDueDay}
-                onChange={(e) => setInstDueDay(e.target.value)}
-                placeholder="e.g. 15 (day of month)"
-              />
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="instAmount">Milestone Amount</Label>
+                <Input
+                  id="instAmount"
+                  type="number"
+                  value={instAmount}
+                  onChange={(e) => setInstAmount(e.target.value)}
+                  placeholder="0"
+                  className="rounded-xl"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="instDueDay">Due Day of Month</Label>
+                <Input
+                  id="instDueDay"
+                  type="number"
+                  value={instDueDay}
+                  onChange={(e) => setInstDueDay(e.target.value)}
+                  placeholder="e.g. 10"
+                  className="rounded-xl"
+                />
+              </div>
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setInstallmentDialog(false)}>
+            <Button variant="outline" onClick={() => setInstallmentDialog(false)} className="rounded-xl">
               Cancel
             </Button>
-            <Button onClick={handleAddInstallment}>Add Installment</Button>
+            <Button onClick={handleAddInstallment} className="rounded-xl">Add Milestone</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

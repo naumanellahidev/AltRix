@@ -32,15 +32,7 @@ export default function PlatformSettingsPage() {
 
   // Global Altrix Brand & Bank settings
   const [brandSettings, setBrandSettings] = useState(() => {
-    const saved = localStorage.getItem("altrix_global_brand_settings");
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        console.error("Error parsing brand settings", e);
-      }
-    }
-    return {
+    const defaultSettings = {
       brandName: "ALTRIX PLATFORM SOLUTIONS",
       supportEmail: "billing@altrix.com",
       supportUrl: "support.altrix.com",
@@ -50,6 +42,19 @@ export default function PlatformSettingsPage() {
       iban: "PK85AITB0000104598560248",
       logoBase64: ""
     };
+    const saved = localStorage.getItem("altrix_global_brand_settings");
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        return {
+          ...defaultSettings,
+          ...parsed
+        };
+      } catch (e) {
+        console.error("Error parsing brand settings", e);
+      }
+    }
+    return defaultSettings;
   });
 
   const handleToggle = (setting: keyof typeof platformConfig) => {

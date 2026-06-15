@@ -515,8 +515,14 @@ Return ONLY the valid JSON block. Do not add markdown explanation, code blocks, 
     // Backtracking CSP solver
     let backtrackCount = 0;
     const MAX_BACKTRACKS = 1000;
+    let bestScheduledEntries: Array<any> = [];
 
     function solve(index: number, allowDoubleSubjectPerDay = false): boolean {
+      // Track the best partial solution reached during backtracking
+      if (scheduledEntries.length > bestScheduledEntries.length) {
+        bestScheduledEntries = [...scheduledEntries];
+      }
+
       if (index >= unplacedLessons.length) {
         return true;
       }
@@ -613,6 +619,7 @@ Return ONLY the valid JSON block. Do not add markdown explanation, code blocks, 
     // Run solver
     backtrackCount = 0;
     let solved = solve(0, false);
+    let absoluteBest = [...bestScheduledEntries];
 
     if (!solved) {
       console.log("CSP solver under strict constraints failed. Retrying with relaxed day-spread constraint...");
@@ -640,19 +647,23 @@ Return ONLY the valid JSON block. Do not add markdown explanation, code blocks, 
         });
       }
 
-      for (const entry of scheduledEntries) {
-        const slotKey = `${entry.day}:${entry.period_index}`;
-        sectionOccupiedSlots.add(`${entry.section_id}:${slotKey}`);
-        if (entry.teacher_id) {
-          teacherOccupiedSlots.add(`${String(entry.teacher_id).toLowerCase()}:${slotKey}`);
-        }
-        if (entry.room && entry.room !== "TBD" && entry.room !== "none" && entry.room !== "—") {
-          roomOccupiedSlots.add(`${String(entry.room).toLowerCase().trim()}:${slotKey}`);
-        }
-      }
+      const baselineEntries = [...scheduledEntries];
+
+      // Reset bestScheduledEntries for relaxed solve
+      bestScheduledEntries = [...baselineEntries];
 
       backtrackCount = 0;
       solved = solve(0, true);
+
+      if (!solved) {
+        // Compare best from relaxed solver against best from strict solver
+        if (bestScheduledEntries.length < absoluteBest.length) {
+          bestScheduledEntries = absoluteBest;
+        }
+        // Restore to the best partial solution found
+        scheduledEntries.length = 0;
+        scheduledEntries.push(...bestScheduledEntries);
+      }
     }
 
     // Complete suggestion data overwrite

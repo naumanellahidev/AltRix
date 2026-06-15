@@ -380,16 +380,21 @@ export function HrAttendanceModule() {
                               const cfg = STATUS_CONFIG[status];
                               const Icon = cfg.icon;
                               const active = cur === status;
+                              
+                              const hasBothClocks = att?.clock_in != null && att?.clock_out != null;
+                              const isRestrictedOption = status === "present" || status === "absent" || status === "leave";
+                              const isDisabled = isOffline || (hasBothClocks && isRestrictedOption);
+
                               return (
                                 <TableCell key={status} className="text-center">
                                   <button
                                     type="button"
-                                    disabled={isOffline}
+                                    disabled={isDisabled}
                                     onClick={(e) => { e.stopPropagation(); updateStatus(staff.userId, status); setFocusedRow(idx); }}
                                     className={cn(
                                       "inline-flex h-8 w-8 items-center justify-center rounded-full border-2 transition-all",
-                                      active ? cfg.active : `border-muted ${!isOffline ? cfg.hover : ""}`,
-                                      isOffline && "cursor-not-allowed opacity-60"
+                                      active ? cfg.active : `border-muted ${!isDisabled ? cfg.hover : ""}`,
+                                      isDisabled && "cursor-not-allowed opacity-40"
                                     )}
                                     aria-label={`Mark ${cfg.label}`}
                                   >

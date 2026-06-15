@@ -420,8 +420,11 @@ async def list_audit_logs(
         query = query.where(AuditLog.action == action)
     if user_id:
         query = query.where(AuditLog.user_id == user_id)
-    result = await db.execute(query.order_by(AuditLog.created_at.desc()).limit(limit))
-    return result.scalars().all()
+    try:
+        result = await db.execute(query.order_by(AuditLog.created_at.desc()).limit(limit))
+        return result.scalars().all()
+    except Exception:
+        return []
 
 
 # ─── AI ───────────────────────────────────────────────────────────────────────
@@ -504,26 +507,26 @@ async def dashboard_kpis(current_user: CurrentUser, db: DbSession):
         return {}
 
     school_id = current_user.school_id
-    mtd_start = datetime.now().replace(day=1).strftime("%Y-%m-%d")
+    mtd_start = datetime.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
 
     try:
         results = await db.execute(
             text("""
                 SELECT
                     (SELECT COUNT(*) FROM students WHERE school_id = :sid AND status = 'active') as total_students,
-                    (SELECT COUNT(*) FROM teacher_profiles WHERE school_id = :sid AND is_active = true) as total_teachers,
+                    (SELECT COUNT(*) FROM user_roles WHERE school_id = :sid AND role = 'teacher') as total_teachers,
                     (SELECT COUNT(*) FROM admission_applications WHERE school_id = :sid AND status = 'pending') as pending_admissions,
-                    (SELECT COUNT(*) FROM fee_vouchers WHERE school_id = :sid AND status = 'pending') as pending_payments,
-                    (SELECT COALESCE(SUM(net_amount), 0) FROM fee_vouchers WHERE school_id = :sid AND status = 'paid') as collected_fees,
+                    (SELECT COUNT(*) FROM fee_invoices WHERE school_id = :sid AND status NOT IN ('paid', 'cancelled')) as pending_payments,
+                    (SELECT COALESCE(SUM(amount), 0) FROM fee_payments WHERE school_id = :sid AND paid_at >= :mtd_start) as collected_fees,
                     (SELECT COUNT(*) FROM campuses WHERE school_id = :sid AND is_active = true) as active_campuses,
                     (SELECT COUNT(*) FROM academic_classes WHERE school_id = :sid) as total_classes,
                     (SELECT COUNT(*) FROM class_sections WHERE school_id = :sid) as total_sections,
                     (SELECT COUNT(*) FROM school_memberships WHERE school_id = :sid) as total_staff,
                     (SELECT COUNT(*) FROM crm_leads WHERE school_id = :sid) as total_leads,
                     (SELECT COUNT(*) FROM crm_leads WHERE school_id = :sid AND stage_id IS NOT NULL) as open_leads,
-                    (SELECT COALESCE(SUM(amount), 0) FROM finance_expenses WHERE school_id = :sid AND expense_date >= :mtd_start) as mtd_expenses
+                    (SELECT COALESCE(SUM(amount), 0) FROM finance_expenses WHERE school_id = :sid AND expense_date >= :mtd_date) as mtd_expenses
             """),
-            {"sid": school_id, "mtd_start": mtd_start},
+            {"sid": school_id, "mtd_start": mtd_start, "mtd_date": mtd_start.date()},
         )
         row = results.fetchone()
         return {
@@ -567,8 +570,8 @@ async def finance_trend(current_user: CurrentUser, db: DbSession):
     mtd_start = datetime.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
 
     try:
-        p_sql = "SELECT amount, paid_at FROM finance_payments WHERE school_id = :sid AND paid_at >= :fdate ORDER BY paid_at ASC"
-        p_res = await db.execute(text(p_sql), {"sid": str(school_id), "fdate": mtd_start.isoformat()})
+        p_sql = "SELECT amount, paid_at FROM fee_payments WHERE school_id = :sid AND paid_at >= :fdate ORDER BY paid_at ASC"
+        p_res = await db.execute(text(p_sql), {"sid": str(school_id), "fdate": mtd_start})
         payments = [
             {"amount": float(r[0]) if r[0] is not None else 0.0, "paid_at": r[1].isoformat() if r[1] else ""}
             for r in p_res.fetchall()
@@ -579,7 +582,7 @@ async def finance_trend(current_user: CurrentUser, db: DbSession):
 
     try:
         e_sql = "SELECT amount, expense_date FROM finance_expenses WHERE school_id = :sid AND expense_date >= :fdate ORDER BY expense_date ASC"
-        e_res = await db.execute(text(e_sql), {"sid": str(school_id), "fdate": mtd_start.strftime("%Y-%m-%d")})
+        e_res = await db.execute(text(e_sql), {"sid": str(school_id), "fdate": mtd_start.date()})
         expenses = [
             {"amount": float(r[0]) if r[0] is not None else 0.0, "expense_date": str(r[1])}
             for r in e_res.fetchall()

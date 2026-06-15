@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
-import { supabase, USE_FASTAPI } from "@/integrations/supabase/client";
-import { apiClient } from "@/lib/api-client";
+import { supabase, USE_FASTAPI, setUseFastAPI } from "@/integrations/supabase/client";
+import { apiClient, isNetworkOrProxyError } from "@/lib/api-client";
 
 interface UnreadMessagesResult {
   unreadCount: number;
@@ -27,17 +27,34 @@ export function useUnreadMessages(schoolId: string | null): UnreadMessagesResult
       setUserId(user.user.id);
 
       let count = 0;
-      if (USE_FASTAPI) {
-        const resp = await apiClient.get<{ count: number }>("/messages/unread-count");
-        count = resp.data.count;
-      } else {
+      const runSupabaseCount = async () => {
         const { count: c } = await supabase
           .from("admin_message_recipients")
           .select("id, admin_messages!inner(school_id)", { count: "exact", head: true })
           .eq("recipient_user_id", user.user.id)
           .eq("is_read", false)
           .eq("admin_messages.school_id", schoolId);
-        count = c || 0;
+        return c || 0;
+      };
+
+      let useFastApiActive = USE_FASTAPI;
+      if (useFastApiActive) {
+        try {
+          const resp = await apiClient.get<{ count: number }>("/messages/unread-count");
+          count = resp.data.count;
+        } catch (apiErr: any) {
+          if (isNetworkOrProxyError(apiErr)) {
+            console.warn("Failed to fetch unread message count via FastAPI, falling back to Supabase", apiErr);
+            setUseFastAPI(false);
+            useFastApiActive = false;
+          } else {
+            throw apiErr;
+          }
+        }
+      }
+
+      if (!useFastApiActive) {
+        count = await runSupabaseCount();
       }
 
       setUnreadCount(count);

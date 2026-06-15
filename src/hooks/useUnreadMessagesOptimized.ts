@@ -6,6 +6,8 @@ import { useRealtimeTable } from "@/hooks/useRealtime";
 
 interface UnreadMessagesResult {
   unreadCount: number;
+  unreadAdminCount: number;
+  unreadParentCount: number;
   loading: boolean;
 }
 
@@ -15,14 +17,29 @@ export function useUnreadMessagesOptimized(
 ): UnreadMessagesResult {
   const queryClient = useQueryClient();
 
-  const { data: unreadCount = 0, isLoading } = useQuery({
-    queryKey: ["unread_messages", schoolId, userId],
+  const { data = { unreadAdminCount: 0, unreadParentCount: 0 }, isLoading } = useQuery({
+    queryKey: ["unread_messages_counts", schoolId, userId],
     queryFn: async () => {
-      if (!schoolId || !userId) return 0;
+      if (!schoolId || !userId) return { unreadAdminCount: 0, unreadParentCount: 0 };
 
+      let unreadAdminCount = 0;
+      let unreadParentCount = 0;
+
+      // 1. Fetch admin messages unread count
       if (USE_FASTAPI) {
-        const resp = await apiClient.get<{ count: number }>("/messages/unread-count");
-        return resp.data.count;
+        try {
+          const resp = await apiClient.get<{ count: number }>("/messages/unread-count");
+          unreadAdminCount = resp.data.count;
+        } catch (e) {
+          console.warn("Failed to fetch admin unread count from FastAPI, falling back", e);
+          const { count } = await supabase
+            .from("admin_message_recipients")
+            .select("id, admin_messages!inner(school_id)", { count: "exact", head: true })
+            .eq("recipient_user_id", userId)
+            .eq("is_read", false)
+            .eq("admin_messages.school_id", schoolId);
+          unreadAdminCount = count || 0;
+        }
       } else {
         const { count } = await supabase
           .from("admin_message_recipients")
@@ -30,27 +47,51 @@ export function useUnreadMessagesOptimized(
           .eq("recipient_user_id", userId)
           .eq("is_read", false)
           .eq("admin_messages.school_id", schoolId);
-
-        return count || 0;
+        unreadAdminCount = count || 0;
       }
+
+      // 2. Fetch parent messages unread count
+      const { count: parentCount } = await supabase
+        .from("parent_messages")
+        .select("id", { count: "exact", head: true })
+        .eq("school_id", schoolId)
+        .eq("recipient_user_id", userId)
+        .eq("is_read", false);
+      unreadParentCount = parentCount || 0;
+
+      return { unreadAdminCount, unreadParentCount };
     },
     enabled: !!schoolId && !!userId,
-    staleTime: 10 * 1000, // Cache for 10 seconds
-    gcTime: 30 * 1000,
+    staleTime: 5 * 1000, // Snackier cache for faster visual feedback
+    gcTime: 15 * 1000,
   });
 
   const invalidate = useCallback(() => {
-    queryClient.invalidateQueries({ queryKey: ["unread_messages", schoolId, userId] });
+    queryClient.invalidateQueries({ queryKey: ["unread_messages_counts", schoolId, userId] });
   }, [queryClient, schoolId, userId]);
 
-  // Realtime subscription
+  // Realtime subscription for admin_message_recipients
   useRealtimeTable({
-    channel: `unread-messages-optimized-${schoolId}-${userId}`,
+    channel: `unread-admin-recipients-optimized-${schoolId}-${userId}`,
     table: "admin_message_recipients",
     filter: userId ? `recipient_user_id=eq.${userId}` : undefined,
     enabled: !!schoolId && !!userId,
     onChange: invalidate,
   });
 
-  return { unreadCount, loading: isLoading };
+  // Realtime subscription for parent_messages
+  useRealtimeTable({
+    channel: `unread-parent-messages-optimized-${schoolId}-${userId}`,
+    table: "parent_messages",
+    filter: userId ? `recipient_user_id=eq.${userId}` : undefined,
+    enabled: !!schoolId && !!userId,
+    onChange: invalidate,
+  });
+
+  return {
+    unreadCount: data.unreadAdminCount,
+    unreadAdminCount: data.unreadAdminCount,
+    unreadParentCount: data.unreadParentCount,
+    loading: isLoading,
+  };
 }

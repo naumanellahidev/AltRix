@@ -11,11 +11,14 @@ from sqlalchemy import func, or_, select, text
 
 from app.dependencies import CurrentUser, DbSession
 from app.exceptions import NotFoundError, ForbiddenError
-from app.models.people import Student, Guardian
+from app.models.people import Student, Guardian, StudentEnrollment, SchoolIdCardSettings
+from app.models.inquiry import SchoolInquirySettings
 from app.schemas import (
     StudentCreate, StudentUpdate, StudentOut,
     GuardianCreate, GuardianOut,
     MessageResponse, MyStudentIdOut,
+    SchoolIdCardSettingsCreate, SchoolIdCardSettingsUpdate, SchoolIdCardSettingsOut,
+    SchoolInquirySettingsCreate, SchoolInquirySettingsUpdate, SchoolInquirySettingsOut,
 )
 from app.utils.pagination import PaginationParams, PaginatedResponse
 from app.utils.permissions import expand_roles, ACADEMIC_GOV
@@ -28,7 +31,7 @@ async def list_students(
     current_user: CurrentUser,
     db: DbSession,
     page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1, le=200),
+    page_size: int = Query(20, ge=1, le=10000),
     search: Optional[str] = Query(None),
     section_id: Optional[UUID] = Query(None),
     campus_id: Optional[UUID] = Query(None),
@@ -50,7 +53,7 @@ async def list_students(
             )
         )
     if section_id:
-        query = query.where(Student.section_id == section_id)
+        query = query.join(StudentEnrollment).where(StudentEnrollment.class_section_id == section_id)
     if campus_id:
         query = query.where(Student.campus_id == campus_id)
     if status:
@@ -218,8 +221,10 @@ async def get_parents_directory(current_user: CurrentUser, db: DbSession):
         return []
     try:
         sql = """
-            SELECT DISTINCT d.user_id, d.display_name, d.email FROM public.school_user_directory d
-            JOIN public.user_roles r ON d.user_id = r.user_id AND d.school_id = r.school_id
+            SELECT DISTINCT r.user_id, p.display_name, u.email
+            FROM public.user_roles r
+            JOIN auth.users u ON u.id = r.user_id
+            LEFT JOIN public.profiles p ON p.id = r.user_id
             WHERE r.school_id = :school_id AND r.role = 'parent'
         """
         res = await db.execute(text(sql), {"school_id": current_user.school_id})
@@ -450,3 +455,100 @@ async def delete_guardian(student_id: UUID, guardian_id: UUID, current_user: Cur
         raise NotFoundError("Guardian", str(guardian_id))
     await db.delete(guardian)
     return MessageResponse(message="Guardian removed")
+
+
+# ─── ID CARD SETTINGS ─────────────────────────────────────────────────────────
+
+@router.get("/id-card-settings", response_model=SchoolIdCardSettingsOut)
+async def get_id_card_settings(current_user: CurrentUser, db: DbSession):
+    if not current_user.school_id:
+        raise ForbiddenError("No school context")
+
+    result = await db.execute(
+        select(SchoolIdCardSettings).where(SchoolIdCardSettings.school_id == current_user.school_id)
+    )
+    settings = result.scalar_one_or_none()
+
+    if not settings:
+        settings = SchoolIdCardSettings(school_id=current_user.school_id)
+        db.add(settings)
+        await db.flush()
+        await db.refresh(settings)
+
+    return settings
+
+
+@router.post("/id-card-settings", response_model=SchoolIdCardSettingsOut)
+async def save_id_card_settings(body: SchoolIdCardSettingsCreate, current_user: CurrentUser, db: DbSession):
+    if not current_user.school_id:
+        raise ForbiddenError("No school context")
+
+    # Check permission: principal, vice_principal, school_admin, super_admin, school_owner
+    effective_roles = expand_roles(current_user.roles)
+    if not (current_user.is_super_admin or any(r in effective_roles for r in ["principal", "vice_principal", "school_admin", "school_owner"])):
+        raise ForbiddenError("Access denied. You do not have permission to manage ID card settings.")
+
+    result = await db.execute(
+        select(SchoolIdCardSettings).where(SchoolIdCardSettings.school_id == current_user.school_id)
+    )
+    settings = result.scalar_one_or_none()
+
+    if not settings:
+        settings = SchoolIdCardSettings(school_id=current_user.school_id, **body.model_dump())
+        db.add(settings)
+    else:
+        for field, value in body.model_dump(exclude_none=True).items():
+            setattr(settings, field, value)
+
+    await db.flush()
+    await db.refresh(settings)
+    return settings
+
+
+# ─── INQUIRY FORM SETTINGS ───────────────────────────────────────────────────
+
+@router.get("/inquiry-settings", response_model=SchoolInquirySettingsOut)
+async def get_inquiry_settings(current_user: CurrentUser, db: DbSession):
+    if not current_user.school_id:
+        raise ForbiddenError("No school context")
+
+    result = await db.execute(
+        select(SchoolInquirySettings).where(SchoolInquirySettings.school_id == current_user.school_id)
+    )
+    settings = result.scalar_one_or_none()
+
+    if not settings:
+        settings = SchoolInquirySettings(school_id=current_user.school_id)
+        db.add(settings)
+        await db.flush()
+        await db.refresh(settings)
+
+    return settings
+
+
+@router.post("/inquiry-settings", response_model=SchoolInquirySettingsOut)
+async def save_inquiry_settings(body: SchoolInquirySettingsCreate, current_user: CurrentUser, db: DbSession):
+    if not current_user.school_id:
+        raise ForbiddenError("No school context")
+
+    # Check permission: principal, vice_principal, school_admin, super_admin, school_owner
+    effective_roles = expand_roles(current_user.roles)
+    if not (current_user.is_super_admin or any(r in effective_roles for r in ["principal", "vice_principal", "school_admin", "school_owner"])):
+        raise ForbiddenError("Access denied. You do not have permission to manage Inquiry Form settings.")
+
+    result = await db.execute(
+        select(SchoolInquirySettings).where(SchoolInquirySettings.school_id == current_user.school_id)
+    )
+    settings = result.scalar_one_or_none()
+
+    if not settings:
+        settings = SchoolInquirySettings(school_id=current_user.school_id, **body.model_dump())
+        db.add(settings)
+    else:
+        for field, value in body.model_dump(exclude_none=True).items():
+            setattr(settings, field, value)
+
+    await db.flush()
+    await db.refresh(settings)
+    return settings
+

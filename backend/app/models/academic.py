@@ -2,6 +2,8 @@
 Academic models: classes, sections, subjects, timetable, assessments.
 """
 import uuid
+from typing import Optional
+
 from sqlalchemy import (
     Boolean, Column, DateTime, Float, ForeignKey, Integer, String, Text, Time
 )
@@ -41,7 +43,6 @@ class ClassSection(Base):
     # Relationships
     academic_class = relationship("AcademicClass", back_populates="sections")
     campus = relationship("Campus", back_populates="sections")
-    students = relationship("Student", back_populates="section")
 
 
 class Subject(Base):
@@ -51,9 +52,18 @@ class Subject(Base):
     school_id = Column(UUID(as_uuid=True), ForeignKey("schools.id"), nullable=False)
     name = Column(String, nullable=False)
     code = Column(String, nullable=True)
-    description = Column(Text, nullable=True)
-    is_elective = Column(Boolean, default=False, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=True)
+
+    # Property wrappers for backward compatibility with schema fields not in DB
+    @property
+    def description(self) -> Optional[str]: return None
+    @description.setter
+    def description(self, val: Optional[str]): pass
+
+    @property
+    def is_elective(self) -> Optional[bool]: return False
+    @is_elective.setter
+    def is_elective(self, val: Optional[bool]): pass
 
 
 class ClassSectionSubject(Base):
@@ -66,23 +76,73 @@ class ClassSectionSubject(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=True)
 
 
-class TimetableSlot(Base):
-    __tablename__ = "timetable_slots"
+class TimetablePeriod(Base):
+    __tablename__ = "timetable_periods"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     school_id = Column(UUID(as_uuid=True), ForeignKey("schools.id"), nullable=False)
-    campus_id = Column(UUID(as_uuid=True), ForeignKey("campuses.id"), nullable=True)
+    label = Column(String, nullable=False)
+    sort_order = Column(Integer, nullable=True)
+    start_time = Column(Time, nullable=True)
+    end_time = Column(Time, nullable=True)
+    is_break = Column(Boolean, default=False, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=True)
+
+
+class TimetableSlot(Base):
+    __tablename__ = "timetable_entries"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    school_id = Column(UUID(as_uuid=True), ForeignKey("schools.id"), nullable=False)
     class_section_id = Column(UUID(as_uuid=True), ForeignKey("class_sections.id"), nullable=False)
-    subject_id = Column(UUID(as_uuid=True), ForeignKey("subjects.id"), nullable=True)
-    teacher_user_id = Column(UUID(as_uuid=True), nullable=True)
+    period_id = Column(UUID(as_uuid=True), ForeignKey("timetable_periods.id"), nullable=True)
     day_of_week = Column(Integer, nullable=False)  # 0=Mon ... 6=Sun
-    start_time = Column(Time, nullable=False)
-    end_time = Column(Time, nullable=False)
+    subject_name = Column(String, nullable=True)
+    teacher_user_id = Column(UUID(as_uuid=True), nullable=True)
     room = Column(String, nullable=True)
-    period_label = Column(String, nullable=True)
-    is_active = Column(Boolean, default=True, nullable=True)
+    start_time = Column(Time, nullable=True)
+    end_time = Column(Time, nullable=True)
+    is_published = Column(Boolean, default=True, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=True)
     updated_at = Column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
+    published_at = Column(DateTime(timezone=True), nullable=True)
+
+    # Relationships
+    class_section = relationship("ClassSection")
+    period = relationship("TimetablePeriod")
+
+    # Property wrappers for backward compatibility with schema fields not in DB
+    @property
+    def is_active(self) -> Optional[bool]:
+        return self.is_published
+
+    @is_active.setter
+    def is_active(self, value: Optional[bool]):
+        self.is_published = value
+
+    @property
+    def subject_id(self) -> Optional[uuid.UUID]:
+        return None
+
+    @subject_id.setter
+    def subject_id(self, value: Optional[uuid.UUID]):
+        pass
+
+    @property
+    def period_label(self) -> Optional[str]:
+        return self.period.label if self.period else None
+
+    @period_label.setter
+    def period_label(self, value: Optional[str]):
+        pass
+
+    @property
+    def campus_id(self) -> Optional[uuid.UUID]:
+        return self.class_section.campus_id if self.class_section else None
+
+    @campus_id.setter
+    def campus_id(self, value: Optional[uuid.UUID]):
+        pass
 
 
 class AcademicAssessment(Base):
@@ -112,7 +172,6 @@ class Holiday(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     school_id = Column(UUID(as_uuid=True), ForeignKey("schools.id"), nullable=False)
-    campus_id = Column(UUID(as_uuid=True), ForeignKey("campuses.id"), nullable=True)
     title = Column(String, nullable=False)
     description = Column(Text, nullable=True)
     start_date = Column(String, nullable=False)
@@ -120,3 +179,11 @@ class Holiday(Base):
     holiday_type = Column(String, nullable=True, default="public")
     created_by = Column(UUID(as_uuid=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=True)
+
+    @property
+    def campus_id(self) -> Optional[uuid.UUID]:
+        return None
+
+    @campus_id.setter
+    def campus_id(self, val: Optional[uuid.UUID]):
+        pass

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { z } from "zod";
 import { motion, useReducedMotion } from "framer-motion";
 import { KeyRound, Mail, ShieldCheck } from "lucide-react";
@@ -25,6 +25,7 @@ const passwordSchema = z.string().min(8);
 
 export default function PlatformAuth() {
   const navigate = useNavigate();
+  const location = useLocation();
   const reduce = useReducedMotion();
   const { user, loading } = useSession();
 
@@ -43,9 +44,29 @@ export default function PlatformAuth() {
 
   const title = useMemo(() => "Platform Super Admin", []);
 
+  // Handle location state for access denied redirects
+  const deniedState = location.state as { denied?: boolean; message?: string } | null;
+  useEffect(() => {
+    if (deniedState?.denied) {
+      setMessage(deniedState.message || "Access denied. Master Super Admin only.");
+      // Clear location state so the message doesn't persist forever
+      navigate(location.pathname, { replace: true, state: {} });
+    }
+  }, [deniedState, navigate, location.pathname]);
+
   useEffect(() => {
     if (loading) return;
-    if (user) navigate("/super_admin", { replace: true });
+    if (user) {
+      const emailLower = user.email?.toLowerCase() ?? "";
+      if (emailLower !== MASTER_SUPER_ADMIN_EMAIL.toLowerCase()) {
+        (async () => {
+          await supabase.auth.signOut();
+          setMessage("Access denied. Master Super Admin only.");
+        })();
+      } else {
+        navigate("/super_admin", { replace: true });
+      }
+    }
   }, [loading, user, navigate]);
 
   useEffect(() => {

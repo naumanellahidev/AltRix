@@ -207,11 +207,18 @@ const [activeTab, setActiveTab] = useState<"global" | "schedules" | "hub" | "fil
 
         // Load schedules from localStorage
         const savedSchedulesRaw = localStorage.getItem("altrix_backup_schedules");
-        const savedSchedules = savedSchedulesRaw ? JSON.parse(savedSchedulesRaw) : [];
+        let savedSchedules: any[] = [];
+        if (savedSchedulesRaw) {
+          try {
+            savedSchedules = JSON.parse(savedSchedulesRaw);
+          } catch (e) {
+            console.error("Error parsing backup schedules:", e);
+          }
+        }
 
         // Build list of schedules matching all schools
         const mergedSchedules: BackupSchedule[] = schoolsList.map(s => {
-          const matched = savedSchedules.find((x: any) => x.schoolId === s.id);
+          const matched = Array.isArray(savedSchedules) ? savedSchedules.find((x: any) => x?.schoolId === s.id) : null;
           return matched || {
             schoolId: s.id,
             schoolName: s.name,
@@ -235,7 +242,17 @@ const [activeTab, setActiveTab] = useState<"global" | "schedules" | "hub" | "fil
   const loadBackups = () => {
     const savedBackupsRaw = localStorage.getItem("altrix_backups_list");
     if (savedBackupsRaw) {
-      setBackups(JSON.parse(savedBackupsRaw));
+      try {
+        setBackups(JSON.parse(savedBackupsRaw));
+      } catch (e) {
+        console.error("Error parsing backups list:", e);
+        const defaultBackups: BackupLog[] = [
+          { id: "BKP-108241", schoolId: "1", schoolSlug: "beacon", date: "2026-06-03 04:00:00", size: "124 KB", type: "Scheduled", status: "Success" },
+          { id: "BKP-209842", schoolId: "2", schoolSlug: "roots", date: "2026-06-02 04:00:00", size: "320 KB", type: "Scheduled", status: "Success" },
+          { id: "BKP-301293", schoolId: "3", schoolSlug: "smart", date: "2026-06-01 18:24:12", size: "98 KB", type: "Manual", status: "Success" },
+        ];
+        setBackups(defaultBackups);
+      }
     } else {
       // Setup some initial mock persistent backups
       const defaultBackups: BackupLog[] = [

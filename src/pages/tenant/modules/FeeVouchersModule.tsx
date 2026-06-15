@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, Receipt, Download, Loader2, Trash2, Users, User, Eye, CheckCircle2, XCircle, AlertCircle, Mail, Upload, Search, X, FileDown } from "lucide-react";
+import { Plus, Receipt, Download, Loader2, Trash2, Users, User, Eye, CheckCircle2, XCircle, AlertCircle, Mail, Upload, Search, X, FileDown, Award, Sparkles, TrendingUp } from "lucide-react";
 import { exportToCSV } from "@/lib/csv";
 import { toast } from "sonner";
 
@@ -358,29 +358,60 @@ function PaymentProofsCard({ schoolId }: { schoolId: string | null }) {
     }
   };
 
+  // Statistics for payment proofs
+  const pendingCount = proofs.filter(p => p.status === "pending").length;
+  const verifiedAmount = proofs.filter(p => p.status === "verified").reduce((sum, p) => sum + Number(p.amount), 0);
+  const rejectedCount = proofs.filter(p => p.status === "rejected").length;
+
   return (
-    <Card className="shadow-elevated">
-      <CardHeader>
+    <Card className="shadow-sm border rounded-2xl">
+      <CardHeader className="space-y-4">
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Upload className="h-4 w-4" /> Manual payment proofs
+            <CardTitle className="text-lg font-bold flex items-center gap-2">
+              <Upload className="h-4 w-4 text-primary" /> Manual Payment Proofs
             </CardTitle>
-            <p className="text-sm text-muted-foreground">Parents' uploaded bank/cash receipts awaiting verification.</p>
+            <p className="text-xs text-muted-foreground">Parents' uploaded bank/cash receipts awaiting verification.</p>
           </div>
           <div className="flex items-center gap-3">
             <div className="text-xs text-muted-foreground">
               Showing <span className="font-medium text-foreground">{filteredProofs.length}</span> of {proofs.length}
             </div>
-            <Button size="sm" variant="outline" onClick={exportCsv} disabled={exporting || !schoolId}>
+            <Button size="sm" variant="outline" onClick={exportCsv} disabled={exporting || !schoolId} className="rounded-xl h-9 text-xs">
               {exporting ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <FileDown className="h-3 w-3 mr-1" />}
               Export CSV
             </Button>
           </div>
-
         </div>
 
-        <div className="mt-4 grid grid-cols-1 md:grid-cols-12 gap-2">
+        {/* Quick Stats Panel */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
+          <div className="p-3.5 rounded-xl border bg-muted/20 flex items-center justify-between">
+            <div className="space-y-0.5">
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Pending Reviews</p>
+              <h4 className="text-lg font-bold text-amber-600 dark:text-amber-400">{pendingCount} Proofs</h4>
+            </div>
+            <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+          </div>
+
+          <div className="p-3.5 rounded-xl border bg-muted/20 flex items-center justify-between">
+            <div className="space-y-0.5">
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Total Verified Value</p>
+              <h4 className="text-lg font-bold text-emerald-600 dark:text-emerald-400">PKR {verifiedAmount.toLocaleString()}</h4>
+            </div>
+            <TrendingUp className="h-4 w-4 text-emerald-500" />
+          </div>
+
+          <div className="p-3.5 rounded-xl border bg-muted/20 flex items-center justify-between">
+            <div className="space-y-0.5">
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Rejected Receipts</p>
+              <h4 className="text-lg font-bold text-rose-600 dark:text-rose-400">{rejectedCount} Claims</h4>
+            </div>
+            <div className="w-2 h-2 rounded-full bg-rose-500" />
+          </div>
+        </div>
+
+        <div className="mt-4 grid grid-cols-1 md:grid-cols-12 gap-2 flex-wrap">
           <div className="relative md:col-span-4">
             <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
@@ -647,14 +678,33 @@ function DeliveriesDialog({ batch, onClose }: { batch: Batch | null; onClose: ()
     return <Badge variant="secondary">{s}</Badge>;
   };
 
+  const totalDelivs = deliveries.length || 1;
+  const sentPct = Math.round((sent / totalDelivs) * 100);
+  const noAcctPct = Math.round((noAcct / totalDelivs) * 100);
+  const failedPct = Math.round((failed / totalDelivs) * 100);
+
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="max-w-5xl max-h-[90vh] flex flex-col">
-        <DialogHeader>
-          <DialogTitle>Batch vouchers & delivery</DialogTitle>
-          <DialogDescription>
-            {sent} delivered · {noAcct} no parent account · {failed} failed · {invoices.length} vouchers
-          </DialogDescription>
+      <DialogContent className="max-w-5xl max-h-[90vh] flex flex-col rounded-3xl">
+        <DialogHeader className="space-y-3">
+          <div>
+            <DialogTitle className="font-display font-bold text-lg">Batch Vouchers & Delivery Funnel</DialogTitle>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Monitor dispatch channels and recipient accounts for this batch.
+            </p>
+          </div>
+          <div className="space-y-1.5 pt-1">
+            <div className="flex justify-between items-center text-[10px] font-semibold text-muted-foreground uppercase">
+              <span className="text-emerald-600">{sent} Delivered ({sentPct}%)</span>
+              <span className="text-amber-600">{noAcct} No Parent Account ({noAcctPct}%)</span>
+              <span className="text-rose-600">{failed} Failed ({failedPct}%)</span>
+            </div>
+            <div className="h-2 w-full flex rounded-full overflow-hidden bg-muted">
+              <div style={{ width: `${sentPct}%` }} className="h-full bg-emerald-500 transition-all" />
+              <div style={{ width: `${noAcctPct}%` }} className="h-full bg-amber-500 transition-all" />
+              <div style={{ width: `${failedPct}%` }} className="h-full bg-rose-500 transition-all" />
+            </div>
+          </div>
         </DialogHeader>
         <ScrollArea className="flex-1 pr-3">
           {isLoading ? (
@@ -1442,33 +1492,50 @@ function GenerateVoucherDialog({
                 </div>
               </div>
 
-              <TabsContent value="class" className="mt-4 space-y-3">
-                <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm">Grade-based merit discount</CardTitle>
-                    <p className="text-xs text-muted-foreground">
+              <TabsContent value="class" className="mt-4 space-y-4">
+                <Card className="rounded-2xl border shadow-sm overflow-hidden">
+                  <CardHeader className="pb-3 bg-muted/10 border-b">
+                    <div className="flex items-center gap-2">
+                      <Award className="h-4 w-4 text-primary" />
+                      <CardTitle className="text-sm font-bold">Grade-based merit discount</CardTitle>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">
                       Students whose average grade meets a tier get extra % discount. Highest matching tier applies.
                     </p>
                   </CardHeader>
-                  <CardContent className="space-y-2">
-                    {tiers.map((t) => (
-                      <div key={t.id} className="flex items-center gap-2">
-                        <span className="text-xs">If avg ≥</span>
-                        <Input type="number" className="w-20" value={t.minGrade}
-                          onChange={(e) => setTiers((arr) => arr.map((x) => x.id === t.id ? { ...x, minGrade: Number(e.target.value) } : x))}
-                        />
-                        <span className="text-xs">% → discount</span>
-                        <Input type="number" className="w-20" value={t.discountPct}
-                          onChange={(e) => setTiers((arr) => arr.map((x) => x.id === t.id ? { ...x, discountPct: Number(e.target.value) } : x))}
-                        />
-                        <span className="text-xs">%</span>
-                        <Button size="icon" variant="ghost" onClick={() => removeTier(t.id)}>
+                  <CardContent className="space-y-3 p-4">
+                    {tiers.map((t, index) => (
+                      <div key={t.id} className="flex items-center gap-3 p-3 rounded-xl bg-muted/30 border border-muted/50 transition-all hover:bg-muted/50">
+                        <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground min-w-[70px]">
+                          <Sparkles className="h-3.5 w-3.5 text-primary" />
+                          <span>Tier {index + 1}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 flex-1">
+                          <span className="text-xs text-muted-foreground whitespace-nowrap">If avg ≥</span>
+                          <Input type="number" className="w-16 h-8 text-xs rounded-lg px-2 bg-background border-muted-foreground/20" value={t.minGrade}
+                            onChange={(e) => setTiers((arr) => arr.map((x) => x.id === t.id ? { ...x, minGrade: Number(e.target.value) } : x))}
+                          />
+                          <span className="text-xs text-muted-foreground">%</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 flex-1">
+                          <span className="text-xs text-muted-foreground whitespace-nowrap">Discount</span>
+                          <Input type="number" className="w-16 h-8 text-xs rounded-lg px-2 bg-background border-muted-foreground/20" value={t.discountPct}
+                            onChange={(e) => setTiers((arr) => arr.map((x) => x.id === t.id ? { ...x, discountPct: Number(e.target.value) } : x))}
+                          />
+                          <span className="text-xs text-muted-foreground">%</span>
+                        </div>
+                        <Button size="icon" variant="ghost" className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg" onClick={() => removeTier(t.id)}>
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
                     ))}
-                    <Button variant="outline" size="sm" onClick={addTier}>
-                      <Plus className="mr-1 h-3 w-3" /> Add tier
+                    
+                    {tiers.length === 0 && (
+                      <p className="text-xs text-muted-foreground text-center py-2.5">No merit discount tiers defined.</p>
+                    )}
+
+                    <Button variant="outline" size="sm" onClick={addTier} className="rounded-lg h-8 text-xs border-primary/20 text-primary hover:bg-primary/5">
+                      <Plus className="mr-1.5 h-3.5 w-3.5" /> Add Tier
                     </Button>
                   </CardContent>
                 </Card>

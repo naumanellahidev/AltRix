@@ -6,7 +6,24 @@ import { toast } from 'sonner';
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
-export const USE_FASTAPI = import.meta.env.VITE_USE_FASTAPI === 'true';
+const getInitialUseFastAPI = (): boolean => {
+  if (typeof window === "undefined") return import.meta.env.VITE_USE_FASTAPI === 'true';
+  const cached = sessionStorage.getItem("eduverse:use_fastapi");
+  if (cached !== null) {
+    return cached === "true";
+  }
+  return import.meta.env.VITE_USE_FASTAPI === 'true';
+};
+
+export let USE_FASTAPI = getInitialUseFastAPI();
+
+export function setUseFastAPI(val: boolean) {
+  USE_FASTAPI = val;
+  if (typeof window !== "undefined") {
+    sessionStorage.setItem("eduverse:use_fastapi", String(val));
+    window.dispatchEvent(new CustomEvent("eduverse:use-fastapi-changed", { detail: val }));
+  }
+}
 
 // Create the raw, unproxied client for internal/sync engine operations
 export const rawSupabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {

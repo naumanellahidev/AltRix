@@ -8,9 +8,13 @@ from app.models.core import (
 from app.models.campus import Campus
 from app.models.academic import (
     AcademicClass, ClassSection, Subject, ClassSectionSubject,
-    TimetableSlot, AcademicAssessment, Holiday,
+    TimetableSlot, AcademicAssessment, Holiday, TimetablePeriod,
 )
-from app.models.people import Student, Guardian, TeacherProfile, TeacherSubjectAssignment
+from app.models.people import (
+    Student, Guardian, TeacherProfile, TeacherSubjectAssignment,
+    StudentEnrollment, TeacherAssignment, SchoolIdCardSettings,
+)
+from app.models.inquiry import SchoolInquirySettings
 from app.models.admissions import AdmissionApplication, AdmissionApplicationDocument
 from app.models.attendance import AttendanceSession, AttendanceEntry, StaffAttendance
 from app.models.exams import Exam, ExamDatesheet, ExamResult, AssessmentResult
@@ -39,8 +43,9 @@ __all__ = [
     "PlatformSuperAdmin", "PlatformBillingPlan",
     "Campus",
     "AcademicClass", "ClassSection", "Subject", "ClassSectionSubject",
-    "TimetableSlot", "AcademicAssessment", "Holiday",
+    "TimetableSlot", "AcademicAssessment", "Holiday", "TimetablePeriod",
     "Student", "Guardian", "TeacherProfile", "TeacherSubjectAssignment",
+    "StudentEnrollment", "TeacherAssignment", "SchoolIdCardSettings", "SchoolInquirySettings",
     "AdmissionApplication", "AdmissionApplicationDocument",
     "AttendanceSession", "AttendanceEntry", "StaffAttendance",
     "Exam", "ExamDatesheet", "ExamResult", "AssessmentResult",

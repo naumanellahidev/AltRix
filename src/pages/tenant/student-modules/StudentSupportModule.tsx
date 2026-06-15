@@ -112,6 +112,32 @@ export function StudentSupportModule({ myStudent, schoolId }: { myStudent: any; 
         sender_user_id: senderId,
         content,
       });
+
+      // Notify support staff
+      try {
+        const { data: staffRoles } = await supabase
+          .from("user_roles")
+          .select("user_id")
+          .eq("school_id", schoolId)
+          .in("role", ["counselor", "principal", "school_admin", "school_owner"]);
+
+        if (staffRoles && staffRoles.length > 0) {
+          const userIds = Array.from(new Set(staffRoles.map(r => r.user_id).filter(Boolean)));
+          const notificationRows = userIds.map(uid => ({
+            school_id: schoolId,
+            user_id: uid,
+            type: "support",
+            title: "New Support Message",
+            body: `A student (${studentLabel || "anonymous"}) has sent a support message.`,
+            entity_type: "support_conversations",
+            entity_id: conv.id
+          }));
+          await supabase.from("app_notifications").insert(notificationRows);
+        }
+      } catch (notifErr) {
+        console.warn("Failed to notify staff about support message:", notifErr);
+      }
+
       setDraft("");
       // Realtime subscription will refresh.
     } finally {

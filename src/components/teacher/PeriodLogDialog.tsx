@@ -31,7 +31,7 @@ interface PeriodLogDialogProps {
     notes: string | null;
     topics_covered: string | null;
   } | null;
-  onSaved: () => void;
+  onSaved: (logStatus: string) => void;
 }
 
 export function PeriodLogDialog({
@@ -93,7 +93,7 @@ export function PeriodLogDialog({
     }
 
     toast.success(existingLog ? "Period log updated" : "Period marked as completed");
-    onSaved();
+    onSaved(status);
     onOpenChange(false);
   };
 

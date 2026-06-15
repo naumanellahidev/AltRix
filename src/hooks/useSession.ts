@@ -50,6 +50,7 @@ function cacheUser(user: User | null) {
       localStorage.setItem(SESSION_CACHE_KEY, JSON.stringify(data));
     } else {
       localStorage.removeItem(SESSION_CACHE_KEY);
+      localStorage.removeItem("eduverse_authz_cache_v2");
     }
   } catch {
     // Ignore storage errors

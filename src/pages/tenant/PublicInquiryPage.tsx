@@ -84,11 +84,40 @@ export default function PublicInquiryPage() {
   // Load configuration
   useEffect(() => {
     if (!schoolId) return;
-    const localKey = `altrix:marketing:intake-config:${schoolId}`;
-    const saved = localStorage.getItem(localKey);
-    if (saved) {
-      setConfig(JSON.parse(saved));
-    }
+    (async () => {
+      try {
+        const { data } = await supabase
+          .from("school_inquiry_settings")
+          .select("*")
+          .eq("school_id", schoolId)
+          .maybeSingle();
+        if (data) {
+          setConfig({
+            formTitle: data.form_title,
+            showLogo: data.show_logo,
+            fields: {
+              parentName: data.fields_config?.parentName ?? true,
+              email: data.fields_config?.email ?? true,
+              phone: data.fields_config?.phone ?? true,
+              studentName: data.fields_config?.studentName ?? true,
+              studentGrade: data.fields_config?.studentGrade ?? true,
+              priorSchool: data.fields_config?.priorSchool ?? true,
+              message: data.fields_config?.message ?? true,
+            },
+            requiredFields: {
+              email: data.required_config?.email ?? true,
+              phone: data.required_config?.phone ?? true,
+              studentName: data.required_config?.studentName ?? true,
+              studentGrade: data.required_config?.studentGrade ?? false,
+            },
+            successMessage: data.success_message,
+            accentColor: data.accent_color,
+          });
+        }
+      } catch (err) {
+        console.error("Failed to load DB inquiry settings:", err);
+      }
+    })();
   }, [schoolId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -194,6 +223,31 @@ export default function PublicInquiryPage() {
         if (directError) {
           throw new Error(directError.message);
         }
+      }
+
+      // Dispatch in-app notifications to school staff
+      try {
+        const { data: staffRoles } = await supabase
+          .from("user_roles")
+          .select("user_id")
+          .eq("school_id", schoolId)
+          .in("role", ["marketing_staff", "principal", "school_admin", "school_owner"]);
+
+        if (staffRoles && staffRoles.length > 0) {
+          const userIds = Array.from(new Set(staffRoles.map(r => r.user_id).filter(Boolean)));
+          const notificationRows = userIds.map(uid => ({
+            school_id: schoolId,
+            user_id: uid,
+            type: "inquiry",
+            title: "New Admission Inquiry",
+            body: `A new inquiry has been submitted by parent ${parentName.trim()}${studentName ? ` for child ${studentName.trim()}` : ""}.`,
+            entity_type: "crm_leads",
+            entity_id: null
+          }));
+          await supabase.from("app_notifications").insert(notificationRows);
+        }
+      } catch (notifErr) {
+        console.warn("Failed to dispatch in-app notifications for inquiry:", notifErr);
       }
 
       setSubmitted(true);

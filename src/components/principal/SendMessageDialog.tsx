@@ -1,15 +1,16 @@
 import { useState, useEffect, useMemo, useRef } from "react";
-import { Send, MessageSquare, Search, Users, GraduationCap, Briefcase, UserCheck, Paperclip, X, FileText, Image, Loader2 } from "lucide-react";
+import { Send, MessageSquare, Search, Users, GraduationCap, Briefcase, UserCheck, Paperclip, X, FileText, Image, Loader2, AlertCircle } from "lucide-react";
 import { supabase, USE_FASTAPI } from "@/integrations/supabase/client";
 import { apiClient } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "@/hooks/use-toast";
 
 interface User {
@@ -46,6 +47,8 @@ export function SendMessageDialog({ schoolId, trigger, onMessageSent }: SendMess
   const [roleFilter, setRoleFilter] = useState<string>("all");
   const [attachments, setAttachments] = useState<AttachmentFile[]>([]);
   const [uploadingFiles, setUploadingFiles] = useState(false);
+  const [priority, setPriority] = useState<"low" | "normal" | "high" | "urgent">("normal");
+  const [dragActive, setDragActive] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
@@ -117,6 +120,8 @@ export function SendMessageDialog({ schoolId, trigger, onMessageSent }: SendMess
     setSearch("");
     setRoleFilter("all");
     setAttachments([]);
+    setPriority("normal");
+    setDragActive(false);
   }, [open, schoolId]);
 
   const filteredUsers = useMemo(() => {
@@ -170,6 +175,44 @@ export function SendMessageDialog({ schoolId, trigger, onMessageSent }: SendMess
 
   const clearSelection = () => {
     setSelectedUsers([]);
+  };
+
+  const handleDrag = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === "dragenter" || e.type === "dragover") {
+      setDragActive(true);
+    } else if (e.type === "dragleave") {
+      setDragActive(false);
+    }
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+
+    const files = e.dataTransfer.files;
+    if (files && files.length > 0) {
+      const newFiles: AttachmentFile[] = [];
+      for (const file of Array.from(files)) {
+        if (attachments.length + newFiles.length >= MAX_ATTACHMENTS) {
+          toast({ title: `Maximum ${MAX_ATTACHMENTS} attachments allowed`, variant: "destructive" });
+          break;
+        }
+        if (file.size > MAX_FILE_SIZE) {
+          toast({ title: `${file.name} exceeds 10MB limit`, variant: "destructive" });
+          continue;
+        }
+        newFiles.push({
+          file,
+          name: file.name,
+          size: file.size,
+          type: file.type,
+        });
+      }
+      setAttachments((prev) => [...prev, ...newFiles]);
+    }
   };
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -233,8 +276,8 @@ export function SendMessageDialog({ schoolId, trigger, onMessageSent }: SendMess
   };
 
   const getFileIcon = (type: string) => {
-    if (type.startsWith("image/")) return <Image className="h-4 w-4" />;
-    return <FileText className="h-4 w-4" />;
+    if (type.startsWith("image/")) return <Image className="h-4 w-4 text-primary" />;
+    return <FileText className="h-4 w-4 text-violet-500" />;
   };
 
   const handleSend = async () => {
@@ -279,7 +322,7 @@ export function SendMessageDialog({ schoolId, trigger, onMessageSent }: SendMess
         await apiClient.post("/messages", {
           subject: subject.trim() || "Message from Principal",
           content: content.trim(),
-          priority: "normal",
+          priority: priority,
           recipient_user_ids: selectedUsers.map((u) => u.user_id),
           attachment_urls: attachmentUrls,
         });
@@ -292,7 +335,7 @@ export function SendMessageDialog({ schoolId, trigger, onMessageSent }: SendMess
             sender_user_id: senderId,
             subject: subject.trim() || "Message from Principal",
             content: content.trim(),
-            priority: "normal",
+            priority: priority,
             status: "sent",
             attachment_urls: attachmentUrls,
           })
@@ -329,7 +372,6 @@ export function SendMessageDialog({ schoolId, trigger, onMessageSent }: SendMess
       });
 
       onMessageSent?.();
-
       setOpen(false);
     } catch (error: any) {
       toast({
@@ -371,6 +413,31 @@ export function SendMessageDialog({ schoolId, trigger, onMessageSent }: SendMess
     }
   };
 
+  const getInitials = (name: string | null) => {
+    if (!name) return "?";
+    const parts = name.trim().split(/\s+/);
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[1][0]).toUpperCase();
+    }
+    return parts[0].substring(0, 2).toUpperCase();
+  };
+
+  const getAvatarColor = (role: string) => {
+    switch (role) {
+      case "teacher":
+        return "bg-primary/15 text-primary border-primary/20";
+      case "principal":
+      case "vice_principal":
+        return "bg-violet-500/15 text-violet-600 border-violet-500/20";
+      case "accountant":
+        return "bg-emerald-500/15 text-emerald-600 border-emerald-500/20";
+      case "hr":
+        return "bg-amber-500/15 text-amber-600 border-amber-500/20";
+      default:
+        return "bg-blue-500/15 text-blue-600 border-blue-500/20";
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
@@ -381,222 +448,310 @@ export function SendMessageDialog({ schoolId, trigger, onMessageSent }: SendMess
           </Button>
         )}
       </DialogTrigger>
-      <DialogContent className="max-w-2xl max-h-[85vh] overflow-hidden flex flex-col p-0">
-        <DialogHeader className="px-6 pt-6 pb-4 shrink-0">
-          <DialogTitle className="flex items-center gap-2">
-            <MessageSquare className="h-5 w-5" />
-            Send Message to Staff
+      
+      <DialogContent className="max-w-4xl h-[80vh] flex flex-col p-0 overflow-hidden rounded-3xl border border-muted-foreground/15 shadow-2xl bg-background">
+        {/* Full Width Dialog Header */}
+        <DialogHeader className="px-6 py-4 shrink-0 border-b flex flex-row items-center justify-between">
+          <DialogTitle className="flex items-center gap-2 text-base font-bold font-display">
+            <MessageSquare className="h-5 w-5 text-primary animate-pulse" />
+            <span>Campus Broadcast Composer</span>
           </DialogTitle>
         </DialogHeader>
 
-        <div className="flex-1 overflow-y-auto px-6">
-          <div className="space-y-4 pb-4">
-            {/* Selected Recipients */}
-            {selectedUsers.length > 0 && (
-              <div className="rounded-lg border bg-muted/30 p-3">
-                <div className="flex items-center justify-between mb-2">
-                  <Label className="text-xs text-muted-foreground">
-                    Selected Recipients ({selectedUsers.length})
-                  </Label>
-                  <Button variant="ghost" size="sm" onClick={clearSelection} className="h-6 text-xs">
-                    Clear All
+        {/* Responsive Dual Pane Container */}
+        <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
+          
+          {/* Left Pane: Recipients Directory Selector (40%) */}
+          <div className="md:w-[350px] border-r flex flex-col bg-muted/10 shrink-0 h-full overflow-hidden">
+            
+            {/* Search and Action Header */}
+            <div className="p-4 space-y-3 shrink-0 border-b bg-background/50">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Recipients List</span>
+                <div className="flex gap-2">
+                  <Button variant="ghost" size="sm" onClick={selectAllFiltered} className="h-6 text-[10px] px-2">
+                    Select All
                   </Button>
-                </div>
-                <div className="flex flex-wrap gap-1">
-                  {selectedUsers.map((user) => (
-                    <Badge
-                      key={user.user_id}
-                      variant="secondary"
-                      className="cursor-pointer hover:bg-destructive/20"
-                      onClick={() => toggleUser(user)}
-                    >
-                      {user.display_name}
-                      <span className="ml-1 text-xs opacity-60">×</span>
-                    </Badge>
-                  ))}
+                  {selectedUsers.length > 0 && (
+                    <Button variant="ghost" size="sm" onClick={clearSelection} className="h-6 text-[10px] px-2 text-destructive hover:text-destructive">
+                      Clear
+                    </Button>
+                  )}
                 </div>
               </div>
-            )}
 
-            {/* User Selection */}
-            <div className="space-y-2">
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <Label>Select Recipients</Label>
-                <Button variant="outline" size="sm" onClick={selectAllFiltered} className="text-xs">
-                  Select All Visible
-                </Button>
-              </div>
-
-              {/* Search */}
+              {/* Search Field */}
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
                 <Input
-                  placeholder="Search by name..."
+                  placeholder="Search staff directory..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  className="pl-9"
+                  className="pl-8 h-8 text-xs rounded-lg bg-surface border-muted-foreground/20 focus-visible:ring-primary/20"
                 />
-              </div>
-
-              {/* Role Filter Tabs */}
-              <Tabs value={roleFilter} onValueChange={setRoleFilter}>
-                <TabsList className="flex h-auto flex-wrap gap-1 bg-transparent p-0">
-                  <TabsTrigger value="all" className="h-7 rounded-full px-3 text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-                    All ({roleCounts.all || 0})
-                  </TabsTrigger>
-                  {["teacher", "accountant", "hr", "marketing", "principal", "vice_principal"].map(
-                    (role) =>
-                      (roleCounts[role] || 0) > 0 && (
-                        <TabsTrigger
-                          key={role}
-                          value={role}
-                          className="h-7 rounded-full px-3 text-xs capitalize data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
-                        >
-                          {role.replace("_", " ")} ({roleCounts[role]})
-                        </TabsTrigger>
-                      )
-                  )}
-                </TabsList>
-              </Tabs>
-
-              {/* User List */}
-              <div className="max-h-32 rounded-lg border overflow-y-auto">
-                {loading ? (
-                  <div className="flex items-center justify-center py-8">
-                    <p className="text-sm text-muted-foreground">Loading users...</p>
-                  </div>
-                ) : filteredUsers.length === 0 ? (
-                  <div className="flex items-center justify-center py-8">
-                    <p className="text-sm text-muted-foreground">No users found</p>
-                  </div>
-                ) : (
-                  <div className="p-2 space-y-1">
-                    {filteredUsers.map((user) => {
-                      const isSelected = selectedUsers.some((u) => u.user_id === user.user_id);
-                      return (
-                        <div
-                          key={user.user_id}
-                          className={`flex items-center justify-between rounded-lg px-3 py-2 cursor-pointer transition-colors ${
-                            isSelected ? "bg-primary/10 border border-primary/30" : "hover:bg-muted/50"
-                          }`}
-                          onClick={() => toggleUser(user)}
-                        >
-                          <div className="flex items-center gap-2 min-w-0">
-                            <div
-                              className={`h-4 w-4 rounded border flex items-center justify-center shrink-0 ${
-                                isSelected ? "bg-primary border-primary" : "border-muted-foreground/30"
-                              }`}
-                            >
-                              {isSelected && <span className="text-primary-foreground text-xs">✓</span>}
-                            </div>
-                            <span className="text-sm truncate">{user.display_name}</span>
-                          </div>
-                          <Badge variant={getRoleBadgeVariant(user.role)} className="shrink-0 gap-1 text-xs capitalize">
-                            {getRoleIcon(user.role)}
-                            {user.role.replace("_", " ")}
-                          </Badge>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
               </div>
             </div>
 
-            {/* Message Form */}
-            <div className="space-y-3">
-              <div>
-                <Label htmlFor="subject">Subject</Label>
-                <Input
-                  id="subject"
-                  value={subject}
-                  onChange={(e) => setSubject(e.target.value)}
-                  placeholder="Message subject (optional)"
-                />
-              </div>
+            {/* Scrollable Role Filters */}
+            <div className="px-4 py-2 shrink-0 overflow-x-auto no-scrollbar border-b bg-background/30 flex gap-1">
+              <button
+                type="button"
+                onClick={() => setRoleFilter("all")}
+                className={`px-2.5 py-1 text-[10px] font-semibold rounded-full border shrink-0 transition-all ${
+                  roleFilter === "all"
+                    ? "bg-primary border-primary text-primary-foreground shadow-sm"
+                    : "bg-surface text-muted-foreground hover:bg-muted"
+                }`}
+              >
+                All ({roleCounts.all || 0})
+              </button>
+              {["teacher", "accountant", "hr", "marketing", "principal", "vice_principal"].map(
+                (role) =>
+                  (roleCounts[role] || 0) > 0 && (
+                    <button
+                      key={role}
+                      type="button"
+                      onClick={() => setRoleFilter(role)}
+                      className={`px-2.5 py-1 text-[10px] font-semibold rounded-full border shrink-0 capitalize transition-all ${
+                        roleFilter === role
+                          ? "bg-primary border-primary text-primary-foreground shadow-sm"
+                          : "bg-surface text-muted-foreground hover:bg-muted"
+                      }`}
+                    >
+                      {role.replace("_", " ")} ({roleCounts[role]})
+                    </button>
+                  )
+              )}
+            </div>
 
-              <div>
-                <Label htmlFor="content">Message *</Label>
-                <Textarea
-                  id="content"
-                  value={content}
-                  onChange={(e) => setContent(e.target.value)}
-                  rows={3}
-                  placeholder="Write your message..."
-                  className="resize-none"
-                />
-              </div>
-
-              {/* Attachments */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label>Attachments</Label>
-                  <span className="text-xs text-muted-foreground">{attachments.length}/{MAX_ATTACHMENTS}</span>
+            {/* Checklist User Scroll Area */}
+            <ScrollArea className="flex-1">
+              {loading ? (
+                <div className="flex flex-col items-center justify-center py-12 gap-2">
+                  <Loader2 className="h-6 w-6 text-primary animate-spin" />
+                  <span className="text-xs text-muted-foreground">Loading directory...</span>
                 </div>
-                
-                {/* Hidden file input */}
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  multiple
-                  accept="image/*,.pdf,.doc,.docx,.txt"
-                  onChange={handleFileSelect}
-                  className="hidden"
-                />
-                
-                {/* Attachment list */}
-                {attachments.length > 0 && (
-                  <div className="space-y-2 rounded-lg border bg-muted/30 p-2">
-                    {attachments.map((att, idx) => (
-                      <div key={idx} className="flex items-center gap-2 rounded-md bg-background px-2 py-1.5 text-sm">
-                        {getFileIcon(att.type)}
-                        <span className="flex-1 truncate">{att.name}</span>
-                        <span className="text-xs text-muted-foreground shrink-0">{formatFileSize(att.size)}</span>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-6 w-6 shrink-0"
-                          onClick={() => removeAttachment(idx)}
-                        >
-                          <X className="h-3 w-3" />
-                        </Button>
+              ) : filteredUsers.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 text-center px-4">
+                  <AlertCircle className="h-6 w-6 text-muted-foreground mb-1" />
+                  <span className="text-xs text-muted-foreground">No contacts match filter</span>
+                </div>
+              ) : (
+                <div className="p-3 space-y-1">
+                  {filteredUsers.map((user) => {
+                    const isSelected = selectedUsers.some((u) => u.user_id === user.user_id);
+                    return (
+                      <div
+                        key={user.user_id}
+                        onClick={() => toggleUser(user)}
+                        className={`flex items-center justify-between rounded-xl px-3 py-2 cursor-pointer transition-all border ${
+                          isSelected
+                            ? "bg-primary/[0.04] border-primary/25 hover:bg-primary/[0.06]"
+                            : "bg-surface border-transparent hover:bg-muted/40 hover:border-muted-foreground/10"
+                        }`}
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <Checkbox
+                            id={`user-${user.user_id}`}
+                            checked={isSelected}
+                            onCheckedChange={() => {}} // toggled by parent click handler
+                            className="rounded h-4 w-4 shrink-0 border-muted-foreground/30 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+                          />
+                          <div className={`h-8 w-8 rounded-full border flex items-center justify-center font-bold text-xs shrink-0 select-none ${getAvatarColor(user.role)}`}>
+                            {getInitials(user.display_name)}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-xs font-semibold text-foreground truncate">{user.display_name}</p>
+                            <p className="text-[10px] text-muted-foreground capitalize">{user.role.replace("_", " ")}</p>
+                          </div>
+                        </div>
+                        <span className="text-muted-foreground/30 text-xs shrink-0">
+                          {isSelected ? "✓" : ""}
+                        </span>
                       </div>
+                    );
+                  })}
+                </div>
+              )}
+            </ScrollArea>
+          </div>
+
+          {/* Right Pane: Message Compose Pane (60%) */}
+          <div className="flex-1 flex flex-col h-full bg-background overflow-hidden">
+            
+            {/* Selected Recipients Tag Container */}
+            <div className="p-4 border-b shrink-0 bg-muted/5 flex items-center justify-between min-h-[48px]">
+              <div className="flex items-center gap-2 overflow-hidden flex-1 mr-4">
+                <span className="text-xs font-bold text-muted-foreground shrink-0 uppercase tracking-wider">To:</span>
+                {selectedUsers.length === 0 ? (
+                  <span className="text-xs text-muted-foreground italic">No recipients selected</span>
+                ) : (
+                  <div className="flex flex-wrap gap-1 max-h-[36px] overflow-y-auto no-scrollbar">
+                    {selectedUsers.map((user) => (
+                      <Badge
+                        key={user.user_id}
+                        variant="secondary"
+                        className="text-[10px] py-0.5 px-2 gap-1 rounded-md shrink-0 border bg-surface/50 border-muted-foreground/15 hover:bg-destructive/10 hover:text-destructive hover:border-destructive/25 transition-all cursor-pointer"
+                        onClick={() => toggleUser(user)}
+                      >
+                        <span className="truncate max-w-[100px]">{user.display_name}</span>
+                        <X className="h-2.5 w-2.5 opacity-60" />
+                      </Badge>
                     ))}
                   </div>
                 )}
-
-                {/* Add attachment button */}
-                {attachments.length < MAX_ATTACHMENTS && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="w-full gap-2"
-                    onClick={() => fileInputRef.current?.click()}
-                  >
-                    <Paperclip className="h-4 w-4" />
-                    Add Attachment
-                  </Button>
-                )}
               </div>
+              {selectedUsers.length > 0 && (
+                <span className="text-xs font-bold text-primary shrink-0 bg-primary/10 px-2 py-0.5 rounded-full">
+                  {selectedUsers.length} selected
+                </span>
+              )}
             </div>
-          </div>
-        </div>
 
-        {/* Send Button - Fixed at bottom */}
-        <div className="shrink-0 border-t bg-background px-6 py-4">
-          <Button
-            onClick={handleSend}
-            disabled={sending || uploadingFiles || !content.trim() || selectedUsers.length === 0}
-            className="w-full"
-          >
-            {uploadingFiles ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : (
-              <Send className="mr-2 h-4 w-4" />
-            )}
-            {uploadingFiles ? "Uploading..." : sending ? "Sending..." : `Send to ${selectedUsers.length} recipient(s)`}
-          </Button>
+            {/* Composer Scroll Area */}
+            <ScrollArea className="flex-1">
+              <div className="p-4 space-y-4">
+                
+                {/* Priority Selector Grid */}
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Priority Level</Label>
+                  <div className="grid grid-cols-4 gap-2">
+                    {[
+                      { value: "low", label: "Low", color: "border-emerald-500/20 bg-emerald-500/5 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10", activeColor: "bg-emerald-500 text-white hover:bg-emerald-600 border-emerald-500 shadow-sm" },
+                      { value: "normal", label: "Normal", color: "border-muted-foreground/25 bg-muted/40 text-muted-foreground hover:bg-muted/70", activeColor: "bg-muted-foreground text-background hover:bg-muted-foreground/90 border-muted-foreground shadow-sm" },
+                      { value: "high", label: "High", color: "border-amber-500/20 bg-amber-500/5 text-amber-600 dark:text-amber-400 hover:bg-amber-500/10", activeColor: "bg-amber-500 text-white hover:bg-amber-600 border-amber-500 shadow-sm" },
+                      { value: "urgent", label: "Urgent", color: "border-rose-500/20 bg-rose-500/5 text-rose-600 dark:text-rose-400 hover:bg-rose-500/10", activeColor: "bg-rose-500 text-white hover:bg-rose-600 border-rose-500 shadow-sm" },
+                    ].map((p) => {
+                      const isActive = priority === p.value;
+                      return (
+                        <button
+                          key={p.value}
+                          type="button"
+                          onClick={() => setPriority(p.value as any)}
+                          className={`py-1.5 px-3 rounded-xl border text-[11px] font-semibold transition-all duration-200 ${
+                            isActive ? p.activeColor : p.color
+                          }`}
+                        >
+                          {p.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Subject Field */}
+                <div className="space-y-1.5">
+                  <Label htmlFor="subject" className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Subject</Label>
+                  <Input
+                    id="subject"
+                    value={subject}
+                    onChange={(e) => setSubject(e.target.value)}
+                    placeholder="Broadcast Subject (Optional)"
+                    className="h-10 text-xs rounded-xl border-muted-foreground/20 focus-visible:ring-primary/20 bg-surface/30"
+                  />
+                </div>
+
+                {/* Message Body Field */}
+                <div className="space-y-1.5">
+                  <Label htmlFor="content" className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Message Content *</Label>
+                  <Textarea
+                    id="content"
+                    value={content}
+                    onChange={(e) => setContent(e.target.value)}
+                    rows={4}
+                    placeholder="Write detailed broadcast message..."
+                    className="text-xs rounded-xl border-muted-foreground/20 focus-visible:ring-primary/20 resize-none bg-surface/30 min-h-[100px]"
+                  />
+                </div>
+
+                {/* Attachments Section */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Attachments</Label>
+                    <span className="text-[10px] text-muted-foreground font-semibold">{attachments.length}/{MAX_ATTACHMENTS} max</span>
+                  </div>
+
+                  {/* Hidden File Input */}
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    multiple
+                    accept="image/*,.pdf,.doc,.docx,.txt"
+                    onChange={handleFileSelect}
+                    className="hidden"
+                  />
+
+                  {/* Drag and Drop Zone */}
+                  <div
+                    onDragEnter={handleDrag}
+                    onDragOver={handleDrag}
+                    onDragLeave={handleDrag}
+                    onDrop={handleDrop}
+                    onClick={() => fileInputRef.current?.click()}
+                    className={`border-2 border-dashed rounded-2xl p-4 text-center cursor-pointer transition-all duration-200 select-none ${
+                      dragActive
+                        ? "border-primary bg-primary/[0.04] scale-[0.99]"
+                        : "border-muted-foreground/15 bg-muted/5 hover:bg-muted/30 hover:border-muted-foreground/25"
+                    }`}
+                  >
+                    <Paperclip className="h-5 w-5 mx-auto mb-1 text-muted-foreground/75" />
+                    <p className="text-xs font-semibold text-foreground">Click or drag files here to attach</p>
+                    <p className="text-[9px] text-muted-foreground font-medium mt-0.5">Images, PDFs, or Doc files up to 10MB each</p>
+                  </div>
+
+                  {/* Uploaded Attachments Checklist */}
+                  {attachments.length > 0 && (
+                    <div className="space-y-1 rounded-2xl border bg-muted/15 p-2">
+                      {attachments.map((att, idx) => (
+                        <div key={idx} className="flex items-center gap-2 rounded-xl bg-surface px-3 py-2 text-xs border border-muted-foreground/5 shadow-sm">
+                          {getFileIcon(att.type)}
+                          <span className="flex-1 truncate font-medium">{att.name}</span>
+                          <span className="text-[10px] text-muted-foreground font-mono shrink-0">{formatFileSize(att.size)}</span>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 shrink-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              removeAttachment(idx);
+                            }}
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+              </div>
+            </ScrollArea>
+
+            {/* Footer Broadcast Action */}
+            <div className="shrink-0 border-t bg-background px-6 py-4 flex items-center justify-between">
+              <p className="text-[10px] text-muted-foreground font-medium max-w-[60%] leading-relaxed">
+                * Broadcasting to multiple recipients immediately dispatches app notifications & updates audit streams.
+              </p>
+              <Button
+                onClick={handleSend}
+                disabled={sending || uploadingFiles || !content.trim() || selectedUsers.length === 0}
+                className="gap-2 px-5 py-2 shadow-sm rounded-xl"
+              >
+                {uploadingFiles ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : sending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Send className="h-4 w-4" />
+                )}
+                <span>
+                  {uploadingFiles ? "Uploading..." : sending ? "Sending..." : `Broadcast (${selectedUsers.length})`}
+                </span>
+              </Button>
+            </div>
+
+          </div>
+
         </div>
       </DialogContent>
     </Dialog>

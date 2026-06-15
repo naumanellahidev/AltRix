@@ -61,10 +61,19 @@ async def list_sessions(
         query = query.where(AttendanceSession.class_section_id == section_id)
     if campus_id:
         query = query.where(AttendanceSession.campus_id == campus_id)
+    import datetime
     if from_date:
-        query = query.where(AttendanceSession.session_date >= from_date)
+        try:
+            fd = datetime.date.fromisoformat(from_date)
+            query = query.where(AttendanceSession.session_date >= fd)
+        except ValueError:
+            pass
     if to_date:
-        query = query.where(AttendanceSession.session_date <= to_date)
+        try:
+            td = datetime.date.fromisoformat(to_date)
+            query = query.where(AttendanceSession.session_date <= td)
+        except ValueError:
+            pass
     result = await db.execute(query.order_by(AttendanceSession.session_date.desc()))
     return result.scalars().all()
 
@@ -206,12 +215,19 @@ async def get_or_create_session(
     if not current_user.school_id:
         raise ForbiddenError("No school context")
     
+    import datetime
+    from fastapi import HTTPException
+    try:
+        p_date = datetime.date.fromisoformat(session_date)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid session_date format. Expected YYYY-MM-DD.")
+    
     # Check existing
     res = await db.execute(
         select(AttendanceSession.id).where(
             AttendanceSession.school_id == current_user.school_id,
             AttendanceSession.class_section_id == section_id,
-            AttendanceSession.session_date == session_date,
+            AttendanceSession.session_date == p_date,
             AttendanceSession.period_label == period_label,
         )
     )
@@ -225,7 +241,7 @@ async def get_or_create_session(
             session = AttendanceSession(
                 school_id=current_user.school_id,
                 class_section_id=section_id,
-                session_date=session_date,
+                session_date=p_date,
                 period_label=period_label,
                 created_by=current_user.id,
             )
@@ -447,10 +463,19 @@ async def list_staff_attendance(
     query = select(StaffAttendance).where(StaffAttendance.school_id == current_user.school_id)
     if user_id:
         query = query.where(StaffAttendance.user_id == user_id)
+    import datetime
     if from_date:
-        query = query.where(StaffAttendance.attendance_date >= from_date)
+        try:
+            fd = datetime.date.fromisoformat(from_date)
+            query = query.where(StaffAttendance.attendance_date >= fd)
+        except ValueError:
+            pass
     if to_date:
-        query = query.where(StaffAttendance.attendance_date <= to_date)
+        try:
+            td = datetime.date.fromisoformat(to_date)
+            query = query.where(StaffAttendance.attendance_date <= td)
+        except ValueError:
+            pass
     result = await db.execute(query.order_by(StaffAttendance.attendance_date.desc()))
     return result.scalars().all()
 
@@ -459,13 +484,23 @@ async def list_staff_attendance(
 async def mark_staff_attendance(body: dict, current_user: CurrentUser, db: DbSession):
     if not current_user.school_id:
         raise ForbiddenError("No school context")
+    
+    import datetime
+    data = {k: v for k, v in body.items() if k in [
+        "user_id", "check_in_time", "check_out_time",
+        "status", "notes", "campus_id"
+    ]}
+    att_date_str = body.get("attendance_date")
+    if att_date_str:
+        try:
+            data["attendance_date"] = datetime.date.fromisoformat(att_date_str)
+        except ValueError:
+            pass
+
     entry = StaffAttendance(
         school_id=current_user.school_id,
         marked_by=current_user.id,
-        **{k: v for k, v in body.items() if k in [
-            "user_id", "attendance_date", "check_in_time", "check_out_time",
-            "status", "notes", "campus_id"
-        ]},
+        **data,
     )
     db.add(entry)
     await db.flush()
@@ -478,11 +513,12 @@ async def get_staff_today(
     school_id: UUID,
     current_user: CurrentUser,
     db: DbSession,
+    date: Optional[str] = Query(None),
 ):
     if not current_user.school_id:
         raise ForbiddenError("No school context")
         
-    today_date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    today_date = date or datetime.now(timezone.utc).strftime("%Y-%m-%d")
     
     try:
         sql = """
@@ -492,7 +528,7 @@ async def get_staff_today(
                 p.display_name
             FROM hr_staff_attendance a
             LEFT JOIN profiles p ON a.user_id = p.id
-            WHERE a.school_id = :school_id::uuid AND a.attendance_date = :today_date::date
+            WHERE a.school_id = CAST(:school_id AS uuid) AND a.attendance_date = CAST(:today_date AS date)
         """
         res = await db.execute(text(sql), {"school_id": school_id, "today_date": today_date})
         rows = res.fetchall()

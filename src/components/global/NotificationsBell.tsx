@@ -51,6 +51,97 @@ function formatTimeAgo(dateStr: string): string {
   }
 }
 
+// Helper to compute target path for any notification type based on role
+function getNotificationTargetRoute(notification: AppNotification, schoolSlug: string, role: string): string {
+  const t = (notification.entity_type || notification.type || "").toLowerCase();
+  
+  const getRolePath = (r: string): string => {
+    switch (r) {
+      case "principal":
+        return "principal";
+      case "vice_principal":
+        return "vice_principal";
+      case "school_admin":
+        return "school_admin";
+      case "academic_coordinator":
+        return "academic_coordinator";
+      case "hr_manager":
+        return "hr";
+      case "marketing_staff":
+        return "marketing";
+      default:
+        return r || "";
+    }
+  };
+
+  const rolePath = getRolePath(role);
+  const base = `/${schoolSlug}/${rolePath}`;
+
+  if (t.includes("admin_message") || t.includes("message")) {
+    if (role === "parent") {
+      return `/${schoolSlug}/parent/messages`;
+    }
+    const rolePathMap: Record<string, string> = {
+      parent: "parent",
+      student: "student",
+      hr_manager: "hr",
+      accountant: "accountant",
+      marketing_staff: "marketing",
+      principal: "principal",
+      vice_principal: "vice_principal",
+      school_admin: "school_admin",
+      academic_coordinator: "academic_coordinator",
+      school_owner: "school_owner",
+      super_admin: "super_admin",
+      teacher: "teacher",
+    };
+    const targetRolePath = rolePathMap[role] || rolePath;
+    return `/${schoolSlug}/${targetRolePath}/messages?open_message=${notification.entity_id || ""}`;
+  }
+  
+  if (t.includes("notice")) return `${base}/notices`;
+  if (t.includes("homework") || t.includes("diary")) return `${base}/diary`;
+  if (t.includes("assignment")) return `${base}/assignments`;
+  if (t.includes("exam") || t.includes("assessment")) return `${base}/exams`;
+  if (t.includes("grade") || t.includes("report")) {
+    return rolePath === "student" || rolePath === "parent"
+      ? `${base}/grades`
+      : `${base}/report-cards`;
+  }
+  if (t.includes("attendance")) return `${base}/attendance`;
+  
+  const isFeeNotif =
+    notification.type === "fee_voucher" ||
+    notification.type === "fee_proof_submitted" ||
+    notification.type === "fee_proof_pending" ||
+    notification.type === "fee_proof_verified" ||
+    notification.type === "fee_proof_rejected" ||
+    notification.entity_type === "fee_invoice";
+
+  if (isFeeNotif) {
+    const rolePathMap: Record<string, string> = {
+      parent: "parent",
+      student: "student",
+      hr_manager: "hr",
+      accountant: "accountant",
+      marketing_staff: "marketing",
+      principal: "principal",
+      vice_principal: "vice_principal",
+      school_admin: "school_admin",
+      academic_coordinator: "academic_coordinator",
+      school_owner: "school_owner",
+      super_admin: "super_admin",
+      teacher: "teacher",
+    };
+    const targetRolePath = rolePathMap[role] || rolePath;
+    return role === "parent" || role === "student"
+      ? `/${schoolSlug}/${targetRolePath}/fees`
+      : `/${schoolSlug}/${targetRolePath}/fee-vouchers`;
+  }
+  
+  return base;
+}
+
 export function NotificationsBell({ schoolId, schoolSlug, role }: NotificationsBellProps) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -67,94 +158,31 @@ export function NotificationsBell({ schoolId, schoolSlug, role }: NotificationsB
 
       // Close dropdown
       setOpen(false);
-      
-      // If it's a message notification, navigate to messages with the sender's ID
-      if (notification.entity_type === "admin_message" && notification.entity_id && schoolSlug) {
-        // Map role to the correct route path for messages
-        // Each role has its own dashboard with a messages module
-        const getRolePath = (r: string | undefined): string => {
-          switch (r) {
-            case "principal":
-              return "principal";
-            case "vice_principal":
-              return "vice_principal";
-            case "school_admin":
-              return "school_admin";
-            case "academic_coordinator":
-              return "academic_coordinator";
-            case "teacher":
-              return "teacher";
-            case "student":
-              return "student";
-            case "parent":
-              return "parent";
-            case "hr_manager":
-              return "hr";
-            case "accountant":
-              return "accountant";
-            case "marketing_staff":
-              return "marketing";
-            case "school_owner":
-              return "school_owner";
-            default:
-              return r || "";
-          }
-        };
-        
-        const rolePath = getRolePath(role);
-        const messagesPath = `/${schoolSlug}/${rolePath}/messages`;
-        
-        // If already on messages page, dispatch custom event to open chat
-        if (location.pathname.includes("/messages")) {
-          window.dispatchEvent(
-            new CustomEvent("eduverse:open-chat-from-notification", {
-              detail: { messageId: notification.entity_id },
-            })
-          );
-        } else {
-          // Navigate to messages with query param
-          navigate(`${messagesPath}?open_message=${notification.entity_id}`);
-        }
+
+      if (!schoolSlug || !role) {
+        toast.warning("Unable to open notification", {
+          description: `Missing ${!schoolSlug ? "school" : "role"} information. Please refresh and try again.`,
+        });
         return;
       }
 
-      // Fee voucher / proof → navigate to fees module
-      const isFeeNotif =
-        notification.type === "fee_voucher" ||
-        notification.type === "fee_proof_submitted" ||
-        notification.type === "fee_proof_pending" ||
-        notification.type === "fee_proof_verified" ||
-        notification.type === "fee_proof_rejected" ||
-        notification.entity_type === "fee_invoice";
-
-      if (isFeeNotif) {
-        // Hard-guard: never build a malformed URL that could bounce to /auth
-        if (!schoolSlug || !role) {
-          toast.warning("Unable to open notification", {
-            description: `Missing ${!schoolSlug ? "school" : "role"} information. Please refresh and try again.`,
-          });
-          return;
-        }
-        const rolePathMap: Record<string, string> = {
-          parent: "parent", student: "student",
-          hr_manager: "hr", accountant: "accountant", marketing_staff: "marketing",
-          principal: "principal", vice_principal: "vice_principal",
-          school_admin: "school_admin", academic_coordinator: "academic_coordinator",
-          school_owner: "school_owner", super_admin: "super_admin", teacher: "teacher",
-        };
-        const rolePath = rolePathMap[role];
-        if (!rolePath) {
-          toast.warning("Unable to open notification", {
-            description: `Unknown role "${role}". Please contact support.`,
-          });
-          return;
-        }
-        const feesPath = role === "parent" || role === "student"
-          ? `/${schoolSlug}/${rolePath}/fees`
-          : `/${schoolSlug}/${rolePath}/fee-vouchers`;
-        navigate(feesPath);
+      // If already on messages page and clicking a message, dispatch custom event to open chat
+      const t = (notification.entity_type || notification.type || "").toLowerCase();
+      if (
+        (t.includes("admin_message") || t.includes("message")) &&
+        location.pathname.includes("/messages") &&
+        notification.entity_id
+      ) {
+        window.dispatchEvent(
+          new CustomEvent("eduverse:open-chat-from-notification", {
+            detail: { messageId: notification.entity_id },
+          })
+        );
         return;
       }
+
+      const route = getNotificationTargetRoute(notification, schoolSlug, role);
+      navigate(route);
     },
     [markRead, navigate, location.pathname, schoolSlug, role]
   );

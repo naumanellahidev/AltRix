@@ -1,4 +1,4 @@
-import { PropsWithChildren, useMemo, useState } from "react";
+import { PropsWithChildren, useMemo, useState, useEffect } from "react";
 import { OfflineStatusIndicator } from "@/components/offline/OfflineStatusIndicator";
 import { useNavigate, useLocation } from "react-router-dom";
 import { NavLink } from "@/components/NavLink";
@@ -7,7 +7,8 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
 import { LogOut, Menu, Settings, Sparkles, Mic, GraduationCap, MessageSquare, Users, LayoutGrid, CalendarDays, ClipboardCheck, FileSpreadsheet, HeartHandshake, ChevronDown, Activity } from "lucide-react";
 import type { EduverseRole } from "@/lib/eduverse-roles";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase, USE_FASTAPI } from "@/integrations/supabase/client";
+import { apiClient } from "@/lib/api-client";
 import { GlobalCommandPalette } from "@/components/global/GlobalCommandPalette";
 import { NotificationsBell } from "@/components/global/NotificationsBell";
 import { VoiceController } from "@/components/common/VoiceController";
@@ -23,6 +24,81 @@ import { resolvePermissions } from "@/lib/permissions";
 import { cn } from "@/lib/utils";
 import { StaffAttendanceWidget } from "./StaffAttendanceWidget";
 
+function getNotificationTargetRoute(notification: any, schoolSlug: string, role: string): string {
+  const t = (notification.entity_type || notification.type || "").toLowerCase();
+  
+  const getRolePath = (r: string): string => {
+    switch (r) {
+      case "principal":
+        return "principal";
+      case "vice_principal":
+        return "vice_principal";
+      case "school_admin":
+        return "school_admin";
+      case "academic_coordinator":
+        return "academic_coordinator";
+      case "hr_manager":
+        return "hr";
+      case "marketing_staff":
+        return "marketing";
+      default:
+        return r || "";
+    }
+  };
+
+  const rolePath = getRolePath(role);
+  const base = `/${schoolSlug}/${rolePath}`;
+
+  if (t.includes("admin_message") || t.includes("message")) {
+    if (role === "parent") {
+      return `/${schoolSlug}/parent/messages`;
+    }
+    const rolePathMap: Record<string, string> = {
+      parent: "parent", student: "student",
+      hr_manager: "hr", accountant: "accountant", marketing_staff: "marketing",
+      principal: "principal", vice_principal: "vice_principal",
+      school_admin: "school_admin", academic_coordinator: "academic_coordinator",
+      school_owner: "school_owner", super_admin: "super_admin", teacher: "teacher",
+    };
+    const targetRolePath = rolePathMap[role] || rolePath;
+    return `/${schoolSlug}/${targetRolePath}/messages?open_message=${notification.entity_id || ""}`;
+  }
+  
+  if (t.includes("notice")) return `${base}/notices`;
+  if (t.includes("homework") || t.includes("diary")) return `${base}/diary`;
+  if (t.includes("assignment")) return `${base}/assignments`;
+  if (t.includes("exam") || t.includes("assessment")) return `${base}/exams`;
+  if (t.includes("grade") || t.includes("report")) {
+    return rolePath === "student" || rolePath === "parent"
+      ? `${base}/grades`
+      : `${base}/report-cards`;
+  }
+  if (t.includes("attendance")) return `${base}/attendance`;
+  
+  const isFeeNotif =
+    notification.type === "fee_voucher" ||
+    notification.type === "fee_proof_submitted" ||
+    notification.type === "fee_proof_pending" ||
+    notification.type === "fee_proof_verified" ||
+    notification.type === "fee_proof_rejected" ||
+    notification.entity_type === "fee_invoice";
+
+  if (isFeeNotif) {
+    const rolePathMap: Record<string, string> = {
+      parent: "parent", student: "student",
+      hr_manager: "hr", accountant: "accountant", marketing_staff: "marketing",
+      principal: "principal", vice_principal: "vice_principal",
+      school_admin: "school_admin", academic_coordinator: "academic_coordinator",
+      school_owner: "school_owner", super_admin: "super_admin", teacher: "teacher",
+    };
+    const targetRolePath = rolePathMap[role] || rolePath;
+    return role === "parent" || role === "student"
+      ? `/${schoolSlug}/${targetRolePath}/fees`
+      : `/${schoolSlug}/${targetRolePath}/fee-vouchers`;
+  }
+  
+  return base;
+}
 
 type Props = PropsWithChildren<{
   title: string;
@@ -110,7 +186,37 @@ const [voiceOpen, setVoiceOpen] = useState(false);
     userId: user?.id ?? null,
     role,
   });
-  const { unreadCount } = useUnreadMessagesOptimized(schoolId, user?.id ?? null);
+  const { unreadCount, unreadParentCount } = useUnreadMessagesOptimized(schoolId, user?.id ?? null);
+
+  useEffect(() => {
+    const handleOpenNotification = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      const notification = customEvent.detail?.notification;
+      if (!notification || !schoolSlug) return;
+      
+      // Mark as read
+      if (!notification.read_at) {
+        if (USE_FASTAPI) {
+          apiClient.post(`/notifications/${notification.id}/read`).catch(console.error);
+        } else {
+          supabase
+            .from("app_notifications")
+            .update({ read_at: new Date().toISOString() })
+            .eq("id", notification.id)
+            .then();
+        }
+      }
+      
+      // Navigate to route
+      const route = getNotificationTargetRoute(notification, schoolSlug, role);
+      navigate(route);
+    };
+
+    window.addEventListener("eduverse:open-notification", handleOpenNotification as EventListener);
+    return () => {
+      window.removeEventListener("eduverse:open-notification", handleOpenNotification as EventListener);
+    };
+  }, [schoolSlug, role, navigate]);
 
   // WordPress-style permission-driven sidebar.
   // The catalog is filtered by the union of the user's actual assigned roles
@@ -201,44 +307,6 @@ const [voiceOpen, setVoiceOpen] = useState(false);
 
       <nav className="mt-5 space-y-3">
         {GROUP_ORDER.map((g) => {
-          // Insert principal-only groups after the "operations" group
-          if (g === "operations" && role === "principal") {
-            return (
-              <div key="principal-extras" className="space-y-0.5">
-                {/* Attendance Heatmap */}
-                <NavLink
-                  to={`/${schoolSlug}/${role}/attendance-heatmap`}
-                  className="group flex items-center rounded-xl px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-                  activeClassName="bg-primary text-primary-foreground shadow-soft"
-                >
-                  <span className="flex items-center gap-2.5">
-                    <Activity className="h-4 w-4 shrink-0" /> Attendance Heatmap
-                  </span>
-                </NavLink>
-                {/* Collaboration Hub */}
-                <NavLink
-                  to={`/${schoolSlug}/${role}/collaboration`}
-                  className="group flex items-center rounded-xl px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-                  activeClassName="bg-primary text-primary-foreground shadow-soft"
-                >
-                  <span className="flex items-center gap-2.5">
-                    <MessageSquare className="h-4 w-4 shrink-0" /> Collaboration Hub
-                  </span>
-                </NavLink>
-                {/* Budget Simulator */}
-                <NavLink
-                  to={`/${schoolSlug}/${role}/budget-simulator`}
-                  className="group flex items-center rounded-xl px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-                  activeClassName="bg-primary text-primary-foreground shadow-soft"
-                >
-                  <span className="flex items-center gap-2.5">
-                    <FileSpreadsheet className="h-4 w-4 shrink-0" /> Budget Simulator
-                  </span>
-                </NavLink>
-              </div>
-            );
-          }
-
           const items = grouped[g];
           if (!items?.length) return null;
 
@@ -270,7 +338,11 @@ const [voiceOpen, setVoiceOpen] = useState(false);
                 {/* Direct Items */}
                 {directItems.map((item) => {
                   const to = item.path ? `/${schoolSlug}/${role}/${item.path}` : `/${schoolSlug}/${role}`;
-                  const badge = item.key === "messages" ? unreadCount : 0;
+                  const badge = item.key === "messages" 
+                    ? unreadCount 
+                    : item.key === "parent-notes" 
+                      ? unreadParentCount 
+                      : 0;
                   const Icon = item.icon;
                   return (
                     <NavLink
@@ -332,7 +404,11 @@ const [voiceOpen, setVoiceOpen] = useState(false);
                         <div className="pl-4 ml-3 border-l border-border/40 space-y-0.5">
                           {groupInfo.items.map((item) => {
                             const to = item.path ? `/${schoolSlug}/${role}/${item.path}` : `/${schoolSlug}/${role}`;
-                            const badge = item.key === "messages" ? unreadCount : 0;
+                            const badge = item.key === "messages" 
+                              ? unreadCount 
+                              : item.key === "parent-notes" 
+                                ? unreadParentCount 
+                                : 0;
                             const Icon = item.icon;
                             return (
                               <NavLink
@@ -430,7 +506,7 @@ const [voiceOpen, setVoiceOpen] = useState(false);
             variant="compact"
           />
           {schoolId && <StaffAttendanceWidget schoolId={schoolId} />}
-          <NotificationsBell schoolId={schoolId} schoolSlug={schoolSlug} role="tenant" />
+          <NotificationsBell schoolId={schoolId} schoolSlug={schoolSlug} role={role} />
           <Button
             variant="ghost"
             size="icon"

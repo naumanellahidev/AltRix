@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -154,6 +154,11 @@ export function AttendanceHistoryDialog({
               ? `Edit: ${format(new Date(selectedSession.session_date), "MMM d, yyyy")} - ${selectedSession.period_label}`
               : "Attendance History"}
           </DialogTitle>
+          <DialogDescription className="sr-only">
+            {selectedSession
+              ? "Edit attendance records for the selected session"
+              : "View and select past attendance sessions"}
+          </DialogDescription>
         </DialogHeader>
 
         <div className="flex-1 overflow-auto">

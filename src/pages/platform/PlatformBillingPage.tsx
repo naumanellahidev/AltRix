@@ -86,21 +86,27 @@ export default function PlatformBillingPage() {
 
   // Editable Plan Templates state
   const [planTemplates, setPlanTemplates] = useState<PlanTemplates>(() => {
-    const saved = localStorage.getItem("platform_plan_templates");
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        console.error("Error parsing plan templates", e);
-      }
-    }
-    // Default prices in PKR
-    return {
+    const defaultTemplates = {
       Basic: { monthly: 15000, yearly: 150000 },
       Standard: { monthly: 30000, yearly: 300000 },
       Premium: { monthly: 45000, yearly: 450000 },
       Enterprise: { monthly: 75000, yearly: 750000 },
     };
+    const saved = localStorage.getItem("platform_plan_templates");
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        return {
+          Basic: parsed?.Basic || defaultTemplates.Basic,
+          Standard: parsed?.Standard || defaultTemplates.Standard,
+          Premium: parsed?.Premium || defaultTemplates.Premium,
+          Enterprise: parsed?.Enterprise || defaultTemplates.Enterprise,
+        };
+      } catch (e) {
+        console.error("Error parsing plan templates", e);
+      }
+    }
+    return defaultTemplates;
   });
 
   // Modal Dialog states
@@ -179,7 +185,7 @@ export default function PlatformBillingPage() {
             is_active: s.is_active ?? true,
             plan_tier: "Basic",
             billing_cycle: "monthly",
-            billing_amount: planTemplates.Basic.monthly,
+            billing_amount: planTemplates.Basic?.monthly ?? 15000,
             next_billing_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
             billing_status: "Active",
             billing_email: s.email || "",
@@ -193,7 +199,7 @@ export default function PlatformBillingPage() {
           is_active: s.is_active ?? true,
           plan_tier: s.plan_tier || "Basic",
           billing_cycle: s.billing_cycle || "monthly",
-          billing_amount: s.billing_amount || planTemplates.Basic.monthly,
+          billing_amount: s.billing_amount || (planTemplates.Basic?.monthly ?? 15000),
           next_billing_date: s.next_billing_date || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
           billing_status: s.billing_status || "Active",
           billing_email: s.billing_email || s.email || "",
@@ -276,7 +282,7 @@ export default function PlatformBillingPage() {
 
   // Update billing plan values dynamically when modal values change
   useEffect(() => {
-    const defaultAmt = planTemplates[newPlan][newCycle];
+    const defaultAmt = planTemplates[newPlan]?.[newCycle] ?? 0;
     setNewAmount(defaultAmt);
   }, [newPlan, newCycle, planTemplates]);
 
@@ -1240,10 +1246,10 @@ export default function PlatformBillingPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="bg-zinc-900 border-zinc-800 text-white">
-                    <SelectItem value="Basic">Basic (Rs. {planTemplates.Basic.monthly.toLocaleString()}/mo)</SelectItem>
-                    <SelectItem value="Standard">Standard (Rs. {planTemplates.Standard.monthly.toLocaleString()}/mo)</SelectItem>
-                    <SelectItem value="Premium">Premium (Rs. {planTemplates.Premium.monthly.toLocaleString()}/mo)</SelectItem>
-                    <SelectItem value="Enterprise">Enterprise (Rs. {planTemplates.Enterprise.monthly.toLocaleString()}/mo)</SelectItem>
+                    <SelectItem value="Basic">Basic (Rs. {(planTemplates.Basic?.monthly ?? 15000).toLocaleString()}/mo)</SelectItem>
+                    <SelectItem value="Standard">Standard (Rs. {(planTemplates.Standard?.monthly ?? 30000).toLocaleString()}/mo)</SelectItem>
+                    <SelectItem value="Premium">Premium (Rs. {(planTemplates.Premium?.monthly ?? 45000).toLocaleString()}/mo)</SelectItem>
+                    <SelectItem value="Enterprise">Enterprise (Rs. {(planTemplates.Enterprise?.monthly ?? 75000).toLocaleString()}/mo)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

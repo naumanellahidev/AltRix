@@ -4,7 +4,7 @@ Finance router: fee structures, vouchers, payments, financial reports.
 from typing import List, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Query, status
+from fastapi import APIRouter, Query, status, HTTPException
 from sqlalchemy import func, select, text
 
 from app.dependencies import CurrentUser, DbSession
@@ -238,18 +238,18 @@ async def finance_summary(
     params = {"school_id": current_user.school_id}
     conditions = "school_id = :school_id"
     if campus_id:
-        conditions += " AND campus_id = :campus_id"
+        conditions += " AND student_id IN (SELECT id FROM students WHERE campus_id = :campus_id)"
         params["campus_id"] = str(campus_id)
 
     result = await db.execute(
         text(f"""
             SELECT
                 COUNT(*) as total_vouchers,
-                COALESCE(SUM(net_amount) FILTER (WHERE status = 'paid'), 0) as collected,
-                COALESCE(SUM(net_amount) FILTER (WHERE status = 'pending'), 0) as pending,
-                COALESCE(SUM(net_amount) FILTER (WHERE status = 'overdue'), 0) as overdue,
-                COALESCE(SUM(net_amount), 0) as total_billed
-            FROM fee_vouchers
+                COALESCE(SUM(total_amount) FILTER (WHERE status = 'paid'), 0) as collected,
+                COALESCE(SUM(total_amount) FILTER (WHERE status = 'pending'), 0) as pending,
+                COALESCE(SUM(total_amount) FILTER (WHERE status = 'overdue'), 0) as overdue,
+                COALESCE(SUM(total_amount), 0) as total_billed
+            FROM fee_invoices
             WHERE {conditions}
         """),
         params,

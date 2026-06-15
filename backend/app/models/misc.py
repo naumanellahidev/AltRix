@@ -3,7 +3,10 @@ Remaining models: notifications, diary, complaints, assignments, behavior,
 HR, audit logs, AI tables.
 """
 import uuid
-from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, String, Text, JSON
+from datetime import datetime
+from typing import Optional, List
+
+from sqlalchemy import Boolean, Column, Date, DateTime, Float, ForeignKey, Integer, String, Text, JSON
 from sqlalchemy.dialects.postgresql import UUID, ARRAY
 from sqlalchemy.sql import func
 
@@ -35,17 +38,31 @@ class DiaryEntry(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     school_id = Column(UUID(as_uuid=True), ForeignKey("schools.id"), nullable=False)
-    campus_id = Column(UUID(as_uuid=True), ForeignKey("campuses.id"), nullable=True)
     class_section_id = Column(UUID(as_uuid=True), ForeignKey("class_sections.id"), nullable=True)
     subject_id = Column(UUID(as_uuid=True), ForeignKey("subjects.id"), nullable=True)
     teacher_user_id = Column(UUID(as_uuid=True), nullable=True)
+    entry_date = Column(String, nullable=False)
     title = Column(String, nullable=False)
     content = Column(Text, nullable=True)
-    entry_date = Column(String, nullable=False)
-    homework = Column(Text, nullable=True)
-    created_by = Column(UUID(as_uuid=True), nullable=True)
+    category = Column(String, nullable=True, default="homework")
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=True)
     updated_at = Column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
+
+    # Property wrappers for backward compatibility
+    @property
+    def homework(self) -> Optional[str]: return self.content
+    @homework.setter
+    def homework(self, val: Optional[str]): self.content = val
+
+    @property
+    def created_by(self) -> Optional[uuid.UUID]: return self.teacher_user_id
+    @created_by.setter
+    def created_by(self, val: Optional[uuid.UUID]): self.teacher_user_id = val
+
+    @property
+    def campus_id(self) -> Optional[uuid.UUID]: return None
+    @campus_id.setter
+    def campus_id(self, val: Optional[uuid.UUID]): pass
 
 
 # ─── COMPLAINTS ───────────────────────────────────────────────────────────────
@@ -150,40 +167,105 @@ class HrLeaveRequest(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     school_id = Column(UUID(as_uuid=True), ForeignKey("schools.id"), nullable=False)
-    campus_id = Column(UUID(as_uuid=True), ForeignKey("campuses.id"), nullable=True)
     user_id = Column(UUID(as_uuid=True), nullable=False)
-    leave_type = Column(String, nullable=False)  # annual, sick, casual, unpaid
+    leave_type_id = Column(UUID(as_uuid=True), ForeignKey("hr_leave_types.id"), nullable=True)
     start_date = Column(String, nullable=False)
     end_date = Column(String, nullable=False)
     days_count = Column(Float, nullable=True)
     reason = Column(Text, nullable=True)
     status = Column(String, nullable=False, default="pending")  # pending, approved, rejected
     reviewed_by = Column(UUID(as_uuid=True), nullable=True)
-    reviewed_at = Column(DateTime(timezone=True), nullable=True)
-    notes = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=True)
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
+
+    # Property wrappers for backward compatibility
+    @property
+    def leave_type(self) -> str:
+        return str(self.leave_type_id) if self.leave_type_id else "annual"
+
+    @leave_type.setter
+    def leave_type(self, val: str):
+        if val:
+            try:
+                self.leave_type_id = uuid.UUID(val)
+            except ValueError:
+                pass
+
+    @property
+    def campus_id(self) -> Optional[uuid.UUID]: return None
+    @campus_id.setter
+    def campus_id(self, val: Optional[uuid.UUID]): pass
+
+    @property
+    def reviewed_at(self) -> Optional[datetime]: return self.created_at
+    @reviewed_at.setter
+    def reviewed_at(self, val: Optional[datetime]): pass
+
+    @property
+    def notes(self) -> Optional[str]: return None
+    @notes.setter
+    def notes(self, val: Optional[str]): pass
+
+    @property
+    def updated_at(self) -> Optional[datetime]: return self.created_at
+    @updated_at.setter
+    def updated_at(self, val: Optional[datetime]): pass
 
 
 class HrPayroll(Base):
-    __tablename__ = "hr_payroll"
+    __tablename__ = "hr_salary_records"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     school_id = Column(UUID(as_uuid=True), ForeignKey("schools.id"), nullable=False)
-    campus_id = Column(UUID(as_uuid=True), ForeignKey("campuses.id"), nullable=True)
     user_id = Column(UUID(as_uuid=True), nullable=False)
-    month = Column(String, nullable=False)
-    year = Column(Integer, nullable=False)
-    basic_salary = Column(Float, nullable=True)
+    base_salary = Column(Float, nullable=False)
     allowances = Column(Float, nullable=True, default=0)
     deductions = Column(Float, nullable=True, default=0)
-    net_salary = Column(Float, nullable=True)
-    payment_status = Column(String, nullable=True, default="pending")  # pending, paid
-    payment_date = Column(String, nullable=True)
+    is_active = Column(Boolean, default=True, nullable=True)
+    effective_from = Column(Date, nullable=True)
+    effective_to = Column(Date, nullable=True)
+    currency = Column(String, nullable=True, default="PKR")
+    pay_frequency = Column(String, nullable=True, default="monthly")
     notes = Column(Text, nullable=True)
-    generated_by = Column(UUID(as_uuid=True), nullable=True)
+    month = Column(Integer, nullable=True)
+    year = Column(Integer, nullable=True)
+    status = Column(String, nullable=True, default="pending")  # pending, approved, paid
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=True)
     updated_at = Column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
+
+    # Property wrappers for backward compatibility
+    @property
+    def basic_salary(self) -> Optional[float]: return self.base_salary
+    @basic_salary.setter
+    def basic_salary(self, val: Optional[float]): self.base_salary = val or 0.0
+
+    @property
+    def payment_status(self) -> Optional[str]: return self.status
+    @payment_status.setter
+    def payment_status(self, val: Optional[str]): self.status = val or "pending"
+
+    @property
+    def net_salary(self) -> Optional[float]:
+        base = self.base_salary or 0.0
+        allow = self.allowances or 0.0
+        ded = self.deductions or 0.0
+        return base + allow - ded
+    @net_salary.setter
+    def net_salary(self, val: Optional[float]): pass
+
+    @property
+    def payment_date(self) -> Optional[str]: return None
+    @payment_date.setter
+    def payment_date(self, val: Optional[str]): pass
+
+    @property
+    def generated_by(self) -> Optional[uuid.UUID]: return None
+    @generated_by.setter
+    def generated_by(self, val: Optional[uuid.UUID]): pass
+
+    @property
+    def campus_id(self) -> Optional[uuid.UUID]: return None
+    @campus_id.setter
+    def campus_id(self, val: Optional[uuid.UUID]): pass
 
 
 # ─── AUDIT ────────────────────────────────────────────────────────────────────

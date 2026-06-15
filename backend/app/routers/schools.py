@@ -52,9 +52,21 @@ async def create_school(body: SchoolCreate, current_user: CurrentUser, db: DbSes
     """Create a new school (super admin only)."""
     if not current_user.is_super_admin:
         raise ForbiddenError("Only platform super admins can create schools")
-    school = School(**body.model_dump(), owner_user_id=current_user.id)
+    
+    school = School(**body.model_dump())
     db.add(school)
     await db.flush()
+    
+    # Create the owner assignment in school_owner_assignments
+    await db.execute(
+        text("""
+            INSERT INTO school_owner_assignments (owner_user_id, school_id)
+            VALUES (:uid, :sid)
+        """),
+        {"uid": current_user.id, "sid": school.id}
+    )
+    await db.flush()
+    
     await db.refresh(school)
     return school
 
@@ -86,8 +98,10 @@ async def get_school_users_directory(current_user: CurrentUser, db: DbSession):
         return []
     try:
         sql = """
-            SELECT DISTINCT d.user_id, d.display_name, d.email, r.role FROM public.school_user_directory d
-            JOIN public.user_roles r ON d.user_id = r.user_id AND d.school_id = r.school_id
+            SELECT DISTINCT r.user_id, p.display_name, u.email, r.role
+            FROM public.user_roles r
+            JOIN auth.users u ON u.id = r.user_id
+            LEFT JOIN public.profiles p ON p.id = r.user_id
             WHERE r.school_id = :school_id
         """
         res = await db.execute(text(sql), {"school_id": current_user.school_id})
@@ -396,8 +410,8 @@ async def get_dashboard_alerts(current_user: CurrentUser, db: DbSession):
 
         # 3. Fetch pending invoices
         invoices_sql = """
-            SELECT COUNT(*)::integer FROM finance_invoices
-            WHERE school_id = :school_id AND status = 'pending'
+            SELECT COUNT(*)::integer FROM fee_invoices
+            WHERE school_id = :school_id AND status NOT IN ('paid', 'cancelled')
         """
         invoices_res = await db.execute(text(invoices_sql), {"school_id": current_user.school_id})
         pending_invoices_count = invoices_res.scalar() or 0

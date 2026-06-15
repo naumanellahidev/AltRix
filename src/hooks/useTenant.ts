@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { supabase, USE_FASTAPI } from "@/integrations/supabase/client";
-import { apiClient } from "@/lib/api-client";
+import { supabase, USE_FASTAPI, setUseFastAPI } from "@/integrations/supabase/client";
+import { apiClient, isNetworkOrProxyError } from "@/lib/api-client";
 
 type TenantState =
   | { status: "idle" | "loading"; school: null; schoolId: null; error: null }
@@ -93,43 +93,7 @@ export function useTenant(schoolSlug: string | undefined) {
       setState({ status: "loading", school: null, schoolId: null, error: null });
     }
 
-    if (USE_FASTAPI) {
-      apiClient
-        .get(`/schools/by-slug/${normalizedSlug}`)
-        .then((resp) => {
-          if (cancelled) return;
-          const data = resp.data;
-          if (!data) {
-            if (cachedData) {
-              setState({
-                status: "ready",
-                school: cachedData,
-                schoolId: cachedData.id,
-                error: null,
-              });
-            } else {
-              setState({ status: "error", school: null, schoolId: null, error: "School not found." });
-            }
-            return;
-          }
-          const tenantData = { id: data.id, slug: data.slug, name: data.name };
-          cacheTenant(normalizedSlug, tenantData);
-          setState({ status: "ready", school: tenantData, schoolId: data.id, error: null });
-        })
-        .catch((err) => {
-          if (cancelled) return;
-          if (cachedData) {
-            setState({
-              status: "ready",
-              school: cachedData,
-              schoolId: cachedData.id,
-              error: null,
-            });
-          } else {
-            setState({ status: "error", school: null, schoolId: null, error: err.message || "Failed to fetch school." });
-          }
-        });
-    } else {
+    const runSupabaseTenant = () => {
       supabase
         .rpc("get_school_public_by_slug", { _slug: normalizedSlug })
         .maybeSingle()
@@ -165,6 +129,52 @@ export function useTenant(schoolSlug: string | undefined) {
           cacheTenant(normalizedSlug, tenantData);
           setState({ status: "ready", school: tenantData, schoolId: data.id, error: null });
         });
+    };
+
+    if (USE_FASTAPI) {
+      apiClient
+        .get(`/schools/by-slug/${normalizedSlug}`)
+        .then((resp) => {
+          if (cancelled) return;
+          const data = resp.data;
+          if (!data) {
+            if (cachedData) {
+              setState({
+                status: "ready",
+                school: cachedData,
+                schoolId: cachedData.id,
+                error: null,
+              });
+            } else {
+              setState({ status: "error", school: null, schoolId: null, error: "School not found." });
+            }
+            return;
+          }
+          const tenantData = { id: data.id, slug: data.slug, name: data.name };
+          cacheTenant(normalizedSlug, tenantData);
+          setState({ status: "ready", school: tenantData, schoolId: data.id, error: null });
+        })
+        .catch((err) => {
+          if (cancelled) return;
+          if (isNetworkOrProxyError(err)) {
+            console.warn("Tenant lookup via FastAPI failed, disabling FastAPI and falling back to Supabase", err);
+            setUseFastAPI(false);
+            runSupabaseTenant();
+          } else {
+            if (cachedData) {
+              setState({
+                status: "ready",
+                school: cachedData,
+                schoolId: cachedData.id,
+                error: null,
+              });
+            } else {
+              setState({ status: "error", school: null, schoolId: null, error: err.message || "Failed to fetch school." });
+            }
+          }
+        });
+    } else {
+      runSupabaseTenant();
     }
 
     return () => {

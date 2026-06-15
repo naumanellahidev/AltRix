@@ -242,6 +242,26 @@ export function CrmModule() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [schoolId, offlineLeads.data, offlineStages.data]);
 
+  // Real-time synchronization for inquiry/CRM leads
+  useEffect(() => {
+    if (!schoolId) return;
+
+    const channel = supabase
+      .channel(`crm_leads_changes:${schoolId}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "crm_leads", filter: `school_id=eq.${schoolId}` },
+        () => {
+          void refresh();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [schoolId]);
+
   const createLead = async (stageId: string) => {
     if (!schoolId || !pipelineId) return;
     if (!newLeadName.trim()) return toast.error("Lead name required");
@@ -576,9 +596,9 @@ export function CrmModule() {
               <span className="text-lg">{openLead?.full_name ?? "Lead details"}</span>
               {openLead && (
                 <Badge variant="outline" className={
-                  openLead.status === "won" ? "bg-emerald-500/10 text-emerald-600 border border-emerald-500/20" :
-                  openLead.status === "lost" ? "bg-destructive/10 text-destructive border border-destructive/20" :
-                  "bg-amber-500/10 text-amber-600 border border-amber-500/20"
+                  openLead.status === "won" ? "bg-primary/15 text-primary border border-primary/20" :
+                  openLead.status === "lost" ? "bg-muted text-muted-foreground border border-border" :
+                  "bg-primary/5 text-primary border border-primary/10"
                 }>
                   Status: {openLead.status || "open"}
                 </Badge>

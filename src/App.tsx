@@ -38,6 +38,8 @@ const PublicInquiryPage = lazy(() => import("./pages/tenant/PublicInquiryPage"))
 const UnifiedHub = lazy(() => import("./pages/tenant/UnifiedHub"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 
+import PlatformAdminGuard from "./components/super-admin/PlatformAdminGuard";
+
 import { PoweredByFooter } from "./components/global/PoweredByFooter";
 import { KeyboardShortcutsOverlay } from "./components/global/KeyboardShortcutsOverlay";
 import { ArrowKeyAccelerator } from "./components/global/ArrowKeyAccelerator";
@@ -123,19 +125,21 @@ export default function App() {
               <Route path="/auth/recover-master" element={<PlatformRecoverMaster />} />
               <Route path="/reset-password" element={<ResetPassword />} />
               {/* Global Super Admin (platform-level) */}
-              <Route path="/super_admin" element={<PlatformDashboardPage />} />
-              <Route path="/super_admin/directory" element={<PlatformDirectoryPage />} />
-              <Route path="/super_admin/schools" element={<PlatformSchoolsPage />} />
-              <Route path="/super_admin/billing" element={<PlatformBillingPage />} />
-              <Route path="/super_admin/revenue" element={<PlatformRevenuePage />} />
-              <Route path="/super_admin/audit" element={<PlatformAuditPage />} />
-              <Route path="/super_admin/health" element={<PlatformHealthPage />} />
-              <Route path="/super_admin/security" element={<PlatformSecurityPage />} />
-              <Route path="/super_admin/settings" element={<PlatformSettingsPage />} />
-              <Route path="/super_admin/support" element={<PlatformSupportPage />} />
-              <Route path="/super_admin/addons" element={<PlatformAddonsPage />} />
-              <Route path="/super_admin/database" element={<PlatformDatabasePage />} />
-              <Route path="/super_admin/domains" element={<PlatformDomainsPage />} />
+              <Route element={<PlatformAdminGuard />}>
+                <Route path="/super_admin" element={<PlatformDashboardPage />} />
+                <Route path="/super_admin/directory" element={<PlatformDirectoryPage />} />
+                <Route path="/super_admin/schools" element={<PlatformSchoolsPage />} />
+                <Route path="/super_admin/billing" element={<PlatformBillingPage />} />
+                <Route path="/super_admin/revenue" element={<PlatformRevenuePage />} />
+                <Route path="/super_admin/audit" element={<PlatformAuditPage />} />
+                <Route path="/super_admin/health" element={<PlatformHealthPage />} />
+                <Route path="/super_admin/security" element={<PlatformSecurityPage />} />
+                <Route path="/super_admin/settings" element={<PlatformSettingsPage />} />
+                <Route path="/super_admin/support" element={<PlatformSupportPage />} />
+                <Route path="/super_admin/addons" element={<PlatformAddonsPage />} />
+                <Route path="/super_admin/database" element={<PlatformDatabasePage />} />
+                <Route path="/super_admin/domains" element={<PlatformDomainsPage />} />
+              </Route>
 
 
               {/* Back-compat aliases */}

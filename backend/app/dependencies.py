@@ -60,7 +60,7 @@ async def get_current_user(
     # Check if super admin
     try:
         result = await db.execute(
-            text("SELECT id FROM platform_super_admins WHERE user_id = :uid LIMIT 1"),
+            text("SELECT user_id FROM platform_super_admins WHERE user_id = :uid LIMIT 1"),
             {"uid": user_id},
         )
         is_super = result.fetchone() is not None

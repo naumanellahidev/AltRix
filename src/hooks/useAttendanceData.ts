@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
 import { supabase, USE_FASTAPI } from "@/integrations/supabase/client";
-import { apiClient } from "@/lib/api-client";
+import { apiClient, isNetworkOrProxyError } from "@/lib/api-client";
 import { toast } from "@/hooks/use-toast";
 
 export interface StudentRow {
@@ -44,15 +44,24 @@ export function useAttendanceData(schoolId: string | null) {
 
       try {
         if (USE_FASTAPI) {
-          const resp = await apiClient.get("/attendance/get-or-create", {
-            params: {
-              section_id: sectionId,
-              session_date: sessionDate,
-              period_label: periodLabel,
-              read_only: !!options?.readOnly,
-            },
-          });
-          return resp.data;
+          try {
+            const resp = await apiClient.get("/attendance/get-or-create", {
+              params: {
+                section_id: sectionId,
+                session_date: sessionDate,
+                period_label: periodLabel,
+                read_only: !!options?.readOnly,
+              },
+            });
+            return resp.data;
+          } catch (err: any) {
+            if (isNetworkOrProxyError(err)) {
+              toast({ title: "Backend unavailable", description: "Could not reach the server. Please ensure the backend is running.", variant: "destructive" });
+            } else {
+              toast({ title: "Failed to load session", description: err?.response?.data?.detail || err.message, variant: "destructive" });
+            }
+            return null;
+          }
         }
 
         // Get or create session
@@ -158,7 +167,11 @@ export function useAttendanceData(schoolId: string | null) {
           toast({ title: "Attendance saved successfully" });
           return true;
         } catch (err: any) {
-          toast({ title: "Failed to save", description: err.message, variant: "destructive" });
+          if (isNetworkOrProxyError(err)) {
+            toast({ title: "Backend unavailable", description: "Could not reach the server. Please ensure the backend is running.", variant: "destructive" });
+          } else {
+            toast({ title: "Failed to save", description: err?.response?.data?.detail || err.message, variant: "destructive" });
+          }
           return false;
         }
       }
@@ -190,10 +203,19 @@ export function useAttendanceData(schoolId: string | null) {
       if (!schoolId) return [];
 
       if (USE_FASTAPI) {
-        const resp = await apiClient.get(`/attendance/history/${sectionId}`, {
-          params: { limit },
-        });
-        return resp.data;
+        try {
+          const resp = await apiClient.get(`/attendance/history/${sectionId}`, {
+            params: { limit },
+          });
+          return resp.data;
+        } catch (err: any) {
+          if (isNetworkOrProxyError(err)) {
+            toast({ title: "Backend unavailable", description: "Could not reach the server.", variant: "destructive" });
+          } else {
+            toast({ title: "Failed to load history", description: err?.response?.data?.detail || err.message, variant: "destructive" });
+          }
+          return [];
+        }
       }
 
       const { data } = await supabase
@@ -215,8 +237,17 @@ export function useAttendanceData(schoolId: string | null) {
       if (!schoolId) return [];
 
       if (USE_FASTAPI) {
-        const resp = await apiClient.get(`/attendance/stats/${sectionId}`);
-        return resp.data;
+        try {
+          const resp = await apiClient.get(`/attendance/stats/${sectionId}`);
+          return resp.data;
+        } catch (err: any) {
+          if (isNetworkOrProxyError(err)) {
+            toast({ title: "Backend unavailable", description: "Could not reach the server.", variant: "destructive" });
+          } else {
+            toast({ title: "Failed to load stats", description: err?.response?.data?.detail || err.message, variant: "destructive" });
+          }
+          return [];
+        }
       }
 
       // Get all sessions for this section
@@ -294,8 +325,17 @@ export function useAttendanceData(schoolId: string | null) {
       if (!schoolId) return [];
 
       if (USE_FASTAPI) {
-        const resp = await apiClient.get(`/attendance/sessions/${sessionId}/roster`);
-        return resp.data;
+        try {
+          const resp = await apiClient.get(`/attendance/sessions/${sessionId}/roster`);
+          return resp.data;
+        } catch (err: any) {
+          if (isNetworkOrProxyError(err)) {
+            toast({ title: "Backend unavailable", description: "Could not reach the server.", variant: "destructive" });
+          } else {
+            toast({ title: "Failed to load roster", description: err?.response?.data?.detail || err.message, variant: "destructive" });
+          }
+          return [];
+        }
       }
 
       // Get session info to find the section

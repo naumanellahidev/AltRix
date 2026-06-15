@@ -170,7 +170,7 @@ export function GlobalCommandPalette({ basePath }: Props) {
       { label: "Attendance", icon: GraduationCap, href: `${basePath}/attendance`, keywords: "present absent late" },
       { label: "Staff & Users", icon: Users, href: `${basePath}/users`, keywords: "employees hr teachers principal" },
       { label: "CRM / Leads", icon: KanbanSquare, href: `${basePath}/crm`, keywords: "admissions pipeline marketing" },
-      { label: "Finance", icon: Coins, href: `${basePath}/finance`, keywords: "fees payments invoices expenses" },
+      { label: "Fees Center", icon: Coins, href: `${basePath}/fees`, keywords: "fees payments invoices expenses" },
       { label: "Reports", icon: BarChart3, href: `${basePath}/reports`, keywords: "analytics statistics" },
       { label: "Support", icon: Headphones, href: `${basePath}/support`, keywords: "help tickets" },
       { label: "Directory Search", icon: Search, href: `${basePath}/directory`, keywords: "find search all" },

@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase, USE_FASTAPI } from "@/integrations/supabase/client";
+import { apiClient } from "@/lib/api-client";
 import { useSession } from "@/hooks/useSession";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -92,23 +93,41 @@ export function StaffAttendanceWidget({ schoolId }: StaffAttendanceWidgetProps) 
   // Fetch school location & current attendance status
   const fetchData = async () => {
     try {
-      // 1. Fetch location coordinates with fallback in case schema is not migrated yet
-      try {
-        const { data: schoolData, error: schoolErr } = await supabase
-          .from("schools")
-          .select("latitude,longitude,altitude")
-          .eq("id", schoolId)
-          .maybeSingle();
-
-        if (schoolErr) {
-          console.warn("Location columns missing in database schools table:", schoolErr.message);
+      // 1. Fetch location coordinates
+      if (USE_FASTAPI) {
+        try {
+          const { data: schoolData } = await apiClient.get(`/schools/${schoolId}`);
+          if (schoolData) {
+            setSchoolLoc({
+              latitude: schoolData.latitude ?? null,
+              longitude: schoolData.longitude ?? null,
+              altitude: schoolData.altitude ?? null,
+            });
+          } else {
+            setSchoolLoc({ latitude: null, longitude: null, altitude: null });
+          }
+        } catch (err) {
+          console.warn("Failed to fetch coordinates via FastAPI, falling back:", err);
           setSchoolLoc({ latitude: null, longitude: null, altitude: null });
-        } else {
-          setSchoolLoc(schoolData);
         }
-      } catch (err) {
-        console.warn("Failed to fetch coordinates, falling back:", err);
-        setSchoolLoc({ latitude: null, longitude: null, altitude: null });
+      } else {
+        try {
+          const { data: schoolData, error: schoolErr } = await supabase
+            .from("schools")
+            .select("latitude,longitude,altitude")
+            .eq("id", schoolId)
+            .maybeSingle();
+
+          if (schoolErr) {
+            console.warn("Location columns missing in database schools table:", schoolErr.message);
+            setSchoolLoc({ latitude: null, longitude: null, altitude: null });
+          } else {
+            setSchoolLoc(schoolData);
+          }
+        } catch (err) {
+          console.warn("Failed to fetch coordinates, falling back:", err);
+          setSchoolLoc({ latitude: null, longitude: null, altitude: null });
+        }
       }
 
       // 2. Fetch today's attendance for the logged-in staff
@@ -225,7 +244,7 @@ export function StaffAttendanceWidget({ schoolId }: StaffAttendanceWidgetProps) 
     if (!user?.id) return;
     
     // Safety check for location boundaries
-    if (status !== "leave" && isLocationConfigured) {
+    if (status === "present" && isLocationConfigured) {
       if (!userCoords) {
         toast.error("Location Error: Unable to verify your location. Please check your GPS signal or enable location permissions.");
         return;
@@ -324,6 +343,8 @@ export function StaffAttendanceWidget({ schoolId }: StaffAttendanceWidgetProps) 
     }
   };
 
+  const hasBothClocks = attendance?.clock_in != null && attendance?.clock_out != null;
+
   if (loading) {
     return (
       <Button variant="ghost" size="icon" className="rounded-xl opacity-60 cursor-not-allowed">
@@ -413,19 +434,41 @@ export function StaffAttendanceWidget({ schoolId }: StaffAttendanceWidgetProps) 
 
         {/* GPS Signal Strength Badge if configured */}
         {isLocationConfigured && (
-          <div className="mt-2.5 flex items-center justify-between bg-muted/30 border border-border/40 rounded-xl px-3 py-2 text-[10px] text-muted-foreground">
-            <span className="flex items-center gap-1.5 font-medium">
-              <Wifi className="h-3.5 w-3.5 text-primary" /> GPS Sensor Status
-            </span>
-            <Badge variant="outline" className={cn(
-              "text-[9px] font-semibold border-none px-2 h-5 rounded-md",
-              gpsStatus === "locked" ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" :
-              gpsStatus === "weak" ? "bg-amber-500/10 text-amber-600 dark:text-amber-400" :
-              "bg-destructive/10 text-destructive dark:text-red-400"
-            )}>
-              {gpsStatus === "locked" ? `High Accuracy (±${userCoords?.accuracy ? Math.round(userCoords.accuracy) : 5}m)` :
-               gpsStatus === "weak" ? "Weak Signal" : "No GPS Signal"}
-            </Badge>
+          <div className="mt-2.5 space-y-2">
+            <div className="flex items-center justify-between bg-muted/30 border border-border/40 rounded-xl px-3 py-2 text-[10px] text-muted-foreground">
+              <span className="flex items-center gap-1.5 font-medium">
+                <Wifi className="h-3.5 w-3.5 text-primary" /> GPS Sensor Status
+              </span>
+              <Badge variant="outline" className={cn(
+                "text-[9px] font-semibold border-none px-2 h-5 rounded-md",
+                gpsStatus === "locked" ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" :
+                gpsStatus === "weak" ? "bg-amber-500/10 text-amber-600 dark:text-amber-400" :
+                "bg-destructive/10 text-destructive dark:text-red-400"
+              )}>
+                {gpsStatus === "locked" ? `High Accuracy (±${userCoords?.accuracy ? Math.round(userCoords.accuracy) : 5}m)` :
+                 gpsStatus === "weak" ? "Weak Signal" : "No GPS Signal"}
+              </Badge>
+            </div>
+            
+            {/* Real-time coordinates readout */}
+            <div className="flex flex-col gap-1.5 bg-muted/20 border border-border/30 rounded-xl p-3 text-[10px] font-mono text-muted-foreground">
+              <div className="flex justify-between items-center">
+                <span>Campus Center:</span>
+                <span className="text-foreground font-semibold">
+                  {schoolLoc?.latitude !== null && schoolLoc?.longitude !== null
+                    ? `${Number(schoolLoc.latitude).toFixed(6)}, ${Number(schoolLoc.longitude).toFixed(6)}`
+                    : "Not Configured"}
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span>Your Position:</span>
+                <span className="text-foreground font-semibold">
+                  {userCoords
+                    ? `${userCoords.latitude.toFixed(6)}, ${userCoords.longitude.toFixed(6)}`
+                    : "Acquiring..."}
+                </span>
+              </div>
+            </div>
           </div>
         )}
 
@@ -444,12 +487,14 @@ export function StaffAttendanceWidget({ schoolId }: StaffAttendanceWidgetProps) 
           <div className="flex flex-col items-center gap-2">
             <button
               onClick={() => logAttendance("present")}
-              disabled={saving || (isLocationConfigured && !inRange) || (attendance && attendance.status === "present")}
+              disabled={saving || (isLocationConfigured && !inRange) || (attendance && attendance.status === "present") || hasBothClocks}
               className={cn(
                 "h-16 w-16 rounded-full flex items-center justify-center transition-all duration-300 shadow-md hover:shadow-lg active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed",
                 attendance?.status === "present"
                   ? "bg-emerald-500 text-white cursor-default shadow-emerald-500/20"
-                  : "bg-emerald-500/10 text-emerald-600 border border-emerald-500/30 hover:bg-emerald-500/20"
+                  : ((isLocationConfigured && !inRange) || hasBothClocks)
+                    ? "bg-muted text-muted-foreground border border-muted-foreground/20 cursor-not-allowed opacity-50"
+                    : "bg-emerald-500/10 text-emerald-600 border border-emerald-500/30 hover:bg-emerald-500/20"
               )}
             >
               <CheckCircle className="h-8 w-8" />
@@ -461,12 +506,14 @@ export function StaffAttendanceWidget({ schoolId }: StaffAttendanceWidgetProps) 
           <div className="flex flex-col items-center gap-2">
             <button
               onClick={() => logAttendance("absent")}
-              disabled={saving || (isLocationConfigured && !inRange) || (attendance && attendance.status === "absent")}
+              disabled={saving || (attendance && attendance.status === "absent") || hasBothClocks}
               className={cn(
                 "h-16 w-16 rounded-full flex items-center justify-center transition-all duration-300 shadow-md hover:shadow-lg active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed",
                 attendance?.status === "absent"
                   ? "bg-destructive text-white cursor-default shadow-destructive/20"
-                  : "bg-destructive/10 text-destructive border border-destructive/30 hover:bg-destructive/20"
+                  : hasBothClocks
+                    ? "bg-muted text-muted-foreground border border-muted-foreground/20 cursor-not-allowed opacity-50"
+                    : "bg-destructive/10 text-destructive border border-destructive/30 hover:bg-destructive/20"
               )}
             >
               <XCircle className="h-8 w-8" />
@@ -478,12 +525,14 @@ export function StaffAttendanceWidget({ schoolId }: StaffAttendanceWidgetProps) 
           <div className="flex flex-col items-center gap-2">
             <button
               onClick={() => logAttendance("leave")}
-              disabled={saving || (attendance && attendance.status === "leave")}
+              disabled={saving || (attendance && attendance.status === "leave") || hasBothClocks}
               className={cn(
                 "h-16 w-16 rounded-full flex items-center justify-center transition-all duration-300 shadow-md hover:shadow-lg active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed",
                 attendance?.status === "leave"
                   ? "bg-blue-500 text-white cursor-default shadow-blue-500/20"
-                  : "bg-blue-500/10 text-blue-600 border border-blue-500/30 hover:bg-blue-500/20"
+                  : hasBothClocks
+                    ? "bg-muted text-muted-foreground border border-muted-foreground/20 cursor-not-allowed opacity-50"
+                    : "bg-blue-500/10 text-blue-600 border border-blue-500/30 hover:bg-blue-500/20"
               )}
             >
               <FileText className="h-8 w-8" />
@@ -533,7 +582,12 @@ export function StaffAttendanceWidget({ schoolId }: StaffAttendanceWidgetProps) 
                 size="sm"
                 onClick={handleClockOut}
                 disabled={saving || (isLocationConfigured && !inRange)}
-                className="rounded-xl text-[11px] font-semibold border-amber-500/30 text-amber-600 hover:bg-amber-500/10 h-8 active:scale-95"
+                className={cn(
+                  "rounded-xl text-[11px] font-semibold h-8 active:scale-95",
+                  (isLocationConfigured && !inRange)
+                    ? "border-muted text-muted-foreground bg-muted/20 cursor-not-allowed opacity-50"
+                    : "border-amber-500/30 text-amber-600 hover:bg-amber-500/10"
+                )}
               >
                 Clock Out
               </Button>

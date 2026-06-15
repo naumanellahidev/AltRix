@@ -109,7 +109,7 @@ export function OwnerOverviewModule({ schoolId }: Props) {
 
   useRealtimeTable({
     channel: `owner-kpi-payments-${schoolId}`,
-    table: "finance_payments",
+    table: "fee_payments",
     filter: schoolId ? `school_id=eq.${schoolId}` : undefined,
     enabled: !!schoolId,
     onChange: () => void qc.invalidateQueries({ queryKey: ["owner_overview_kpis", schoolId] }),
@@ -133,7 +133,7 @@ export function OwnerOverviewModule({ schoolId }: Props) {
 
   useRealtimeTable({
     channel: `owner-kpi-invoices-${schoolId}`,
-    table: "finance_invoices",
+    table: "fee_invoices",
     filter: schoolId ? `school_id=eq.${schoolId}` : undefined,
     enabled: !!schoolId,
     onChange: () => void qc.invalidateQueries({ queryKey: ["owner_overview_kpis", schoolId] }),
@@ -322,9 +322,10 @@ export function OwnerOverviewModule({ schoolId }: Props) {
 
         const [paymentsRes, expensesRes] = await Promise.all([
           supabase
-            .from("finance_payments")
+            .from("fee_payments")
             .select("amount")
             .eq("school_id", schoolId)
+            .eq("status", "success")
             .gte("paid_at", start.toISOString())
             .lt("paid_at", end.toISOString()),
           supabase
@@ -518,7 +519,7 @@ export function OwnerOverviewModule({ schoolId }: Props) {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.15 }}
           className="cursor-pointer hover:shadow-lg transition-shadow"
-          onClick={() => navigate(`${basePath}/finance`)}
+          onClick={() => navigate(`${basePath}/fees`)}
         >
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
@@ -541,7 +542,7 @@ export function OwnerOverviewModule({ schoolId }: Props) {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
           className="cursor-pointer hover:shadow-lg transition-shadow"
-          onClick={() => navigate(`${basePath}/finance`)}
+          onClick={() => navigate(`${basePath}/fees`)}
         >
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
@@ -701,7 +702,7 @@ export function OwnerOverviewModule({ schoolId }: Props) {
               {[
                 { icon: GraduationCap, label: "Academics Intelligence", path: "academics", color: "text-primary" },
                 { icon: TrendingUp, label: "Admissions & Growth", path: "admissions", color: "text-amber-600" },
-                { icon: Coins, label: "Finance & Profitability", path: "finance", color: "text-emerald-600" },
+                { icon: Coins, label: "Fees & Expenses", path: "fees", color: "text-emerald-600" },
                 { icon: Users, label: "HR & Culture", path: "hr", color: "text-indigo-600" },
                 { icon: HeartPulse, label: "Student Wellbeing", path: "wellbeing", color: "text-pink-600" },
                 { icon: Shield, label: "System & Security", path: "security", color: "text-slate-600" },

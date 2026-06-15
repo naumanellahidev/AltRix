@@ -660,15 +660,15 @@ async function prefetchFinanceData(schoolId: string, cancelled: boolean, onProgr
   // Invoices
   tasks.push((async () => {
     const { data } = await supabase
-      .from('finance_invoices')
-      .select('id, student_id, invoice_no, issue_date, due_date, total, subtotal, status, school_id')
+      .from('fee_invoices')
+      .select('id, student_id, invoice_number, created_at, due_date, total_amount, subtotal, status, school_id')
       .eq('school_id', schoolId)
       .limit(BATCH_SIZE);
     if (!cancelled && data) {
       const cached: CachedInvoice[] = data.map(i => ({
         id: i.id, schoolId: i.school_id, studentId: i.student_id,
-        invoiceNo: i.invoice_no, issueDate: i.issue_date, dueDate: i.due_date,
-        total: i.total, subtotal: i.subtotal, status: i.status, cachedAt: Date.now(),
+        invoiceNo: i.invoice_number, issueDate: i.created_at, dueDate: i.due_date,
+        total: Number(i.total_amount), subtotal: Number(i.subtotal), status: i.status, cachedAt: Date.now(),
       }));
       await cacheInvoices(cached);
       onProgress('Invoices');
@@ -678,15 +678,15 @@ async function prefetchFinanceData(schoolId: string, cancelled: boolean, onProgr
   // Payments
   tasks.push((async () => {
     const { data } = await supabase
-      .from('finance_payments')
-      .select('id, student_id, invoice_id, amount, paid_at, reference, method_id, school_id')
+      .from('fee_payments')
+      .select('id, student_id, invoice_id, amount, paid_at, transaction_ref, school_id')
       .eq('school_id', schoolId)
       .limit(BATCH_SIZE);
     if (!cancelled && data) {
       const cached: CachedPayment[] = data.map(p => ({
         id: p.id, schoolId: p.school_id, studentId: p.student_id,
-        invoiceId: p.invoice_id, amount: p.amount, paidAt: p.paid_at,
-        reference: p.reference, methodId: p.method_id, cachedAt: Date.now(),
+        invoiceId: p.invoice_id, amount: Number(p.amount), paidAt: p.paid_at,
+        reference: p.transaction_ref, cachedAt: Date.now(),
       }));
       await cachePayments(cached);
       onProgress('Payments');
@@ -945,8 +945,8 @@ async function prefetchAllStats(schoolId: string, cancelled: boolean, onProgress
     supabase.from('user_roles').select('id', { count: 'exact', head: true }).eq('school_id', schoolId).eq('role', 'teacher'),
     supabase.from('crm_leads').select('id', { count: 'exact', head: true }).eq('school_id', schoolId),
     supabase.from('crm_leads').select('id', { count: 'exact', head: true }).eq('school_id', schoolId).eq('status', 'open'),
-    supabase.from('finance_payments').select('amount').eq('school_id', schoolId).gte('paid_at', monthStart.toISOString()),
-    supabase.from('finance_invoices').select('id', { count: 'exact', head: true }).eq('school_id', schoolId).eq('status', 'pending'),
+    supabase.from('fee_payments').select('amount').eq('school_id', schoolId).eq('status', 'success').gte('paid_at', monthStart.toISOString()),
+    supabase.from('fee_invoices').select('id', { count: 'exact', head: true }).eq('school_id', schoolId).not('status', 'eq', 'paid').not('status', 'eq', 'cancelled'),
     supabase.from('finance_expenses').select('amount').eq('school_id', schoolId).gte('expense_date', monthStart.toISOString().split('T')[0]),
     supabase.from('attendance_entries').select('id', { count: 'exact', head: true }).eq('school_id', schoolId).gte('created_at', d7Ago.toISOString()),
     supabase.from('attendance_entries').select('id', { count: 'exact', head: true }).eq('school_id', schoolId).eq('status', 'present').gte('created_at', d7Ago.toISOString()),

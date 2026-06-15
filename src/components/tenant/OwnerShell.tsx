@@ -91,7 +91,7 @@ export function OwnerShell({ title, subtitle, schoolSlug, children }: Props) {
     { to: basePath, icon: LayoutGrid, label: "Overview", end: true },
     { to: `${basePath}/academics`, icon: GraduationCap, label: "Academics Intelligence" },
     { to: `${basePath}/admissions`, icon: TrendingUp, label: "Admissions & Growth" },
-    { to: `${basePath}/finance`, icon: Coins, label: "Finance & Profitability" },
+    { to: `${basePath}/fees`, icon: Coins, label: "Fees Center & Profitability" },
     { to: `${basePath}/hr`, icon: Users, label: "HR & Culture" },
     { to: `${basePath}/ai`, icon: Sparkles, label: "AI Command Center" },
     { to: `${basePath}/messages`, icon: MessageSquare, label: "Messages", badge: unreadCount },
@@ -112,7 +112,7 @@ export function OwnerShell({ title, subtitle, schoolSlug, children }: Props) {
 
 
   const inheritedNav = useMemo(() => {
-    const executivePaths = new Set(["", "admissions", "finance", "support", "messages"]);
+    const executivePaths = new Set(["", "admissions", "fees", "support", "messages"]);
     const { grouped } = buildMergedNav(["school_owner"]);
     return GROUP_ORDER.map((group) => ({
       group,
@@ -122,7 +122,7 @@ export function OwnerShell({ title, subtitle, schoolSlug, children }: Props) {
 
   const bottomNavItems = [
     { to: basePath, icon: LayoutGrid, label: "Overview" },
-    { to: `${basePath}/finance`, icon: Coins, label: "Finance" },
+    { to: `${basePath}/fees`, icon: Coins, label: "Fees" },
     { to: `${basePath}/academics`, icon: GraduationCap, label: "Academics" },
     { to: `${basePath}/advisor`, icon: Brain, label: "AI Advisor" },
   ];

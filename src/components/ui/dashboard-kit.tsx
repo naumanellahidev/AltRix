@@ -210,7 +210,6 @@ export function SmartCard({
   );
 }
 
-/* ---------- StatTile: KPI tile ---------- */
 export function StatTile({
   label,
   value,
@@ -218,6 +217,8 @@ export function StatTile({
   delta,
   tone = "default",
   className,
+  to,
+  onClick,
 }: {
   label: string;
   value: ReactNode;
@@ -225,6 +226,8 @@ export function StatTile({
   delta?: { value: string; positive?: boolean };
   tone?: "default" | "success" | "warning" | "destructive" | "info";
   className?: string;
+  to?: string;
+  onClick?: () => void;
 }) {
   const dot =
     tone === "success"
@@ -237,33 +240,67 @@ export function StatTile({
             ? "bg-info"
             : "bg-primary";
 
-  return (
-    <div
-      className={cn(
-        "card-premium card-premium-hover relative overflow-hidden p-4 sm:p-5 animate-rise",
-        className,
-      )}
-    >
-      <div className={cn("absolute -right-6 -top-6 h-20 w-20 rounded-full opacity-15", dot)} />
+  const content = (
+    <>
+      <div className={cn("absolute -right-6 -top-6 h-20 w-20 rounded-full opacity-10 transition-transform duration-300 group-hover:scale-110", dot)} />
       <div className="relative flex items-center justify-between">
-        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+        <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
           {label}
         </p>
-        {Icon && <Icon className="h-4 w-4 text-muted-foreground" />}
+        {Icon && (
+          <div className={cn(
+            "flex h-8 w-8 items-center justify-center rounded-lg transition-transform duration-300 group-hover:scale-110 group-hover:rotate-3 shadow-xs",
+            tone === "success" ? "bg-green-500/10 text-green-600 dark:text-green-400" :
+            tone === "warning" ? "bg-amber-500/10 text-amber-600 dark:text-amber-400" :
+            tone === "destructive" ? "bg-red-500/10 text-red-600 dark:text-red-400" :
+            tone === "info" ? "bg-blue-500/10 text-blue-600 dark:text-blue-400" :
+            "bg-slate-500/10 text-slate-600 dark:text-slate-400"
+          )}>
+            <Icon className="h-4.5 w-4.5" />
+          </div>
+        )}
       </div>
-      <p className="relative mt-2 font-display text-2xl font-semibold tracking-tight sm:text-3xl">
+      <p className="relative mt-3.5 font-display text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
         {value}
       </p>
       {delta && (
         <p
           className={cn(
-            "relative mt-1 text-xs font-medium",
+            "relative mt-1 text-xs font-semibold flex items-center gap-0.5",
             delta.positive ? "text-success" : "text-destructive",
           )}
         >
           {delta.value}
         </p>
       )}
+    </>
+  );
+
+  const baseStyles = cn(
+    "card-premium relative overflow-hidden p-4 sm:p-5 animate-rise block text-left w-full outline-none",
+    (to || onClick) && "card-premium-hover cursor-pointer group transition-all duration-300 hover:-translate-y-0.5 hover:shadow-elevated hover:border-primary/30 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2",
+    className
+  );
+
+  if (to) {
+    return (
+      <Link to={to} className={baseStyles} aria-label={`${label}: ${value}`}>
+        {content}
+      </Link>
+    );
+  }
+
+  if (onClick) {
+    return (
+      <button type="button" onClick={onClick} className={baseStyles} aria-label={`${label}: ${value}`}>
+        {content}
+      </button>
+    );
+  }
+
+  return (
+    <div className={baseStyles}>
+      {content}
     </div>
   );
 }

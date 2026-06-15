@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
-import { Plus, Trash2, Receipt, Settings as SettingsIcon, Wallet, FileText, Users as UsersIcon, CreditCard, Send, BarChart3, Search, X } from "lucide-react";
+import { Plus, Trash2, Receipt, Settings as SettingsIcon, Wallet, FileText, Users as UsersIcon, CreditCard, Send, BarChart3, Search, X, Edit2, Eye, Download, Printer, SlidersHorizontal, Filter } from "lucide-react";
 import { FeesAnalyticsTab } from "@/components/fees/FeesAnalyticsTab";
 import { supabase } from "@/integrations/supabase/client";
 import { useTenantOptimized } from "@/hooks/useTenantOptimized";
@@ -83,11 +83,33 @@ export default function FeesAdvancedModule() {
   const [payOpen, setPayOpen] = useState(false);
   const [payForm, setPayForm] = useState({ invoice_id: "", amount: "", method: "cash", transaction_ref: "", notes: "" });
 
+  // expenses
+  const [expenses, setExpenses] = useState<any[]>([]);
+  const [expSearch, setExpSearch] = useState("");
+  const [expCategory, setExpCategory] = useState("__all");
+  const [expFromDate, setExpFromDate] = useState("");
+  const [expToDate, setExpToDate] = useState("");
+  const [expOpen, setExpOpen] = useState(false);
+  const [expForm, setExpForm] = useState({
+    description: "",
+    category: "salaries",
+    amount: "",
+    expense_date: format(new Date(), "yyyy-MM-dd"),
+    vendor: "",
+    payment_method_id: "",
+    reference: ""
+  });
+  const [editExpenseId, setEditExpenseId] = useState<string | null>(null);
+  const [viewExpense, setViewExpense] = useState<any | null>(null);
+  const [viewOpen, setViewOpen] = useState(false);
+  const [payMethods, setPayMethods] = useState<any[]>([]);
+  const [showExpFilters, setShowExpFilters] = useState(false);
+
   // ---------- LOAD ----------
   useEffect(() => {
     if (!schoolId) return;
     (async () => {
-      const [cRes, sRes, stRes, settRes, pRes, iRes, aRes, invRes, payRes] = await Promise.all([
+      const [cRes, sRes, stRes, settRes, pRes, iRes, aRes, invRes, payRes, expRes, pmRes] = await Promise.all([
         supabase.from("academic_classes").select("id, name").eq("school_id", schoolId).order("name"),
         supabase.from("class_sections").select("id, name, class_id").eq("school_id", schoolId).order("name"),
         supabase.from("students").select("id, first_name, last_name, parent_phone, parent_email").eq("school_id", schoolId).order("first_name").limit(2000),
@@ -97,6 +119,8 @@ export default function FeesAdvancedModule() {
         supabase.from("student_fee_assignments").select("id, student_id, fee_plan_id, discount_pct, scholarship_amount").eq("school_id", schoolId),
         supabase.from("fee_invoices").select("*").eq("school_id", schoolId).order("created_at", { ascending: false }).limit(500),
         supabase.from("fee_payments").select("*").eq("school_id", schoolId).order("paid_at", { ascending: false }).limit(500),
+        supabase.from("finance_expenses").select("*").eq("school_id", schoolId).order("expense_date", { ascending: false }).limit(500),
+        supabase.from("finance_payment_methods").select("id, name, type").eq("school_id", schoolId).eq("is_active", true),
       ]);
       setClasses((cRes.data as ClassRow[]) || []);
       setSections((sRes.data as SectionRow[]) || []);
@@ -107,6 +131,8 @@ export default function FeesAdvancedModule() {
       setAssignments((aRes.data as StudentAssignment[]) || []);
       setInvoices((invRes.data as FeeInvoice[]) || []);
       setPayments((payRes.data as FeePayment[]) || []);
+      setExpenses((expRes.data as any[]) || []);
+      setPayMethods(pmRes.data || []);
     })();
   }, [schoolId]);
 
@@ -123,6 +149,10 @@ export default function FeesAdvancedModule() {
         const { data } = await supabase.from("fee_payments").select("*").eq("school_id", schoolId).order("paid_at", { ascending: false }).limit(500);
         setPayments((data as FeePayment[]) || []);
       })
+      .on("postgres_changes", { event: "*", schema: "public", table: "finance_expenses", filter: `school_id=eq.${schoolId}` }, async () => {
+        const { data } = await supabase.from("finance_expenses").select("*").eq("school_id", schoolId).order("expense_date", { ascending: false }).limit(500);
+        setExpenses(data || []);
+      })
       .subscribe();
     return () => { supabase.removeChannel(ch); };
   }, [schoolId]);
@@ -131,6 +161,314 @@ export default function FeesAdvancedModule() {
   const plansById = useMemo(() => Object.fromEntries(plans.map(p => [p.id, p])), [plans]);
   const planItems = useMemo(() => items.filter(i => i.fee_plan_id === selectedPlanId).sort((a, b) => a.sort_order - b.sort_order), [items, selectedPlanId]);
   const planSubtotal = useMemo(() => planItems.reduce((s, i) => s + Number(i.amount), 0), [planItems]);
+
+  // ---------- EXPENSES ----------
+  const startEditExpense = (expense: any) => {
+    setEditExpenseId(expense.id);
+    setExpForm({
+      description: expense.description || "",
+      category: expense.category || "salaries",
+      amount: String(expense.amount),
+      expense_date: (expense.expense_date || "").slice(0, 10),
+      vendor: expense.vendor || "",
+      payment_method_id: expense.payment_method_id || "",
+      reference: expense.reference || "",
+    });
+    setExpOpen(true);
+  };
+
+  const recordExpense = async () => {
+    if (!schoolId || !expForm.description || !expForm.amount || !expForm.expense_date) {
+      return toast.error("Description, amount and date are required");
+    }
+    const payload = {
+      school_id: schoolId,
+      description: expForm.description,
+      amount: Number(expForm.amount),
+      category: expForm.category,
+      expense_date: expForm.expense_date,
+      vendor: expForm.vendor || null,
+      payment_method_id: expForm.payment_method_id || null,
+      reference: expForm.reference || null,
+    };
+
+    if (editExpenseId) {
+      const { data, error } = await supabase
+        .from("finance_expenses")
+        .update(payload)
+        .eq("id", editExpenseId)
+        .select("*")
+        .single();
+      if (error) return toast.error(error.message);
+      toast.success("Expense updated");
+      setExpenses(expenses.map(e => (e.id === editExpenseId ? data : e)));
+      setEditExpenseId(null);
+      setExpOpen(false);
+      setExpForm({
+        description: "",
+        category: "salaries",
+        amount: "",
+        expense_date: format(new Date(), "yyyy-MM-dd"),
+        vendor: "",
+        payment_method_id: "",
+        reference: "",
+      });
+    } else {
+      const { data, error } = await supabase
+        .from("finance_expenses")
+        .insert(payload)
+        .select("*")
+        .single();
+      if (error) return toast.error(error.message);
+      toast.success("Expense recorded");
+      setExpenses([data, ...expenses]);
+      setExpOpen(false);
+      setExpForm({
+        description: "",
+        category: "salaries",
+        amount: "",
+        expense_date: format(new Date(), "yyyy-MM-dd"),
+        vendor: "",
+        payment_method_id: "",
+        reference: "",
+      });
+    }
+  };
+
+  const deleteExpense = async (id: string) => {
+    if (!confirm("Delete this expense?")) return;
+    const { error } = await supabase.from("finance_expenses").delete().eq("id", id);
+    if (error) return toast.error(error.message);
+    setExpenses(expenses.filter(e => e.id !== id));
+    toast.success("Expense deleted");
+  };
+
+  const csvEscape = (val: any) => {
+    if (val === null || val === undefined) return '""';
+    let str = String(val);
+    if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
+      str = '"' + str.replace(/"/g, '""') + '"';
+    }
+    return str;
+  };
+
+  const exportExpensesCsv = () => {
+    const headers = ["Date", "Category", "Vendor", "Description", "Amount", "Payment Method", "Reference"];
+    const rows = filteredExpenses.map(e => {
+      const payMethodName = payMethods.find(pm => pm.id === e.payment_method_id)?.name || "—";
+      return [
+        format(new Date(e.expense_date), "yyyy-MM-dd"),
+        e.category,
+        e.vendor || "—",
+        e.description,
+        e.amount,
+        payMethodName,
+        e.reference || "—"
+      ];
+    });
+
+    const csvContent = [
+      headers.map(csvEscape).join(","),
+      ...rows.map(row => row.map(csvEscape).join(","))
+    ].join("\n");
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `expenses_report_${format(new Date(), "yyyy_MM_dd")}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const printExpensesReport = () => {
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) return toast.error("Could not open print window. Please allow popups.");
+
+    const payMethodMap = Object.fromEntries(payMethods.map(pm => [pm.id, pm.name]));
+    const totalFiltered = filteredExpenses.reduce((sum, e) => sum + Number(e.amount), 0);
+
+    const rowsHtml = filteredExpenses.map(e => `
+      <tr>
+        <td style="padding: 8px; border-bottom: 1px solid #ddd;">${format(new Date(e.expense_date), "MMM d, yyyy")}</td>
+        <td style="padding: 8px; border-bottom: 1px solid #ddd; text-transform: capitalize;">${e.category}</td>
+        <td style="padding: 8px; border-bottom: 1px solid #ddd;">${e.vendor || "—"}</td>
+        <td style="padding: 8px; border-bottom: 1px solid #ddd;">${e.description}</td>
+        <td style="padding: 8px; border-bottom: 1px solid #ddd;">${payMethodMap[e.payment_method_id] || "—"}</td>
+        <td style="padding: 8px; border-bottom: 1px solid #ddd;">${e.reference || "—"}</td>
+        <td style="padding: 8px; border-bottom: 1px solid #ddd; text-align: right; font-weight: bold;">${settings.currency} ${Number(e.amount).toLocaleString()}</td>
+      </tr>
+    `).join("");
+
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Expenses Report</title>
+          <style>
+            body { font-family: sans-serif; color: #333; margin: 40px; }
+            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+            th { background-color: #f4f4f5; text-align: left; padding: 10px; border-bottom: 2px solid #ddd; }
+            .header { display: flex; justify-content: space-between; border-bottom: 3px solid #0f172a; padding-bottom: 15px; }
+            .summary { margin-top: 30px; text-align: right; font-size: 1.2em; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div>
+              <h1 style="margin: 0; font-size: 24px; color: #0f172a;">Expenses Report</h1>
+              <p style="margin: 5px 0 0 0; color: #666;">School Expense Register</p>
+            </div>
+            <div style="text-align: right;">
+              <p style="margin: 0;"><b>Date:</b> ${format(new Date(), "MMM d, yyyy")}</p>
+              <p style="margin: 5px 0 0 0; color: #666;"><b>Records:</b> ${filteredExpenses.length}</p>
+            </div>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Category</th>
+                <th>Vendor</th>
+                <th>Description</th>
+                <th>Payment Method</th>
+                <th>Reference</th>
+                <th style="text-align: right;">Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rowsHtml}
+            </tbody>
+          </table>
+          <div class="summary">
+            <b>Total Expenditures:</b> <span style="color: #b91c1c; font-weight: bold;">${settings.currency} ${totalFiltered.toLocaleString()}</span>
+          </div>
+          <script>
+            window.onload = function() { window.print(); window.close(); }
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
+
+  const printSingleExpenseReceipt = (e: any) => {
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) return toast.error("Could not open print window. Please allow popups.");
+
+    const payMethodName = payMethods.find(pm => pm.id === e.payment_method_id)?.name || "—";
+
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Expense Voucher #${e.id.slice(0, 8).toUpperCase()}</title>
+          <style>
+            body { font-family: sans-serif; color: #333; margin: 40px; }
+            .container { max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; padding: 30px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
+            .header { border-bottom: 2px solid #0f172a; padding-bottom: 15px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; }
+            .row { display: flex; justify-content: space-between; margin: 12px 0; border-bottom: 1px dashed #e2e8f0; padding-bottom: 8px; }
+            .label { font-weight: 600; color: #475569; }
+            .value { color: #0f172a; }
+            .amount-box { background: #f8fafc; border: 1px solid #cbd5e1; padding: 15px; text-align: center; border-radius: 8px; margin-top: 25px; }
+            .amount { font-size: 1.5em; font-weight: bold; color: #b91c1c; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <div>
+                <h2 style="margin: 0; color: #0f172a;">EXPENSE VOUCHER</h2>
+                <small style="color: #64748b; font-family: monospace;">ID: ${e.id.toUpperCase()}</small>
+              </div>
+              <div style="text-align: right;">
+                <p style="margin: 0; font-weight: bold;">Receipt Voucher</p>
+              </div>
+            </div>
+            <div class="row">
+              <span class="label">Date:</span>
+              <span class="value">${format(new Date(e.expense_date), "MMMM d, yyyy")}</span>
+            </div>
+            <div class="row">
+              <span class="label">Category:</span>
+              <span class="value" style="text-transform: capitalize;">${e.category}</span>
+            </div>
+            <div class="row">
+              <span class="label">Paid To / Vendor:</span>
+              <span class="value">${e.vendor || "—"}</span>
+            </div>
+            <div class="row">
+              <span class="label">Description:</span>
+              <span class="value">${e.description}</span>
+            </div>
+            <div class="row">
+              <span class="label">Payment Method:</span>
+              <span class="value">${payMethodName}</span>
+            </div>
+            <div class="row">
+              <span class="label">Reference / Slip #:</span>
+              <span class="value">${e.reference || "—"}</span>
+            </div>
+            <div class="amount-box">
+              <div class="label" style="margin-bottom: 5px;">Total Amount Paid</div>
+              <div class="amount">${settings.currency} ${Number(e.amount).toLocaleString()}</div>
+            </div>
+            <div style="margin-top: 40px; display: flex; justify-content: space-between; color: #64748b; font-size: 0.85em;">
+              <div>Prepared By: __________________</div>
+              <div>Authorized By: __________________</div>
+            </div>
+          </div>
+          <script>
+            window.onload = function() { window.print(); window.close(); }
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
+
+  const filteredExpenses = useMemo(() => {
+    const q = expSearch.trim().toLowerCase();
+    return expenses.filter(e => {
+      if (expCategory !== "__all" && e.category !== expCategory) return false;
+      const day = (e.expense_date || "").slice(0, 10);
+      if (expFromDate && day < expFromDate) return false;
+      if (expToDate && day > expToDate) return false;
+      if (q) {
+        const hay = `${e.description} ${e.vendor || ""} ${e.category}`.toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    });
+  }, [expenses, expSearch, expCategory, expFromDate, expToDate]);
+
+  const { mtdExpensesSum, totalExpensesSum, topCategory } = useMemo(() => {
+    const now = new Date();
+    const startOfMonthStr = format(new Date(now.getFullYear(), now.getMonth(), 1), "yyyy-MM-dd");
+    let mtd = 0;
+    let total = 0;
+    const catMap: Record<string, number> = {};
+
+    expenses.forEach(e => {
+      const amt = Number(e.amount ?? 0);
+      total += amt;
+      const day = (e.expense_date || "").slice(0, 10);
+      if (day >= startOfMonthStr) {
+        mtd += amt;
+      }
+      catMap[e.category] = (catMap[e.category] || 0) + amt;
+    });
+
+    let topCat = "—";
+    let maxAmt = 0;
+    Object.entries(catMap).forEach(([cat, amt]) => {
+      if (amt > maxAmt) {
+        maxAmt = amt;
+        topCat = cat;
+      }
+    });
+
+    return { mtdExpensesSum: mtd, totalExpensesSum: total, topCategory: topCat };
+  }, [expenses]);
 
   // ---------- SETTINGS ----------
   const saveSettings = async () => {
@@ -317,11 +655,12 @@ export default function FeesAdvancedModule() {
       </div>
 
       <Tabs value={tab} onValueChange={setTab}>
-        <TabsList className="grid grid-cols-6 w-full max-w-4xl">
+        <TabsList className="grid grid-cols-2 md:grid-cols-7 w-full max-w-5xl h-auto gap-1">
           <TabsTrigger value="plans"><Wallet className="h-4 w-4 mr-1" />Plans</TabsTrigger>
           <TabsTrigger value="assignments"><UsersIcon className="h-4 w-4 mr-1" />Assignments</TabsTrigger>
           <TabsTrigger value="invoices"><FileText className="h-4 w-4 mr-1" />Invoices</TabsTrigger>
           <TabsTrigger value="payments"><CreditCard className="h-4 w-4 mr-1" />Payments</TabsTrigger>
+          <TabsTrigger value="expenses"><Receipt className="h-4 w-4 mr-1" />Expenses</TabsTrigger>
           <TabsTrigger value="analytics"><BarChart3 className="h-4 w-4 mr-1" />Analytics</TabsTrigger>
           <TabsTrigger value="settings"><SettingsIcon className="h-4 w-4 mr-1" />Settings</TabsTrigger>
         </TabsList>
@@ -660,6 +999,186 @@ export default function FeesAdvancedModule() {
           </Card>
         </TabsContent>
 
+        {/* EXPENSES */}
+        <TabsContent value="expenses" className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Card className="relative overflow-hidden bg-gradient-to-br from-red-500/5 to-rose-500/5 border border-red-500/10 shadow-sm hover:shadow-md hover:-translate-y-1 transition-all duration-300 rounded-2xl">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">MTD Operating Expenses</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold font-display text-red-600 dark:text-red-400">{settings.currency} {mtdExpensesSum.toLocaleString()}</div>
+                <p className="text-[10px] text-muted-foreground mt-1">Operating costs logged during this calendar month</p>
+              </CardContent>
+            </Card>
+
+            <Card className="relative overflow-hidden bg-gradient-to-br from-indigo-500/5 to-blue-500/5 border border-indigo-500/10 shadow-sm hover:shadow-md hover:-translate-y-1 transition-all duration-300 rounded-2xl">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Total Logged Expenses</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold font-display text-indigo-600 dark:text-indigo-400">{settings.currency} {totalExpensesSum.toLocaleString()}</div>
+                <p className="text-[10px] text-muted-foreground mt-1">Cumulative tracked institutional expenditure</p>
+              </CardContent>
+            </Card>
+
+            <Card className="relative overflow-hidden bg-gradient-to-br from-amber-500/5 to-orange-500/5 border border-amber-500/10 shadow-sm hover:shadow-md hover:-translate-y-1 transition-all duration-300 rounded-2xl">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Top Cost Center</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold font-display text-amber-600 dark:text-amber-400 capitalize">{topCategory}</div>
+                <p className="text-[10px] text-muted-foreground mt-1">Cost segment with highest relative value</p>
+              </CardContent>
+            </Card>
+          </div>
+
+          <Card className="rounded-2xl border shadow-sm">
+            <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between pb-4 border-b gap-4">
+              <div>
+                <CardTitle className="font-display text-lg font-bold">Expense Register</CardTitle>
+                <p className="text-xs text-muted-foreground">Log and monitor outlays, supplier settlements, and operating costs.</p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => setShowExpFilters(!showExpFilters)} 
+                  className={`rounded-xl h-9 text-xs border ${showExpFilters ? "bg-primary/5 border-primary text-primary" : "border-muted-foreground/20"}`}
+                >
+                  <Filter className="h-3.5 w-3.5 mr-1.5" />
+                  <span>Filters</span>
+                  {((expSearch ? 1 : 0) + (expCategory !== "__all" ? 1 : 0) + (expFromDate ? 1 : 0) + (expToDate ? 1 : 0)) > 0 && (
+                    <Badge variant="default" className="ml-1.5 px-1.5 py-0 h-4 min-w-4 text-[9px] rounded-full flex items-center justify-center">
+                      {((expSearch ? 1 : 0) + (expCategory !== "__all" ? 1 : 0) + (expFromDate ? 1 : 0) + (expToDate ? 1 : 0))}
+                    </Badge>
+                  )}
+                </Button>
+                <Button variant="outline" size="sm" onClick={exportExpensesCsv} className="rounded-xl h-9 text-xs border-muted-foreground/20"><Download className="h-3.5 w-3.5 mr-1.5" />Export CSV</Button>
+                <Button variant="outline" size="sm" onClick={printExpensesReport} className="rounded-xl h-9 text-xs border-muted-foreground/20"><Printer className="h-3.5 w-3.5 mr-1.5" />Print Report</Button>
+                <Button onClick={() => {
+                  setEditExpenseId(null);
+                  setExpForm({
+                    description: "",
+                    category: "salaries",
+                    amount: "",
+                    expense_date: format(new Date(), "yyyy-MM-dd"),
+                    vendor: "",
+                    payment_method_id: "",
+                    reference: "",
+                  });
+                  setExpOpen(true);
+                }} className="rounded-xl h-9 text-xs shadow-sm"><Plus className="h-3.5 w-3.5 mr-1.5" />Log Expense</Button>
+              </div>
+            </CardHeader>
+            <CardContent className="p-0">
+              {/* Expandable Advanced Filters Accordion */}
+              <div className={`transition-all duration-300 ease-in-out border-b bg-muted/20 overflow-hidden ${showExpFilters ? "max-h-[300px] p-4 opacity-100" : "max-h-0 opacity-0 pointer-events-none"}`}>
+                <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
+                  <div className="md:col-span-4 space-y-1">
+                    <Label className="text-xs text-muted-foreground">Search text</Label>
+                    <div className="relative">
+                      <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                      <Input value={expSearch} onChange={e => setExpSearch(e.target.value)} placeholder="Search description, supplier..." className="pl-8 h-9 rounded-xl text-xs" />
+                      {expSearch && (
+                        <button type="button" onClick={() => setExpSearch("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  <div className="md:col-span-3 space-y-1">
+                    <Label className="text-xs text-muted-foreground">Category</Label>
+                    <Select value={expCategory} onValueChange={setExpCategory}>
+                      <SelectTrigger className="h-9 rounded-xl text-xs"><SelectValue placeholder="Category" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__all">All categories</SelectItem>
+                        <SelectItem value="rent">Rent</SelectItem>
+                        <SelectItem value="utilities">Utilities</SelectItem>
+                        <SelectItem value="salaries">Salaries & Wages</SelectItem>
+                        <SelectItem value="maintenance">Maintenance</SelectItem>
+                        <SelectItem value="supplies">Supplies & Material</SelectItem>
+                        <SelectItem value="marketing">Marketing & CRM</SelectItem>
+                        <SelectItem value="taxes">Taxes & Levies</SelectItem>
+                        <SelectItem value="software">Software & IT</SelectItem>
+                        <SelectItem value="other">Other</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="md:col-span-5 grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">From Date</Label>
+                      <Input type="date" className="h-9 rounded-xl text-xs" value={expFromDate} onChange={e => setExpFromDate(e.target.value)} />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">To Date</Label>
+                      <Input type="date" className="h-9 rounded-xl text-xs" value={expToDate} onChange={e => setExpToDate(e.target.value)} />
+                    </div>
+                  </div>
+                </div>
+                {((expSearch ? 1 : 0) + (expCategory !== "__all" ? 1 : 0) + (expFromDate ? 1 : 0) + (expToDate ? 1 : 0)) > 0 && (
+                  <div className="mt-3 flex justify-end">
+                    <Button size="xs" variant="ghost" onClick={() => { setExpSearch(""); setExpCategory("__all"); setExpFromDate(""); setExpToDate(""); }} className="text-xs h-7 px-2.5 rounded-lg text-muted-foreground hover:text-foreground">
+                      <X className="h-3 w-3 mr-1" /> Reset Filters
+                    </Button>
+                  </div>
+                )}
+              </div>
+
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="hover:bg-transparent">
+                      <TableHead className="pl-6 py-3">Date</TableHead>
+                      <TableHead>Category</TableHead>
+                      <TableHead>Vendor</TableHead>
+                      <TableHead>Description</TableHead>
+                      <TableHead className="text-right">Amount</TableHead>
+                      <TableHead className="text-right pr-6">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredExpenses.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={6} className="text-center text-muted-foreground py-12">
+                          No expense vouchers found matching the active filters.
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      filteredExpenses.slice(0, 200).map(e => (
+                        <TableRow key={e.id} className="hover:bg-muted/40 transition-colors">
+                          <TableCell className="pl-6 py-3.5 text-xs font-semibold">{format(new Date(e.expense_date), "MMM d, ytd") === "Invalid Date" ? e.expense_date : format(new Date(e.expense_date), "MMM d, yyyy")}</TableCell>
+                          <TableCell><Badge variant="outline" className="capitalize rounded-md text-[10px] px-1.5 py-0.5">{e.category}</Badge></TableCell>
+                          <TableCell className="text-xs font-medium text-foreground">{e.vendor || "—"}</TableCell>
+                          <TableCell className="max-w-xs truncate text-xs text-muted-foreground" title={e.description}>{e.description}</TableCell>
+                          <TableCell className="text-right font-bold text-xs text-foreground">{settings.currency} {Number(e.amount).toLocaleString()}</TableCell>
+                          <TableCell className="text-right pr-6">
+                            <div className="flex justify-end gap-1.5">
+                              <Button size="icon" variant="ghost" className="h-8 w-8 rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/5" onClick={() => { setViewExpense(e); setViewOpen(true); }} title="View details">
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                              {canManage && (
+                                <>
+                                  <Button size="icon" variant="ghost" className="h-8 w-8 rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/5" onClick={() => startEditExpense(e)} title="Edit voucher">
+                                    <Edit2 className="h-4 w-4" />
+                                  </Button>
+                                  <Button size="icon" variant="ghost" className="h-8 w-8 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/5" onClick={() => deleteExpense(e.id)} title="Delete voucher">
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </>
+                              )}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
         {/* ANALYTICS */}
         <TabsContent value="analytics" className="space-y-4">
           <FeesAnalyticsTab
@@ -668,13 +1187,16 @@ export default function FeesAdvancedModule() {
             invoices={invoices as any}
             payments={payments as any}
             students={students as any}
+            expenses={expenses}
             onRefresh={async () => {
-              const [invRes, payRes] = await Promise.all([
+              const [invRes, payRes, expRes] = await Promise.all([
                 supabase.from("fee_invoices").select("*").eq("school_id", schoolId).order("created_at", { ascending: false }).limit(500),
                 supabase.from("fee_payments").select("*").eq("school_id", schoolId).order("paid_at", { ascending: false }).limit(500),
+                supabase.from("finance_expenses").select("*").eq("school_id", schoolId).order("expense_date", { ascending: false }).limit(500),
               ]);
               setInvoices((invRes.data as FeeInvoice[]) || []);
               setPayments((payRes.data as FeePayment[]) || []);
+              setExpenses((expRes.data as any[]) || []);
             }}
           />
         </TabsContent>
@@ -744,6 +1266,156 @@ export default function FeesAdvancedModule() {
             <div><Label>Notes</Label><Textarea value={payForm.notes} onChange={e => setPayForm({ ...payForm, notes: e.target.value })} /></div>
           </div>
           <DialogFooter><Button variant="outline" onClick={() => setPayOpen(false)}>Cancel</Button><Button onClick={recordPayment}>Save</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Expense Dialog */}
+      <Dialog open={expOpen} onOpenChange={setExpOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>{editExpenseId ? "Edit Expense" : "Log Expense"}</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <div><Label>Description</Label><Input value={expForm.description} onChange={e => setExpForm({ ...expForm, description: e.target.value })} placeholder="e.g. Electricity Bill June" /></div>
+            <div><Label>Category</Label>
+              <Select value={expForm.category} onValueChange={v => setExpForm({ ...expForm, category: v })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="rent">Rent</SelectItem>
+                  <SelectItem value="utilities">Utilities</SelectItem>
+                  <SelectItem value="salaries">Salaries & Wages</SelectItem>
+                  <SelectItem value="maintenance">Maintenance</SelectItem>
+                  <SelectItem value="supplies">Supplies & Material</SelectItem>
+                  <SelectItem value="marketing">Marketing & CRM</SelectItem>
+                  <SelectItem value="taxes">Taxes & Levies</SelectItem>
+                  <SelectItem value="software">Software & IT</SelectItem>
+                  <SelectItem value="other">Other</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div><Label>Amount</Label><Input type="number" value={expForm.amount} onChange={e => setExpForm({ ...expForm, amount: e.target.value })} /></div>
+            <div><Label>Expense Date</Label><Input type="date" value={expForm.expense_date} onChange={e => setExpForm({ ...expForm, expense_date: e.target.value })} /></div>
+            <div><Label>Vendor / Paid To</Label><Input value={expForm.vendor} onChange={e => setExpForm({ ...expForm, vendor: e.target.value })} placeholder="e.g. Electric Supply Co." /></div>
+            <div><Label>Payment Method</Label>
+              <Select value={expForm.payment_method_id || ""} onValueChange={v => setExpForm({ ...expForm, payment_method_id: v })}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select Payment Method" />
+                </SelectTrigger>
+                <SelectContent>
+                  {payMethods.map(pm => (
+                    <SelectItem key={pm.id} value={pm.id}>{pm.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div><Label>Reference / Slip #</Label><Input value={expForm.reference} onChange={e => setExpForm({ ...expForm, reference: e.target.value })} placeholder="e.g. Chq-10293, Bank Ref, etc." /></div>
+          </div>
+          <DialogFooter><Button variant="outline" onClick={() => setExpOpen(false)}>Cancel</Button><Button onClick={recordExpense}>Save</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* View Expense Detail Modal (Split-Screen Design) */}
+      <Dialog open={viewOpen} onOpenChange={setViewOpen}>
+        <DialogContent className="sm:max-w-[820px] rounded-3xl p-0 overflow-hidden">
+          {viewExpense && (
+            <div className="grid grid-cols-1 md:grid-cols-2">
+              {/* Left Side: Metadata Logs */}
+              <div className="p-6 space-y-5 flex flex-col justify-between border-b md:border-b-0 md:border-r bg-muted/10">
+                <div className="space-y-4">
+                  <div>
+                    <h3 className="font-display font-bold text-lg text-foreground">Voucher Metadata</h3>
+                    <p className="text-xs text-muted-foreground">Audit trails and transaction properties.</p>
+                  </div>
+                  
+                  <div className="space-y-3 pt-2">
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div>
+                        <Label className="text-[10px] text-muted-foreground uppercase tracking-wider">Date Logged</Label>
+                        <p className="font-semibold text-foreground mt-0.5">{format(new Date(viewExpense.expense_date), "MMMM d, yyyy")}</p>
+                      </div>
+                      <div>
+                        <Label className="text-[10px] text-muted-foreground uppercase tracking-wider">Cost Center</Label>
+                        <p className="font-semibold text-foreground mt-0.5 capitalize">{viewExpense.category}</p>
+                      </div>
+                    </div>
+                    
+                    <div className="border-t pt-2.5">
+                      <Label className="text-[10px] text-muted-foreground uppercase tracking-wider">Supplier / Payee</Label>
+                      <p className="font-semibold text-foreground text-sm mt-0.5">{viewExpense.vendor || "—"}</p>
+                    </div>
+
+                    <div className="border-t pt-2.5">
+                      <Label className="text-[10px] text-muted-foreground uppercase tracking-wider">Description</Label>
+                      <p className="text-muted-foreground text-xs leading-relaxed mt-0.5">{viewExpense.description}</p>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 text-xs border-t pt-2.5">
+                      <div>
+                        <Label className="text-[10px] text-muted-foreground uppercase tracking-wider">Settlement Way</Label>
+                        <p className="font-semibold text-foreground mt-0.5">
+                          {payMethods.find(pm => pm.id === viewExpense.payment_method_id)?.name || "—"}
+                        </p>
+                      </div>
+                      <div>
+                        <Label className="text-[10px] text-muted-foreground uppercase tracking-wider">Reference Slip</Label>
+                        <p className="font-mono font-semibold text-foreground mt-0.5">{viewExpense.reference || "—"}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 pt-4 border-t mt-4">
+                  <Button variant="outline" size="sm" className="rounded-xl flex-1 text-xs" onClick={() => printSingleExpenseReceipt(viewExpense)}>
+                    <Printer className="h-3.5 w-3.5 mr-1.5" /> Print Voucher
+                  </Button>
+                  <Button variant="default" size="sm" className="rounded-xl flex-1 text-xs" onClick={() => setViewOpen(false)}>Close Log</Button>
+                </div>
+              </div>
+
+              {/* Right Side: Virtual Receipt Mock */}
+              <div className="p-6 flex flex-col justify-center items-center bg-card relative min-h-[360px]">
+                {/* Decorative Scissors Cut Line */}
+                <div className="absolute top-4 left-0 right-0 flex items-center justify-center pointer-events-none opacity-20">
+                  <span className="border-t border-dashed w-[90%] border-foreground" />
+                </div>
+                
+                {/* Visual Voucher Slip */}
+                <div className="w-full max-w-[280px] border border-muted-foreground/30 p-5 rounded-2xl shadow-lg bg-surface/50 border-dashed space-y-4 flex flex-col justify-between select-none">
+                  <div className="text-center space-y-1">
+                    <p className="font-display font-extrabold text-[10px] tracking-widest text-muted-foreground uppercase">Expense Slip</p>
+                    <p className="font-mono text-[9px] text-muted-foreground">ID: #{viewExpense.id?.slice(0, 8).toUpperCase()}</p>
+                  </div>
+                  
+                  <div className="space-y-2 py-2 border-y border-dashed border-muted-foreground/30 text-[11px] font-mono">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">DATE:</span>
+                      <span className="font-bold">{format(new Date(viewExpense.expense_date), "yyyy-MM-dd")}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">PAYEE:</span>
+                      <span className="font-bold truncate max-w-[140px]">{viewExpense.vendor || "CASH OUT"}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">SLIP #:</span>
+                      <span className="font-bold">{viewExpense.reference?.slice(0, 10) || "—"}</span>
+                    </div>
+                  </div>
+
+                  <div className="text-center space-y-1.5 pt-2">
+                    <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Total Debited</p>
+                    <p className="text-xl font-extrabold text-red-600 dark:text-red-400">
+                      {settings.currency} {Number(viewExpense.amount).toLocaleString()}
+                    </p>
+                  </div>
+
+                  {/* Stamp Graphic */}
+                  <div className="flex justify-center pt-2">
+                    <div className="border-[2px] border-emerald-500/50 text-emerald-500/60 font-mono font-bold text-[10px] px-2.5 py-0.5 rounded rotate-12 uppercase tracking-widest select-none">
+                      Paid & Cleared
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

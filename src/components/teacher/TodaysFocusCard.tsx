@@ -2,31 +2,28 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { format } from "date-fns";
 import {
-  AlertCircle,
-  BookOpen,
   CalendarCheck,
   Clock,
-  FileText,
-  MessageSquare,
   Sparkles,
+  ArrowRight,
+  Coffee,
+  CheckCircle2,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/hooks/useSession";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 
 interface TodaysFocusData {
-  classesToday: number;
   currentPeriod: string | null;
+  currentSubject: string | null;
+  currentRoom: string | null;
   nextPeriod: string | null;
+  nextSubject: string | null;
   nextPeriodTime: string | null;
-  pendingSubmissions: number;
-  upcomingDeadlines: { title: string; due: string }[];
-  unreadMessages: number;
-  attendanceCompleted: number;
-  attendanceTotal: number;
+  classesToday: number;
 }
 
 interface Props {
@@ -46,7 +43,6 @@ export function TodaysFocusCard({ schoolId, schoolSlug, sectionIds }: Props) {
     const fetchData = async () => {
       setLoading(true);
       const today = new Date();
-      const todayStr = format(today, "yyyy-MM-dd");
       const dayOfWeek = today.getDay(); // 0-6
 
       // Get today's timetable entries
@@ -63,7 +59,10 @@ export function TodaysFocusCard({ schoolId, schoolSlug, sectionIds }: Props) {
       // Calculate current and next period
       const now = format(today, "HH:mm:ss");
       let currentPeriod: string | null = null;
+      let currentSubject: string | null = null;
+      let currentRoom: string | null = null;
       let nextPeriod: string | null = null;
+      let nextSubject: string | null = null;
       let nextPeriodTime: string | null = null;
 
       if (timetableEntries && timetableEntries.length > 0) {
@@ -74,80 +73,25 @@ export function TodaysFocusCard({ schoolId, schoolSlug, sectionIds }: Props) {
           const endTime = period.end_time || "23:59:59";
 
           if (now >= startTime && now <= endTime) {
-            currentPeriod = `${entry.subject_name} (${period.label})`;
+            currentPeriod = period.label;
+            currentSubject = entry.subject_name;
+            currentRoom = entry.room;
           } else if (now < startTime && !nextPeriod) {
-            nextPeriod = `${entry.subject_name} (${period.label})`;
+            nextPeriod = period.label;
+            nextSubject = entry.subject_name;
             nextPeriodTime = startTime.slice(0, 5);
           }
         }
       }
 
-      // Get pending submissions to grade
-      let pendingSubmissions = 0;
-      const { count: submissionCount } = await supabase
-        .from("assignment_submissions")
-        .select("id", { count: "exact", head: true })
-        .eq("school_id", schoolId)
-        .eq("status", "submitted")
-        .in("assignment_id", (
-          await supabase
-            .from("assignments")
-            .select("id")
-            .eq("school_id", schoolId)
-            .eq("teacher_user_id", user.id)
-        ).data?.map(a => a.id) || []);
-      pendingSubmissions = submissionCount || 0;
-
-      // Get upcoming deadlines (next 3 days)
-      const threeDaysLater = new Date();
-      threeDaysLater.setDate(threeDaysLater.getDate() + 3);
-      const { data: homeworkData } = await supabase
-        .from("homework")
-        .select("title, due_date")
-        .eq("school_id", schoolId)
-        .eq("teacher_user_id", user.id)
-        .eq("status", "active")
-        .gte("due_date", todayStr)
-        .lte("due_date", format(threeDaysLater, "yyyy-MM-dd"))
-        .order("due_date", { ascending: true })
-        .limit(3);
-
-      const upcomingDeadlines = homeworkData?.map(h => ({
-        title: h.title,
-        due: h.due_date,
-      })) || [];
-
-      // Get unread messages
-      const { count: unreadCount } = await supabase
-        .from("admin_message_recipients")
-        .select("id", { count: "exact", head: true })
-        .eq("recipient_user_id", user.id)
-        .eq("is_read", false);
-
-      // Get attendance completion for today
-      let attendanceCompleted = 0;
-      let attendanceTotal = 0;
-      if (sectionIds.length > 0) {
-        attendanceTotal = sectionIds.length;
-        const { count } = await supabase
-          .from("attendance_sessions")
-          .select("id", { count: "exact", head: true })
-          .eq("school_id", schoolId)
-          .eq("session_date", todayStr)
-          .in("class_section_id", sectionIds);
-        attendanceCompleted = count || 0;
-      }
-
       setData({
-        classesToday,
         currentPeriod,
+        currentSubject,
+        currentRoom,
         nextPeriod,
+        nextSubject,
         nextPeriodTime,
-        pendingSubmissions,
-        upcomingDeadlines,
-        unreadMessages: unreadCount || 0,
-        attendanceCompleted,
-        attendanceTotal,
+        classesToday,
       });
       setLoading(false);
     };
@@ -157,16 +101,16 @@ export function TodaysFocusCard({ schoolId, schoolSlug, sectionIds }: Props) {
 
   if (loading) {
     return (
-      <Card className="border-primary/20 bg-gradient-to-br from-primary/5 to-primary/10">
-        <CardHeader className="pb-3">
-          <Skeleton className="h-6 w-48" />
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-            {[...Array(4)].map((_, i) => (
-              <Skeleton key={i} className="h-20 w-full" />
-            ))}
+      <Card className="border-primary/10 bg-surface/50 shadow-soft">
+        <CardContent className="p-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Skeleton className="h-10 w-10 rounded-xl" />
+            <div className="space-y-1">
+              <Skeleton className="h-4 w-32" />
+              <Skeleton className="h-3 w-48" />
+            </div>
           </div>
+          <Skeleton className="h-9 w-24 rounded-lg" />
         </CardContent>
       </Card>
     );
@@ -174,153 +118,94 @@ export function TodaysFocusCard({ schoolId, schoolSlug, sectionIds }: Props) {
 
   if (!data) return null;
 
-  const attendanceProgress = data.attendanceTotal > 0 
-    ? Math.round((data.attendanceCompleted / data.attendanceTotal) * 100) 
-    : 0;
+  const hasSchedule = data.classesToday > 0;
+  const isCurrentlyTeaching = !!data.currentSubject;
+  const hasUpcomingClass = !!data.nextSubject;
 
   return (
-    <Card className="border-primary/20 bg-gradient-to-br from-primary/5 via-background to-primary/10 overflow-hidden">
-      <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Sparkles className="h-5 w-5 text-primary" />
-            <CardTitle className="text-lg">Today's Focus</CardTitle>
-          </div>
-          <Badge variant="outline" className="text-xs">
-            {format(new Date(), "EEEE, MMM d")}
-          </Badge>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {/* Current/Next Period Banner */}
-        {(data.currentPeriod || data.nextPeriod) && (
-          <div className="rounded-xl bg-primary/10 p-3 sm:p-4">
-            {data.currentPeriod ? (
-              <div className="flex items-center gap-2">
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary animate-pulse">
-                  <Clock className="h-4 w-4 text-primary-foreground" />
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Currently Teaching</p>
-                  <p className="font-semibold text-sm sm:text-base">{data.currentPeriod}</p>
-                </div>
-              </div>
-            ) : data.nextPeriod ? (
-              <div className="flex items-center gap-2">
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-muted">
-                  <Clock className="h-4 w-4" />
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Next Up at {data.nextPeriodTime}</p>
-                  <p className="font-semibold text-sm sm:text-base">{data.nextPeriod}</p>
-                </div>
-              </div>
-            ) : null}
-          </div>
-        )}
-
-        {/* Stats Grid */}
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          {/* Classes Today */}
-          <Link
-            to={`/${schoolSlug}/teacher/timetable`}
-            className="flex flex-col items-center gap-1 rounded-xl border bg-background/50 p-3 text-center transition-all hover:bg-accent hover:shadow-md"
-          >
-            <CalendarCheck className="h-5 w-5 text-primary" />
-            <span className="text-xl font-bold">{data.classesToday}</span>
-            <span className="text-[10px] text-muted-foreground">Classes Today</span>
-          </Link>
-
-          {/* Pending Submissions */}
-          <Link
-            to={`/${schoolSlug}/teacher/assignments`}
-            className="relative flex flex-col items-center gap-1 rounded-xl border bg-background/50 p-3 text-center transition-all hover:bg-accent hover:shadow-md"
-          >
-            {data.pendingSubmissions > 0 && (
-              <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-destructive text-[10px] font-bold text-destructive-foreground">
-                {data.pendingSubmissions > 9 ? "9+" : data.pendingSubmissions}
-              </span>
-            )}
-            <FileText className="h-5 w-5 text-orange-500" />
-            <span className="text-xl font-bold">{data.pendingSubmissions}</span>
-            <span className="text-[10px] text-muted-foreground">To Grade</span>
-          </Link>
-
-          {/* Unread Messages */}
-          <Link
-            to={`/${schoolSlug}/teacher/messages`}
-            className="relative flex flex-col items-center gap-1 rounded-xl border bg-background/50 p-3 text-center transition-all hover:bg-accent hover:shadow-md"
-          >
-            {data.unreadMessages > 0 && (
-              <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-destructive text-[10px] font-bold text-destructive-foreground">
-                {data.unreadMessages > 9 ? "9+" : data.unreadMessages}
-              </span>
-            )}
-            <MessageSquare className="h-5 w-5 text-blue-500" />
-            <span className="text-xl font-bold">{data.unreadMessages}</span>
-            <span className="text-[10px] text-muted-foreground">Unread</span>
-          </Link>
-
-          {/* Attendance Progress */}
-          <Link
-            to={`/${schoolSlug}/teacher/attendance`}
-            className="flex flex-col items-center gap-1 rounded-xl border bg-background/50 p-3 text-center transition-all hover:bg-accent hover:shadow-md"
-          >
-            <div className="relative">
-              <svg className="h-8 w-8 -rotate-90">
-                <circle
-                  cx="16"
-                  cy="16"
-                  r="12"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="4"
-                  className="text-muted"
-                />
-                <circle
-                  cx="16"
-                  cy="16"
-                  r="12"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="4"
-                  strokeDasharray={`${(attendanceProgress / 100) * 75.4} 75.4`}
-                  className="text-green-500"
-                />
-              </svg>
+    <Card className="border-primary/10 bg-gradient-to-br from-primary/5 via-background to-primary/5 shadow-soft transition-all duration-300 hover:shadow-elevated hover:border-primary/20 overflow-hidden">
+      <CardContent className="p-4 sm:p-5">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          
+          {/* Main Info Area */}
+          <div className="flex items-start gap-3.5 min-w-0">
+            <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${
+              isCurrentlyTeaching 
+                ? "bg-primary text-primary-foreground shadow-md shadow-primary/20 animate-pulse" 
+                : hasUpcomingClass 
+                  ? "bg-primary/10 text-primary" 
+                  : "bg-muted text-muted-foreground"
+            }`}>
+              {isCurrentlyTeaching ? (
+                <Sparkles className="h-5 w-5" />
+              ) : hasUpcomingClass ? (
+                <Clock className="h-5 w-5" />
+              ) : (
+                <Coffee className="h-5 w-5" />
+              )}
             </div>
-            <span className="text-sm font-bold">{data.attendanceCompleted}/{data.attendanceTotal}</span>
-            <span className="text-[10px] text-muted-foreground">Attendance</span>
-          </Link>
-        </div>
 
-        {/* Upcoming Deadlines */}
-        {data.upcomingDeadlines.length > 0 && (
-          <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <AlertCircle className="h-4 w-4 text-amber-500" />
-              <p className="text-xs font-medium text-muted-foreground">Upcoming Deadlines</p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {data.upcomingDeadlines.map((deadline, i) => (
-                <Badge key={i} variant="secondary" className="text-xs">
-                  <BookOpen className="mr-1 h-3 w-3" />
-                  {deadline.title} • {format(new Date(deadline.due), "MMM d")}
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  {isCurrentlyTeaching ? "In Progress" : hasUpcomingClass ? "Up Next Today" : "Status"}
+                </span>
+                <Badge variant="outline" className="text-[10px] font-medium bg-background px-1.5 py-0">
+                  {format(new Date(), "EEEE, MMM d")}
                 </Badge>
-              ))}
+              </div>
+
+              {isCurrentlyTeaching ? (
+                <p className="mt-1 font-display text-base font-bold tracking-tight text-foreground sm:text-lg">
+                  {data.currentSubject}{" "}
+                  <span className="text-xs font-normal text-muted-foreground">
+                    ({data.currentPeriod} • Room {data.currentRoom || "N/A"})
+                  </span>
+                </p>
+              ) : hasUpcomingClass ? (
+                <p className="mt-1 font-display text-base font-bold tracking-tight text-foreground sm:text-lg">
+                  {data.nextSubject}{" "}
+                  <span className="text-xs font-normal text-muted-foreground">
+                    (Period {data.nextPeriod} at {data.nextPeriodTime})
+                  </span>
+                </p>
+              ) : (
+                <div className="mt-1 flex items-center gap-1.5">
+                  <CheckCircle2 className="h-4 w-4 text-success shrink-0" />
+                  <p className="font-display text-sm font-semibold text-foreground sm:text-base">
+                    {hasSchedule 
+                      ? "All scheduled classes for today are complete!" 
+                      : "No classes scheduled for today."}
+                  </p>
+                </div>
+              )}
             </div>
           </div>
-        )}
 
-        {/* Quick Action */}
-        {data.attendanceCompleted < data.attendanceTotal && (
-          <Button asChild size="sm" className="w-full">
-            <Link to={`/${schoolSlug}/teacher/attendance`}>
-              <CalendarCheck className="mr-2 h-4 w-4" />
-              Complete Today's Attendance ({data.attendanceTotal - data.attendanceCompleted} remaining)
-            </Link>
-          </Button>
-        )}
+          {/* Quick Action Buttons */}
+          <div className="flex shrink-0 items-center gap-2 sm:self-center">
+            {isCurrentlyTeaching ? (
+              <Button asChild size="sm" className="rounded-xl shadow-soft">
+                <Link to={`/${schoolSlug}/teacher/attendance`}>
+                  Manage Attendance <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
+                </Link>
+              </Button>
+            ) : hasUpcomingClass ? (
+              <Button asChild variant="outline" size="sm" className="rounded-xl bg-background hover:bg-accent">
+                <Link to={`/${schoolSlug}/teacher/timetable`}>
+                  View Schedule <CalendarCheck className="ml-1.5 h-3.5 w-3.5" />
+                </Link>
+              </Button>
+            ) : (
+              <Button asChild variant="ghost" size="sm" className="rounded-xl text-primary hover:text-primary/80">
+                <Link to={`/${schoolSlug}/teacher/timetable`}>
+                  Timetable Details <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
+                </Link>
+              </Button>
+            )}
+          </div>
+
+        </div>
       </CardContent>
     </Card>
   );

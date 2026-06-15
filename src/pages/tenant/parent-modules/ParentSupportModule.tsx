@@ -137,6 +137,31 @@ const ParentSupportModule = ({ child, schoolId }: ParentSupportModuleProps) => {
       console.error("Failed to send message:", error);
     } else {
       setDraft("");
+
+      // Notify support staff
+      try {
+        const { data: staffRoles } = await supabase
+          .from("user_roles")
+          .select("user_id")
+          .eq("school_id", schoolId)
+          .in("role", ["counselor", "principal", "school_admin", "school_owner"]);
+
+        if (staffRoles && staffRoles.length > 0) {
+          const userIds = Array.from(new Set(staffRoles.map(r => r.user_id).filter(Boolean)));
+          const notificationRows = userIds.map(uid => ({
+            school_id: schoolId,
+            user_id: uid,
+            type: "support",
+            title: "New Support Message",
+            body: `A parent has sent a support message regarding student ${child?.first_name || "member"}.`,
+            entity_type: "support_conversations",
+            entity_id: conversationId
+          }));
+          await supabase.from("app_notifications").insert(notificationRows);
+        }
+      } catch (notifErr) {
+        console.warn("Failed to notify staff about parent support message:", notifErr);
+      }
     }
 
     setSending(false);

@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
-import { supabase, USE_FASTAPI } from "@/integrations/supabase/client";
-import { apiClient } from "@/lib/api-client";
+import { supabase, USE_FASTAPI, setUseFastAPI } from "@/integrations/supabase/client";
+import { apiClient, isNetworkOrProxyError } from "@/lib/api-client";
 
-export type PresenceStatus = "in_class" | "left" | "late";
+export type PresenceStatus = "in_class" | "left" | "late" | "completed";
 
 export interface PresenceRow {
   id: string;
@@ -18,9 +18,13 @@ function todayISO() {
 }
 
 /**
- * Manages the current teacher's period-presence rows for today.
+ * Manages the current teacher's period-presence rows.
  */
-export function useTeacherPresence(schoolId: string | null, teacherUserId: string | null) {
+export function useTeacherPresence(
+  schoolId: string | null,
+  teacherUserId: string | null,
+  selectedDate?: string
+) {
   const [rows, setRows] = useState<Map<string, PresenceRow>>(new Map());
   const [saving, setSaving] = useState<string | null>(null);
   const [reconnectVersion, setReconnectVersion] = useState(0);
@@ -31,35 +35,56 @@ export function useTeacherPresence(schoolId: string | null, teacherUserId: strin
     { entryId: string; status: PresenceStatus; ts: number } | null
   >(null);
 
+  const dateStr = selectedDate || todayISO();
+
   const load = useCallback(async () => {
     if (!schoolId || !teacherUserId) return;
+
+    const runSupabaseLoad = async () => {
+      const { data: res, error } = await (supabase as any)
+        .from("teacher_period_presence")
+        .select("id, timetable_entry_id, status, entered_at, left_at, period_date")
+        .eq("school_id", schoolId)
+        .eq("teacher_user_id", teacherUserId)
+        .eq("period_date", dateStr);
+      if (error) throw error;
+      return res || [];
+    };
+
     try {
       let data: PresenceRow[] = [];
-      if (USE_FASTAPI) {
-        const resp = await apiClient.get<PresenceRow[]>("/teachers/presence", {
-          params: {
-            teacher_user_id: teacherUserId,
-            period_date: todayISO(),
-          },
-        });
-        data = resp.data;
-      } else {
-        const { data: res, error } = await (supabase as any)
-          .from("teacher_period_presence")
-          .select("id, timetable_entry_id, status, entered_at, left_at, period_date")
-          .eq("school_id", schoolId)
-          .eq("teacher_user_id", teacherUserId)
-          .eq("period_date", todayISO());
-        if (error) return;
-        data = res || [];
+      let useFastApiActive = USE_FASTAPI;
+      if (useFastApiActive) {
+        try {
+          const resp = await apiClient.get<PresenceRow[]>("/teachers/presence", {
+            params: {
+              teacher_user_id: teacherUserId,
+              period_date: dateStr,
+            },
+          });
+          data = resp.data;
+        } catch (apiErr: any) {
+          if (isNetworkOrProxyError(apiErr)) {
+            console.warn("Failed to load teacher presence via FastAPI, falling back to Supabase", apiErr);
+            setUseFastAPI(false);
+            useFastApiActive = false;
+          } else {
+            throw apiErr;
+          }
+        }
       }
+
+      if (!useFastApiActive) {
+        data = await runSupabaseLoad();
+      }
+
       const map = new Map<string, PresenceRow>();
       data.forEach((r) => map.set(r.timetable_entry_id, r));
       setRows(map);
     } catch (err) {
       console.error("Failed to load teacher presence", err);
     }
-  }, [schoolId, teacherUserId]);
+  }, [schoolId, teacherUserId, dateStr]);
 
   useEffect(() => {
     load();
@@ -105,6 +130,7 @@ export function useTeacherPresence(schoolId: string | null, teacherUserId: strin
             load();
             return;
           }
+          if (row.period_date !== dateStr) return;
           setRows((prev) => {
             const next = new Map(prev);
             if (payload.eventType === "DELETE") {
@@ -150,7 +176,7 @@ export function useTeacherPresence(schoolId: string | null, teacherUserId: strin
       if (backoffTimer) clearTimeout(backoffTimer);
       supabase.removeChannel(ch);
     };
-  }, [schoolId, teacherUserId, load, reconnectVersion]);
+  }, [schoolId, teacherUserId, load, reconnectVersion, dateStr]);
 
   const setStatus = useCallback(
     async (
@@ -170,7 +196,7 @@ export function useTeacherPresence(schoolId: string | null, teacherUserId: strin
         const startMin = h * 60 + m;
         const now = new Date();
         const curMin = now.getHours() * 60 + now.getMinutes();
-        if (curMin > startMin) effectiveStatus = "late";
+        if (curMin > startMin + 5) effectiveStatus = "late";
       }
 
       if (
@@ -186,15 +212,15 @@ export function useTeacherPresence(schoolId: string | null, teacherUserId: strin
         school_id: schoolId,
         teacher_user_id: teacherUserId,
         timetable_entry_id: timetableEntryId,
-        period_date: todayISO(),
+        period_date: dateStr,
         status: effectiveStatus,
         reason: opts?.reason ?? null,
       };
       if (effectiveStatus === "in_class" || effectiveStatus === "late") {
         payload.entered_at = existing?.entered_at ?? nowIso;
         payload.left_at = effectiveStatus === "late" ? existing?.left_at ?? null : null;
-      } else if (effectiveStatus === "left") {
-        payload.entered_at = existing?.entered_at ?? null;
+      } else if (effectiveStatus === "left" || effectiveStatus === "completed") {
+        payload.entered_at = existing?.entered_at ?? nowIso;
         payload.left_at = nowIso;
       }
 
@@ -205,7 +231,7 @@ export function useTeacherPresence(schoolId: string | null, teacherUserId: strin
         status: effectiveStatus,
         entered_at: (payload.entered_at as string | null) ?? null,
         left_at: (payload.left_at as string | null) ?? null,
-        period_date: todayISO(),
+        period_date: dateStr,
       };
       const prevRow = existing ?? null;
       setRows((prev) => {
@@ -215,12 +241,13 @@ export function useTeacherPresence(schoolId: string | null, teacherUserId: strin
       });
 
       let error: any = null;
-      if (USE_FASTAPI) {
+      let useFastApiActive = USE_FASTAPI;
+      if (useFastApiActive) {
         try {
           await apiClient.post("/teachers/presence", {
             timetable_entry_id: timetableEntryId,
             status: effectiveStatus,
-            period_date: todayISO(),
+            period_date: dateStr,
             reason: opts?.reason ?? null,
             entered_at: (payload.entered_at as string | null) ?? null,
             left_at: (payload.left_at as string | null) ?? null,
@@ -230,9 +257,17 @@ export function useTeacherPresence(schoolId: string | null, teacherUserId: strin
             },
           });
         } catch (err: any) {
-          error = err;
+          if (isNetworkOrProxyError(err)) {
+            console.warn("Failed to set teacher presence via FastAPI, falling back to Supabase", err);
+            setUseFastAPI(false);
+            useFastApiActive = false;
+          } else {
+            error = err;
+          }
         }
-      } else {
+      }
+
+      if (!useFastApiActive) {
         const { error: upsertErr } = await (supabase as any)
           .from("teacher_period_presence")
           .upsert(payload, {
@@ -255,7 +290,7 @@ export function useTeacherPresence(schoolId: string | null, teacherUserId: strin
       }
       return { error, effectiveStatus };
     },
-    [schoolId, teacherUserId, rows, load, saving],
+    [schoolId, teacherUserId, rows, load, saving, dateStr],
   );
 
   return { rows, setStatus, saving, refetch: load, realtimeStatus, lastEcho };

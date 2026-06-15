@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Optional
 
 from sqlalchemy import (
-    Boolean, Column, DateTime, ForeignKey, Integer, String, Text, JSON
+    Boolean, Column, DateTime, Float, ForeignKey, Integer, String, Text, JSON
 )
 from sqlalchemy.dialects.postgresql import UUID, ARRAY
 from sqlalchemy.orm import relationship
@@ -26,13 +26,11 @@ class School(Base):
     phone = Column(String, nullable=True)
     email = Column(String, nullable=True)
     website = Column(String, nullable=True)
-    tagline = Column(String, nullable=True)
     motto = Column(String, nullable=True)
     is_active = Column(Boolean, default=True, nullable=True)
-    owner_user_id = Column(UUID(as_uuid=True), nullable=True)
-    subscription_plan = Column(String, nullable=True)
-    subscription_status = Column(String, nullable=True)
-    trial_ends_at = Column(DateTime(timezone=True), nullable=True)
+    latitude = Column(Float, nullable=True)
+    longitude = Column(Float, nullable=True)
+    altitude = Column(Float, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=True)
     updated_at = Column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
 
@@ -40,17 +38,67 @@ class School(Base):
     campuses = relationship("Campus", back_populates="school")
     user_roles = relationship("UserRole", back_populates="school")
 
+    # Property wrappers for backward compatibility with schema fields not in DB
+    @property
+    def tagline(self) -> Optional[str]:
+        return None
+
+    @tagline.setter
+    def tagline(self, val: Optional[str]):
+        pass
+
+    @property
+    def subscription_plan(self) -> Optional[str]:
+        return None
+
+    @subscription_plan.setter
+    def subscription_plan(self, val: Optional[str]):
+        pass
+
+    @property
+    def subscription_status(self) -> Optional[str]:
+        return None
+
+    @subscription_status.setter
+    def subscription_status(self, val: Optional[str]):
+        pass
+
+    @property
+    def trial_ends_at(self) -> Optional[datetime]:
+        return None
+
+    @trial_ends_at.setter
+    def trial_ends_at(self, val: Optional[datetime]):
+        pass
+
+    @property
+    def owner_user_id(self) -> Optional[uuid.UUID]:
+        return None
+
+    @owner_user_id.setter
+    def owner_user_id(self, val: Optional[uuid.UUID]):
+        pass
+
 
 class Profile(Base):
     __tablename__ = "profiles"
 
     id = Column(UUID(as_uuid=True), primary_key=True)  # same as auth.users.id
     email = Column(String, nullable=True)
-    full_name = Column(String, nullable=True)
+    display_name = Column(String, nullable=True)
     avatar_url = Column(String, nullable=True)
     phone = Column(String, nullable=True)
+    bio = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=True)
     updated_at = Column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
+
+    @property
+    def full_name(self) -> Optional[str]:
+        return self.display_name
+
+    @full_name.setter
+    def full_name(self, value: Optional[str]):
+        self.display_name = value
 
 
 class UserRole(Base):
@@ -60,12 +108,18 @@ class UserRole(Base):
     user_id = Column(UUID(as_uuid=True), nullable=False)
     school_id = Column(UUID(as_uuid=True), ForeignKey("schools.id"), nullable=False)
     role = Column(String, nullable=False)
-    campus_id = Column(UUID(as_uuid=True), ForeignKey("campuses.id"), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=True)
 
     # Relationships
     school = relationship("School", back_populates="user_roles")
-    campus = relationship("Campus")
+
+    @property
+    def campus_id(self) -> Optional[uuid.UUID]:
+        return None
+
+    @campus_id.setter
+    def campus_id(self, val: Optional[uuid.UUID]):
+        pass
 
 
 class SchoolMembership(Base):
@@ -75,7 +129,15 @@ class SchoolMembership(Base):
     user_id = Column(UUID(as_uuid=True), nullable=False)
     school_id = Column(UUID(as_uuid=True), ForeignKey("schools.id"), nullable=False)
     status = Column(String, nullable=True, default="active")
-    joined_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=True)
+
+    @property
+    def joined_at(self) -> Optional[datetime]:
+        return self.created_at
+
+    @joined_at.setter
+    def joined_at(self, value: Optional[datetime]):
+        self.created_at = value
 
 
 class SchoolBranding(Base):
@@ -83,22 +145,54 @@ class SchoolBranding(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     school_id = Column(UUID(as_uuid=True), ForeignKey("schools.id"), nullable=False, unique=True)
-    primary_color = Column(String, nullable=True)
-    secondary_color = Column(String, nullable=True)
-    accent_color = Column(String, nullable=True)
-    logo_url = Column(String, nullable=True)
-    favicon_url = Column(String, nullable=True)
-    banner_url = Column(String, nullable=True)
-    font_family = Column(String, nullable=True)
+    accent_hue = Column(Float, nullable=True)
+    accent_saturation = Column(Float, nullable=True)
+    accent_lightness = Column(Float, nullable=True)
+    radius_scale = Column(Float, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=True)
     updated_at = Column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
+
+    # Property wrappers for colors and other old UI details
+    @property
+    def primary_color(self) -> Optional[str]: return None
+    @primary_color.setter
+    def primary_color(self, val: Optional[str]): pass
+
+    @property
+    def secondary_color(self) -> Optional[str]: return None
+    @secondary_color.setter
+    def secondary_color(self, val: Optional[str]): pass
+
+    @property
+    def accent_color(self) -> Optional[str]: return None
+    @accent_color.setter
+    def accent_color(self, val: Optional[str]): pass
+
+    @property
+    def logo_url(self) -> Optional[str]: return None
+    @logo_url.setter
+    def logo_url(self, val: Optional[str]): pass
+
+    @property
+    def favicon_url(self) -> Optional[str]: return None
+    @favicon_url.setter
+    def favicon_url(self, val: Optional[str]): pass
+
+    @property
+    def banner_url(self) -> Optional[str]: return None
+    @banner_url.setter
+    def banner_url(self, val: Optional[str]): pass
+
+    @property
+    def font_family(self) -> Optional[str]: return None
+    @font_family.setter
+    def font_family(self, val: Optional[str]): pass
 
 
 class PlatformSuperAdmin(Base):
     __tablename__ = "platform_super_admins"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id = Column(UUID(as_uuid=True), nullable=False, unique=True)
+    user_id = Column(UUID(as_uuid=True), primary_key=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=True)
 
 
