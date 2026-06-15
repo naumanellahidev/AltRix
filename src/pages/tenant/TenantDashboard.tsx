@@ -43,6 +43,7 @@ const MarketingSourcesModule = lazy(() => import("@/pages/tenant/marketing-modul
 const MarketingCampaignsModule = lazy(() => import("@/pages/tenant/marketing-modules/MarketingCampaignsModule").then(m => ({ default: m.MarketingCampaignsModule })));
 const AccountantFeesModule = lazy(() => import("@/pages/tenant/accountant-modules/AccountantFeesModule").then(m => ({ default: m.AccountantFeesModule })));
 const FeesUnifiedModule = lazy(() => import("@/pages/tenant/modules/FeesUnifiedModule"));
+const OwnerFinanceModule = lazy(() => import("@/pages/tenant/owner-modules/OwnerFinanceModule").then(m => ({ default: m.OwnerFinanceModule })));
 
 const AccountantInvoicesModule = lazy(() => import("@/pages/tenant/accountant-modules/AccountantInvoicesModule").then(m => ({ default: m.AccountantInvoicesModule })));
 const AccountantPaymentsModule = lazy(() => import("@/pages/tenant/accountant-modules/AccountantPaymentsModule").then(m => ({ default: m.AccountantPaymentsModule })));
@@ -517,6 +518,7 @@ const TenantDashboard = () => {
                 <Route path="timetable" element={<TimetableBuilderModule />} />
                 <Route path="attendance" element={<AttendanceModule />} />
                 <Route path="fees" element={<FeesUnifiedModule />} />
+                <Route path="finance" element={<OwnerFinanceModule schoolId={tenant.schoolId} role={role} />} />
                 <Route path="invoices" element={<AccountantInvoicesModule />} />
                 <Route path="payments" element={<AccountantPaymentsModule />} />
                 <Route path="expenses" element={<AccountantExpensesModule />} />

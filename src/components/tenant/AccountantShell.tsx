@@ -50,16 +50,17 @@ export function AccountantShell({ title, subtitle, schoolSlug, children }: Props
     const hidden = new Set(["finance", "notices", "holidays", "complaints", "counseling", "support"]);
     const financeOrder = new Map([
       ["", 0],
-      ["fees", 1],
-      ["invoices", 2],
-      ["payments", 3],
-      ["expenses", 4],
-      ["payroll", 5],
-      ["ledger", 6],
-      ["vendors", 7],
-      ["tax", 8],
-      ["reports", 9],
-      ["messages", 10],
+      ["finance", 1],
+      ["fees", 2],
+      ["invoices", 3],
+      ["payments", 4],
+      ["expenses", 5],
+      ["payroll", 6],
+      ["ledger", 7],
+      ["vendors", 8],
+      ["tax", 9],
+      ["reports", 10],
+      ["messages", 11],
     ]);
 
     return resolvePermissions(["accountant"]).visibleModules

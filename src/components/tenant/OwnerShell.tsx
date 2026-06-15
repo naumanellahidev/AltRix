@@ -24,6 +24,7 @@ import {
   TrendingUp,
   Users,
   ChevronDown,
+  BarChart3,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { GlobalCommandPalette } from "@/components/global/GlobalCommandPalette";
@@ -91,7 +92,7 @@ export function OwnerShell({ title, subtitle, schoolSlug, children }: Props) {
     { to: basePath, icon: LayoutGrid, label: "Overview", end: true },
     { to: `${basePath}/academics`, icon: GraduationCap, label: "Academics Intelligence" },
     { to: `${basePath}/admissions`, icon: TrendingUp, label: "Admissions & Growth" },
-    { to: `${basePath}/fees`, icon: Coins, label: "Fees Center & Profitability" },
+    { to: `${basePath}/finance`, icon: BarChart3, label: "Finance & Cashflow" },
     { to: `${basePath}/hr`, icon: Users, label: "HR & Culture" },
     { to: `${basePath}/ai`, icon: Sparkles, label: "AI Command Center" },
     { to: `${basePath}/messages`, icon: MessageSquare, label: "Messages", badge: unreadCount },
@@ -122,7 +123,7 @@ export function OwnerShell({ title, subtitle, schoolSlug, children }: Props) {
 
   const bottomNavItems = [
     { to: basePath, icon: LayoutGrid, label: "Overview" },
-    { to: `${basePath}/fees`, icon: Coins, label: "Fees" },
+    { to: `${basePath}/finance`, icon: BarChart3, label: "Finance" },
     { to: `${basePath}/academics`, icon: GraduationCap, label: "Academics" },
     { to: `${basePath}/advisor`, icon: Brain, label: "AI Advisor" },
   ];

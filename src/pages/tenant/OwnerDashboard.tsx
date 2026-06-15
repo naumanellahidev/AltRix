@@ -13,6 +13,7 @@ const OwnerOverviewModule = lazy(() => import("@/pages/tenant/owner-modules/Owne
 const OwnerAcademicsModule = lazy(() => import("@/pages/tenant/owner-modules/OwnerAcademicsModule").then(m => ({ default: m.OwnerAcademicsModule })));
 const OwnerAdmissionsModule = lazy(() => import("@/pages/tenant/owner-modules/OwnerAdmissionsModule").then(m => ({ default: m.OwnerAdmissionsModule })));
 const OwnerHrModule = lazy(() => import("@/pages/tenant/owner-modules/OwnerHrModule").then(m => ({ default: m.OwnerHrModule })));
+const OwnerFinanceModule = lazy(() => import("@/pages/tenant/owner-modules/OwnerFinanceModule").then(m => ({ default: m.OwnerFinanceModule })));
 const OwnerWellbeingModule = lazy(() => import("@/pages/tenant/owner-modules/OwnerWellbeingModule").then(m => ({ default: m.OwnerWellbeingModule })));
 const OwnerComplianceModule = lazy(() => import("@/pages/tenant/owner-modules/OwnerComplianceModule").then(m => ({ default: m.OwnerComplianceModule })));
 const OwnerCampusesModule = lazy(() => import("@/pages/tenant/owner-modules/OwnerCampusesModule").then(m => ({ default: m.OwnerCampusesModule })));
@@ -240,7 +241,7 @@ export default function OwnerDashboard() {
         </div>
       ) : (
         <RouteGuard extraAllowedPaths={[
-          "academics","admissions","fees","hr","wellbeing","compliance",
+          "academics","admissions","finance","fees","hr","wellbeing","compliance",
           "campuses","brand","security","support","advisor","ai","messages",
           "ledger","vendors","tax",
         ]}>
@@ -268,7 +269,7 @@ export default function OwnerDashboard() {
             <Route path="sources" element={<MarketingSourcesModule />} />
             <Route path="campaigns" element={<MarketingCampaignsModule />} />
             <Route path="parent-notes" element={<PrincipalParentNotesModule />} />
-            <Route path="finance" element={<Navigate to={`/${schoolSlug}/owner/fees`} replace />} />
+            <Route path="finance" element={<OwnerFinanceModule schoolId={schoolId} role="school_owner" />} />
             <Route path="fees" element={<FeesUnifiedModule />} />
             <Route path="invoices" element={<AccountantInvoicesModule />} />
             <Route path="payments" element={<AccountantPaymentsModule />} />

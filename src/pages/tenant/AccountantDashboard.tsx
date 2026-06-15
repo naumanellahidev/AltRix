@@ -17,6 +17,7 @@ const AccountantLedgerModule = lazy(() => import("@/pages/tenant/accountant-modu
 const AccountantVendorsModule = lazy(() => import("@/pages/tenant/accountant-modules/AccountantVendorsModule").then(m => ({ default: m.AccountantVendorsModule })));
 const AccountantTaxModule = lazy(() => import("@/pages/tenant/accountant-modules/AccountantTaxModule").then(m => ({ default: m.AccountantTaxModule })));
 const FeesUnifiedModule = lazy(() => import("@/pages/tenant/modules/FeesUnifiedModule"));
+const OwnerFinanceModule = lazy(() => import("@/pages/tenant/owner-modules/OwnerFinanceModule").then(m => ({ default: m.OwnerFinanceModule })));
 
 import { RouteGuard } from "@/components/tenant/RouteGuard";
 import { ModuleErrorBoundary } from "@/components/tenant/ModuleErrorBoundary";
@@ -88,12 +89,13 @@ const AccountantDashboard = () => {
   return (
     <AccountantShell title={`${tenant.school?.name || "EDUVERSE"} • Finance`} subtitle="Accounting & Finance" schoolSlug={tenant.slug}>
       <RouteGuard extraAllowedPaths={[
-        "fees","invoices","payments","expenses","payroll","reports","messages",
+        "finance","fees","invoices","payments","expenses","payroll","reports","messages",
         "fees-pro","fee-vouchers","ledger","vendors","tax",
       ]}>
       <Suspense fallback={<DashboardLoader />}>
         <Routes>
           <Route index element={<ModuleErrorBoundary name="Dashboard"><AccountantHomeModule /></ModuleErrorBoundary>} />
+          <Route path="finance" element={<ModuleErrorBoundary name="Finance & Cashflow"><OwnerFinanceModule schoolId={schoolId} role="accountant" /></ModuleErrorBoundary>} />
           <Route path="fees" element={<ModuleErrorBoundary name="Fees Center"><FeesUnifiedModule /></ModuleErrorBoundary>} />
           <Route path="fees-pro" element={<Navigate to={`/${tenant.slug}/accountant/fees?tab=advanced`} replace />} />
           <Route path="fee-vouchers" element={<Navigate to={`/${tenant.slug}/accountant/fees?tab=vouchers`} replace />} />

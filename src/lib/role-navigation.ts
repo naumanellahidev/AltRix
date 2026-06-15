@@ -89,6 +89,8 @@ export const NAV_CATALOG: NavItem[] = [
     roles: ["super_admin","school_owner","principal","vice_principal"] },
 
   // Finance
+  { key: "finance-dashboard", label: "Finance & Cashflow", icon: BarChart3, group: "finance", path: "finance",
+    roles: ["super_admin","school_owner","principal","vice_principal","accountant"] },
   { key: "fees", label: "Fees Center", icon: DollarSign, group: "finance", path: "fees",
     roles: ["super_admin","school_owner","principal","vice_principal","school_admin","accountant"] },
   { key: "invoices", label: "Invoices", icon: FileText, group: "finance", path: "invoices",
