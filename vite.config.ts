@@ -129,11 +129,10 @@ export default defineConfig(({ mode }) => ({
             if (id.includes("jspdf") || id.includes("html2canvas") || id.includes("jszip")) {
               return "vendor-pdf-zip";
             }
-            return "vendor";
           }
         },
       },
     },
-    chunkSizeWarningLimit: 1200,
+    chunkSizeWarningLimit: 2000,
   },
 }));
