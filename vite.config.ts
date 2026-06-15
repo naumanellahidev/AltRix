@@ -129,7 +129,12 @@ export default defineConfig(({ mode }) => ({
             if (id.includes("react-router-dom") || id.includes("react-router") || id.includes("@remix-run")) {
               return "vendor-router";
             }
-            if (id.includes("react") || id.includes("react-dom")) {
+            // Precisely target only core react and react-dom to avoid match on radix-ui/react-*, lucide-react, etc.
+            const isReactCore = id.includes("node_modules/react/") || 
+                                id.includes("node_modules/react-dom/") || 
+                                id.includes("node_modules\\react\\") || 
+                                id.includes("node_modules\\react-dom\\");
+            if (isReactCore) {
               return "vendor-react";
             }
             if (id.includes("recharts")) {
