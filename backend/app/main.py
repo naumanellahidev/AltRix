@@ -3,6 +3,7 @@ AltRix School ERP API — Production-Hardened Main Application
 Integrates: Redis, Sentry, Rate Limiting, Security Headers, Audit Logging,
             Correlation IDs, Health Endpoints, and Global Error Handling.
 """
+import asyncio
 import logging
 import time
 from contextlib import asynccontextmanager
@@ -107,12 +108,57 @@ async def lifespan(app: FastAPI):
     # Initialize Sentry
     _init_sentry()
 
-    # Initialize Redis
+    # 1. Verify Database Connection
+    try:
+        from sqlalchemy import text
+        from app.database import engine
+        async with engine.connect() as conn:
+            await conn.execute(text("SELECT 1"))
+        logger.info("Database connection ping: SUCCESS")
+    except Exception as e:
+        logger.critical(f"Database connection ping: FAILED — {e}")
+        raise RuntimeError(f"Database connection failed: {e}") from e
+
+    # 2. Verify Database Schema (Migrations check)
+    try:
+        from app.scripts.validate_schema import validate
+        validation = await validate()
+        if validation.get("missing_tables") or validation.get("missing_columns"):
+            logger.error(
+                f"Database schema validation: DRIFT DETECTED. "
+                f"Missing tables: {validation.get('missing_tables')}, "
+                f"Missing columns: {validation.get('missing_columns')}. "
+                f"Please apply latest migrations/schema fixes."
+            )
+        else:
+            logger.info("Database schema validation: PASSED (no drift detected)")
+    except Exception as e:
+        logger.error(f"Database schema validation: FAILED to run — {e}")
+
+    # 3. Verify Redis Connection
     try:
         from app.cache import init_redis
-        await init_redis()
+        redis_conn = await init_redis()
+        if redis_conn:
+            await redis_conn.ping()
+            logger.info("Redis connection ping: SUCCESS")
+        else:
+            logger.warning("Redis connection: UNAVAILABLE (running without cache)")
     except Exception as e:
-        logger.warning(f"Redis initialization failed: {e}")
+        logger.error(f"Redis connection ping: FAILED — {e}")
+
+    # 4. Verify Celery Connection
+    try:
+        from app.celery_app import celery_app
+        inspector = celery_app.control.inspect()
+        # Query active workers asynchronously to avoid blocking the event loop
+        ping_result = await asyncio.to_thread(inspector.ping) if inspector else None
+        if ping_result:
+            logger.info(f"Celery workers connection: SUCCESS — Active workers: {list(ping_result.keys())}")
+        else:
+            logger.warning("Celery workers connection: WARNING — No active workers detected. Tasks will be queued but not processed until a worker starts.")
+    except Exception as e:
+        logger.warning(f"Celery workers connection: FAILED to query — {e}")
 
     # Log startup complete
     logger.info("AltRix API startup complete — ready to serve requests")
@@ -217,6 +263,12 @@ async def root():
         "docs": "/docs",
         "redoc": "/redoc",
     }
+
+
+@app.get("/health", tags=["Health"], summary="Railway/VPS health check", include_in_schema=False)
+async def railway_health():
+    from app.utils.health import build_health_response
+    return await build_health_response(include_deps=False)
 
 
 @app.get(

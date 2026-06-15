@@ -30,6 +30,12 @@ def build_engine(database_url: str | None = None):
             "Copy backend/.env.example to backend/.env and fill in your values."
         )
     
+    # Auto-rewrite postgres:// or postgresql:// to postgresql+asyncpg:// for async pg driver compatibility
+    if url.startswith("postgresql://"):
+        url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
+    elif url.startswith("postgres://"):
+        url = url.replace("postgres://", "postgresql+asyncpg://", 1)
+    
     # Configure pooling strategy based on configuration settings
     poolclass = NullPool if settings.db_pool_type.lower() == "null" else None
     
