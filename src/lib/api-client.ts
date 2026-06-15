@@ -2,7 +2,7 @@ import axios from "axios";
 import { rawSupabase, setUseFastAPI, USE_FASTAPI } from "@/integrations/supabase/client";
 
 export const apiClient = axios.create({
-  baseURL: "/api",
+  baseURL: import.meta.env.VITE_API_URL || "/api",
   headers: {
     "Content-Type": "application/json",
   },
@@ -13,12 +13,20 @@ let reachabilityPromise: Promise<boolean> | null = null;
 export function checkBackendReachability(): Promise<boolean> {
   if (reachabilityPromise) return reachabilityPromise;
 
-  reachabilityPromise = fetch("/api/health")
+  const baseUrl = apiClient.defaults.baseURL || "/api";
+  const url = `${baseUrl}/health`;
+
+  reachabilityPromise = fetch(url)
     .then((res) => {
-      // 502, 503, 504 are proxy errors indicating backend is offline
-      if (!res.ok && [502, 503, 504].includes(res.status)) {
+      if (!res.ok) return false;
+      
+      // If we got HTML (e.g. Vercel fallback serving index.html), the backend is NOT reachable at this URL
+      const contentType = res.headers.get("content-type") || "";
+      if (contentType.includes("text/html")) {
+        console.warn("Backend health check returned HTML, indicating an SPA fallback/redirect. Disabling FastAPI.");
         return false;
       }
+      
       return true;
     })
     .catch(() => {
