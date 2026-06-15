@@ -126,37 +126,26 @@ export default defineConfig(({ mode }) => ({
       output: {
         manualChunks(id) {
           if (id.includes("node_modules")) {
-            if (id.includes("react-router-dom") || id.includes("react-router") || id.includes("@remix-run")) {
-              return "vendor-router";
-            }
-            // Precisely target only core react and react-dom to avoid match on radix-ui/react-*, lucide-react, etc.
-            const isReactCore = id.includes("node_modules/react/") || 
-                                id.includes("node_modules/react-dom/") || 
-                                id.includes("node_modules\\react\\") || 
-                                id.includes("node_modules\\react-dom\\");
-            if (isReactCore) {
-              return "vendor-react";
+            if (
+              id.includes("react") ||
+              id.includes("react-dom") ||
+              id.includes("react-router") ||
+              id.includes("@remix-run") ||
+              id.includes("@radix-ui") ||
+              id.includes("@dnd-kit") ||
+              id.includes("framer-motion") ||
+              id.includes("lucide-react")
+            ) {
+              return "vendor-core";
             }
             if (id.includes("recharts")) {
               return "vendor-recharts";
-            }
-            if (id.includes("lucide-react")) {
-              return "vendor-lucide";
             }
             if (id.includes("jspdf") || id.includes("html2canvas") || id.includes("jszip")) {
               return "vendor-pdf-zip";
             }
             if (id.includes("supabase")) {
               return "vendor-supabase";
-            }
-            if (id.includes("@radix-ui")) {
-              return "vendor-radix";
-            }
-            if (id.includes("@dnd-kit")) {
-              return "vendor-dnd";
-            }
-            if (id.includes("framer-motion")) {
-              return "vendor-framer";
             }
             return "vendor";
           }
