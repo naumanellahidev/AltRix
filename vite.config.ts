@@ -126,26 +126,8 @@ export default defineConfig(({ mode }) => ({
       output: {
         manualChunks(id) {
           if (id.includes("node_modules")) {
-            if (
-              id.includes("react") ||
-              id.includes("react-dom") ||
-              id.includes("react-router") ||
-              id.includes("@remix-run") ||
-              id.includes("@radix-ui") ||
-              id.includes("@dnd-kit") ||
-              id.includes("framer-motion") ||
-              id.includes("lucide-react")
-            ) {
-              return "vendor-core";
-            }
-            if (id.includes("recharts")) {
-              return "vendor-recharts";
-            }
             if (id.includes("jspdf") || id.includes("html2canvas") || id.includes("jszip")) {
               return "vendor-pdf-zip";
-            }
-            if (id.includes("supabase")) {
-              return "vendor-supabase";
             }
             return "vendor";
           }
