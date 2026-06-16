@@ -644,7 +644,7 @@ export function AccountantPaymentsModule() {
                     subtitle: `Generated on ${new Date().toLocaleDateString()}`,
                     summary: [
                       { label: "Total Transactions", value: filteredPayments.length },
-                      { label: "Total Amount (Rs.)", value: filteredPayments.reduce((s, x) => s + x.Amount, 0).toLocaleString() }
+                      { label: "Total Amount (Rs.)", value: filteredPayments.reduce((s, x) => s + x.amount, 0).toLocaleString() }
                     ]
                   }}
                 />

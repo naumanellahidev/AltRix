@@ -64,6 +64,14 @@ type GradeTier = { id: string; minGrade: number; discountPct: number };
 
 const SENTINEL = "__all";
 
+const statusBadge = (s: string) => {
+  if (s === "paid") return <Badge className="bg-emerald-600/15 text-emerald-700 dark:text-emerald-400 border border-emerald-600/30">Paid</Badge>;
+  if (s === "partial") return <Badge className="bg-amber-600/15 text-amber-700 dark:text-amber-400 border border-amber-600/30">Partial</Badge>;
+  if (s === "overdue") return <Badge variant="destructive">Overdue</Badge>;
+  if (s === "cancelled") return <Badge variant="outline" className="text-muted-foreground line-through">Cancelled</Badge>;
+  return <Badge variant="secondary">{s}</Badge>;
+};
+
 export default function FeeVouchersModule() {
   const { schoolSlug } = useParams();
   const tenant = useTenant(schoolSlug);
@@ -1268,13 +1276,6 @@ function DeliveriesDialog({ batch, onClose }: { batch: Batch | null; onClose: ()
     refresh();
   };
 
-  const statusBadge = (s: string) => {
-    if (s === "paid") return <Badge className="bg-emerald-600/15 text-emerald-700 dark:text-emerald-400 border border-emerald-600/30">Paid</Badge>;
-    if (s === "partial") return <Badge className="bg-amber-600/15 text-amber-700 dark:text-amber-400 border border-amber-600/30">Partial</Badge>;
-    if (s === "overdue") return <Badge variant="destructive">Overdue</Badge>;
-    if (s === "cancelled") return <Badge variant="outline" className="text-muted-foreground line-through">Cancelled</Badge>;
-    return <Badge variant="secondary">{s}</Badge>;
-  };
 
   const totalDelivs = deliveries.length || 1;
   const sentPct = Math.round((sent / totalDelivs) * 100);

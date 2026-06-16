@@ -756,14 +756,14 @@ export function AccountantFeesModule() {
                       <div className="min-w-0">
                         <p className="font-semibold text-slate-800 text-sm truncate">{p.name}</p>
                         <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
-                          <Badge variant="soft" className="bg-blue-50 text-blue-600 text-[10px] px-1.5 py-0">
+                          <Badge variant="secondary" className="bg-blue-50 text-blue-600 text-[10px] px-1.5 py-0">
                             {p.class_id ? classesById[p.class_id] : "All Classes"}
                           </Badge>
-                          <Badge variant="soft" className="bg-slate-100 text-slate-600 text-[10px] px-1.5 py-0 capitalize">
+                          <Badge variant="secondary" className="bg-slate-100 text-slate-600 text-[10px] px-1.5 py-0 capitalize">
                             {p.billing_frequency}
                           </Badge>
                           {p.school_year && (
-                            <Badge variant="soft" className="bg-slate-100 text-slate-600 text-[10px] px-1.5 py-0">
+                            <Badge variant="secondary" className="bg-slate-100 text-slate-600 text-[10px] px-1.5 py-0">
                               {p.school_year}
                             </Badge>
                           )}

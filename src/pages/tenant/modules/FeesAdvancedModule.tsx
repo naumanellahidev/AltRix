@@ -14,7 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -678,11 +678,11 @@ export default function FeesAdvancedModule() {
     };
     if (existing) {
       const { data, error } = await supabase.from("student_fee_assignments").update(payload).eq("id", existing.id).select("*").single();
-      if (error) return toast.error(error.message);
+      if (error) { toast.error(error.message); return; }
       setAssignments(assignments.map(a => a.id === existing.id ? (data as any) : a));
     } else {
       const { data, error } = await supabase.from("student_fee_assignments").insert(payload).select("*").single();
-      if (error) return toast.error(error.message);
+      if (error) { toast.error(error.message); return; }
       setAssignments([...assignments, data as any]);
     }
   };
@@ -1101,7 +1101,7 @@ export default function FeesAdvancedModule() {
                 </div>
                 {((expSearch ? 1 : 0) + (expCategory !== "__all" ? 1 : 0) + (expFromDate ? 1 : 0) + (expToDate ? 1 : 0)) > 0 && (
                   <div className="mt-3 flex justify-end">
-                    <Button size="xs" variant="ghost" onClick={() => { setExpSearch(""); setExpCategory("__all"); setExpFromDate(""); setExpToDate(""); }} className="text-xs h-7 px-2.5 rounded-lg text-muted-foreground hover:text-foreground">
+                    <Button size="sm" variant="ghost" onClick={() => { setExpSearch(""); setExpCategory("__all"); setExpFromDate(""); setExpToDate(""); }} className="text-xs h-7 px-2.5 rounded-lg text-muted-foreground hover:text-foreground">
                       <X className="h-3 w-3 mr-1" /> Reset Filters
                     </Button>
                   </div>
