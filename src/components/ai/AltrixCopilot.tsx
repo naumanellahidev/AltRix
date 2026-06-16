@@ -62,19 +62,38 @@ const genId = () => Math.random().toString(36).slice(2, 9);
 
 function renderMarkdown(text: string): string {
   if (!text) return "";
-  return text
+  
+  let formatted = text;
+  
+  // Handle <think>...</think> block beautifully for reasoning models
+  if (formatted.includes("<think>")) {
+    if (formatted.includes("</think>")) {
+      formatted = formatted.replace(
+        /<think>([\s\S]*?)<\/think>/g,
+        '<details class="mb-3 border border-slate-200 rounded-xl bg-slate-50/50 overflow-hidden"><summary class="px-3 py-2 text-[10px] font-semibold text-slate-500 cursor-pointer hover:bg-slate-100 select-none flex items-center gap-1.5">🧠 Thought Process (click to expand)</summary><div class="px-3 pb-3 pt-1 text-[11px] text-slate-500 border-t border-slate-100 bg-white/50 whitespace-pre-wrap leading-relaxed">$1</div></details>'
+      );
+    } else {
+      // Still thinking (unclosed tag during streaming)
+      const parts = formatted.split("<think>");
+      const beforeThink = parts[0];
+      const thinkingContent = parts[1] || "";
+      formatted = beforeThink + `<details open class="mb-3 border border-slate-200 rounded-xl bg-slate-50/50 overflow-hidden"><summary class="px-3 py-2 text-[10px] font-semibold text-slate-500 cursor-pointer hover:bg-slate-100 select-none flex items-center gap-1.5">🧠 Thinking...</summary><div class="px-3 pb-3 pt-1 text-[11px] text-slate-500 border-t border-slate-100 bg-white/50 whitespace-pre-wrap leading-relaxed">${thinkingContent}</div></details>`;
+    }
+  }
+
+  return formatted
     // Bold
     .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
     // Italic
     .replace(/\*(.+?)\*/g, "<em>$1</em>")
     // Inline code
-    .replace(/`(.+?)`/g, '<code class="bg-slate-100 text-blue-600 px-1 rounded text-[10px]">$1</code>')
+    .replace(/`(.+?)`/g, '<code class="bg-slate-100 text-primary px-1 rounded text-[10px]">$1</code>')
     // Bullet points
     .replace(/^- (.+)$/gm, '<li class="ml-3 list-disc list-outside">$1</li>')
     // Numbered list
     .replace(/^\d+\. (.+)$/gm, '<li class="ml-3 list-decimal list-outside">$1</li>')
     // Headers
-    .replace(/^### (.+)$/gm, '<p class="font-bold text-blue-600 mt-2 mb-1 text-[11px] uppercase tracking-wide">$1</p>')
+    .replace(/^### (.+)$/gm, '<p class="font-bold text-primary mt-2 mb-1 text-[11px] uppercase tracking-wide">$1</p>')
     .replace(/^## (.+)$/gm, '<p class="font-bold text-slate-800 mt-2 mb-1 text-[12px]">$1</p>')
     .replace(/^# (.+)$/gm, '<p class="font-bold text-slate-900 mt-2 mb-1 text-[13px]">$1</p>')
     // Newlines
@@ -90,7 +109,7 @@ function TypingDots() {
       {[0, 1, 2].map((i) => (
         <span
           key={i}
-          className="w-1 h-1 rounded-full bg-blue-400"
+          className="w-1 h-1 rounded-full bg-primary"
           style={{
             animation: "copilot-dot 1.2s infinite ease-in-out",
             animationDelay: `${i * 0.2}s`,
@@ -208,6 +227,13 @@ export default function AltrixCopilot() {
   const tenant = useTenantOptimized(schoolSlug || "");
   const schoolId = tenant.schoolId;
   const { primaryRole } = useUserRole(schoolId, user?.id ?? null);
+
+  const getRolePathSegment = (role: string | null) => {
+    if (!role) return "";
+    if (role === "hr_manager") return "hr";
+    if (role === "marketing_staff") return "marketing";
+    return role;
+  };
 
   const [isOpen, setIsOpen] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
@@ -551,13 +577,24 @@ export default function AltrixCopilot() {
         toast.error(e.message || "Failed to generate voucher", { id: t });
       }
     } else if (type === "NAVIGATE_TO" && route) {
-      navigate(`/${schoolSlug}${route}`);
+      // Ensure the route starts with the correct role prefix if it is role-guarded
+      let finalRoute = route;
+      const roleSegment = getRolePathSegment(primaryRole);
+      if (roleSegment) {
+        const isPrefixed = /^\/(teacher|hr|accountant|marketing|student|parent|school_owner|principal|vice_principal|school_admin|academic_coordinator)\b/.test(route);
+        if (!isPrefixed) {
+          finalRoute = `/${roleSegment}${route.startsWith('/') ? '' : '/'}${route}`;
+        }
+      }
+      navigate(`/${schoolSlug}${finalRoute}`);
       setIsOpen(false);
     } else if (type === "GENERATE_RESULT_CARD") {
-      navigate(`/${schoolSlug}/${primaryRole}/report-cards`);
+      const roleSegment = getRolePathSegment(primaryRole);
+      navigate(`/${schoolSlug}/${roleSegment}/report-cards`);
       setIsOpen(false);
     } else if (type === "EXPORT_ATTENDANCE" || type === "EXPORT_GRADES") {
-      navigate(`/${schoolSlug}/${primaryRole}/reports`);
+      const roleSegment = getRolePathSegment(primaryRole);
+      navigate(`/${schoolSlug}/${roleSegment}/reports`);
       setIsOpen(false);
     }
   };
@@ -593,7 +630,7 @@ export default function AltrixCopilot() {
           width: 100%;
           height: 100%;
           border-radius: 9999px;
-          background: linear-gradient(135deg, #3b82f6, #6366f1);
+          background: hsl(var(--primary));
           animation: copilot-pulse-ring 2.2s infinite ease-out;
           z-index: -1;
         }
@@ -609,7 +646,7 @@ export default function AltrixCopilot() {
         {!isOpen && (
           <div className="flex items-center gap-2 animate-in fade-in slide-in-from-right-4 duration-300">
             <span className="bg-white/95 backdrop-blur text-slate-700 text-[10px] font-medium px-2.5 py-1 rounded-full border border-slate-200 shadow-sm whitespace-nowrap">
-              <Keyboard className="inline h-3 w-3 mr-1 text-blue-500" />
+              <Keyboard className="inline h-3 w-3 mr-1 text-primary" />
               Alt+K
             </span>
           </div>
@@ -618,15 +655,15 @@ export default function AltrixCopilot() {
         <button
           id="altrix-copilot-btn"
           onClick={() => setIsOpen((o) => !o)}
-          className="relative flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 shadow-[0_8px_30px_rgba(37,99,235,0.35)] transition-all duration-300 hover:scale-110 hover:shadow-[0_8px_35px_rgba(37,99,235,0.6)] cursor-pointer active:scale-95 border-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:ring-offset-2"
+          className="relative flex h-14 w-14 items-center justify-center rounded-full bg-primary shadow-[0_8px_30px_hsl(var(--primary)/0.35)] transition-all duration-300 hover:scale-110 hover:shadow-[0_8px_35px_hsl(var(--primary)/0.6)] cursor-pointer active:scale-95 border-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
           aria-label="Toggle AI Copilot (Alt+K)"
           title="AltRix AI Copilot — Alt+K"
         >
           <div className="copilot-pulse-ring" />
           {isOpen ? (
-            <X className="h-6 w-6 text-white" />
+            <X className="h-6 w-6 text-primary-foreground" />
           ) : (
-            <Brain className="h-6 w-6 text-white" />
+            <Brain className="h-6 w-6 text-primary-foreground" />
           )}
         </button>
       </div>

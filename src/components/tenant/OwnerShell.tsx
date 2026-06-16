@@ -143,8 +143,8 @@ export function OwnerShell({ title, subtitle, schoolSlug, children }: Props) {
         <button
           onClick={() => toggleGroup(groupKey)}
           className={cn(
-            "w-full flex items-center justify-between rounded-xl px-3.5 py-2.5 text-xs font-semibold uppercase tracking-wider text-slate-500 hover:bg-slate-50 hover:text-blue-600 transition-all duration-300 ease-out",
-            isActive && "bg-gradient-to-r from-blue-50/90 to-blue-50/40 text-blue-700 font-bold border-l-[3px] border-blue-600"
+            "w-full flex items-center justify-between rounded-xl px-3.5 py-2.5 text-xs font-semibold uppercase tracking-wider text-slate-500 hover:bg-slate-50 hover:text-primary transition-all duration-300 ease-out",
+            isActive && "bg-gradient-to-r from-primary/10 to-primary/5 text-primary font-bold border-l-[3px] border-primary"
           )}
         >
           <span className="flex items-center gap-2.5">
@@ -170,8 +170,8 @@ export function OwnerShell({ title, subtitle, schoolSlug, children }: Props) {
               <NavLink
                 key={item.to}
                 to={item.to}
-                className="flex items-center justify-between rounded-xl px-3.5 py-2.5 text-xs font-semibold uppercase tracking-wider text-slate-500 hover:bg-slate-50 hover:text-blue-600 transition-all duration-300 ease-out"
-                activeClassName="bg-gradient-to-r from-blue-50/90 to-blue-50/40 text-blue-700 shadow-sm border-l-[3px] border-blue-600 font-bold"
+                className="flex items-center justify-between rounded-xl px-3.5 py-2.5 text-xs font-semibold uppercase tracking-wider text-slate-500 hover:bg-slate-50 hover:text-primary transition-all duration-300 ease-out"
+                activeClassName="bg-gradient-to-r from-primary/10 to-primary/5 text-primary shadow-sm border-l-[3px] border-primary font-bold"
                 onClick={() => setMobileNavOpen(false)}
               >
                 <span className="flex items-center gap-2.5">
@@ -234,8 +234,8 @@ export function OwnerShell({ title, subtitle, schoolSlug, children }: Props) {
               key={item.to}
               to={item.to}
               end={item.end}
-              className="flex items-center justify-between rounded-xl px-3.5 py-2.5 text-xs font-semibold uppercase tracking-wider text-slate-500 hover:bg-slate-50 hover:text-blue-600 transition-all duration-300 ease-out"
-              activeClassName="bg-gradient-to-r from-blue-50/90 to-blue-50/40 text-blue-700 shadow-sm border-l-[3px] border-blue-600 font-bold"
+              className="flex items-center justify-between rounded-xl px-3.5 py-2.5 text-xs font-semibold uppercase tracking-wider text-slate-500 hover:bg-slate-50 hover:text-primary transition-all duration-300 ease-out"
+              activeClassName="bg-gradient-to-r from-primary/10 to-primary/5 text-primary shadow-sm border-l-[3px] border-primary font-bold"
               onClick={() => setMobileNavOpen(false)}
             >
               <span className="flex items-center gap-2.5">
@@ -261,8 +261,8 @@ export function OwnerShell({ title, subtitle, schoolSlug, children }: Props) {
               key={item.to}
               to={item.to}
               end={item.end}
-              className="flex items-center justify-between rounded-xl px-3.5 py-2.5 text-xs font-semibold uppercase tracking-wider text-slate-500 hover:bg-slate-50 hover:text-blue-600 transition-all duration-300 ease-out"
-              activeClassName="bg-gradient-to-r from-blue-50/90 to-blue-50/40 text-blue-700 shadow-sm border-l-[3px] border-blue-600 font-bold"
+              className="flex items-center justify-between rounded-xl px-3.5 py-2.5 text-xs font-semibold uppercase tracking-wider text-slate-500 hover:bg-slate-50 hover:text-primary transition-all duration-300 ease-out"
+              activeClassName="bg-gradient-to-r from-primary/10 to-primary/5 text-primary shadow-sm border-l-[3px] border-primary font-bold"
               onClick={() => setMobileNavOpen(false)}
             >
               <span className="flex items-center gap-2.5">
@@ -309,8 +309,8 @@ export function OwnerShell({ title, subtitle, schoolSlug, children }: Props) {
                       <NavLink
                         key={item.key}
                         to={`${basePath}/${item.path}`}
-                        className="flex items-center justify-between rounded-xl px-3.5 py-2.5 text-xs font-semibold uppercase tracking-wider text-slate-500 hover:bg-slate-50 hover:text-blue-600 transition-all duration-300 ease-out"
-                        activeClassName="bg-gradient-to-r from-blue-50/90 to-blue-50/40 text-blue-700 shadow-sm border-l-[3px] border-blue-600 font-bold"
+                        className="flex items-center justify-between rounded-xl px-3.5 py-2.5 text-xs font-semibold uppercase tracking-wider text-slate-500 hover:bg-slate-50 hover:text-primary transition-all duration-300 ease-out"
+                        activeClassName="bg-gradient-to-r from-primary/10 to-primary/5 text-primary shadow-sm border-l-[3px] border-primary font-bold"
                         onClick={() => setMobileNavOpen(false)}
                       >
                         <span className="flex items-center gap-2.5">
@@ -332,8 +332,8 @@ export function OwnerShell({ title, subtitle, schoolSlug, children }: Props) {
                         <button
                           onClick={() => toggleGroup(groupKey)}
                           className={cn(
-                            "w-full flex items-center justify-between rounded-xl px-3.5 py-2.5 text-xs font-semibold uppercase tracking-wider text-slate-500 hover:bg-slate-50 hover:text-blue-600 transition-all duration-300 ease-out",
-                            isDropdownActive && "bg-gradient-to-r from-blue-50/90 to-blue-50/40 text-blue-700 font-bold border-l-[3px] border-blue-600"
+                            "w-full flex items-center justify-between rounded-xl px-3.5 py-2.5 text-xs font-semibold uppercase tracking-wider text-slate-500 hover:bg-slate-50 hover:text-primary transition-all duration-300 ease-out",
+                            isDropdownActive && "bg-gradient-to-r from-primary/10 to-primary/5 text-primary font-bold border-l-[3px] border-primary"
                           )}
                         >
                           <span className="flex items-center gap-2.5">
@@ -361,8 +361,8 @@ export function OwnerShell({ title, subtitle, schoolSlug, children }: Props) {
                                 <NavLink
                                   key={item.key}
                                   to={`${basePath}/${item.path}`}
-                                  className="flex items-center justify-between rounded-xl px-3.5 py-2.5 text-xs font-semibold uppercase tracking-wider text-slate-500 hover:bg-slate-50 hover:text-blue-600 transition-all duration-300 ease-out"
-                                  activeClassName="bg-gradient-to-r from-blue-50/90 to-blue-50/40 text-blue-700 shadow-sm border-l-[3px] border-blue-600 font-bold"
+                                  className="flex items-center justify-between rounded-xl px-3.5 py-2.5 text-xs font-semibold uppercase tracking-wider text-slate-500 hover:bg-slate-50 hover:text-primary transition-all duration-300 ease-out"
+                                  activeClassName="bg-gradient-to-r from-primary/10 to-primary/5 text-primary shadow-sm border-l-[3px] border-primary font-bold"
                                   onClick={() => setMobileNavOpen(false)}
                                 >
                                   <span className="flex items-center gap-2.5">

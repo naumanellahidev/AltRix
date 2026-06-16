@@ -726,6 +726,26 @@ async def fetch_ai_context(db: DbSession, user: AuthenticatedUser, school_id: st
     from app.utils.permissions import expand_roles
     effective_roles = expand_roles(user.roles)
     
+    # Fetch school currency configuration
+    currency = "PKR"
+    try:
+        curr_res = await db.execute(
+            text("SELECT currency FROM public.fee_settings WHERE school_id = :sid LIMIT 1"),
+            {"sid": school_id}
+        )
+        curr_row = curr_res.fetchone()
+        if curr_row and curr_row[0]:
+            currency = curr_row[0]
+    except Exception:
+        pass
+        
+    def format_money(val):
+        symbol = "Rs." if currency == "PKR" else currency
+        try:
+            return f"{symbol} {float(val):,.2f}"
+        except Exception:
+            return f"{symbol} {val}"
+    
     # 1. School Owner / Principal / Super Admin
     if user.is_super_admin or "school_owner" in effective_roles or "principal" in effective_roles or "vice_principal" in effective_roles or "school_admin" in effective_roles:
         try:
@@ -744,19 +764,67 @@ async def fetch_ai_context(db: DbSession, user: AuthenticatedUser, school_id: st
             )
             metrics = res.fetchone()
             
-            # Fetch top fee defaulters
+            # Fetch top fee defaulters with class and section details
             defaulters_res = await db.execute(
                 text("""
-                    SELECT s.first_name, s.last_name, COALESCE(i.total_amount, 0) - COALESCE(i.paid_amount, 0) as balance, i.invoice_number
+                    SELECT 
+                        s.first_name, 
+                        s.last_name, 
+                        COALESCE(i.total_amount, 0) - COALESCE(i.paid_amount, 0) as balance, 
+                        i.invoice_number,
+                        c.name as class_name,
+                        cs.name as section_name
                     FROM fee_invoices i
                     JOIN students s ON i.student_id = s.id
+                    LEFT JOIN student_enrollments se ON se.student_id = s.id AND se.end_date IS NULL
+                    LEFT JOIN class_sections cs ON se.class_section_id = cs.id
+                    LEFT JOIN academic_classes c ON cs.class_id = c.id
                     WHERE i.school_id = :sid AND i.status != 'paid' AND i.student_id != '00000000-0000-0000-0000-000000000000'::uuid
                     ORDER BY balance DESC LIMIT 5
                 """),
                 {"sid": school_id}
             )
             defaulters = defaulters_res.fetchall()
-            defaulters_str = "\n".join([f"- {r[0]} {r[1] or ''}: Outstanding Balance: {r[2]} (Invoice {r[3]})" for r in defaulters])
+            defaulters_str = "\n".join([
+                f"- {r[0]} {r[1] or ''} (Class: {r[4] or 'Unassigned'}, Section: {r[5] or 'Unassigned'}): Outstanding Balance: {format_money(r[2])} (Invoice {r[3]})"
+                for r in defaulters
+            ])
+            
+            # Fetch classes, sections, and student counts
+            classes_res = await db.execute(
+                text("""
+                    SELECT c.name as class_name, cs.name as section_name, COUNT(se.id) as student_count
+                    FROM academic_classes c
+                    JOIN class_sections cs ON cs.class_id = c.id
+                    LEFT JOIN student_enrollments se ON se.class_section_id = cs.id AND se.end_date IS NULL
+                    WHERE c.school_id = :sid
+                    GROUP BY c.id, c.name, cs.id, cs.name
+                    ORDER BY c.name, cs.name
+                """),
+                {"sid": school_id}
+            )
+            classes_list = classes_res.fetchall()
+            classes_str = "\n".join([f"- {r[0]} (Section {r[1]}): {r[2]} students" for r in classes_list])
+
+            # Fetch active student directory
+            students_res = await db.execute(
+                text("""
+                    SELECT s.first_name, s.last_name, c.name as class_name, cs.name as section_name, s.student_code
+                    FROM students s
+                    LEFT JOIN student_enrollments se ON se.student_id = s.id AND se.end_date IS NULL
+                    LEFT JOIN class_sections cs ON se.class_section_id = cs.id
+                    LEFT JOIN academic_classes c ON cs.class_id = c.id
+                    WHERE s.school_id = :sid AND s.status = 'active'
+                    ORDER BY c.name, cs.name, s.first_name, s.last_name
+                    LIMIT 200
+                """),
+                {"sid": school_id}
+            )
+            students_list = students_res.fetchall()
+            students_str = "\n".join([
+                f"- {r[0]} {r[1] or ''} (Code: {r[4] or 'N/A'}, Class: {r[2] or 'Unassigned'}, Section: {r[3] or 'Unassigned'})"
+                for r in students_list
+            ])
             
             # Fetch pending admissions
             try:
@@ -782,12 +850,18 @@ Live ERP Metrics:
 - Total Active Students: {metrics_data['total_students']}
 - Active Campuses: {metrics_data['active_campuses']}
 - Total Teachers: {metrics_data['total_teachers']}
-- MTD Collected Fees: {metrics_data['collected_fees']}
+- MTD Collected Fees: {format_money(metrics_data['collected_fees'])}
 - Unpaid Invoices Count: {metrics_data['pending_payments']}
 - Pending Admissions Applications: {pending_admissions}
 
 Top Fee Defaulters:
 {defaulters_str if defaulters_str else "None"}
+
+Classes and Sections Enrollment Summary:
+{classes_str if classes_str else "None"}
+
+All Enrolled Active Students (with Class & Section):
+{students_str if students_str else "None"}
 """
             return context
         except Exception as e:
@@ -820,13 +894,13 @@ Top Fee Defaulters:
                 {"sid": school_id}
             )
             defaulters = defaulters_res.fetchall()
-            defaulters_str = "\n".join([f"- {r[0]} {r[1] or ''}: Balance: {r[2]} (Invoice {r[3]})" for r in defaulters])
+            defaulters_str = "\n".join([f"- {r[0]} {r[1] or ''}: Balance: {format_money(r[2])} (Invoice {r[3]})" for r in defaulters])
 
             return f"""
 [Role Context: School Accountant]
 Live Financial Metrics:
-- Outstanding School Fees (Receivables): {finance[0] if finance else 0}
-- Collected School Fees (Received): {finance[1] if finance else 0}
+- Outstanding School Fees (Receivables): {format_money(finance[0] if finance else 0)}
+- Collected School Fees (Received): {format_money(finance[1] if finance else 0)}
 
 Top Outstanding Fee Defaulters:
 {defaulters_str if defaulters_str else "None"}
@@ -926,7 +1000,7 @@ Total Active Students under your supervision: {std_count}
             )
             inv_data = inv_res.fetchall()
             inv_str = "\n".join([
-                f"- Child student ID {r[0]}: Unpaid Fees Balance: {r[1]}"
+                f"- Child student ID {r[0]}: Unpaid Fees Balance: {format_money(r[1])}"
                 for r in inv_data
             ])
 
