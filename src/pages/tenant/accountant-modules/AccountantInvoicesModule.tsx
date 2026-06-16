@@ -17,6 +17,8 @@ import {
   X
 } from "lucide-react";
 import { ReportExportMenu } from "@/components/accountant/ReportExportMenu";
+import { BrandedDocument } from "@/components/pdf/BrandedDocument";
+import { useSchoolDocument } from "@/hooks/useSchoolDocument";
 
 import { supabase } from "@/integrations/supabase/client";
 import { useTenant } from "@/hooks/useTenant";
@@ -116,6 +118,7 @@ export function AccountantInvoicesModule() {
   const tenant = useTenant(schoolSlug);
   const queryClient = useQueryClient();
   const schoolId = tenant.status === "ready" ? tenant.schoolId : null;
+  const { school: schoolBranding } = useSchoolDocument(schoolId);
 
   // Dialog & state management
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -559,102 +562,91 @@ export function AccountantInvoicesModule() {
       `}} />
 
       {/* Printable Invoice Container */}
-      <div id="printable-invoice-area" className="hidden print:block p-8 max-w-4xl mx-auto bg-white text-black space-y-6">
-        <div className="flex justify-between items-start border-b pb-4">
-          <div>
-            <h1 className="text-2xl font-bold uppercase">{tenant.status === "ready" ? tenant.school?.name : "School Fee Voucher"}</h1>
-            <p className="text-sm text-gray-500">Official Fee Invoice</p>
-          </div>
-          <div className="text-right">
-            <h2 className="text-lg font-semibold text-gray-700 font-mono">INVOICE</h2>
-            <p className="text-sm font-medium">{selectedInvoice?.invoice_number}</p>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-4 text-sm mt-4">
-          <div>
-            <p className="font-semibold text-gray-600">Billed To:</p>
-            <p className="font-bold text-base">{selectedInvoice ? getStudentName(selectedInvoice.student_id) : ""}</p>
-            <p className="text-gray-500">Student ID: {selectedInvoice?.student_id}</p>
-          </div>
-          <div className="text-right text-gray-700">
-            <p><span className="font-semibold text-gray-600">Issue Date:</span> {selectedInvoice?.created_at ? new Date(selectedInvoice.created_at).toLocaleDateString() : ""}</p>
-            <p><span className="font-semibold text-gray-600">Due Date:</span> {selectedInvoice?.due_date ? new Date(selectedInvoice.due_date).toLocaleDateString() : "—"}</p>
-            <p className="mt-2"><span className="font-semibold text-gray-600">Status:</span> <span className="uppercase font-bold">{selectedInvoice ? getInvoiceStatus(selectedInvoice) : ""}</span></p>
-          </div>
-        </div>
-
-        <table className="w-full text-left border-collapse text-sm mt-6">
-          <thead>
-            <tr className="border-b-2 border-gray-300 bg-gray-50">
-              <th className="py-2.5 px-3 font-semibold text-gray-600">Description</th>
-              <th className="py-2.5 px-3 text-center font-semibold text-gray-600 w-20">Qty</th>
-              <th className="py-2.5 px-3 text-right font-semibold text-gray-600 w-32">Unit Price</th>
-              <th className="py-2.5 px-3 text-right font-semibold text-gray-600 w-32">Total</th>
-            </tr>
-          </thead>
-          <tbody>
-            {activeInvoiceItems.map((item, idx) => (
-              <tr key={item.id || idx} className="border-b">
-                <td className="py-2.5 px-3">{item.label}</td>
-                <td className="py-2.5 px-3 text-center">1</td>
-                <td className="py-2.5 px-3 text-right">Rs. {Number(item.amount || 0).toLocaleString()}</td>
-                <td className="py-2.5 px-3 text-right">Rs. {Number(item.amount || 0).toLocaleString()}</td>
-              </tr>
-            ))}
-            {activeInvoiceItems.length === 0 && (
-              <tr>
-                <td colSpan={4} className="py-4 text-center text-gray-400 italic">No line items specified.</td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-
-        <div className="flex justify-end mt-6">
-          <div className="w-64 space-y-2 text-sm border-t pt-4">
-            <div className="flex justify-between">
-              <span className="text-gray-600">Subtotal</span>
-              <span>Rs. {Number(selectedInvoice?.subtotal || 0).toLocaleString()}</span>
-            </div>
-            <div className="flex justify-between text-green-600">
-              <span>Discount</span>
-              <span>-Rs. {Number(selectedInvoice?.discount_amount || 0).toLocaleString()}</span>
-            </div>
-            <div className="flex justify-between text-red-600">
-              <span>Late Fee</span>
-              <span>+Rs. {Number(selectedInvoice?.late_fee || 0).toLocaleString()}</span>
-            </div>
-            <div className="flex justify-between border-t pt-2 font-bold text-base">
-              <span>Total</span>
-              <span>Rs. {Number(selectedInvoice?.total_amount || 0).toLocaleString()}</span>
-            </div>
-            <div className="flex justify-between border-t pt-2 text-gray-600">
-              <span>Amount Paid</span>
-              <span>Rs. {selectedInvoice ? getInvoicePaidAmount(selectedInvoice).toLocaleString() : 0}</span>
-            </div>
-            <div className="flex justify-between font-bold text-red-600">
-              <span>Balance Due</span>
-              <span>Rs. {selectedInvoice ? (selectedInvoice.total_amount - getInvoicePaidAmount(selectedInvoice)).toLocaleString() : 0}</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="pt-16 grid grid-cols-2 gap-8 text-xs">
-          <div>
-            {selectedInvoice?.notes && (
+      <div id="printable-invoice-area" className="hidden print:block bg-white text-black">
+        <BrandedDocument
+          school={schoolBranding}
+          documentTitle="Fee Invoice"
+          referenceNumber={selectedInvoice?.invoice_number}
+          issuedOn={selectedInvoice?.created_at ? new Date(selectedInvoice.created_at) : null}
+          signatoryName="Authorized Signatory"
+          signatoryTitle="Stamp & Date"
+        >
+          <div className="space-y-6">
+            <div className="grid grid-cols-2 gap-4 text-sm">
               <div>
+                <p className="font-semibold text-gray-600">Billed To:</p>
+                <p className="font-bold text-base">{selectedInvoice ? getStudentName(selectedInvoice.student_id) : ""}</p>
+                <p className="text-gray-500">Student ID: {selectedInvoice?.student_id}</p>
+              </div>
+              <div className="text-right text-gray-700">
+                <p><span className="font-semibold text-gray-600">Due Date:</span> {selectedInvoice?.due_date ? new Date(selectedInvoice.due_date).toLocaleDateString() : "—"}</p>
+                <p className="mt-2"><span className="font-semibold text-gray-600">Status:</span> <span className="uppercase font-bold">{selectedInvoice ? getInvoiceStatus(selectedInvoice) : ""}</span></p>
+              </div>
+            </div>
+
+            <table className="w-full text-left border-collapse text-sm mt-6">
+              <thead>
+                <tr className="border-b-2 border-gray-300 bg-gray-50">
+                  <th className="py-2.5 px-3 font-semibold text-gray-600">Description</th>
+                  <th className="py-2.5 px-3 text-center font-semibold text-gray-600 w-20">Qty</th>
+                  <th className="py-2.5 px-3 text-right font-semibold text-gray-600 w-32">Unit Price</th>
+                  <th className="py-2.5 px-3 text-right font-semibold text-gray-600 w-32">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {activeInvoiceItems.map((item, idx) => (
+                  <tr key={item.id || idx} className="border-b">
+                    <td className="py-2.5 px-3">{item.label}</td>
+                    <td className="py-2.5 px-3 text-center">1</td>
+                    <td className="py-2.5 px-3 text-right">Rs. {Number(item.amount || 0).toLocaleString()}</td>
+                    <td className="py-2.5 px-3 text-right">Rs. {Number(item.amount || 0).toLocaleString()}</td>
+                  </tr>
+                ))}
+                {activeInvoiceItems.length === 0 && (
+                  <tr>
+                    <td colSpan={4} className="py-4 text-center text-gray-400 italic">No line items specified.</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+
+            <div className="flex justify-end mt-6">
+              <div className="w-64 space-y-2 text-sm border-t pt-4">
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Subtotal</span>
+                  <span>Rs. {Number(selectedInvoice?.subtotal || 0).toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between text-green-600">
+                  <span>Discount</span>
+                  <span>-Rs. {Number(selectedInvoice?.discount_amount || 0).toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between text-red-600">
+                  <span>Late Fee</span>
+                  <span>+Rs. {Number(selectedInvoice?.late_fee || 0).toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between border-t pt-2 font-bold text-base">
+                  <span>Total</span>
+                  <span>Rs. {Number(selectedInvoice?.total_amount || 0).toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between border-t pt-2 text-gray-600">
+                  <span>Amount Paid</span>
+                  <span>Rs. {selectedInvoice ? getInvoicePaidAmount(selectedInvoice).toLocaleString() : 0}</span>
+                </div>
+                <div className="flex justify-between font-bold text-red-600">
+                  <span>Balance Due</span>
+                  <span>Rs. {selectedInvoice ? (selectedInvoice.total_amount - getInvoicePaidAmount(selectedInvoice)).toLocaleString() : 0}</span>
+                </div>
+              </div>
+            </div>
+
+            {selectedInvoice?.notes && (
+              <div className="pt-4 border-t">
                 <p className="font-semibold text-gray-600">Notes:</p>
                 <p className="text-gray-500 mt-1">{selectedInvoice.notes}</p>
               </div>
             )}
           </div>
-          <div className="flex flex-col justify-end items-end">
-            <div className="w-48 border-t border-gray-400 text-center pt-2 mt-auto">
-              <p className="font-semibold text-gray-600">Authorized Signature</p>
-              <p className="text-gray-400 mt-1">Stamp & Date</p>
-            </div>
-          </div>
-        </div>
+        </BrandedDocument>
       </div>
 
       {/* Stats Cards */}

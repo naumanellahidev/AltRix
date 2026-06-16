@@ -279,8 +279,8 @@ export function RoleAwareShell({ schoolSlug, title, subtitle, children }: Props)
                       key={item.key}
                       to={to}
                       end={!item.path}
-                      className="group flex items-center justify-between rounded-xl px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-all duration-150"
-                      activeClassName="bg-primary text-primary-foreground shadow-soft hover:bg-primary hover:text-primary-foreground"
+                      className="flex items-center justify-between rounded-xl px-3.5 py-2.5 text-xs font-semibold uppercase tracking-wider text-slate-500 hover:bg-slate-50 hover:text-blue-600 transition-all duration-300 ease-out"
+                      activeClassName="bg-gradient-to-r from-blue-50/90 to-blue-50/40 text-blue-700 shadow-sm border-l-[3px] border-blue-600 font-bold"
                       onClick={() => setMobileOpen(false)}
                     >
                       <span className="flex items-center gap-2.5">
@@ -309,8 +309,8 @@ export function RoleAwareShell({ schoolSlug, title, subtitle, children }: Props)
                       <button
                         onClick={() => toggleGroup(groupKey)}
                         className={cn(
-                          "w-full flex items-center justify-between rounded-xl px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-all duration-150",
-                          isDropdownActive && "text-foreground font-semibold"
+                          "w-full flex items-center justify-between rounded-xl px-3.5 py-2.5 text-xs font-semibold uppercase tracking-wider text-slate-500 hover:bg-slate-50 hover:text-blue-600 transition-all duration-300 ease-out",
+                          isDropdownActive && "bg-gradient-to-r from-blue-50/90 to-blue-50/40 text-blue-700 font-bold border-l-[3px] border-blue-600"
                         )}
                       >
                         <span className="flex items-center gap-2.5">
@@ -340,8 +340,8 @@ export function RoleAwareShell({ schoolSlug, title, subtitle, children }: Props)
                               <NavLink
                                 key={item.key}
                                 to={to}
-                                className="group flex items-center justify-between rounded-xl px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-all duration-150"
-                                activeClassName="bg-primary text-primary-foreground shadow-soft hover:bg-primary hover:text-primary-foreground"
+                                className="flex items-center justify-between rounded-xl px-3.5 py-2.5 text-xs font-semibold uppercase tracking-wider text-slate-500 hover:bg-slate-50 hover:text-blue-600 transition-all duration-300 ease-out"
+                                activeClassName="bg-gradient-to-r from-blue-50/90 to-blue-50/40 text-blue-700 shadow-sm border-l-[3px] border-blue-600 font-bold"
                                 onClick={() => setMobileOpen(false)}
                               >
                                 <span className="flex items-center gap-2.5">
