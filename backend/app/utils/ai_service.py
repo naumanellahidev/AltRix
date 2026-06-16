@@ -94,8 +94,16 @@ class OllamaAIService:
                         "temperature": 0.3 if "r1" in mdl.lower() or "reason" in mdl.lower() else 0.7
                     }
                 }
-                url = f"{settings.ollama_url.rstrip('/')}/api/chat"
+                base_url = settings.ollama_url.rstrip('/')
+                if base_url.endswith("/api"):
+                    url = f"{base_url}/chat"
+                else:
+                    url = f"{base_url}/api/chat"
+                
                 headers = {}
+                api_key = settings.ai_api_key or settings.gemini_api_key
+                if api_key:
+                    headers["Authorization"] = f"Bearer {api_key}"
             else:
                 if prov_lower == "gemini":
                     base_url = "https://generativelanguage.googleapis.com/v1beta/openai"
