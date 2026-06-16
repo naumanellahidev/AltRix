@@ -8,7 +8,7 @@ from uuid import UUID
 from fastapi import APIRouter, Query, status
 from sqlalchemy import func, select, text
 
-from app.dependencies import CurrentUser, DbSession
+from app.dependencies import CurrentUser, DbSession, AuthenticatedUser
 from app.exceptions import NotFoundError, ForbiddenError
 from app.models.misc import (
     Complaint, ComplaintFeedback,
