@@ -241,8 +241,8 @@ export function useOfflineInvoices(schoolId: string | null, enabled = true) {
       if (!schoolId) return [];
       const { supabase } = await import('@/integrations/supabase/client');
       const { data } = await supabase
-        .from('finance_invoices')
-        .select('id, invoice_no, student_id, total, subtotal, status, issue_date, due_date')
+        .from('fee_invoices')
+        .select('id, invoice_number, student_id, total_amount, subtotal, status, created_at, due_date')
         .eq('school_id', schoolId)
         .order('created_at', { ascending: false })
         .limit(200);
@@ -250,10 +250,10 @@ export function useOfflineInvoices(schoolId: string | null, enabled = true) {
         id: i.id,
         schoolId,
         studentId: i.student_id,
-        invoiceNo: i.invoice_no,
-        issueDate: i.issue_date,
+        invoiceNo: i.invoice_number,
+        issueDate: i.created_at,
         dueDate: i.due_date,
-        total: i.total,
+        total: i.total_amount,
         subtotal: i.subtotal,
         status: i.status,
         cachedAt: Date.now(),
@@ -271,8 +271,8 @@ export function useOfflinePayments(schoolId: string | null, enabled = true) {
       if (!schoolId) return [];
       const { supabase } = await import('@/integrations/supabase/client');
       const { data } = await supabase
-        .from('finance_payments')
-        .select('id, invoice_id, student_id, amount, paid_at, reference, method_id')
+        .from('fee_payments')
+        .select('id, invoice_id, student_id, amount, paid_at, transaction_ref, method')
         .eq('school_id', schoolId)
         .order('paid_at', { ascending: false })
         .limit(200);
@@ -283,8 +283,8 @@ export function useOfflinePayments(schoolId: string | null, enabled = true) {
         invoiceId: p.invoice_id,
         amount: p.amount,
         paidAt: p.paid_at,
-        reference: p.reference,
-        methodId: p.method_id,
+        reference: p.transaction_ref,
+        methodId: p.method,
         cachedAt: Date.now(),
       }));
     },

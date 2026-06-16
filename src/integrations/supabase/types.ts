@@ -2935,6 +2935,7 @@ export type Database = {
           amount: number
           created_at: string | null
           due_date: string | null
+          due_day: number | null
           fee_plan_id: string
           id: string
           label: string
@@ -2945,6 +2946,7 @@ export type Database = {
           amount?: number
           created_at?: string | null
           due_date?: string | null
+          due_day?: number | null
           fee_plan_id: string
           id?: string
           label: string
@@ -2955,6 +2957,7 @@ export type Database = {
           amount?: number
           created_at?: string | null
           due_date?: string | null
+          due_day?: number | null
           fee_plan_id?: string
           id?: string
           label?: string
@@ -3032,6 +3035,7 @@ export type Database = {
           id: string
           is_active: boolean | null
           name: string
+          notes: string | null
           school_id: string
           school_year: string | null
           updated_at: string | null
@@ -3045,6 +3049,7 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           name: string
+          notes?: string | null
           school_id: string
           school_year?: string | null
           updated_at?: string | null
@@ -3058,6 +3063,7 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           name?: string
+          notes?: string | null
           school_id?: string
           school_year?: string | null
           updated_at?: string | null

@@ -26,6 +26,7 @@ class FeeStructure(Base):
     description = Column(Text, nullable=True)
     billing_frequency = Column(String, nullable=False, default="monthly")
     school_year = Column(String, nullable=True)
+    notes = Column(Text, nullable=True)
 
     # Property wrappers for backward compatibility
     @property
@@ -228,7 +229,7 @@ class FeePayment(Base):
     invoice_id = Column(UUID(as_uuid=True), ForeignKey("fee_invoices.id"), nullable=False)
     amount = Column(Float, nullable=False)
     method = Column(String, nullable=False, default="cash")  # cash, bank, jazzcash, easypaisa, cheque
-    status = Column(String, nullable=False, default="completed")  # completed, pending, failed, refunded
+    status = Column(String, nullable=False, default="success")  # success, pending, failed, refunded
     transaction_ref = Column(String, nullable=True)
     paid_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
     recorded_by_user_id = Column(UUID(as_uuid=True), nullable=True)

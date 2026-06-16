@@ -96,8 +96,8 @@ export function FinancialReportGenerator({ schoolId, schoolName }: FinancialRepo
     queryKey: ["report_payments", schoolId, selectedMonth],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("finance_payments")
-        .select("id, amount, paid_at, method_id")
+        .from("fee_payments")
+        .select("id, amount, paid_at, method")
         .eq("school_id", schoolId)
         .gte("paid_at", startDate.toISOString())
         .lte("paid_at", endDate.toISOString());
@@ -126,13 +126,19 @@ export function FinancialReportGenerator({ schoolId, schoolName }: FinancialRepo
     queryKey: ["report_invoices", schoolId, selectedMonth],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("finance_invoices")
-        .select("id, total, status, issue_date, due_date")
+        .from("fee_invoices")
+        .select("id, total_amount, status, created_at, due_date")
         .eq("school_id", schoolId)
-        .gte("issue_date", startDate.toISOString())
-        .lte("issue_date", endDate.toISOString());
+        .gte("created_at", startDate.toISOString())
+        .lte("created_at", endDate.toISOString());
       if (error) throw error;
-      return data || [];
+      return (data || []).map((inv: any) => ({
+        id: inv.id,
+        total: inv.total_amount,
+        status: inv.status,
+        issue_date: inv.created_at,
+        due_date: inv.due_date,
+      })) || [];
     },
     enabled: !!schoolId,
   });

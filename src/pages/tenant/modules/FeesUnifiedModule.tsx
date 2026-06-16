@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, Navigate, useParams } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DollarSign, Sparkles, Receipt, Coins } from "lucide-react";
 import { AccountantFeesModule } from "@/pages/tenant/accountant-modules/AccountantFeesModule";
@@ -18,6 +18,7 @@ type FeesTab = (typeof VALID_TABS)[number];
  */
 export default function FeesUnifiedModule() {
   const [params, setParams] = useSearchParams();
+  const { schoolSlug } = useParams();
 
   const tab: FeesTab = useMemo(() => {
     const t = params.get("tab");
@@ -32,6 +33,10 @@ export default function FeesUnifiedModule() {
     else p.set("tab", next);
     setParams(p, { replace: true });
   };
+
+  if (params.get("tab") === "invoices") {
+    return <Navigate to={`/${schoolSlug}/accountant/invoices`} replace />;
+  }
 
   return (
     <div className="space-y-6">

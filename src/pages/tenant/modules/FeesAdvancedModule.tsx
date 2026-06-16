@@ -38,7 +38,7 @@ export default function FeesAdvancedModule() {
   const perms = useSchoolPermissions(schoolId);
   const canManage = !perms.loading && perms.canManageFinance;
 
-  const [tab, setTab] = useState("plans");
+  const [tab, setTab] = useState("assignments");
 
   // shared lookups
   const [classes, setClasses] = useState<ClassRow[]>([]);
@@ -654,119 +654,14 @@ export default function FeesAdvancedModule() {
         <p className="text-muted-foreground">Manage fee plans, student assignments, invoices, and payments.</p>
       </div>
 
-      <Tabs value={tab} onValueChange={setTab}>
-        <TabsList className="grid grid-cols-2 md:grid-cols-7 w-full max-w-5xl h-auto gap-1">
-          <TabsTrigger value="plans"><Wallet className="h-4 w-4 mr-1" />Plans</TabsTrigger>
+      <Tabs defaultValue="assignments" value={tab} onValueChange={setTab}>
+        <TabsList className="grid grid-cols-2 md:grid-cols-5 w-full max-w-5xl h-auto gap-1">
           <TabsTrigger value="assignments"><UsersIcon className="h-4 w-4 mr-1" />Assignments</TabsTrigger>
-          <TabsTrigger value="invoices"><FileText className="h-4 w-4 mr-1" />Invoices</TabsTrigger>
           <TabsTrigger value="payments"><CreditCard className="h-4 w-4 mr-1" />Payments</TabsTrigger>
           <TabsTrigger value="expenses"><Receipt className="h-4 w-4 mr-1" />Expenses</TabsTrigger>
           <TabsTrigger value="analytics"><BarChart3 className="h-4 w-4 mr-1" />Analytics</TabsTrigger>
           <TabsTrigger value="settings"><SettingsIcon className="h-4 w-4 mr-1" />Settings</TabsTrigger>
         </TabsList>
-
-        {/* PLANS */}
-        <TabsContent value="plans" className="space-y-4">
-          <Card>
-            <CardHeader><CardTitle>Create Fee Plan</CardTitle></CardHeader>
-            <CardContent className="grid grid-cols-1 md:grid-cols-5 gap-3">
-              <Input placeholder="Plan name (e.g. Class 5 Monthly)" value={newPlan.name} onChange={e => setNewPlan({ ...newPlan, name: e.target.value })} />
-              <Select value={newPlan.class_id || "__none"} onValueChange={v => setNewPlan({ ...newPlan, class_id: v === "__none" ? "" : v })}>
-                <SelectTrigger><SelectValue placeholder="Class (optional)" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none">— No class —</SelectItem>
-                  {classes.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
-              <Input placeholder="School year" value={newPlan.school_year} onChange={e => setNewPlan({ ...newPlan, school_year: e.target.value })} />
-              <Select value={newPlan.billing_frequency} onValueChange={v => setNewPlan({ ...newPlan, billing_frequency: v })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="monthly">Monthly</SelectItem>
-                  <SelectItem value="quarterly">Quarterly</SelectItem>
-                  <SelectItem value="annual">Annual</SelectItem>
-                  <SelectItem value="one_time">One-time</SelectItem>
-                </SelectContent>
-              </Select>
-              <Button onClick={createPlan}><Plus className="h-4 w-4 mr-1" />Create</Button>
-            </CardContent>
-          </Card>
-
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            <Card className="lg:col-span-1">
-              <CardHeader><CardTitle>Plans ({plans.length})</CardTitle></CardHeader>
-              <CardContent className="space-y-2 max-h-[500px] overflow-auto">
-                {plans.length === 0 && <p className="text-sm text-muted-foreground">No plans yet</p>}
-                {plans.map(p => (
-                  <div key={p.id} className={`p-3 rounded-lg border cursor-pointer ${selectedPlanId === p.id ? "bg-primary/10 border-primary" : "hover:bg-muted/50"}`} onClick={() => setSelectedPlanId(p.id)}>
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="font-medium">{p.name}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {p.class_id ? classes.find(c => c.id === p.class_id)?.name : "All classes"} · {p.billing_frequency}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Badge variant={p.is_active ? "default" : "outline"}>{p.is_active ? "Active" : "Inactive"}</Badge>
-                      </div>
-                    </div>
-                    <div className="mt-2 flex gap-2">
-                      <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); togglePlanActive(p); }}>
-                        {p.is_active ? "Disable" : "Enable"}
-                      </Button>
-                      <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); deletePlan(p.id); }}>
-                        <Trash2 className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-
-            <Card className="lg:col-span-2">
-              <CardHeader>
-                <CardTitle>Plan Items {selectedPlanId && plansById[selectedPlanId] ? `— ${plansById[selectedPlanId].name}` : ""}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {!selectedPlanId ? (
-                  <p className="text-sm text-muted-foreground">Select a plan to manage its items.</p>
-                ) : (
-                  <>
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-2 mb-4">
-                      <Input placeholder="Label (e.g. Tuition)" value={newItem.label} onChange={e => setNewItem({ ...newItem, label: e.target.value })} />
-                      <Select value={newItem.category} onValueChange={v => setNewItem({ ...newItem, category: v })}>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
-                        <SelectContent>{CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
-                      </Select>
-                      <Input type="number" placeholder="Amount" value={newItem.amount} onChange={e => setNewItem({ ...newItem, amount: e.target.value })} />
-                      <Button onClick={addItem}><Plus className="h-4 w-4 mr-1" />Add</Button>
-                    </div>
-                    <Table>
-                      <TableHeader><TableRow><TableHead>Label</TableHead><TableHead>Category</TableHead><TableHead className="text-right">Amount</TableHead><TableHead></TableHead></TableRow></TableHeader>
-                      <TableBody>
-                        {planItems.map(it => (
-                          <TableRow key={it.id}>
-                            <TableCell>{it.label}</TableCell>
-                            <TableCell><Badge variant="outline">{it.category}</Badge></TableCell>
-                            <TableCell className="text-right">{settings.currency} {Number(it.amount).toLocaleString()}</TableCell>
-                            <TableCell><Button size="sm" variant="ghost" onClick={() => removeItem(it.id)}><Trash2 className="h-3 w-3" /></Button></TableCell>
-                          </TableRow>
-                        ))}
-                        {planItems.length > 0 && (
-                          <TableRow>
-                            <TableCell colSpan={2} className="font-semibold">Subtotal</TableCell>
-                            <TableCell className="text-right font-semibold">{settings.currency} {planSubtotal.toLocaleString()}</TableCell>
-                            <TableCell />
-                          </TableRow>
-                        )}
-                      </TableBody>
-                    </Table>
-                  </>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
 
         {/* ASSIGNMENTS */}
         <TabsContent value="assignments" className="space-y-4">
@@ -826,111 +721,7 @@ export default function FeesAdvancedModule() {
           </Card>
         </TabsContent>
 
-        {/* INVOICES */}
-        <TabsContent value="invoices" className="space-y-4">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle>Invoices ({filteredInvoices.length})</CardTitle>
-              <div className="flex gap-2">
-                <Select value={invFilterStatus} onValueChange={setInvFilterStatus}>
-                  <SelectTrigger className="w-[160px]"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__all">All statuses</SelectItem>
-                    <SelectItem value="pending">Pending</SelectItem>
-                    <SelectItem value="partial">Partial</SelectItem>
-                    <SelectItem value="paid">Paid</SelectItem>
-                    <SelectItem value="overdue">Overdue</SelectItem>
-                    <SelectItem value="cancelled">Cancelled</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Dialog open={generateOpen} onOpenChange={setGenerateOpen}>
-                  <DialogTrigger asChild><Button><Send className="h-4 w-4 mr-1" />Generate Invoices</Button></DialogTrigger>
-                  <DialogContent>
-                    <DialogHeader><DialogTitle>Generate invoices for a class</DialogTitle></DialogHeader>
-                    <div className="space-y-3">
-                      <div><Label>Class</Label>
-                        <Select value={genForm.class_id} onValueChange={v => setGenForm({ ...genForm, class_id: v })}>
-                          <SelectTrigger><SelectValue placeholder="Select class" /></SelectTrigger>
-                          <SelectContent>{classes.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
-                        </Select>
-                      </div>
-                      <div><Label>Fee Plan</Label>
-                        <Select value={genForm.fee_plan_id} onValueChange={v => setGenForm({ ...genForm, fee_plan_id: v })}>
-                          <SelectTrigger><SelectValue placeholder="Select plan" /></SelectTrigger>
-                          <SelectContent>
-                            {plans.filter(p => p.is_active && (!genForm.class_id || !p.class_id || p.class_id === genForm.class_id))
-                              .map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div><Label>Period label</Label><Input value={genForm.period_label} onChange={e => setGenForm({ ...genForm, period_label: e.target.value })} /></div>
-                      <div><Label>Due date</Label><Input type="date" value={genForm.due_date} onChange={e => setGenForm({ ...genForm, due_date: e.target.value })} /></div>
-                    </div>
-                    <DialogFooter><Button variant="outline" onClick={() => setGenerateOpen(false)}>Cancel</Button><Button onClick={generateBatchInvoices}>Generate</Button></DialogFooter>
-                  </DialogContent>
-                </Dialog>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex flex-wrap items-center gap-2">
-                <div className="relative flex-1 min-w-[220px]">
-                  <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input value={invSearch} onChange={e => setInvSearch(e.target.value)} placeholder="Search invoice #, student, period…" className="pl-8 pr-8" />
-                  {invSearch && (
-                    <button type="button" onClick={() => setInvSearch("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
-                      <X className="h-4 w-4" />
-                    </button>
-                  )}
-                </div>
-                <Select value={invFilterClass} onValueChange={setInvFilterClass}>
-                  <SelectTrigger className="w-[180px]"><SelectValue placeholder="Class" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__all">All classes</SelectItem>
-                    {classes.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-                <div className="flex items-center gap-1">
-                  <Label className="text-xs text-muted-foreground">Due from</Label>
-                  <Input type="date" className="w-[150px]" value={invFromDate} onChange={e => setInvFromDate(e.target.value)} />
-                  <Label className="text-xs text-muted-foreground">to</Label>
-                  <Input type="date" className="w-[150px]" value={invToDate} onChange={e => setInvToDate(e.target.value)} />
-                </div>
-                {(invSearch || invFilterClass !== "__all" || invFromDate || invToDate || invFilterStatus !== "__all") && (
-                  <Button size="sm" variant="ghost" onClick={() => { setInvSearch(""); setInvFilterClass("__all"); setInvFromDate(""); setInvToDate(""); setInvFilterStatus("__all"); }}>
-                    <X className="h-3 w-3 mr-1" /> Clear
-                  </Button>
-                )}
-              </div>
-              <Table>
-                <TableHeader><TableRow>
-                  <TableHead>Invoice #</TableHead><TableHead>Student</TableHead><TableHead>Period</TableHead>
-                  <TableHead>Due</TableHead><TableHead className="text-right">Total</TableHead>
-                  <TableHead className="text-right">Paid</TableHead><TableHead>Status</TableHead><TableHead></TableHead>
-                </TableRow></TableHeader>
-                <TableBody>
-                  {filteredInvoices.slice(0, 200).map(inv => (
-                    <TableRow key={inv.id}>
-                      <TableCell className="font-medium">{inv.invoice_number}</TableCell>
-                      <TableCell>{studentName(inv.student_id)}</TableCell>
-                      <TableCell>{inv.period_label || "—"}</TableCell>
-                      <TableCell>{format(new Date(inv.due_date), "MMM d, yyyy")}</TableCell>
-                      <TableCell className="text-right">{settings.currency} {Number(inv.total_amount).toLocaleString()}</TableCell>
-                      <TableCell className="text-right">{settings.currency} {Number(inv.paid_amount).toLocaleString()}</TableCell>
-                      <TableCell><Badge variant={statusVariant(inv.status)}>{inv.status}</Badge></TableCell>
-                      <TableCell>
-                        {inv.status !== "paid" && (
-                          <Button size="sm" variant="outline" onClick={() => { setPayForm({ invoice_id: inv.id, amount: String(inv.total_amount - inv.paid_amount), method: "cash", transaction_ref: "", notes: "" }); setPayOpen(true); }}>
-                            <Receipt className="h-3 w-3 mr-1" />Record Payment
-                          </Button>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        </TabsContent>
+
 
         {/* PAYMENTS */}
         <TabsContent value="payments" className="space-y-4">

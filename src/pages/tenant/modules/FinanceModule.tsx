@@ -474,7 +474,7 @@ export function FinanceModule() {
                   <TableRow key={i.id}>
                     <TableCell className="font-medium">{i.invoice_no}</TableCell>
                     <TableCell className="text-muted-foreground">{i.status}</TableCell>
-                    <TableCell>{Number(i.total ?? 0).toLocaleString()}</TableCell>
+                    <TableCell>Rs. {Number(i.total ?? 0).toLocaleString()}</TableCell>
                     <TableCell className="text-muted-foreground">{i.issue_date}</TableCell>
                     <TableCell className="text-right">
                       <AlertDialog>
@@ -520,7 +520,7 @@ export function FinanceModule() {
                 <SelectContent>
                   {invoices.map((i) => (
                     <SelectItem key={i.id} value={i.id}>
-                      {i.invoice_no} • {Number(i.total ?? 0).toLocaleString()}
+                      {i.invoice_no} • Rs. {Number(i.total ?? 0).toLocaleString()}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -559,7 +559,7 @@ export function FinanceModule() {
                 {payments.map((p) => (
                   <TableRow key={p.id}>
                     <TableCell className="text-muted-foreground">{new Date(p.paid_at).toLocaleString()}</TableCell>
-                    <TableCell className="font-medium">{Number(p.amount ?? 0).toLocaleString()}</TableCell>
+                    <TableCell className="font-medium">Rs. {Number(p.amount ?? 0).toLocaleString()}</TableCell>
                     <TableCell className="text-muted-foreground">{p.reference ?? "—"}</TableCell>
                     <TableCell className="text-right">
                       <AlertDialog>
@@ -624,7 +624,7 @@ export function FinanceModule() {
                     <TableCell className="text-muted-foreground">{e.expense_date}</TableCell>
                     <TableCell className="font-medium">{e.description}</TableCell>
                     <TableCell className="text-muted-foreground">{e.category}</TableCell>
-                    <TableCell>{Number(e.amount ?? 0).toLocaleString()}</TableCell>
+                    <TableCell>Rs. {Number(e.amount ?? 0).toLocaleString()}</TableCell>
                     <TableCell className="text-right">
                       <AlertDialog>
                         <AlertDialogTrigger asChild>

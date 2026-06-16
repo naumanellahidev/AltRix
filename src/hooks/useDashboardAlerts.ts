@@ -107,7 +107,7 @@ export function useDashboardAlerts(schoolId: string | null) {
             .eq("status", "present")
             .gte("created_at", d7.toISOString()),
           supabase
-            .from("finance_invoices")
+            .from("fee_invoices")
             .select("id", { count: "exact", head: true })
             .eq("school_id", schoolId)
             .eq("status", "pending"),

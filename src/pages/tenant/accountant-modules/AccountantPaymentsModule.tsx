@@ -1,7 +1,7 @@
 import { useState, useCallback } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, CreditCard, Trash2, Receipt } from "lucide-react";
+import { Plus, CreditCard, Trash2, Receipt, Search, X } from "lucide-react";
 import { ReportExportMenu } from "@/components/accountant/ReportExportMenu";
 
 import { supabase } from "@/integrations/supabase/client";
@@ -9,12 +9,12 @@ import { useTenant } from "@/hooks/useTenant";
 import { useRealtimeTable } from "@/hooks/useRealtime";
 
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Dialog,
@@ -46,22 +46,16 @@ type Payment = {
   paid_at: string;
   reference: string | null;
   notes: string | null;
-  method_id: string | null;
+  method: string;
 };
 
 type Invoice = {
   id: string;
-  invoice_no: string;
+  invoice_number: string;
   student_id: string;
-  total: number;
+  total_amount: number;
+  paid_amount: number;
   status: string;
-};
-
-type PaymentMethod = {
-  id: string;
-  name: string;
-  type: string;
-  is_active: boolean;
 };
 
 type Student = {
@@ -70,6 +64,16 @@ type Student = {
   last_name: string | null;
 };
 
+const PAYMENT_METHODS = [
+  { value: "cash", label: "Cash" },
+  { value: "bank", label: "Bank Transfer" },
+  { value: "jazzcash", label: "JazzCash" },
+  { value: "easypaisa", label: "Easypaisa" },
+  { value: "card", label: "Card Payment" },
+  { value: "cheque", label: "Cheque" },
+  { value: "other", label: "Other" }
+];
+
 export function AccountantPaymentsModule() {
   const { schoolSlug } = useParams();
   const tenant = useTenant(schoolSlug);
@@ -77,31 +81,25 @@ export function AccountantPaymentsModule() {
   const schoolId = tenant.status === "ready" ? tenant.schoolId : null;
 
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [methodDialogOpen, setMethodDialogOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [methodFilter, setMethodFilter] = useState("all");
 
   const [formInvoiceId, setFormInvoiceId] = useState("");
   const [formAmount, setFormAmount] = useState("");
-  const [formMethodId, setFormMethodId] = useState("");
+  const [formMethod, setFormMethod] = useState("cash");
   const [formReference, setFormReference] = useState("");
   const [formNotes, setFormNotes] = useState("");
 
-  const [methodName, setMethodName] = useState("");
-  const [methodType, setMethodType] = useState("cash");
-  const [methodInstructions, setMethodInstructions] = useState("");
-
   // Invalidate all finance queries on realtime changes
   const invalidateFinanceQueries = useCallback(() => {
-    queryClient.invalidateQueries({ queryKey: ["finance_payments"] });
-    queryClient.invalidateQueries({ queryKey: ["finance_invoices"] });
-    queryClient.invalidateQueries({ queryKey: ["finance_payments_home"] });
-    queryClient.invalidateQueries({ queryKey: ["finance_invoices_home"] });
-    queryClient.invalidateQueries({ queryKey: ["finance_expenses_home"] });
-  }, [queryClient]);
+    queryClient.invalidateQueries({ queryKey: ["fee_payments", schoolId] });
+    queryClient.invalidateQueries({ queryKey: ["fee_invoices", schoolId] });
+  }, [queryClient, schoolId]);
 
-  // Real-time subscriptions
+  // Real-time subscriptions for immediate syncing
   useRealtimeTable({
     channel: `payments-${schoolId}`,
-    table: "finance_payments",
+    table: "fee_payments",
     filter: schoolId ? `school_id=eq.${schoolId}` : undefined,
     enabled: !!schoolId,
     onChange: invalidateFinanceQueries,
@@ -109,51 +107,52 @@ export function AccountantPaymentsModule() {
 
   useRealtimeTable({
     channel: `invoices-${schoolId}`,
-    table: "finance_invoices",
+    table: "fee_invoices",
     filter: schoolId ? `school_id=eq.${schoolId}` : undefined,
     enabled: !!schoolId,
     onChange: invalidateFinanceQueries,
   });
 
   const { data: payments = [], isLoading } = useQuery({
-    queryKey: ["finance_payments", schoolId],
+    queryKey: ["fee_payments", schoolId],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("finance_payments")
-        .select("*")
+        .from("fee_payments")
+        .select("id, invoice_id, student_id, amount, paid_at, notes, method, transaction_ref")
         .eq("school_id", schoolId!)
         .order("paid_at", { ascending: false });
       if (error) throw error;
-      return data as Payment[];
+      return (data || []).map(p => ({
+        id: p.id,
+        invoice_id: p.invoice_id,
+        student_id: p.student_id,
+        amount: Number(p.amount),
+        paid_at: p.paid_at,
+        notes: p.notes,
+        method: p.method,
+        reference: p.transaction_ref
+      })) as Payment[];
     },
     enabled: !!schoolId,
   });
 
-  // Fetch ALL invoices, not just unpaid - we filter later in the UI
   const { data: invoices = [], isLoading: invoicesLoading } = useQuery({
-    queryKey: ["finance_invoices", schoolId],
+    queryKey: ["fee_invoices", schoolId],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("finance_invoices")
-        .select("id, invoice_no, student_id, total, status")
+        .from("fee_invoices")
+        .select("id, invoice_number, student_id, total_amount, paid_amount, status")
         .eq("school_id", schoolId!)
         .order("created_at", { ascending: false });
       if (error) throw error;
-      return (data || []) as Invoice[];
-    },
-    enabled: !!schoolId,
-  });
-
-  const { data: paymentMethods = [] } = useQuery({
-    queryKey: ["finance_payment_methods", schoolId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("finance_payment_methods")
-        .select("*")
-        .eq("school_id", schoolId!)
-        .order("name");
-      if (error) throw error;
-      return data as PaymentMethod[];
+      return (data || []).map(i => ({
+        id: i.id,
+        invoice_number: i.invoice_number,
+        student_id: i.student_id,
+        total_amount: Number(i.total_amount),
+        paid_amount: Number(i.paid_amount || 0),
+        status: i.status
+      })) as Invoice[];
     },
     enabled: !!schoolId,
   });
@@ -174,15 +173,15 @@ export function AccountantPaymentsModule() {
   const resetForm = () => {
     setFormInvoiceId("");
     setFormAmount("");
-    setFormMethodId("");
+    setFormMethod("cash");
     setFormReference("");
     setFormNotes("");
   };
 
   const handleRecordPayment = async () => {
     if (!schoolId) return;
-    if (!formInvoiceId) {
-      toast.error("Select an invoice");
+    if (!formInvoiceId || formInvoiceId === "__none") {
+      toast.error("Please select an invoice");
       return;
     }
 
@@ -198,104 +197,109 @@ export function AccountantPaymentsModule() {
       return;
     }
 
-    const { error } = await supabase.from("finance_payments").insert({
+    // Insert Payment into fee_payments
+    const { error: paymentError } = await supabase.from("fee_payments").insert({
       school_id: schoolId,
       invoice_id: formInvoiceId,
       student_id: invoice.student_id,
       amount,
-      method_id: formMethodId || null,
-      reference: formReference.trim() || null,
+      method: formMethod as any,
+      status: "success",
+      transaction_ref: formReference.trim() || null,
       notes: formNotes.trim() || null,
+      paid_at: new Date().toISOString()
     });
 
-    if (error) {
-      toast.error(error.message);
+    if (paymentError) {
+      toast.error(paymentError.message);
       return;
     }
 
-    // Update invoice status if fully paid
-    const totalPaid = payments
-      .filter((p) => p.invoice_id === formInvoiceId)
-      .reduce((sum, p) => sum + p.amount, 0) + amount;
-
-    if (totalPaid >= invoice.total) {
-      await supabase.from("finance_invoices").update({ status: "paid" }).eq("id", formInvoiceId);
-    } else if (totalPaid > 0) {
-      await supabase.from("finance_invoices").update({ status: "partial" }).eq("id", formInvoiceId);
+    // Automatically recalculate and update invoice status
+    const remaining = invoice.total_amount - (invoice.paid_amount + amount);
+    let nextStatus = "partial";
+    if (remaining <= 0) {
+      nextStatus = "paid";
+    } else if (invoice.paid_amount + amount === 0) {
+      nextStatus = "pending";
     }
 
-    toast.success("Payment recorded");
+    const { error: invoiceError } = await supabase
+      .from("fee_invoices")
+      .update({
+        paid_amount: invoice.paid_amount + amount,
+        status: nextStatus as any
+      })
+      .eq("id", formInvoiceId);
+
+    if (invoiceError) {
+      toast.error("Payment logged, but failed to update invoice status: " + invoiceError.message);
+    } else {
+      toast.success("Payment recorded successfully");
+    }
+
     setDialogOpen(false);
     resetForm();
     invalidateFinanceQueries();
   };
 
-  const handleAddPaymentMethod = async () => {
-    if (!schoolId) return;
-    if (!methodName.trim()) {
-      toast.error("Method name required");
+  const handleDeletePayment = async (payment: Payment) => {
+    // Delete payment record
+    const { error: deleteError } = await supabase.from("fee_payments").delete().eq("id", payment.id);
+    if (deleteError) {
+      toast.error(deleteError.message);
       return;
     }
 
-    const { error } = await supabase.from("finance_payment_methods").insert({
-      school_id: schoolId,
-      name: methodName.trim(),
-      type: methodType,
-      instructions: methodInstructions.trim() || null,
-      is_active: true,
-    });
+    // Adjust invoice paid amount
+    const invoice = invoices.find((i) => i.id === payment.invoice_id);
+    if (invoice) {
+      const nextPaid = Math.max(0, invoice.paid_amount - payment.amount);
+      const remaining = invoice.total_amount - nextPaid;
+      let nextStatus = "partial";
+      if (nextPaid === 0) {
+        nextStatus = "pending";
+      } else if (remaining <= 0) {
+        nextStatus = "paid";
+      }
 
-    if (error) {
-      toast.error(error.message);
-      return;
+      await supabase
+        .from("fee_invoices")
+        .update({
+          paid_amount: nextPaid,
+          status: nextStatus as any
+        })
+        .eq("id", invoice.id);
     }
 
-    toast.success("Payment method added");
-    setMethodDialogOpen(false);
-    setMethodName("");
-    setMethodType("cash");
-    setMethodInstructions("");
-    queryClient.invalidateQueries({ queryKey: ["finance_payment_methods", schoolId] });
-  };
-
-  const handleDeletePayment = async (id: string) => {
-    const { error } = await supabase.from("finance_payments").delete().eq("id", id);
-    if (error) {
-      toast.error(error.message);
-      return;
-    }
-    toast.success("Payment deleted");
+    toast.success("Payment deleted successfully");
     invalidateFinanceQueries();
-  };
-
-  const handleDeleteMethod = async (id: string) => {
-    const { error } = await supabase.from("finance_payment_methods").delete().eq("id", id);
-    if (error) {
-      toast.error(error.message);
-      return;
-    }
-    toast.success("Payment method deleted");
-    queryClient.invalidateQueries({ queryKey: ["finance_payment_methods", schoolId] });
   };
 
   const getStudentName = (studentId: string) => {
     const student = students.find((s) => s.id === studentId);
-    if (!student) return "Unknown";
+    if (!student) return "Unknown Student";
     return `${student.first_name} ${student.last_name || ""}`.trim();
   };
 
   const getInvoiceDisplay = (invoiceId: string) => {
     const invoice = invoices.find((i) => i.id === invoiceId);
-    return invoice?.invoice_no || "Unknown";
-  };
-
-  const getMethodName = (methodId: string | null) => {
-    if (!methodId) return "—";
-    const method = paymentMethods.find((m) => m.id === methodId);
-    return method?.name || "Unknown";
+    return invoice?.invoice_number || "Unknown";
   };
 
   const unpaidInvoices = invoices.filter((i) => i.status !== "paid");
+
+  // Filtered Payments
+  const filteredPayments = payments.filter((p) => {
+    const studentName = getStudentName(p.student_id).toLowerCase();
+    const invNo = getInvoiceDisplay(p.invoice_id).toLowerCase();
+    const ref = (p.reference || "").toLowerCase();
+    const matchesSearch = studentName.includes(searchQuery.toLowerCase()) || 
+                          invNo.includes(searchQuery.toLowerCase()) || 
+                          ref.includes(searchQuery.toLowerCase());
+    const matchesMethod = methodFilter === "all" || p.method === methodFilter;
+    return matchesSearch && matchesMethod;
+  });
 
   const stats = {
     totalPayments: payments.length,
@@ -306,309 +310,283 @@ export function AccountantPaymentsModule() {
   };
 
   if (isLoading || invoicesLoading) {
-    return <p className="text-sm text-muted-foreground">Loading payments...</p>;
+    return (
+      <div className="flex h-[30vh] items-center justify-center">
+        <div className="h-6 w-6 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
+      </div>
+    );
   }
 
   return (
     <div className="space-y-6">
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        <Card className="shadow-elevated">
-          <CardContent className="pt-4">
-            <p className="text-sm text-muted-foreground">Total Payments</p>
-            <p className="text-2xl font-semibold">{stats.totalPayments}</p>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <Card className="border-blue-100 bg-gradient-to-br from-white to-blue-50/20 shadow-sm">
+          <CardContent className="p-5 flex items-center justify-between">
+            <div className="space-y-1">
+              <p className="text-xs text-blue-600 uppercase tracking-wider font-semibold">Total Payouts</p>
+              <h3 className="text-2xl font-bold text-slate-800">{stats.totalPayments} Deposits</h3>
+            </div>
+            <div className="p-3 rounded-2xl bg-blue-50 text-blue-600">
+              <Receipt className="h-5 w-5" />
+            </div>
           </CardContent>
         </Card>
-        <Card className="shadow-elevated">
-          <CardContent className="pt-4">
-            <p className="text-sm text-muted-foreground">Total Collected</p>
-            <p className="text-2xl font-semibold text-primary">{stats.totalAmount.toLocaleString()}</p>
+
+        <Card className="border-blue-100 bg-gradient-to-br from-white to-blue-50/20 shadow-sm">
+          <CardContent className="p-5 flex items-center justify-between">
+            <div className="space-y-1">
+              <p className="text-xs text-blue-600 uppercase tracking-wider font-semibold">Total Revenue Collected</p>
+              <h3 className="text-2xl font-bold text-slate-800">Rs. {stats.totalAmount.toLocaleString()}</h3>
+            </div>
+            <div className="p-3 rounded-2xl bg-blue-50 text-blue-600">
+              <CreditCard className="h-5 w-5" />
+            </div>
           </CardContent>
         </Card>
-        <Card className="shadow-elevated">
-          <CardContent className="pt-4">
-            <p className="text-sm text-muted-foreground">Today's Collection</p>
-            <p className="text-2xl font-semibold">{stats.todayAmount.toLocaleString()}</p>
+
+        <Card className="border-blue-100 bg-gradient-to-br from-white to-blue-50/20 shadow-sm">
+          <CardContent className="p-5 flex items-center justify-between">
+            <div className="space-y-1">
+              <p className="text-xs text-blue-600 uppercase tracking-wider font-semibold">Today's Collections</p>
+              <h3 className="text-2xl font-bold text-blue-600">Rs. {stats.todayAmount.toLocaleString()}</h3>
+            </div>
+            <div className="p-3 rounded-2xl bg-blue-50 text-blue-600">
+              <Plus className="h-5 w-5" />
+            </div>
           </CardContent>
         </Card>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        {/* Payments List */}
-        <Card className="shadow-elevated lg:col-span-2">
-          <CardHeader className="flex flex-row items-center justify-between">
-            <div>
-              <CardTitle className="font-display text-xl">Payments</CardTitle>
-              <p className="text-sm text-muted-foreground">Record and track fee payments</p>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              {(() => {
-                const exportRows = payments.map((p) => ({
-                  date: p.paid_at,
-                  invoice: getInvoiceDisplay(p.invoice_id),
-                  student: getStudentName(p.student_id),
-                  amount: p.amount,
-                  method: getMethodName(p.method_id),
-                  reference: p.reference || "",
-                  notes: p.notes || "",
-                }));
-                const total = payments.reduce((s, p) => s + (p.amount || 0), 0);
-                return (
-                  <ReportExportMenu
-                    baseName="payments"
-                    rows={exportRows}
-                    print={{
-                      title: "Payments Report",
-                      subtitle: `Generated ${new Date().toLocaleDateString()}`,
-                      summary: [
-                        { label: "Payments", value: payments.length },
-                        { label: "Total collected", value: total.toLocaleString() },
-                      ],
-                    }}
-                  />
-                );
-              })()}
+      <Card className="shadow-sm border border-blue-50">
+        <CardHeader className="flex flex-col space-y-4 pb-4 border-b border-blue-50 sm:flex-row sm:items-center sm:justify-between sm:space-y-0">
+          <div>
+            <CardTitle className="text-slate-800 font-display text-lg font-bold">Payments Registry</CardTitle>
+            <CardDescription className="text-xs">Real-time ledger of student fee payments and bank clearances.</CardDescription>
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            {(() => {
+              const exportRows = filteredPayments.map((p) => ({
+                Date: new Date(p.paid_at).toLocaleDateString(),
+                Invoice: getInvoiceDisplay(p.invoice_id),
+                Student: getStudentName(p.student_id),
+                Amount: p.amount,
+                Method: PAYMENT_METHODS.find(m => m.value === p.method)?.label || p.method,
+                Reference: p.reference || "—",
+                Notes: p.notes || "—"
+              }));
+              return (
+                <ReportExportMenu
+                  baseName="payments_ledger"
+                  rows={exportRows}
+                  print={{
+                    title: "Student Payments Report",
+                    subtitle: `Generated on ${new Date().toLocaleDateString()}`,
+                    summary: [
+                      { label: "Total Transactions", value: filteredPayments.length },
+                      { label: "Total Amount (Rs.)", value: filteredPayments.reduce((s, x) => s + x.Amount, 0).toLocaleString() }
+                    ]
+                  }}
+                />
+              );
+            })()}
+
             <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
               <DialogTrigger asChild>
-                <Button variant="hero" onClick={resetForm}>
-                  <Plus className="mr-2 h-4 w-4" /> Record Payment
+                <Button onClick={resetForm} className="rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-sm h-9">
+                  <Plus className="mr-1.5 h-4 w-4" /> Record Payment
                 </Button>
               </DialogTrigger>
-              <DialogContent>
+              <DialogContent className="sm:max-w-[425px] rounded-2xl border-blue-100">
                 <DialogHeader>
-                  <DialogTitle>Record Payment</DialogTitle>
-                  <DialogDescription>Record a payment against an invoice</DialogDescription>
+                  <DialogTitle className="text-slate-800 font-display font-bold">Record Payment</DialogTitle>
+                  <DialogDescription>Submit student fee collection to real-time accounts ledger.</DialogDescription>
                 </DialogHeader>
-                <div className="space-y-4 py-4">
-                  <div className="space-y-2">
-                    <Label>Invoice</Label>
+                <div className="space-y-4 py-3">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="payInvoice">Select Invoice</Label>
                     <Select value={formInvoiceId} onValueChange={setFormInvoiceId}>
-                      <SelectTrigger>
+                      <SelectTrigger className="rounded-xl border-blue-100">
                         <SelectValue placeholder="Select invoice" />
                       </SelectTrigger>
                       <SelectContent>
                         {unpaidInvoices.length === 0 ? (
-                          <SelectItem value="__none" disabled>
-                            No unpaid invoices
-                          </SelectItem>
+                          <SelectItem value="__none" disabled>No pending invoices</SelectItem>
                         ) : (
                           unpaidInvoices.map((inv) => (
                             <SelectItem key={inv.id} value={inv.id}>
-                              {inv.invoice_no} - {getStudentName(inv.student_id)} ({inv.total.toLocaleString()})
+                              {inv.invoice_number} — {getStudentName(inv.student_id)} (Rs. {(inv.total_amount - inv.paid_amount).toLocaleString()})
                             </SelectItem>
                           ))
                         )}
                       </SelectContent>
                     </Select>
-                    {invoices.length === 0 && (
-                      <p className="text-xs text-muted-foreground">No invoices found. Create an invoice first.</p>
-                    )}
                   </div>
+
                   <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label>Amount</Label>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="payAmount">Amount Paid</Label>
                       <Input
+                        id="payAmount"
                         type="number"
                         value={formAmount}
                         onChange={(e) => setFormAmount(e.target.value)}
-                        placeholder="0"
+                        placeholder="Rs. 0"
+                        className="rounded-xl border-blue-100 focus-visible:ring-blue-500"
                       />
                     </div>
-                    <div className="space-y-2">
-                      <Label>Payment Method</Label>
-                      <Select value={formMethodId || "none"} onValueChange={(v) => setFormMethodId(v === "none" ? "" : v)}>
-                        <SelectTrigger>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="payMethod">Payment Method</Label>
+                      <Select value={formMethod} onValueChange={setFormMethod}>
+                        <SelectTrigger className="rounded-xl border-blue-100">
                           <SelectValue placeholder="Select method" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="none">No method</SelectItem>
-                          {paymentMethods.filter((m) => m.is_active).map((m) => (
-                            <SelectItem key={m.id} value={m.id}>
-                              {m.name}
-                            </SelectItem>
+                          {PAYMENT_METHODS.map((m) => (
+                            <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
                     </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label>Reference (optional)</Label>
+
+                  <div className="space-y-1.5">
+                    <Label htmlFor="payReference">Transaction Reference</Label>
                     <Input
+                      id="payReference"
                       value={formReference}
                       onChange={(e) => setFormReference(e.target.value)}
-                      placeholder="Transaction ID, receipt #, etc."
+                      placeholder="e.g. Bank slip, JazzCash ID..."
+                      className="rounded-xl border-blue-100 focus-visible:ring-blue-500"
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label>Notes (optional)</Label>
+
+                  <div className="space-y-1.5">
+                    <Label htmlFor="payNotes">Internal Notes</Label>
                     <Textarea
+                      id="payNotes"
                       value={formNotes}
                       onChange={(e) => setFormNotes(e.target.value)}
-                      placeholder="Additional notes..."
+                      placeholder="Add payment notes here..."
+                      className="rounded-xl border-blue-100 min-h-[60px]"
                     />
                   </div>
                 </div>
                 <DialogFooter>
-                  <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-                  <Button onClick={handleRecordPayment}>Record Payment</Button>
+                  <Button variant="outline" onClick={() => setDialogOpen(false)} className="rounded-xl border-blue-100">
+                    Cancel
+                  </Button>
+                  <Button onClick={handleRecordPayment} className="rounded-xl bg-blue-600 hover:bg-blue-700 text-white">
+                    Submit Payment
+                  </Button>
                 </DialogFooter>
               </DialogContent>
             </Dialog>
+          </div>
+        </CardHeader>
+        <CardContent className="p-4 space-y-4">
+          {/* Filters Bar */}
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search by student, invoice no, reference..."
+                className="pl-9 pr-8 h-9 rounded-xl text-xs border-blue-100 focus-visible:ring-blue-500"
+              />
+              {searchQuery && (
+                <button onClick={() => setSearchQuery("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                  <X className="h-3 w-3" />
+                </button>
+              )}
             </div>
-          </CardHeader>
-          <CardContent>
-            <div className="max-h-[420px] overflow-auto rounded-xl border bg-surface">
-              <div className="min-w-[900px]">
-              <Table>
-                <TableHeader>
+            <Select value={methodFilter} onValueChange={setMethodFilter}>
+              <SelectTrigger className="w-full sm:w-[180px] h-9 rounded-xl text-xs border-blue-100">
+                <SelectValue placeholder="Filter by Method" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Methods</SelectItem>
+                {PAYMENT_METHODS.map(m => (
+                  <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Table */}
+          <div className="rounded-2xl border border-blue-50 overflow-hidden">
+            <Table>
+              <TableHeader className="bg-blue-50/20">
+                <TableRow className="border-blue-50">
+                  <TableHead className="text-slate-700 font-semibold text-xs py-2">Paid Date</TableHead>
+                  <TableHead className="text-slate-700 font-semibold text-xs py-2">Invoice No</TableHead>
+                  <TableHead className="text-slate-700 font-semibold text-xs py-2">Student</TableHead>
+                  <TableHead className="text-slate-700 font-semibold text-xs py-2">Method</TableHead>
+                  <TableHead className="text-slate-700 font-semibold text-xs py-2">Reference</TableHead>
+                  <TableHead className="text-slate-700 font-semibold text-xs py-2 text-right">Amount</TableHead>
+                  <TableHead className="w-12 py-2"></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredPayments.length === 0 ? (
                   <TableRow>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Invoice</TableHead>
-                    <TableHead>Student</TableHead>
-                    <TableHead>Amount</TableHead>
-                    <TableHead>Method</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
+                    <TableCell colSpan={7} className="text-center py-10 text-xs text-muted-foreground">
+                      No payments found matching criteria.
+                    </TableCell>
                   </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {payments.map((payment) => (
-                    <TableRow key={payment.id}>
-                      <TableCell>{new Date(payment.paid_at).toLocaleDateString()}</TableCell>
-                      <TableCell className="font-medium">{getInvoiceDisplay(payment.invoice_id)}</TableCell>
-                      <TableCell>{getStudentName(payment.student_id)}</TableCell>
-                      <TableCell>{payment.amount.toLocaleString()}</TableCell>
-                      <TableCell>{getMethodName(payment.method_id)}</TableCell>
-                      <TableCell className="text-right">
+                ) : (
+                  filteredPayments.map((p) => (
+                    <TableRow key={p.id} className="border-blue-50 hover:bg-blue-50/5">
+                      <TableCell className="py-2.5 text-xs text-slate-600">
+                        {new Date(p.paid_at).toLocaleDateString()}
+                      </TableCell>
+                      <TableCell className="py-2.5 text-xs text-slate-800 font-bold">
+                        {getInvoiceDisplay(p.invoice_id)}
+                      </TableCell>
+                      <TableCell className="py-2.5 text-xs text-slate-700 font-medium">
+                        {getStudentName(p.student_id)}
+                      </TableCell>
+                      <TableCell className="py-2.5 text-xs capitalize text-slate-600">
+                        {PAYMENT_METHODS.find(m => m.value === p.method)?.label || p.method}
+                      </TableCell>
+                      <TableCell className="py-2.5 text-xs font-mono text-slate-500">
+                        {p.reference || "—"}
+                      </TableCell>
+                      <TableCell className="py-2.5 text-xs text-right text-slate-800 font-bold">
+                        Rs. {p.amount.toLocaleString()}
+                      </TableCell>
+                      <TableCell className="py-2.5 text-right">
                         <AlertDialog>
                           <AlertDialogTrigger asChild>
-                            <Button variant="ghost" size="icon">
-                              <Trash2 className="h-4 w-4" />
+                            <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg text-slate-400 hover:text-destructive hover:bg-destructive/5">
+                              <Trash2 className="h-3.5 w-3.5" />
                             </Button>
                           </AlertDialogTrigger>
-                          <AlertDialogContent>
+                          <AlertDialogContent className="rounded-2xl border-blue-100">
                             <AlertDialogHeader>
-                              <AlertDialogTitle>Delete payment?</AlertDialogTitle>
-                              <AlertDialogDescription>This action cannot be undone.</AlertDialogDescription>
+                              <AlertDialogTitle>Void Payment Record?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Voiding this transaction will permanently delete the deposit log from ledger and automatically deduct the amount from the associated invoice's payments.
+                              </AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>
-                              <AlertDialogCancel>Cancel</AlertDialogCancel>
-                              <AlertDialogAction onClick={() => handleDeletePayment(payment.id)}>Delete</AlertDialogAction>
+                              <AlertDialogCancel className="rounded-xl border-blue-100 text-slate-600">Cancel</AlertDialogCancel>
+                              <AlertDialogAction onClick={() => handleDeletePayment(p)} className="rounded-xl bg-destructive text-destructive-foreground hover:bg-destructive/95">
+                                Void Deposit
+                              </AlertDialogAction>
                             </AlertDialogFooter>
                           </AlertDialogContent>
                         </AlertDialog>
                       </TableCell>
                     </TableRow>
-                  ))}
-                  {payments.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
-                        <CreditCard className="mx-auto h-8 w-8 text-muted-foreground/50 mb-2" />
-                        No payments recorded
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Payment Methods */}
-        <Card className="shadow-elevated">
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="text-lg">Payment Methods</CardTitle>
-            <Dialog open={methodDialogOpen} onOpenChange={setMethodDialogOpen}>
-              <DialogTrigger asChild>
-                <Button variant="outline" size="sm">
-                  <Plus className="mr-1 h-3 w-3" /> Add
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Add Payment Method</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-4 py-4">
-                  <div className="space-y-2">
-                    <Label>Name</Label>
-                    <Input
-                      value={methodName}
-                      onChange={(e) => setMethodName(e.target.value)}
-                      placeholder="e.g. Cash, Bank Transfer"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Type</Label>
-                    <Select value={methodType} onValueChange={setMethodType}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="cash">Cash</SelectItem>
-                        <SelectItem value="bank">Bank Transfer</SelectItem>
-                        <SelectItem value="card">Card</SelectItem>
-                        <SelectItem value="online">Online</SelectItem>
-                        <SelectItem value="custom">Custom</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Instructions (optional)</Label>
-                    <Textarea
-                      value={methodInstructions}
-                      onChange={(e) => setMethodInstructions(e.target.value)}
-                      placeholder="Bank details, payment instructions..."
-                    />
-                  </div>
-                </div>
-                <DialogFooter>
-                  <Button variant="outline" onClick={() => setMethodDialogOpen(false)}>Cancel</Button>
-                  <Button onClick={handleAddPaymentMethod}>Add Method</Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-          </CardHeader>
-          <CardContent>
-            <ScrollArea className="h-[280px]">
-              <div className="space-y-2">
-                {paymentMethods.map((method) => (
-                  <div key={method.id} className="flex items-center justify-between rounded-lg border p-3">
-                    <div className="flex items-center gap-3">
-                      <Receipt className="h-4 w-4 text-muted-foreground" />
-                      <div>
-                        <p className="font-medium">{method.name}</p>
-                        <p className="text-xs text-muted-foreground capitalize">{method.type}</p>
-                      </div>
-                    </div>
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button variant="ghost" size="icon">
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>Delete payment method?</AlertDialogTitle>
-                          <AlertDialogDescription>This may affect existing payments.</AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Cancel</AlertDialogCancel>
-                          <AlertDialogAction onClick={() => handleDeleteMethod(method.id)}>Delete</AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
-                  </div>
-                ))}
-                {paymentMethods.length === 0 && (
-                  <p className="text-center text-sm text-muted-foreground py-8">
-                    No payment methods configured
-                  </p>
+                  ))
                 )}
-              </div>
-            </ScrollArea>
-          </CardContent>
-        </Card>
-      </div>
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

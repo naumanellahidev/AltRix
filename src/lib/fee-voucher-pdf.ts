@@ -161,6 +161,7 @@ function drawCopy(
   const left = xOffset + margin;
   const right = xOffset + copyWidth - margin;
   const innerW = copyWidth - margin * 2;
+  const displayCurrency = data.currency === "PKR" ? "Rs." : data.currency;
 
   // Outer premium card border
   doc.setDrawColor(hairline[0], hairline[1], hairline[2]);
@@ -310,7 +311,7 @@ function drawCopy(
   doc.setFont("helvetica", "bold");
   doc.setFontSize(6.5);
   doc.text("CHARGES DESCRIPTION", left + 2, y + 3.8);
-  doc.text(`AMOUNT (${data.currency})`, right - 2, y + 3.8, { align: "right" });
+  doc.text(`AMOUNT (${displayCurrency})`, right - 2, y + 3.8, { align: "right" });
   y += 5.4;
 
   // Items rows
@@ -364,7 +365,7 @@ function drawCopy(
   doc.setFont("helvetica", "bold");
   doc.setFontSize(8.5);
   doc.text("TOTAL PAYABLE", left + 3, y + 5.1);
-  doc.text(`${data.currency}  ${fmt(data.total)}`, right - 3, y + 5.1, { align: "right" });
+  doc.text(`${displayCurrency}  ${fmt(data.total)}`, right - 3, y + 5.1, { align: "right" });
   y += 10;
 
   // Bank details (if any)

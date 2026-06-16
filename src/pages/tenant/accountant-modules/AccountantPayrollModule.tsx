@@ -144,8 +144,10 @@ type PayRunBatch = {
 
 const periodKey = (start: string, end: string) => `${start}__${end}`;
 
-const fmt = (n: number, currency = "PKR") =>
-  `${currency} ${(n || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+const fmt = (n: number, currency = "PKR") => {
+  const displayCurrency = currency === "PKR" ? "Rs." : currency;
+  return `${displayCurrency} ${(n || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+};
 
 export function AccountantPayrollModule() {
   const { schoolSlug } = useParams();
@@ -991,10 +993,10 @@ export function AccountantPayrollModule() {
                               {fmt(record.base_salary, record.currency)}
                             </TableCell>
                             <TableCell className="text-right text-success">
-                              +{record.allowances.toLocaleString()}
+                              +{fmt(record.allowances, record.currency)}
                             </TableCell>
                             <TableCell className="text-right text-destructive">
-                              -{record.deductions.toLocaleString()}
+                              -{fmt(record.deductions, record.currency)}
                             </TableCell>
                             <TableCell className="text-right font-semibold">
                               {fmt(net, record.currency)}
@@ -1746,7 +1748,7 @@ function PayRunBatchCard({
                       {fmt(run.gross_amount, currency)}
                     </TableCell>
                     <TableCell className="text-right text-destructive">
-                      -{Number(run.deductions).toLocaleString()}
+                      -{fmt(run.deductions, currency)}
                     </TableCell>
                     <TableCell className="text-right font-semibold text-primary">
                       {fmt(run.net_amount, currency)}

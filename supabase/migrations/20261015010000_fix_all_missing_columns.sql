@@ -320,20 +320,20 @@ SELECT
 FROM public.students s
 LEFT JOIN LATERAL (
   SELECT 
-    SUM(fi.total) AS total_invoiced,
+    SUM(fi.total_amount) AS total_invoiced,
     COUNT(fi.id) AS invoice_count,
-    SUM(CASE WHEN fi.status = 'overdue' OR (fi.status != 'paid' AND fi.due_date < CURRENT_DATE) THEN fi.total ELSE 0 END) AS overdue_amount,
+    SUM(CASE WHEN fi.status = 'overdue' OR (fi.status != 'paid' AND fi.due_date < CURRENT_DATE) THEN fi.total_amount ELSE 0 END) AS overdue_amount,
     COUNT(CASE WHEN fi.status = 'overdue' OR (fi.status != 'paid' AND fi.due_date < CURRENT_DATE) THEN 1 END) AS overdue_count
-  FROM public.finance_invoices fi
+  FROM public.fee_invoices fi
   WHERE fi.student_id = s.id AND fi.school_id = s.school_id
 ) inv ON true
 LEFT JOIN LATERAL (
   SELECT 
     SUM(fp.amount) AS total_paid,
     COUNT(fp.id) AS payment_count
-  FROM public.finance_payments fp
-  JOIN public.finance_invoices fi ON fi.id = fp.invoice_id
-  WHERE fi.student_id = s.id AND fp.school_id = s.school_id
+  FROM public.fee_payments fp
+  JOIN public.fee_invoices fi ON fi.id = fp.invoice_id
+  WHERE fi.student_id = s.id AND fp.school_id = s.school_id AND fp.status = 'success'
 ) pay ON true;
 
 -- 25. Grant Select access to the view

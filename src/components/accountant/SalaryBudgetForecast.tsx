@@ -486,7 +486,7 @@ export function SalaryBudgetForecast() {
               <Target className="h-4 w-4 text-primary" />
               <p className="text-sm text-muted-foreground">Annual Budget</p>
             </div>
-            <p className="mt-2 text-2xl font-semibold">{totals.totalBudget.toLocaleString()}</p>
+            <p className="mt-2 text-2xl font-semibold">Rs. {totals.totalBudget.toLocaleString()}</p>
             <p className="text-xs text-muted-foreground">FY {selectedYear}</p>
           </CardContent>
         </Card>
@@ -496,7 +496,7 @@ export function SalaryBudgetForecast() {
               <DollarSign className="h-4 w-4 text-muted-foreground" />
               <p className="text-sm text-muted-foreground">Projected Annual</p>
             </div>
-            <p className="mt-2 text-2xl font-semibold">{totals.totalActualAnnual.toLocaleString()}</p>
+            <p className="mt-2 text-2xl font-semibold">Rs. {totals.totalActualAnnual.toLocaleString()}</p>
             <p className="text-xs text-muted-foreground">Based on current salaries</p>
           </CardContent>
         </Card>
@@ -511,7 +511,7 @@ export function SalaryBudgetForecast() {
               <p className="text-sm text-muted-foreground">Variance</p>
             </div>
             <p className={`mt-2 text-2xl font-semibold ${getVarianceColor(totals.variancePercent)}`}>
-              {totals.variance >= 0 ? "+" : ""}{totals.variance.toLocaleString()}
+              {totals.variance >= 0 ? "+Rs. " : "-Rs. "}{Math.abs(totals.variance).toLocaleString()}
             </p>
             <p className="text-xs text-muted-foreground">
               {totals.variancePercent >= 0 ? "Under" : "Over"} by {Math.abs(totals.variancePercent).toFixed(1)}%
@@ -568,7 +568,7 @@ export function SalaryBudgetForecast() {
                         actual: "Actual",
                         projected: "Projected",
                       };
-                      return [value.toLocaleString(), labels[name] || name];
+                      return ["Rs. " + value.toLocaleString(), labels[name] || name];
                     }}
                     contentStyle={{
                       backgroundColor: "hsl(var(--card))",
@@ -616,7 +616,7 @@ export function SalaryBudgetForecast() {
                     width={40}
                   />
                   <Tooltip 
-                    formatter={(value: number) => value.toLocaleString()}
+                    formatter={(value: number) => "Rs. " + value.toLocaleString()}
                     contentStyle={{
                       backgroundColor: "hsl(var(--card))",
                       border: "1px solid hsl(var(--border))",
@@ -692,7 +692,7 @@ export function SalaryBudgetForecast() {
                       axisLine={false}
                     />
                     <Tooltip 
-                      formatter={(value: number) => value.toLocaleString()}
+                      formatter={(value: number) => "Rs. " + value.toLocaleString()}
                       contentStyle={{
                         backgroundColor: "hsl(var(--card))",
                         border: "1px solid hsl(var(--border))",
@@ -725,16 +725,16 @@ export function SalaryBudgetForecast() {
                       <div className="grid grid-cols-3 gap-4 text-sm">
                         <div>
                           <p className="text-muted-foreground">Budget</p>
-                          <p className="font-semibold">{item.budget.toLocaleString()}</p>
+                          <p className="font-semibold">Rs. {item.budget.toLocaleString()}</p>
                         </div>
                         <div>
                           <p className="text-muted-foreground">Actual</p>
-                          <p className="font-semibold">{item.actual.toLocaleString()}</p>
+                          <p className="font-semibold">Rs. {item.actual.toLocaleString()}</p>
                         </div>
                         <div>
                           <p className="text-muted-foreground">Variance</p>
                           <p className={`font-semibold ${getVarianceColor(item.variance)}`}>
-                            {item.variance >= 0 ? "+" : ""}{item.variance.toLocaleString()}
+                            {item.variance >= 0 ? "+Rs. " : "-Rs. "}{Math.abs(item.variance).toLocaleString()}
                           </p>
                         </div>
                       </div>
@@ -792,11 +792,11 @@ export function SalaryBudgetForecast() {
                           </div>
                         </TableCell>
                         <TableCell className="text-right font-medium">
-                          {budget.budget_amount.toLocaleString()}
+                          Rs. {budget.budget_amount.toLocaleString()}
                         </TableCell>
-                        <TableCell className="text-right">{actual.toLocaleString()}</TableCell>
+                        <TableCell className="text-right">Rs. {actual.toLocaleString()}</TableCell>
                         <TableCell className={`text-right font-medium ${getVarianceColor(variance)}`}>
-                          {variance >= 0 ? "+" : ""}{variance.toLocaleString()}
+                          {variance >= 0 ? "+Rs. " : "-Rs. "}{Math.abs(variance).toLocaleString()}
                         </TableCell>
                         <TableCell className="text-sm text-muted-foreground">{budget.notes || "—"}</TableCell>
                         <TableCell>

@@ -57,7 +57,7 @@ import {
 } from "recharts";
 import { format, subMonths, startOfMonth, startOfYear, endOfMonth, addMonths, differenceInDays } from "date-fns";
 import { useActiveCampus } from "@/hooks/useActiveCampus";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 
 interface Props {
   schoolId: string | null;
@@ -82,6 +82,7 @@ export function OwnerFinanceModule({ schoolId, role = "school_owner" }: Props) {
   const [ledgerPage, setLedgerPage] = useState(1);
   const itemsPerPage = 12;
 
+  const { schoolSlug } = useParams();
   const activeCampusId = useActiveCampus(schoolId);
   const navigate = useNavigate();
 
@@ -468,9 +469,9 @@ export function OwnerFinanceModule({ schoolId, role = "school_owner" }: Props) {
   }, [financeData]);
 
   const formatCurrency = (amount: number) => {
-    if (amount >= 1000000) return `$${(amount / 1000000).toFixed(1)}M`;
-    if (amount >= 1000) return `$${(amount / 1000).toFixed(0)}K`;
-    return `$${amount.toLocaleString()}`;
+    if (amount >= 1000000) return `Rs. ${(amount / 1000000).toFixed(1)}M`;
+    if (amount >= 1000) return `Rs. ${(amount / 1000).toFixed(0)}K`;
+    return `Rs. ${amount.toLocaleString()}`;
   };
 
   if (isLoading) {
@@ -554,16 +555,16 @@ export function OwnerFinanceModule({ schoolId, role = "school_owner" }: Props) {
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button size="sm" variant="soft" className="rounded-xl" onClick={() => navigate(`/${schoolId}/accountant/payments`)}>
+            <Button size="sm" variant="soft" className="rounded-xl" onClick={() => navigate(`/${schoolSlug}/accountant/payments`)}>
               Record Payment
             </Button>
-            <Button size="sm" variant="soft" className="rounded-xl" onClick={() => navigate(`/${schoolId}/accountant/expenses`)}>
+            <Button size="sm" variant="soft" className="rounded-xl" onClick={() => navigate(`/${schoolSlug}/accountant/expenses`)}>
               Add Expense
             </Button>
-            <Button size="sm" variant="soft" className="rounded-xl" onClick={() => navigate(`/${schoolId}/accountant/invoices`)}>
+            <Button size="sm" variant="soft" className="rounded-xl" onClick={() => navigate(`/${schoolSlug}/accountant/fees?tab=invoices`)}>
               Create Invoice
             </Button>
-            <Button size="sm" variant="hero" className="rounded-xl" onClick={() => navigate(`/${schoolId}/accountant/payroll`)}>
+            <Button size="sm" variant="hero" className="rounded-xl" onClick={() => navigate(`/${schoolSlug}/accountant/payroll`)}>
               Run Payroll
             </Button>
           </div>
@@ -571,101 +572,131 @@ export function OwnerFinanceModule({ schoolId, role = "school_owner" }: Props) {
       )}
 
       {/* Primary KPI Widgets */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}>
-          <Card className="shadow-elevated hover:shadow-lg transition-all border-l-4 border-l-emerald-500 rounded-2xl">
-            <CardContent className="p-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 w-full auto-rows-fr">
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }} className="h-full">
+          <Card 
+            className="shadow-sm shadow-blue-50/50 bg-gradient-to-br from-white to-blue-50/20 border border-blue-100/80 hover:border-blue-400 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 cursor-pointer border-l-4 border-l-emerald-500 rounded-2xl h-full flex flex-col justify-between group"
+            onClick={() => navigate(role === "accountant" ? `/${schoolSlug}/accountant/payments` : `/${schoolSlug}/owner/finance`)}
+          >
+            <CardContent className="p-4 flex flex-col justify-between h-full">
               <div className="flex items-center justify-between text-muted-foreground">
-                <span className="text-xs font-medium">Consolidated MTD</span>
-                <Coins className="h-4 w-4 text-emerald-500" />
+                <span className="text-xs font-semibold text-slate-700">Consolidated MTD</span>
+                <Coins className="h-4 w-4 text-emerald-500 group-hover:scale-110 transition-transform" />
               </div>
-              <p className="mt-2 text-2xl font-bold tracking-tight text-emerald-600">
-                {formatCurrency(financeData?.revenueMtd || 0)}
-              </p>
-              <p className="text-[10px] text-muted-foreground/80 mt-1">Total Cash Inflow</p>
-            </CardContent>
-          </Card>
-        </motion.div>
-
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2, delay: 0.05 }}>
-          <Card className="shadow-elevated hover:shadow-lg transition-all border-l-4 border-l-red-500 rounded-2xl">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between text-muted-foreground">
-                <span className="text-xs font-medium">Expenses MTD</span>
-                <TrendingDown className="h-4 w-4 text-red-500" />
-              </div>
-              <p className="mt-2 text-2xl font-bold tracking-tight text-red-600">
-                {formatCurrency(financeData?.expensesMtd || 0)}
-              </p>
-              <p className="text-[10px] text-muted-foreground/80 mt-1">Total Operations + Pay</p>
-            </CardContent>
-          </Card>
-        </motion.div>
-
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2, delay: 0.1 }}>
-          <Card className="shadow-elevated hover:shadow-lg transition-all border-l-4 border-l-primary rounded-2xl">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between text-muted-foreground">
-                <span className="text-xs font-medium">Operating Cashflow</span>
-                <PiggyBank className="h-4 w-4 text-primary" />
-              </div>
-              <p className="mt-2 text-2xl font-bold tracking-tight text-foreground">
-                {formatCurrency(financeData?.profitMtd || 0)}
-              </p>
-              <div className="flex items-center gap-1 mt-1">
-                <Badge className="bg-primary/20 text-primary border-primary/10 text-[9px] px-1 font-semibold">
-                  {financeData?.profitMargin || 0}% margin
-                </Badge>
+              <div className="mt-4">
+                <p className="text-xl font-black tracking-tight text-emerald-600 truncate">
+                  {formatCurrency(financeData?.revenueMtd || 0)}
+                </p>
+                <p className="text-[10px] font-semibold text-muted-foreground/80 mt-1">Total Cash Inflow</p>
               </div>
             </CardContent>
           </Card>
         </motion.div>
 
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2, delay: 0.15 }}>
-          <Card className="shadow-elevated hover:shadow-lg transition-all border-l-4 border-l-violet-500 rounded-2xl">
-            <CardContent className="p-4">
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2, delay: 0.05 }} className="h-full">
+          <Card 
+            className="shadow-sm shadow-blue-50/50 bg-gradient-to-br from-white to-blue-50/20 border border-blue-100/80 hover:border-blue-400 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 cursor-pointer border-l-4 border-l-rose-500 rounded-2xl h-full flex flex-col justify-between group"
+            onClick={() => navigate(role === "accountant" ? `/${schoolSlug}/accountant/expenses` : `/${schoolSlug}/owner/finance`)}
+          >
+            <CardContent className="p-4 flex flex-col justify-between h-full">
               <div className="flex items-center justify-between text-muted-foreground">
-                <span className="text-xs font-medium">Payroll Liability</span>
-                <Wallet className="h-4 w-4 text-violet-500" />
+                <span className="text-xs font-semibold text-slate-700">Expenses MTD</span>
+                <TrendingDown className="h-4 w-4 text-rose-500 group-hover:scale-110 transition-transform" />
               </div>
-              <p className="mt-2 text-2xl font-bold tracking-tight text-foreground">
-                {formatCurrency(financeData?.monthlyPayrollLiability || 0)}
-              </p>
-              <p className="text-[10px] text-muted-foreground/80 mt-1">Active staff records</p>
-            </CardContent>
-          </Card>
-        </motion.div>
-
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2, delay: 0.2 }}>
-          <Card className="shadow-elevated hover:shadow-lg transition-all border-l-4 border-l-amber-500 rounded-2xl">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between text-muted-foreground">
-                <span className="text-xs font-medium">Outstanding Bal</span>
-                <CreditCard className="h-4 w-4 text-amber-500" />
-              </div>
-              <p className="mt-2 text-2xl font-bold tracking-tight text-amber-600">
-                {formatCurrency(financeData?.unpaidAmount || 0)}
-              </p>
-              <div className="flex items-center gap-1 mt-1">
-                <Badge variant="outline" className="text-[9px] px-1 text-muted-foreground">
-                  {financeData?.collectionRate || 0}% Coll Rate
-                </Badge>
+              <div className="mt-4">
+                <p className="text-xl font-black tracking-tight text-red-600 truncate">
+                  {formatCurrency(financeData?.expensesMtd || 0)}
+                </p>
+                <p className="text-[10px] font-semibold text-muted-foreground/80 mt-1">Total Operations + Pay</p>
               </div>
             </CardContent>
           </Card>
         </motion.div>
 
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2, delay: 0.25 }}>
-          <Card className="shadow-elevated hover:shadow-lg transition-all border-l-4 border-l-indigo-500 rounded-2xl">
-            <CardContent className="p-4">
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2, delay: 0.1 }} className="h-full">
+          <Card 
+            className="shadow-sm shadow-blue-50/50 bg-gradient-to-br from-white to-blue-50/20 border border-blue-100/80 hover:border-blue-400 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 cursor-pointer border-l-4 border-l-blue-500 rounded-2xl h-full flex flex-col justify-between group"
+            onClick={() => navigate(role === "accountant" ? `/${schoolSlug}/accountant/ledger` : `/${schoolSlug}/owner/finance`)}
+          >
+            <CardContent className="p-4 flex flex-col justify-between h-full">
               <div className="flex items-center justify-between text-muted-foreground">
-                <span className="text-xs font-medium">Unpaid Bills</span>
-                <FileText className="h-4 w-4 text-indigo-500" />
+                <span className="text-xs font-semibold text-slate-700">Operating Cashflow</span>
+                <PiggyBank className="h-4 w-4 text-blue-500 group-hover:scale-110 transition-transform" />
               </div>
-              <p className="mt-2 text-2xl font-bold tracking-tight text-foreground">
-                {financeData?.pendingInvoicesCount || 0}
-              </p>
-              <p className="text-[10px] text-muted-foreground/80 mt-1">Pending billing collection</p>
+              <div className="mt-4">
+                <p className="text-xl font-black tracking-tight text-slate-800 truncate">
+                  {formatCurrency(financeData?.profitMtd || 0)}
+                </p>
+                <div className="flex items-center gap-1 mt-1">
+                  <Badge className="bg-blue-50 text-blue-600 border-blue-100/50 text-[9px] px-1.5 py-0 font-semibold">
+                    {financeData?.profitMargin || 0}% margin
+                  </Badge>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2, delay: 0.15 }} className="h-full">
+          <Card 
+            className="shadow-sm shadow-blue-50/50 bg-gradient-to-br from-white to-blue-50/20 border border-blue-100/80 hover:border-blue-400 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 cursor-pointer border-l-4 border-l-violet-500 rounded-2xl h-full flex flex-col justify-between group"
+            onClick={() => navigate(role === "accountant" ? `/${schoolSlug}/accountant/payroll` : `/${schoolSlug}/owner/finance`)}
+          >
+            <CardContent className="p-4 flex flex-col justify-between h-full">
+              <div className="flex items-center justify-between text-muted-foreground">
+                <span className="text-xs font-semibold text-slate-700">Payroll Liability</span>
+                <Wallet className="h-4 w-4 text-violet-500 group-hover:scale-110 transition-transform" />
+              </div>
+              <div className="mt-4">
+                <p className="text-xl font-black tracking-tight text-slate-800 truncate">
+                  {formatCurrency(financeData?.monthlyPayrollLiability || 0)}
+                </p>
+                <p className="text-[10px] font-semibold text-muted-foreground/80 mt-1">Active staff records</p>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2, delay: 0.2 }} className="h-full">
+          <Card 
+            className="shadow-sm shadow-blue-50/50 bg-gradient-to-br from-white to-blue-50/20 border border-blue-100/80 hover:border-blue-400 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 cursor-pointer border-l-4 border-l-amber-500 rounded-2xl h-full flex flex-col justify-between group"
+            onClick={() => navigate(role === "accountant" ? `/${schoolSlug}/accountant/fees?tab=invoices` : `/${schoolSlug}/owner/finance`)}
+          >
+            <CardContent className="p-4 flex flex-col justify-between h-full">
+              <div className="flex items-center justify-between text-muted-foreground">
+                <span className="text-xs font-semibold text-slate-700">Outstanding Bal</span>
+                <CreditCard className="h-4 w-4 text-amber-500 group-hover:scale-110 transition-transform" />
+              </div>
+              <div className="mt-4">
+                <p className="text-xl font-black tracking-tight text-amber-600 truncate">
+                  {formatCurrency(financeData?.unpaidAmount || 0)}
+                </p>
+                <div className="flex items-center gap-1 mt-1">
+                  <Badge variant="outline" className="text-[9px] px-1.5 py-0 text-muted-foreground border-slate-200">
+                    {financeData?.collectionRate || 0}% Coll Rate
+                  </Badge>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2, delay: 0.25 }} className="h-full">
+          <Card 
+            className="shadow-sm shadow-blue-50/50 bg-gradient-to-br from-white to-blue-50/20 border border-blue-100/80 hover:border-blue-400 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 cursor-pointer border-l-4 border-l-indigo-500 rounded-2xl h-full flex flex-col justify-between group"
+            onClick={() => navigate(role === "accountant" ? `/${schoolSlug}/accountant/fees?tab=invoices` : `/${schoolSlug}/owner/finance`)}
+          >
+            <CardContent className="p-4 flex flex-col justify-between h-full">
+              <div className="flex items-center justify-between text-muted-foreground">
+                <span className="text-xs font-semibold text-slate-700">Unpaid Bills</span>
+                <FileText className="h-4 w-4 text-indigo-500 group-hover:scale-110 transition-transform" />
+              </div>
+              <div className="mt-4">
+                <p className="text-xl font-black tracking-tight text-slate-800 truncate">
+                  {financeData?.pendingInvoicesCount || 0}
+                </p>
+                <p className="text-[10px] font-semibold text-muted-foreground/80 mt-1">Pending billing collection</p>
+              </div>
             </CardContent>
           </Card>
         </motion.div>

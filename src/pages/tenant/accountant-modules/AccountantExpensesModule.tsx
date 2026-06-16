@@ -267,13 +267,13 @@ export function AccountantExpensesModule() {
         <Card className="shadow-elevated">
           <CardContent className="pt-4">
             <p className="text-sm text-muted-foreground">Total Expenses</p>
-            <p className="text-2xl font-semibold text-destructive">{stats.total.toLocaleString()}</p>
+            <p className="text-2xl font-semibold text-destructive">Rs. {stats.total.toLocaleString()}</p>
           </CardContent>
         </Card>
         <Card className="shadow-elevated">
           <CardContent className="pt-4">
             <p className="text-sm text-muted-foreground">This Month</p>
-            <p className="text-2xl font-semibold">{stats.thisMonth.toLocaleString()}</p>
+            <p className="text-2xl font-semibold">Rs. {stats.thisMonth.toLocaleString()}</p>
           </CardContent>
         </Card>
         <Card className="shadow-elevated">
@@ -315,7 +315,7 @@ export function AccountantExpensesModule() {
                       subtitle: `Generated ${new Date().toLocaleDateString()} • Category: ${categoryFilter}`,
                       summary: [
                         { label: "Entries", value: filteredExpenses.length },
-                        { label: "Total spend", value: total.toLocaleString() },
+                        { label: "Total spend", value: `Rs. ${total.toLocaleString()}` },
                       ],
                     }}
                   />
@@ -461,7 +461,7 @@ export function AccountantExpensesModule() {
                         </Badge>
                       </TableCell>
                       <TableCell className="text-destructive font-medium">
-                        -{expense.amount.toLocaleString()}
+                        -Rs. {expense.amount.toLocaleString()}
                       </TableCell>
                       <TableCell>{expense.vendor || "—"}</TableCell>
                       <TableCell className="text-right">
@@ -517,7 +517,7 @@ export function AccountantExpensesModule() {
                   <div key={cat.category} className="space-y-1">
                     <div className="flex items-center justify-between text-sm">
                       <span className="font-medium">{formatCategory(cat.category)}</span>
-                      <span className="text-muted-foreground">{cat.amount.toLocaleString()}</span>
+                      <span className="text-muted-foreground">Rs. {cat.amount.toLocaleString()}</span>
                     </div>
                     <div className="h-2 rounded-full bg-muted overflow-hidden">
                       <div

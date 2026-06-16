@@ -20,8 +20,10 @@ export type PayslipData = {
 };
 
 export function generatePayslipHTML(data: PayslipData): string {
-  const formatCurrency = (amount: number) => 
-    `${data.currency} ${amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const formatCurrency = (amount: number) => {
+    const dispCurrency = data.currency === "PKR" ? "Rs." : data.currency;
+    return `${dispCurrency} ${amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  };
 
   const formatDate = (dateStr: string | null) => 
     dateStr ? new Date(dateStr).toLocaleDateString('en-US', { 
@@ -281,8 +283,10 @@ export function downloadPayslipPDF(data: PayslipData) {
 // Generate bulk payslips HTML for multiple employees
 export function generateBulkPayslipsHTML(payslips: PayslipData[]): string {
   const individualPayslips = payslips.map(data => {
-    const formatCurrency = (amount: number) => 
-      `${data.currency} ${amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    const formatCurrency = (amount: number) => {
+      const dispCurrency = data.currency === "PKR" ? "Rs." : data.currency;
+      return `${dispCurrency} ${amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    };
 
     const formatDate = (dateStr: string | null) => 
       dateStr ? new Date(dateStr).toLocaleDateString('en-US', { 

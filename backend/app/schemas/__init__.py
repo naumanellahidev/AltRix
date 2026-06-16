@@ -558,6 +558,7 @@ class FeeStructureCreate(BaseModel):
     campus_id: Optional[UUID] = None
     class_ids: Optional[List[str]] = None
     total_amount: Optional[float] = None
+    notes: Optional[str] = None
 
 
 class FeeStructureOut(BaseModel):
@@ -569,6 +570,7 @@ class FeeStructureOut(BaseModel):
     academic_year: Optional[str] = None
     total_amount: Optional[float] = None
     is_active: Optional[bool] = None
+    notes: Optional[str] = None
     created_at: Optional[datetime] = None
 
     model_config = {"from_attributes": True}

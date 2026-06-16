@@ -78,7 +78,6 @@ export function AccountantShell({ title, subtitle, schoolSlug, children }: Props
   const bottomNavItems = [
     { to: basePath, icon: LayoutGrid, label: "Home", end: true },
     { to: `${basePath}/messages`, icon: MessageSquare, label: "Messages", badge: unreadCount },
-    { to: `${basePath}/invoices`, icon: FileText, label: "Invoices" },
     { to: `${basePath}/payments`, icon: CreditCard, label: "Payments" },
   ];
 

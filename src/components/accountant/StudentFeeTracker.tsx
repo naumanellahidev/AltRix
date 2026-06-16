@@ -136,12 +136,19 @@ export function StudentFeeTracker({ schoolId }: StudentFeeTrackerProps) {
     queryFn: async () => {
       if (!selectedStudent) return [];
       const { data, error } = await supabase
-        .from("finance_invoices")
-        .select("id, invoice_no, issue_date, due_date, total, status")
+        .from("fee_invoices")
+        .select("id, invoice_number, created_at, due_date, total_amount, status")
         .eq("student_id", selectedStudent.student_id)
-        .order("issue_date", { ascending: false });
+        .order("created_at", { ascending: false });
       if (error) throw error;
-      return (data || []) as Invoice[];
+      return (data || []).map((inv: any) => ({
+        id: inv.id,
+        invoice_no: inv.invoice_number,
+        issue_date: inv.created_at,
+        due_date: inv.due_date,
+        total: inv.total_amount,
+        status: inv.status,
+      })) as Invoice[];
     },
     enabled: !!selectedStudent,
   });
@@ -154,7 +161,7 @@ export function StudentFeeTracker({ schoolId }: StudentFeeTrackerProps) {
       const invoiceIds = studentInvoices.map((i) => i.id);
       if (invoiceIds.length === 0) return [];
       const { data, error } = await supabase
-        .from("finance_payments")
+        .from("fee_payments")
         .select("id, amount, paid_at, invoice_id")
         .in("invoice_id", invoiceIds)
         .order("paid_at", { ascending: false });

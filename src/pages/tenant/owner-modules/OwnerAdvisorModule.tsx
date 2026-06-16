@@ -35,11 +35,11 @@ export function OwnerAdvisorModule({ schoolId }: Props) {
 
       const [studentsRes, paymentsRes, expensesRes, attendanceRes, leadsRes, invoicesRes, staffRes, teachersRes, marksRes] = await Promise.all([
         supabase.from("students").select("id,status").eq("school_id", schoolId),
-        supabase.from("finance_payments").select("amount,paid_at").eq("school_id", schoolId),
+        supabase.from("fee_payments").select("amount,paid_at").eq("school_id", schoolId).eq("status", "success"),
         supabase.from("finance_expenses").select("amount,expense_date").eq("school_id", schoolId),
         supabase.from("attendance_entries").select("status").eq("school_id", schoolId).gte("created_at", d7Ago.toISOString()),
         supabase.from("crm_leads").select("id,status,created_at").eq("school_id", schoolId),
-        supabase.from("finance_invoices").select("id,status,total").eq("school_id", schoolId),
+        supabase.from("fee_invoices").select("id,status,total:total_amount").eq("school_id", schoolId),
         supabase.from("school_memberships").select("id").eq("school_id", schoolId),
         supabase.from("user_roles").select("id").eq("school_id", schoolId).eq("role", "teacher"),
         supabase.from("student_marks").select("marks,assessment_id").eq("school_id", schoolId).not("marks", "is", null),

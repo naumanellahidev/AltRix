@@ -170,9 +170,18 @@ export function useOfflineUniversal({
         }
 
         case 'payment': {
-          const { invoice_id, student_id, amount, paid_at, reference, notes } = item.data as any;
-          const { error } = await rawSupabase.from("finance_payments").insert({
-            school_id: schoolId, invoice_id, student_id, amount, paid_at: paid_at || new Date().toISOString(), reference, notes, received_by: userId, created_by: userId,
+          const { invoice_id, student_id, amount, paid_at, reference, notes, method } = item.data as any;
+          const { error } = await rawSupabase.from("fee_payments").insert({
+            school_id: schoolId,
+            invoice_id,
+            student_id,
+            amount,
+            paid_at: paid_at || new Date().toISOString(),
+            transaction_ref: reference || null,
+            notes: notes || null,
+            recorded_by_user_id: userId,
+            status: 'success',
+            method: (method || 'cash') as any
           });
           if (error) throw error;
           break;

@@ -24,15 +24,18 @@ export function AccountantReportsModule() {
   const [period, setPeriod] = useState<"month" | "quarter" | "year">("month");
 
   const { data: payments = [] } = useQuery({
-    queryKey: ["finance_payments", schoolId],
+    queryKey: ["fee_payments", schoolId],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("finance_payments")
+        .from("fee_payments")
         .select("amount, paid_at")
         .eq("school_id", schoolId!)
         .order("paid_at", { ascending: true });
       if (error) throw error;
-      return data;
+      return (data || []).map(p => ({
+        amount: Number(p.amount),
+        paid_at: p.paid_at
+      }));
     },
     enabled: !!schoolId,
   });
@@ -46,21 +49,29 @@ export function AccountantReportsModule() {
         .eq("school_id", schoolId!)
         .order("expense_date", { ascending: true });
       if (error) throw error;
-      return data;
+      return (data || []).map(e => ({
+        amount: Number(e.amount),
+        expense_date: e.expense_date,
+        category: e.category
+      }));
     },
     enabled: !!schoolId,
   });
 
   const { data: invoices = [] } = useQuery({
-    queryKey: ["finance_invoices", schoolId],
+    queryKey: ["fee_invoices", schoolId],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("finance_invoices")
-        .select("total, status, issue_date")
+        .from("fee_invoices")
+        .select("total_amount, status, created_at")
         .eq("school_id", schoolId!)
-        .order("issue_date", { ascending: true });
+        .order("created_at", { ascending: true });
       if (error) throw error;
-      return data;
+      return (data || []).map(i => ({
+        total: Number(i.total_amount),
+        status: i.status,
+        issue_date: i.created_at
+      }));
     },
     enabled: !!schoolId,
   });
@@ -148,8 +159,9 @@ export function AccountantReportsModule() {
   const expenseByCategory = useMemo(() => {
     const categoryMap = new Map<string, number>();
     periodExpenses.forEach((e) => {
-      const current = categoryMap.get(e.category) || 0;
-      categoryMap.set(e.category, current + e.amount);
+      const cat = e.category || "Other";
+      const current = categoryMap.get(cat) || 0;
+      categoryMap.set(cat, current + e.amount);
     });
     return Array.from(categoryMap.entries())
       .map(([name, value]) => ({ name: name.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase()), value }))
@@ -207,16 +219,16 @@ export function AccountantReportsModule() {
   return (
     <div className="space-y-6">
       {/* Period Selector */}
-      <Card className="shadow-elevated">
+      <Card className="shadow-elevated border border-blue-100 bg-white">
         <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <CardTitle className="font-display text-xl">Financial Reports</CardTitle>
+            <CardTitle className="font-display text-xl font-bold text-slate-800">Financial Reports</CardTitle>
             <p className="text-sm text-muted-foreground">P&L, expense breakdown and cash flow — exportable, printable, ready for board packs.</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Select value={period} onValueChange={(v) => setPeriod(v as typeof period)}>
-              <SelectTrigger className="w-[140px]">
-                <Calendar className="mr-2 h-4 w-4" />
+              <SelectTrigger className="w-[140px] rounded-xl border-blue-100">
+                <Calendar className="mr-2 h-4 w-4 text-blue-600" />
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -225,7 +237,7 @@ export function AccountantReportsModule() {
                 <SelectItem value="year">This Year</SelectItem>
               </SelectContent>
             </Select>
-            <Button variant="outline" size="sm" onClick={printAll} className="gap-2">
+            <Button variant="outline" size="sm" onClick={printAll} className="gap-2 rounded-xl border-blue-100 text-slate-700">
               <Printer className="h-4 w-4" /> Print all
             </Button>
             <ReportExportMenu
@@ -246,41 +258,41 @@ export function AccountantReportsModule() {
 
       {/* Summary Cards */}
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-        <Card className="shadow-elevated">
-          <CardContent className="pt-4">
+        <Card className="border-blue-100 bg-gradient-to-br from-white to-blue-50/20 shadow-sm">
+          <CardContent className="p-5">
             <div className="flex items-center gap-2">
-              <TrendingUp className="h-4 w-4 text-primary" />
-              <p className="text-sm text-muted-foreground">Revenue</p>
+              <TrendingUp className="h-4 w-4 text-blue-600" />
+              <p className="text-xs font-semibold text-blue-600 uppercase tracking-wider">Revenue</p>
             </div>
-            <p className="mt-2 text-2xl font-semibold text-primary">{totalRevenue.toLocaleString()}</p>
+            <p className="mt-2 text-2xl font-bold text-slate-800">Rs. {totalRevenue.toLocaleString()}</p>
           </CardContent>
         </Card>
-        <Card className="shadow-elevated">
-          <CardContent className="pt-4">
+        <Card className="border-blue-100 bg-gradient-to-br from-white to-rose-50/20 shadow-sm">
+          <CardContent className="p-5">
             <div className="flex items-center gap-2">
-              <TrendingDown className="h-4 w-4 text-destructive" />
-              <p className="text-sm text-muted-foreground">Expenses</p>
+              <TrendingDown className="h-4 w-4 text-rose-600" />
+              <p className="text-xs font-semibold text-rose-600 uppercase tracking-wider">Expenses</p>
             </div>
-            <p className="mt-2 text-2xl font-semibold text-destructive">{totalExpenses.toLocaleString()}</p>
+            <p className="mt-2 text-2xl font-bold text-slate-800">Rs. {totalExpenses.toLocaleString()}</p>
           </CardContent>
         </Card>
-        <Card className="shadow-elevated">
-          <CardContent className="pt-4">
+        <Card className="border-blue-100 bg-gradient-to-br from-white to-blue-50/20 shadow-sm">
+          <CardContent className="p-5">
             <div className="flex items-center gap-2">
-              <DollarSign className="h-4 w-4 text-muted-foreground" />
-              <p className="text-sm text-muted-foreground">Payroll</p>
+              <DollarSign className="h-4 w-4 text-slate-500" />
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Payroll</p>
             </div>
-            <p className="mt-2 text-2xl font-semibold">{totalPayroll.toLocaleString()}</p>
+            <p className="mt-2 text-2xl font-bold text-slate-800">Rs. {totalPayroll.toLocaleString()}</p>
           </CardContent>
         </Card>
-        <Card className="shadow-elevated">
-          <CardContent className="pt-4">
+        <Card className={`border-blue-100 bg-gradient-to-br shadow-sm ${netProfit >= 0 ? "from-white to-blue-50/20" : "from-white to-rose-50/20"}`}>
+          <CardContent className="p-5">
             <div className="flex items-center gap-2">
-              <BarChart3 className="h-4 w-4 text-muted-foreground" />
-              <p className="text-sm text-muted-foreground">Net Profit</p>
+              <BarChart3 className={`h-4 w-4 ${netProfit >= 0 ? "text-blue-600" : "text-rose-600"}`} />
+              <p className={`text-xs font-semibold uppercase tracking-wider ${netProfit >= 0 ? "text-blue-600" : "text-rose-600"}`}>Net Profit</p>
             </div>
-            <p className={`mt-2 text-2xl font-semibold ${netProfit >= 0 ? "text-primary" : "text-destructive"}`}>
-              {netProfit.toLocaleString()}
+            <p className={`mt-2 text-2xl font-bold ${netProfit >= 0 ? "text-blue-600" : "text-rose-600"}`}>
+              Rs. {netProfit.toLocaleString()}
             </p>
           </CardContent>
         </Card>
@@ -288,9 +300,9 @@ export function AccountantReportsModule() {
 
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Cash Flow Chart */}
-        <Card className="shadow-elevated">
+        <Card className="border-blue-50 shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="text-lg">Cash Flow Trend</CardTitle>
+            <CardTitle className="text-base font-bold text-slate-800">Cash Flow Trend</CardTitle>
             <ReportExportMenu
               baseName={`cashflow-${period}`}
               rows={cashflowRows}
@@ -302,24 +314,24 @@ export function AccountantReportsModule() {
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={trendData}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                  <XAxis dataKey="date" className="text-xs" />
-                  <YAxis className="text-xs" />
-                  <Tooltip />
+                  <XAxis dataKey="date" className="text-xs text-slate-500" />
+                  <YAxis className="text-xs text-slate-500" tickFormatter={(v) => `Rs.${v.toLocaleString()}`} />
+                  <Tooltip formatter={(value: number) => `Rs. ${value.toLocaleString()}`} />
                   <Area
                     type="monotone"
                     dataKey="revenue"
                     name="Revenue"
                     stackId="1"
-                    stroke="hsl(var(--primary))"
-                    fill="hsl(var(--primary) / 0.3)"
+                    stroke="#2563eb"
+                    fill="#dbeafe"
                   />
                   <Area
                     type="monotone"
                     dataKey="expenses"
                     name="Expenses"
                     stackId="2"
-                    stroke="hsl(var(--destructive))"
-                    fill="hsl(var(--destructive) / 0.3)"
+                    stroke="#dc2626"
+                    fill="#fee2e2"
                   />
                 </AreaChart>
               </ResponsiveContainer>
@@ -328,9 +340,9 @@ export function AccountantReportsModule() {
         </Card>
 
         {/* Expense Breakdown */}
-        <Card className="shadow-elevated">
+        <Card className="border-blue-50 shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="text-lg">Expense Breakdown</CardTitle>
+            <CardTitle className="text-base font-bold text-slate-800">Expense Breakdown</CardTitle>
             <ReportExportMenu
               baseName={`expense-breakdown-${period}`}
               rows={expenseRows}
@@ -354,7 +366,7 @@ export function AccountantReportsModule() {
                       <Cell key={entry.name} fill={COLORS[index % COLORS.length]} />
                     ))}
                   </Pie>
-                  <Tooltip formatter={(value: number) => value.toLocaleString()} />
+                  <Tooltip formatter={(value: number) => `Rs. ${value.toLocaleString()}`} />
                   <Legend />
                 </PieChart>
               </ResponsiveContainer>
@@ -364,73 +376,73 @@ export function AccountantReportsModule() {
       </div>
 
       {/* P&L Statement */}
-      <Card className="shadow-elevated">
+      <Card className="border-blue-50 shadow-sm">
         <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="text-lg">Profit & Loss Statement</CardTitle>
-            <ReportExportMenu
-              baseName={`profit-loss-${period}`}
-              rows={plRows}
-              print={{ title: "Profit & Loss Statement", subtitle: periodLabel, summary }}
-            />
+          <CardTitle className="text-base font-bold text-slate-800">Profit & Loss Statement</CardTitle>
+          <ReportExportMenu
+            baseName={`profit-loss-${period}`}
+            rows={plRows}
+            print={{ title: "Profit & Loss Statement", subtitle: periodLabel, summary }}
+          />
         </CardHeader>
         <CardContent>
-          <div className="max-h-[360px] overflow-auto rounded-xl border bg-surface">
+          <div className="max-h-[360px] overflow-auto rounded-xl border border-blue-50 bg-white">
             <div className="min-w-[600px]">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Category</TableHead>
-                  <TableHead className="text-right">Amount</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                <TableRow>
-                  <TableCell className="font-medium text-primary">Revenue (Fee Collections)</TableCell>
-                  <TableCell className="text-right font-medium text-primary">+{totalRevenue.toLocaleString()}</TableCell>
-                </TableRow>
-                <TableRow className="bg-muted/30">
-                  <TableCell colSpan={2} className="font-semibold">Expenses</TableCell>
-                </TableRow>
-                {expenseByCategory.map((cat) => (
-                  <TableRow key={cat.name}>
-                    <TableCell className="pl-8">{cat.name}</TableCell>
-                    <TableCell className="text-right text-destructive">-{cat.value.toLocaleString()}</TableCell>
+              <Table>
+                <TableHeader className="bg-blue-50/20">
+                  <TableRow className="border-blue-50">
+                    <TableHead className="text-slate-700 font-semibold py-2">Category</TableHead>
+                    <TableHead className="text-slate-700 font-semibold text-right py-2">Amount</TableHead>
                   </TableRow>
-                ))}
-                <TableRow>
-                  <TableCell className="pl-8">Payroll</TableCell>
-                  <TableCell className="text-right text-destructive">-{totalPayroll.toLocaleString()}</TableCell>
-                </TableRow>
-                <TableRow className="bg-muted/50 font-bold">
-                  <TableCell>Net Profit / Loss</TableCell>
-                  <TableCell className={`text-right ${netProfit >= 0 ? "text-primary" : "text-destructive"}`}>
-                    {netProfit >= 0 ? "+" : ""}{netProfit.toLocaleString()}
-                  </TableCell>
-                </TableRow>
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  <TableRow className="hover:bg-blue-50/5 border-blue-50">
+                    <TableCell className="font-semibold text-blue-600 py-2.5">Revenue (Fee Collections)</TableCell>
+                    <TableCell className="text-right font-bold text-blue-600 py-2.5">+Rs. {totalRevenue.toLocaleString()}</TableCell>
+                  </TableRow>
+                  <TableRow className="bg-blue-50/10 border-blue-50 hover:bg-blue-50/10">
+                    <TableCell colSpan={2} className="font-bold text-slate-800 py-2">Expenses</TableCell>
+                  </TableRow>
+                  {expenseByCategory.map((cat) => (
+                    <TableRow key={cat.name} className="hover:bg-blue-50/5 border-blue-50">
+                      <TableCell className="pl-8 text-xs text-slate-600 py-2.5">{cat.name}</TableCell>
+                      <TableCell className="text-right text-rose-600 font-medium text-xs py-2.5">-Rs. {cat.value.toLocaleString()}</TableCell>
+                    </TableRow>
+                  ))}
+                  <TableRow className="hover:bg-blue-50/5 border-blue-50">
+                    <TableCell className="pl-8 text-xs text-slate-600 py-2.5">Payroll</TableCell>
+                    <TableCell className="text-right text-rose-600 font-medium text-xs py-2.5">-Rs. {totalPayroll.toLocaleString()}</TableCell>
+                  </TableRow>
+                  <TableRow className="bg-blue-50/20 font-bold border-t border-blue-100 hover:bg-blue-50/25">
+                    <TableCell className="py-3 text-slate-800">Net Profit / Loss</TableCell>
+                    <TableCell className={`text-right py-3 ${netProfit >= 0 ? "text-blue-600 font-black" : "text-rose-600 font-black"}`}>
+                      {netProfit >= 0 ? "+" : ""}Rs. {netProfit.toLocaleString()}
+                    </TableCell>
+                  </TableRow>
+                </TableBody>
+              </Table>
             </div>
           </div>
         </CardContent>
       </Card>
 
       {/* Invoice Status */}
-      <Card className="shadow-elevated">
+      <Card className="border-blue-50 shadow-sm">
         <CardHeader>
-          <CardTitle className="text-lg">Invoice Status Overview</CardTitle>
+          <CardTitle className="text-base font-bold text-slate-800">Invoice Status Overview</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
             {invoiceByStatus.map((status) => (
-              <div key={status.name} className="rounded-xl border p-4 text-center">
-                <p className="text-sm text-muted-foreground">{status.name}</p>
-                <p className="mt-1 text-xl font-semibold">{status.value.toLocaleString()}</p>
+              <div key={status.name} className="rounded-2xl border border-blue-100 p-4 text-center bg-white shadow-sm hover:border-blue-200 transition-all duration-300">
+                <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">{status.name}</p>
+                <p className="mt-1.5 text-xl font-bold text-slate-800">Rs. {status.value.toLocaleString()}</p>
               </div>
             ))}
             {invoiceByStatus.length === 0 && (
               <div className="col-span-4 text-center py-8">
-                <FileText className="mx-auto h-8 w-8 text-muted-foreground/50 mb-2" />
-                <p className="text-muted-foreground">No invoice data</p>
+                <FileText className="mx-auto h-8 w-8 text-muted-foreground/50 mb-2 animate-pulse" />
+                <p className="text-muted-foreground text-xs">No invoice data recorded</p>
               </div>
             )}
           </div>

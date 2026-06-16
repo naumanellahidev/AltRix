@@ -149,14 +149,22 @@ export function FeeDefaultersReport({ schoolId }: FeeDefaultersReportProps) {
     queryKey: ["overdue_invoices", schoolId],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("finance_invoices")
-        .select("*")
+        .from("fee_invoices")
+        .select("id, invoice_number, student_id, total_amount, status, created_at, due_date")
         .eq("school_id", schoolId)
         .neq("status", "paid")
         .lt("due_date", new Date().toISOString().split("T")[0])
         .order("due_date", { ascending: true });
       if (error) throw error;
-      return (data || []) as Invoice[];
+      return (data || []).map((inv: any) => ({
+        id: inv.id,
+        invoice_no: inv.invoice_number,
+        student_id: inv.student_id,
+        total: inv.total_amount,
+        status: inv.status,
+        issue_date: inv.created_at,
+        due_date: inv.due_date,
+      })) as Invoice[];
     },
     enabled: !!schoolId,
   });

@@ -79,7 +79,7 @@ const FinanceTooltip = ({ active, payload, label }: any) => {
               {item.name === "revenue" ? "Revenue" : "Expenses"}
             </span>
             <span className="font-bold text-foreground">
-              ${Number(item.value).toLocaleString()}
+              Rs. {Number(item.value).toLocaleString()}
             </span>
           </div>
         ))}
@@ -886,7 +886,7 @@ export function PrincipalHome() {
                       <ArrowUpRight className="h-4 w-4" />
                     </div>
                     <p className="text-2xl font-bold font-display tracking-tight text-foreground">
-                      ${kpis.revenueMtd.toLocaleString()}
+                      Rs. {kpis.revenueMtd.toLocaleString()}
                     </p>
                   </div>
 
@@ -900,7 +900,7 @@ export function PrincipalHome() {
                       <span className="h-2 w-2 rounded-full bg-rose-500" />
                     </div>
                     <p className="text-2xl font-bold font-display tracking-tight text-foreground">
-                      ${kpis.expensesMtd.toLocaleString()}
+                      Rs. {kpis.expensesMtd.toLocaleString()}
                     </p>
                   </div>
 
@@ -914,7 +914,7 @@ export function PrincipalHome() {
                       <TrendingUp className="h-4 w-4" />
                     </div>
                     <p className={`text-2xl font-bold font-display tracking-tight ${kpis.revenueMtd - kpis.expensesMtd >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
-                      ${(kpis.revenueMtd - kpis.expensesMtd).toLocaleString()}
+                      Rs. {(kpis.revenueMtd - kpis.expensesMtd).toLocaleString()}
                     </p>
                   </div>
                 </div>
@@ -947,7 +947,7 @@ export function PrincipalHome() {
                         axisLine={false} 
                         width={40} 
                         tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }}
-                        tickFormatter={(v) => v >= 1000 ? `$${(v / 1000).toFixed(0)}K` : `$${v}`}
+                        tickFormatter={(v) => v >= 1000 ? `Rs. ${(v / 1000).toFixed(0)}K` : `Rs. ${v}`}
                       />
                       <Tooltip content={<FinanceTooltip />} />
                       <defs>

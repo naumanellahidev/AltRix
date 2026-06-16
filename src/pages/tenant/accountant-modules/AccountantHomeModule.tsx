@@ -81,7 +81,7 @@ const compactFormatter = new Intl.NumberFormat("en", {
 });
 const formatCompact = (n: number) => {
   const sign = n < 0 ? "-" : "";
-  return sign + compactFormatter.format(Math.abs(n));
+  return sign + "Rs. " + compactFormatter.format(Math.abs(n));
 };
 
 export function AccountantHomeModule() {
@@ -100,14 +100,14 @@ export function AccountantHomeModule() {
     queryClient.invalidateQueries({ queryKey: ["finance_expenses_home"] });
     queryClient.invalidateQueries({ queryKey: ["hr_pay_runs_home"] });
     queryClient.invalidateQueries({ queryKey: ["hr_salary_records_home"] });
-    queryClient.invalidateQueries({ queryKey: ["finance_invoices"] });
-    queryClient.invalidateQueries({ queryKey: ["finance_payments"] });
+    queryClient.invalidateQueries({ queryKey: ["fee_invoices"] });
+    queryClient.invalidateQueries({ queryKey: ["fee_payments"] });
   }, [queryClient]);
 
   // Real-time subscriptions for all finance tables
   useRealtimeTable({
     channel: `home-invoices-${schoolId}`,
-    table: "finance_invoices",
+    table: "fee_invoices",
     filter: schoolId ? `school_id=eq.${schoolId}` : undefined,
     enabled: !!schoolId,
     onChange: invalidateFinanceQueries,
@@ -115,7 +115,7 @@ export function AccountantHomeModule() {
 
   useRealtimeTable({
     channel: `home-payments-${schoolId}`,
-    table: "finance_payments",
+    table: "fee_payments",
     filter: schoolId ? `school_id=eq.${schoolId}` : undefined,
     enabled: !!schoolId,
     onChange: invalidateFinanceQueries,
@@ -142,11 +142,10 @@ export function AccountantHomeModule() {
     queryKey: ["finance_invoices_home", schoolId],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("finance_invoices")
-        .select("id, total, status, issue_date, due_date, student_id")
+        .from("fee_invoices")
+        .select("id, total:total_amount, status, issue_date:created_at, due_date, student_id")
         .eq("school_id", schoolId!)
-        .order("issue_date", { ascending: false })
-        .limit(200);
+        .order("created_at", { ascending: false });
       if (error) throw error;
       return data || [];
     },
@@ -157,11 +156,10 @@ export function AccountantHomeModule() {
     queryKey: ["finance_payments_home", schoolId],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("finance_payments")
-        .select("id, amount, paid_at, invoice_id, method_id")
+        .from("fee_payments")
+        .select("id, amount, paid_at, invoice_id")
         .eq("school_id", schoolId!)
-        .order("paid_at", { ascending: false })
-        .limit(200);
+        .order("paid_at", { ascending: false });
       if (error) throw error;
       return data || [];
     },
@@ -175,8 +173,7 @@ export function AccountantHomeModule() {
         .from("finance_expenses")
         .select("id, amount, expense_date, category, description")
         .eq("school_id", schoolId!)
-        .order("expense_date", { ascending: false })
-        .limit(200);
+        .order("expense_date", { ascending: false });
       if (error) throw error;
       return data || [];
     },
@@ -190,8 +187,7 @@ export function AccountantHomeModule() {
         .from("hr_pay_runs")
         .select("id, period_start, period_end, gross_amount, net_amount, status, paid_at, created_at")
         .eq("school_id", schoolId!)
-        .order("created_at", { ascending: false })
-        .limit(50);
+        .order("created_at", { ascending: false });
       if (error) throw error;
       return data || [];
     },
@@ -359,10 +355,10 @@ export function AccountantHomeModule() {
   }, [stats, invoices]);
 
   const getHealthColor = (score: number) => {
-    if (score >= 80) return "text-primary";
-    if (score >= 60) return "text-chart-2";
-    if (score >= 40) return "text-warning";
-    return "text-destructive";
+    if (score >= 80) return "text-blue-600";
+    if (score >= 60) return "text-blue-400";
+    if (score >= 40) return "text-amber-500";
+    return "text-rose-500";
   };
 
   const getHealthLabel = (score: number) => {
@@ -507,7 +503,7 @@ export function AccountantHomeModule() {
       list.push({
         type: "warning",
         title: `${stats.overdueInvoices} Overdue Invoices`,
-        description: `Outstanding amount of ${stats.overdueAmount.toLocaleString()} needs immediate attention.`,
+        description: `Outstanding amount of Rs. ${stats.overdueAmount.toLocaleString()} needs immediate attention.`,
         icon: Clock,
       });
     }
@@ -570,15 +566,27 @@ export function AccountantHomeModule() {
   }, [stats]);
 
   const quickActions = [
-    { label: "Record Payment", icon: CreditCard, path: `/${schoolSlug}/accountant/payments`, color: "bg-primary/10 text-primary" },
-    { label: "Add Expense", icon: TrendingDown, path: `/${schoolSlug}/accountant/expenses`, color: "bg-destructive/10 text-destructive" },
-    { label: "Create Invoice", icon: FileText, path: `/${schoolSlug}/accountant/invoices`, color: "bg-chart-2/10 text-chart-2" },
-    { label: "Run Payroll", icon: Coins, path: `/${schoolSlug}/accountant/payroll`, color: "bg-chart-3/10 text-chart-3" },
-    { label: "View Reports", icon: BarChart3, path: `/${schoolSlug}/accountant/reports`, color: "bg-chart-4/10 text-chart-4" },
-    { label: "Manage Fees", icon: DollarSign, path: `/${schoolSlug}/accountant/fees`, color: "bg-chart-5/10 text-chart-5" },
+    { label: "Record Payment", icon: CreditCard, path: `/${schoolSlug}/accountant/payments`, color: "bg-blue-50 text-blue-600 border border-blue-100/50" },
+    { label: "Add Expense", icon: TrendingDown, path: `/${schoolSlug}/accountant/expenses`, color: "bg-rose-50 text-rose-600 border border-rose-100/30" },
+    { label: "Create Invoice", icon: FileText, path: `/${schoolSlug}/accountant/invoices`, color: "bg-blue-50 text-blue-600 border border-blue-100/50" },
+    { label: "Run Payroll", icon: Coins, path: `/${schoolSlug}/accountant/payroll`, color: "bg-blue-50 text-blue-600 border border-blue-100/50" },
+    { label: "View Reports", icon: BarChart3, path: `/${schoolSlug}/accountant/reports`, color: "bg-blue-50 text-blue-600 border border-blue-100/50" },
+    { label: "Manage Fees", icon: DollarSign, path: `/${schoolSlug}/accountant/fees`, color: "bg-blue-50 text-blue-600 border border-blue-100/50" },
   ];
 
-  const healthChartData = [{ name: "Health", value: financialHealth, fill: `hsl(var(--${financialHealth >= 60 ? "primary" : financialHealth >= 40 ? "warning" : "destructive"}))` }];
+  const healthChartData = [
+    { 
+      name: "Health", 
+      value: financialHealth, 
+      fill: financialHealth >= 80 
+        ? "rgb(37, 99, 235)" 
+        : financialHealth >= 60 
+        ? "rgb(96, 165, 250)" 
+        : financialHealth >= 40 
+        ? "rgb(245, 158, 11)" 
+        : "rgb(239, 68, 68)" 
+    }
+  ];
 
   return (
     <div className="space-y-6">
@@ -615,11 +623,11 @@ export function AccountantHomeModule() {
             <MotionCard 
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              className="shadow-elevated bg-gradient-to-br from-background to-muted/30 min-w-0"
+              className="shadow-elevated bg-gradient-to-br from-white to-blue-50/20 border border-blue-100/80 shadow-sm shadow-blue-50/50 min-w-0 rounded-2xl"
             >
               <CardHeader className="pb-2">
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <Shield className="h-5 w-5 text-primary shrink-0" />
+                <CardTitle className="flex items-center gap-2 text-base text-slate-800">
+                  <Shield className="h-5 w-5 text-blue-600 shrink-0" />
                   <span className="truncate">Financial Health</span>
                 </CardTitle>
               </CardHeader>
@@ -637,7 +645,7 @@ export function AccountantHomeModule() {
                         endAngle={0}
                       >
                         <RadialBar
-                          background={{ fill: "hsl(var(--muted))" }}
+                          background={{ fill: "rgba(219, 234, 254, 0.5)" }}
                           dataKey="value"
                           cornerRadius={10}
                         />
@@ -654,17 +662,17 @@ export function AccountantHomeModule() {
                 <div className="mt-4 space-y-2">
                   <div className="flex justify-between gap-2 text-sm">
                     <span className="text-muted-foreground truncate">Collection Rate</span>
-                    <span className="font-medium shrink-0">{stats.collectionRate.toFixed(1)}%</span>
+                    <span className="font-semibold text-slate-700 shrink-0">{stats.collectionRate.toFixed(1)}%</span>
                   </div>
                   <div className="flex justify-between gap-2 text-sm">
                     <span className="text-muted-foreground truncate">Profit Margin</span>
-                    <span className={`font-medium shrink-0 ${stats.profitMargin >= 0 ? "text-primary" : "text-destructive"}`}>
+                    <span className={`font-semibold shrink-0 ${stats.profitMargin >= 0 ? "text-blue-600" : "text-rose-500"}`}>
                       {stats.profitMargin.toFixed(1)}%
                     </span>
                   </div>
                   <div className="flex justify-between gap-2 text-sm">
                     <span className="text-muted-foreground truncate">Overdue Rate</span>
-                    <span className={`font-medium shrink-0 ${stats.overdueInvoices === 0 ? "text-primary" : "text-destructive"}`}>
+                    <span className={`font-semibold shrink-0 ${stats.overdueInvoices === 0 ? "text-blue-600" : "text-rose-500"}`}>
                       {invoices.length > 0 ? ((stats.overdueInvoices / invoices.length) * 100).toFixed(1) : 0}%
                     </span>
                   </div>
@@ -673,27 +681,32 @@ export function AccountantHomeModule() {
             </MotionCard>
 
             {/* Key Metrics Grid */}
-            <div className="grid auto-rows-fr grid-cols-2 gap-3 min-w-0 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-4">
+            <div className="grid auto-rows-fr grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 min-w-0 w-full">
               <MotionCard 
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.1 }}
-                className="shadow-elevated hover:shadow-lg transition-shadow min-w-0"
+                className="shadow-sm shadow-blue-50/50 bg-gradient-to-br from-white to-blue-50/20 border border-blue-100/80 hover:border-blue-400 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 cursor-pointer rounded-2xl min-w-0 group"
+                onClick={() => navigate(`/${schoolSlug}/accountant/reports`)}
               >
-                <CardContent className="flex h-full flex-col gap-2 p-4">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="rounded-lg bg-primary/10 p-2 shrink-0">
-                      <TrendingUp className="h-4 w-4 text-primary" />
+                <CardContent className="flex h-full flex-col justify-between p-5">
+                  <div className="flex items-center justify-between gap-2 w-full">
+                    <div className="rounded-xl bg-blue-50 text-blue-600 border border-blue-100/50 p-2.5 shrink-0">
+                      <TrendingUp className="h-4 w-4" />
                     </div>
-                    {stats.revenueGrowth !== 0 && (
-                      <div className={`flex items-center gap-0.5 text-xs whitespace-nowrap ${stats.revenueGrowth > 0 ? "text-primary" : "text-destructive"}`}>
+                    {stats.revenueGrowth !== 0 ? (
+                      <div className={`flex items-center gap-0.5 text-xs font-semibold px-2 py-0.5 rounded-full ${stats.revenueGrowth > 0 ? "bg-blue-50 text-blue-600" : "bg-rose-50 text-rose-600"}`}>
                         {stats.revenueGrowth > 0 ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
                         {Math.abs(stats.revenueGrowth).toFixed(1)}%
                       </div>
+                    ) : (
+                      <ArrowRight className="h-4 w-4 text-blue-400 opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all duration-200" />
                     )}
                   </div>
-                  <p className="text-lg sm:text-xl font-bold tracking-tight truncate" title={stats.totalRevenue.toLocaleString()}>{formatCompact(stats.totalRevenue)}</p>
-                  <p className="text-xs text-muted-foreground truncate">Total Revenue</p>
+                  <div className="mt-4">
+                    <p className="text-xl sm:text-2xl font-black text-slate-800 tracking-tight truncate" title={stats.totalRevenue.toLocaleString()}>{formatCompact(stats.totalRevenue)}</p>
+                    <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider mt-1 truncate">Total Revenue</p>
+                  </div>
                 </CardContent>
               </MotionCard>
 
@@ -701,22 +714,27 @@ export function AccountantHomeModule() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.15 }}
-                className="shadow-elevated hover:shadow-lg transition-shadow min-w-0"
+                className="shadow-sm shadow-blue-50/50 bg-gradient-to-br from-white to-blue-50/20 border border-blue-100/80 hover:border-blue-400 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 cursor-pointer rounded-2xl min-w-0 group"
+                onClick={() => navigate(`/${schoolSlug}/accountant/expenses`)}
               >
-                <CardContent className="flex h-full flex-col gap-2 p-4">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="rounded-lg bg-destructive/10 p-2 shrink-0">
-                      <TrendingDown className="h-4 w-4 text-destructive" />
+                <CardContent className="flex h-full flex-col justify-between p-5">
+                  <div className="flex items-center justify-between gap-2 w-full">
+                    <div className="rounded-xl bg-rose-50 text-rose-600 border border-rose-100/30 p-2.5 shrink-0">
+                      <TrendingDown className="h-4 w-4" />
                     </div>
-                    {stats.expenseGrowth !== 0 && (
-                      <div className={`flex items-center gap-0.5 text-xs whitespace-nowrap ${stats.expenseGrowth > 0 ? "text-destructive" : "text-primary"}`}>
+                    {stats.expenseGrowth !== 0 ? (
+                      <div className={`flex items-center gap-0.5 text-xs font-semibold px-2 py-0.5 rounded-full ${stats.expenseGrowth > 0 ? "bg-rose-50 text-rose-600" : "bg-blue-50 text-blue-600"}`}>
                         {stats.expenseGrowth > 0 ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
                         {Math.abs(stats.expenseGrowth).toFixed(1)}%
                       </div>
+                    ) : (
+                      <ArrowRight className="h-4 w-4 text-blue-400 opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all duration-200" />
                     )}
                   </div>
-                  <p className="text-lg sm:text-xl font-bold tracking-tight text-destructive truncate" title={stats.totalExpenses.toLocaleString()}>{formatCompact(stats.totalExpenses)}</p>
-                  <p className="text-xs text-muted-foreground truncate">Total Expenses</p>
+                  <div className="mt-4">
+                    <p className="text-xl sm:text-2xl font-black text-rose-600 tracking-tight truncate" title={stats.totalExpenses.toLocaleString()}>{formatCompact(stats.totalExpenses)}</p>
+                    <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider mt-1 truncate">Total Expenses</p>
+                  </div>
                 </CardContent>
               </MotionCard>
 
@@ -724,15 +742,23 @@ export function AccountantHomeModule() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.2 }}
-                className="shadow-elevated hover:shadow-lg transition-shadow min-w-0"
+                className="shadow-sm shadow-blue-50/50 bg-gradient-to-br from-white to-blue-50/20 border border-blue-100/80 hover:border-blue-400 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 cursor-pointer rounded-2xl min-w-0 group"
+                onClick={() => navigate(`/${schoolSlug}/accountant/payroll`)}
               >
-                <CardContent className="flex h-full flex-col gap-2 p-4">
-                  <div className="rounded-lg bg-chart-3/10 p-2 w-fit">
-                    <Coins className="h-4 w-4 text-chart-3" />
+                <CardContent className="flex h-full flex-col justify-between p-5">
+                  <div className="flex items-center justify-between gap-2 w-full">
+                    <div className="rounded-xl bg-blue-50 text-blue-600 border border-blue-100/50 p-2.5 shrink-0">
+                      <Coins className="h-4 w-4" />
+                    </div>
+                    <ArrowRight className="h-4 w-4 text-blue-400 opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all duration-200" />
                   </div>
-                  <p className="text-lg sm:text-xl font-bold tracking-tight truncate" title={stats.monthlyPayroll.toLocaleString()}>{formatCompact(stats.monthlyPayroll)}</p>
-                  <p className="text-xs text-muted-foreground truncate">Monthly Payroll</p>
-                  <p className="text-[11px] text-muted-foreground/70 truncate">{stats.activeEmployees} employees</p>
+                  <div className="mt-4">
+                    <p className="text-xl sm:text-2xl font-black text-slate-800 tracking-tight truncate" title={stats.monthlyPayroll.toLocaleString()}>{formatCompact(stats.monthlyPayroll)}</p>
+                    <div className="flex items-center justify-between mt-1 gap-2">
+                      <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider truncate">Monthly Payroll</p>
+                      <p className="text-[10px] text-blue-500 font-bold bg-blue-50 px-1.5 py-0.5 rounded-full shrink-0 truncate">{stats.activeEmployees} staff</p>
+                    </div>
+                  </div>
                 </CardContent>
               </MotionCard>
 
@@ -740,16 +766,22 @@ export function AccountantHomeModule() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.25 }}
-                className="shadow-elevated hover:shadow-lg transition-shadow min-w-0"
+                className="shadow-sm shadow-blue-50/50 bg-gradient-to-br from-white to-blue-50/20 border border-blue-100/80 hover:border-blue-400 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 cursor-pointer rounded-2xl min-w-0 group"
+                onClick={() => navigate(`/${schoolSlug}/accountant/reports`)}
               >
-                <CardContent className="flex h-full flex-col gap-2 p-4">
-                  <div className="rounded-lg bg-chart-4/10 p-2 w-fit">
-                    <PiggyBank className="h-4 w-4 text-chart-4" />
+                <CardContent className="flex h-full flex-col justify-between p-5">
+                  <div className="flex items-center justify-between gap-2 w-full">
+                    <div className="rounded-xl bg-blue-50 text-blue-600 border border-blue-100/50 p-2.5 shrink-0">
+                      <PiggyBank className="h-4 w-4" />
+                    </div>
+                    <ArrowRight className="h-4 w-4 text-blue-400 opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all duration-200" />
                   </div>
-                  <p className={`text-lg sm:text-xl font-bold tracking-tight truncate ${stats.netProfit >= 0 ? "text-primary" : "text-destructive"}`} title={stats.netProfit.toLocaleString()}>
-                    {stats.netProfit >= 0 ? "+" : ""}{formatCompact(stats.netProfit)}
-                  </p>
-                  <p className="text-xs text-muted-foreground truncate">Net Profit</p>
+                  <div className="mt-4">
+                    <p className={`text-xl sm:text-2xl font-black tracking-tight truncate ${stats.netProfit >= 0 ? "text-blue-600" : "text-rose-600"}`} title={stats.netProfit.toLocaleString()}>
+                      {stats.netProfit >= 0 ? "+" : ""}{formatCompact(stats.netProfit)}
+                    </p>
+                    <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider mt-1 truncate">Net Profit</p>
+                  </div>
                 </CardContent>
               </MotionCard>
             </div>
@@ -830,48 +862,48 @@ export function AccountantHomeModule() {
 
           <div className="grid gap-6 lg:grid-cols-5 min-w-0">
             {/* Cash Flow Chart */}
-            <Card className="shadow-elevated lg:col-span-3 min-w-0 overflow-hidden">
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <Card className="shadow-sm bg-gradient-to-br from-white to-blue-50/10 border border-blue-100/80 rounded-2xl lg:col-span-3 min-w-0 overflow-hidden">
+              <CardHeader className="flex flex-row items-center justify-between pb-2 border-b border-blue-50/60 bg-blue-50/20 px-6 py-4">
                 <div>
-                  <CardTitle className="text-base font-semibold">Cash Flow (Last 30 Days)</CardTitle>
-                  <p className="text-xs text-muted-foreground mt-1">Daily revenue vs expenses</p>
+                  <CardTitle className="text-base font-bold text-slate-800">Cash Flow (Last 30 Days)</CardTitle>
+                  <p className="text-xs text-muted-foreground mt-0.5">Daily revenue vs expenses</p>
                 </div>
-                <Button variant="ghost" size="sm" onClick={() => navigate(`/${schoolSlug}/accountant/reports`)}>
-                  <Eye className="mr-1 h-4 w-4" /> Details
+                <Button variant="ghost" size="sm" className="rounded-xl border border-blue-100 text-blue-600 hover:bg-blue-50/50 text-xs" onClick={() => navigate(`/${schoolSlug}/accountant/reports`)}>
+                  <Eye className="mr-1 h-3.5 w-3.5" /> Details
                 </Button>
               </CardHeader>
-              <CardContent>
+              <CardContent className="p-6">
                 <div className="h-[280px]">
                   {cashFlowData.length > 0 ? (
                     <ResponsiveContainer width="100%" height="100%">
                       <ComposedChart data={cashFlowData}>
                         <defs>
                           <linearGradient id="revenueGradient" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.3} />
-                            <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0} />
+                            <stop offset="0%" stopColor="rgb(37, 99, 235)" stopOpacity={0.25} />
+                            <stop offset="100%" stopColor="rgb(37, 99, 235)" stopOpacity={0} />
                           </linearGradient>
                           <linearGradient id="expenseGradient" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stopColor="hsl(var(--destructive))" stopOpacity={0.3} />
-                            <stop offset="100%" stopColor="hsl(var(--destructive))" stopOpacity={0} />
+                            <stop offset="0%" stopColor="rgb(244, 63, 94)" stopOpacity={0.2} />
+                            <stop offset="100%" stopColor="rgb(244, 63, 94)" stopOpacity={0} />
                           </linearGradient>
                         </defs>
-                        <CartesianGrid strokeDasharray="3 3" className="stroke-muted/50" vertical={false} />
+                        <CartesianGrid strokeDasharray="3 3" className="stroke-muted/40" vertical={false} />
                         <XAxis dataKey="date" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
-                        <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => `${(v / 1000).toFixed(0)}K`} axisLine={false} tickLine={false} />
+                        <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => `Rs. ${(v / 1000).toFixed(0)}K`} axisLine={false} tickLine={false} />
                         <Tooltip
-                          formatter={(value: number) => value.toLocaleString()}
-                          contentStyle={{ borderRadius: "0.75rem", border: "1px solid hsl(var(--border))", background: "hsl(var(--background))" }}
+                          formatter={(value: number) => "Rs. " + value.toLocaleString()}
+                          contentStyle={{ borderRadius: "0.75rem", border: "1px solid rgb(219, 234, 254)", background: "white", fontSize: "11px" }}
                         />
-                        <Area type="monotone" dataKey="revenue" name="Revenue" stroke="hsl(var(--primary))" fill="url(#revenueGradient)" strokeWidth={2} />
-                        <Area type="monotone" dataKey="expenses" name="Expenses" stroke="hsl(var(--destructive))" fill="url(#expenseGradient)" strokeWidth={2} />
-                        <Line type="monotone" dataKey="net" name="Net" stroke="hsl(var(--chart-3))" strokeWidth={2} dot={false} strokeDasharray="5 5" />
+                        <Area type="monotone" dataKey="revenue" name="Revenue" stroke="rgb(37, 99, 235)" fill="url(#revenueGradient)" strokeWidth={2} />
+                        <Area type="monotone" dataKey="expenses" name="Expenses" stroke="rgb(244, 63, 94)" fill="url(#expenseGradient)" strokeWidth={2} />
+                        <Line type="monotone" dataKey="net" name="Net" stroke="rgb(14, 165, 233)" strokeWidth={2} dot={false} strokeDasharray="5 5" />
                       </ComposedChart>
                     </ResponsiveContainer>
                   ) : (
                     <div className="flex h-full items-center justify-center text-muted-foreground">
                       <div className="text-center">
                         <Activity className="mx-auto h-12 w-12 text-muted-foreground/30" />
-                        <p className="mt-2">No data for this period</p>
+                        <p className="mt-2 text-xs">No cashflow data for this period</p>
                       </div>
                     </div>
                   )}
@@ -880,13 +912,13 @@ export function AccountantHomeModule() {
             </Card>
 
             {/* Recent Activity */}
-            <Card className="shadow-elevated lg:col-span-2">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base font-semibold">Recent Activity</CardTitle>
+            <Card className="shadow-sm bg-gradient-to-br from-white to-blue-50/10 border border-blue-100/80 rounded-2xl lg:col-span-2 overflow-hidden">
+              <CardHeader className="pb-2 border-b border-blue-50/60 bg-blue-50/20 px-6 py-4">
+                <CardTitle className="text-base font-bold text-slate-800">Recent Activity</CardTitle>
               </CardHeader>
-              <CardContent>
-                <ScrollArea className="h-[280px] pr-4">
-                  <div className="space-y-3">
+              <CardContent className="p-6">
+                <ScrollArea className="h-[280px] pr-2">
+                  <div className="space-y-2.5">
                     {recentActivity.length > 0 ? (
                       recentActivity.map((activity, idx) => (
                         <motion.div
@@ -894,25 +926,25 @@ export function AccountantHomeModule() {
                           initial={{ opacity: 0, x: 20 }}
                           animate={{ opacity: 1, x: 0 }}
                           transition={{ delay: idx * 0.05 }}
-                          className="flex items-center gap-3 rounded-lg border p-3 hover:bg-accent/50 transition-colors"
+                          className="flex items-center gap-3 rounded-xl border border-blue-50 bg-white/60 p-3 hover:bg-blue-50/20 hover:border-blue-100 transition-all duration-200"
                         >
-                          <div className={`rounded-full p-2 ${activity.amount > 0 ? "bg-primary/10" : "bg-destructive/10"}`}>
-                            <activity.icon className={`h-3 w-3 ${activity.amount > 0 ? "text-primary" : "text-destructive"}`} />
+                          <div className={`rounded-xl p-2 shrink-0 ${activity.amount > 0 ? "bg-blue-50 text-blue-600 border border-blue-100/40" : "bg-rose-50 text-rose-600 border border-rose-100/20"}`}>
+                            <activity.icon className="h-3.5 w-3.5" />
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium truncate">{activity.description}</p>
-                            <p className="text-xs text-muted-foreground">
+                            <p className="text-xs font-semibold text-slate-700 truncate">{activity.description}</p>
+                            <p className="text-[10px] text-muted-foreground mt-0.5">
                               {activity.date.toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
                             </p>
                           </div>
-                          <p className={`text-sm font-bold tabular-nums ${activity.amount > 0 ? "text-primary" : "text-destructive"}`}>
-                            {activity.amount > 0 ? "+" : ""}{activity.amount.toLocaleString()}
+                          <p className={`text-xs font-bold tabular-nums shrink-0 ${activity.amount > 0 ? "text-blue-600" : "text-rose-500"}`}>
+                            {activity.amount > 0 ? "+Rs. " : "-Rs. "}{Math.abs(activity.amount).toLocaleString()}
                           </p>
                         </motion.div>
                       ))
                     ) : (
                       <div className="flex h-full items-center justify-center py-8">
-                        <p className="text-sm text-muted-foreground">No recent activity</p>
+                        <p className="text-xs text-muted-foreground">No recent activity found</p>
                       </div>
                     )}
                   </div>
@@ -922,134 +954,126 @@ export function AccountantHomeModule() {
           </div>
 
           {/* Secondary Stats Row */}
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 w-full">
             {/* Invoice Status */}
-            <Card className="shadow-elevated">
-              <CardHeader className="pb-2">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-base font-semibold">Invoices</CardTitle>
-                  <Button variant="ghost" size="icon" onClick={() => navigate(`/${schoolSlug}/accountant/invoices`)}>
-                    <ArrowRight className="h-4 w-4" />
-                  </Button>
-                </div>
+            <Card 
+              className="shadow-sm bg-gradient-to-br from-white to-blue-50/20 border border-blue-100/80 hover:border-blue-400 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 cursor-pointer rounded-2xl group flex flex-col justify-between h-[280px]"
+              onClick={() => navigate(`/${schoolSlug}/accountant/invoices`)}
+            >
+              <CardHeader className="pb-2 flex flex-row items-center justify-between">
+                <CardTitle className="text-base font-bold text-slate-800">Invoices</CardTitle>
+                <ArrowRight className="h-4 w-4 text-blue-400 opacity-60 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all duration-200" />
               </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className="h-2 w-2 rounded-full bg-primary" />
-                    <span className="text-sm">Paid</span>
-                  </div>
-                  <Badge variant="secondary">{stats.paidInvoices}</Badge>
+              <CardContent className="space-y-4 flex-1 flex flex-col justify-between pb-5">
+                <div className="text-center bg-blue-50/30 p-2.5 rounded-xl border border-blue-50/50">
+                  <p className="text-lg font-black text-blue-600 tabular-nums">Rs. {stats.pendingAmount.toLocaleString()}</p>
+                  <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">Pending Amount</p>
                 </div>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className="h-2 w-2 rounded-full bg-warning" />
-                    <span className="text-sm">Pending</span>
+                <div className="space-y-2.5">
+                  <div className="flex items-center justify-between text-xs border-b border-blue-50/40 pb-1.5">
+                    <span className="text-muted-foreground">Paid Invoices</span>
+                    <span className="font-bold text-slate-700">{stats.paidInvoices}</span>
                   </div>
-                  <Badge variant="secondary">{stats.pendingInvoices}</Badge>
-                </div>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className="h-2 w-2 rounded-full bg-destructive" />
-                    <span className="text-sm">Overdue</span>
+                  <div className="flex items-center justify-between text-xs border-b border-blue-50/40 pb-1.5">
+                    <span className="text-muted-foreground">Pending Invoices</span>
+                    <span className="font-bold text-slate-700">{stats.pendingInvoices}</span>
                   </div>
-                  <Badge variant="destructive">{stats.overdueInvoices}</Badge>
-                </div>
-                <Separator />
-                <div className="text-center">
-                  <p className="text-xl font-bold">{stats.pendingAmount.toLocaleString()}</p>
-                  <p className="text-xs text-muted-foreground">Pending Amount</p>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-muted-foreground">Overdue Invoices</span>
+                    <span className="font-bold text-rose-500">{stats.overdueInvoices}</span>
+                  </div>
                 </div>
               </CardContent>
             </Card>
 
             {/* Payroll Summary */}
-            <Card className="shadow-elevated">
-              <CardHeader className="pb-2">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-base font-semibold">Payroll</CardTitle>
-                  <Button variant="ghost" size="icon" onClick={() => navigate(`/${schoolSlug}/accountant/payroll`)}>
-                    <ArrowRight className="h-4 w-4" />
-                  </Button>
-                </div>
+            <Card 
+              className="shadow-sm bg-gradient-to-br from-white to-blue-50/20 border border-blue-100/80 hover:border-blue-400 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 cursor-pointer rounded-2xl group flex flex-col justify-between h-[280px]"
+              onClick={() => navigate(`/${schoolSlug}/accountant/payroll`)}
+            >
+              <CardHeader className="pb-2 flex flex-row items-center justify-between">
+                <CardTitle className="text-base font-bold text-slate-800">Payroll</CardTitle>
+                <ArrowRight className="h-4 w-4 text-blue-400 opacity-60 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all duration-200" />
               </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="rounded-lg bg-accent p-3">
-                  <p className="text-xs text-muted-foreground">Monthly Cost</p>
-                  <p className="text-xl font-bold tabular-nums break-words">{stats.monthlyPayroll.toLocaleString()}</p>
+              <CardContent className="space-y-4 flex-1 flex flex-col justify-between pb-5">
+                <div className="text-center bg-blue-50/30 p-2.5 rounded-xl border border-blue-50/50">
+                  <p className="text-lg font-black text-blue-600 tabular-nums">Rs. {stats.monthlyPayroll.toLocaleString()}</p>
+                  <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">Monthly Cost</p>
                 </div>
-                <div className="grid grid-cols-2 gap-2 text-center">
-                  <div className="rounded-lg border p-2 min-w-0">
-                    <p className="text-lg font-semibold tabular-nums truncate">{stats.activeEmployees}</p>
-                    <p className="text-xs text-muted-foreground truncate">Employees</p>
+                <div className="space-y-2.5">
+                  <div className="flex items-center justify-between text-xs border-b border-blue-50/40 pb-1.5">
+                    <span className="text-muted-foreground">Active Employees</span>
+                    <span className="font-bold text-slate-700">{stats.activeEmployees}</span>
                   </div>
-                  <div className="rounded-lg border p-2 min-w-0">
-                    <p className="text-lg font-semibold tabular-nums truncate" title={stats.avgSalary.toLocaleString()}>
-                      {stats.avgSalary.toLocaleString()}
-                    </p>
-                    <p className="text-xs text-muted-foreground truncate">Avg Salary</p>
+                  <div className="flex items-center justify-between text-xs border-b border-blue-50/40 pb-1.5">
+                    <span className="text-muted-foreground">Average Salary</span>
+                    <span className="font-bold text-slate-700">Rs. {Math.round(stats.avgSalary).toLocaleString()}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-muted-foreground">Pending Pay Runs</span>
+                    <span className={`font-bold ${stats.pendingPayRuns > 0 ? "text-amber-600" : "text-slate-700"}`}>{stats.pendingPayRuns}</span>
                   </div>
                 </div>
-                {stats.pendingPayRuns > 0 && (
-                  <div className="flex items-center gap-2 rounded-lg bg-warning/10 p-2 text-warning">
-                    <Clock className="h-4 w-4 shrink-0" />
-                    <span className="text-sm font-medium truncate">{stats.pendingPayRuns} pending runs</span>
-                  </div>
-                )}
               </CardContent>
             </Card>
 
             {/* School Metrics */}
-            <Card className="shadow-elevated">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base font-semibold">School Metrics</CardTitle>
+            <Card 
+              className="shadow-sm bg-gradient-to-br from-white to-blue-50/20 border border-blue-100/80 hover:border-blue-400 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 cursor-pointer rounded-2xl group flex flex-col justify-between h-[280px]"
+              onClick={() => navigate(`/${schoolSlug}/accountant/fees`)}
+            >
+              <CardHeader className="pb-2 flex flex-row items-center justify-between">
+                <CardTitle className="text-base font-bold text-slate-800">School Metrics</CardTitle>
+                <ArrowRight className="h-4 w-4 text-blue-400 opacity-60 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all duration-200" />
               </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="rounded-lg bg-chart-5/10 p-2 shrink-0">
-                    <GraduationCap className="h-5 w-5 text-chart-5" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-xl font-bold tabular-nums">{stats.totalStudents}</p>
-                    <p className="text-xs text-muted-foreground truncate">Total Students</p>
-                  </div>
+              <CardContent className="space-y-4 flex-1 flex flex-col justify-between pb-5">
+                <div className="text-center bg-blue-50/30 p-2.5 rounded-xl border border-blue-50/50">
+                  <p className="text-lg font-black text-blue-600 tabular-nums">{stats.totalStudents}</p>
+                  <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">Total Students</p>
                 </div>
-                <Separator />
-                <div className="space-y-2">
-                  <div className="flex items-baseline justify-between gap-3">
-                    <span className="text-xs text-muted-foreground shrink-0">Revenue/Student</span>
-                    <span className="text-sm font-semibold tabular-nums text-right">{stats.revenuePerStudent.toLocaleString()}</span>
+                <div className="space-y-2.5">
+                  <div className="flex items-center justify-between text-xs border-b border-blue-50/40 pb-1.5">
+                    <span className="text-muted-foreground">Revenue per Student</span>
+                    <span className="font-bold text-slate-700">Rs. {Math.round(stats.revenuePerStudent).toLocaleString()}</span>
                   </div>
-                  <div className="flex items-baseline justify-between gap-3">
-                    <span className="text-xs text-muted-foreground shrink-0">Cost/Student</span>
-                    <span className="text-sm font-semibold tabular-nums text-right">{stats.costPerStudent.toLocaleString()}</span>
+                  <div className="flex items-center justify-between text-xs border-b border-blue-50/40 pb-1.5">
+                    <span className="text-muted-foreground">Cost per Student</span>
+                    <span className="font-bold text-slate-700">Rs. {Math.round(stats.costPerStudent).toLocaleString()}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-muted-foreground">Estimated Margin</span>
+                    <span className={`font-bold ${stats.profitMargin >= 0 ? "text-blue-600" : "text-rose-500"}`}>{stats.profitMargin.toFixed(1)}%</span>
                   </div>
                 </div>
               </CardContent>
             </Card>
 
             {/* Cash Position */}
-            <Card className="shadow-elevated">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base font-semibold">Cash Position</CardTitle>
+            <Card 
+              className="shadow-sm bg-gradient-to-br from-white to-blue-50/20 border border-blue-100/80 hover:border-blue-400 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 cursor-pointer rounded-2xl group flex flex-col justify-between h-[280px]"
+              onClick={() => navigate(`/${schoolSlug}/accountant/finance`)}
+            >
+              <CardHeader className="pb-2 flex flex-row items-center justify-between">
+                <CardTitle className="text-base font-bold text-slate-800">Cash Position</CardTitle>
+                <ArrowRight className="h-4 w-4 text-blue-400 opacity-60 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all duration-200" />
               </CardHeader>
-              <CardContent className="space-y-3">
-                <div className={`rounded-lg p-3 ${stats.cashPosition >= 0 ? "bg-primary/10" : "bg-destructive/10"}`}>
-                  <p className="text-xs text-muted-foreground">Estimated Balance</p>
-                  <p className={`text-xl font-bold tabular-nums break-words ${stats.cashPosition >= 0 ? "text-primary" : "text-destructive"}`}>
-                    {stats.cashPosition.toLocaleString()}
-                  </p>
+              <CardContent className="space-y-4 flex-1 flex flex-col justify-between pb-5">
+                <div className="text-center bg-blue-50/30 p-2.5 rounded-xl border border-blue-50/50">
+                  <p className="text-lg font-black text-blue-600 tabular-nums">Rs. {stats.cashPosition.toLocaleString()}</p>
+                  <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">Estimated Balance</p>
                 </div>
-                <div className="space-y-2">
-                  <div className="flex items-baseline justify-between gap-3">
-                    <span className="text-xs text-muted-foreground shrink-0">Annual Payroll</span>
-                    <span className="text-sm font-semibold tabular-nums text-right">{stats.annualPayrollProjection.toLocaleString()}</span>
+                <div className="space-y-2.5">
+                  <div className="flex items-center justify-between text-xs border-b border-blue-50/40 pb-1.5">
+                    <span className="text-muted-foreground">Gross Profit</span>
+                    <span className="font-bold text-slate-700">Rs. {stats.grossProfit.toLocaleString()}</span>
                   </div>
-                  <div className="flex items-baseline justify-between gap-3">
-                    <span className="text-xs text-muted-foreground shrink-0">Gross Profit</span>
-                    <span className={`text-sm font-semibold tabular-nums text-right ${stats.grossProfit >= 0 ? "text-primary" : "text-destructive"}`}>
-                      {stats.grossProfit.toLocaleString()}
-                    </span>
+                  <div className="flex items-center justify-between text-xs border-b border-blue-50/40 pb-1.5">
+                    <span className="text-muted-foreground">Annual Payroll Projection</span>
+                    <span className="font-bold text-slate-700">Rs. {stats.annualPayrollProjection.toLocaleString()}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-muted-foreground">Total Expenses</span>
+                    <span className="font-bold text-rose-500">Rs. {stats.totalExpenses.toLocaleString()}</span>
                   </div>
                 </div>
               </CardContent>
@@ -1080,13 +1104,13 @@ export function AccountantHomeModule() {
                     />
                     <YAxis 
                       tick={{ fontSize: 10 }} 
-                      tickFormatter={(v) => `${(v / 1000).toFixed(0)}K`} 
+                      tickFormatter={(v) => `Rs. ${(v / 1000).toFixed(0)}K`} 
                       axisLine={false}
                       tickLine={false}
                       width={40}
                     />
                     <Tooltip 
-                      formatter={(value: number) => value.toLocaleString()}
+                      formatter={(value: number) => "Rs. " + value.toLocaleString()}
                       contentStyle={{
                         backgroundColor: "hsl(var(--card))",
                         border: "1px solid hsl(var(--border))",
@@ -1130,7 +1154,7 @@ export function AccountantHomeModule() {
                           ))}
                         </Pie>
                         <Tooltip 
-                          formatter={(value: number) => value.toLocaleString()}
+                          formatter={(value: number) => "Rs. " + value.toLocaleString()}
                           contentStyle={{
                             backgroundColor: "hsl(var(--card))",
                             border: "1px solid hsl(var(--border))",
@@ -1191,7 +1215,7 @@ export function AccountantHomeModule() {
                 <Separator />
                 <div className="grid grid-cols-2 gap-4 pt-2">
                   <div className="text-center rounded-lg bg-accent p-3">
-                    <p className="text-2xl font-bold">{stats.avgInvoiceValue.toLocaleString()}</p>
+                    <p className="text-2xl font-bold">Rs. {stats.avgInvoiceValue.toLocaleString()}</p>
                     <p className="text-xs text-muted-foreground">Avg Invoice Value</p>
                   </div>
                   <div className="text-center rounded-lg bg-accent p-3">
