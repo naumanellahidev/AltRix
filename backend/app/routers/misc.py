@@ -745,11 +745,20 @@ async def fetch_ai_context(db: DbSession, user: AuthenticatedUser, school_id: st
             return f"{symbol} {float(val):,.2f}"
         except Exception:
             return f"{symbol} {val}"
-    
-    # 1. School Owner / Principal / Super Admin
+
+    # Helper function to query rows safely and avoid database errors
+    async def fetch_rows(sql, params):
+        try:
+            res = await db.execute(text(sql), params)
+            return res.fetchall()
+        except Exception as e:
+            logger.warning(f"AI Context DB fetch failure: {sql[:100]}... error: {e}")
+            return []
+
+    # 1. School Owner / Principal / Super Admin Context
     if user.is_super_admin or "school_owner" in effective_roles or "principal" in effective_roles or "vice_principal" in effective_roles or "school_admin" in effective_roles:
         try:
-            # Let's fetch metrics
+            # Stats/Metrics
             mtd_start = datetime.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
             res = await db.execute(
                 text("""
@@ -764,69 +773,112 @@ async def fetch_ai_context(db: DbSession, user: AuthenticatedUser, school_id: st
             )
             metrics = res.fetchone()
             
-            # Fetch top fee defaulters with class and section details
-            defaulters_res = await db.execute(
-                text("""
-                    SELECT 
-                        s.first_name, 
-                        s.last_name, 
-                        COALESCE(i.total_amount, 0) - COALESCE(i.paid_amount, 0) as balance, 
-                        i.invoice_number,
-                        c.name as class_name,
-                        cs.name as section_name
-                    FROM fee_invoices i
-                    JOIN students s ON i.student_id = s.id
-                    LEFT JOIN student_enrollments se ON se.student_id = s.id AND se.end_date IS NULL
-                    LEFT JOIN class_sections cs ON se.class_section_id = cs.id
-                    LEFT JOIN academic_classes c ON cs.class_id = c.id
-                    WHERE i.school_id = :sid AND i.status != 'paid' AND i.student_id != '00000000-0000-0000-0000-000000000000'::uuid
-                    ORDER BY balance DESC LIMIT 5
-                """),
-                {"sid": school_id}
-            )
-            defaulters = defaulters_res.fetchall()
+            # Campuses
+            campuses = await fetch_rows("SELECT name, address, is_active FROM campuses WHERE school_id = :sid", {"sid": school_id})
+            campuses_str = "\n".join([f"- {r[0]} ({r[1] or 'No Address'}): {'Active' if r[2] else 'Inactive'}" for r in campuses])
+
+            # Top fee defaulters
+            defaulters = await fetch_rows("""
+                SELECT 
+                    s.first_name, s.last_name, 
+                    COALESCE(i.total_amount, 0) - COALESCE(i.paid_amount, 0) as balance, 
+                    i.invoice_number, c.name as class_name, cs.name as section_name
+                FROM fee_invoices i
+                JOIN students s ON i.student_id = s.id
+                LEFT JOIN student_enrollments se ON se.student_id = s.id AND se.end_date IS NULL
+                LEFT JOIN class_sections cs ON se.class_section_id = cs.id
+                LEFT JOIN academic_classes c ON cs.class_id = c.id
+                WHERE i.school_id = :sid AND i.status != 'paid' AND i.student_id != '00000000-0000-0000-0000-000000000000'::uuid
+                ORDER BY balance DESC LIMIT 10
+            """, {"sid": school_id})
             defaulters_str = "\n".join([
-                f"- {r[0]} {r[1] or ''} (Class: {r[4] or 'Unassigned'}, Section: {r[5] or 'Unassigned'}): Outstanding Balance: {format_money(r[2])} (Invoice {r[3]})"
+                f"- {r[0]} {r[1] or ''} (Class: {r[4] or 'Unassigned'}, Section: {r[5] or 'Unassigned'}): Outstanding: {format_money(r[2])} (Invoice: {r[3]})"
                 for r in defaulters
             ])
             
-            # Fetch classes, sections, and student counts
-            classes_res = await db.execute(
-                text("""
-                    SELECT c.name as class_name, cs.name as section_name, COUNT(se.id) as student_count
-                    FROM academic_classes c
-                    JOIN class_sections cs ON cs.class_id = c.id
-                    LEFT JOIN student_enrollments se ON se.class_section_id = cs.id AND se.end_date IS NULL
-                    WHERE c.school_id = :sid
-                    GROUP BY c.id, c.name, cs.id, cs.name
-                    ORDER BY c.name, cs.name
-                """),
-                {"sid": school_id}
-            )
-            classes_list = classes_res.fetchall()
-            classes_str = "\n".join([f"- {r[0]} (Section {r[1]}): {r[2]} students" for r in classes_list])
+            # Classes/sections enrollment
+            classes_list = await fetch_rows("""
+                SELECT c.name as class_name, cs.name as section_name, COUNT(se.id) as student_count
+                FROM academic_classes c
+                JOIN class_sections cs ON cs.class_id = c.id
+                LEFT JOIN student_enrollments se ON se.class_section_id = cs.id AND se.end_date IS NULL
+                WHERE c.school_id = :sid
+                GROUP BY c.id, c.name, cs.id, cs.name
+                ORDER BY c.name, cs.name
+            """, {"sid": school_id})
+            classes_str = "\n".join([f"- {r[0]} (Section {r[1]}): {r[2]} students enrolled" for r in classes_list])
 
-            # Fetch active student directory
-            students_res = await db.execute(
-                text("""
-                    SELECT s.first_name, s.last_name, c.name as class_name, cs.name as section_name, s.student_code
-                    FROM students s
-                    LEFT JOIN student_enrollments se ON se.student_id = s.id AND se.end_date IS NULL
-                    LEFT JOIN class_sections cs ON se.class_section_id = cs.id
-                    LEFT JOIN academic_classes c ON cs.class_id = c.id
-                    WHERE s.school_id = :sid AND s.status = 'active'
-                    ORDER BY c.name, cs.name, s.first_name, s.last_name
-                    LIMIT 200
-                """),
-                {"sid": school_id}
-            )
-            students_list = students_res.fetchall()
+            # Active Student Directory
+            students_list = await fetch_rows("""
+                SELECT s.first_name, s.last_name, c.name as class_name, cs.name as section_name, s.student_code, s.email
+                FROM students s
+                LEFT JOIN student_enrollments se ON se.student_id = s.id AND se.end_date IS NULL
+                LEFT JOIN class_sections cs ON se.class_section_id = cs.id
+                LEFT JOIN academic_classes c ON cs.class_id = c.id
+                WHERE s.school_id = :sid AND s.status = 'active'
+                ORDER BY c.name, cs.name, s.first_name, s.last_name
+                LIMIT 300
+            """, {"sid": school_id})
             students_str = "\n".join([
-                f"- {r[0]} {r[1] or ''} (Code: {r[4] or 'N/A'}, Class: {r[2] or 'Unassigned'}, Section: {r[3] or 'Unassigned'})"
+                f"- {r[0]} {r[1] or ''} (Code: {r[4] or 'N/A'}, Class: {r[2] or 'Unassigned'}, Section: {r[3] or 'Unassigned'}, Email: {r[5] or 'N/A'})"
                 for r in students_list
             ])
-            
-            # Fetch pending admissions
+
+            # Teachers & Staff Directory
+            staff_list = await fetch_rows("""
+                SELECT full_name, position, email, phone, department, is_active 
+                FROM hr_staff_directory WHERE school_id = :sid AND is_active = true
+                ORDER BY full_name
+            """, {"sid": school_id})
+            staff_str = "\n".join([
+                f"- {r[0]} ({r[1] or 'Staff'}, Dept: {r[4] or 'General'}, Email: {r[2] or 'N/A'}, Phone: {r[3] or 'N/A'})"
+                for r in staff_list
+            ])
+
+            # Exams List
+            exams = await fetch_rows("""
+                SELECT name, term_label, status, start_date, end_date FROM exams 
+                WHERE school_id = :sid ORDER BY created_at DESC LIMIT 15
+            """, {"sid": school_id})
+            exams_str = "\n".join([
+                f"- {r[0]} (Term: {r[1] or 'N/A'}, Status: {r[2]}, Dates: {r[3]} to {r[4]})"
+                for r in exams
+            ])
+
+            # Active Complaints
+            complaints = await fetch_rows("""
+                SELECT subject, category, status, flow, created_at FROM complaints 
+                WHERE school_id = :sid ORDER BY created_at DESC LIMIT 15
+            """, {"sid": school_id})
+            complaints_str = "\n".join([
+                f"- {r[0]} (Category: {r[1] or 'General'}, Status: {r[2]}, Flow: {r[3]})"
+                for r in complaints
+            ])
+
+            # Recent Leave Requests
+            leaves = await fetch_rows("""
+                SELECT sd.full_name, lr.start_date, lr.end_date, lr.reason, lr.status 
+                FROM hr_leave_requests lr 
+                LEFT JOIN hr_staff_directory sd ON lr.user_id = sd.linked_user_id 
+                WHERE lr.school_id = :sid 
+                ORDER BY lr.created_at DESC LIMIT 15
+            """, {"sid": school_id})
+            leaves_str = "\n".join([
+                f"- {r[0]} Leave: {r[1]} to {r[2]} | Reason: '{r[3] or 'None'}' | Status: {r[4]}"
+                for r in leaves
+            ])
+
+            # Recent Notices
+            notices = await fetch_rows("""
+                SELECT title, body, audience, created_at FROM notices 
+                WHERE school_id = :sid ORDER BY created_at DESC LIMIT 10
+            """, {"sid": school_id})
+            notices_str = "\n".join([
+                f"- {r[0]} (Audience: {r[2]}, Date: {r[3].strftime('%Y-%m-%d') if r[3] else 'N/A'}): {r[1][:100]}..."
+                for r in notices
+            ])
+
+            # Pending admissions
             try:
                 adm_res = await db.execute(
                     text("SELECT COUNT(*) FROM admission_applications WHERE school_id = :sid AND status = 'pending'"),
@@ -844,7 +896,7 @@ async def fetch_ai_context(db: DbSession, user: AuthenticatedUser, school_id: st
                 "pending_payments": metrics[2] if metrics else 0
             }
 
-            context = f"""
+            return f"""
 [Role Context: School Principal / Owner / Admin]
 Live ERP Metrics:
 - Total Active Students: {metrics_data['total_students']}
@@ -854,23 +906,41 @@ Live ERP Metrics:
 - Unpaid Invoices Count: {metrics_data['pending_payments']}
 - Pending Admissions Applications: {pending_admissions}
 
-Top Fee Defaulters:
-{defaulters_str if defaulters_str else "None"}
+Campuses Directory:
+{campuses_str if campuses_str else "None"}
 
 Classes and Sections Enrollment Summary:
 {classes_str if classes_str else "None"}
 
 All Enrolled Active Students (with Class & Section):
 {students_str if students_str else "None"}
+
+Teachers & Active Staff Directory:
+{staff_str if staff_str else "None"}
+
+School Exams & Terms:
+{exams_str if exams_str else "None"}
+
+Outstanding Fee Defaulters:
+{defaulters_str if defaulters_str else "None"}
+
+Recent Staff Leave Requests:
+{leaves_str if leaves_str else "None"}
+
+Recent School Announcements / Notices:
+{notices_str if notices_str else "None"}
+
+Recent ERP Complaints & Feedback:
+{complaints_str if complaints_str else "None"}
 """
-            return context
         except Exception as e:
             logger.warning(f"Error fetching principal context: {e}")
             return "[Context: Principal - Live DB fetch failed]"
 
-    # 2. Accountant
+    # 2. Accountant Context
     elif "accountant" in effective_roles:
         try:
+            # Metrics
             res = await db.execute(
                 text("""
                     SELECT 
@@ -883,18 +953,79 @@ All Enrolled Active Students (with Class & Section):
             )
             finance = res.fetchone()
             
-            defaulters_res = await db.execute(
-                text("""
-                    SELECT s.first_name, s.last_name, COALESCE(i.total_amount, 0) - COALESCE(i.paid_amount, 0) as balance, i.invoice_number
-                    FROM fee_invoices i
-                    JOIN students s ON i.student_id = s.id
-                    WHERE i.school_id = :sid AND i.status != 'paid' AND i.student_id != '00000000-0000-0000-0000-000000000000'::uuid
-                    ORDER BY balance DESC LIMIT 5
-                """),
-                {"sid": school_id}
-            )
-            defaulters = defaulters_res.fetchall()
-            defaulters_str = "\n".join([f"- {r[0]} {r[1] or ''}: Balance: {format_money(r[2])} (Invoice {r[3]})" for r in defaulters])
+            # Top Outstanding Defaulters
+            defaulters = await fetch_rows("""
+                SELECT s.first_name, s.last_name, COALESCE(i.total_amount, 0) - COALESCE(i.paid_amount, 0) as balance, i.invoice_number
+                FROM fee_invoices i
+                JOIN students s ON i.student_id = s.id
+                WHERE i.school_id = :sid AND i.status != 'paid' AND i.student_id != '00000000-0000-0000-0000-000000000000'::uuid
+                ORDER BY balance DESC LIMIT 15
+            """, {"sid": school_id})
+            defaulters_str = "\n".join([f"- {r[0]} {r[1] or ''}: Balance: {format_money(r[2])} (Invoice: {r[3]})" for r in defaulters])
+
+            # Detailed Unpaid Invoices
+            unpaid_invoices = await fetch_rows("""
+                SELECT i.invoice_number, s.first_name, s.last_name, c.name, cs.name, i.total_amount, i.paid_amount, i.due_date, i.status
+                FROM fee_invoices i
+                JOIN students s ON i.student_id = s.id
+                LEFT JOIN student_enrollments se ON se.student_id = s.id AND se.end_date IS NULL
+                LEFT JOIN class_sections cs ON se.class_section_id = cs.id
+                LEFT JOIN academic_classes c ON cs.class_id = c.id
+                WHERE i.school_id = :sid AND i.status != 'paid' AND i.student_id != '00000000-0000-0000-0000-000000000000'::uuid
+                ORDER BY i.due_date ASC LIMIT 50
+            """, {"sid": school_id})
+            invoices_str = "\n".join([
+                f"- Inv #{r[0]}: {r[1]} {r[2] or ''} (Class: {r[3] or 'N/A'} {r[4] or ''}), Total: {format_money(r[5])}, Paid: {format_money(r[6])}, Due: {r[7]}, Status: {r[8]}"
+                for r in unpaid_invoices
+            ])
+
+            # Fee Plans
+            fee_plans = await fetch_rows("""
+                SELECT name, currency, is_active, billing_frequency, description FROM fee_plans WHERE school_id = :sid
+            """, {"sid": school_id})
+            plans_str = "\n".join([
+                f"- {r[0]} ({r[3]}, currency: {r[1]}): {r[4] or 'No details'} | {'Active' if r[2] else 'Inactive'}"
+                for r in fee_plans
+            ])
+
+            # Recent Payments
+            recent_payments = await fetch_rows("""
+                SELECT fp.amount, fp.method, fp.paid_at, fp.status, s.first_name, s.last_name
+                FROM fee_payments fp
+                JOIN students s ON fp.student_id = s.id
+                WHERE fp.school_id = :sid
+                ORDER BY fp.paid_at DESC LIMIT 20
+            """, {"sid": school_id})
+            payments_str = "\n".join([
+                f"- Recieved: {format_money(r[0])} via {r[1]} on {r[2].strftime('%Y-%m-%d') if r[2] else 'N/A'} | Status: {r[3]} | Student: {r[4]} {r[5] or ''}"
+                for r in recent_payments
+            ])
+
+            # Recent Expenses
+            recent_expenses = await fetch_rows("""
+                SELECT description, amount, category, expense_date, vendor FROM finance_expenses 
+                WHERE school_id = :sid ORDER BY expense_date DESC LIMIT 20
+            """, {"sid": school_id})
+            expenses_str = "\n".join([
+                f"- Expense: {format_money(r[1])} for '{r[0]}' ({r[2]}) on {r[3]} | Vendor: {r[4] or 'N/A'}"
+                for r in recent_expenses
+            ])
+
+            # Student Directory for Billing
+            billing_students = await fetch_rows("""
+                SELECT s.first_name, s.last_name, s.student_code, c.name, cs.name
+                FROM students s
+                LEFT JOIN student_enrollments se ON se.student_id = s.id AND se.end_date IS NULL
+                LEFT JOIN class_sections cs ON se.class_section_id = cs.id
+                LEFT JOIN academic_classes c ON cs.class_id = c.id
+                WHERE s.school_id = :sid AND s.status = 'active'
+                ORDER BY c.name, cs.name, s.first_name
+                LIMIT 200
+            """, {"sid": school_id})
+            students_str = "\n".join([
+                f"- {r[0]} {r[1] or ''} (Code: {r[2] or 'N/A'}, Class: {r[3] or 'N/A'} {r[4] or ''})"
+                for r in billing_students
+            ])
 
             return f"""
 [Role Context: School Accountant]
@@ -902,185 +1033,443 @@ Live Financial Metrics:
 - Outstanding School Fees (Receivables): {format_money(finance[0] if finance else 0)}
 - Collected School Fees (Received): {format_money(finance[1] if finance else 0)}
 
-Top Outstanding Fee Defaulters:
+Outstanding Defaulters:
 {defaulters_str if defaulters_str else "None"}
+
+Pending Unpaid Invoices:
+{invoices_str if invoices_str else "None"}
+
+Active Fee Plans & Structures:
+{plans_str if plans_str else "None"}
+
+Recent Fee Payments Collected:
+{payments_str if payments_str else "None"}
+
+Recent Financial Expenses Logged:
+{expenses_str if expenses_str else "None"}
+
+Student Billing Directory (Active students list):
+{students_str if students_str else "None"}
 """
         except Exception as e:
             logger.warning(f"Error fetching accountant context: {e}")
             return "[Context: Accountant - Live DB fetch failed]"
 
-    # 3. Teacher
+    # 3. Teacher Context
     elif "teacher" in effective_roles:
         try:
-            sections_res = await db.execute(
-                text("""
-                    SELECT class_section_id 
-                    FROM teacher_subject_assignments 
-                    WHERE teacher_user_id = :uid AND school_id = :sid
-                """),
-                {"uid": user.id, "sid": school_id}
-            )
-            sec_ids = [str(r[0]) for r in sections_res.fetchall()]
-            if not sec_ids:
-                return "[Role Context: Teacher (No assigned classes or sections found)]"
-            
-            names_res = await db.execute(
-                text("""
-                    SELECT cs.id, cs.name, c.name as class_name
-                    FROM class_sections cs
-                    JOIN academic_classes c ON cs.class_id = c.id
-                    WHERE cs.id IN :sids AND cs.school_id = :sid
-                """),
-                {"sids": tuple(sec_ids), "sid": school_id}
-            )
-            sections_list = names_res.fetchall()
-            sections_str = ", ".join([f"{r[2]} - {r[1]}" for r in sections_list])
-            
-            students_count_res = await db.execute(
-                text("""
-                    SELECT COUNT(*)
-                    FROM student_enrollments
-                    WHERE class_section_id IN :sids AND school_id = :sid AND end_date IS NULL
-                """),
-                {"sids": tuple(sec_ids), "sid": school_id}
-            )
-            std_count = students_count_res.scalar() or 0
+            # Assinged sections
+            assigned_sections = await fetch_rows("""
+                SELECT tsa.class_section_id, c.name, cs.name, sub.name
+                FROM teacher_subject_assignments tsa
+                JOIN class_sections cs ON tsa.class_section_id = cs.id
+                JOIN academic_classes c ON cs.class_id = c.id
+                JOIN subjects sub ON tsa.subject_id = sub.id
+                WHERE tsa.teacher_user_id = :uid AND tsa.school_id = :sid
+            """, {"uid": user.id, "sid": school_id})
+            sections_str = "\n".join([f"- Class/Section: {r[1]} - {r[2]} | Subject: {r[3]}" for r in assigned_sections])
+
+            # Class/Section student count & details
+            teacher_students = await fetch_rows("""
+                SELECT s.first_name, s.last_name, s.student_code, c.name, cs.name
+                FROM students s
+                JOIN student_enrollments se ON se.student_id = s.id AND se.end_date IS NULL
+                JOIN class_sections cs ON se.class_section_id = cs.id
+                JOIN academic_classes c ON cs.class_id = c.id
+                WHERE cs.id IN (
+                    SELECT class_section_id FROM teacher_subject_assignments WHERE teacher_user_id = :uid AND school_id = :sid
+                ) AND s.status = 'active'
+                ORDER BY c.name, cs.name, s.first_name
+            """, {"uid": user.id, "sid": school_id})
+            students_str = "\n".join([
+                f"- {r[0]} {r[1] or ''} (Code: {r[2] or 'N/A'}, Class: {r[3]} {r[4]})"
+                for r in teacher_students
+            ])
+
+            # Attendance Summaries
+            attendance = await fetch_rows("""
+                SELECT s.first_name, s.last_name, COUNT(*) FILTER (WHERE ae.status = 'present') as present, COUNT(*) as total
+                FROM attendance_entries ae
+                JOIN attendance_sessions sess ON ae.session_id = sess.id
+                JOIN students s ON ae.student_id = s.id
+                WHERE sess.class_section_id IN (
+                    SELECT class_section_id FROM teacher_subject_assignments WHERE teacher_user_id = :uid AND school_id = :sid
+                )
+                GROUP BY s.id, s.first_name, s.last_name
+            """, {"uid": user.id, "sid": school_id})
+            attendance_str = "\n".join([
+                f"- {r[0]} {r[1] or ''}: Attendance Rate: {round(r[2]/r[3]*100, 1)}% ({r[2]} present of {r[3]} sessions)"
+                for r in attendance if r[3] > 0
+            ])
+
+            # Recent assignments/homework
+            assignments = await fetch_rows("""
+                SELECT a.title, a.description, a.due_date, a.max_marks, c.name, cs.name
+                FROM assignments a
+                JOIN class_sections cs ON a.class_section_id = cs.id
+                JOIN academic_classes c ON cs.class_id = c.id
+                WHERE a.class_section_id IN (
+                    SELECT class_section_id FROM teacher_subject_assignments WHERE teacher_user_id = :uid AND school_id = :sid
+                ) AND a.status = 'active'
+                ORDER BY a.due_date DESC LIMIT 15
+            """, {"uid": user.id, "sid": school_id})
+            assignments_str = "\n".join([
+                f"- Assignment: '{r[0]}' ({r[1] or 'No details'}) | Due: {r[2]} | Max Marks: {r[3]} | Class: {r[4]} {r[5]}"
+                for r in assignments
+            ])
+
+            # Recent diary entries
+            diary = await fetch_rows("""
+                SELECT d.title, d.content, d.entry_date, c.name, cs.name
+                FROM diary_entries d
+                JOIN class_sections cs ON d.class_section_id = cs.id
+                JOIN academic_classes c ON cs.class_id = c.id
+                WHERE d.class_section_id IN (
+                    SELECT class_section_id FROM teacher_subject_assignments WHERE teacher_user_id = :uid AND school_id = :sid
+                )
+                ORDER BY d.entry_date DESC LIMIT 15
+            """, {"uid": user.id, "sid": school_id})
+            diary_str = "\n".join([
+                f"- Diary Entry: '{r[0]}' on {r[2]} | Content: '{r[1] or 'None'}' | Class: {r[3]} {r[4]}"
+                for r in diary
+            ])
+
+            # Behavior notes
+            behavior = await fetch_rows("""
+                SELECT s.first_name, s.last_name, bn.title, bn.content, bn.note_type, bn.created_at
+                FROM behavior_notes bn
+                JOIN students s ON bn.student_id = s.id
+                WHERE bn.student_id IN (
+                    SELECT student_id FROM student_enrollments WHERE class_section_id IN (
+                        SELECT class_section_id FROM teacher_subject_assignments WHERE teacher_user_id = :uid AND school_id = :sid
+                    ) AND end_date IS NULL
+                )
+                ORDER BY bn.created_at DESC LIMIT 20
+            """, {"uid": user.id, "sid": school_id})
+            behavior_str = "\n".join([
+                f"- student: {r[0]} {r[1] or ''} | Note: '{r[2]}' ({r[3] or 'None'}) | Type: {r[4]} | logged on {r[5].strftime('%Y-%m-%d') if r[5] else 'N/A'}"
+                for r in behavior
+            ])
+
+            # Exam results
+            exam_results = await fetch_rows("""
+                SELECT e.name, s.first_name, s.last_name, sub.name, er.marks_obtained, er.max_marks, er.grade
+                FROM exam_results er
+                JOIN exams e ON er.exam_id = e.id
+                JOIN students s ON er.student_id = s.id
+                JOIN subjects sub ON er.subject_id = sub.id
+                WHERE er.student_id IN (
+                    SELECT student_id FROM student_enrollments WHERE class_section_id IN (
+                        SELECT class_section_id FROM teacher_subject_assignments WHERE teacher_user_id = :uid AND school_id = :sid
+                    ) AND end_date IS NULL
+                )
+                ORDER BY e.name, s.first_name
+                LIMIT 100
+            """, {"uid": user.id, "sid": school_id})
+            exams_str = "\n".join([
+                f"- Exam: {r[0]} | Student: {r[1]} {r[2] or ''} | Subject: {r[3]} | Marks: {r[4]}/{r[5]} (Grade: {r[6]})"
+                for r in exam_results
+            ])
 
             return f"""
 [Role Context: School Teacher]
-Assigned Class Sections: {sections_str}
-Total Active Students under your supervision: {std_count}
+Assigned Class Sections:
+{sections_str if sections_str else "None"}
+
+All Enrolled Active Students under your supervision:
+{students_str if students_str else "None"}
+
+Students Class Attendance Rates:
+{attendance_str if attendance_str else "None"}
+
+Recent Class Homework/Assignments:
+{assignments_str if assignments_str else "None"}
+
+Recent Class Diary Logs:
+{diary_str if diary_str else "None"}
+
+Student Behavior Logs & Remarks:
+{behavior_str if behavior_str else "None"}
+
+Exam Marks & Results entries in your sections:
+{exams_str if exams_str else "None"}
 """
         except Exception as e:
             logger.warning(f"Error fetching teacher context: {e}")
             return "[Context: Teacher - Live DB fetch failed]"
 
-    # 4. Parent
+    # 4. Parent Context
     elif "parent" in effective_roles:
         try:
-            children_res = await db.execute(
-                text("""
-                    SELECT s.id, s.first_name, s.last_name, sg.relationship
-                    FROM student_guardians sg
-                    JOIN students s ON sg.student_id = s.id
-                    WHERE sg.user_id = :uid AND sg.school_id = :sid
-                """),
-                {"uid": user.id, "sid": school_id}
-            )
-            children = children_res.fetchall()
+            # Children
+            children = await fetch_rows("""
+                SELECT s.id, s.first_name, s.last_name, s.student_code, c.name, cs.name, sg.relationship
+                FROM student_guardians sg
+                JOIN students s ON sg.student_id = s.id
+                LEFT JOIN student_enrollments se ON se.student_id = s.id AND se.end_date IS NULL
+                LEFT JOIN class_sections cs ON se.class_section_id = cs.id
+                LEFT JOIN academic_classes c ON cs.class_id = c.id
+                WHERE sg.user_id = :uid AND sg.school_id = :sid
+            """, {"uid": user.id, "sid": school_id})
+            
             if not children:
                 return "[Role Context: Parent (No linked children found)]"
             
-            child_ids = [str(r[0]) for r in children]
-            child_names = ", ".join([f"{r[1]} {r[2] or ''} ({r[3]})" for r in children])
-            
-            att_res = await db.execute(
-                text("""
-                    SELECT student_id, COUNT(*) FILTER (WHERE status = 'present') as present, COUNT(*) as total
-                    FROM attendance_entries
-                    WHERE student_id IN :sids AND school_id = :sid
-                    GROUP BY student_id
-                """),
-                {"sids": tuple(child_ids), "sid": school_id}
-            )
-            att_data = att_res.fetchall()
-            att_str = "\n".join([
-                f"- Child student ID {r[0]}: Attendance Rate: {round(r[1]/r[2]*100, 1)}% ({r[1]} present out of {r[2]} sessions)"
-                for r in att_data if r[2] > 0
+            children_str = "\n".join([
+                f"- Child: {r[1]} {r[2] or ''} (Code: {r[3] or 'N/A'}, Class: {r[4] or 'Unassigned'} {r[5] or ''}, Relationship: {r[6]})"
+                for r in children
             ])
-            
-            inv_res = await db.execute(
-                text("""
-                    SELECT student_id, SUM(total_amount - paid_amount)
-                    FROM fee_invoices
-                    WHERE student_id IN :sids AND school_id = :sid AND status != 'paid'
-                    GROUP BY student_id
-                """),
-                {"sids": tuple(child_ids), "sid": school_id}
-            )
-            inv_data = inv_res.fetchall()
-            inv_str = "\n".join([
-                f"- Child student ID {r[0]}: Unpaid Fees Balance: {format_money(r[1])}"
-                for r in inv_data
+
+            # Detailed attendance logs
+            attendance = await fetch_rows("""
+                SELECT s.first_name, s.last_name, ae.status, sess.session_date, sess.period_label
+                FROM attendance_entries ae
+                JOIN attendance_sessions sess ON ae.session_id = sess.id
+                JOIN students s ON ae.student_id = s.id
+                WHERE ae.student_id IN (SELECT student_id FROM student_guardians WHERE user_id = :uid AND school_id = :sid)
+                ORDER BY sess.session_date DESC LIMIT 30
+            """, {"uid": user.id, "sid": school_id})
+            attendance_str = "\n".join([
+                f"- {r[0]} {r[1] or ''}: {r[2]} on {r[3]} (Period: {r[4] or 'General'})"
+                for r in attendance
+            ])
+
+            # Behavior notes
+            behavior = await fetch_rows("""
+                SELECT s.first_name, s.last_name, bn.title, bn.content, bn.note_type, bn.created_at
+                FROM behavior_notes bn
+                JOIN students s ON bn.student_id = s.id
+                WHERE bn.student_id IN (SELECT student_id FROM student_guardians WHERE user_id = :uid AND school_id = :sid)
+                  AND bn.is_shared_with_parents = true
+                ORDER BY bn.created_at DESC LIMIT 15
+            """, {"uid": user.id, "sid": school_id})
+            behavior_str = "\n".join([
+                f"- Child: {r[0]} {r[1] or ''} | Title: '{r[2]}' | Remarks: '{r[3] or 'None'}' | Type: {r[4]} | Logged on: {r[5].strftime('%Y-%m-%d') if r[5] else 'N/A'}"
+                for r in behavior
+            ])
+
+            # Fee invoices
+            invoices = await fetch_rows("""
+                SELECT i.invoice_number, s.first_name, s.last_name, i.total_amount, i.paid_amount, i.due_date, i.status
+                FROM fee_invoices i
+                JOIN students s ON i.student_id = s.id
+                WHERE i.student_id IN (SELECT student_id FROM student_guardians WHERE user_id = :uid AND school_id = :sid)
+                ORDER BY i.due_date DESC
+            """, {"uid": user.id, "sid": school_id})
+            invoices_str = "\n".join([
+                f"- Inv #{r[0]} for {r[1]} {r[2] or ''}: Total Amount: {format_money(r[3])}, Paid Amount: {format_money(r[4])}, Due Date: {r[5]}, Status: {r[6]}"
+                for r in invoices
+            ])
+
+            # Exam results
+            exam_results = await fetch_rows("""
+                SELECT s.first_name, s.last_name, e.name, sub.name, er.marks_obtained, er.max_marks, er.grade, er.remarks
+                FROM exam_results er
+                JOIN exams e ON er.exam_id = e.id
+                JOIN subjects sub ON er.subject_id = sub.id
+                JOIN students s ON er.student_id = s.id
+                WHERE er.student_id IN (SELECT student_id FROM student_guardians WHERE user_id = :uid AND school_id = :sid)
+                ORDER BY e.name, sub.name
+            """, {"uid": user.id, "sid": school_id})
+            exams_str = "\n".join([
+                f"- Child: {r[0]} {r[1] or ''} | Exam: {r[2]} | Subject: {r[3]} | Marks Obtained: {r[4]}/{r[5]} (Grade: {r[6]}, Teacher Remarks: '{r[7] or 'None'}')"
+                for r in exam_results
+            ])
+
+            # Homework
+            homework = await fetch_rows("""
+                SELECT s.first_name, s.last_name, a.title, a.description, a.due_date, a.max_marks
+                FROM assignments a
+                JOIN student_enrollments se ON a.class_section_id = se.class_section_id AND se.end_date IS NULL
+                JOIN students s ON se.student_id = s.id
+                WHERE se.student_id IN (SELECT student_id FROM student_guardians WHERE user_id = :uid AND school_id = :sid)
+                  AND a.status = 'active'
+                ORDER BY a.due_date DESC LIMIT 15
+            """, {"uid": user.id, "sid": school_id})
+            homework_str = "\n".join([
+                f"- Child: {r[0]} {r[1] or ''} | Homework: '{r[2]}' ({r[3] or 'No details'}) | Due: {r[4]} | Max Marks: {r[5]}"
+                for r in homework
+            ])
+
+            # Diary entries
+            diary = await fetch_rows("""
+                SELECT s.first_name, s.last_name, d.title, d.content, d.entry_date
+                FROM diary_entries d
+                JOIN student_enrollments se ON d.class_section_id = se.class_section_id AND se.end_date IS NULL
+                JOIN students s ON se.student_id = s.id
+                WHERE se.student_id IN (SELECT student_id FROM student_guardians WHERE user_id = :uid AND school_id = :sid)
+                ORDER BY d.entry_date DESC LIMIT 15
+            """, {"uid": user.id, "sid": school_id})
+            diary_str = "\n".join([
+                f"- Child: {r[0]} {r[1] or ''} | Title: '{r[2]}' | Content: '{r[3] or 'None'}' | Date: {r[4]}"
+                for r in diary
             ])
 
             return f"""
 [Role Context: Student Parent]
-Your Linked Children: {child_names}
+Your Linked Children:
+{children_str}
 
-Children Attendance Rates:
-{att_str if att_str else "No attendance records found."}
+Children Detailed Attendance History:
+{attendance_str if attendance_str else "None"}
 
-Children Outstanding Invoices:
-{inv_str if inv_str else "No outstanding invoices (All paid)."}
+Children Behavior Notes & Conduct Logs:
+{behavior_str if behavior_str else "None"}
+
+Children Fee Invoices (Unpaid & Paid):
+{invoices_str if invoices_str else "None"}
+
+Children Exam Results & Academic Grades:
+{exams_str if exams_str else "None"}
+
+Children Homework/Assignments (Active):
+{homework_str if homework_str else "None"}
+
+Children Class Diary Logs:
+{diary_str if diary_str else "None"}
 """
         except Exception as e:
             logger.warning(f"Error fetching parent context: {e}")
             return "[Context: Parent - Live DB fetch failed]"
 
-    # 5. Student
+    # 5. Student Context
     elif "student" in effective_roles:
         try:
-            student_res = await db.execute(
-                text("SELECT id, first_name, last_name FROM students WHERE email = :email AND school_id = :sid"),
-                {"email": user.email, "sid": school_id}
-            )
-            student = student_res.fetchone()
-            if not student:
-                return "[Role Context: Student (Profile not resolved by email)]"
+            # Resolve student profile ID
+            student_profile = await fetch_rows("""
+                SELECT id, first_name, last_name, student_code FROM students 
+                WHERE (profile_id = :uid OR email = :email) AND school_id = :sid LIMIT 1
+            """, {"uid": user.id, "email": user.email, "sid": school_id})
             
-            student_id = str(student[0])
-            name = f"{student[1]} {student[2] or ''}"
+            if not student_profile:
+                return "[Role Context: Student (Profile not resolved by email or profile ID)]"
             
-            att_res = await db.execute(
-                text("""
-                    SELECT COUNT(*) FILTER (WHERE status = 'present') as present, COUNT(*) as total
-                    FROM attendance_entries
-                    WHERE student_id = :sid
-                """),
-                {"sid": student_id}
-            )
-            att = att_res.fetchone()
-            att_rate = round(att[0]/att[1]*100, 1) if att and att[1] > 0 else 100.0
+            student_id = str(student_profile[0][0])
+            student_name = f"{student_profile[0][1]} {student_profile[0][2] or ''}"
+            student_code = student_profile[0][3] or "N/A"
+
+            # Attendance
+            attendance = await fetch_rows("""
+                SELECT ae.status, sess.session_date, sess.period_label
+                FROM attendance_entries ae
+                JOIN attendance_sessions sess ON ae.session_id = sess.id
+                WHERE ae.student_id = :student_id
+                ORDER BY sess.session_date DESC LIMIT 30
+            """, {"student_id": student_id})
+            attendance_str = "\n".join([
+                f"- {r[0]} on {r[1]} (Period: {r[2] or 'General'})"
+                for r in attendance
+            ])
+
+            # Results
+            results = await fetch_rows("""
+                SELECT e.name, sub.name, er.marks_obtained, er.max_marks, er.grade, er.remarks
+                FROM exam_results er
+                JOIN exams e ON er.exam_id = e.id
+                JOIN subjects sub ON er.subject_id = sub.id
+                WHERE er.student_id = :student_id
+                ORDER BY e.name, sub.name
+            """, {"student_id": student_id})
+            results_str = "\n".join([
+                f"- Exam: {r[0]} | Subject: {r[1]} | Marks Obtained: {r[2]}/{r[3]} (Grade: {r[4]}, Remarks: '{r[5] or 'None'}')"
+                for r in results
+            ])
+
+            # Homework
+            homework = await fetch_rows("""
+                SELECT a.title, a.description, a.due_date, a.max_marks
+                FROM assignments a
+                JOIN student_enrollments se ON a.class_section_id = se.class_section_id AND se.end_date IS NULL
+                WHERE se.student_id = :student_id AND a.status = 'active'
+                ORDER BY a.due_date DESC LIMIT 20
+            """, {"student_id": student_id})
+            homework_str = "\n".join([
+                f"- Homework: '{r[0]}' ({r[1] or 'No details'}) | Due: {r[2]} | Max Marks: {r[3]}"
+                for r in homework
+            ])
+
+            # Behavior
+            behavior = await fetch_rows("""
+                SELECT bn.title, bn.content, bn.note_type, bn.created_at
+                FROM behavior_notes bn
+                WHERE bn.student_id = :student_id AND bn.is_shared_with_parents = true
+                ORDER BY bn.created_at DESC LIMIT 15
+            """, {"student_id": student_id})
+            behavior_str = "\n".join([
+                f"- Note: '{r[0]}' | Remarks: '{r[1] or 'None'}' | Type: {r[2]} | logged on {r[3].strftime('%Y-%m-%d') if r[3] else 'N/A'}"
+                for r in behavior
+            ])
 
             return f"""
 [Role Context: Student]
-Student Name: {name}
-Your Attendance Rate: {att_rate}% ({att[0] if att else 0} present of {att[1] if att else 0} sessions)
+Student Name: {student_name}
+Student Code: {student_code}
+
+Your Attendance History logs:
+{attendance_str if attendance_str else "None"}
+
+Your Exam Results & Grades:
+{results_str if results_str else "None"}
+
+Your Active Homework/Assignments:
+{homework_str if homework_str else "None"}
+
+Your Behavior Notes & Conduct Remarks:
+{behavior_str if behavior_str else "None"}
 """
         except Exception as e:
             logger.warning(f"Error fetching student context: {e}")
             return "[Context: Student - Live DB fetch failed]"
 
-    # 6. HR
+    # 6. HR Manager Context
     elif "hr_manager" in effective_roles:
         try:
-            staff_res = await db.execute(
-                text("SELECT COUNT(*) FROM hr_staff_directory WHERE school_id = :sid AND status = 'active'"),
-                {"sid": school_id}
-            )
-            staff_count = staff_res.scalar() or 0
-            
-            leaves_res = await db.execute(
-                text("""
-                    SELECT d.full_name, l.leave_type, l.start_date, l.status
-                    FROM hr_leave_requests l
-                    JOIN hr_staff_directory d ON l.user_id = d.user_id
-                    WHERE l.school_id = :sid
-                    ORDER BY l.created_at DESC LIMIT 5
-                """),
-                {"sid": school_id}
-            )
-            leaves = leaves_res.fetchall()
-            leaves_str = "\n".join([f"- {r[0]} ({r[1]}): {r[2]} - Status: {r[3]}" for r in leaves])
+            # Full Staff directory
+            staff = await fetch_rows("""
+                SELECT full_name, position, email, phone, is_active, department FROM hr_staff_directory 
+                WHERE school_id = :sid ORDER BY full_name
+            """, {"sid": school_id})
+            staff_str = "\n".join([
+                f"- {r[0]} ({r[1] or 'Staff'}, Dept: {r[5] or 'General'}, Email: {r[2] or 'N/A'}, Phone: {r[3] or 'N/A'}) | Status: {'Active' if r[4] else 'Inactive'}"
+                for r in staff
+            ])
+
+            # Leave requests
+            leaves = await fetch_rows("""
+                SELECT sd.full_name, lr.leave_type_id, lr.start_date, lr.end_date, lr.reason, lr.status
+                FROM hr_leave_requests lr
+                LEFT JOIN hr_staff_directory sd ON lr.user_id = sd.linked_user_id
+                WHERE lr.school_id = :sid
+                ORDER BY lr.created_at DESC LIMIT 25
+            """, {"sid": school_id})
+            leaves_str = "\n".join([
+                f"- Staff: {r[0]} | Type ID: {r[1]} | Dates: {r[2]} to {r[3]} | Reason: '{r[4] or 'None'}' | Status: {r[5]}"
+                for r in leaves
+            ])
+
+            # Salary records
+            salaries = await fetch_rows("""
+                SELECT sd.full_name, sr.base_salary, sr.allowances, sr.deductions, sr.status, sr.month, sr.year
+                FROM hr_salary_records sr
+                LEFT JOIN hr_staff_directory sd ON sr.user_id = sd.linked_user_id
+                WHERE sr.school_id = :sid
+                ORDER BY sr.year DESC, sr.month DESC LIMIT 30
+            """, {"sid": school_id})
+            salaries_str = "\n".join([
+                f"- Staff: {r[0]} | Base: {format_money(r[1])}, Allowances: {format_money(r[2])}, Deductions: {format_money(r[3])} | Status: {r[4]} | Month/Year: {r[5]}/{r[6]}"
+                for r in salaries
+            ])
 
             return f"""
 [Role Context: HR Manager]
-Staff Metrics:
-- Total Active Staff Members: {staff_count}
+Staff Directory (Complete):
+{staff_str if staff_str else "None"}
 
-Recent Staff Leave Requests:
+All Staff Leave Requests:
 {leaves_str if leaves_str else "None"}
+
+Staff Salary structures & Payroll records:
+{salaries_str if salaries_str else "None"}
 """
         except Exception as e:
             logger.warning(f"Error fetching HR context: {e}")
@@ -1209,10 +1598,11 @@ Your role is to help users navigate the school ERP, analyze live data, summarize
 - Keep answers concise, direct, and professional
 - For analytics, always highlight the most important insight first
 
-**SECURITY & PRIVACY (Non-Negotiable):**
-- NEVER expose data outside the user's role context above
-- If a parent asks about other students, firmly refuse
-- If a teacher asks about sections not assigned to them, refuse
+**DATA SCOPING & ACCESS (Role-Scoped Shell Access):**
+- You have complete and overall access to all data scoped to the user's active role context provided above.
+- Do NOT refuse to answer queries about any database records, tabs, or modules that are present in the provided Role Context.
+- Do NOT excuse yourself or claim that you do not have access to any tab, section, or module data belonging to this active user-role shell. All data relevant to this user's role shell has been successfully gathered and provided to you.
+- Always provide helpful, direct answers using the provided context.
 
 **DATA ACCURACY:**
 - Base ALL answers on the live ERP metrics provided in the Role Context
