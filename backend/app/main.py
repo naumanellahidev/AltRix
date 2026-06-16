@@ -108,16 +108,33 @@ async def lifespan(app: FastAPI):
     # Initialize Sentry
     _init_sentry()
 
-    # 1. Verify Database Connection
+    # 1. Verify Database Connection & Initialize Settings
     try:
         from sqlalchemy import text
         from app.database import engine
-        async with engine.connect() as conn:
+        async with engine.begin() as conn:
             await conn.execute(text("SELECT 1"))
-        logger.info("Database connection ping: SUCCESS")
+            logger.info("Database connection ping: SUCCESS")
+            
+            # Create system_settings table if it doesn't exist
+            await conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS public.system_settings (
+                    key VARCHAR PRIMARY KEY,
+                    value JSONB,
+                    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()),
+                    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
+                );
+            """))
+            # Seed default AI status
+            await conn.execute(text("""
+                INSERT INTO public.system_settings (key, value)
+                VALUES ('global_ai_control', '{"enabled": true}')
+                ON CONFLICT (key) DO NOTHING;
+            """))
+            logger.info("System settings database table initialized successfully")
     except Exception as e:
-        logger.critical(f"Database connection ping: FAILED — {e}")
-        raise RuntimeError(f"Database connection failed: {e}") from e
+        logger.critical(f"Database initialization: FAILED — {e}")
+        raise RuntimeError(f"Database connection/initialization failed: {e}") from e
 
     # 2. Verify Database Schema (Migrations check)
     try:

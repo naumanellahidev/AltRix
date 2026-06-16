@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { SuperAdminShell } from "@/components/super-admin/SuperAdminShell";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -16,10 +16,15 @@ import {
   CreditCard,
   Building2,
   Image,
+  Brain,
+  Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
+import { apiClient } from "@/lib/api-client";
 
 export default function PlatformSettingsPage() {
+  const [aiEnabled, setAiEnabled] = useState(true);
+  const [isAiLoading, setIsAiLoading] = useState(false);
   const [platformConfig, setPlatformConfig] = useState({
     allowTenantRegistration: true,
     maintenanceMode: false,
@@ -29,6 +34,32 @@ export default function PlatformSettingsPage() {
     senderEmail: "no-reply@altrixbynec.com",
     platformFooterText: "AltRix - School Operating System"
   });
+
+  useEffect(() => {
+    const fetchAiSettings = async () => {
+      try {
+        const res = await apiClient.get<{ enabled: boolean }>("/ai/settings");
+        setAiEnabled(res.data.enabled);
+      } catch (err) {
+        console.error("Failed to load global AI status:", err);
+      }
+    };
+    fetchAiSettings();
+  }, []);
+
+  const handleAiToggle = async (val: boolean) => {
+    setIsAiLoading(true);
+    try {
+      await apiClient.post("/ai/settings", { enabled: val });
+      setAiEnabled(val);
+      toast.success(val ? "Global AI Copilot has been enabled system-wide." : "Global AI Copilot has been disabled system-wide.");
+    } catch (err: any) {
+      console.error("Failed to save AI status:", err);
+      toast.error(err.response?.data?.detail || "Failed to update global AI status.");
+    } finally {
+      setIsAiLoading(false);
+    }
+  };
 
   // Global Altrix Brand & Bank settings
   const [brandSettings, setBrandSettings] = useState(() => {
@@ -112,7 +143,7 @@ export default function PlatformSettingsPage() {
     <SuperAdminShell title="System Settings" subtitle="Configure platform-wide variables, branding, bank details, and registration parameters">
       <div className="space-y-6 max-w-4xl text-zinc-100">
         {/* KPI/Status Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="rounded-xl border border-zinc-900 bg-zinc-950 p-4 flex items-center justify-between shadow-[0_4px_20px_rgba(0,0,0,0.4)]">
             <div className="flex items-center gap-3">
               <Globe className="h-5 w-5 text-amber-500" />
@@ -133,6 +164,21 @@ export default function PlatformSettingsPage() {
               </div>
             </div>
             <Switch checked={platformConfig.maintenanceMode} onCheckedChange={() => handleToggle("maintenanceMode")} />
+          </div>
+
+          <div className="rounded-xl border border-zinc-900 bg-zinc-950 p-4 flex items-center justify-between shadow-[0_4px_20px_rgba(0,0,0,0.4)]">
+            <div className="flex items-center gap-3">
+              {isAiLoading ? (
+                <Loader2 className="h-5 w-5 text-purple-500 animate-spin" />
+              ) : (
+                <Brain className="h-5 w-5 text-purple-500" />
+              )}
+              <div>
+                <p className="text-sm font-semibold text-white">Global AI Copilot</p>
+                <p className="text-xs text-zinc-400">Enable or disable AI system-wide</p>
+              </div>
+            </div>
+            <Switch checked={aiEnabled} onCheckedChange={handleAiToggle} disabled={isAiLoading} />
           </div>
         </div>
 

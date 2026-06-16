@@ -1,9 +1,9 @@
-import { useEffect, lazy, Suspense } from "react";
+import { useEffect, lazy, Suspense, useMemo } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { toast } from "sonner";
 import Index from "./pages/Index";
 
@@ -44,11 +44,33 @@ import { PoweredByFooter } from "./components/global/PoweredByFooter";
 import { KeyboardShortcutsOverlay } from "./components/global/KeyboardShortcutsOverlay";
 import { ArrowKeyAccelerator } from "./components/global/ArrowKeyAccelerator";
 
+import AltrixCopilot from "@/components/ai/AltrixCopilot";
+import { useSession } from "@/hooks/useSession";
+
 const LazyFallback = () => (
   <div className="min-h-screen bg-background flex items-center justify-center">
     <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
   </div>
 );
+
+function CopilotWrapper() {
+  const location = useLocation();
+  const { user } = useSession();
+
+  const isTenantRoute = useMemo(() => {
+    if (!user) return false;
+    const parts = location.pathname.split("/").filter(Boolean);
+    if (parts.length === 0) return false;
+    const first = parts[0];
+    if (["super_admin", "auth", "reset-password", "platform"].includes(first)) return false;
+    if (parts[1] === "auth" || parts[1] === "bootstrap") return false;
+    return true;
+  }, [location.pathname, user]);
+
+  if (!isTenantRoute) return null;
+
+  return <AltrixCopilot />;
+}
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -163,6 +185,7 @@ export default function App() {
               <Route path="*" element={<NotFound />} />
             </Routes>
           </Suspense>
+          <CopilotWrapper />
           <PoweredByFooter />
         </BrowserRouter>
       </TooltipProvider>

@@ -58,6 +58,16 @@ class Settings(BaseSettings):
 
     # AI
     gemini_api_key: str = ""
+    ollama_url: str = "http://localhost:11434"
+    ollama_reasoning_model: str = "deepseek-r1"
+    ollama_general_model: str = "qwen2.5"
+
+    # Cloud AI Flexibility (Railway/Production)
+    ai_provider: str = "ollama"  # "ollama", "openai", "openrouter", "groq", "deepseek"
+    ai_api_key: str = ""
+    ai_api_base: str = ""
+    ai_reasoning_model: str = ""  # If set, overrides the provider default
+    ai_general_model: str = ""    # If set, overrides the provider default
 
     # Sentry
     sentry_dsn: str = ""

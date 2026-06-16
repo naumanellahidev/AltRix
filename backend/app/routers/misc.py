@@ -648,3 +648,430 @@ async def attendance_summary(
             "total": 100,
             "attendance_rate": 95.0,
         }
+
+
+# ─── COPILOT SYSTEM ──────────────────────────────────────────────────────────
+import json
+import logging
+from pydantic import BaseModel
+
+logger = logging.getLogger("app.misc.copilot")
+
+class CopilotChatRequest(BaseModel):
+    message: str
+    history: List[dict] = []
+
+class AiSettingsUpdate(BaseModel):
+    enabled: bool
+
+async def get_ai_status(db: DbSession) -> bool:
+    try:
+        res = await db.execute(
+            text("SELECT value FROM public.system_settings WHERE key = 'global_ai_control'")
+        )
+        row = res.fetchone()
+        if row:
+            val = row[0]
+            if isinstance(val, str):
+                val = json.loads(val)
+            return val.get("enabled", True)
+    except Exception as e:
+        logger.warning(f"Error fetching AI status from database: {e}")
+    return True
+
+async def set_ai_status(db: DbSession, enabled: bool):
+    await db.execute(
+        text("""
+            INSERT INTO public.system_settings (key, value)
+            VALUES ('global_ai_control', :val)
+            ON CONFLICT (key) DO UPDATE SET value = :val, updated_at = now()
+        """),
+        {"val": json.dumps({"enabled": enabled})}
+    )
+
+async def fetch_ai_context(db: DbSession, user: AuthenticatedUser, school_id: str) -> str:
+    from app.utils.permissions import expand_roles
+    effective_roles = expand_roles(user.roles)
+    
+    # 1. School Owner / Principal / Super Admin
+    if user.is_super_admin or "school_owner" in effective_roles or "principal" in effective_roles or "vice_principal" in effective_roles or "school_admin" in effective_roles:
+        try:
+            # Let's fetch metrics
+            mtd_start = datetime.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+            res = await db.execute(
+                text("""
+                    SELECT
+                        (SELECT COUNT(*) FROM students WHERE school_id = :sid AND status = 'active') as total_students,
+                        (SELECT COUNT(*) FROM user_roles WHERE school_id = :sid AND role = 'teacher') as total_teachers,
+                        (SELECT COUNT(*) FROM fee_invoices WHERE school_id = :sid AND status NOT IN ('paid', 'cancelled')) as pending_payments,
+                        (SELECT COALESCE(SUM(amount), 0) FROM fee_payments WHERE school_id = :sid AND paid_at >= :mtd_start) as collected_fees,
+                        (SELECT COUNT(*) FROM campuses WHERE school_id = :sid AND is_active = true) as active_campuses
+                """),
+                {"sid": school_id, "mtd_start": mtd_start}
+            )
+            metrics = res.fetchone()
+            
+            # Fetch top fee defaulters
+            defaulters_res = await db.execute(
+                text("""
+                    SELECT s.first_name, s.last_name, COALESCE(i.total_amount, 0) - COALESCE(i.paid_amount, 0) as balance, i.invoice_number
+                    FROM fee_invoices i
+                    JOIN students s ON i.student_id = s.id
+                    WHERE i.school_id = :sid AND i.status != 'paid' AND i.student_id != '00000000-0000-0000-0000-000000000000'::uuid
+                    ORDER BY balance DESC LIMIT 5
+                """),
+                {"sid": school_id}
+            )
+            defaulters = defaulters_res.fetchall()
+            defaulters_str = "\n".join([f"- {r[0]} {r[1] or ''}: Outstanding Balance: {r[2]} (Invoice {r[3]})" for r in defaulters])
+            
+            # Fetch pending admissions
+            try:
+                adm_res = await db.execute(
+                    text("SELECT COUNT(*) FROM admission_applications WHERE school_id = :sid AND status = 'pending'"),
+                    {"sid": school_id}
+                )
+                pending_admissions = adm_res.scalar() or 0
+            except Exception:
+                pending_admissions = 0
+
+            metrics_data = {
+                "total_students": metrics[0] if metrics else 0,
+                "active_campuses": metrics[4] if metrics else 0,
+                "total_teachers": metrics[1] if metrics else 0,
+                "collected_fees": float(metrics[3]) if metrics and metrics[3] else 0.0,
+                "pending_payments": metrics[2] if metrics else 0
+            }
+
+            context = f"""
+[Role Context: School Principal / Owner / Admin]
+Live ERP Metrics:
+- Total Active Students: {metrics_data['total_students']}
+- Active Campuses: {metrics_data['active_campuses']}
+- Total Teachers: {metrics_data['total_teachers']}
+- MTD Collected Fees: {metrics_data['collected_fees']}
+- Unpaid Invoices Count: {metrics_data['pending_payments']}
+- Pending Admissions Applications: {pending_admissions}
+
+Top Fee Defaulters:
+{defaulters_str if defaulters_str else "None"}
+"""
+            return context
+        except Exception as e:
+            logger.warning(f"Error fetching principal context: {e}")
+            return "[Context: Principal - Live DB fetch failed]"
+
+    # 2. Accountant
+    elif "accountant" in effective_roles:
+        try:
+            res = await db.execute(
+                text("""
+                    SELECT 
+                        COALESCE(SUM(total_amount - paid_amount), 0) as outstanding,
+                        COALESCE(SUM(paid_amount), 0) as paid
+                    FROM fee_invoices
+                    WHERE school_id = :sid AND status != 'paid' AND student_id != '00000000-0000-0000-0000-000000000000'::uuid
+                """),
+                {"sid": school_id}
+            )
+            finance = res.fetchone()
+            
+            defaulters_res = await db.execute(
+                text("""
+                    SELECT s.first_name, s.last_name, COALESCE(i.total_amount, 0) - COALESCE(i.paid_amount, 0) as balance, i.invoice_number
+                    FROM fee_invoices i
+                    JOIN students s ON i.student_id = s.id
+                    WHERE i.school_id = :sid AND i.status != 'paid' AND i.student_id != '00000000-0000-0000-0000-000000000000'::uuid
+                    ORDER BY balance DESC LIMIT 5
+                """),
+                {"sid": school_id}
+            )
+            defaulters = defaulters_res.fetchall()
+            defaulters_str = "\n".join([f"- {r[0]} {r[1] or ''}: Balance: {r[2]} (Invoice {r[3]})" for r in defaulters])
+
+            return f"""
+[Role Context: School Accountant]
+Live Financial Metrics:
+- Outstanding School Fees (Receivables): {finance[0] if finance else 0}
+- Collected School Fees (Received): {finance[1] if finance else 0}
+
+Top Outstanding Fee Defaulters:
+{defaulters_str if defaulters_str else "None"}
+"""
+        except Exception as e:
+            logger.warning(f"Error fetching accountant context: {e}")
+            return "[Context: Accountant - Live DB fetch failed]"
+
+    # 3. Teacher
+    elif "teacher" in effective_roles:
+        try:
+            sections_res = await db.execute(
+                text("""
+                    SELECT class_section_id 
+                    FROM teacher_subject_assignments 
+                    WHERE teacher_user_id = :uid AND school_id = :sid
+                """),
+                {"uid": user.id, "sid": school_id}
+            )
+            sec_ids = [str(r[0]) for r in sections_res.fetchall()]
+            if not sec_ids:
+                return "[Role Context: Teacher (No assigned classes or sections found)]"
+            
+            names_res = await db.execute(
+                text("""
+                    SELECT cs.id, cs.name, c.name as class_name
+                    FROM class_sections cs
+                    JOIN academic_classes c ON cs.class_id = c.id
+                    WHERE cs.id IN :sids AND cs.school_id = :sid
+                """),
+                {"sids": tuple(sec_ids), "sid": school_id}
+            )
+            sections_list = names_res.fetchall()
+            sections_str = ", ".join([f"{r[2]} - {r[1]}" for r in sections_list])
+            
+            students_count_res = await db.execute(
+                text("""
+                    SELECT COUNT(*)
+                    FROM student_enrollments
+                    WHERE class_section_id IN :sids AND school_id = :sid AND end_date IS NULL
+                """),
+                {"sids": tuple(sec_ids), "sid": school_id}
+            )
+            std_count = students_count_res.scalar() or 0
+
+            return f"""
+[Role Context: School Teacher]
+Assigned Class Sections: {sections_str}
+Total Active Students under your supervision: {std_count}
+"""
+        except Exception as e:
+            logger.warning(f"Error fetching teacher context: {e}")
+            return "[Context: Teacher - Live DB fetch failed]"
+
+    # 4. Parent
+    elif "parent" in effective_roles:
+        try:
+            children_res = await db.execute(
+                text("""
+                    SELECT s.id, s.first_name, s.last_name, sg.relationship
+                    FROM student_guardians sg
+                    JOIN students s ON sg.student_id = s.id
+                    WHERE sg.user_id = :uid AND sg.school_id = :sid
+                """),
+                {"uid": user.id, "sid": school_id}
+            )
+            children = children_res.fetchall()
+            if not children:
+                return "[Role Context: Parent (No linked children found)]"
+            
+            child_ids = [str(r[0]) for r in children]
+            child_names = ", ".join([f"{r[1]} {r[2] or ''} ({r[3]})" for r in children])
+            
+            att_res = await db.execute(
+                text("""
+                    SELECT student_id, COUNT(*) FILTER (WHERE status = 'present') as present, COUNT(*) as total
+                    FROM attendance_entries
+                    WHERE student_id IN :sids AND school_id = :sid
+                    GROUP BY student_id
+                """),
+                {"sids": tuple(child_ids), "sid": school_id}
+            )
+            att_data = att_res.fetchall()
+            att_str = "\n".join([
+                f"- Child student ID {r[0]}: Attendance Rate: {round(r[1]/r[2]*100, 1)}% ({r[1]} present out of {r[2]} sessions)"
+                for r in att_data if r[2] > 0
+            ])
+            
+            inv_res = await db.execute(
+                text("""
+                    SELECT student_id, SUM(total_amount - paid_amount)
+                    FROM fee_invoices
+                    WHERE student_id IN :sids AND school_id = :sid AND status != 'paid'
+                    GROUP BY student_id
+                """),
+                {"sids": tuple(child_ids), "sid": school_id}
+            )
+            inv_data = inv_res.fetchall()
+            inv_str = "\n".join([
+                f"- Child student ID {r[0]}: Unpaid Fees Balance: {r[1]}"
+                for r in inv_data
+            ])
+
+            return f"""
+[Role Context: Student Parent]
+Your Linked Children: {child_names}
+
+Children Attendance Rates:
+{att_str if att_str else "No attendance records found."}
+
+Children Outstanding Invoices:
+{inv_str if inv_str else "No outstanding invoices (All paid)."}
+"""
+        except Exception as e:
+            logger.warning(f"Error fetching parent context: {e}")
+            return "[Context: Parent - Live DB fetch failed]"
+
+    # 5. Student
+    elif "student" in effective_roles:
+        try:
+            student_res = await db.execute(
+                text("SELECT id, first_name, last_name FROM students WHERE email = :email AND school_id = :sid"),
+                {"email": user.email, "sid": school_id}
+            )
+            student = student_res.fetchone()
+            if not student:
+                return "[Role Context: Student (Profile not resolved by email)]"
+            
+            student_id = str(student[0])
+            name = f"{student[1]} {student[2] or ''}"
+            
+            att_res = await db.execute(
+                text("""
+                    SELECT COUNT(*) FILTER (WHERE status = 'present') as present, COUNT(*) as total
+                    FROM attendance_entries
+                    WHERE student_id = :sid
+                """),
+                {"sid": student_id}
+            )
+            att = att_res.fetchone()
+            att_rate = round(att[0]/att[1]*100, 1) if att and att[1] > 0 else 100.0
+
+            return f"""
+[Role Context: Student]
+Student Name: {name}
+Your Attendance Rate: {att_rate}% ({att[0] if att else 0} present of {att[1] if att else 0} sessions)
+"""
+        except Exception as e:
+            logger.warning(f"Error fetching student context: {e}")
+            return "[Context: Student - Live DB fetch failed]"
+
+    # 6. HR
+    elif "hr_manager" in effective_roles:
+        try:
+            staff_res = await db.execute(
+                text("SELECT COUNT(*) FROM hr_staff_directory WHERE school_id = :sid AND status = 'active'"),
+                {"sid": school_id}
+            )
+            staff_count = staff_res.scalar() or 0
+            
+            leaves_res = await db.execute(
+                text("""
+                    SELECT d.full_name, l.leave_type, l.start_date, l.status
+                    FROM hr_leave_requests l
+                    JOIN hr_staff_directory d ON l.user_id = d.user_id
+                    WHERE l.school_id = :sid
+                    ORDER BY l.created_at DESC LIMIT 5
+                """),
+                {"sid": school_id}
+            )
+            leaves = leaves_res.fetchall()
+            leaves_str = "\n".join([f"- {r[0]} ({r[1]}): {r[2]} - Status: {r[3]}" for r in leaves])
+
+            return f"""
+[Role Context: HR Manager]
+Staff Metrics:
+- Total Active Staff Members: {staff_count}
+
+Recent Staff Leave Requests:
+{leaves_str if leaves_str else "None"}
+"""
+        except Exception as e:
+            logger.warning(f"Error fetching HR context: {e}")
+            return "[Context: HR Manager - Live DB fetch failed]"
+            
+    return "[Role Context: Guest / General User]"
+
+
+@ai_router.get("/settings")
+async def get_ai_settings(db: DbSession):
+    enabled = await get_ai_status(db)
+    return {"enabled": enabled}
+
+
+@ai_router.post("/settings")
+async def update_ai_settings(
+    body: AiSettingsUpdate,
+    current_user: CurrentUser,
+    db: DbSession,
+):
+    from fastapi import HTTPException
+    if not current_user.is_super_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only platform super administrators can modify global AI settings."
+        )
+    await set_ai_status(db, body.enabled)
+    return {"success": True, "enabled": body.enabled}
+
+
+@ai_router.post("/copilot")
+async def copilot_chat(
+    body: CopilotChatRequest,
+    current_user: CurrentUser,
+    db: DbSession,
+):
+    from fastapi import HTTPException
+    from fastapi.responses import StreamingResponse
+    from app.utils.ai_service import OllamaAIService
+    
+    # 1. Enforce AI Enabled Setting
+    ai_enabled = await get_ai_status(db)
+    if not ai_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="AI Copilot is currently disabled by system administrator."
+        )
+
+    if not current_user.school_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Active school context is required to access the AI Copilot."
+        )
+
+    # 2. Fetch scoped DB context based on role permissions
+    db_context = await fetch_ai_context(db, current_user, current_user.school_id)
+    
+    # 3. Build System Prompt
+    system_prompt = f"""You are the official AltRix Enterprise AI Copilot, a deeply integrated ERP operating assistant for school staff, teachers, parents, and students.
+    
+Your role is to help users navigate the school ERP, fetch records, summarize analytics, and trigger official ERP reports.
+
+Current User Details:
+- User ID: {current_user.id}
+- User Email: {current_user.email}
+- Assigned Roles: {current_user.roles}
+- School ID: {current_user.school_id}
+
+{db_context}
+
+RULES:
+1. SECURITY & PRIVACY:
+   - You MUST NOT expose any data outside the user's role context provided above.
+   - If a parent asks about other students, refuse firmly. If a teacher asks about class sections not in their context, refuse.
+2. DATA ACCURACY:
+   - Base all answers on the live ERP metrics and tables provided in the Role Context above.
+   - Do not make up or guess any data. If the user asks about something not in the context, state clearly that the data is not available.
+3. BRANDING & REPORT GENERATION:
+   - NEVER suggest custom PDF/document layouts.
+   - Instead, tell the user that the official AltRix templates will be used and output a structured Action Tag.
+   - Action tags MUST use the exact format: <altrix_action>{{"type": "ACTION_NAME", "params": {{...}}}}</altrix_action>
+   - Supported Actions:
+     * Generate Fee Voucher: <altrix_action>{{"type": "GENERATE_VOUCHER", "studentId": "STUDENT_UUID", "invoiceId": "INVOICE_UUID"}}</altrix_action>
+     * Generate Result Card: <altrix_action>{{"type": "GENERATE_RESULT_CARD", "studentId": "STUDENT_UUID", "examId": "EXAM_UUID"}}</altrix_action>
+     * Generate Attendance Report: <altrix_action>{{"type": "EXPORT_ATTENDANCE", "sectionId": "SECTION_UUID", "fromDate": "YYYY-MM-DD", "toDate": "YYYY-MM-DD"}}</altrix_action>
+     * Generate Grades Report: <altrix_action>{{"type": "EXPORT_GRADES", "sectionId": "SECTION_UUID"}}</altrix_action>
+   - When suggesting these actions, explain to the user that they can click the button below to generate it using the official branding layout.
+4. Keep answers concise, direct, and highly professional. Include bullet points for lists.
+"""
+
+    # 4. Stream response from OllamaAIService
+    async def event_generator():
+        async for chunk in OllamaAIService.stream_completion(
+            system_prompt=system_prompt,
+            user_message=body.message,
+            history=body.history,
+        ):
+            yield chunk
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
+
