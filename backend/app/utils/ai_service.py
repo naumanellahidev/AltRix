@@ -9,7 +9,7 @@ logger = logging.getLogger("app.ai_service")
 class OllamaAIService:
     """
     Provider-agnostic service layer for self-hosted and cloud AI execution.
-    Supports Ollama (local/cloud) as well as OpenRouter, OpenAI, Groq, and DeepSeek APIs.
+    Supports Ollama (local/cloud) as well as Gemini, OpenRouter, OpenAI, Groq, and DeepSeek APIs.
     """
 
     @classmethod
@@ -31,6 +31,9 @@ class OllamaAIService:
         if provider == "ollama":
             reasoning_default = settings.ollama_reasoning_model
             general_default = settings.ollama_general_model
+        elif provider == "gemini":
+            reasoning_default = "gemini-1.5-pro"
+            general_default = "gemini-1.5-flash"
         elif provider == "openai":
             reasoning_default = "o1-mini"
             general_default = "gpt-4o-mini"
@@ -68,122 +71,183 @@ class OllamaAIService:
         """
         Connects to the configured provider (Ollama or Cloud OpenAI-compatible endpoint),
         routes to the correct model, and streams the response converted into OpenAI-compatible SSE.
+        Includes automatic cloud fallback if primary provider (Ollama) is unreachable.
         """
-        model = cls.route_model(user_message)
-        provider = settings.ai_provider.lower()
+        original_provider = settings.ai_provider.lower()
+        original_model = cls.route_model(user_message)
 
-        # Build messages list
-        messages = [{"role": "system", "content": system_prompt}]
-        if history:
-            for msg in history:
-                messages.append({"role": msg["role"], "content": msg["content"]})
-        messages.append({"role": "user", "content": user_message})
+        # 1. Define request details builder
+        def get_request_params(prov: str, mdl: str):
+            prov_lower = prov.lower()
+            messages = [{"role": "system", "content": system_prompt}]
+            if history:
+                for msg in history:
+                    messages.append({"role": msg["role"], "content": msg["content"]})
+            messages.append({"role": "user", "content": user_message})
 
-        if provider == "ollama":
-            payload = {
-                "model": model,
-                "messages": messages,
-                "stream": True,
-                "options": {
-                    "temperature": 0.3 if "r1" in model.lower() or "reason" in model.lower() else 0.7
+            if prov_lower == "ollama":
+                payload = {
+                    "model": mdl,
+                    "messages": messages,
+                    "stream": True,
+                    "options": {
+                        "temperature": 0.3 if "r1" in mdl.lower() or "reason" in mdl.lower() else 0.7
+                    }
                 }
-            }
-            url = f"{settings.ollama_url.rstrip('/')}/api/chat"
-            headers = {}
-            logger.info(f"Connecting to Ollama service at: {url} using model {model}")
-        else:
-            # Cloud OpenAI-compatible providers
-            if provider == "openai":
-                base_url = settings.ai_api_base or "https://api.openai.com/v1"
-            elif provider == "openrouter":
-                base_url = settings.ai_api_base or "https://openrouter.ai/api/v1"
-            elif provider == "groq":
-                base_url = settings.ai_api_base or "https://api.groq.com/openai/v1"
-            elif provider == "deepseek":
-                base_url = settings.ai_api_base or "https://api.deepseek.com/v1"
+                url = f"{settings.ollama_url.rstrip('/')}/api/chat"
+                headers = {}
             else:
-                base_url = settings.ai_api_base or "https://api.openai.com/v1"
+                if prov_lower == "gemini":
+                    base_url = "https://generativelanguage.googleapis.com/v1beta/openai"
+                    api_key = settings.gemini_api_key or settings.ai_api_key
+                elif prov_lower == "openai":
+                    base_url = settings.ai_api_base or "https://api.openai.com/v1"
+                    api_key = settings.ai_api_key
+                elif prov_lower == "openrouter":
+                    base_url = settings.ai_api_base or "https://openrouter.ai/api/v1"
+                    api_key = settings.ai_api_key
+                elif prov_lower == "groq":
+                    base_url = settings.ai_api_base or "https://api.groq.com/openai/v1"
+                    api_key = settings.ai_api_key
+                elif prov_lower == "deepseek":
+                    base_url = settings.ai_api_base or "https://api.deepseek.com/v1"
+                    api_key = settings.ai_api_key
+                else:
+                    base_url = settings.ai_api_base or "https://api.openai.com/v1"
+                    api_key = settings.ai_api_key
 
-            url = f"{base_url.rstrip('/')}/chat/completions"
-            headers = {
-                "Authorization": f"Bearer {settings.ai_api_key}",
-                "Content-Type": "application/json"
-            }
-            if provider == "openrouter":
-                headers["HTTP-Referer"] = "https://altrix.school"
-                headers["X-Title"] = "AltRix ERP"
+                url = f"{base_url.rstrip('/')}/chat/completions"
+                headers = {
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json"
+                }
+                if prov_lower == "openrouter":
+                    headers["HTTP-Referer"] = "https://altrix.school"
+                    headers["X-Title"] = "AltRix ERP"
 
-            payload = {
-                "model": model,
-                "messages": messages,
-                "stream": True
-            }
-            # Only add temperature if it's not deepseek-reasoner
-            if model != "deepseek-reasoner":
-                payload["temperature"] = 0.2 if ("reason" in model.lower() or "r1" in model.lower()) else 0.7
+                payload = {
+                    "model": mdl,
+                    "messages": messages,
+                    "stream": True
+                }
+                if mdl != "deepseek-reasoner":
+                    payload["temperature"] = 0.2 if ("reason" in mdl.lower() or "r1" in mdl.lower()) else 0.7
+            
+            return url, headers, payload
 
-            logger.info(f"Connecting to Cloud AI provider: {provider} at {url} using model {model}")
+        # 2. Determine fallback settings
+        fallback_provider = None
+        fallback_model = None
 
-        try:
-            async with httpx.AsyncClient(timeout=60.0) as client:
-                async with client.stream("POST", url, json=payload, headers=headers) as response:
-                    if response.status_code != 200:
-                        err_text = await response.aread()
-                        logger.error(f"AI provider ({provider}) returned error status {response.status_code}: {err_text}")
-                        yield f"data: {json.dumps({'error': f'AI provider returned status {response.status_code}'})}\n\n"
-                        return
+        if original_provider == "ollama":
+            if settings.gemini_api_key:
+                fallback_provider = "gemini"
+                # Determine fallback models manually using the same routing logic for gemini
+                reasoning_keywords = ["compare", "analyze", "trend", "report", "why", "performance", "defaulter", "weak", "average", "outstanding", "revenue", "grades", "marks", "fail", "pass", "top", "analytics"]
+                if any(k in user_message.lower() for k in reasoning_keywords):
+                    fallback_model = settings.ai_reasoning_model or "gemini-1.5-pro"
+                else:
+                    fallback_model = settings.ai_general_model or "gemini-1.5-flash"
+            elif settings.ai_api_key and settings.ai_provider.lower() != "ollama":
+                fallback_provider = settings.ai_provider.lower()
+                original_prov_cfg = settings.ai_provider
+                try:
+                    settings.ai_provider = fallback_provider
+                    fallback_model = cls.route_model(user_message)
+                finally:
+                    settings.ai_provider = original_prov_cfg
 
-                    async for line in response.aiter_lines():
-                        if not line.strip():
-                            continue
-                        
-                        if provider == "ollama":
-                            try:
-                                chunk = json.loads(line)
-                                content = chunk.get("message", {}).get("content", "")
-                                sse_data = {
-                                    "choices": [
-                                        {
-                                            "delta": {
-                                                "content": content
-                                            }
-                                        }
-                                    ]
-                                }
-                                yield f"data: {json.dumps(sse_data)}\n\n"
-                            except json.JSONDecodeError:
-                                logger.warning(f"Failed to decode Ollama stream line: {line}")
+        # 3. Compile execution attempts list
+        attempts = [(original_provider, original_model)]
+        if fallback_provider and fallback_model:
+            attempts.append((fallback_provider, fallback_model))
+
+        last_error = None
+        for current_prov, current_model in attempts:
+            url, headers, payload = get_request_params(current_prov, current_model)
+            logger.info(f"Connecting to AI provider '{current_prov}' at {url} using model '{current_model}'")
+            
+            try:
+                async with httpx.AsyncClient(timeout=60.0) as client:
+                    async with client.stream("POST", url, json=payload, headers=headers) as response:
+                        if response.status_code != 200:
+                            err_text = await response.aread()
+                            err_msg = f"AI provider ({current_prov}) returned error status {response.status_code}: {err_text.decode('utf-8', errors='ignore')}"
+                            logger.error(err_msg)
+                            last_error = err_msg
+                            if current_prov == original_provider and fallback_provider:
+                                logger.warning("Primary provider request failed. Attempting fallback...")
                                 continue
-                        else:
-                            # Standard OpenAI SSE format: data: {"choices": [{"delta": {"content": "word"}}]}
-                            if line.startswith("data: "):
-                                data_content = line[6:].strip()
-                                if data_content == "[DONE]":
-                                    continue
-                                try:
-                                    chunk = json.loads(data_content)
-                                    content = chunk.get("choices", [{}])[0].get("delta", {}).get("content", "")
-                                    if content:
-                                        sse_data = {
-                                            "choices": [
-                                                {
-                                                    "delta": {
-                                                        "content": content
-                                                    }
-                                                }
-                                            ]
-                                        }
-                                        yield f"data: {json.dumps(sse_data)}\n\n"
-                                except json.JSONDecodeError:
-                                    # Sometimes cloud streams contain other lines or noise, skip silently
-                                    continue
+                            yield f"data: {json.dumps({'error': f'AI provider returned status {response.status_code}'})}\n\n"
+                            yield "data: [DONE]\n\n"
+                            return
 
-            yield "data: [DONE]\n\n"
-        except httpx.ConnectError as e:
-            logger.error(f"Connection to AI provider ({provider}) failed at {url}: {e}")
-            yield f"data: {json.dumps({'error': f'Failed to connect to AI provider ({provider}).'})}\n\n"
-            yield "data: [DONE]\n\n"
-        except Exception as e:
-            logger.error(f"Unexpected error in AI service: {e}")
-            yield f"data: {json.dumps({'error': str(e)})}\n\n"
-            yield "data: [DONE]\n\n"
+                        async for line in response.aiter_lines():
+                            if not line.strip():
+                                continue
+                            
+                            if current_prov == "ollama":
+                                try:
+                                    chunk = json.loads(line)
+                                    content = chunk.get("message", {}).get("content", "")
+                                    sse_data = {
+                                        "choices": [
+                                            {
+                                                "delta": {
+                                                    "content": content
+                                                }
+                                            }
+                                        ]
+                                    }
+                                    yield f"data: {json.dumps(sse_data)}\n\n"
+                                except json.JSONDecodeError:
+                                    logger.warning(f"Failed to decode Ollama stream line: {line}")
+                                    continue
+                            else:
+                                if line.startswith("data: "):
+                                    data_content = line[6:].strip()
+                                    if data_content == "[DONE]":
+                                        continue
+                                    try:
+                                        chunk = json.loads(data_content)
+                                        content = chunk.get("choices", [{}])[0].get("delta", {}).get("content", "")
+                                        if content:
+                                            sse_data = {
+                                                "choices": [
+                                                    {
+                                                        "delta": {
+                                                            "content": content
+                                                        }
+                                                    }
+                                                ]
+                                            }
+                                            yield f"data: {json.dumps(sse_data)}\n\n"
+                                    except json.JSONDecodeError:
+                                        continue
+
+                # Successful stream execution, exit loop and complete generator
+                yield "data: [DONE]\n\n"
+                return
+
+            except (httpx.ConnectError, httpx.ConnectTimeout, httpx.RequestError) as e:
+                logger.error(f"Connection to AI provider ({current_prov}) failed: {e}")
+                last_error = str(e)
+                if current_prov == original_provider and fallback_provider:
+                    logger.warning("Primary provider connection failed. Attempting fallback...")
+                    continue
+                yield f"data: {json.dumps({'error': f'Failed to connect to AI provider ({current_prov}).'})}\n\n"
+                yield "data: [DONE]\n\n"
+                return
+            except Exception as e:
+                logger.error(f"Unexpected error with AI provider ({current_prov}): {e}")
+                last_error = str(e)
+                if current_prov == original_provider and fallback_provider:
+                    logger.warning("Primary provider encountered unexpected error. Attempting fallback...")
+                    continue
+                yield f"data: {json.dumps({'error': str(e)})}\n\n"
+                yield "data: [DONE]\n\n"
+                return
+
+        # If all attempts failed
+        yield f"data: {json.dumps({'error': f'All AI providers failed. Last error: {last_error}'})}\n\n"
+        yield "data: [DONE]\n\n"
