@@ -112,18 +112,18 @@ export function AccountantShell({ title, subtitle, schoolSlug, children }: Props
         </div>
       </div>
 
-      <nav className="mt-6 space-y-1">
+      <nav className="mt-6 space-y-1.5">
         {navItems.map((item) => (
           <NavLink
             key={item.to}
             to={item.to}
             end={item.end}
-            className="flex items-center justify-between rounded-xl px-3 py-2 text-sm text-muted-foreground hover:bg-primary/10 hover:text-primary transition-colors"
-            activeClassName="bg-primary text-primary-foreground shadow-sm"
+            className="flex items-center justify-between rounded-xl px-3.5 py-2.5 text-xs font-semibold uppercase tracking-wider text-slate-500 hover:bg-slate-50 hover:text-blue-600 transition-all duration-300 ease-out"
+            activeClassName="bg-gradient-to-r from-blue-50/90 to-blue-50/40 text-blue-700 shadow-sm border-l-[3px] border-blue-600 font-bold"
             onClick={() => setMobileNavOpen(false)}
           >
-            <span className="flex items-center gap-2">
-              <item.icon className="h-4 w-4" /> {item.label}
+            <span className="flex items-center gap-2.5">
+              <item.icon className="h-4 w-4 shrink-0" /> {item.label}
             </span>
             {item.badge > 0 && (
               <Badge variant="destructive" className="h-5 px-1.5 text-[10px]">
@@ -155,7 +155,7 @@ export function AccountantShell({ title, subtitle, schoolSlug, children }: Props
   );
 
   return (
-    <div className="min-h-screen bg-background pb-20 lg:pb-0">
+    <div className="min-h-screen bg-[#f8fafc] pb-20 lg:pb-0">
       <GlobalCommandPalette basePath={basePath} />
 
       {/* Mobile Header */}
@@ -201,15 +201,15 @@ export function AccountantShell({ title, subtitle, schoolSlug, children }: Props
 
       <div className="grid w-full grid-cols-1 gap-4 px-4 py-4 lg:grid-cols-[280px_1fr] lg:gap-6 lg:px-6 lg:py-6">
         {/* Desktop Sidebar */}
-        <aside className="sticky top-6 hidden self-start max-h-[calc(100vh-3rem)] overflow-y-auto rounded-3xl bg-surface p-4 shadow-elevated lg:block">
+        <aside className="sticky top-6 hidden self-start max-h-[calc(100vh-3rem)] overflow-y-auto rounded-3xl bg-white/85 border border-slate-100 backdrop-blur-xl p-4 shadow-[0_10px_40px_rgba(0,0,0,0.02)] lg:block">
           <NavContent />
         </aside>
 
         {/* Main Content */}
-        <section className="rounded-2xl bg-surface p-4 shadow-elevated lg:rounded-3xl lg:p-6">
-          <header className="mb-4 hidden lg:mb-6 lg:block">
-            <p className="font-display text-2xl font-semibold tracking-tight">{title}</p>
-            {subtitle && <p className="mt-1 text-sm text-muted-foreground">{subtitle}</p>}
+        <section className="rounded-3xl bg-white border border-slate-100 p-4 shadow-[0_10px_40px_rgba(0,0,0,0.02)] lg:p-6">
+          <header className="mb-6 hidden lg:block">
+            <p className="font-display text-2xl font-black text-slate-800 tracking-tight">{title}</p>
+            {subtitle && <p className="mt-1 text-sm text-slate-500 font-medium">{subtitle}</p>}
           </header>
           {children}
         </section>

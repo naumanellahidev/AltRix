@@ -591,30 +591,60 @@ export function AccountantHomeModule() {
   return (
     <div className="space-y-6">
       {/* Tab Navigation */}
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="mb-4 h-auto flex-wrap">
-          <TabsTrigger value="overview" className="gap-2">
-            <Activity className="h-4 w-4" /> Overview
-          </TabsTrigger>
-          <TabsTrigger value="analytics" className="gap-2">
-            <BarChart3 className="h-4 w-4" /> Analytics
-          </TabsTrigger>
-          <TabsTrigger value="salary" className="gap-2">
-            <Users className="h-4 w-4" /> Salary Analysis
-          </TabsTrigger>
-          <TabsTrigger value="budget" className="gap-2">
-            <Target className="h-4 w-4" /> Budget Forecast
-          </TabsTrigger>
-          <TabsTrigger value="fees" className="gap-2">
-            <GraduationCap className="h-4 w-4" /> Student Fees
-          </TabsTrigger>
-          <TabsTrigger value="defaulters" className="gap-2">
-            <AlertTriangle className="h-4 w-4" /> Defaulters
-          </TabsTrigger>
-          <TabsTrigger value="reports" className="gap-2">
-            <Download className="h-4 w-4" /> Reports
-          </TabsTrigger>
-        </TabsList>
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+        <div className="-mx-1 overflow-x-auto no-scrollbar pb-1.5">
+          <TabsList className="inline-flex w-max min-w-full md:min-w-0 bg-slate-50 border border-slate-100 p-1 rounded-2xl">
+            <TabsTrigger 
+              value="overview" 
+              className="gap-2 px-4.5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-300 data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-blue-600"
+            >
+              <Activity className="h-4 w-4 shrink-0" />
+              <span>Overview</span>
+            </TabsTrigger>
+            <TabsTrigger 
+              value="analytics" 
+              className="gap-2 px-4.5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-300 data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-blue-600"
+            >
+              <BarChart3 className="h-4 w-4 shrink-0" />
+              <span>Analytics</span>
+            </TabsTrigger>
+            <TabsTrigger 
+              value="salary" 
+              className="gap-2 px-4.5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-300 data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-blue-600"
+            >
+              <Users className="h-4 w-4 shrink-0" />
+              <span>Salary Analysis</span>
+            </TabsTrigger>
+            <TabsTrigger 
+              value="budget" 
+              className="gap-2 px-4.5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-300 data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-blue-600"
+            >
+              <Target className="h-4 w-4 shrink-0" />
+              <span>Budget Forecast</span>
+            </TabsTrigger>
+            <TabsTrigger 
+              value="fees" 
+              className="gap-2 px-4.5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-300 data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-blue-600"
+            >
+              <GraduationCap className="h-4 w-4 shrink-0" />
+              <span>Student Fees</span>
+            </TabsTrigger>
+            <TabsTrigger 
+              value="defaulters" 
+              className="gap-2 px-4.5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-300 data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-blue-600"
+            >
+              <AlertTriangle className="h-4 w-4 shrink-0" />
+              <span>Defaulters</span>
+            </TabsTrigger>
+            <TabsTrigger 
+              value="reports" 
+              className="gap-2 px-4.5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-300 data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-blue-600"
+            >
+              <Download className="h-4 w-4 shrink-0" />
+              <span>Reports</span>
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
         <TabsContent value="overview" className="space-y-6">
           {/* Financial Health Score + Quick Stats */}
@@ -623,17 +653,19 @@ export function AccountantHomeModule() {
             <MotionCard 
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              className="shadow-elevated bg-gradient-to-br from-white to-blue-50/20 border border-blue-100/80 shadow-sm shadow-blue-50/50 min-w-0 rounded-2xl"
+              className="bg-white border border-slate-100 shadow-[0_8px_30px_rgb(0,0,0,0.02)] min-w-0 rounded-3xl overflow-hidden relative"
             >
+              {/* Luxury Accent Line */}
+              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-500 to-indigo-600" />
               <CardHeader className="pb-2">
-                <CardTitle className="flex items-center gap-2 text-base text-slate-800">
-                  <Shield className="h-5 w-5 text-blue-600 shrink-0" />
+                <CardTitle className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-400">
+                  <Shield className="h-4 w-4 text-blue-600 shrink-0" />
                   <span className="truncate">Financial Health</span>
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="flex items-center justify-center">
-                  <div className="relative h-[120px] w-[120px] sm:h-[140px] sm:w-[140px]">
+                  <div className="relative h-[120px] w-[120px] sm:h-[130px] sm:w-[130px]">
                     <ResponsiveContainer width="100%" height="100%">
                       <RadialBarChart
                         cx="50%"
@@ -645,34 +677,34 @@ export function AccountantHomeModule() {
                         endAngle={0}
                       >
                         <RadialBar
-                          background={{ fill: "rgba(219, 234, 254, 0.5)" }}
+                          background={{ fill: "rgba(241, 245, 249, 0.8)" }}
                           dataKey="value"
                           cornerRadius={10}
                         />
                       </RadialBarChart>
                     </ResponsiveContainer>
                     <div className="absolute inset-0 flex flex-col items-center justify-center">
-                      <span className={`text-3xl font-bold ${getHealthColor(financialHealth)}`}>
+                      <span className={`text-3xl font-black tracking-tight ${getHealthColor(financialHealth)}`}>
                         {financialHealth}
                       </span>
-                      <span className="text-xs text-muted-foreground">{getHealthLabel(financialHealth)}</span>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">{getHealthLabel(financialHealth)}</span>
                     </div>
                   </div>
                 </div>
-                <div className="mt-4 space-y-2">
-                  <div className="flex justify-between gap-2 text-sm">
-                    <span className="text-muted-foreground truncate">Collection Rate</span>
-                    <span className="font-semibold text-slate-700 shrink-0">{stats.collectionRate.toFixed(1)}%</span>
+                <div className="mt-4 space-y-2.5">
+                  <div className="flex justify-between gap-2 text-xs border-b border-slate-50 pb-1.5">
+                    <span className="text-slate-500 font-semibold truncate">Collection Rate</span>
+                    <span className="font-bold text-slate-700 shrink-0">{stats.collectionRate.toFixed(1)}%</span>
                   </div>
-                  <div className="flex justify-between gap-2 text-sm">
-                    <span className="text-muted-foreground truncate">Profit Margin</span>
-                    <span className={`font-semibold shrink-0 ${stats.profitMargin >= 0 ? "text-blue-600" : "text-rose-500"}`}>
+                  <div className="flex justify-between gap-2 text-xs border-b border-slate-50 pb-1.5">
+                    <span className="text-slate-500 font-semibold truncate">Profit Margin</span>
+                    <span className={`font-bold shrink-0 ${stats.profitMargin >= 0 ? "text-blue-600" : "text-rose-500"}`}>
                       {stats.profitMargin.toFixed(1)}%
                     </span>
                   </div>
-                  <div className="flex justify-between gap-2 text-sm">
-                    <span className="text-muted-foreground truncate">Overdue Rate</span>
-                    <span className={`font-semibold shrink-0 ${stats.overdueInvoices === 0 ? "text-blue-600" : "text-rose-500"}`}>
+                  <div className="flex justify-between gap-2 text-xs">
+                    <span className="text-slate-500 font-semibold truncate">Overdue Rate</span>
+                    <span className={`font-bold shrink-0 ${stats.overdueInvoices === 0 ? "text-blue-600" : "text-rose-500"}`}>
                       {invoices.length > 0 ? ((stats.overdueInvoices / invoices.length) * 100).toFixed(1) : 0}%
                     </span>
                   </div>
@@ -686,16 +718,18 @@ export function AccountantHomeModule() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.1 }}
-                className="shadow-sm shadow-blue-50/50 bg-gradient-to-br from-white to-blue-50/20 border border-blue-100/80 hover:border-blue-400 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 cursor-pointer rounded-2xl min-w-0 group"
+                className="bg-white border border-slate-100 shadow-[0_8px_30px_rgb(0,0,0,0.02)] hover:border-blue-400 hover:shadow-[0_12px_45px_rgba(37,99,235,0.05)] hover:-translate-y-0.5 transition-all duration-300 cursor-pointer rounded-3xl min-w-0 group overflow-hidden relative"
                 onClick={() => navigate(`/${schoolSlug}/accountant/reports`)}
               >
-                <CardContent className="flex h-full flex-col justify-between p-5">
+                {/* Accent Line */}
+                <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-500 to-indigo-600" />
+                <CardContent className="flex h-full flex-col justify-between p-6 pt-7">
                   <div className="flex items-center justify-between gap-2 w-full">
-                    <div className="rounded-xl bg-blue-50 text-blue-600 border border-blue-100/50 p-2.5 shrink-0">
-                      <TrendingUp className="h-4 w-4" />
+                    <div className="rounded-2xl bg-blue-50 text-blue-600 border border-blue-100/50 p-2.5 shrink-0 shadow-sm shadow-blue-100/30">
+                      <TrendingUp className="h-4.5 w-4.5" />
                     </div>
                     {stats.revenueGrowth !== 0 ? (
-                      <div className={`flex items-center gap-0.5 text-xs font-semibold px-2 py-0.5 rounded-full ${stats.revenueGrowth > 0 ? "bg-blue-50 text-blue-600" : "bg-rose-50 text-rose-600"}`}>
+                      <div className={`flex items-center gap-0.5 text-xs font-bold px-2 py-0.5 rounded-full ${stats.revenueGrowth > 0 ? "bg-blue-50 text-blue-600" : "bg-rose-50 text-rose-600"}`}>
                         {stats.revenueGrowth > 0 ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
                         {Math.abs(stats.revenueGrowth).toFixed(1)}%
                       </div>
@@ -704,8 +738,8 @@ export function AccountantHomeModule() {
                     )}
                   </div>
                   <div className="mt-4">
-                    <p className="text-xl sm:text-2xl font-black text-slate-800 tracking-tight truncate" title={stats.totalRevenue.toLocaleString()}>{formatCompact(stats.totalRevenue)}</p>
-                    <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider mt-1 truncate">Total Revenue</p>
+                    <p className="text-2xl font-black text-slate-800 tracking-tight truncate" title={stats.totalRevenue.toLocaleString()}>{formatCompact(stats.totalRevenue)}</p>
+                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-1 truncate">Total Revenue</p>
                   </div>
                 </CardContent>
               </MotionCard>
@@ -714,26 +748,28 @@ export function AccountantHomeModule() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.15 }}
-                className="shadow-sm shadow-blue-50/50 bg-gradient-to-br from-white to-blue-50/20 border border-blue-100/80 hover:border-blue-400 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 cursor-pointer rounded-2xl min-w-0 group"
+                className="bg-white border border-slate-100 shadow-[0_8px_30px_rgb(0,0,0,0.02)] hover:border-rose-400 hover:shadow-[0_12px_45px_rgba(244,63,94,0.05)] hover:-translate-y-0.5 transition-all duration-300 cursor-pointer rounded-3xl min-w-0 group overflow-hidden relative"
                 onClick={() => navigate(`/${schoolSlug}/accountant/expenses`)}
               >
-                <CardContent className="flex h-full flex-col justify-between p-5">
+                {/* Accent Line */}
+                <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-rose-400 to-red-500" />
+                <CardContent className="flex h-full flex-col justify-between p-6 pt-7">
                   <div className="flex items-center justify-between gap-2 w-full">
-                    <div className="rounded-xl bg-rose-50 text-rose-600 border border-rose-100/30 p-2.5 shrink-0">
-                      <TrendingDown className="h-4 w-4" />
+                    <div className="rounded-2xl bg-rose-50 text-rose-600 border border-rose-100/30 p-2.5 shrink-0 shadow-sm shadow-rose-100/30">
+                      <TrendingDown className="h-4.5 w-4.5" />
                     </div>
                     {stats.expenseGrowth !== 0 ? (
-                      <div className={`flex items-center gap-0.5 text-xs font-semibold px-2 py-0.5 rounded-full ${stats.expenseGrowth > 0 ? "bg-rose-50 text-rose-600" : "bg-blue-50 text-blue-600"}`}>
+                      <div className={`flex items-center gap-0.5 text-xs font-bold px-2 py-0.5 rounded-full ${stats.expenseGrowth > 0 ? "bg-rose-50 text-rose-600" : "bg-blue-50 text-blue-600"}`}>
                         {stats.expenseGrowth > 0 ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
                         {Math.abs(stats.expenseGrowth).toFixed(1)}%
                       </div>
                     ) : (
-                      <ArrowRight className="h-4 w-4 text-blue-400 opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all duration-200" />
+                      <ArrowRight className="h-4 w-4 text-rose-400 opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all duration-200" />
                     )}
                   </div>
                   <div className="mt-4">
-                    <p className="text-xl sm:text-2xl font-black text-rose-600 tracking-tight truncate" title={stats.totalExpenses.toLocaleString()}>{formatCompact(stats.totalExpenses)}</p>
-                    <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider mt-1 truncate">Total Expenses</p>
+                    <p className="text-2xl font-black text-rose-600 tracking-tight truncate" title={stats.totalExpenses.toLocaleString()}>{formatCompact(stats.totalExpenses)}</p>
+                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-1 truncate">Total Expenses</p>
                   </div>
                 </CardContent>
               </MotionCard>
@@ -742,21 +778,23 @@ export function AccountantHomeModule() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.2 }}
-                className="shadow-sm shadow-blue-50/50 bg-gradient-to-br from-white to-blue-50/20 border border-blue-100/80 hover:border-blue-400 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 cursor-pointer rounded-2xl min-w-0 group"
+                className="bg-white border border-slate-100 shadow-[0_8px_30px_rgb(0,0,0,0.02)] hover:border-blue-400 hover:shadow-[0_12px_45px_rgba(37,99,235,0.05)] hover:-translate-y-0.5 transition-all duration-300 cursor-pointer rounded-3xl min-w-0 group overflow-hidden relative"
                 onClick={() => navigate(`/${schoolSlug}/accountant/payroll`)}
               >
-                <CardContent className="flex h-full flex-col justify-between p-5">
+                {/* Accent Line */}
+                <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-sky-400 to-blue-500" />
+                <CardContent className="flex h-full flex-col justify-between p-6 pt-7">
                   <div className="flex items-center justify-between gap-2 w-full">
-                    <div className="rounded-xl bg-blue-50 text-blue-600 border border-blue-100/50 p-2.5 shrink-0">
-                      <Coins className="h-4 w-4" />
+                    <div className="rounded-2xl bg-blue-50 text-blue-600 border border-blue-100/50 p-2.5 shrink-0 shadow-sm shadow-blue-100/30">
+                      <Coins className="h-4.5 w-4.5" />
                     </div>
                     <ArrowRight className="h-4 w-4 text-blue-400 opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all duration-200" />
                   </div>
                   <div className="mt-4">
-                    <p className="text-xl sm:text-2xl font-black text-slate-800 tracking-tight truncate" title={stats.monthlyPayroll.toLocaleString()}>{formatCompact(stats.monthlyPayroll)}</p>
+                    <p className="text-2xl font-black text-slate-800 tracking-tight truncate" title={stats.monthlyPayroll.toLocaleString()}>{formatCompact(stats.monthlyPayroll)}</p>
                     <div className="flex items-center justify-between mt-1 gap-2">
-                      <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider truncate">Monthly Payroll</p>
-                      <p className="text-[10px] text-blue-500 font-bold bg-blue-50 px-1.5 py-0.5 rounded-full shrink-0 truncate">{stats.activeEmployees} staff</p>
+                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider truncate">Monthly Payroll</p>
+                      <p className="text-[9px] text-blue-600 font-bold bg-blue-50 px-1.5 py-0.5 rounded-full shrink-0 truncate">{stats.activeEmployees} staff</p>
                     </div>
                   </div>
                 </CardContent>
@@ -766,21 +804,23 @@ export function AccountantHomeModule() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.25 }}
-                className="shadow-sm shadow-blue-50/50 bg-gradient-to-br from-white to-blue-50/20 border border-blue-100/80 hover:border-blue-400 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 cursor-pointer rounded-2xl min-w-0 group"
+                className="bg-white border border-slate-100 shadow-[0_8px_30px_rgb(0,0,0,0.02)] hover:border-emerald-400 hover:shadow-[0_12px_45px_rgba(16,185,129,0.05)] hover:-translate-y-0.5 transition-all duration-300 cursor-pointer rounded-3xl min-w-0 group overflow-hidden relative"
                 onClick={() => navigate(`/${schoolSlug}/accountant/reports`)}
               >
-                <CardContent className="flex h-full flex-col justify-between p-5">
+                {/* Accent Line */}
+                <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-400 to-teal-500" />
+                <CardContent className="flex h-full flex-col justify-between p-6 pt-7">
                   <div className="flex items-center justify-between gap-2 w-full">
-                    <div className="rounded-xl bg-blue-50 text-blue-600 border border-blue-100/50 p-2.5 shrink-0">
-                      <PiggyBank className="h-4 w-4" />
+                    <div className="rounded-2xl bg-emerald-50 text-emerald-600 border border-emerald-100/30 p-2.5 shrink-0 shadow-sm shadow-emerald-100/30">
+                      <PiggyBank className="h-4.5 w-4.5" />
                     </div>
-                    <ArrowRight className="h-4 w-4 text-blue-400 opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all duration-200" />
+                    <ArrowRight className="h-4 w-4 text-emerald-400 opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all duration-200" />
                   </div>
                   <div className="mt-4">
-                    <p className={`text-xl sm:text-2xl font-black tracking-tight truncate ${stats.netProfit >= 0 ? "text-blue-600" : "text-rose-600"}`} title={stats.netProfit.toLocaleString()}>
+                    <p className={`text-2xl font-black tracking-tight truncate ${stats.netProfit >= 0 ? "text-emerald-600" : "text-rose-600"}`} title={stats.netProfit.toLocaleString()}>
                       {stats.netProfit >= 0 ? "+" : ""}{formatCompact(stats.netProfit)}
                     </p>
-                    <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider mt-1 truncate">Net Profit</p>
+                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-1 truncate">Net Profit</p>
                   </div>
                 </CardContent>
               </MotionCard>
@@ -789,33 +829,31 @@ export function AccountantHomeModule() {
 
 
           {/* Quick Actions */}
-          <Card className="shadow-elevated overflow-hidden">
-            <div className="bg-gradient-to-r from-primary/5 via-primary/10 to-primary/5 p-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Zap className="h-5 w-5 text-primary" />
-                  <span className="font-semibold">Quick Actions</span>
-                </div>
+          <Card className="bg-white border border-slate-100 shadow-[0_8px_30px_rgb(0,0,0,0.02)] overflow-hidden rounded-3xl">
+            <div className="bg-slate-50/50 px-6 py-4 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <Zap className="h-4.5 w-4.5 text-blue-600" />
+                <span className="font-bold text-xs uppercase tracking-wider text-slate-700">Quick Actions</span>
               </div>
             </div>
-            <CardContent className="p-4">
-              <div className="grid grid-cols-3 gap-3 md:grid-cols-6">
+            <CardContent className="p-6">
+              <div className="grid grid-cols-2 gap-4 md:grid-cols-6">
                 {quickActions.map((action, idx) => (
                   <motion.div
                     key={action.label}
-                    initial={{ opacity: 0, scale: 0.9 }}
+                    initial={{ opacity: 0, scale: 0.95 }}
                     animate={{ opacity: 1, scale: 1 }}
-                    transition={{ delay: idx * 0.05 }}
+                    transition={{ delay: idx * 0.03 }}
                   >
                     <Button
                       variant="outline"
-                      className="flex h-auto w-full flex-col items-center gap-2 border-dashed bg-background p-4 hover:border-solid hover:border-primary/50"
+                      className="flex h-auto w-full flex-col items-center gap-3 border border-slate-100 bg-white p-5 rounded-2xl hover:border-blue-400 hover:shadow-[0_8px_25px_rgba(37,99,235,0.04)] hover:-translate-y-0.5 transition-all duration-300"
                       onClick={() => navigate(action.path)}
                     >
-                      <div className={`rounded-lg p-2 ${action.color}`}>
+                      <div className={`rounded-full p-3 ${action.color} shadow-sm`}>
                         <action.icon className="h-5 w-5" />
                       </div>
-                      <span className="text-xs font-medium text-center">{action.label}</span>
+                      <span className="text-[11px] font-bold text-slate-600 text-center tracking-wide uppercase">{action.label}</span>
                     </Button>
                   </motion.div>
                 ))}

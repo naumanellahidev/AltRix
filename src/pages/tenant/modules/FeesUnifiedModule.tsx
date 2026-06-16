@@ -40,21 +40,21 @@ export default function FeesUnifiedModule() {
 
   return (
     <div className="space-y-6">
-      {/* Premium Glassmorphic Command Header */}
-      <div className="relative overflow-hidden bg-gradient-to-br from-indigo-500/10 via-purple-500/5 to-transparent border border-indigo-500/15 backdrop-blur-md p-6 rounded-3xl shadow-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div className="absolute top-0 right-0 -mt-6 -mr-6 w-36 h-36 bg-indigo-500/10 rounded-full blur-2xl pointer-events-none" />
-        <div className="absolute bottom-0 left-0 -mb-6 -ml-6 w-36 h-36 bg-purple-500/10 rounded-full blur-2xl pointer-events-none" />
+      {/* Premium Luxury Command Header */}
+      <div className="relative overflow-hidden bg-white border border-slate-100 p-6 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.015)] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        {/* Accent top gradient line */}
+        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-500 to-indigo-600" />
         
         <div className="relative z-10 flex items-start gap-4">
-          <div className="p-3 bg-gradient-to-br from-indigo-600 to-purple-600 rounded-2xl text-white shadow-lg shadow-indigo-600/20">
+          <div className="p-3 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-2xl text-white shadow-md shadow-blue-500/20">
             <Coins className="h-6 w-6" />
           </div>
           <div>
-            <h2 className="font-display text-xl font-bold tracking-tight text-foreground sm:text-2xl flex items-center gap-2">
+            <h2 className="font-display text-xl font-black tracking-tight text-slate-800 sm:text-2xl flex items-center gap-2">
               Fees Command Center
             </h2>
-            <p className="text-xs text-muted-foreground sm:text-sm mt-1">
-              Consolidated academic billing structures, live expense management, and receipt reconciliations.
+            <p className="text-xs text-slate-400 font-semibold uppercase tracking-wider mt-1">
+              Consolidated billing structures, allocations, and proof reconciliations
             </p>
           </div>
         </div>
