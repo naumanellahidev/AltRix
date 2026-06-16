@@ -13,6 +13,8 @@ import {
   Inbox,
   ScrollText,
   Building2,
+  Brain,
+  Loader2,
 } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
@@ -27,6 +29,7 @@ import { toast } from "sonner";
 import CampusCreatorCard from "./CampusCreatorCard";
 import { SuperAdminShell } from "@/components/super-admin/SuperAdminShell";
 import PlatformRequestsCard from "./PlatformRequestsCard";
+import { apiClient } from "@/lib/api-client";
 
 type SchoolRow = {
   id: string;
@@ -91,6 +94,10 @@ export default function PlatformSchoolsPage() {
   const [unlockSchoolId, setUnlockSchoolId] = useState<string>("__none__");
   const [unlocking, setUnlocking] = useState(false);
 
+  // Per-school AI Copilot toggles
+  const [aiStates, setAiStates] = useState<Record<string, boolean>>({});
+  const [aiLoading, setAiLoading] = useState<Record<string, boolean>>({}); 
+
   // Impersonation (audited)
   const [impSchoolId, setImpSchoolId] = useState<string>("__none__");
   const [impRolePath, setImpRolePath] = useState<string>("principal");
@@ -137,13 +144,61 @@ export default function PlatformSchoolsPage() {
     };
   }, [user]);
 
+  const loadSchoolAiStates = async (schoolList: SchoolRow[]) => {
+    const session = await supabase.auth.getSession();
+    const token = session.data.session?.access_token || "";
+    const results: Record<string, boolean> = {};
+    await Promise.all(
+      schoolList.map(async (s) => {
+        try {
+          const res = await apiClient.get<{ enabled: boolean }>(
+            `/ai/settings/school/${s.id}`,
+            { headers: { Authorization: `Bearer ${token}` } }
+          );
+          results[s.id] = res.data.enabled;
+        } catch {
+          results[s.id] = false;
+        }
+      })
+    );
+    setAiStates(results);
+  };
+
+  const toggleSchoolAI = async (schoolId: string, enabled: boolean) => {
+    setAiLoading((prev) => ({ ...prev, [schoolId]: true }));
+    try {
+      const session = await supabase.auth.getSession();
+      const token = session.data.session?.access_token || "";
+      await apiClient.post(
+        `/ai/settings/school/${schoolId}`,
+        { enabled },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setAiStates((prev) => ({ ...prev, [schoolId]: enabled }));
+      toast.success(
+        enabled
+          ? "AI Copilot enabled for this school"
+          : "AI Copilot disabled for this school",
+        { icon: enabled ? "🤖" : "🔕" }
+      );
+    } catch (e: any) {
+      toast.error(e?.response?.data?.detail || "Failed to update AI settings");
+    } finally {
+      setAiLoading((prev) => ({ ...prev, [schoolId]: false }));
+    }
+  };
+
   const refresh = async () => {
     const { data: s, error: sErr } = await supabase
       .from("schools")
       .select("id,slug,name,is_active,created_at")
       .order("created_at", { ascending: false })
       .limit(200);
-    if (!sErr) setSchools((s ?? []) as SchoolRow[]);
+    if (!sErr) {
+      const schoolList = (s ?? []) as SchoolRow[];
+      setSchools(schoolList);
+      await loadSchoolAiStates(schoolList);
+    }
 
     const { data: a, error: aErr } = await (supabase as any)
       .from("audit_logs")
@@ -458,6 +513,12 @@ export default function PlatformSchoolsPage() {
                           <TableHead className="text-zinc-400 font-semibold">School</TableHead>
                           <TableHead className="text-zinc-400 font-semibold">Slug</TableHead>
                           <TableHead className="text-zinc-400 font-semibold">Status</TableHead>
+                          <TableHead className="text-zinc-400 font-semibold">
+                            <div className="flex items-center gap-1.5">
+                              <Brain className="h-3.5 w-3.5 text-purple-400" />
+                              AI Copilot
+                            </div>
+                          </TableHead>
                           <TableHead className="text-right text-zinc-400 font-semibold">Open</TableHead>
                         </TableRow>
                       </TableHeader>
@@ -471,6 +532,38 @@ export default function PlatformSchoolsPage() {
                                 {s.is_active ? "Active" : "Disabled"}
                               </span>
                             </TableCell>
+
+                            {/* AI Copilot Toggle — Super Admin only */}
+                            <TableCell>
+                              <div className="flex items-center gap-2">
+                                {aiLoading[s.id] ? (
+                                  <Loader2 className="h-4 w-4 animate-spin text-purple-400" />
+                                ) : (
+                                  <button
+                                    id={`ai-toggle-${s.id}`}
+                                    onClick={() => toggleSchoolAI(s.id, !aiStates[s.id])}
+                                    title={aiStates[s.id] ? "Click to disable AI Copilot" : "Click to enable AI Copilot"}
+                                    className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-2 transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-1 ${
+                                      aiStates[s.id]
+                                        ? "bg-purple-600 border-purple-500"
+                                        : "bg-zinc-700 border-zinc-600"
+                                    }`}
+                                  >
+                                    <span
+                                      className={`pointer-events-none block h-3.5 w-3.5 rounded-full bg-white shadow-sm transition-transform duration-200 ${
+                                        aiStates[s.id] ? "translate-x-4" : "translate-x-0.5"
+                                      }`}
+                                    />
+                                  </button>
+                                )}
+                                <span className={`text-[11px] font-medium ${
+                                  aiStates[s.id] ? "text-purple-300" : "text-zinc-500"
+                                }`}>
+                                  {aiStates[s.id] ? "ON" : "OFF"}
+                                </span>
+                              </div>
+                            </TableCell>
+
                             <TableCell className="text-right">
                               <Button
                                 size="sm"
@@ -495,7 +588,7 @@ export default function PlatformSchoolsPage() {
                         ))}
                         {filteredSchools.length === 0 && (
                           <TableRow>
-                            <TableCell colSpan={4} className="text-center py-6 text-zinc-500">
+                            <TableCell colSpan={5} className="text-center py-6 text-zinc-500">
                               No schools found.
                             </TableCell>
                           </TableRow>

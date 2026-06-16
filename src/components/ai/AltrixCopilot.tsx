@@ -1,8 +1,28 @@
-import { useState, useEffect, useRef, useMemo } from "react";
+import {
+  useState,
+  useEffect,
+  useRef,
+  useMemo,
+  useCallback,
+} from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { 
-  Brain, Send, X, MessageSquare, Loader2, Download, Printer, 
-  ArrowUpRight, AlertTriangle, CheckCircle, RefreshCw, Sparkles 
+import {
+  Brain,
+  Send,
+  X,
+  Loader2,
+  Printer,
+  ArrowUpRight,
+  Sparkles,
+  Copy,
+  Check,
+  Maximize2,
+  Minimize2,
+  Trash2,
+  Square,
+  ChevronDown,
+  Keyboard,
+  RefreshCw,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/hooks/useSession";
@@ -10,24 +30,168 @@ import { useTenantOptimized } from "@/hooks/useTenantOptimized";
 import { useUserRole } from "@/hooks/useUserRole";
 import { generateVoucherPdf, type VoucherCopyData } from "@/lib/fee-voucher-pdf";
 import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api-client";
 
+// ── Types ────────────────────────────────────────────────────────────────────
+
+type ActionPayload = {
+  type: string;
+  studentId?: string;
+  invoiceId?: string;
+  sectionId?: string;
+  fromDate?: string;
+  toDate?: string;
+  examId?: string;
+  route?: string;
+  label?: string;
+};
+
 type Message = {
+  id: string;
   role: "user" | "assistant";
   content: string;
-  action?: {
-    type: string;
-    studentId?: string;
-    invoiceId?: string;
-    sectionId?: string;
-    fromDate?: string;
-    toDate?: string;
-    examId?: string;
-  };
+  timestamp: Date;
+  action?: ActionPayload;
+  isError?: boolean;
 };
+
+const genId = () => Math.random().toString(36).slice(2, 9);
+
+// ── Simple Markdown Renderer ─────────────────────────────────────────────────
+
+function renderMarkdown(text: string): string {
+  if (!text) return "";
+  return text
+    // Bold
+    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+    // Italic
+    .replace(/\*(.+?)\*/g, "<em>$1</em>")
+    // Inline code
+    .replace(/`(.+?)`/g, '<code class="bg-zinc-800 text-purple-300 px-1 rounded text-[10px]">$1</code>')
+    // Bullet points
+    .replace(/^- (.+)$/gm, '<li class="ml-3 list-disc list-outside">$1</li>')
+    // Numbered list
+    .replace(/^\d+\. (.+)$/gm, '<li class="ml-3 list-decimal list-outside">$1</li>')
+    // Headers
+    .replace(/^### (.+)$/gm, '<p class="font-bold text-purple-300 mt-2 mb-1 text-[11px] uppercase tracking-wide">$1</p>')
+    .replace(/^## (.+)$/gm, '<p class="font-bold text-white mt-2 mb-1 text-[12px]">$1</p>')
+    .replace(/^# (.+)$/gm, '<p class="font-bold text-white mt-2 mb-1 text-[13px]">$1</p>')
+    // Newlines
+    .replace(/\n\n/g, '<br/><br/>')
+    .replace(/\n/g, '<br/>');
+}
+
+// ── Typing Dots Animation ────────────────────────────────────────────────────
+
+function TypingDots() {
+  return (
+    <span className="inline-flex items-center gap-0.5 ml-0.5">
+      {[0, 1, 2].map((i) => (
+        <span
+          key={i}
+          className="w-1 h-1 rounded-full bg-purple-400"
+          style={{
+            animation: "copilot-dot 1.2s infinite ease-in-out",
+            animationDelay: `${i * 0.2}s`,
+          }}
+        />
+      ))}
+    </span>
+  );
+}
+
+// ── Action Card Map ──────────────────────────────────────────────────────────
+
+const ACTION_META: Record<string, { icon: any; label: string; cta: string; color: string }> = {
+  GENERATE_VOUCHER: {
+    icon: Printer,
+    label: "Fee Voucher Generator",
+    cta: "Download PDF Voucher",
+    color: "from-purple-600/20 to-indigo-600/20 border-purple-500/30",
+  },
+  GENERATE_RESULT_CARD: {
+    icon: ArrowUpRight,
+    label: "Result Card Generator",
+    cta: "Open Result Card Module",
+    color: "from-blue-600/20 to-cyan-600/20 border-blue-500/30",
+  },
+  EXPORT_ATTENDANCE: {
+    icon: ArrowUpRight,
+    label: "Attendance Analytics",
+    cta: "Open Attendance Reports",
+    color: "from-emerald-600/20 to-teal-600/20 border-emerald-500/30",
+  },
+  EXPORT_GRADES: {
+    icon: ArrowUpRight,
+    label: "Grades Analytics",
+    cta: "Open Grades Reports",
+    color: "from-amber-600/20 to-orange-600/20 border-amber-500/30",
+  },
+  NAVIGATE_TO: {
+    icon: ArrowUpRight,
+    label: "Navigate to Module",
+    cta: "Go There",
+    color: "from-slate-600/20 to-zinc-600/20 border-zinc-500/30",
+  },
+};
+
+// ── Role Suggestions ─────────────────────────────────────────────────────────
+
+const ROLE_SUGGESTIONS: Record<string, string[]> = {
+  super_admin: [
+    "Show overall revenue summary",
+    "Attendance trends this month",
+    "How many pending admissions?",
+    "Compare all campuses",
+  ],
+  school_owner: [
+    "Show revenue vs expenses",
+    "Attendance trends",
+    "Outstanding fee defaulters",
+    "Pending admission applications",
+  ],
+  principal: [
+    "Show top 5 fee defaulters",
+    "Which students are at risk?",
+    "Class attendance rate today",
+    "Show top performers",
+  ],
+  vice_principal: [
+    "Weak students this term",
+    "Top performers by class",
+    "Attendance trends",
+  ],
+  accountant: [
+    "Show unpaid invoice summary",
+    "List top fee defaulters",
+    "What is MTD revenue?",
+    "Show pending invoices",
+  ],
+  hr_manager: [
+    "Show active staff directory",
+    "Recent leave requests",
+    "Staff pending approvals",
+  ],
+  teacher: [
+    "Show my assigned classes",
+    "Find weak students in my sections",
+    "Attendance trends for my classes",
+  ],
+  parent: [
+    "Show my child's attendance",
+    "Any outstanding fee invoices?",
+    "Recent exam marks",
+  ],
+  student: ["Show my attendance rate", "My recent exam grades"],
+};
+
+// ── Storage Key ──────────────────────────────────────────────────────────────
+
+const getStorageKey = (schoolId: string | null | undefined, userId: string | undefined) =>
+  `altrix_copilot_history_${schoolId}_${userId}`;
+
+// ── Main Component ───────────────────────────────────────────────────────────
 
 export default function AltrixCopilot() {
   const { schoolSlug } = useParams<{ schoolSlug: string }>();
@@ -35,261 +199,292 @@ export default function AltrixCopilot() {
   const { user } = useSession();
   const tenant = useTenantOptimized(schoolSlug || "");
   const schoolId = tenant.schoolId;
-  const { roles, primaryRole } = useUserRole(schoolId, user?.id ?? null);
+  const { primaryRole } = useUserRole(schoolId, user?.id ?? null);
 
   const [isOpen, setIsOpen] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
   const [aiEnabled, setAiEnabled] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
-  const [loading, setLoading] = useState(false);
-  
+  const [isThinking, setIsThinking] = useState(false);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [showScrollBtn, setShowScrollBtn] = useState(false);
+
   const scrollRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const abortRef = useRef<AbortController | null>(null);
+  const storageKey = getStorageKey(schoolId, user?.id);
 
-  // 1. Fetch System Settings on Mount
+  // ── Fetch AI Settings ─────────────────────────────────────────────────────
   useEffect(() => {
-    const checkAiStatus = async () => {
-      try {
-        const res = await apiClient.get<{ enabled: boolean }>("/ai/settings");
-        setAiEnabled(res.data.enabled);
-      } catch (err) {
-        console.error("Failed to fetch AI status settings:", err);
+    if (!user) return;
+    const params = schoolId ? `?school_id=${encodeURIComponent(schoolId)}` : "";
+    apiClient
+      .get<{ enabled: boolean }>(`/ai/settings${params}`)
+      .then((res) => setAiEnabled(res.data.enabled))
+      .catch(() => {});
+  }, [user, schoolId]);
+
+  // ── Restore Chat History ──────────────────────────────────────────────────
+  useEffect(() => {
+    if (!storageKey) return;
+    try {
+      const stored = localStorage.getItem(storageKey);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        setMessages(
+          parsed.map((m: any) => ({ ...m, timestamp: new Date(m.timestamp) }))
+        );
       }
-    };
-    if (user) {
-      checkAiStatus();
+    } catch {
+      /* ignore */
     }
-  }, [user]);
+  }, [storageKey]);
 
-  // Scroll chat to bottom
+  // ── Persist History ───────────────────────────────────────────────────────
   useEffect(() => {
+    if (!storageKey || messages.length === 0) return;
+    try {
+      // Store last 40 messages only
+      localStorage.setItem(
+        storageKey,
+        JSON.stringify(messages.slice(-40))
+      );
+    } catch {
+      /* quota exceeded – ignore */
+    }
+  }, [messages, storageKey]);
+
+  // ── Scroll to Bottom ──────────────────────────────────────────────────────
+  const scrollToBottom = useCallback(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [messages, isStreaming]);
+  }, []);
 
-  // Load welcome message
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages, isThinking]);
+
+  const handleScroll = () => {
+    if (!scrollRef.current) return;
+    const { scrollTop, scrollHeight, clientHeight } = scrollRef.current;
+    setShowScrollBtn(scrollHeight - scrollTop - clientHeight > 80);
+  };
+
+  // ── Welcome Message ───────────────────────────────────────────────────────
   useEffect(() => {
     if (isOpen && messages.length === 0) {
       setMessages([
         {
+          id: genId(),
           role: "assistant",
-          content: `Hello! I am your AltRix Enterprise AI Copilot. How can I assist you in managing your school ERP today?`
-        }
+          content: `👋 Hi! I'm your **AltRix AI Copilot** — deeply connected to your ERP.\n\nI can help you:\n- 📊 Analyze fee collection & defaulters\n- 👥 Monitor student attendance & performance\n- 📋 Generate official reports & vouchers\n- 🧭 Navigate any ERP module\n\nWhat would you like to know?`,
+          timestamp: new Date(),
+        },
       ]);
     }
   }, [isOpen]);
 
-  // 2. Predefined Suggestions based on Active User Role
-  const suggestions = useMemo(() => {
-    if (!primaryRole) return [];
-    
-    const roleBasedSuggestions: Record<string, string[]> = {
-      super_admin: [
-        "Show revenue summary",
-        "Show attendance trends",
-        "Show pending admissions",
-        "Compare campus performance"
-      ],
-      school_owner: [
-        "Show revenue summary",
-        "Show attendance trends",
-        "Show pending admissions",
-        "Compare campus performance"
-      ],
-      principal: [
-        "Show fee defaulters",
-        "Show weak students",
-        "Show top performers",
-        "Show attendance trends"
-      ],
-      vice_principal: [
-        "Show weak students",
-        "Show top performers",
-        "Show attendance trends"
-      ],
-      accountant: [
-        "Show revenue summary",
-        "Show fee defaulters",
-        "Show pending invoices"
-      ],
-      hr_manager: [
-        "Show active staff directory",
-        "Show recent leave requests"
-      ],
-      teacher: [
-        "Show my assigned classes",
-        "Show attendance trends for my classes",
-        "Find weak students in my sections"
-      ],
-      parent: [
-        "Show my children attendance",
-        "Check outstanding fee invoices",
-        "Show recent exam marks"
-      ],
-      student: [
-        "Show my attendance rate",
-        "Show my recent exam grades"
-      ]
+  // ── Open via Keyboard Shortcut ────────────────────────────────────────────
+  useEffect(() => {
+    const handleKeyboard = (e: KeyboardEvent) => {
+      if ((e.altKey || e.metaKey) && e.key === "k") {
+        e.preventDefault();
+        setIsOpen((prev) => !prev);
+      }
+      if (e.key === "Escape" && isOpen) {
+        setIsOpen(false);
+      }
     };
+    window.addEventListener("keydown", handleKeyboard);
+    return () => window.removeEventListener("keydown", handleKeyboard);
+  }, [isOpen]);
 
-    return roleBasedSuggestions[primaryRole] || ["Explain ERP features", "Help me navigate"];
-  }, [primaryRole]);
+  // ── Focus input on open ───────────────────────────────────────────────────
+  useEffect(() => {
+    if (isOpen) {
+      setTimeout(() => inputRef.current?.focus(), 100);
+    }
+  }, [isOpen]);
+
+  // ── Suggestions ───────────────────────────────────────────────────────────
+  const suggestions = useMemo(
+    () => (primaryRole ? ROLE_SUGGESTIONS[primaryRole] || [] : []),
+    [primaryRole]
+  );
 
   if (!aiEnabled) return null;
 
-  // Extract action tag if present: <altrix_action>JSON</altrix_action>
-  const parseMessageContent = (text: string) => {
+  // ── Parse Action Tag ──────────────────────────────────────────────────────
+  const parseMessageContent = (text: string): { content: string; action?: ActionPayload } => {
     const tagRegex = /<altrix_action>([\s\S]*?)<\/altrix_action>/i;
     const match = text.match(tagRegex);
-    
     if (match) {
       try {
         const actionData = JSON.parse(match[1].trim());
-        const cleanedText = text.replace(tagRegex, "").trim();
-        return {
-          content: cleanedText,
-          action: actionData
-        };
-      } catch (e) {
-        console.error("Failed to parse action json", e);
+        return { content: text.replace(tagRegex, "").trim(), action: actionData };
+      } catch {
+        /* ignore bad JSON */
       }
     }
-    
     return { content: text };
   };
 
+  // ── Copy Message ──────────────────────────────────────────────────────────
+  const handleCopy = (id: string, content: string) => {
+    navigator.clipboard.writeText(content).then(() => {
+      setCopiedId(id);
+      setTimeout(() => setCopiedId(null), 2000);
+    });
+  };
+
+  // ── Clear Conversation ────────────────────────────────────────────────────
+  const handleClear = () => {
+    setMessages([]);
+    if (storageKey) localStorage.removeItem(storageKey);
+  };
+
+  // ── Stop Streaming ────────────────────────────────────────────────────────
+  const handleStop = () => {
+    abortRef.current?.abort();
+    setIsStreaming(false);
+    setIsThinking(false);
+  };
+
+  // ── Send Message ──────────────────────────────────────────────────────────
   const handleSend = async (textToSend: string) => {
     if (!textToSend.trim() || isStreaming) return;
 
-    // Add user message
-    const userMsg: Message = { role: "user", content: textToSend };
-    setMessages(prev => [...prev, userMsg]);
+    const userMsg: Message = {
+      id: genId(),
+      role: "user",
+      content: textToSend,
+      timestamp: new Date(),
+    };
+    setMessages((prev) => [...prev, userMsg]);
     setInput("");
+    setIsThinking(true);
     setIsStreaming(true);
-    setLoading(true);
+
+    abortRef.current = new AbortController();
 
     try {
-      // Build conversation history
-      const history = messages.map(msg => ({
+      const history = messages.map((msg) => ({
         role: msg.role,
-        content: msg.content
+        content: msg.content,
       }));
 
-      // Call FastAPI Copilot Chat
-      const response = await fetch(`${apiClient.defaults.baseURL || "/api"}/ai/copilot`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${(await supabase.auth.getSession()).data.session?.access_token || ""}`,
-          "X-School-Id": schoolId || ""
-        },
-        body: JSON.stringify({
-          message: textToSend,
-          history: history
-        })
-      });
+      const session = await supabase.auth.getSession();
+      const token = session.data.session?.access_token || "";
 
-      setLoading(false);
+      const response = await fetch(
+        `${apiClient.defaults.baseURL || "/api"}/ai/copilot`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+            "X-School-Id": schoolId || "",
+          },
+          body: JSON.stringify({ message: textToSend, history }),
+          signal: abortRef.current.signal,
+        }
+      );
+
+      setIsThinking(false);
 
       if (!response.ok) {
         const errData = await response.json().catch(() => ({}));
-        throw new Error(errData.detail || `Request failed with status ${response.status}`);
+        throw new Error(errData.detail || `Error ${response.status}`);
       }
-
       if (!response.body) throw new Error("No response stream");
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let assistantText = "";
-      
-      // Add empty message for streaming
-      setMessages(prev => [...prev, { role: "assistant", content: "" }]);
+      const assistantId = genId();
+
+      setMessages((prev) => [
+        ...prev,
+        { id: assistantId, role: "assistant", content: "", timestamp: new Date() },
+      ]);
 
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
 
         const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split("\n");
-
-        for (const line of lines) {
-          if (line.trim().startsWith("data: ")) {
-            const jsonStr = line.replace("data: ", "").trim();
-            if (jsonStr === "[DONE]") break;
-            
-            try {
-              const data = JSON.parse(jsonStr);
-              if (data.error) {
-                toast.error(data.error);
-                assistantText += `\n\n[Error: ${data.error}]`;
-              } else {
-                const textChunk = data.choices?.[0]?.delta?.content || "";
-                assistantText += textChunk;
-              }
-
-              // Update the last assistant message
-              setMessages(prev => {
-                const copy = [...prev];
-                const last = copy[copy.length - 1];
-                if (last && last.role === "assistant") {
-                  const parsed = parseMessageContent(assistantText);
-                  last.content = parsed.content;
-                  last.action = parsed.action;
-                }
-                return copy;
-              });
-            } catch (e) {
-              // incomplete JSON lines can happen, wait for next buffer
+        for (const line of chunk.split("\n")) {
+          if (!line.trim().startsWith("data: ")) continue;
+          const jsonStr = line.replace("data: ", "").trim();
+          if (jsonStr === "[DONE]") break;
+          try {
+            const data = JSON.parse(jsonStr);
+            if (data.error) {
+              toast.error(data.error);
+              assistantText += `\n\n⚠️ ${data.error}`;
+            } else {
+              assistantText += data.choices?.[0]?.delta?.content || "";
             }
+            const parsed = parseMessageContent(assistantText);
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === assistantId
+                  ? { ...m, content: parsed.content, action: parsed.action }
+                  : m
+              )
+            );
+          } catch {
+            /* partial JSON chunk */
           }
         }
       }
-
     } catch (err: any) {
+      if (err.name === "AbortError") {
+        // User stopped generation
+        return;
+      }
       console.error("Copilot stream error:", err);
-      toast.error(err.message || "Failed to stream Copilot completion.");
-      setMessages(prev => [
+      setMessages((prev) => [
         ...prev,
-        { 
-          role: "assistant", 
-          content: "I apologize, but I encountered an error communicating with the local Ollama backend service. Please check your connection." 
-        }
+        {
+          id: genId(),
+          role: "assistant",
+          content: `I couldn't reach the AI backend. Please check:\n- Is the backend server running?\n- Is the AI Copilot enabled in platform settings?\n\n_Error: ${err.message}_`,
+          timestamp: new Date(),
+          isError: true,
+        },
       ]);
     } finally {
       setIsStreaming(false);
-      setLoading(false);
+      setIsThinking(false);
     }
   };
 
-  // 3. Action Tag Handlers
+  // ── Execute Action ────────────────────────────────────────────────────────
   const handleExecuteAction = async (msg: Message) => {
     if (!msg.action) return;
-    const { type, studentId, invoiceId, sectionId, fromDate, toDate, examId } = msg.action;
+    const { type, invoiceId, route } = msg.action;
 
     if (type === "GENERATE_VOUCHER") {
-      if (!invoiceId) return toast.error("Missing invoice context");
-      const loadingToast = toast.loading("Fetching invoice data and generating PDF...");
+      if (!invoiceId) return toast.error("Missing invoice ID in action context");
+      const t = toast.loading("Generating PDF Voucher...");
       try {
-        // Fetch invoice with items
         const { data: invoice, error: invErr } = await supabase
           .from("fee_invoices")
           .select("*, fee_invoice_items(*)")
           .eq("id", invoiceId)
           .single();
+        if (invErr || !invoice) throw new Error("Invoice not found");
 
-        if (invErr || !invoice) throw new Error("Invoice not found in system.");
-
-        // Fetch student
-        const { data: student, error: stdErr } = await supabase
+        const { data: student } = await supabase
           .from("students")
           .select("first_name, last_name, roll_number, student_code, parent_name, parent_phone")
           .eq("id", invoice.student_id)
           .single();
 
-        if (stdErr || !student) throw new Error("Student not found.");
-
-        // Fetch school meta details
         const { data: school } = await supabase
           .from("schools")
           .select("*")
@@ -302,15 +497,10 @@ export default function AltrixCopilot() {
           .eq("school_id", schoolId!)
           .maybeSingle();
 
-        const HslColor = branding ? { h: branding.accent_hue || 35, s: branding.accent_saturation || 96, l: branding.accent_lightness || 178 } : null;
-
-        // Build Voucher Data
         const items = (invoice.fee_invoice_items || []).map((it: any) => ({
           label: it.label,
-          amount: Number(it.amount)
+          amount: Number(it.amount),
         }));
-
-        const subtotal = items.reduce((s: number, i: any) => s + i.amount, 0);
 
         const data: VoucherCopyData = {
           invoiceNumber: invoice.invoice_number,
@@ -323,207 +513,341 @@ export default function AltrixCopilot() {
             email: school?.email || null,
             website: school?.website || null,
             logoUrl: school?.logo_url || null,
-            motto: school?.motto || null
+            motto: school?.motto || null,
           },
           student: {
-            name: `${student.first_name} ${student.last_name || ""}`.trim(),
-            rollNumber: student.roll_number || null,
-            studentCode: student.student_code || null,
-            className: "Class Context",
-            sectionName: "Section Context",
-            parentName: student.parent_name || null,
-            parentPhone: student.parent_phone || null
+            name: `${student?.first_name || ""} ${student?.last_name || ""}`.trim(),
+            rollNumber: student?.roll_number || null,
+            studentCode: student?.student_code || null,
+            className: "",
+            sectionName: "",
+            parentName: student?.parent_name || null,
+            parentPhone: student?.parent_phone || null,
           },
           items,
-          subtotal,
+          subtotal: items.reduce((s: number, i: any) => s + i.amount, 0),
           baseDiscount: 0,
           meritDiscount: 0,
           siblingDiscount: 0,
           total: invoice.total_amount,
           currency: "PKR",
-          accentHsl: HslColor,
-          notes: invoice.notes
+          accentHsl: branding
+            ? { h: branding.accent_hue || 35, s: branding.accent_saturation || 96, l: branding.accent_lightness || 178 }
+            : null,
+          notes: invoice.notes,
         };
-
         const doc = generateVoucherPdf(data);
         doc.save(`${invoice.invoice_number}_Voucher.pdf`);
-        toast.success("Fee Voucher generated and downloaded successfully!", { id: loadingToast });
+        toast.success("Voucher downloaded!", { id: t });
       } catch (e: any) {
-        console.error("Voucher PDF download error:", e);
-        toast.error(e.message || "Failed to generate PDF voucher.", { id: loadingToast });
+        toast.error(e.message || "Failed to generate voucher", { id: t });
       }
-    } 
-    
-    else if (type === "GENERATE_RESULT_CARD") {
-      // Navigate to Report Card Module where the layout is ready
+    } else if (type === "NAVIGATE_TO" && route) {
+      navigate(`/${schoolSlug}${route}`);
+      setIsOpen(false);
+    } else if (type === "GENERATE_RESULT_CARD") {
       navigate(`/${schoolSlug}/${primaryRole}/report-cards`);
       setIsOpen(false);
-      toast.info("Navigated to Report Cards. Prefill the parameters to print the card.");
-    } 
-    
-    else if (type === "EXPORT_ATTENDANCE") {
-      // Navigate to Reports Module and run
+    } else if (type === "EXPORT_ATTENDANCE" || type === "EXPORT_GRADES") {
       navigate(`/${schoolSlug}/${primaryRole}/reports`);
       setIsOpen(false);
-      toast.info("Navigated to Attendance Reports dashboard.");
-    } 
-    
-    else if (type === "EXPORT_GRADES") {
-      // Navigate to Grades Reports
-      navigate(`/${schoolSlug}/${primaryRole}/reports`);
-      setIsOpen(false);
-      toast.info("Navigated to Grades Reports dashboard.");
     }
   };
 
+  // ── Panel Dimensions ──────────────────────────────────────────────────────
+  const panelClass = isExpanded
+    ? "fixed inset-4 sm:inset-6 z-[60]"
+    : "fixed bottom-24 right-4 sm:right-6 w-[calc(100vw-2rem)] sm:w-96 max-h-[75vh] sm:max-h-[600px] z-50";
+
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <>
-      {/* Floating Copilot Button */}
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="fixed bottom-6 right-6 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-tr from-indigo-600 via-purple-600 to-pink-500 shadow-[0_8px_30px_rgb(124,58,237,0.3)] transition-all duration-300 hover:scale-105 hover:shadow-[0_8px_30px_rgb(124,58,237,0.6)] cursor-pointer active:scale-95 group border-0 focus:outline-none"
-        aria-label="Toggle AI Copilot"
-      >
-        <style dangerouslySetInnerHTML={{ __html: `
-          @keyframes glow-ring {
-            0% { transform: scale(1); opacity: 0.8; }
-            50% { transform: scale(1.15); opacity: 0.3; }
-            100% { transform: scale(1); opacity: 0.8; }
-          }
-          .pulse-glow {
-            position: absolute;
-            width: 100%;
-            height: 100%;
-            border-radius: 100%;
-            background: inherit;
-            z-index: -1;
-            animation: glow-ring 2.5s infinite ease-in-out;
-          }
-        `}} />
-        <div className="pulse-glow" />
-        <Brain className="h-6 w-6 text-white group-hover:rotate-6 transition-transform" />
-      </button>
+      {/* Inject CSS keyframes */}
+      <style>{`
+        @keyframes copilot-dot {
+          0%, 80%, 100% { opacity: 0; transform: scale(0.5); }
+          40% { opacity: 1; transform: scale(1); }
+        }
+        @keyframes copilot-pulse-ring {
+          0% { transform: scale(1); opacity: 0.7; }
+          70% { transform: scale(1.22); opacity: 0; }
+          100% { transform: scale(1); opacity: 0; }
+        }
+        @keyframes copilot-slide-up {
+          from { opacity: 0; transform: translateY(16px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        .copilot-panel {
+          animation: copilot-slide-up 0.22s ease-out both;
+        }
+        .copilot-pulse-ring {
+          position: absolute;
+          width: 100%;
+          height: 100%;
+          border-radius: 9999px;
+          background: linear-gradient(135deg, #6366f1, #a855f7, #ec4899);
+          animation: copilot-pulse-ring 2.2s infinite ease-out;
+          z-index: -1;
+        }
+        .copilot-msg-content strong { font-weight: 700; }
+        .copilot-msg-content em { font-style: italic; }
+        .copilot-msg-content li { margin: 2px 0; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+      `}</style>
 
-      {/* AI Panel Slider */}
+      {/* ── Floating Button ──────────────────────────────────────────────── */}
+      <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-2">
+        {!isOpen && (
+          <div className="flex items-center gap-2 animate-in fade-in slide-in-from-right-4 duration-300">
+            <span className="bg-zinc-900/90 backdrop-blur text-zinc-200 text-[10px] font-medium px-2.5 py-1 rounded-full border border-zinc-700/60 shadow whitespace-nowrap">
+              <Keyboard className="inline h-3 w-3 mr-1 text-purple-400" />
+              Alt+K
+            </span>
+          </div>
+        )}
+
+        <button
+          id="altrix-copilot-btn"
+          onClick={() => setIsOpen((o) => !o)}
+          className="relative flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-tr from-indigo-600 via-purple-600 to-pink-500 shadow-[0_8px_30px_rgb(124,58,237,0.35)] transition-all duration-300 hover:scale-110 hover:shadow-[0_8px_35px_rgb(124,58,237,0.6)] cursor-pointer active:scale-95 border-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 focus-visible:ring-offset-2"
+          aria-label="Toggle AI Copilot (Alt+K)"
+          title="AltRix AI Copilot — Alt+K"
+        >
+          <div className="copilot-pulse-ring" />
+          {isOpen ? (
+            <X className="h-6 w-6 text-white" />
+          ) : (
+            <Brain className="h-6 w-6 text-white" />
+          )}
+        </button>
+      </div>
+
+      {/* ── Chat Panel ───────────────────────────────────────────────────── */}
       {isOpen && (
-        <div 
-          className="fixed bottom-24 right-6 w-96 h-[560px] z-50 rounded-3xl border border-zinc-800 bg-zinc-950 shadow-[0_10px_50px_rgba(0,0,0,0.65)] flex flex-col overflow-hidden backdrop-blur-xl animate-in slide-in-from-bottom-6 fade-in duration-200"
+        <div
+          className={`${panelClass} rounded-2xl sm:rounded-3xl border border-zinc-800/80 bg-zinc-950 shadow-[0_20px_60px_rgba(0,0,0,0.7)] flex flex-col overflow-hidden copilot-panel`}
           style={{ fontFamily: "'Inter', sans-serif" }}
         >
-          {/* Header */}
-          <div className="flex items-center justify-between border-b border-zinc-800 bg-zinc-950 p-4">
+          {/* ── Header ─────────────────────────────────────────────────── */}
+          <div className="flex items-center justify-between border-b border-zinc-800/80 bg-gradient-to-r from-zinc-950 via-purple-950/10 to-zinc-950 px-4 py-3 shrink-0">
             <div className="flex items-center gap-2.5">
-              <div className="rounded-xl bg-purple-500/10 p-2 border border-purple-500/20">
-                <Sparkles className="h-4 w-4 text-purple-400" />
+              <div className="relative flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-purple-600 to-indigo-600 shadow-sm">
+                <Sparkles className="h-4 w-4 text-white" />
+                <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-emerald-400 border border-zinc-950" />
               </div>
               <div>
-                <p className="text-sm font-bold text-white flex items-center gap-1.5 leading-none">
+                <p className="text-sm font-bold text-white leading-none tracking-tight">
                   AltRix Copilot
                 </p>
-                <p className="text-[10px] text-zinc-400 mt-1 capitalize font-medium">
-                  Active Role: {primaryRole?.replace("_", " ")}
+                <p className="text-[10px] text-zinc-400 mt-0.5 capitalize">
+                  {primaryRole?.replace(/_/g, " ")} · ERP Connected
                 </p>
               </div>
             </div>
-            <button 
-              onClick={() => setIsOpen(false)}
-              className="rounded-full p-1.5 text-zinc-400 hover:bg-zinc-800 hover:text-white transition-colors cursor-pointer"
-            >
-              <X className="h-4 w-4" />
-            </button>
+            <div className="flex items-center gap-1">
+              {messages.length > 1 && (
+                <button
+                  onClick={handleClear}
+                  className="p-1.5 rounded-lg text-zinc-500 hover:text-rose-400 hover:bg-rose-400/10 transition-colors cursor-pointer"
+                  title="Clear conversation"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              )}
+              <button
+                onClick={() => setIsExpanded((e) => !e)}
+                className="p-1.5 rounded-lg text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800 transition-colors cursor-pointer"
+                title={isExpanded ? "Collapse" : "Expand"}
+              >
+                {isExpanded ? (
+                  <Minimize2 className="h-3.5 w-3.5" />
+                ) : (
+                  <Maximize2 className="h-3.5 w-3.5" />
+                )}
+              </button>
+              <button
+                onClick={() => setIsOpen(false)}
+                className="p-1.5 rounded-lg text-zinc-500 hover:text-white hover:bg-zinc-800 transition-colors cursor-pointer"
+                title="Close (Esc)"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
           </div>
 
-          {/* Conversation History Area */}
-          <ScrollArea className="flex-1 p-4 bg-zinc-950/40">
-            <div ref={scrollRef} className="space-y-4 max-h-[380px] overflow-y-auto pr-2 no-scrollbar">
-              {messages.map((msg, idx) => (
-                <div 
-                  key={idx} 
-                  className={`flex flex-col ${msg.role === "user" ? "items-end" : "items-start"}`}
-                >
-                  <div 
-                    className={`max-w-[85%] rounded-2xl p-3 text-xs leading-relaxed ${
-                      msg.role === "user" 
-                        ? "bg-purple-600 text-white rounded-br-none" 
-                        : "bg-zinc-900 text-zinc-200 border border-zinc-800/80 rounded-bl-none"
-                    }`}
-                  >
-                    <p className="whitespace-pre-line">{msg.content}</p>
-                    
-                    {/* Render Action Interceptor Card */}
-                    {msg.action && (
-                      <div className="mt-3 rounded-xl border border-purple-500/20 bg-purple-500/5 p-2.5 flex flex-col gap-2">
-                        <div className="flex items-center gap-2 text-purple-300 font-semibold text-[11px]">
-                          {msg.action.type === "GENERATE_VOUCHER" ? <Printer className="h-3.5 w-3.5" /> : <ArrowUpRight className="h-3.5 w-3.5" />}
-                          <span>
-                            {msg.action.type === "GENERATE_VOUCHER" && "Official Fee Voucher Generator"}
-                            {msg.action.type === "GENERATE_RESULT_CARD" && "Official Result Card Generator"}
-                            {msg.action.type === "EXPORT_ATTENDANCE" && "Attendance Reports Dashboard"}
-                            {msg.action.type === "EXPORT_GRADES" && "Grades Reports Dashboard"}
-                          </span>
-                        </div>
-                        <Button 
-                          onClick={() => handleExecuteAction(msg)}
-                          size="sm"
-                          className="w-full bg-purple-600 hover:bg-purple-500 text-white text-[10px] font-bold rounded-lg py-1 h-7 border-0 cursor-pointer"
-                        >
-                          {msg.action.type === "GENERATE_VOUCHER" && "Download Official PDF"}
-                          {msg.action.type === "GENERATE_RESULT_CARD" && "Open Generator Layout"}
-                          {msg.action.type === "EXPORT_ATTENDANCE" && "Open Attendance Analytics"}
-                          {msg.action.type === "EXPORT_GRADES" && "Open Grades Analytics"}
-                        </Button>
-                      </div>
-                    )}
+          {/* ── Messages ───────────────────────────────────────────────── */}
+          <div
+            ref={scrollRef}
+            onScroll={handleScroll}
+            className="flex-1 overflow-y-auto px-4 py-4 space-y-4 no-scrollbar"
+          >
+            {messages.map((msg) => (
+              <div
+                key={msg.id}
+                className={`flex flex-col ${msg.role === "user" ? "items-end" : "items-start"}`}
+              >
+                {/* Avatar */}
+                {msg.role === "assistant" && (
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <div className="h-5 w-5 rounded-full bg-gradient-to-br from-purple-600 to-indigo-600 flex items-center justify-center">
+                      <Brain className="h-3 w-3 text-white" />
+                    </div>
+                    <span className="text-[10px] text-zinc-500 font-medium">AltRix AI</span>
+                    <span className="text-[10px] text-zinc-600">
+                      {msg.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                    </span>
                   </div>
-                </div>
-              ))}
+                )}
 
-              {loading && (
-                <div className="flex items-center gap-2 text-zinc-500 pl-2">
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  <span className="text-[10px] italic">Fetching live ERP records...</span>
-                </div>
-              )}
-            </div>
-          </ScrollArea>
-
-          {/* Quick Suggestions Chips */}
-          {messages.length > 0 && !isStreaming && !loading && (
-            <div className="px-4 py-2 border-t border-zinc-900 bg-zinc-950 flex gap-1.5 overflow-x-auto no-scrollbar whitespace-nowrap">
-              {suggestions.map((suggestion, index) => (
-                <button
-                  key={index}
-                  onClick={() => handleSend(suggestion)}
-                  className="rounded-full bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 text-zinc-300 text-[10px] px-3 py-1 font-semibold transition-all cursor-pointer active:scale-95 whitespace-nowrap flex-shrink-0"
+                {/* Bubble */}
+                <div
+                  className={`group relative max-w-[88%] rounded-2xl px-3 py-2.5 text-[12px] leading-relaxed ${
+                    msg.role === "user"
+                      ? "bg-gradient-to-br from-purple-600 to-indigo-600 text-white rounded-br-sm shadow-md"
+                      : msg.isError
+                      ? "bg-rose-900/30 text-rose-200 border border-rose-700/40 rounded-bl-sm"
+                      : "bg-zinc-900 text-zinc-100 border border-zinc-800/60 rounded-bl-sm shadow-sm"
+                  }`}
                 >
-                  {suggestion}
+                  {msg.role === "user" ? (
+                    <p className="whitespace-pre-wrap break-words">{msg.content}</p>
+                  ) : (
+                    <div
+                      className="copilot-msg-content whitespace-normal break-words leading-relaxed"
+                      dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.content) }}
+                    />
+                  )}
+
+                  {/* Copy button */}
+                  {msg.content && (
+                    <button
+                      onClick={() => handleCopy(msg.id, msg.content)}
+                      className="absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100 p-1 rounded-lg bg-zinc-800/80 text-zinc-400 hover:text-white transition-all cursor-pointer"
+                      title="Copy"
+                    >
+                      {copiedId === msg.id ? (
+                        <Check className="h-3 w-3 text-emerald-400" />
+                      ) : (
+                        <Copy className="h-3 w-3" />
+                      )}
+                    </button>
+                  )}
+
+                  {/* Action Card */}
+                  {msg.action && ACTION_META[msg.action.type] && (() => {
+                    const meta = ACTION_META[msg.action.type];
+                    const Icon = meta.icon;
+                    return (
+                      <div className={`mt-3 rounded-xl bg-gradient-to-br ${meta.color} border p-3 flex flex-col gap-2`}>
+                        <div className="flex items-center gap-1.5 text-[11px] font-semibold text-zinc-200">
+                          <Icon className="h-3.5 w-3.5" />
+                          <span>{msg.action.label || meta.label}</span>
+                        </div>
+                        <button
+                          onClick={() => handleExecuteAction(msg)}
+                          className="w-full text-center bg-white/10 hover:bg-white/20 text-white text-[11px] font-bold rounded-lg py-1.5 px-3 transition-colors cursor-pointer border border-white/10"
+                        >
+                          {meta.cta}
+                        </button>
+                      </div>
+                    );
+                  })()}
+                </div>
+
+                {/* Timestamp for user */}
+                {msg.role === "user" && (
+                  <span className="text-[9px] text-zinc-600 mt-1 mr-1">
+                    {msg.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                  </span>
+                )}
+              </div>
+            ))}
+
+            {/* Thinking/streaming indicator */}
+            {isThinking && (
+              <div className="flex items-start gap-2">
+                <div className="h-5 w-5 rounded-full bg-gradient-to-br from-purple-600 to-indigo-600 flex items-center justify-center shrink-0 mt-0.5">
+                  <Brain className="h-3 w-3 text-white" />
+                </div>
+                <div className="bg-zinc-900 border border-zinc-800/60 rounded-2xl rounded-bl-sm px-3 py-2.5 flex items-center gap-1.5">
+                  <span className="text-[11px] text-zinc-400 italic">Analyzing ERP data</span>
+                  <TypingDots />
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Scroll to bottom button */}
+          {showScrollBtn && (
+            <button
+              onClick={scrollToBottom}
+              className="absolute bottom-24 left-1/2 -translate-x-1/2 flex items-center gap-1 bg-zinc-800 border border-zinc-700 rounded-full px-2.5 py-1 text-[10px] text-zinc-300 shadow cursor-pointer hover:bg-zinc-700 transition-colors"
+            >
+              <ChevronDown className="h-3 w-3" />
+              Scroll to bottom
+            </button>
+          )}
+
+          {/* ── Suggestions ────────────────────────────────────────────── */}
+          {!isStreaming && !isThinking && suggestions.length > 0 && (
+            <div className="px-3 py-2 border-t border-zinc-900/80 bg-zinc-950 flex gap-1.5 overflow-x-auto no-scrollbar shrink-0">
+              {suggestions.map((s, i) => (
+                <button
+                  key={i}
+                  onClick={() => handleSend(s)}
+                  className="rounded-full bg-zinc-900 border border-zinc-800 hover:border-purple-500/40 hover:bg-purple-500/5 text-zinc-300 hover:text-purple-300 text-[10px] px-3 py-1 font-medium transition-all cursor-pointer active:scale-95 whitespace-nowrap flex-shrink-0"
+                >
+                  {s}
                 </button>
               ))}
             </div>
           )}
 
-          {/* Text Input Panel */}
-          <form 
-            onSubmit={(e) => { e.preventDefault(); handleSend(input); }}
-            className="p-3 border-t border-zinc-800 bg-zinc-950 flex items-center gap-2"
+          {/* ── Input Area ─────────────────────────────────────────────── */}
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              handleSend(input);
+            }}
+            className="flex items-center gap-2 border-t border-zinc-800/80 bg-zinc-950 px-3 py-2.5 shrink-0"
           >
             <input
+              ref={inputRef}
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder={isStreaming ? "Streaming response..." : "Ask AltRix Copilot..."}
+              placeholder={isStreaming ? "Generating response..." : "Ask AltRix Copilot…"}
               disabled={isStreaming}
-              className="flex-1 rounded-xl bg-zinc-900 border border-zinc-800 text-white text-xs px-3.5 py-2.5 placeholder:text-zinc-500 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-purple-500/50"
+              className="flex-1 rounded-xl bg-zinc-900 border border-zinc-800 text-zinc-100 text-[12px] px-3.5 py-2 placeholder:text-zinc-600 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-purple-500/60 transition-shadow disabled:opacity-50"
             />
-            <Button
-              type="submit"
-              disabled={isStreaming || !input.trim()}
-              size="icon"
-              className="rounded-xl bg-purple-600 hover:bg-purple-500 text-white w-9 h-9 border-0 cursor-pointer flex-shrink-0"
-            >
-              <Send className="h-4 w-4" />
-            </Button>
+            {isStreaming ? (
+              <button
+                type="button"
+                onClick={handleStop}
+                className="flex items-center justify-center h-9 w-9 rounded-xl bg-rose-600 hover:bg-rose-500 text-white border-0 cursor-pointer shrink-0 transition-colors"
+                title="Stop generation"
+              >
+                <Square className="h-3.5 w-3.5 fill-white" />
+              </button>
+            ) : (
+              <Button
+                type="submit"
+                disabled={!input.trim()}
+                size="icon"
+                className="h-9 w-9 rounded-xl bg-gradient-to-br from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white border-0 cursor-pointer flex-shrink-0 shadow-sm"
+              >
+                <Send className="h-4 w-4" />
+              </Button>
+            )}
           </form>
+
+          {/* ── Footer Branding ─────────────────────────────────────────── */}
+          <div className="text-center py-1.5 bg-zinc-950 border-t border-zinc-900/50">
+            <p className="text-[9px] text-zinc-700 font-medium tracking-wider uppercase">
+              AltRix AI · Powered by Qwen &amp; DeepSeek R1
+            </p>
+          </div>
         </div>
       )}
     </>

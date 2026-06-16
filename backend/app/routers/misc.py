@@ -689,6 +689,39 @@ async def set_ai_status(db: DbSession, enabled: bool):
         {"val": json.dumps({"enabled": enabled})}
     )
 
+# ── Per-school AI toggle ──────────────────────────────────────────────────────
+
+def _school_ai_key(school_id: str) -> str:
+    return f"ai_enabled_{school_id}"
+
+async def get_school_ai_status(db: DbSession, school_id: str) -> bool:
+    """Returns per-school AI toggle. Defaults to False (must be explicitly enabled per school)."""
+    try:
+        res = await db.execute(
+            text("SELECT value FROM public.system_settings WHERE key = :key"),
+            {"key": _school_ai_key(school_id)}
+        )
+        row = res.fetchone()
+        if row:
+            val = row[0]
+            if isinstance(val, str):
+                val = json.loads(val)
+            return val.get("enabled", False)
+    except Exception as e:
+        logger.warning(f"Error fetching per-school AI status for {school_id}: {e}")
+    return False
+
+async def set_school_ai_status(db: DbSession, school_id: str, enabled: bool):
+    await db.execute(
+        text("""
+            INSERT INTO public.system_settings (key, value)
+            VALUES (:key, :val)
+            ON CONFLICT (key) DO UPDATE SET value = :val, updated_at = now()
+        """),
+        {"key": _school_ai_key(school_id), "val": json.dumps({"enabled": enabled})}
+    )
+    await db.commit()
+
 async def fetch_ai_context(db: DbSession, user: AuthenticatedUser, school_id: str) -> str:
     from app.utils.permissions import expand_roles
     effective_roles = expand_roles(user.roles)
@@ -983,8 +1016,19 @@ Recent Staff Leave Requests:
 
 
 @ai_router.get("/settings")
-async def get_ai_settings(db: DbSession):
-    enabled = await get_ai_status(db)
+async def get_ai_settings(
+    db: DbSession,
+    school_id: Optional[str] = None,
+):
+    """
+    Returns AI enabled status.
+    - If school_id is provided → returns the per-school toggle.
+    - Otherwise → returns the global platform-level toggle.
+    """
+    if school_id:
+        enabled = await get_school_ai_status(db, school_id)
+    else:
+        enabled = await get_ai_status(db)
     return {"enabled": enabled}
 
 
@@ -1004,6 +1048,43 @@ async def update_ai_settings(
     return {"success": True, "enabled": body.enabled}
 
 
+@ai_router.get("/settings/school/{school_id}")
+async def get_school_ai_settings(
+    school_id: str,
+    current_user: CurrentUser,
+    db: DbSession,
+):
+    """Get AI copilot toggle status for a specific school (Super Admin only)."""
+    from fastapi import HTTPException
+    if not current_user.is_super_admin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Super Admin only.")
+    enabled = await get_school_ai_status(db, school_id)
+    return {"school_id": school_id, "enabled": enabled}
+
+
+@ai_router.post("/settings/school/{school_id}")
+async def update_school_ai_settings(
+    school_id: str,
+    body: AiSettingsUpdate,
+    current_user: CurrentUser,
+    db: DbSession,
+):
+    """Enable or disable AI copilot for a specific school. Super Admin only."""
+    from fastapi import HTTPException
+    if not current_user.is_super_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only platform super administrators can modify per-school AI settings."
+        )
+    # Verify the school exists
+    school_res = await db.execute(text("SELECT id FROM public.schools WHERE id = :sid"), {"sid": school_id})
+    if not school_res.fetchone():
+        raise HTTPException(status_code=404, detail="School not found.")
+    await set_school_ai_status(db, school_id, body.enabled)
+    logger.info(f"Super admin {current_user.email} {'enabled' if body.enabled else 'disabled'} AI for school {school_id}")
+    return {"success": True, "school_id": school_id, "enabled": body.enabled}
+
+
 @ai_router.post("/copilot")
 async def copilot_chat(
     body: CopilotChatRequest,
@@ -1014,12 +1095,15 @@ async def copilot_chat(
     from fastapi.responses import StreamingResponse
     from app.utils.ai_service import OllamaAIService
     
-    # 1. Enforce AI Enabled Setting
-    ai_enabled = await get_ai_status(db)
+    # 1. Enforce Per-School AI Enabled Setting (falls back to global check)
+    if current_user.school_id:
+        ai_enabled = await get_school_ai_status(db, current_user.school_id)
+    else:
+        ai_enabled = await get_ai_status(db)
     if not ai_enabled:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="AI Copilot is currently disabled by system administrator."
+            detail="AI Copilot is not enabled for this school. Ask your platform administrator to enable it."
         )
 
     if not current_user.school_id:
@@ -1032,36 +1116,46 @@ async def copilot_chat(
     db_context = await fetch_ai_context(db, current_user, current_user.school_id)
     
     # 3. Build System Prompt
-    system_prompt = f"""You are the official AltRix Enterprise AI Copilot, a deeply integrated ERP operating assistant for school staff, teachers, parents, and students.
-    
-Your role is to help users navigate the school ERP, fetch records, summarize analytics, and trigger official ERP reports.
+    system_prompt = f"""You are the official **AltRix Enterprise AI Copilot**, a deeply integrated ERP assistant for school staff, teachers, parents, and students.
 
-Current User Details:
+Your role is to help users navigate the school ERP, analyze live data, summarize insights, and trigger official reports.
+
+**Current User Details:**
 - User ID: {current_user.id}
-- User Email: {current_user.email}
-- Assigned Roles: {current_user.roles}
+- Email: {current_user.email}
+- Roles: {current_user.roles}
 - School ID: {current_user.school_id}
 
 {db_context}
 
-RULES:
-1. SECURITY & PRIVACY:
-   - You MUST NOT expose any data outside the user's role context provided above.
-   - If a parent asks about other students, refuse firmly. If a teacher asks about class sections not in their context, refuse.
-2. DATA ACCURACY:
-   - Base all answers on the live ERP metrics and tables provided in the Role Context above.
-   - Do not make up or guess any data. If the user asks about something not in the context, state clearly that the data is not available.
-3. BRANDING & REPORT GENERATION:
-   - NEVER suggest custom PDF/document layouts.
-   - Instead, tell the user that the official AltRix templates will be used and output a structured Action Tag.
-   - Action tags MUST use the exact format: <altrix_action>{{"type": "ACTION_NAME", "params": {{...}}}}</altrix_action>
-   - Supported Actions:
-     * Generate Fee Voucher: <altrix_action>{{"type": "GENERATE_VOUCHER", "studentId": "STUDENT_UUID", "invoiceId": "INVOICE_UUID"}}</altrix_action>
-     * Generate Result Card: <altrix_action>{{"type": "GENERATE_RESULT_CARD", "studentId": "STUDENT_UUID", "examId": "EXAM_UUID"}}</altrix_action>
-     * Generate Attendance Report: <altrix_action>{{"type": "EXPORT_ATTENDANCE", "sectionId": "SECTION_UUID", "fromDate": "YYYY-MM-DD", "toDate": "YYYY-MM-DD"}}</altrix_action>
-     * Generate Grades Report: <altrix_action>{{"type": "EXPORT_GRADES", "sectionId": "SECTION_UUID"}}</altrix_action>
-   - When suggesting these actions, explain to the user that they can click the button below to generate it using the official branding layout.
-4. Keep answers concise, direct, and highly professional. Include bullet points for lists.
+---
+
+**RESPONSE STYLE:**
+- Use Markdown formatting: **bold** for key numbers, `code` for IDs, bullet points for lists, headers for sections
+- Keep answers concise, direct, and professional
+- For analytics, always highlight the most important insight first
+
+**SECURITY & PRIVACY (Non-Negotiable):**
+- NEVER expose data outside the user's role context above
+- If a parent asks about other students, firmly refuse
+- If a teacher asks about sections not assigned to them, refuse
+
+**DATA ACCURACY:**
+- Base ALL answers on the live ERP metrics provided in the Role Context
+- Do NOT make up data. If data is not available, clearly state it
+
+**NAVIGATION ACTIONS:**
+- For any request to navigate or open a module, output a NAVIGATE_TO action
+- Supported navigation routes for this role: /accountant, /fees, /invoices, /payments, /reports, /payroll
+
+**ERP ACTIONS (use these when user asks to generate a document):**
+- Fee Voucher: <altrix_action>{{"type": "GENERATE_VOUCHER", "invoiceId": "INVOICE_UUID", "studentId": "STUDENT_UUID", "label": "Fee Voucher for [Student Name]"}}</altrix_action>
+- Result Card: <altrix_action>{{"type": "GENERATE_RESULT_CARD", "studentId": "STUDENT_UUID", "examId": "EXAM_UUID", "label": "Result Card"}}</altrix_action>
+- Attendance Report: <altrix_action>{{"type": "EXPORT_ATTENDANCE", "sectionId": "SECTION_UUID", "fromDate": "YYYY-MM-DD", "toDate": "YYYY-MM-DD", "label": "Attendance Report"}}</altrix_action>
+- Grades Report: <altrix_action>{{"type": "EXPORT_GRADES", "sectionId": "SECTION_UUID", "label": "Grades Report"}}</altrix_action>
+- Navigate to Module: <altrix_action>{{"type": "NAVIGATE_TO", "route": "/accountant/invoices", "label": "Open Invoices Module"}}</altrix_action>
+
+**IMPORTANT:** Output exactly ONE action tag per response, at the very END of your message.
 """
 
     # 4. Stream response from OllamaAIService
