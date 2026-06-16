@@ -8,6 +8,7 @@ import { toast } from "sonner";
 
 import { supabase } from "@/integrations/supabase/client";
 import { useTenant } from "@/hooks/useTenant";
+import { useRealtimeTable } from "@/hooks/useRealtime";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -78,6 +79,50 @@ export default function FeeVouchersModule() {
     qc.invalidateQueries({ queryKey: ["proof_invoices"] });
     toast.success("Vouchers and proofs refreshed!");
   };
+
+  // Real-time subscriptions for immediate syncing
+  useRealtimeTable({
+    channel: `voucher-batches-${schoolId}`,
+    table: "fee_voucher_batches",
+    filter: schoolId ? `school_id=eq.${schoolId}` : undefined,
+    enabled: !!schoolId,
+    onChange: () => {
+      qc.invalidateQueries({ queryKey: ["fee_voucher_batches", schoolId] });
+    },
+  });
+
+  useRealtimeTable({
+    channel: `payment-proofs-${schoolId}`,
+    table: "fee_payment_proofs",
+    filter: schoolId ? `school_id=eq.${schoolId}` : undefined,
+    enabled: !!schoolId,
+    onChange: () => {
+      qc.invalidateQueries({ queryKey: ["fee_payment_proofs"] });
+      qc.invalidateQueries({ queryKey: ["proof_invoices"] });
+    },
+  });
+
+  useRealtimeTable({
+    channel: `proof-invoices-${schoolId}`,
+    table: "fee_invoices",
+    filter: schoolId ? `school_id=eq.${schoolId}` : undefined,
+    enabled: !!schoolId,
+    onChange: () => {
+      qc.invalidateQueries({ queryKey: ["proof_invoices"] });
+      qc.invalidateQueries({ queryKey: ["fee_invoices", schoolId] });
+    },
+  });
+
+  useRealtimeTable({
+    channel: `proof-payments-${schoolId}`,
+    table: "fee_payments",
+    filter: schoolId ? `school_id=eq.${schoolId}` : undefined,
+    enabled: !!schoolId,
+    onChange: () => {
+      qc.invalidateQueries({ queryKey: ["fee_payment_proofs"] });
+      qc.invalidateQueries({ queryKey: ["fee_payments", schoolId] });
+    },
+  });
 
   const { data: batches = [] } = useQuery({
     queryKey: ["fee_voucher_batches", schoolId],

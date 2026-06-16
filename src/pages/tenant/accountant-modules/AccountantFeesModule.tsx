@@ -22,6 +22,7 @@ import {
 
 import { supabase } from "@/integrations/supabase/client";
 import { useTenant } from "@/hooks/useTenant";
+import { useRealtimeTable } from "@/hooks/useRealtime";
 import { useOfflineFeePlans } from "@/hooks/useOfflineData";
 import { OfflineDataBanner } from "@/components/offline/OfflineDataBanner";
 
@@ -103,6 +104,37 @@ export function AccountantFeesModule() {
     queryClient.invalidateQueries({ queryKey: ["student_fee_assignments_summary", schoolId] });
     toast.success("Billing structures refreshed!");
   };
+
+  // Real-time subscriptions for immediate syncing
+  useRealtimeTable({
+    channel: `fee-plans-${schoolId}`,
+    table: "fee_plans",
+    filter: schoolId ? `school_id=eq.${schoolId}` : undefined,
+    enabled: !!schoolId,
+    onChange: () => {
+      queryClient.invalidateQueries({ queryKey: ["fee_plans", schoolId] });
+    },
+  });
+
+  useRealtimeTable({
+    channel: `fee-plan-items-${schoolId}`,
+    table: "fee_plan_items",
+    filter: schoolId ? `school_id=eq.${schoolId}` : undefined,
+    enabled: !!schoolId,
+    onChange: () => {
+      queryClient.invalidateQueries({ queryKey: ["fee_plan_items", schoolId] });
+    },
+  });
+
+  useRealtimeTable({
+    channel: `fee-assignments-${schoolId}`,
+    table: "student_fee_assignments",
+    filter: schoolId ? `school_id=eq.${schoolId}` : undefined,
+    enabled: !!schoolId,
+    onChange: () => {
+      queryClient.invalidateQueries({ queryKey: ["student_fee_assignments_summary", schoolId] });
+    },
+  });
 
   // Modal / Form state
   const [dialogOpen, setDialogOpen] = useState(false);

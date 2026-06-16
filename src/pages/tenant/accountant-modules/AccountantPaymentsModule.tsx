@@ -316,6 +316,17 @@ export function AccountantPaymentsModule() {
       return;
     }
 
+    if (invoice.status === "paid" || invoice.paid_amount >= invoice.total_amount) {
+      toast.error("This invoice is already fully paid.");
+      return;
+    }
+
+    const remainingBalance = invoice.total_amount - invoice.paid_amount;
+    if (amount > remainingBalance) {
+      toast.error(`Payment amount exceeds the remaining balance of Rs. ${remainingBalance.toLocaleString()}`);
+      return;
+    }
+
     // Insert Payment into fee_payments
     const { error: paymentError } = await supabase.from("fee_payments").insert({
       school_id: schoolId,

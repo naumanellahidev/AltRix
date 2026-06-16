@@ -167,6 +167,18 @@ export default function FeesAdvancedModule() {
         const { data } = await supabase.from("finance_expenses").select("*").eq("school_id", schoolId).order("expense_date", { ascending: false }).limit(500);
         setExpenses(data || []);
       })
+      .on("postgres_changes", { event: "*", schema: "public", table: "student_fee_assignments", filter: `school_id=eq.${schoolId}` }, async () => {
+        const { data } = await supabase.from("student_fee_assignments").select("id, student_id, fee_plan_id, discount_pct, scholarship_amount").eq("school_id", schoolId);
+        setAssignments((data as StudentAssignment[]) || []);
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "fee_plans", filter: `school_id=eq.${schoolId}` }, async () => {
+        const { data } = await supabase.from("fee_plans").select("*").eq("school_id", schoolId).order("created_at", { ascending: false });
+        setPlans((data as FeePlanRow[]) || []);
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "fee_plan_items", filter: `school_id=eq.${schoolId}` }, async () => {
+        const { data } = await supabase.from("fee_plan_items").select("*").eq("school_id", schoolId);
+        setItems((data as FeePlanItem[]) || []);
+      })
       .subscribe();
     return () => { supabase.removeChannel(ch); };
   }, [schoolId]);
@@ -740,15 +752,54 @@ export default function FeesAdvancedModule() {
   // ---------- PAYMENTS ----------
   const recordPayment = async () => {
     if (!schoolId || !payForm.invoice_id || !payForm.amount) return toast.error("Invoice and amount required");
+    const amount = Number(payForm.amount);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      return toast.error("Amount must be a positive number");
+    }
+
     const inv = invoices.find(i => i.id === payForm.invoice_id);
     if (!inv) return toast.error("Invoice not found");
-    const { error } = await supabase.from("fee_payments").insert({
+
+    if (inv.status === "paid" || inv.paid_amount >= inv.total_amount) {
+      return toast.error("This invoice is already fully paid.");
+    }
+
+    const remainingBalance = inv.total_amount - inv.paid_amount;
+    if (amount > remainingBalance) {
+      return toast.error(`Payment amount exceeds the remaining balance of Rs. ${remainingBalance.toLocaleString()}`);
+    }
+
+    const { error: paymentError } = await supabase.from("fee_payments").insert({
       school_id: schoolId, invoice_id: inv.id, student_id: inv.student_id,
-      amount: Number(payForm.amount), method: payForm.method as any, status: "success",
+      amount, method: payForm.method as any, status: "success",
       transaction_ref: payForm.transaction_ref || null, notes: payForm.notes || null,
+      paid_at: new Date().toISOString()
     });
-    if (error) return toast.error(error.message);
-    toast.success("Payment recorded");
+    if (paymentError) return toast.error(paymentError.message);
+
+    // Automatically recalculate and update invoice status
+    const remaining = inv.total_amount - (inv.paid_amount + amount);
+    let nextStatus = "partial";
+    if (remaining <= 0) {
+      nextStatus = "paid";
+    } else if (inv.paid_amount + amount === 0) {
+      nextStatus = "pending";
+    }
+
+    const { error: invoiceError } = await supabase
+      .from("fee_invoices")
+      .update({
+        paid_amount: inv.paid_amount + amount,
+        status: nextStatus as any
+      })
+      .eq("id", inv.id);
+
+    if (invoiceError) {
+      toast.error("Payment logged, but failed to update invoice status: " + invoiceError.message);
+    } else {
+      toast.success("Payment recorded successfully");
+    }
+
     setPayOpen(false);
     setPayForm({ invoice_id: "", amount: "", method: "cash", transaction_ref: "", notes: "" });
   };
