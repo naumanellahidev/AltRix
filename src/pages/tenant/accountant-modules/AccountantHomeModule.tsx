@@ -613,57 +613,29 @@ export function AccountantHomeModule() {
   return (
     <div className="space-y-6">
       {/* Tab Navigation */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <div className="-mx-1 overflow-x-auto no-scrollbar pb-2">
-          <TabsList className="inline-flex w-max min-w-full md:min-w-0 bg-blue-50/20 backdrop-blur-md border border-blue-100/40 p-1.5 rounded-2xl">
-            <TabsTrigger 
-              value="overview" 
-              className="gap-2 px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-all duration-300 data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-[0_8px_24px_rgba(37,99,235,0.08)] data-[state=active]:border data-[state=active]:border-blue-100/10 text-slate-500 hover:text-blue-600"
-            >
-              <Activity className="h-4 w-4 shrink-0" />
-              <span>Overview</span>
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4 lg:space-y-6">
+        <div className="-mx-1 overflow-x-auto no-scrollbar">
+          <TabsList className="inline-flex w-max min-w-full gap-1 p-1">
+            <TabsTrigger value="overview" className="px-3 py-2 text-xs sm:px-4 sm:text-sm whitespace-nowrap">
+              Overview
             </TabsTrigger>
-            <TabsTrigger 
-              value="analytics" 
-              className="gap-2 px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-all duration-300 data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-[0_8px_24px_rgba(37,99,235,0.08)] data-[state=active]:border data-[state=active]:border-blue-100/10 text-slate-500 hover:text-blue-600"
-            >
-              <BarChart3 className="h-4 w-4 shrink-0" />
-              <span>Analytics</span>
+            <TabsTrigger value="analytics" className="px-3 py-2 text-xs sm:px-4 sm:text-sm whitespace-nowrap">
+              Analytics
             </TabsTrigger>
-            <TabsTrigger 
-              value="salary" 
-              className="gap-2 px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-all duration-300 data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-[0_8px_24px_rgba(37,99,235,0.08)] data-[state=active]:border data-[state=active]:border-blue-100/10 text-slate-500 hover:text-blue-600"
-            >
-              <Users className="h-4 w-4 shrink-0" />
-              <span>Salary Analysis</span>
+            <TabsTrigger value="salary" className="px-3 py-2 text-xs sm:px-4 sm:text-sm whitespace-nowrap">
+              Salary Analysis
             </TabsTrigger>
-            <TabsTrigger 
-              value="budget" 
-              className="gap-2 px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-all duration-300 data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-[0_8px_24px_rgba(37,99,235,0.08)] data-[state=active]:border data-[state=active]:border-blue-100/10 text-slate-500 hover:text-blue-600"
-            >
-              <Target className="h-4 w-4 shrink-0" />
-              <span>Budget Forecast</span>
+            <TabsTrigger value="budget" className="px-3 py-2 text-xs sm:px-4 sm:text-sm whitespace-nowrap">
+              Budget Forecast
             </TabsTrigger>
-            <TabsTrigger 
-              value="fees" 
-              className="gap-2 px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-all duration-300 data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-[0_8px_24px_rgba(37,99,235,0.08)] data-[state=active]:border data-[state=active]:border-blue-100/10 text-slate-500 hover:text-blue-600"
-            >
-              <GraduationCap className="h-4 w-4 shrink-0" />
-              <span>Student Fees</span>
+            <TabsTrigger value="fees" className="px-3 py-2 text-xs sm:px-4 sm:text-sm whitespace-nowrap">
+              Student Fees
             </TabsTrigger>
-            <TabsTrigger 
-              value="defaulters" 
-              className="gap-2 px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-all duration-300 data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-[0_8px_24px_rgba(37,99,235,0.08)] data-[state=active]:border data-[state=active]:border-blue-100/10 text-slate-500 hover:text-blue-600"
-            >
-              <AlertTriangle className="h-4 w-4 shrink-0" />
-              <span>Defaulters</span>
+            <TabsTrigger value="defaulters" className="px-3 py-2 text-xs sm:px-4 sm:text-sm whitespace-nowrap">
+              Defaulters
             </TabsTrigger>
-            <TabsTrigger 
-              value="reports" 
-              className="gap-2 px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-all duration-300 data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-[0_8px_24px_rgba(37,99,235,0.08)] data-[state=active]:border data-[state=active]:border-blue-100/10 text-slate-500 hover:text-blue-600"
-            >
-              <Download className="h-4 w-4 shrink-0" />
-              <span>Reports</span>
+            <TabsTrigger value="reports" className="px-3 py-2 text-xs sm:px-4 sm:text-sm whitespace-nowrap">
+              Reports
             </TabsTrigger>
           </TabsList>
         </div>
@@ -672,245 +644,238 @@ export function AccountantHomeModule() {
           {/* Financial Health Score + Quick Stats */}
           <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,270px)_minmax(0,1fr)]">
             {/* Health Score Card */}
-            <MotionCard 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="bg-gradient-to-br from-white via-white to-blue-50/10 border border-slate-100 shadow-[0_12px_40px_rgba(8,112,184,0.03)] min-w-0 rounded-3xl overflow-hidden relative group"
-            >
-              {/* Luxury Accent Line */}
-              <div className="absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r from-blue-600 via-indigo-600 to-sky-500" />
-              <CardHeader className="pb-2 pt-5">
-                <CardTitle className="flex items-center gap-2 text-[10px] font-extrabold uppercase tracking-widest text-slate-400">
-                  <div className="p-1.5 rounded-lg bg-blue-50 text-blue-600 border border-blue-100/40">
-                    <Shield className="h-3.5 w-3.5" />
+            <Card className="relative overflow-hidden bg-surface shadow-elevated border hover:shadow-md hover:border-primary/40 cursor-pointer transition-all duration-300 group/kpi flex flex-col justify-between">
+              <CardContent className="p-5 flex flex-col justify-between h-full">
+                <div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-muted-foreground group-hover/kpi:text-primary transition-colors">Financial Health</span>
+                    <div className="p-2 rounded-xl bg-primary/10 text-primary">
+                      <Shield className="h-5 w-5" />
+                    </div>
                   </div>
-                  <span className="truncate">Financial Health</span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="pt-2">
-                <div className="flex items-center justify-center">
-                  <div className="relative h-[120px] w-[180px]">
-                    <svg viewBox="0 0 120 70" className="w-full h-full">
-                      <defs>
-                        <linearGradient id="healthGaugeGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                          <stop offset="0%" stopColor="#f43f5e" /> {/* rose-500 */}
-                          <stop offset="50%" stopColor="#fbbf24" /> {/* amber-400 */}
-                          <stop offset="100%" stopColor="#3b82f6" /> {/* blue-500 */}
-                        </linearGradient>
-                      </defs>
-                      {/* Background Track Arc */}
-                      <path
-                        d="M 15 60 A 45 45 0 0 1 105 60"
-                        fill="none"
-                        stroke="#f1f5f9"
-                        strokeWidth="8"
-                        strokeLinecap="round"
-                      />
-                      {/* Value Arc */}
-                      <path
-                        d="M 15 60 A 45 45 0 0 1 105 60"
-                        fill="none"
-                        stroke="url(#healthGaugeGradient)"
-                        strokeWidth="8"
-                        strokeLinecap="round"
-                        strokeDasharray="141"
-                        strokeDashoffset={141 - (141 * Math.min(financialHealth, 100)) / 100}
-                        className="transition-all duration-1000 ease-out"
-                      />
-                    </svg>
-                    <div className="absolute inset-x-0 bottom-2 flex flex-col items-center justify-center">
-                      <span className={`text-4xl font-extrabold tracking-tight ${getHealthColor(financialHealth)}`}>
-                        {financialHealth}
-                      </span>
-                      <span className="text-[9px] font-extrabold text-slate-400 uppercase tracking-widest mt-1">{getHealthLabel(financialHealth)}</span>
+                  <div className="flex flex-col items-center justify-center mt-4">
+                    <div className="relative h-[110px] w-[180px] flex items-center justify-center">
+                      <svg viewBox="0 0 120 70" className="w-full h-full">
+                        <defs>
+                          <linearGradient id="healthGaugeGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                            <stop offset="0%" stopColor="hsl(var(--destructive))" />
+                            <stop offset="50%" stopColor="hsl(var(--warning))" />
+                            <stop offset="100%" stopColor="hsl(var(--primary))" />
+                          </linearGradient>
+                        </defs>
+                        {/* Background Track Arc */}
+                        <path
+                          d="M 15 60 A 45 45 0 0 1 105 60"
+                          fill="none"
+                          stroke="currentColor"
+                          className="text-muted/20"
+                          strokeWidth="8"
+                          strokeLinecap="round"
+                        />
+                        {/* Value Arc */}
+                        <path
+                          d="M 15 60 A 45 45 0 0 1 105 60"
+                          fill="none"
+                          stroke="url(#healthGaugeGradient)"
+                          strokeWidth="8"
+                          strokeLinecap="round"
+                          strokeDasharray="141"
+                          strokeDashoffset={141 - (141 * Math.min(financialHealth, 100)) / 100}
+                          className="transition-all duration-1000 ease-out"
+                        />
+                      </svg>
+                      <div className="absolute inset-x-0 bottom-2 flex flex-col items-center justify-center">
+                        <span className={`text-3xl font-extrabold tracking-tight ${getHealthColor(financialHealth)}`}>
+                          {financialHealth}
+                        </span>
+                        <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest mt-0.5">{getHealthLabel(financialHealth)}</span>
+                      </div>
                     </div>
                   </div>
                 </div>
-                <div className="mt-6 space-y-3">
-                  <div className="flex justify-between items-center gap-2 text-xs border-b border-slate-100/80 pb-2">
+
+                <div className="mt-4 space-y-2">
+                  <div className="flex justify-between items-center gap-2 text-xs border-b pb-1.5">
                     <div className="flex items-center gap-1.5 truncate">
-                      <div className="h-1.5 w-1.5 rounded-full bg-blue-500" />
-                      <span className="text-slate-500 font-semibold truncate">Collection Rate</span>
+                      <div className="h-1.5 w-1.5 rounded-full bg-primary" />
+                      <span className="text-muted-foreground font-medium truncate">Collection Rate</span>
                     </div>
-                    <span className="font-extrabold text-slate-800 shrink-0">{stats.collectionRate.toFixed(1)}%</span>
+                    <span className="font-semibold text-foreground shrink-0">{stats.collectionRate.toFixed(1)}%</span>
                   </div>
-                  <div className="flex justify-between items-center gap-2 text-xs border-b border-slate-100/80 pb-2">
+                  <div className="flex justify-between items-center gap-2 text-xs border-b pb-1.5">
                     <div className="flex items-center gap-1.5 truncate">
                       <div className={`h-1.5 w-1.5 rounded-full ${stats.profitMargin >= 0 ? "bg-emerald-500" : "bg-rose-500"}`} />
-                      <span className="text-slate-500 font-semibold truncate">Profit Margin</span>
+                      <span className="text-muted-foreground font-medium truncate">Profit Margin</span>
                     </div>
-                    <span className={`font-extrabold shrink-0 ${stats.profitMargin >= 0 ? "text-emerald-600" : "text-rose-500"}`}>
+                    <span className={`font-semibold shrink-0 ${stats.profitMargin >= 0 ? "text-emerald-600" : "text-rose-500"}`}>
                       {stats.profitMargin.toFixed(1)}%
                     </span>
                   </div>
                   <div className="flex justify-between items-center gap-2 text-xs">
                     <div className="flex items-center gap-1.5 truncate">
                       <div className={`h-1.5 w-1.5 rounded-full ${stats.overdueInvoices === 0 ? "bg-emerald-500" : "bg-rose-500"}`} />
-                      <span className="text-slate-500 font-semibold truncate">Overdue Rate</span>
+                      <span className="text-muted-foreground font-medium truncate">Overdue Rate</span>
                     </div>
-                    <span className={`font-extrabold shrink-0 ${stats.overdueInvoices === 0 ? "text-emerald-600" : "text-rose-500"}`}>
+                    <span className={`font-semibold shrink-0 ${stats.overdueInvoices === 0 ? "text-emerald-600" : "text-rose-500"}`}>
                       {invoices.length > 0 ? ((stats.overdueInvoices / invoices.length) * 100).toFixed(1) : 0}%
                     </span>
                   </div>
                 </div>
               </CardContent>
-            </MotionCard>
+            </Card>
 
             {/* Key Metrics Grid */}
             <div className="grid auto-rows-fr grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 min-w-0 w-full">
-              <MotionCard 
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.1 }}
-                className="bg-gradient-to-br from-white via-white to-blue-50/15 border border-slate-100/90 shadow-[0_12px_40px_rgba(8,112,184,0.03)] hover:border-blue-300 hover:shadow-[0_20px_45px_rgba(37,99,235,0.06)] hover:-translate-y-1 transition-all duration-300 cursor-pointer rounded-3xl min-w-0 group overflow-hidden relative h-[180px] flex flex-col justify-between"
+              {/* Card 1: Total Revenue */}
+              <Card 
+                className="relative overflow-hidden bg-surface shadow-elevated border hover:shadow-md hover:border-primary/40 cursor-pointer transition-all duration-300 group/kpi flex flex-col justify-between"
                 onClick={() => navigate(`/${schoolSlug}/accountant/reports`)}
               >
-                {/* Accent Line */}
-                <div className="absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r from-blue-500 to-indigo-600" />
-                <CardContent className="flex h-full flex-col justify-between p-6 pt-7">
-                  <div className="flex items-center justify-between gap-2 w-full">
-                    <div className="bg-gradient-to-br from-blue-500 to-indigo-600 text-white shadow-[0_6px_20px_rgba(37,99,235,0.25)] p-2.5 rounded-2xl shrink-0 group-hover:scale-105 transition-transform duration-300">
-                      <TrendingUp className="h-4.5 w-4.5" />
-                    </div>
-                    {stats.revenueGrowth !== 0 ? (
-                      <div className={`flex items-center gap-0.5 text-[10px] font-bold px-2 py-0.5 rounded-full ${stats.revenueGrowth > 0 ? "bg-emerald-50/80 text-emerald-600 border border-emerald-100/40" : "bg-rose-50/80 text-rose-600 border border-rose-100/40"}`}>
-                        {stats.revenueGrowth > 0 ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
-                        {Math.abs(stats.revenueGrowth).toFixed(1)}%
+                <CardContent className="p-5 flex flex-col justify-between h-full">
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-muted-foreground group-hover/kpi:text-primary transition-colors">Total Revenue</span>
+                      <div className="p-2 rounded-xl bg-primary/10 text-primary">
+                        <TrendingUp className="h-5 w-5" />
                       </div>
-                    ) : (
-                      <ArrowRight className="h-4 w-4 text-blue-400 opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all duration-200" />
-                    )}
-                  </div>
-                  <div className="mt-4">
-                    <p className="text-3xl font-black text-slate-800 tracking-tight truncate" title={stats.totalRevenue.toLocaleString()}>{formatCompact(stats.totalRevenue)}</p>
-                    <p className="text-[10px] text-slate-400 font-extrabold uppercase tracking-widest mt-1 truncate">Total Revenue</p>
+                    </div>
+                    <div className="mt-4">
+                      <h3 className="text-3xl font-bold tracking-tight font-display text-foreground flex items-baseline gap-1">
+                        <span>{formatCompact(stats.totalRevenue)}</span>
+                        <ArrowRight className="h-4 w-4 text-primary opacity-0 -translate-x-1 group-hover/kpi:opacity-100 group-hover/kpi:translate-x-0 transition-all duration-200" />
+                      </h3>
+                      {stats.revenueGrowth !== 0 && (
+                        <p className="mt-1 text-xs text-muted-foreground flex items-center gap-1">
+                          {stats.revenueGrowth > 0 ? (
+                            <ArrowUpRight className="h-3 w-3 text-emerald-500" />
+                          ) : (
+                            <ArrowDownRight className="h-3 w-3 text-rose-500" />
+                          )}
+                          <span>{Math.abs(stats.revenueGrowth).toFixed(1)}% vs last month</span>
+                        </p>
+                      )}
+                    </div>
                   </div>
                 </CardContent>
-              </MotionCard>
+              </Card>
 
-              <MotionCard 
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.15 }}
-                className="bg-gradient-to-br from-white via-white to-blue-50/15 border border-slate-100/90 shadow-[0_12px_40px_rgba(8,112,184,0.03)] hover:border-rose-300 hover:shadow-[0_20px_45px_rgba(244,63,94,0.06)] hover:-translate-y-1 transition-all duration-300 cursor-pointer rounded-3xl min-w-0 group overflow-hidden relative h-[180px] flex flex-col justify-between"
+              {/* Card 2: Total Expenses */}
+              <Card 
+                className="relative overflow-hidden bg-surface shadow-elevated border hover:shadow-md hover:border-primary/40 cursor-pointer transition-all duration-300 group/kpi flex flex-col justify-between"
                 onClick={() => navigate(`/${schoolSlug}/accountant/expenses`)}
               >
-                {/* Accent Line */}
-                <div className="absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r from-rose-400 to-red-500" />
-                <CardContent className="flex h-full flex-col justify-between p-6 pt-7">
-                  <div className="flex items-center justify-between gap-2 w-full">
-                    <div className="bg-gradient-to-br from-rose-500 to-red-600 text-white shadow-[0_6px_20px_rgba(244,63,94,0.25)] p-2.5 rounded-2xl shrink-0 group-hover:scale-105 transition-transform duration-300">
-                      <TrendingDown className="h-4.5 w-4.5" />
-                    </div>
-                    {stats.expenseGrowth !== 0 ? (
-                      <div className={`flex items-center gap-0.5 text-[10px] font-bold px-2 py-0.5 rounded-full ${stats.expenseGrowth > 0 ? "bg-rose-50/80 text-rose-600 border border-rose-100/40" : "bg-emerald-50/80 text-emerald-600 border border-emerald-100/40"}`}>
-                        {stats.expenseGrowth > 0 ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
-                        {Math.abs(stats.expenseGrowth).toFixed(1)}%
+                <CardContent className="p-5 flex flex-col justify-between h-full">
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-muted-foreground group-hover/kpi:text-primary transition-colors">Total Expenses</span>
+                      <div className="p-2 rounded-xl bg-rose-500/10 text-rose-500">
+                        <TrendingDown className="h-5 w-5" />
                       </div>
-                    ) : (
-                      <ArrowRight className="h-4 w-4 text-rose-400 opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all duration-200" />
-                    )}
-                  </div>
-                  <div className="mt-4">
-                    <p className="text-3xl font-black text-rose-600 tracking-tight truncate" title={stats.totalExpenses.toLocaleString()}>{formatCompact(stats.totalExpenses)}</p>
-                    <p className="text-[10px] text-slate-400 font-extrabold uppercase tracking-widest mt-1 truncate">Total Expenses</p>
+                    </div>
+                    <div className="mt-4">
+                      <h3 className="text-3xl font-bold tracking-tight font-display text-foreground flex items-baseline gap-1">
+                        <span>{formatCompact(stats.totalExpenses)}</span>
+                        <ArrowRight className="h-4 w-4 text-rose-500 opacity-0 -translate-x-1 group-hover/kpi:opacity-100 group-hover/kpi:translate-x-0 transition-all duration-200" />
+                      </h3>
+                      {stats.expenseGrowth !== 0 && (
+                        <p className="mt-1 text-xs text-muted-foreground flex items-center gap-1">
+                          {stats.expenseGrowth > 0 ? (
+                            <ArrowUpRight className="h-3 w-3 text-rose-500" />
+                          ) : (
+                            <ArrowDownRight className="h-3 w-3 text-emerald-500" />
+                          )}
+                          <span>{Math.abs(stats.expenseGrowth).toFixed(1)}% vs last month</span>
+                        </p>
+                      )}
+                    </div>
                   </div>
                 </CardContent>
-              </MotionCard>
+              </Card>
 
-              <MotionCard 
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.2 }}
-                className="bg-gradient-to-br from-white via-white to-blue-50/15 border border-slate-100/90 shadow-[0_12px_40px_rgba(8,112,184,0.03)] hover:border-blue-300 hover:shadow-[0_20px_45px_rgba(37,99,235,0.06)] hover:-translate-y-1 transition-all duration-300 cursor-pointer rounded-3xl min-w-0 group overflow-hidden relative h-[180px] flex flex-col justify-between"
+              {/* Card 3: Monthly Payroll */}
+              <Card 
+                className="relative overflow-hidden bg-surface shadow-elevated border hover:shadow-md hover:border-primary/40 cursor-pointer transition-all duration-300 group/kpi flex flex-col justify-between"
                 onClick={() => navigate(`/${schoolSlug}/accountant/payroll`)}
               >
-                {/* Accent Line */}
-                <div className="absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r from-sky-400 to-blue-500" />
-                <CardContent className="flex h-full flex-col justify-between p-6 pt-7">
-                  <div className="flex items-center justify-between gap-2 w-full">
-                    <div className="bg-gradient-to-br from-sky-400 to-blue-500 text-white shadow-[0_6px_20px_rgba(14,165,233,0.25)] p-2.5 rounded-2xl shrink-0 group-hover:scale-105 transition-transform duration-300">
-                      <Coins className="h-4.5 w-4.5" />
+                <CardContent className="p-5 flex flex-col justify-between h-full">
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-muted-foreground group-hover/kpi:text-primary transition-colors">Monthly Payroll</span>
+                      <div className="p-2 rounded-xl bg-violet-500/10 text-violet-500">
+                        <Coins className="h-5 w-5" />
+                      </div>
                     </div>
-                    <ArrowRight className="h-4 w-4 text-blue-400 opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all duration-200" />
-                  </div>
-                  <div className="mt-4">
-                    <p className="text-3xl font-black text-slate-800 tracking-tight truncate" title={stats.monthlyPayroll.toLocaleString()}>{formatCompact(stats.monthlyPayroll)}</p>
-                    <div className="flex items-center justify-between mt-1.5 gap-2">
-                      <p className="text-[10px] text-slate-400 font-extrabold uppercase tracking-widest truncate">Monthly Payroll</p>
-                      <p className="text-[9px] text-blue-600 font-bold bg-blue-50 px-2 py-0.5 rounded-full shrink-0 truncate border border-blue-100/30">{stats.activeEmployees} staff</p>
+                    <div className="mt-4">
+                      <h3 className="text-3xl font-bold tracking-tight font-display text-foreground flex items-baseline gap-1">
+                        <span>{formatCompact(stats.monthlyPayroll)}</span>
+                        <ArrowRight className="h-4 w-4 text-violet-500 opacity-0 -translate-x-1 group-hover/kpi:opacity-100 group-hover/kpi:translate-x-0 transition-all duration-200" />
+                      </h3>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {stats.activeEmployees} active staff
+                      </p>
                     </div>
                   </div>
                 </CardContent>
-              </MotionCard>
+              </Card>
 
-              <MotionCard 
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.25 }}
-                className="bg-gradient-to-br from-white via-white to-blue-50/15 border border-slate-100/90 shadow-[0_12px_40px_rgba(8,112,184,0.03)] hover:border-emerald-300 hover:shadow-[0_20px_45px_rgba(16,185,129,0.06)] hover:-translate-y-1 transition-all duration-300 cursor-pointer rounded-3xl min-w-0 group overflow-hidden relative h-[180px] flex flex-col justify-between"
+              {/* Card 4: Net Profit */}
+              <Card 
+                className="relative overflow-hidden bg-surface shadow-elevated border hover:shadow-md hover:border-primary/40 cursor-pointer transition-all duration-300 group/kpi flex flex-col justify-between"
                 onClick={() => navigate(`/${schoolSlug}/accountant/reports`)}
               >
-                {/* Accent Line */}
-                <div className="absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r from-emerald-400 to-teal-500" />
-                <CardContent className="flex h-full flex-col justify-between p-6 pt-7">
-                  <div className="flex items-center justify-between gap-2 w-full">
-                    <div className="bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-[0_6px_20px_rgba(16,185,129,0.25)] p-2.5 rounded-2xl shrink-0 group-hover:scale-105 transition-transform duration-300">
-                      <PiggyBank className="h-4.5 w-4.5" />
+                <CardContent className="p-5 flex flex-col justify-between h-full">
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-muted-foreground group-hover/kpi:text-primary transition-colors">Net Profit</span>
+                      <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-500">
+                        <PiggyBank className="h-5 w-5" />
+                      </div>
                     </div>
-                    <ArrowRight className="h-4 w-4 text-emerald-400 opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all duration-200" />
-                  </div>
-                  <div className="mt-4">
-                    <p className={`text-3xl font-black tracking-tight truncate ${stats.netProfit >= 0 ? "text-emerald-600" : "text-rose-600"}`} title={stats.netProfit.toLocaleString()}>
-                      {stats.netProfit >= 0 ? "+" : ""}{formatCompact(stats.netProfit)}
-                    </p>
-                    <p className="text-[10px] text-slate-400 font-extrabold uppercase tracking-widest mt-1 truncate">Net Profit</p>
+                    <div className="mt-4">
+                      <h3 className="text-3xl font-bold tracking-tight font-display text-foreground flex items-baseline gap-1">
+                        <span>{stats.netProfit >= 0 ? "+" : ""}{formatCompact(stats.netProfit)}</span>
+                        <ArrowRight className="h-4 w-4 text-emerald-500 opacity-0 -translate-x-1 group-hover/kpi:opacity-100 group-hover/kpi:translate-x-0 transition-all duration-200" />
+                      </h3>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Profit margin: {stats.profitMargin.toFixed(1)}%
+                      </p>
+                    </div>
                   </div>
                 </CardContent>
-              </MotionCard>
+              </Card>
             </div>
           </div>
 
-
           {/* Quick Actions */}
-          <Card className="bg-gradient-to-br from-white via-white to-blue-50/10 border border-slate-100 shadow-[0_12px_40px_rgba(8,112,184,0.03)] overflow-hidden rounded-3xl relative">
-            <div className="absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r from-blue-500/80 via-indigo-500/80 to-sky-400/80" />
-            <div className="px-6 py-4.5 border-b border-slate-100 flex items-center justify-between">
+          <Card className="bg-surface shadow-elevated border overflow-hidden rounded-3xl relative">
+            <div className="px-6 py-4.5 border-b flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <div className="p-1.5 rounded-lg bg-blue-50 text-blue-600">
+                <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
                   <Zap className="h-4 w-4" />
                 </div>
-                <span className="font-extrabold text-[10px] uppercase tracking-widest text-slate-700">Quick Actions Console</span>
+                <span className="font-semibold text-sm text-foreground">Quick Actions Console</span>
               </div>
-              <Badge variant="outline" className="text-[10px] font-bold text-blue-600 bg-blue-50/50 border-blue-100/30">OPERATIONAL</Badge>
+              <Badge variant="outline" className="text-[10px] font-bold text-primary bg-primary/5 border-primary/20">OPERATIONAL</Badge>
             </div>
             <CardContent className="p-6">
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-6">
-                {quickActions.map((action, idx) => (
-                  <motion.div
-                    key={action.label}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: idx * 0.04 }}
-                    whileHover={{ y: -3 }}
-                    className="group"
-                  >
+                {quickActions.map((action) => (
+                  <div key={action.label} className="group">
                     <button
-                      className="flex h-full w-full flex-col justify-between items-start text-left border border-slate-100/80 bg-white p-5 rounded-2xl hover:border-blue-300 hover:shadow-[0_12px_30px_rgba(37,99,235,0.05)] transition-all duration-300 relative overflow-hidden"
+                      className="flex h-full w-full flex-col justify-between items-start text-left border bg-card p-5 rounded-2xl hover:border-primary hover:shadow-md transition-all duration-300 relative overflow-hidden"
                       onClick={() => navigate(action.path)}
                     >
                       <div className="flex justify-between items-center w-full mb-4">
                         <div className={`rounded-xl p-2.5 ${action.color}`}>
                           <action.icon className="h-4.5 w-4.5" />
                         </div>
-                        <ArrowUpRight className="h-3.5 w-3.5 text-slate-300 group-hover:text-blue-500 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all duration-200" />
+                        <ArrowUpRight className="h-3.5 w-3.5 text-muted-foreground/60 group-hover:text-primary group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all duration-200" />
                       </div>
                       <div>
-                        <span className="text-[11px] font-bold text-slate-800 tracking-wide block uppercase mb-1">{action.label}</span>
-                        <span className="text-[9px] text-slate-400 font-semibold leading-normal block">{action.desc}</span>
+                        <span className="text-xs font-semibold text-foreground tracking-tight block uppercase">{action.label}</span>
                       </div>
                     </button>
-                  </motion.div>
+                  </div>
                 ))}
               </div>
             </CardContent>
@@ -920,11 +885,8 @@ export function AccountantHomeModule() {
           {insights.length > 0 && (
             <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
               {insights.map((insight, idx) => (
-                <MotionCard
+                <Card
                   key={idx}
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: idx * 0.1 }}
                   className={`shadow-elevated border-l-4 ${
                     insight.type === "success" ? "border-l-primary" :
                     insight.type === "warning" ? "border-l-warning" :
@@ -948,26 +910,25 @@ export function AccountantHomeModule() {
                       </div>
                     </div>
                   </CardContent>
-                </MotionCard>
+                </Card>
               ))}
             </div>
           )}
 
           <div className="grid gap-6 lg:grid-cols-5 min-w-0">
             {/* Cash Flow Chart */}
-            <Card className="bg-gradient-to-br from-white via-white to-blue-50/10 border border-slate-100 shadow-[0_12px_40px_rgba(8,112,184,0.03)] rounded-3xl lg:col-span-3 min-w-0 overflow-hidden relative">
-              <div className="absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r from-blue-600 via-indigo-600 to-sky-400" />
-              <CardHeader className="flex flex-row items-center justify-between pb-3 border-b border-slate-100/60 px-6 py-5">
+            <Card className="bg-surface shadow-elevated border rounded-3xl lg:col-span-3 min-w-0 overflow-hidden relative">
+              <CardHeader className="flex flex-row items-center justify-between pb-3 border-b px-6 py-5">
                 <div>
                   <div className="flex items-center gap-2">
-                    <CardTitle className="text-base font-extrabold text-slate-800">Cash Flow Analytics</CardTitle>
-                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[8px] font-black bg-blue-50 text-blue-600 border border-blue-100/40 uppercase tracking-widest">
-                      <span className="h-1 w-1 rounded-full bg-blue-600 animate-pulse" /> Live Sync
+                    <CardTitle className="text-base font-bold text-foreground">Cash Flow Analytics</CardTitle>
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[8px] font-black bg-primary/10 text-primary border border-primary/20 uppercase tracking-widest">
+                      <span className="h-1 w-1 rounded-full bg-primary animate-pulse" /> Live Sync
                     </span>
                   </div>
-                  <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider mt-0.5">Daily cash inflow vs operational outflow (30 days)</p>
+                  <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider mt-0.5">Daily cash inflow vs operational outflow (30 days)</p>
                 </div>
-                <Button variant="ghost" size="sm" className="rounded-xl border border-blue-100/60 text-blue-600 hover:bg-blue-50/50 hover:border-blue-200 text-xs font-semibold px-3" onClick={() => navigate(`/${schoolSlug}/accountant/reports`)}>
+                <Button variant="outline" size="sm" className="rounded-xl border-muted-foreground/20 hover:bg-muted/50 transition-colors text-xs font-semibold px-3" onClick={() => navigate(`/${schoolSlug}/accountant/reports`)}>
                   <Eye className="mr-1 h-3.5 w-3.5" /> Details
                 </Button>
               </CardHeader>
@@ -1008,37 +969,33 @@ export function AccountantHomeModule() {
             </Card>
 
             {/* Recent Activity */}
-            <Card className="bg-gradient-to-br from-white via-white to-blue-50/10 border border-slate-100 shadow-[0_12px_40px_rgba(8,112,184,0.03)] rounded-3xl lg:col-span-2 overflow-hidden relative">
-              <div className="absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r from-indigo-500 to-purple-500" />
-              <CardHeader className="pb-3 border-b border-slate-100/60 px-6 py-5">
-                <CardTitle className="text-base font-extrabold text-slate-800">Recent Transactions</CardTitle>
-                <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider mt-0.5">Real-time ledger audit trail</p>
+            <Card className="bg-surface shadow-elevated border rounded-3xl lg:col-span-2 overflow-hidden relative">
+              <CardHeader className="pb-3 border-b px-6 py-5">
+                <CardTitle className="text-base font-bold text-foreground">Recent Transactions</CardTitle>
+                <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider mt-0.5">Real-time ledger audit trail</p>
               </CardHeader>
               <CardContent className="p-6">
                 <ScrollArea className="h-[280px] pr-2">
                   <div className="space-y-3">
                     {recentActivity.length > 0 ? (
                       recentActivity.map((activity, idx) => (
-                        <motion.div
+                        <div
                           key={idx}
-                          initial={{ opacity: 0, x: 10 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          transition={{ delay: idx * 0.04 }}
-                          className="flex items-center gap-3 rounded-xl border border-slate-100 bg-white p-3 hover:bg-blue-50/10 hover:border-blue-100/60 transition-all duration-200"
+                          className="flex items-center gap-3 rounded-xl border bg-card p-3 hover:bg-primary/5 hover:border-primary/30 transition-all duration-200"
                         >
-                          <div className={`rounded-xl p-2 shrink-0 ${activity.amount > 0 ? "bg-blue-50 text-blue-600 border border-blue-100/30" : "bg-rose-50 text-rose-600 border border-rose-100/30"}`}>
+                          <div className={`rounded-xl p-2 shrink-0 ${activity.amount > 0 ? "bg-primary/10 text-primary" : "bg-destructive/10 text-destructive"}`}>
                             <activity.icon className="h-4 w-4" />
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="text-xs font-bold text-slate-800 truncate">{activity.description}</p>
-                            <p className="text-[9px] text-slate-400 font-semibold mt-0.5">
+                            <p className="text-xs font-bold text-foreground truncate">{activity.description}</p>
+                            <p className="text-[9px] text-muted-foreground font-semibold mt-0.5">
                               {activity.date.toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
                             </p>
                           </div>
-                          <p className={`text-xs font-extrabold tabular-nums shrink-0 ${activity.amount > 0 ? "text-blue-600" : "text-rose-500"}`}>
+                          <p className={`text-xs font-extrabold tabular-nums shrink-0 ${activity.amount > 0 ? "text-primary" : "text-destructive"}`}>
                             {activity.amount > 0 ? "+Rs. " : "-Rs. "}{Math.abs(activity.amount).toLocaleString()}
                           </p>
-                        </motion.div>
+                        </div>
                       ))
                     ) : (
                       <div className="flex h-full items-center justify-center py-8">
@@ -1055,32 +1012,32 @@ export function AccountantHomeModule() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 w-full">
             {/* Invoice Status */}
             <Card 
-              className="bg-gradient-to-br from-white via-white to-blue-50/10 border border-slate-100 shadow-[0_12px_30px_rgba(8,112,184,0.02)] hover:border-blue-300 hover:shadow-[0_20px_45px_rgba(37,99,235,0.05)] hover:-translate-y-1 transition-all duration-300 cursor-pointer rounded-3xl group flex flex-col justify-between h-[280px]"
+              className="relative overflow-hidden bg-surface shadow-elevated border hover:shadow-md hover:border-primary/40 cursor-pointer transition-all duration-300 group flex flex-col justify-between h-[280px]"
               onClick={() => navigate(`/${schoolSlug}/accountant/invoices`)}
             >
               <CardHeader className="pb-2 pt-5 px-6 flex flex-row items-center justify-between">
-                <CardTitle className="text-xs font-extrabold text-slate-400 uppercase tracking-widest">Invoices</CardTitle>
-                <div className="p-1 rounded-lg bg-blue-50 text-blue-600 opacity-60 group-hover:opacity-100 group-hover:bg-blue-100 transition-all duration-300 border border-blue-100/40">
+                <CardTitle className="text-xs font-extrabold text-muted-foreground uppercase tracking-widest">Invoices</CardTitle>
+                <div className="p-1 rounded-lg bg-primary/10 text-primary opacity-60 group-hover:opacity-100 group-hover:bg-primary/20 transition-all duration-300">
                   <ArrowRight className="h-3.5 w-3.5 group-hover:translate-x-0.5 transition-transform" />
                 </div>
               </CardHeader>
               <CardContent className="space-y-4 flex-1 flex flex-col justify-between pb-5 px-6">
-                <div className="text-center bg-gradient-to-br from-blue-50/40 to-indigo-50/30 p-3.5 rounded-2xl border border-blue-100/30">
-                  <p className="text-lg font-black text-blue-700 tabular-nums">Rs. {stats.pendingAmount.toLocaleString()}</p>
-                  <p className="text-[9px] text-slate-400 font-extrabold uppercase tracking-widest mt-0.5">Pending Amount</p>
+                <div className="text-center bg-primary/10 border border-primary/20 p-3.5 rounded-2xl">
+                  <p className="text-lg font-black text-primary tabular-nums">Rs. {stats.pendingAmount.toLocaleString()}</p>
+                  <p className="text-[9px] text-muted-foreground font-semibold uppercase tracking-widest mt-0.5">Pending Amount</p>
                 </div>
                 <div className="space-y-3 px-1">
-                  <div className="flex items-center justify-between text-xs border-b border-slate-100/80 pb-2">
-                    <span className="text-slate-500 font-semibold">Paid Invoices</span>
-                    <span className="font-extrabold text-slate-800">{stats.paidInvoices}</span>
+                  <div className="flex items-center justify-between text-xs border-b pb-2">
+                    <span className="text-muted-foreground font-medium">Paid Invoices</span>
+                    <span className="font-semibold text-foreground">{stats.paidInvoices}</span>
                   </div>
-                  <div className="flex items-center justify-between text-xs border-b border-slate-100/80 pb-2">
-                    <span className="text-slate-500 font-semibold">Pending Invoices</span>
-                    <span className="font-extrabold text-slate-800">{stats.pendingInvoices}</span>
+                  <div className="flex items-center justify-between text-xs border-b pb-2">
+                    <span className="text-muted-foreground font-medium">Pending Invoices</span>
+                    <span className="font-semibold text-foreground">{stats.pendingInvoices}</span>
                   </div>
                   <div className="flex items-center justify-between text-xs">
-                    <span className="text-slate-500 font-semibold">Overdue Invoices</span>
-                    <span className="font-extrabold text-rose-500">{stats.overdueInvoices}</span>
+                    <span className="text-muted-foreground font-medium">Overdue Invoices</span>
+                    <span className="font-semibold text-destructive">{stats.overdueInvoices}</span>
                   </div>
                 </div>
               </CardContent>
@@ -1088,32 +1045,32 @@ export function AccountantHomeModule() {
 
             {/* Payroll Summary */}
             <Card 
-              className="bg-gradient-to-br from-white via-white to-blue-50/10 border border-slate-100 shadow-[0_12px_30px_rgba(8,112,184,0.02)] hover:border-blue-300 hover:shadow-[0_20px_45px_rgba(37,99,235,0.05)] hover:-translate-y-1 transition-all duration-300 cursor-pointer rounded-3xl group flex flex-col justify-between h-[280px]"
+              className="relative overflow-hidden bg-surface shadow-elevated border hover:shadow-md hover:border-primary/40 cursor-pointer transition-all duration-300 group flex flex-col justify-between h-[280px]"
               onClick={() => navigate(`/${schoolSlug}/accountant/payroll`)}
             >
               <CardHeader className="pb-2 pt-5 px-6 flex flex-row items-center justify-between">
-                <CardTitle className="text-xs font-extrabold text-slate-400 uppercase tracking-widest">Payroll</CardTitle>
-                <div className="p-1 rounded-lg bg-blue-50 text-blue-600 opacity-60 group-hover:opacity-100 group-hover:bg-blue-100 transition-all duration-300 border border-blue-100/40">
+                <CardTitle className="text-xs font-extrabold text-muted-foreground uppercase tracking-widest">Payroll</CardTitle>
+                <div className="p-1 rounded-lg bg-primary/10 text-primary opacity-60 group-hover:opacity-100 group-hover:bg-primary/20 transition-all duration-300">
                   <ArrowRight className="h-3.5 w-3.5 group-hover:translate-x-0.5 transition-transform" />
                 </div>
               </CardHeader>
               <CardContent className="space-y-4 flex-1 flex flex-col justify-between pb-5 px-6">
-                <div className="text-center bg-gradient-to-br from-blue-50/40 to-indigo-50/30 p-3.5 rounded-2xl border border-blue-100/30">
-                  <p className="text-lg font-black text-blue-700 tabular-nums">Rs. {stats.monthlyPayroll.toLocaleString()}</p>
-                  <p className="text-[9px] text-slate-400 font-extrabold uppercase tracking-widest mt-0.5">Monthly Cost</p>
+                <div className="text-center bg-primary/10 border border-primary/20 p-3.5 rounded-2xl">
+                  <p className="text-lg font-black text-primary tabular-nums">Rs. {stats.monthlyPayroll.toLocaleString()}</p>
+                  <p className="text-[9px] text-muted-foreground font-semibold uppercase tracking-widest mt-0.5">Monthly Cost</p>
                 </div>
                 <div className="space-y-3 px-1">
-                  <div className="flex items-center justify-between text-xs border-b border-slate-100/80 pb-2">
-                    <span className="text-slate-500 font-semibold">Active Employees</span>
-                    <span className="font-extrabold text-slate-800">{stats.activeEmployees}</span>
+                  <div className="flex items-center justify-between text-xs border-b pb-2">
+                    <span className="text-muted-foreground font-medium">Active Employees</span>
+                    <span className="font-semibold text-foreground">{stats.activeEmployees}</span>
                   </div>
-                  <div className="flex items-center justify-between text-xs border-b border-slate-100/80 pb-2">
-                    <span className="text-slate-500 font-semibold">Average Salary</span>
-                    <span className="font-extrabold text-slate-800">Rs. {Math.round(stats.avgSalary).toLocaleString()}</span>
+                  <div className="flex items-center justify-between text-xs border-b pb-2">
+                    <span className="text-muted-foreground font-medium">Average Salary</span>
+                    <span className="font-semibold text-foreground">Rs. {Math.round(stats.avgSalary).toLocaleString()}</span>
                   </div>
                   <div className="flex items-center justify-between text-xs">
-                    <span className="text-slate-500 font-semibold">Pending Pay Runs</span>
-                    <span className={`font-extrabold ${stats.pendingPayRuns > 0 ? "text-amber-600" : "text-slate-700"}`}>{stats.pendingPayRuns}</span>
+                    <span className="text-muted-foreground font-medium">Pending Pay Runs</span>
+                    <span className={`font-semibold ${stats.pendingPayRuns > 0 ? "text-warning" : "text-foreground"}`}>{stats.pendingPayRuns}</span>
                   </div>
                 </div>
               </CardContent>
@@ -1121,32 +1078,32 @@ export function AccountantHomeModule() {
 
             {/* School Metrics */}
             <Card 
-              className="bg-gradient-to-br from-white via-white to-blue-50/10 border border-slate-100 shadow-[0_12px_30px_rgba(8,112,184,0.02)] hover:border-blue-300 hover:shadow-[0_20px_45px_rgba(37,99,235,0.05)] hover:-translate-y-1 transition-all duration-300 cursor-pointer rounded-3xl group flex flex-col justify-between h-[280px]"
+              className="relative overflow-hidden bg-surface shadow-elevated border hover:shadow-md hover:border-primary/40 cursor-pointer transition-all duration-300 group flex flex-col justify-between h-[280px]"
               onClick={() => navigate(`/${schoolSlug}/accountant/fees`)}
             >
               <CardHeader className="pb-2 pt-5 px-6 flex flex-row items-center justify-between">
-                <CardTitle className="text-xs font-extrabold text-slate-400 uppercase tracking-widest">School Metrics</CardTitle>
-                <div className="p-1 rounded-lg bg-blue-50 text-blue-600 opacity-60 group-hover:opacity-100 group-hover:bg-blue-100 transition-all duration-300 border border-blue-100/40">
+                <CardTitle className="text-xs font-extrabold text-muted-foreground uppercase tracking-widest">School Metrics</CardTitle>
+                <div className="p-1 rounded-lg bg-primary/10 text-primary opacity-60 group-hover:opacity-100 group-hover:bg-primary/20 transition-all duration-300">
                   <ArrowRight className="h-3.5 w-3.5 group-hover:translate-x-0.5 transition-transform" />
                 </div>
               </CardHeader>
               <CardContent className="space-y-4 flex-1 flex flex-col justify-between pb-5 px-6">
-                <div className="text-center bg-gradient-to-br from-blue-50/40 to-indigo-50/30 p-3.5 rounded-2xl border border-blue-100/30">
-                  <p className="text-lg font-black text-blue-700 tabular-nums">{stats.totalStudents}</p>
-                  <p className="text-[9px] text-slate-400 font-extrabold uppercase tracking-widest mt-0.5">Total Students</p>
+                <div className="text-center bg-primary/10 border border-primary/20 p-3.5 rounded-2xl">
+                  <p className="text-lg font-black text-primary tabular-nums">{stats.totalStudents}</p>
+                  <p className="text-[9px] text-muted-foreground font-semibold uppercase tracking-widest mt-0.5">Total Students</p>
                 </div>
                 <div className="space-y-3 px-1">
-                  <div className="flex items-center justify-between text-xs border-b border-slate-100/80 pb-2">
-                    <span className="text-slate-500 font-semibold">Revenue per Student</span>
-                    <span className="font-extrabold text-slate-800">Rs. {Math.round(stats.revenuePerStudent).toLocaleString()}</span>
+                  <div className="flex items-center justify-between text-xs border-b pb-2">
+                    <span className="text-muted-foreground font-medium">Revenue per Student</span>
+                    <span className="font-semibold text-foreground">Rs. {Math.round(stats.revenuePerStudent).toLocaleString()}</span>
                   </div>
-                  <div className="flex items-center justify-between text-xs border-b border-slate-100/80 pb-2">
-                    <span className="text-slate-500 font-semibold">Cost per Student</span>
-                    <span className="font-extrabold text-slate-800">Rs. {Math.round(stats.costPerStudent).toLocaleString()}</span>
+                  <div className="flex items-center justify-between text-xs border-b pb-2">
+                    <span className="text-muted-foreground font-medium">Cost per Student</span>
+                    <span className="font-semibold text-foreground">Rs. {Math.round(stats.costPerStudent).toLocaleString()}</span>
                   </div>
                   <div className="flex items-center justify-between text-xs">
-                    <span className="text-slate-500 font-semibold">Estimated Margin</span>
-                    <span className={`font-extrabold ${stats.profitMargin >= 0 ? "text-emerald-600" : "text-rose-500"}`}>{stats.profitMargin.toFixed(1)}%</span>
+                    <span className="text-muted-foreground font-medium">Estimated Margin</span>
+                    <span className={`font-semibold ${stats.profitMargin >= 0 ? "text-emerald-600" : "text-destructive"}`}>{stats.profitMargin.toFixed(1)}%</span>
                   </div>
                 </div>
               </CardContent>
@@ -1154,32 +1111,32 @@ export function AccountantHomeModule() {
 
             {/* Cash Position */}
             <Card 
-              className="bg-gradient-to-br from-white via-white to-blue-50/10 border border-slate-100 shadow-[0_12px_30px_rgba(8,112,184,0.02)] hover:border-blue-300 hover:shadow-[0_20px_45px_rgba(37,99,235,0.05)] hover:-translate-y-1 transition-all duration-300 cursor-pointer rounded-3xl group flex flex-col justify-between h-[280px]"
+              className="relative overflow-hidden bg-surface shadow-elevated border hover:shadow-md hover:border-primary/40 cursor-pointer transition-all duration-300 group flex flex-col justify-between h-[280px]"
               onClick={() => navigate(`/${schoolSlug}/accountant/reports`)}
             >
               <CardHeader className="pb-2 pt-5 px-6 flex flex-row items-center justify-between">
-                <CardTitle className="text-xs font-extrabold text-slate-400 uppercase tracking-widest">Cash Position</CardTitle>
-                <div className="p-1 rounded-lg bg-blue-50 text-blue-600 opacity-60 group-hover:opacity-100 group-hover:bg-blue-100 transition-all duration-300 border border-blue-100/40">
+                <CardTitle className="text-xs font-extrabold text-muted-foreground uppercase tracking-widest">Cash Position</CardTitle>
+                <div className="p-1 rounded-lg bg-primary/10 text-primary opacity-60 group-hover:opacity-100 group-hover:bg-primary/20 transition-all duration-300">
                   <ArrowRight className="h-3.5 w-3.5 group-hover:translate-x-0.5 transition-transform" />
                 </div>
               </CardHeader>
               <CardContent className="space-y-4 flex-1 flex flex-col justify-between pb-5 px-6">
-                <div className="text-center bg-gradient-to-br from-blue-50/40 to-indigo-50/30 p-3.5 rounded-2xl border border-blue-100/30">
-                  <p className="text-lg font-black text-blue-700 tabular-nums">Rs. {stats.cashPosition.toLocaleString()}</p>
-                  <p className="text-[9px] text-slate-400 font-extrabold uppercase tracking-widest mt-0.5">Estimated Balance</p>
+                <div className="text-center bg-primary/10 border border-primary/20 p-3.5 rounded-2xl">
+                  <p className="text-lg font-black text-primary tabular-nums">Rs. {stats.cashPosition.toLocaleString()}</p>
+                  <p className="text-[9px] text-muted-foreground font-semibold uppercase tracking-widest mt-0.5">Estimated Balance</p>
                 </div>
                 <div className="space-y-3 px-1">
-                  <div className="flex items-center justify-between text-xs border-b border-slate-100/80 pb-2">
-                    <span className="text-slate-500 font-semibold">Gross Profit</span>
-                    <span className="font-extrabold text-slate-800">Rs. {stats.grossProfit.toLocaleString()}</span>
+                  <div className="flex items-center justify-between text-xs border-b pb-2">
+                    <span className="text-muted-foreground font-medium">Gross Profit</span>
+                    <span className="font-semibold text-foreground">Rs. {stats.grossProfit.toLocaleString()}</span>
                   </div>
-                  <div className="flex items-center justify-between text-xs border-b border-slate-100/80 pb-2">
-                    <span className="text-slate-500 font-semibold">Annual Payroll Proj.</span>
-                    <span className="font-extrabold text-slate-800">Rs. {stats.annualPayrollProjection.toLocaleString()}</span>
+                  <div className="flex items-center justify-between text-xs border-b pb-2">
+                    <span className="text-muted-foreground font-medium">Annual Payroll Proj.</span>
+                    <span className="font-semibold text-foreground">Rs. {stats.annualPayrollProjection.toLocaleString()}</span>
                   </div>
                   <div className="flex items-center justify-between text-xs">
-                    <span className="text-slate-500 font-semibold">Total Expenses</span>
-                    <span className="font-extrabold text-rose-500">Rs. {stats.totalExpenses.toLocaleString()}</span>
+                    <span className="text-muted-foreground font-medium">Total Expenses</span>
+                    <span className="font-semibold text-destructive">Rs. {stats.totalExpenses.toLocaleString()}</span>
                   </div>
                 </div>
               </CardContent>
