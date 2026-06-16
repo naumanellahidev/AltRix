@@ -62,7 +62,10 @@ export default function FeesAdvancedModule() {
   // assignments
   const [assignments, setAssignments] = useState<StudentAssignment[]>([]);
   const [assignFilterClass, setAssignFilterClass] = useState<string>("__all");
+  const [assignFilterSection, setAssignFilterSection] = useState<string>("__all");
   const [assignSearch, setAssignSearch] = useState("");
+  const [bulkAssignOpen, setBulkAssignOpen] = useState(false);
+  const [bulkForm, setBulkForm] = useState({ class_id: "", section_id: "__all", fee_plan_id: "", discount_pct: 0, scholarship_amount: 0 });
 
   // invoices
   const [invoices, setInvoices] = useState<FeeInvoice[]>([]);
@@ -525,17 +528,115 @@ export default function FeesAdvancedModule() {
     setItems(items.filter(i => i.id !== id));
   };
 
+  const filteredSectionsForAssignment = useMemo(() => {
+    if (assignFilterClass === "__all") return [];
+    return sections.filter(s => s.class_id === assignFilterClass);
+  }, [sections, assignFilterClass]);
+
+  const handleClassFilterChange = (val: string) => {
+    setAssignFilterClass(val);
+    setAssignFilterSection("__all");
+  };
+
   // ---------- ASSIGNMENTS ----------
   const studentsForFilter = useMemo(() => {
     const q = assignSearch.trim().toLowerCase();
     let list = students;
     if (assignFilterClass !== "__all") {
-      const sectionIds = sections.filter(s => s.class_id === assignFilterClass).map(s => s.id);
-      list = list.filter(s => sectionIds.includes((s as any).class_section_id));
+      if (assignFilterSection !== "__all") {
+        list = list.filter(s => (s as any).class_section_id === assignFilterSection);
+      } else {
+        const sectionIds = sections.filter(s => s.class_id === assignFilterClass).map(s => s.id);
+        list = list.filter(s => sectionIds.includes((s as any).class_section_id));
+      }
     }
-    if (q) list = list.filter(s => `${s.first_name} ${s.last_name || ""}`.toLowerCase().includes(q) || (s.parent_email || "").toLowerCase().includes(q) || (s.parent_phone || "").toLowerCase().includes(q));
+    if (q) {
+      list = list.filter(s => 
+        `${s.first_name} ${s.last_name || ""}`.toLowerCase().includes(q) || 
+        (s.parent_email || "").toLowerCase().includes(q) || 
+        (s.parent_phone || "").toLowerCase().includes(q)
+      );
+    }
     return list;
-  }, [students, sections, assignFilterClass, assignSearch]);
+  }, [students, sections, assignFilterClass, assignFilterSection, assignSearch]);
+
+  const handleBulkAssign = async () => {
+    if (!schoolId || !bulkForm.class_id || !bulkForm.fee_plan_id) {
+      toast.error("Please select both a class and a fee plan");
+      return;
+    }
+
+    let targetSectionIds: string[] = [];
+    if (bulkForm.section_id === "__all") {
+      targetSectionIds = sections.filter(s => s.class_id === bulkForm.class_id).map(s => s.id);
+    } else {
+      targetSectionIds = [bulkForm.section_id];
+    }
+
+    if (targetSectionIds.length === 0) {
+      toast.error("No sections found for this class");
+      return;
+    }
+
+    const tId = toast.loading("Assigning plan in bulk...");
+    try {
+      const { data: enrolls, error: enrollsError } = await supabase
+        .from("student_enrollments")
+        .select("student_id")
+        .eq("school_id", schoolId)
+        .is("end_date", null)
+        .in("class_section_id", targetSectionIds);
+
+      if (enrollsError) throw enrollsError;
+
+      const studentIds = Array.from(new Set((enrolls || []).map((e: any) => e.student_id)));
+      if (studentIds.length === 0) {
+        toast.error("No enrolled students found in selected class/section(s)", { id: tId });
+        return;
+      }
+
+      // Fetch existing assignments for these students
+      const { data: existingAssignments } = await supabase
+        .from("student_fee_assignments")
+        .select("id, student_id")
+        .eq("school_id", schoolId)
+        .in("student_id", studentIds);
+
+      const existingMap = Object.fromEntries((existingAssignments || []).map(a => [a.student_id, a.id]));
+
+      const upsertPayload = studentIds.map(sid => {
+        const payload: any = {
+          school_id: schoolId,
+          student_id: sid,
+          fee_plan_id: bulkForm.fee_plan_id,
+          discount_pct: Number(bulkForm.discount_pct) || 0,
+          scholarship_amount: Number(bulkForm.scholarship_amount) || 0
+        };
+        if (existingMap[sid]) {
+          payload.id = existingMap[sid];
+        }
+        return payload;
+      });
+
+      const { error: upsertError } = await supabase
+        .from("student_fee_assignments")
+        .upsert(upsertPayload);
+
+      if (upsertError) throw upsertError;
+
+      toast.success(`Successfully assigned plan to ${studentIds.length} students`, { id: tId });
+      setBulkAssignOpen(false);
+
+      // Refresh assignments
+      const { data: refreshed } = await supabase
+        .from("student_fee_assignments")
+        .select("id, student_id, fee_plan_id, discount_pct, scholarship_amount")
+        .eq("school_id", schoolId);
+      setAssignments((refreshed as StudentAssignment[]) || []);
+    } catch (err: any) {
+      toast.error("Bulk assignment failed: " + (err.message || err), { id: tId });
+    }
+  };
 
   const setStudentAssignment = async (studentId: string, planId: string | null, opts?: { discount_pct?: number; scholarship_amount?: number }) => {
     if (!schoolId) return;
@@ -665,58 +766,75 @@ export default function FeesAdvancedModule() {
 
         {/* ASSIGNMENTS */}
         <TabsContent value="assignments" className="space-y-4">
-          <Card>
-            <CardHeader><CardTitle>Per-Student Plan Assignments & Overrides</CardTitle></CardHeader>
-            <CardContent className="space-y-3">
+          <Card className="rounded-2xl border border-blue-50 shadow-sm">
+            <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between pb-4 border-b border-blue-50 gap-4">
+              <div>
+                <CardTitle className="font-display text-lg font-bold text-slate-800">Per-Student Plan Assignments & Overrides</CardTitle>
+                <p className="text-xs text-muted-foreground">Assign fee plans and override scholarship or discount percentages.</p>
+              </div>
+              <div className="flex flex-wrap items-center gap-3">
+                <Button onClick={() => setBulkAssignOpen(true)} className="rounded-xl h-9 bg-blue-600 hover:bg-blue-700 text-white shadow-sm text-xs">
+                  <SlidersHorizontal className="mr-1.5 h-3.5 w-3.5" /> Bulk Assign Plan
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="p-4 space-y-4">
               <div className="flex flex-wrap items-center gap-2">
                 <div className="relative flex-1 min-w-[220px]">
-                  <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input value={assignSearch} onChange={e => setAssignSearch(e.target.value)} placeholder="Search students by name, parent email/phone…" className="pl-8 pr-8" />
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                  <Input value={assignSearch} onChange={e => setAssignSearch(e.target.value)} placeholder="Search students by name, parent email/phone…" className="pl-8 pr-8 rounded-xl border-blue-100 h-9 text-xs focus-visible:ring-blue-500" />
                   {assignSearch && (
                     <button type="button" onClick={() => setAssignSearch("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
                       <X className="h-4 w-4" />
                     </button>
                   )}
                 </div>
-                <Select value={assignFilterClass} onValueChange={setAssignFilterClass}>
-                  <SelectTrigger className="w-[220px]"><SelectValue placeholder="Filter by class" /></SelectTrigger>
+                <Select value={assignFilterClass} onValueChange={handleClassFilterChange}>
+                  <SelectTrigger className="w-[200px] rounded-xl border-blue-100 h-9 text-xs"><SelectValue placeholder="Filter by class" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="__all">All classes</SelectItem>
                     {classes.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
+                {assignFilterClass !== "__all" && (
+                  <Select value={assignFilterSection} onValueChange={setAssignFilterSection}>
+                    <SelectTrigger className="w-[200px] rounded-xl border-blue-100 h-9 text-xs"><SelectValue placeholder="Filter by section" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__all">All sections</SelectItem>
+                      {filteredSectionsForAssignment.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
-              <Table>
-                <TableHeader><TableRow><TableHead>Student</TableHead><TableHead>Plan</TableHead><TableHead>Discount %</TableHead><TableHead>Scholarship</TableHead></TableRow></TableHeader>
-                <TableBody>
-                  {studentsForFilter.slice(0, 200).map(st => {
-                    const a = assignments.find(x => x.student_id === st.id);
-                    return (
-                      <TableRow key={st.id}>
-                        <TableCell>{st.first_name} {st.last_name || ""}</TableCell>
-                        <TableCell>
-                          <Select value={a?.fee_plan_id || "__none"} onValueChange={v => setStudentAssignment(st.id, v === "__none" ? null : v)}>
-                            <SelectTrigger className="w-[260px]"><SelectValue placeholder="Assign plan" /></SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="__none">— No plan —</SelectItem>
-                              {plans.filter(p => p.is_active).map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
-                            </SelectContent>
-                          </Select>
-                        </TableCell>
-                        <TableCell>
-                          <Input type="number" className="w-24" disabled={!a} value={a?.discount_pct ?? 0}
-                            onChange={e => setStudentAssignment(st.id, a!.fee_plan_id, { discount_pct: Number(e.target.value) })} />
-                        </TableCell>
-                        <TableCell>
-                          <Input type="number" className="w-32" disabled={!a} value={a?.scholarship_amount ?? 0}
-                            onChange={e => setStudentAssignment(st.id, a!.fee_plan_id, { scholarship_amount: Number(e.target.value) })} />
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-              {studentsForFilter.length > 200 && <p className="text-xs text-muted-foreground">Showing first 200 — narrow by class for full list.</p>}
+              <div className="rounded-2xl border border-blue-50 overflow-hidden">
+                <Table>
+                  <TableHeader className="bg-blue-50/20">
+                    <TableRow className="border-blue-50 hover:bg-transparent">
+                      <TableHead className="text-slate-700 text-xs font-semibold py-2">Student</TableHead>
+                      <TableHead className="text-slate-700 text-xs font-semibold py-2">Plan</TableHead>
+                      <TableHead className="text-slate-700 text-xs font-semibold py-2">Discount %</TableHead>
+                      <TableHead className="text-slate-700 text-xs font-semibold py-2">Scholarship</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {studentsForFilter.slice(0, 200).map(st => {
+                      const a = assignments.find(x => x.student_id === st.id);
+                      return (
+                        <StudentAssignmentRow
+                          key={st.id}
+                          st={st}
+                          a={a}
+                          plans={plans}
+                          sections={sections}
+                          classes={classes}
+                          onSave={setStudentAssignment}
+                        />
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+              {studentsForFilter.length > 200 && <p className="text-xs text-muted-foreground">Showing first 200 — narrow filters for full list.</p>}
             </CardContent>
           </Card>
         </TabsContent>
@@ -1209,7 +1327,174 @@ export default function FeesAdvancedModule() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Bulk Assign Fee Plan Dialog */}
+      <Dialog open={bulkAssignOpen} onOpenChange={setBulkAssignOpen}>
+        <DialogContent className="sm:max-w-[425px] rounded-2xl border-blue-100">
+          <DialogHeader>
+            <DialogTitle className="text-slate-800 font-display font-bold">Bulk Assign Fee Plan</DialogTitle>
+            <DialogDescription>Assign a fee plan and discount values to all students of a class or section.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-3">
+            <div className="space-y-1.5">
+              <Label>Select Class</Label>
+              <Select value={bulkForm.class_id} onValueChange={v => setBulkForm({ ...bulkForm, class_id: v, section_id: "__all" })}>
+                <SelectTrigger className="rounded-xl border-blue-100">
+                  <SelectValue placeholder="Select Class" />
+                </SelectTrigger>
+                <SelectContent>
+                  {classes.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {bulkForm.class_id && (
+              <div className="space-y-1.5">
+                <Label>Select Section</Label>
+                <Select value={bulkForm.section_id} onValueChange={v => setBulkForm({ ...bulkForm, section_id: v })}>
+                  <SelectTrigger className="rounded-xl border-blue-100">
+                    <SelectValue placeholder="All Sections" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__all">All Sections</SelectItem>
+                    {sections.filter(s => s.class_id === bulkForm.class_id).map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            <div className="space-y-1.5">
+              <Label>Select Fee Plan</Label>
+              <Select value={bulkForm.fee_plan_id} onValueChange={v => setBulkForm({ ...bulkForm, fee_plan_id: v })}>
+                <SelectTrigger className="rounded-xl border-blue-100">
+                  <SelectValue placeholder="Select Plan" />
+                </SelectTrigger>
+                <SelectContent>
+                  {plans.filter(p => p.is_active).map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label>Discount (%)</Label>
+                <Input
+                  type="number"
+                  value={bulkForm.discount_pct}
+                  onChange={(e) => setBulkForm({ ...bulkForm, discount_pct: Number(e.target.value) || 0 })}
+                  className="rounded-xl border-blue-100 focus-visible:ring-blue-500"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Scholarship (Rs.)</Label>
+                <Input
+                  type="number"
+                  value={bulkForm.scholarship_amount}
+                  onChange={(e) => setBulkForm({ ...bulkForm, scholarship_amount: Number(e.target.value) || 0 })}
+                  className="rounded-xl border-blue-100 focus-visible:ring-blue-500"
+                />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBulkAssignOpen(false)} className="rounded-xl border-blue-100">
+              Cancel
+            </Button>
+            <Button onClick={handleBulkAssign} className="rounded-xl bg-blue-600 hover:bg-blue-700 text-white">
+              Apply Assignment
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
+  );
+}
+
+interface StudentAssignmentRowProps {
+  st: StudentRow;
+  a: StudentAssignment | undefined;
+  plans: FeePlanRow[];
+  sections: SectionRow[];
+  classes: ClassRow[];
+  onSave: (studentId: string, planId: string | null, opts?: { discount_pct?: number; scholarship_amount?: number }) => Promise<void>;
+}
+
+function StudentAssignmentRow({
+  st,
+  a,
+  plans,
+  sections,
+  classes,
+  onSave
+}: StudentAssignmentRowProps) {
+  const [discount, setDiscount] = useState<string>(String(a?.discount_pct ?? 0));
+  const [scholarship, setScholarship] = useState<string>(String(a?.scholarship_amount ?? 0));
+
+  useEffect(() => {
+    setDiscount(String(a?.discount_pct ?? 0));
+    setScholarship(String(a?.scholarship_amount ?? 0));
+  }, [a]);
+
+  const section = sections.find(sec => sec.id === st.class_section_id);
+  const cls = classes.find(c => c.id === section?.class_id);
+  const classSectionName = section && cls ? `${cls.name} - ${section.name}` : "Unassigned";
+
+  const handleBlurDiscount = () => {
+    const val = Number(discount) || 0;
+    if (val !== (a?.discount_pct ?? 0)) {
+      onSave(st.id, a!.fee_plan_id, { discount_pct: val });
+    }
+  };
+
+  const handleBlurScholarship = () => {
+    const val = Number(scholarship) || 0;
+    if (val !== (a?.scholarship_amount ?? 0)) {
+      onSave(st.id, a!.fee_plan_id, { scholarship_amount: val });
+    }
+  };
+
+  return (
+    <TableRow className="hover:bg-blue-50/5 border-blue-50">
+      <TableCell className="py-2.5">
+        <div>
+          <p className="font-semibold text-slate-800 text-xs">{st.first_name} {st.last_name || ""}</p>
+          <p className="text-[10px] text-slate-500 mt-0.5">{classSectionName}</p>
+        </div>
+      </TableCell>
+      <TableCell className="py-2.5">
+        <Select value={a?.fee_plan_id || "__none"} onValueChange={v => onSave(st.id, v === "__none" ? null : v)}>
+          <SelectTrigger className="w-[240px] rounded-xl border-blue-100 h-8 text-xs focus:ring-blue-500">
+            <SelectValue placeholder="Assign plan" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__none">— No plan —</SelectItem>
+            {plans.filter(p => p.is_active).map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+          </SelectContent>
+        </Select>
+      </TableCell>
+      <TableCell className="py-2.5">
+        <Input 
+          type="number" 
+          className="w-24 rounded-xl border-blue-100 h-8 text-xs focus-visible:ring-blue-500" 
+          disabled={!a} 
+          value={discount}
+          onChange={e => setDiscount(e.target.value)}
+          onBlur={handleBlurDiscount}
+          onKeyDown={e => e.key === "Enter" && handleBlurDiscount()}
+        />
+      </TableCell>
+      <TableCell className="py-2.5">
+        <Input 
+          type="number" 
+          className="w-32 rounded-xl border-blue-100 h-8 text-xs focus-visible:ring-blue-500" 
+          disabled={!a} 
+          value={scholarship}
+          onChange={e => setScholarship(e.target.value)}
+          onBlur={handleBlurScholarship}
+          onKeyDown={e => e.key === "Enter" && handleBlurScholarship()}
+        />
+      </TableCell>
+    </TableRow>
   );
 }
 

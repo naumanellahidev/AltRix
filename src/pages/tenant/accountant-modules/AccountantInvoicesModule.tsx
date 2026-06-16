@@ -131,6 +131,9 @@ export function AccountantInvoicesModule() {
   const [searchQuery, setSearchQuery] = useState("");
 
   // Invoice Form State
+  const [formRecipientType, setFormRecipientType] = useState<"staff" | "profile" | "custom">("staff");
+  const [formCustomName, setFormCustomName] = useState("");
+  const [formCustomContact, setFormCustomContact] = useState("");
   const [formStudentId, setFormStudentId] = useState("");
   const [formInvoiceNo, setFormInvoiceNo] = useState("");
   const [formLineItems, setFormLineItems] = useState<{ description: string; quantity: number; amount: number }[]>([
@@ -185,6 +188,43 @@ export function AccountantInvoicesModule() {
     enabled: !!schoolId,
   });
 
+  const { data: staffList = [] } = useQuery({
+    queryKey: ["staff_list", schoolId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("hr_staff_directory")
+        .select("id, full_name, email, phone")
+        .eq("school_id", schoolId!)
+        .eq("is_active", true)
+        .order("full_name");
+      if (error) throw error;
+      return (data || []).map(d => ({
+        id: d.id,
+        full_name: d.full_name,
+        email: d.email,
+        phone: d.phone
+      }));
+    },
+    enabled: !!schoolId,
+  });
+
+  const { data: schoolUsers = [] } = useQuery({
+    queryKey: ["school_user_directory", schoolId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("school_user_directory")
+        .select("user_id, display_name, email")
+        .eq("school_id", schoolId!);
+      if (error) throw error;
+      return (data || []).map(d => ({
+        user_id: d.user_id,
+        display_name: d.display_name,
+        email: d.email
+      }));
+    },
+    enabled: !!schoolId,
+  });
+
   const { data: activeInvoiceItems = [], isLoading: isLoadingItems } = useQuery({
     queryKey: ["fee_invoice_items", selectedInvoice?.id],
     queryFn: async () => {
@@ -210,6 +250,9 @@ export function AccountantInvoicesModule() {
   });
 
   const resetForm = () => {
+    setFormRecipientType("staff");
+    setFormCustomName("");
+    setFormCustomContact("");
     setFormStudentId("");
     setFormInvoiceNo("");
     setFormLineItems([{ description: "", quantity: 1, amount: 0 }]);
@@ -235,12 +278,40 @@ export function AccountantInvoicesModule() {
 
   const openEdit = async (inv: Invoice) => {
     setEditingInvoice(inv);
-    setFormStudentId(inv.student_id);
     setFormInvoiceNo(inv.invoice_number);
     setFormDiscount(String(inv.discount_amount));
     setFormLateFee(String(inv.late_fee));
     setFormDueDate(inv.due_date ? inv.due_date.slice(0, 10) : "");
-    setFormNotes(inv.notes || "");
+
+    // Populate recipient states
+    if (inv.student_id === "00000000-0000-0000-0000-000000000000") {
+      setFormRecipientType("custom");
+      setFormStudentId("00000000-0000-0000-0000-000000000000");
+      const match = inv.notes?.match(/^\[Individual:\s*([^|]+)\s*\|\s*Contact:\s*([^\]]+)\]/);
+      if (match) {
+        setFormCustomName(match[1].trim());
+        setFormCustomContact(match[2].trim());
+        setFormNotes(inv.notes.replace(/^\[Individual:[^\]]+\]\n?/, '') || "");
+      } else {
+        setFormCustomName("");
+        setFormCustomContact("");
+        setFormNotes(inv.notes || "");
+      }
+    } else {
+      const isStaff = staffList.some(s => s.id === inv.student_id);
+      if (isStaff) {
+        setFormRecipientType("staff");
+      } else {
+        const isUser = schoolUsers.some(u => u.user_id === inv.student_id);
+        if (isUser) {
+          setFormRecipientType("profile");
+        } else {
+          setFormRecipientType("custom");
+        }
+      }
+      setFormStudentId(inv.student_id);
+      setFormNotes(inv.notes || "");
+    }
 
     // Fetch items directly to populate form
     const { data: items, error } = await supabase
@@ -310,10 +381,24 @@ export function AccountantInvoicesModule() {
 
   const handleSaveInvoice = async () => {
     if (!schoolId) return;
-    if (!formStudentId) {
-      toast.error("Select a student");
-      return;
+
+    let finalStudentId = formStudentId;
+    let finalNotes = formNotes.trim();
+
+    if (formRecipientType === "custom") {
+      finalStudentId = "00000000-0000-0000-0000-000000000000";
+      if (!formCustomName.trim()) {
+        toast.error("Please enter the individual's name");
+        return;
+      }
+      finalNotes = `[Individual: ${formCustomName.trim()} | Contact: ${formCustomContact.trim()}]\n${finalNotes}`.trim();
+    } else {
+      if (!formStudentId) {
+        toast.error("Please select a recipient");
+        return;
+      }
     }
+
     if (!formInvoiceNo.trim()) {
       toast.error("Invoice number required");
       return;
@@ -329,14 +414,14 @@ export function AccountantInvoicesModule() {
 
     const invoicePayload = {
       school_id: schoolId,
-      student_id: formStudentId,
+      student_id: finalStudentId,
       invoice_number: formInvoiceNo.trim(),
       subtotal: calculatedSubtotal,
       discount_amount: Number(formDiscount) || 0,
       late_fee: Number(formLateFee) || 0,
       total_amount: calculatedTotal,
       due_date: formDueDate || new Date(Date.now() + 15 * 86400000).toISOString().slice(0, 10),
-      notes: formNotes.trim() || null,
+      notes: finalNotes || null,
     };
 
     if (editingInvoice) {
@@ -492,6 +577,66 @@ export function AccountantInvoicesModule() {
     return `${student.first_name} ${student.last_name || ""}`.trim();
   };
 
+  const getRecipientDetails = (invoice: Invoice) => {
+    if (invoice.student_id === "00000000-0000-0000-0000-000000000000") {
+      const match = invoice.notes?.match(/^\[Individual:\s*([^|]+)\s*\|\s*Contact:\s*([^\]]+)\]/);
+      if (match) {
+        return {
+          name: match[1].trim(),
+          contact: match[2].trim(),
+          type: "Custom Individual",
+          cleanNotes: invoice.notes?.replace(/^\[Individual:[^\]]+\]\n?/, '') || ""
+        };
+      }
+      return {
+        name: "Custom Individual",
+        contact: "N/A",
+        type: "Custom Individual",
+        cleanNotes: invoice.notes || ""
+      };
+    }
+
+    // Try Staff
+    const staff = staffList.find(s => s.id === invoice.student_id);
+    if (staff) {
+      return {
+        name: staff.full_name,
+        contact: staff.email || staff.phone || "No contact",
+        type: "Staff Member",
+        cleanNotes: invoice.notes || ""
+      };
+    }
+
+    // Try User Profile
+    const u = schoolUsers.find(user => user.user_id === invoice.student_id);
+    if (u) {
+      return {
+        name: u.display_name || "Registered User",
+        contact: u.email || "No email",
+        type: "User / Parent",
+        cleanNotes: invoice.notes || ""
+      };
+    }
+
+    // Try Legacy Student
+    const student = students.find((s) => s.id === invoice.student_id);
+    if (student) {
+      return {
+        name: `${student.first_name} ${student.last_name ?? ""}`.trim(),
+        contact: "Student",
+        type: "Legacy Student",
+        cleanNotes: invoice.notes || ""
+      };
+    }
+
+    return {
+      name: "Unknown Recipient",
+      contact: "N/A",
+      type: "Unknown",
+      cleanNotes: invoice.notes || ""
+    };
+  };
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "paid":
@@ -523,7 +668,7 @@ export function AccountantInvoicesModule() {
 
   const filteredInvoices = invoices.filter((inv) => {
     const statusMatches = statusFilter === "all" || getInvoiceStatus(inv) === statusFilter;
-    const studentName = getStudentName(inv.student_id).toLowerCase();
+    const studentName = getRecipientDetails(inv).name.toLowerCase();
     const invoiceNo = inv.invoice_number.toLowerCase();
     const searchMatches = !searchQuery || studentName.includes(searchQuery.toLowerCase()) || invoiceNo.includes(searchQuery.toLowerCase());
     return statusMatches && searchMatches;
@@ -575,8 +720,8 @@ export function AccountantInvoicesModule() {
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div>
                 <p className="font-semibold text-gray-600">Billed To:</p>
-                <p className="font-bold text-base">{selectedInvoice ? getStudentName(selectedInvoice.student_id) : ""}</p>
-                <p className="text-gray-500">Student ID: {selectedInvoice?.student_id}</p>
+                <p className="font-bold text-base">{selectedInvoice ? getRecipientDetails(selectedInvoice).name : ""}</p>
+                <p className="text-gray-500">{selectedInvoice ? `${getRecipientDetails(selectedInvoice).type} • Contact: ${getRecipientDetails(selectedInvoice).contact}` : ""}</p>
               </div>
               <div className="text-right text-gray-700">
                 <p><span className="font-semibold text-gray-600">Due Date:</span> {selectedInvoice?.due_date ? new Date(selectedInvoice.due_date).toLocaleDateString() : "—"}</p>
@@ -639,10 +784,10 @@ export function AccountantInvoicesModule() {
               </div>
             </div>
 
-            {selectedInvoice?.notes && (
+            {selectedInvoice && getRecipientDetails(selectedInvoice).cleanNotes && (
               <div className="pt-4 border-t">
                 <p className="font-semibold text-gray-600">Notes:</p>
-                <p className="text-gray-500 mt-1">{selectedInvoice.notes}</p>
+                <p className="text-gray-500 mt-1">{getRecipientDetails(selectedInvoice).cleanNotes}</p>
               </div>
             )}
           </div>
@@ -687,7 +832,7 @@ export function AccountantInvoicesModule() {
             {(() => {
               const exportRows = filteredInvoices.map((inv) => ({
                 invoice_no: inv.invoice_number,
-                student: getStudentName(inv.student_id),
+                student: getRecipientDetails(inv).name,
                 subtotal: inv.subtotal,
                 discount: inv.discount_amount,
                 late_fee: inv.late_fee,
@@ -695,7 +840,7 @@ export function AccountantInvoicesModule() {
                 status: getInvoiceStatus(inv),
                 issue_date: inv.created_at,
                 due_date: inv.due_date || "",
-                notes: inv.notes || "",
+                notes: getRecipientDetails(inv).cleanNotes,
               }));
               const totalAmount = filteredInvoices.reduce((s, i) => s + (i.total_amount || 0), 0);
               const paidCount = filteredInvoices.filter((i) => getInvoiceStatus(i) === "paid").length;
@@ -756,7 +901,7 @@ export function AccountantInvoicesModule() {
               <TableHeader className="bg-blue-50/20">
                 <TableRow className="hover:bg-transparent border-blue-50">
                   <TableHead className="text-slate-700 text-xs font-semibold py-2">Invoice #</TableHead>
-                  <TableHead className="text-slate-700 text-xs font-semibold py-2">Student</TableHead>
+                  <TableHead className="text-slate-700 text-xs font-semibold py-2">Recipient</TableHead>
                   <TableHead className="text-slate-700 text-xs font-semibold py-2 text-right">Amount</TableHead>
                   <TableHead className="text-slate-700 text-xs font-semibold py-2">Status</TableHead>
                   <TableHead className="text-slate-700 text-xs font-semibold py-2">Issue Date</TableHead>
@@ -768,7 +913,10 @@ export function AccountantInvoicesModule() {
                 {filteredInvoices.map((inv) => (
                   <TableRow key={inv.id} className="border-blue-50 hover:bg-blue-50/5">
                     <TableCell className="font-semibold text-xs text-slate-800 py-3">{inv.invoice_number}</TableCell>
-                    <TableCell className="text-xs text-slate-800">{getStudentName(inv.student_id)}</TableCell>
+                    <TableCell className="text-xs text-slate-800">
+                      <div className="font-semibold">{getRecipientDetails(inv).name}</div>
+                      <div className="text-[10px] text-slate-500">{getRecipientDetails(inv).type}</div>
+                    </TableCell>
                     <TableCell className="text-xs text-right font-bold text-slate-800">Rs. {Number(inv.total_amount ?? 0).toLocaleString()}</TableCell>
                     <TableCell className="py-3">{getStatusBadge(getInvoiceStatus(inv))}</TableCell>
                     <TableCell className="text-xs text-slate-500">{new Date(inv.created_at).toLocaleDateString()}</TableCell>
@@ -850,25 +998,98 @@ export function AccountantInvoicesModule() {
               {editingInvoice ? `Edit Invoice: ${formInvoiceNo}` : "Generate Invoice"}
             </DialogTitle>
             <DialogDescription>
-              {editingInvoice ? "Modify invoice parameters and update line items." : "Create a new invoice template for a student."}
+              {editingInvoice ? "Modify invoice parameters and update line items." : "Create a new invoice template for an individual (non-student)."}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
-            <div className="space-y-1.5">
-              <Label>Student</Label>
-              <Select value={formStudentId} onValueChange={setFormStudentId}>
-                <SelectTrigger className="rounded-xl border-blue-100">
-                  <SelectValue placeholder="Select student" />
-                </SelectTrigger>
-                <SelectContent>
-                  {students.map((s) => (
-                    <SelectItem key={s.id} value={s.id}>
-                      {s.first_name} {s.last_name || ""}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <div className="space-y-2">
+              <Label className="text-slate-700 font-semibold">Recipient Type</Label>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant={formRecipientType === "staff" ? "default" : "outline"}
+                  onClick={() => { setFormRecipientType("staff"); setFormStudentId(""); }}
+                  className="flex-1 rounded-xl text-xs h-8"
+                >
+                  Registered Staff
+                </Button>
+                <Button
+                  type="button"
+                  variant={formRecipientType === "profile" ? "default" : "outline"}
+                  onClick={() => { setFormRecipientType("profile"); setFormStudentId(""); }}
+                  className="flex-1 rounded-xl text-xs h-8"
+                >
+                  User / Parent
+                </Button>
+                <Button
+                  type="button"
+                  variant={formRecipientType === "custom" ? "default" : "outline"}
+                  onClick={() => { setFormRecipientType("custom"); setFormStudentId("00000000-0000-0000-0000-000000000000"); }}
+                  className="flex-1 rounded-xl text-xs h-8"
+                >
+                  Custom Individual
+                </Button>
+              </div>
             </div>
+
+            {formRecipientType === "staff" && (
+              <div className="space-y-1.5">
+                <Label>Select Staff Member</Label>
+                <Select value={formStudentId} onValueChange={setFormStudentId}>
+                  <SelectTrigger className="rounded-xl border-blue-100">
+                    <SelectValue placeholder="Select staff member" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {staffList.map((s) => (
+                      <SelectItem key={s.id} value={s.id}>
+                        {s.full_name} {s.email ? `(${s.email})` : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {formRecipientType === "profile" && (
+              <div className="space-y-1.5">
+                <Label>Select User / Parent</Label>
+                <Select value={formStudentId} onValueChange={setFormStudentId}>
+                  <SelectTrigger className="rounded-xl border-blue-100">
+                    <SelectValue placeholder="Select user / parent" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {schoolUsers.map((u) => (
+                      <SelectItem key={u.user_id} value={u.user_id}>
+                        {u.display_name || "Registered User"} {u.email ? `(${u.email})` : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {formRecipientType === "custom" && (
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label>Individual Full Name</Label>
+                  <Input
+                    value={formCustomName}
+                    onChange={(e) => setFormCustomName(e.target.value)}
+                    placeholder="e.g. John Doe"
+                    className="rounded-xl border-blue-100 focus-visible:ring-blue-500"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Contact Info (Email/Phone)</Label>
+                  <Input
+                    value={formCustomContact}
+                    onChange={(e) => setFormCustomContact(e.target.value)}
+                    placeholder="e.g. 0300-1234567"
+                    className="rounded-xl border-blue-100 focus-visible:ring-blue-500"
+                  />
+                </div>
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <Label>Invoice No</Label>
@@ -1037,8 +1258,16 @@ export function AccountantInvoicesModule() {
                   <div className="mt-0.5">{getStatusBadge(getInvoiceStatus(selectedInvoice))}</div>
                 </div>
                 <div>
-                  <p className="text-[10px] text-muted-foreground uppercase font-semibold">Student</p>
-                  <p className="font-semibold text-sm text-slate-800 mt-0.5">{getStudentName(selectedInvoice.student_id)}</p>
+                  <p className="text-[10px] text-muted-foreground uppercase font-semibold">Recipient</p>
+                  <p className="font-semibold text-sm text-slate-800 mt-0.5">{getRecipientDetails(selectedInvoice).name}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-muted-foreground uppercase font-semibold">Recipient Type</p>
+                  <p className="font-semibold text-sm text-slate-800 mt-0.5">{getRecipientDetails(selectedInvoice).type}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-muted-foreground uppercase font-semibold">Contact Info</p>
+                  <p className="font-semibold text-sm text-slate-800 mt-0.5">{getRecipientDetails(selectedInvoice).contact}</p>
                 </div>
                 <div>
                   <p className="text-[10px] text-muted-foreground uppercase font-semibold">Issue Date</p>
@@ -1110,10 +1339,10 @@ export function AccountantInvoicesModule() {
                 </div>
               </div>
 
-              {selectedInvoice.notes && (
+              {selectedInvoice.notes && getRecipientDetails(selectedInvoice).cleanNotes && (
                 <div className="space-y-1.5">
                   <p className="text-[10px] text-muted-foreground uppercase font-semibold">Notes</p>
-                  <p className="text-xs bg-slate-50 border border-slate-100 p-2.5 rounded-xl leading-relaxed text-slate-600">{selectedInvoice.notes}</p>
+                  <p className="text-xs bg-slate-50 border border-slate-100 p-2.5 rounded-xl leading-relaxed text-slate-600">{getRecipientDetails(selectedInvoice).cleanNotes}</p>
                 </div>
               )}
             </div>

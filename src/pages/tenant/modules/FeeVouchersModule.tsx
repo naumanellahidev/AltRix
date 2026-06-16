@@ -32,6 +32,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Checkbox } from "@/components/ui/checkbox";
 
 import { generateVoucherPdf, type VoucherCopyData } from "@/lib/fee-voucher-pdf";
 
@@ -190,7 +191,26 @@ function PaymentProofsCard({ schoolId }: { schoolId: string | null }) {
   const [viewing, setViewing] = useState<{ url: string; name: string; pdf: boolean } | null>(null);
   const [rejectFor, setRejectFor] = useState<ProofRow | null>(null);
   const [rejectReason, setRejectReason] = useState("");
+  const [rejectionDropdownVal, setRejectionDropdownVal] = useState("Illegible receipt");
   const [busy, setBusy] = useState<string | null>(null);
+
+  const [selectedProofs, setSelectedProofs] = useState<string[]>([]);
+  const [reviewingProof, setReviewingProof] = useState<ProofRow | null>(null);
+  const [viewingUrl, setViewingUrl] = useState<string | null>(null);
+  const [reviewAmount, setReviewAmount] = useState("");
+  const [reviewDate, setReviewDate] = useState("");
+  const [reviewMethod, setReviewMethod] = useState("");
+  const [bulkRejectOpen, setBulkRejectOpen] = useState(false);
+  const [bulkRejectReason, setBulkRejectReason] = useState("Illegible receipt");
+
+  const REJECTION_REASONS = [
+    { value: "Illegible receipt", label: "Illegible / blur receipt image" },
+    { value: "Incorrect amount", label: "Incorrect paid amount" },
+    { value: "Duplicate receipt", label: "Duplicate submission" },
+    { value: "Cheque bounced", label: "Cheque bounced" },
+    { value: "Incorrect reference", label: "Incorrect transaction reference" },
+    { value: "Other", label: "Other (Specify reason)" }
+  ];
 
   // Debounce search input (300ms)
   useEffect(() => {
@@ -333,11 +353,159 @@ function PaymentProofsCard({ schoolId }: { schoolId: string | null }) {
     }
   };
 
+  // Reset rejection states on dialog open
+  useEffect(() => {
+    if (rejectFor) {
+      setRejectionDropdownVal("Illegible receipt");
+      setRejectReason("Illegible / blur receipt image");
+    }
+  }, [rejectFor]);
+
+  useEffect(() => {
+    if (bulkRejectOpen) {
+      setBulkRejectReason("Illegible receipt");
+      setRejectReason("Illegible / blur receipt image");
+    }
+  }, [bulkRejectOpen]);
+
   const openProof = async (p: ProofRow) => {
     const { data, error } = await supabase.storage.from("fee-payment-proofs").createSignedUrl(p.file_path, 600);
     if (error || !data) { toast.error("Could not open file"); return; }
     const name = p.file_name || "proof";
     setViewing({ url: data.signedUrl, name, pdf: (p.mime_type || name).toLowerCase().includes("pdf") });
+  };
+
+  const openProofForReview = async (p: ProofRow) => {
+    setBusy(p.id);
+    try {
+      const { data, error } = await supabase.storage.from("fee-payment-proofs").createSignedUrl(p.file_path, 600);
+      if (error || !data) {
+        toast.error("Could not load proof preview");
+        return;
+      }
+      setViewingUrl(data.signedUrl);
+      setReviewingProof(p);
+      setReviewAmount((p.amount || 0).toString());
+      setReviewDate(p.paid_at ? p.paid_at.slice(0, 10) : new Date(p.created_at).toISOString().slice(0, 10));
+      setReviewMethod(p.method || "Bank Transfer");
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to load proof preview");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const handleApproveWithEdits = async () => {
+    if (!reviewingProof) return;
+    const p = reviewingProof;
+    const finalAmount = Number(reviewAmount);
+    if (isNaN(finalAmount) || finalAmount <= 0) {
+      toast.error("Please enter a valid amount");
+      return;
+    }
+    setBusy(p.id);
+    try {
+      const { error: updateError } = await supabase
+        .from("fee_payment_proofs")
+        .update({
+          amount: finalAmount,
+          paid_at: reviewDate || null,
+          method: reviewMethod || null,
+        })
+        .eq("id", p.id);
+      
+      if (updateError) throw updateError;
+
+      const { error: rpcError } = await (supabase as any).rpc("verify_fee_payment_proof", {
+        _proof_id: p.id,
+        _approve: true,
+        _amount: finalAmount,
+        _reason: null,
+      });
+
+      if (rpcError) throw rpcError;
+
+      toast.success("Payment verified and invoice updated successfully");
+      setReviewingProof(null);
+      setViewingUrl(null);
+      qc.invalidateQueries({ queryKey: ["fee_payment_proofs"] });
+      qc.invalidateQueries({ queryKey: ["proof_invoices"] });
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to approve with edits");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const handleBulkVerify = async () => {
+    if (selectedProofs.length === 0) return;
+    setBusy("bulk-verify");
+    const tId = toast.loading(`Verifying ${selectedProofs.length} payment proof(s)...`);
+    let successCount = 0;
+    let failCount = 0;
+    
+    try {
+      for (const proofId of selectedProofs) {
+        const { error } = await (supabase as any).rpc("verify_fee_payment_proof", {
+          _proof_id: proofId,
+          _approve: true,
+          _amount: null,
+          _reason: null,
+        });
+        if (error) {
+          console.error(`Bulk verify error for ID ${proofId}:`, error);
+          failCount++;
+        } else {
+          successCount++;
+        }
+      }
+      
+      toast.success(`Successfully verified ${successCount} proof(s). ${failCount > 0 ? `Failed: ${failCount}` : ""}`, { id: tId });
+      setSelectedProofs([]);
+      qc.invalidateQueries({ queryKey: ["fee_payment_proofs"] });
+      qc.invalidateQueries({ queryKey: ["proof_invoices"] });
+    } catch (e: any) {
+      toast.error(e?.message || "Bulk verification failed", { id: tId });
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const handleBulkRejectSubmit = async () => {
+    if (selectedProofs.length === 0) return;
+    setBusy("bulk-reject");
+    const tId = toast.loading(`Rejecting ${selectedProofs.length} payment proof(s)...`);
+    let successCount = 0;
+    let failCount = 0;
+    
+    const finalReason = bulkRejectReason === "Other" ? rejectReason : REJECTION_REASONS.find(r => r.value === bulkRejectReason)?.label || bulkRejectReason;
+
+    try {
+      for (const proofId of selectedProofs) {
+        const { error } = await (supabase as any).rpc("verify_fee_payment_proof", {
+          _proof_id: proofId,
+          _approve: false,
+          _amount: null,
+          _reason: finalReason || null,
+        });
+        if (error) {
+          console.error(`Bulk reject error for ID ${proofId}:`, error);
+          failCount++;
+        } else {
+          successCount++;
+        }
+      }
+      
+      toast.success(`Successfully rejected ${successCount} proof(s). ${failCount > 0 ? `Failed: ${failCount}` : ""}`, { id: tId });
+      setSelectedProofs([]);
+      setBulkRejectOpen(false);
+      qc.invalidateQueries({ queryKey: ["fee_payment_proofs"] });
+      qc.invalidateQueries({ queryKey: ["proof_invoices"] });
+    } catch (e: any) {
+      toast.error(e?.message || "Bulk rejection failed", { id: tId });
+    } finally {
+      setBusy(null);
+    }
   };
 
   const verify = async (p: ProofRow, approve: boolean, reason?: string) => {
@@ -349,6 +517,7 @@ function PaymentProofsCard({ schoolId }: { schoolId: string | null }) {
       if (error) throw error;
       toast.success(approve ? "Payment verified & invoice updated" : "Proof rejected");
       qc.invalidateQueries({ queryKey: ["fee_payment_proofs"] });
+      qc.invalidateQueries({ queryKey: ["proof_invoices"] });
     } catch (e: any) {
       toast.error(e?.message || "Action failed");
     } finally {
@@ -362,6 +531,10 @@ function PaymentProofsCard({ schoolId }: { schoolId: string | null }) {
   const pendingCount = proofs.filter(p => p.status === "pending").length;
   const verifiedAmount = proofs.filter(p => p.status === "verified").reduce((sum, p) => sum + Number(p.amount), 0);
   const rejectedCount = proofs.filter(p => p.status === "rejected").length;
+
+  const isPdf = reviewingProof
+    ? (reviewingProof.mime_type || reviewingProof.file_name || "").toLowerCase().includes("pdf")
+    : false;
 
   return (
     <Card className="shadow-sm border rounded-2xl">
@@ -454,6 +627,57 @@ function PaymentProofsCard({ schoolId }: { schoolId: string | null }) {
         </div>
       </CardHeader>
       <CardContent>
+        {/* Bulk Action Banner */}
+        {selectedProofs.length > 0 && (
+          <div className="bg-blue-50 dark:bg-blue-950/35 border border-blue-100 dark:border-blue-900/50 p-4 rounded-xl flex items-center justify-between flex-wrap gap-3 mb-4 animate-in fade-in slide-in-from-top-2 duration-200">
+            <div className="flex items-center gap-2.5">
+              <div className="bg-blue-600 text-white rounded-lg p-1.5 shadow-sm">
+                <CheckCircle2 className="h-4 w-4" />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-blue-900 dark:text-blue-200">
+                  {selectedProofs.length} payment proof{selectedProofs.length > 1 ? "s" : ""} selected
+                </p>
+                <p className="text-xs text-blue-700/80 dark:text-blue-400/80">
+                  Verify or reject all selected pending submissions at once.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                onClick={handleBulkVerify}
+                disabled={!!busy}
+                className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm font-semibold rounded-xl text-xs px-3 h-8"
+              >
+                {busy === "bulk-verify" ? (
+                  <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                ) : (
+                  <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />
+                )}
+                Verify Selected
+              </Button>
+              <Button
+                size="sm"
+                variant="destructive"
+                onClick={() => setBulkRejectOpen(true)}
+                disabled={!!busy}
+                className="font-semibold rounded-xl text-xs px-3 h-8"
+              >
+                <XCircle className="h-3.5 w-3.5 mr-1.5" /> Reject Selected
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setSelectedProofs([])}
+                className="text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 text-xs px-2.5 h-8"
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        )}
+
         {filteredProofs.length === 0 ? (
           <div className="py-8 text-center text-sm text-muted-foreground">
             {proofs.length === 0
@@ -464,6 +688,24 @@ function PaymentProofsCard({ schoolId }: { schoolId: string | null }) {
 
           <Table>
             <TableHeader><TableRow>
+              <TableHead className="w-[40px]">
+                <Checkbox
+                  checked={
+                    filteredProofs.length > 0 &&
+                    filteredProofs.filter(p => p.status === "pending").length > 0 &&
+                    filteredProofs.filter(p => p.status === "pending").every(p => selectedProofs.includes(p.id))
+                  }
+                  onCheckedChange={(checked) => {
+                    if (checked) {
+                      const pendingIds = filteredProofs.filter(p => p.status === "pending").map(p => p.id);
+                      setSelectedProofs(pendingIds);
+                    } else {
+                      setSelectedProofs([]);
+                    }
+                  }}
+                  disabled={filteredProofs.filter(p => p.status === "pending").length === 0}
+                />
+              </TableHead>
               <TableHead>Uploaded</TableHead>
               <TableHead>Student</TableHead>
               <TableHead>Invoice</TableHead>
@@ -478,11 +720,27 @@ function PaymentProofsCard({ schoolId }: { schoolId: string | null }) {
                 const inv = invoiceMap.get(p.invoice_id);
                 return (
                   <TableRow key={p.id}>
+                    <TableCell className="w-[40px]">
+                      {p.status === "pending" ? (
+                        <Checkbox
+                          checked={selectedProofs.includes(p.id)}
+                          onCheckedChange={(checked) => {
+                            if (checked) {
+                              setSelectedProofs(prev => [...prev, p.id]);
+                            } else {
+                              setSelectedProofs(prev => prev.filter(id => id !== p.id));
+                            }
+                          }}
+                        />
+                      ) : (
+                        <div className="w-4" />
+                      )}
+                    </TableCell>
                     <TableCell className="text-xs">{new Date(p.created_at).toLocaleString()}</TableCell>
                     <TableCell>{s ? `${s.first_name} ${s.last_name || ""}` : "—"}<div className="text-xs text-muted-foreground">{s?.roll_number || ""}</div></TableCell>
                     <TableCell className="font-mono text-xs">{inv?.invoice_number || "—"}</TableCell>
                     <TableCell className="text-xs">{p.method || "—"}{p.paid_at ? ` · ${p.paid_at}` : ""}{p.note ? <div className="text-muted-foreground truncate max-w-[180px]">{p.note}</div> : null}</TableCell>
-                    <TableCell className="text-right">PKR {Number(p.amount).toLocaleString()}</TableCell>
+                    <TableCell className="text-right font-medium text-slate-800 dark:text-slate-200">PKR {Number(p.amount).toLocaleString()}</TableCell>
                     <TableCell>
                       <Badge variant={p.status === "verified" ? "default" : p.status === "rejected" ? "destructive" : "secondary"}>
                         {p.status}
@@ -494,7 +752,7 @@ function PaymentProofsCard({ schoolId }: { schoolId: string | null }) {
                         <Button size="sm" variant="outline" onClick={() => openProof(p)}><Eye className="h-3 w-3 mr-1" />View</Button>
                         {p.status === "pending" && (
                           <>
-                            <Button size="sm" onClick={() => verify(p, true)} disabled={busy === p.id}>
+                            <Button size="sm" onClick={() => openProofForReview(p)} disabled={busy === p.id}>
                               {busy === p.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3 mr-1" />}
                               Verify
                             </Button>
@@ -514,7 +772,7 @@ function PaymentProofsCard({ schoolId }: { schoolId: string | null }) {
       </CardContent>
 
       <Dialog open={!!viewing} onOpenChange={(o) => !o && setViewing(null)}>
-        <DialogContent className="max-w-3xl">
+        <DialogContent className="max-w-3xl rounded-2xl">
           <DialogHeader><DialogTitle>{viewing?.name}</DialogTitle></DialogHeader>
           {viewing && (viewing.pdf
             ? <iframe src={viewing.url} className="w-full h-[70vh] rounded border" />
@@ -523,14 +781,290 @@ function PaymentProofsCard({ schoolId }: { schoolId: string | null }) {
         </DialogContent>
       </Dialog>
 
+      {/* Side-by-Side Proof Review Dialog */}
+      <Dialog open={!!reviewingProof} onOpenChange={(o) => {
+        if (!o) {
+          setReviewingProof(null);
+          setViewingUrl(null);
+        }
+      }}>
+        <DialogContent className="max-w-5xl w-[95vw] h-[85vh] flex flex-col rounded-3xl p-0 overflow-hidden">
+          <DialogHeader className="p-6 pb-2 border-b flex flex-row items-center justify-between">
+            <div>
+              <DialogTitle className="font-display font-bold text-lg flex items-center gap-2">
+                <Receipt className="h-5 w-5 text-primary" /> Review Payment Proof
+              </DialogTitle>
+              <DialogDescription className="text-xs">
+                Inspect the uploaded bank receipt side-by-side with invoice details and reconcile.
+              </DialogDescription>
+            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="rounded-full h-8 w-8 hover:bg-slate-100"
+              onClick={() => {
+                setReviewingProof(null);
+                setViewingUrl(null);
+              }}
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </DialogHeader>
+
+          <div className="flex-1 grid grid-cols-1 md:grid-cols-2 overflow-hidden h-full">
+            {/* Left Column: Preview */}
+            <div className="p-6 border-r bg-slate-50/50 flex flex-col justify-center items-center overflow-hidden h-full">
+              {viewingUrl ? (
+                isPdf ? (
+                  <iframe src={viewingUrl} className="w-full h-full rounded-xl border bg-white shadow-sm" />
+                ) : (
+                  <div className="relative w-full h-full flex items-center justify-center overflow-auto p-2 bg-white rounded-xl border shadow-sm">
+                    <img src={viewingUrl} alt="Receipt preview" className="max-w-full max-h-full object-contain" />
+                  </div>
+                )
+              ) : (
+                <div className="flex flex-col items-center justify-center gap-2 text-muted-foreground">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                  <p className="text-xs">Loading receipt preview...</p>
+                </div>
+              )}
+            </div>
+
+            {/* Right Column: Reconcile Form */}
+            <div className="p-6 flex flex-col justify-between overflow-y-auto h-full space-y-6">
+              <div className="space-y-6">
+                {/* Profile / Student & Invoice details */}
+                {reviewingProof && (
+                  <div className="space-y-4">
+                    <div>
+                      <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Student Info</h4>
+                      <div className="bg-slate-50 dark:bg-slate-900/40 p-3.5 rounded-xl border space-y-1">
+                        <div className="flex justify-between items-center text-xs">
+                          <span className="text-muted-foreground">Student Name:</span>
+                          <span className="font-semibold text-foreground">
+                            {studentMap.get(reviewingProof.student_id)
+                              ? `${studentMap.get(reviewingProof.student_id)?.first_name} ${studentMap.get(reviewingProof.student_id)?.last_name || ""}`
+                              : "—"}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center text-xs">
+                          <span className="text-muted-foreground">Roll Number:</span>
+                          <span className="font-mono">{studentMap.get(reviewingProof.student_id)?.roll_number || "—"}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div>
+                      <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Invoice Info</h4>
+                      <div className="bg-slate-50 dark:bg-slate-900/40 p-3.5 rounded-xl border space-y-1">
+                        <div className="flex justify-between items-center text-xs">
+                          <span className="text-muted-foreground">Invoice Number:</span>
+                          <span className="font-mono font-semibold text-primary">
+                            {invoiceMap.get(reviewingProof.invoice_id)?.invoice_number || "—"}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center text-xs">
+                          <span className="text-muted-foreground">Invoice Amount:</span>
+                          <span className="font-semibold">
+                            PKR {Number(invoiceMap.get(reviewingProof.invoice_id)?.total_amount || 0).toLocaleString()}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center text-xs">
+                          <span className="text-muted-foreground">Invoice Status:</span>
+                          <div>{statusBadge(invoiceMap.get(reviewingProof.invoice_id)?.status || "")}</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Edit Form */}
+                <div className="space-y-4 pt-2 border-t">
+                  <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Verification Details (Editable)</h4>
+                  
+                  <div className="space-y-1.5">
+                    <Label htmlFor="review-amount" className="text-xs">Amount Paid (PKR)</Label>
+                    <Input
+                      id="review-amount"
+                      type="number"
+                      inputMode="decimal"
+                      value={reviewAmount}
+                      onChange={(e) => setReviewAmount(e.target.value)}
+                      className="h-9 font-medium"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="review-date" className="text-xs">Payment Date</Label>
+                      <Input
+                        id="review-date"
+                        type="date"
+                        value={reviewDate}
+                        onChange={(e) => setReviewDate(e.target.value)}
+                        className="h-9"
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label htmlFor="review-method" className="text-xs">Payment Method</Label>
+                      <Select value={reviewMethod} onValueChange={setReviewMethod}>
+                        <SelectTrigger id="review-method" className="h-9">
+                          <SelectValue placeholder="Method" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Bank Transfer">Bank Transfer</SelectItem>
+                          <SelectItem value="JazzCash">JazzCash</SelectItem>
+                          <SelectItem value="Easypaisa">Easypaisa</SelectItem>
+                          <SelectItem value="Cash">Cash</SelectItem>
+                          <SelectItem value="Cheque">Cheque</SelectItem>
+                          <SelectItem value="Card">Card</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Actions Footer */}
+              <div className="flex items-center gap-2.5 pt-4 border-t">
+                <Button
+                  variant="hero"
+                  onClick={handleApproveWithEdits}
+                  disabled={!!busy}
+                  className="flex-1 text-xs"
+                >
+                  {busy === reviewingProof?.id ? (
+                    <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                  ) : (
+                    <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />
+                  )}
+                  Approve & Reconcile
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={() => {
+                    if (reviewingProof) {
+                      setRejectFor(reviewingProof);
+                      setReviewingProof(null);
+                      setViewingUrl(null);
+                    }
+                  }}
+                  disabled={!!busy}
+                  className="flex-1 text-xs"
+                >
+                  <XCircle className="h-3.5 w-3.5 mr-1.5" />
+                  Reject Proof
+                </Button>
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Reject Proof Dialog */}
       <Dialog open={!!rejectFor} onOpenChange={(o) => !o && setRejectFor(null)}>
-        <DialogContent className="max-w-md">
-          <DialogHeader><DialogTitle>Reject proof</DialogTitle></DialogHeader>
-          <Label>Reason (shared with parent)</Label>
-          <Textarea rows={3} value={rejectReason} onChange={e => setRejectReason(e.target.value)} placeholder="e.g. amount mismatch, unreadable receipt" />
+        <DialogContent className="max-w-md rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="font-bold flex items-center gap-2 text-rose-600">
+              <XCircle className="h-5 w-5" /> Reject Payment Proof
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Select a rejection category and add additional feedback to the parent.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 my-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="reject-category" className="text-xs">Rejection Category</Label>
+              <Select value={rejectionDropdownVal} onValueChange={(val) => {
+                setRejectionDropdownVal(val);
+                if (val !== "Other") {
+                  setRejectReason(REJECTION_REASONS.find(r => r.value === val)?.label || val);
+                } else {
+                  setRejectReason("");
+                }
+              }}>
+                <SelectTrigger id="reject-category">
+                  <SelectValue placeholder="Select a reason" />
+                </SelectTrigger>
+                <SelectContent>
+                  {REJECTION_REASONS.map(r => (
+                    <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div className="space-y-1.5">
+              <Label htmlFor="reject-details" className="text-xs">Custom Details (shared with parent)</Label>
+              <Textarea
+                id="reject-details"
+                rows={3}
+                value={rejectReason}
+                onChange={e => setRejectReason(e.target.value)}
+                placeholder="Specify details for rejection..."
+              />
+            </div>
+          </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setRejectFor(null)}>Cancel</Button>
-            <Button variant="destructive" onClick={() => rejectFor && verify(rejectFor, false, rejectReason)} disabled={!!busy}>Reject</Button>
+            <Button variant="destructive" onClick={() => {
+              if (rejectFor) {
+                const finalReason = rejectionDropdownVal === "Other" ? rejectReason : REJECTION_REASONS.find(r => r.value === rejectionDropdownVal)?.label || rejectionDropdownVal;
+                verify(rejectFor, false, finalReason);
+              }
+            }} disabled={!!busy}>Reject Proof</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk Reject Dialog */}
+      <Dialog open={bulkRejectOpen} onOpenChange={setBulkRejectOpen}>
+        <DialogContent className="max-w-md rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="font-bold flex items-center gap-2 text-rose-600">
+              <XCircle className="h-5 w-5" /> Reject Selected Proofs
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Reject {selectedProofs.length} selected claims. Choose a rejection category.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 my-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="bulk-reject-category" className="text-xs">Rejection Category</Label>
+              <Select value={bulkRejectReason} onValueChange={(val) => {
+                setBulkRejectReason(val);
+                if (val !== "Other") {
+                  setRejectReason(REJECTION_REASONS.find(r => r.value === val)?.label || val);
+                } else {
+                  setRejectReason("");
+                }
+              }}>
+                <SelectTrigger id="bulk-reject-category">
+                  <SelectValue placeholder="Select a reason" />
+                </SelectTrigger>
+                <SelectContent>
+                  {REJECTION_REASONS.map(r => (
+                    <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div className="space-y-1.5">
+              <Label htmlFor="bulk-reject-details" className="text-xs">Custom Details (shared with parents)</Label>
+              <Textarea
+                id="bulk-reject-details"
+                rows={3}
+                value={rejectReason}
+                onChange={e => setRejectReason(e.target.value)}
+                placeholder="Specify details for rejection..."
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBulkRejectOpen(false)}>Cancel</Button>
+            <Button variant="destructive" onClick={handleBulkRejectSubmit} disabled={!!busy}>Reject All</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
