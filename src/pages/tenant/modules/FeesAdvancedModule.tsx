@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
-import { Plus, Trash2, Receipt, Settings as SettingsIcon, Wallet, FileText, Users as UsersIcon, CreditCard, Send, BarChart3, Search, X, Edit2, Eye, Download, Printer, SlidersHorizontal, Filter } from "lucide-react";
+import { Plus, Trash2, Receipt, Settings as SettingsIcon, Wallet, FileText, Users as UsersIcon, CreditCard, Send, BarChart3, Search, X, Edit2, Eye, Download, Printer, SlidersHorizontal, Filter, RefreshCw } from "lucide-react";
 import { FeesAnalyticsTab } from "@/components/fees/FeesAnalyticsTab";
 import { supabase } from "@/integrations/supabase/client";
 import { useTenantOptimized } from "@/hooks/useTenantOptimized";
@@ -107,11 +107,12 @@ export default function FeesAdvancedModule() {
   const [viewOpen, setViewOpen] = useState(false);
   const [payMethods, setPayMethods] = useState<any[]>([]);
   const [showExpFilters, setShowExpFilters] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
-  // ---------- LOAD ----------
-  useEffect(() => {
+  const reloadData = async (silent = false) => {
     if (!schoolId) return;
-    (async () => {
+    if (!silent) setRefreshing(true);
+    try {
       const [cRes, sRes, stRes, settRes, pRes, iRes, aRes, invRes, payRes, expRes, pmRes] = await Promise.all([
         supabase.from("academic_classes").select("id, name").eq("school_id", schoolId).order("name"),
         supabase.from("class_sections").select("id, name, class_id").eq("school_id", schoolId).order("name"),
@@ -136,7 +137,17 @@ export default function FeesAdvancedModule() {
       setPayments((payRes.data as FeePayment[]) || []);
       setExpenses((expRes.data as any[]) || []);
       setPayMethods(pmRes.data || []);
-    })();
+      if (!silent) toast.success("Advanced operations ledger refreshed");
+    } catch (err) {
+      if (!silent) toast.error("Failed to refresh ledger");
+    } finally {
+      if (!silent) setRefreshing(false);
+    }
+  };
+
+  // ---------- LOAD ----------
+  useEffect(() => {
+    reloadData(true);
   }, [schoolId]);
 
   // realtime
@@ -750,9 +761,21 @@ export default function FeesAdvancedModule() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="font-display text-2xl font-bold tracking-tight">Fees</h1>
-        <p className="text-muted-foreground">Manage fee plans, student assignments, invoices, and payments.</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="font-display text-2xl font-bold tracking-tight">Fees</h1>
+          <p className="text-muted-foreground">Manage fee plans, student assignments, invoices, and payments.</p>
+        </div>
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={() => reloadData()}
+          disabled={refreshing}
+          title="Refresh Operations"
+          className="h-9 w-9 rounded-xl border-blue-100 text-slate-500 hover:text-blue-600 hover:bg-blue-50/50"
+        >
+          <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
+        </Button>
       </div>
 
       <Tabs defaultValue="assignments" value={tab} onValueChange={setTab}>

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, Receipt, Download, Loader2, Trash2, Users, User, Eye, CheckCircle2, XCircle, AlertCircle, Mail, Upload, Search, X, FileDown, Award, Sparkles, TrendingUp } from "lucide-react";
+import { Plus, Receipt, Download, Loader2, Trash2, Users, User, Eye, CheckCircle2, XCircle, AlertCircle, Mail, Upload, Search, X, FileDown, Award, Sparkles, TrendingUp, RefreshCw } from "lucide-react";
 import { exportToCSV } from "@/lib/csv";
 import { toast } from "sonner";
 
@@ -71,6 +71,14 @@ export default function FeeVouchersModule() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deliveriesBatch, setDeliveriesBatch] = useState<Batch | null>(null);
 
+  const handleRefresh = () => {
+    qc.invalidateQueries({ queryKey: ["fee_voucher_batches", schoolId] });
+    qc.invalidateQueries({ queryKey: ["fee_payment_proofs"] });
+    qc.invalidateQueries({ queryKey: ["proof_students"] });
+    qc.invalidateQueries({ queryKey: ["proof_invoices"] });
+    toast.success("Vouchers and proofs refreshed!");
+  };
+
   const { data: batches = [] } = useQuery({
     queryKey: ["fee_voucher_batches", schoolId],
     queryFn: async () => {
@@ -98,9 +106,20 @@ export default function FeeVouchersModule() {
               Generate professional fee vouchers for individuals or entire classes. Parents are notified automatically.
             </p>
           </div>
-          <Button variant="hero" onClick={() => setDialogOpen(true)} className="shrink-0">
-            <Plus className="mr-2 h-4 w-4" /> Generate Voucher
-          </Button>
+          <div className="flex items-center gap-2 shrink-0">
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={handleRefresh}
+              title="Refresh Vouchers & Proofs"
+              className="h-9 w-9 rounded-xl border-blue-100 text-slate-500 hover:text-blue-600 hover:bg-blue-50/50"
+            >
+              <RefreshCw className="h-4 w-4" />
+            </Button>
+            <Button variant="hero" onClick={() => setDialogOpen(true)}>
+              <Plus className="mr-2 h-4 w-4" /> Generate Voucher
+            </Button>
+          </div>
         </CardHeader>
       </Card>
 

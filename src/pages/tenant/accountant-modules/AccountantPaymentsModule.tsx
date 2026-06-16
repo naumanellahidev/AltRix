@@ -1,7 +1,7 @@
 import { useState, useCallback, useMemo } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, CreditCard, Trash2, Receipt, Search, X, Printer, FileText } from "lucide-react";
+import { Plus, CreditCard, Trash2, Receipt, Search, X, Printer, FileText, RefreshCw } from "lucide-react";
 import { ReportExportMenu } from "@/components/accountant/ReportExportMenu";
 import { BrandedDocument } from "@/components/pdf/BrandedDocument";
 import { useSchoolDocument } from "@/hooks/useSchoolDocument";
@@ -639,6 +639,16 @@ export function AccountantPaymentsModule() {
                 />
               );
             })()}
+
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={invalidateFinanceQueries}
+              title="Refresh"
+              className="h-9 w-9 rounded-xl text-slate-500 hover:text-blue-600 hover:bg-blue-50/50"
+            >
+              <RefreshCw className="h-4 w-4" />
+            </Button>
 
             <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
               <DialogTrigger asChild>

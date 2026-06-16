@@ -16,7 +16,8 @@ import {
   Copy,
   UserCheck,
   Search,
-  X
+  X,
+  RefreshCw
 } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
@@ -94,6 +95,14 @@ export function AccountantFeesModule() {
   // Search & Filter state
   const [searchQuery, setSearchQuery] = useState("");
   const [classFilter, setClassFilter] = useState("all");
+
+  const handleRefresh = () => {
+    queryClient.invalidateQueries({ queryKey: ["fee_plans", schoolId] });
+    queryClient.invalidateQueries({ queryKey: ["academic_classes", schoolId] });
+    queryClient.invalidateQueries({ queryKey: ["fee_plan_items", schoolId] });
+    queryClient.invalidateQueries({ queryKey: ["student_fee_assignments_summary", schoolId] });
+    toast.success("Billing structures refreshed!");
+  };
 
   // Modal / Form state
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -550,12 +559,22 @@ export function AccountantFeesModule() {
                 <CardTitle className="text-slate-800 font-display text-base font-bold">Billing Templates</CardTitle>
                 <CardDescription className="text-xs">Define base fee structures.</CardDescription>
               </div>
-              <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button variant="default" onClick={openCreate} className="h-8 rounded-xl bg-blue-600 hover:bg-blue-700 text-white shadow-sm text-xs">
-                    <Plus className="mr-1.5 h-3.5 w-3.5" /> New Structure
-                  </Button>
-                </DialogTrigger>
+              <div className="flex items-center gap-1.5">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={handleRefresh}
+                  title="Refresh"
+                  className="h-8 w-8 rounded-xl text-slate-500 hover:text-blue-600 hover:bg-blue-50/50"
+                >
+                  <RefreshCw className="h-4 w-4" />
+                </Button>
+                <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button variant="default" onClick={openCreate} className="h-8 rounded-xl bg-blue-600 hover:bg-blue-700 text-white shadow-sm text-xs">
+                      <Plus className="mr-1.5 h-3.5 w-3.5" /> New Structure
+                    </Button>
+                  </DialogTrigger>
                 <DialogContent className="sm:max-w-[425px] rounded-2xl border-blue-100">
                   <DialogHeader>
                     <DialogTitle className="text-slate-800 font-display font-bold">
@@ -657,6 +676,7 @@ export function AccountantFeesModule() {
                   </DialogFooter>
                 </DialogContent>
               </Dialog>
+              </div>
             </div>
 
             {/* Live Search and Filtering Row */}

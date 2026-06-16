@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { 
@@ -14,7 +14,8 @@ import {
   Download,
   Receipt,
   Search,
-  X
+  X,
+  RefreshCw
 } from "lucide-react";
 import { ReportExportMenu } from "@/components/accountant/ReportExportMenu";
 import { BrandedDocument } from "@/components/pdf/BrandedDocument";
@@ -22,6 +23,7 @@ import { useSchoolDocument } from "@/hooks/useSchoolDocument";
 
 import { supabase } from "@/integrations/supabase/client";
 import { useTenant } from "@/hooks/useTenant";
+import { useRealtimeTable } from "@/hooks/useRealtime";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -120,6 +122,30 @@ export function AccountantInvoicesModule() {
   const schoolId = tenant.status === "ready" ? tenant.schoolId : null;
   const { school: schoolBranding } = useSchoolDocument(schoolId);
 
+  // Invalidate finance queries on data changes
+  const invalidateFinanceQueries = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ["fee_invoices", schoolId] });
+    queryClient.invalidateQueries({ queryKey: ["fee_payments", schoolId] });
+    queryClient.invalidateQueries({ queryKey: ["students", schoolId] });
+  }, [queryClient, schoolId]);
+
+  // Real-time subscriptions for immediate syncing
+  useRealtimeTable({
+    channel: `invoices-sync-${schoolId}`,
+    table: "fee_invoices",
+    filter: schoolId ? `school_id=eq.${schoolId}` : undefined,
+    enabled: !!schoolId,
+    onChange: invalidateFinanceQueries,
+  });
+
+  useRealtimeTable({
+    channel: `payments-sync-inv-${schoolId}`,
+    table: "fee_payments",
+    filter: schoolId ? `school_id=eq.${schoolId}` : undefined,
+    enabled: !!schoolId,
+    onChange: invalidateFinanceQueries,
+  });
+
   // Dialog & state management
   const [dialogOpen, setDialogOpen] = useState(false);
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
@@ -193,7 +219,7 @@ export function AccountantInvoicesModule() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("hr_staff_directory")
-        .select("id, full_name, email, phone")
+        .select("id, full_name, email, phone, linked_user_id")
         .eq("school_id", schoolId!)
         .eq("is_active", true)
         .order("full_name");
@@ -202,7 +228,8 @@ export function AccountantInvoicesModule() {
         id: d.id,
         full_name: d.full_name,
         email: d.email,
-        phone: d.phone
+        phone: d.phone,
+        linked_user_id: d.linked_user_id
       }));
     },
     enabled: !!schoolId,
@@ -613,7 +640,7 @@ export function AccountantInvoicesModule() {
       return {
         name: u.display_name || "Registered User",
         contact: u.email || "No email",
-        type: "User / Parent",
+        type: "Student / Parent",
         cleanNotes: invoice.notes || ""
       };
     }
@@ -873,6 +900,15 @@ export function AccountantInvoicesModule() {
                 <SelectItem value="overdue">Overdue</SelectItem>
               </SelectContent>
             </Select>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={invalidateFinanceQueries}
+              title="Refresh"
+              className="h-9 w-9 rounded-xl text-slate-500 hover:text-blue-600 hover:bg-blue-50/50"
+            >
+              <RefreshCw className="h-4 w-4" />
+            </Button>
             <Button onClick={openCreate} className="rounded-xl h-9 bg-blue-600 hover:bg-blue-700 text-white shadow-sm text-xs">
               <Plus className="mr-1.5 h-3.5 w-3.5" /> Generate Invoice
             </Button>
@@ -992,8 +1028,8 @@ export function AccountantInvoicesModule() {
 
       {/* Invoice Create / Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-2xl rounded-2xl border-blue-100">
-          <DialogHeader>
+        <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col rounded-2xl border-blue-100 p-0">
+          <DialogHeader className="px-6 pt-6 pb-2">
             <DialogTitle className="font-display font-bold text-slate-800">
               {editingInvoice ? `Edit Invoice: ${formInvoiceNo}` : "Generate Invoice"}
             </DialogTitle>
@@ -1001,6 +1037,7 @@ export function AccountantInvoicesModule() {
               {editingInvoice ? "Modify invoice parameters and update line items." : "Create a new invoice template for an individual (non-student)."}
             </DialogDescription>
           </DialogHeader>
+          <div className="flex-1 overflow-y-auto px-6 pb-2">
           <div className="space-y-4 py-2">
             <div className="space-y-2">
               <Label className="text-slate-700 font-semibold">Recipient Type</Label>
@@ -1019,7 +1056,7 @@ export function AccountantInvoicesModule() {
                   onClick={() => { setFormRecipientType("profile"); setFormStudentId(""); }}
                   className="flex-1 rounded-xl text-xs h-8"
                 >
-                  User / Parent
+                  Student / Parent
                 </Button>
                 <Button
                   type="button"
@@ -1052,17 +1089,37 @@ export function AccountantInvoicesModule() {
 
             {formRecipientType === "profile" && (
               <div className="space-y-1.5">
-                <Label>Select User / Parent</Label>
+                <Label>Select Student / Parent</Label>
                 <Select value={formStudentId} onValueChange={setFormStudentId}>
                   <SelectTrigger className="rounded-xl border-blue-100">
-                    <SelectValue placeholder="Select user / parent" />
+                    <SelectValue placeholder="Select student or parent" />
                   </SelectTrigger>
                   <SelectContent>
-                    {schoolUsers.map((u) => (
-                      <SelectItem key={u.user_id} value={u.user_id}>
-                        {u.display_name || "Registered User"} {u.email ? `(${u.email})` : ""}
-                      </SelectItem>
-                    ))}
+                    {students.length > 0 && (
+                      <>
+                        <SelectItem value="__group_students" disabled className="text-[10px] font-bold uppercase tracking-wider text-slate-400 py-1">— Students —</SelectItem>
+                        {students.map((s) => (
+                          <SelectItem key={s.id} value={s.id}>
+                            {s.first_name} {s.last_name || ""}
+                          </SelectItem>
+                        ))}
+                      </>
+                    )}
+                    {(() => {
+                      const staffUserIds = new Set(staffList.map(s => s.linked_user_id).filter(Boolean));
+                      const filteredUsers = schoolUsers.filter(u => u.user_id && !staffUserIds.has(u.user_id));
+                      if (filteredUsers.length === 0) return null;
+                      return (
+                        <>
+                          <SelectItem value="__group_parents" disabled className="text-[10px] font-bold uppercase tracking-wider text-slate-400 py-1">— Parents / Guardians —</SelectItem>
+                          {filteredUsers.map((u) => (
+                            <SelectItem key={u.user_id} value={u.user_id}>
+                              {u.display_name || "Registered User"} {u.email ? `(${u.email})` : ""}
+                            </SelectItem>
+                          ))}
+                        </>
+                      );
+                    })()}
                   </SelectContent>
                 </Select>
               </div>
@@ -1175,7 +1232,8 @@ export function AccountantInvoicesModule() {
               <Textarea value={formNotes} onChange={(e) => setFormNotes(e.target.value)} placeholder="Additional billing descriptions..." className="rounded-xl border-blue-100 min-h-[60px]" />
             </div>
           </div>
-          <DialogFooter>
+          </div>
+          <DialogFooter className="px-6 pb-6 pt-3 border-t">
             <Button variant="outline" onClick={() => setDialogOpen(false)} className="rounded-xl border-blue-100 text-slate-600">Cancel</Button>
             <Button onClick={handleSaveInvoice} className="rounded-xl bg-blue-600 hover:bg-blue-700 text-white">
               {editingInvoice ? "Save Changes" : "Generate Invoice"}
