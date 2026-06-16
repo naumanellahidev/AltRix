@@ -55,7 +55,5 @@ EXPOSE 8000
 # Set entrypoint script
 ENTRYPOINT ["./entrypoint.sh"]
 
-# Default command starts Gunicorn with Uvicorn workers.
-# Can be overridden for running Celery workers or Beat.
-CMD ["gunicorn", "-w", "4", "-k", "uvicorn.workers.UvicornWorker", "-b", "0.0.0.0:8000", "--access-logfile", "-", "--error-logfile", "-", "app.main:app"]
+CMD ["sh", "-c", "gunicorn -w 4 -k uvicorn.workers.UvicornWorker -b 0.0.0.0:${PORT:-8000} --access-logfile - --error-logfile - app.main:app"]
 
