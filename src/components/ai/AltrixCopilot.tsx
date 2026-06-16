@@ -68,15 +68,15 @@ function renderMarkdown(text: string): string {
     // Italic
     .replace(/\*(.+?)\*/g, "<em>$1</em>")
     // Inline code
-    .replace(/`(.+?)`/g, '<code class="bg-zinc-800 text-purple-300 px-1 rounded text-[10px]">$1</code>')
+    .replace(/`(.+?)`/g, '<code class="bg-slate-100 text-blue-600 px-1 rounded text-[10px]">$1</code>')
     // Bullet points
     .replace(/^- (.+)$/gm, '<li class="ml-3 list-disc list-outside">$1</li>')
     // Numbered list
     .replace(/^\d+\. (.+)$/gm, '<li class="ml-3 list-decimal list-outside">$1</li>')
     // Headers
-    .replace(/^### (.+)$/gm, '<p class="font-bold text-purple-300 mt-2 mb-1 text-[11px] uppercase tracking-wide">$1</p>')
-    .replace(/^## (.+)$/gm, '<p class="font-bold text-white mt-2 mb-1 text-[12px]">$1</p>')
-    .replace(/^# (.+)$/gm, '<p class="font-bold text-white mt-2 mb-1 text-[13px]">$1</p>')
+    .replace(/^### (.+)$/gm, '<p class="font-bold text-blue-600 mt-2 mb-1 text-[11px] uppercase tracking-wide">$1</p>')
+    .replace(/^## (.+)$/gm, '<p class="font-bold text-slate-800 mt-2 mb-1 text-[12px]">$1</p>')
+    .replace(/^# (.+)$/gm, '<p class="font-bold text-slate-900 mt-2 mb-1 text-[13px]">$1</p>')
     // Newlines
     .replace(/\n\n/g, '<br/><br/>')
     .replace(/\n/g, '<br/>');
@@ -90,7 +90,7 @@ function TypingDots() {
       {[0, 1, 2].map((i) => (
         <span
           key={i}
-          className="w-1 h-1 rounded-full bg-purple-400"
+          className="w-1 h-1 rounded-full bg-blue-400"
           style={{
             animation: "copilot-dot 1.2s infinite ease-in-out",
             animationDelay: `${i * 0.2}s`,
@@ -593,7 +593,7 @@ export default function AltrixCopilot() {
           width: 100%;
           height: 100%;
           border-radius: 9999px;
-          background: linear-gradient(135deg, #6366f1, #a855f7, #ec4899);
+          background: linear-gradient(135deg, #3b82f6, #6366f1);
           animation: copilot-pulse-ring 2.2s infinite ease-out;
           z-index: -1;
         }
@@ -608,8 +608,8 @@ export default function AltrixCopilot() {
       <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-2">
         {!isOpen && (
           <div className="flex items-center gap-2 animate-in fade-in slide-in-from-right-4 duration-300">
-            <span className="bg-zinc-900/90 backdrop-blur text-zinc-200 text-[10px] font-medium px-2.5 py-1 rounded-full border border-zinc-700/60 shadow whitespace-nowrap">
-              <Keyboard className="inline h-3 w-3 mr-1 text-purple-400" />
+            <span className="bg-white/95 backdrop-blur text-slate-700 text-[10px] font-medium px-2.5 py-1 rounded-full border border-slate-200 shadow-sm whitespace-nowrap">
+              <Keyboard className="inline h-3 w-3 mr-1 text-blue-500" />
               Alt+K
             </span>
           </div>
@@ -618,7 +618,7 @@ export default function AltrixCopilot() {
         <button
           id="altrix-copilot-btn"
           onClick={() => setIsOpen((o) => !o)}
-          className="relative flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-tr from-indigo-600 via-purple-600 to-pink-500 shadow-[0_8px_30px_rgb(124,58,237,0.35)] transition-all duration-300 hover:scale-110 hover:shadow-[0_8px_35px_rgb(124,58,237,0.6)] cursor-pointer active:scale-95 border-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 focus-visible:ring-offset-2"
+          className="relative flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 shadow-[0_8px_30px_rgba(37,99,235,0.35)] transition-all duration-300 hover:scale-110 hover:shadow-[0_8px_35px_rgba(37,99,235,0.6)] cursor-pointer active:scale-95 border-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:ring-offset-2"
           aria-label="Toggle AI Copilot (Alt+K)"
           title="AltRix AI Copilot — Alt+K"
         >
@@ -634,21 +634,21 @@ export default function AltrixCopilot() {
       {/* ── Chat Panel ───────────────────────────────────────────────────── */}
       {isOpen && (
         <div
-          className={`${panelClass} rounded-2xl sm:rounded-3xl border border-zinc-800/80 bg-zinc-950 shadow-[0_20px_60px_rgba(0,0,0,0.7)] flex flex-col overflow-hidden copilot-panel`}
+          className={`${panelClass} rounded-2xl sm:rounded-3xl border border-slate-200 bg-white shadow-[0_20px_50px_rgba(15,23,42,0.15)] flex flex-col overflow-hidden copilot-panel`}
           style={{ fontFamily: "'Inter', sans-serif" }}
         >
           {/* ── Header ─────────────────────────────────────────────────── */}
-          <div className="flex items-center justify-between border-b border-zinc-800/80 bg-gradient-to-r from-zinc-950 via-purple-950/10 to-zinc-950 px-4 py-3 shrink-0">
+          <div className="flex items-center justify-between border-b border-slate-100 bg-gradient-to-r from-white via-blue-50/50 to-white px-4 py-3 shrink-0">
             <div className="flex items-center gap-2.5">
-              <div className="relative flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-purple-600 to-indigo-600 shadow-sm">
+              <div className="relative flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 shadow-sm">
                 <Sparkles className="h-4 w-4 text-white" />
-                <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-emerald-400 border border-zinc-950" />
+                <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-emerald-500 border border-white" />
               </div>
               <div>
-                <p className="text-sm font-bold text-white leading-none tracking-tight">
+                <p className="text-sm font-bold text-slate-800 leading-none tracking-tight">
                   AltRix Copilot
                 </p>
-                <p className="text-[10px] text-zinc-400 mt-0.5 capitalize">
+                <p className="text-[10px] text-slate-500 mt-0.5 capitalize">
                   {primaryRole?.replace(/_/g, " ")} · ERP Connected
                 </p>
               </div>
@@ -657,7 +657,7 @@ export default function AltrixCopilot() {
               {messages.length > 1 && (
                 <button
                   onClick={handleClear}
-                  className="p-1.5 rounded-lg text-zinc-500 hover:text-rose-400 hover:bg-rose-400/10 transition-colors cursor-pointer"
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
                   title="Clear conversation"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
@@ -665,7 +665,7 @@ export default function AltrixCopilot() {
               )}
               <button
                 onClick={() => setIsExpanded((e) => !e)}
-                className="p-1.5 rounded-lg text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800 transition-colors cursor-pointer"
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer"
                 title={isExpanded ? "Collapse" : "Expand"}
               >
                 {isExpanded ? (
@@ -676,7 +676,7 @@ export default function AltrixCopilot() {
               </button>
               <button
                 onClick={() => setIsOpen(false)}
-                className="p-1.5 rounded-lg text-zinc-500 hover:text-white hover:bg-zinc-800 transition-colors cursor-pointer"
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
                 title="Close (Esc)"
               >
                 <X className="h-3.5 w-3.5" />
@@ -698,11 +698,11 @@ export default function AltrixCopilot() {
                 {/* Avatar */}
                 {msg.role === "assistant" && (
                   <div className="flex items-center gap-1.5 mb-1">
-                    <div className="h-5 w-5 rounded-full bg-gradient-to-br from-purple-600 to-indigo-600 flex items-center justify-center">
+                    <div className="h-5 w-5 rounded-full bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center">
                       <Brain className="h-3 w-3 text-white" />
                     </div>
-                    <span className="text-[10px] text-zinc-500 font-medium">AltRix AI</span>
-                    <span className="text-[10px] text-zinc-600">
+                    <span className="text-[10px] text-slate-500 font-medium">AltRix AI</span>
+                    <span className="text-[10px] text-slate-400">
                       {msg.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                     </span>
                   </div>
@@ -712,10 +712,10 @@ export default function AltrixCopilot() {
                 <div
                   className={`group relative max-w-[88%] rounded-2xl px-3 py-2.5 text-[12px] leading-relaxed ${
                     msg.role === "user"
-                      ? "bg-gradient-to-br from-purple-600 to-indigo-600 text-white rounded-br-sm shadow-md"
+                      ? "bg-gradient-to-br from-blue-600 to-indigo-600 text-white rounded-br-sm shadow-md"
                       : msg.isError
-                      ? "bg-rose-900/30 text-rose-200 border border-rose-700/40 rounded-bl-sm"
-                      : "bg-zinc-900 text-zinc-100 border border-zinc-800/60 rounded-bl-sm shadow-sm"
+                      ? "bg-rose-50 text-rose-800 border border-rose-200 rounded-bl-sm"
+                      : "bg-slate-50 text-slate-800 border border-slate-200/60 rounded-bl-sm shadow-sm"
                   }`}
                 >
                   {msg.role === "user" ? (
@@ -731,7 +731,7 @@ export default function AltrixCopilot() {
                   {msg.content && (
                     <button
                       onClick={() => handleCopy(msg.id, msg.content)}
-                      className="absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100 p-1 rounded-lg bg-zinc-800/80 text-zinc-400 hover:text-white transition-all cursor-pointer"
+                      className="absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100 p-1 rounded-lg bg-white border border-slate-200 text-slate-400 hover:text-slate-700 transition-all cursor-pointer shadow-sm"
                       title="Copy"
                     >
                       {copiedId === msg.id ? (
@@ -748,13 +748,13 @@ export default function AltrixCopilot() {
                     const Icon = meta.icon;
                     return (
                       <div className={`mt-3 rounded-xl bg-gradient-to-br ${meta.color} border p-3 flex flex-col gap-2`}>
-                        <div className="flex items-center gap-1.5 text-[11px] font-semibold text-zinc-200">
+                        <div className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-700">
                           <Icon className="h-3.5 w-3.5" />
                           <span>{msg.action.label || meta.label}</span>
                         </div>
                         <button
                           onClick={() => handleExecuteAction(msg)}
-                          className="w-full text-center bg-white/10 hover:bg-white/20 text-white text-[11px] font-bold rounded-lg py-1.5 px-3 transition-colors cursor-pointer border border-white/10"
+                          className="w-full text-center bg-white hover:bg-slate-50 text-slate-700 text-[11px] font-semibold rounded-lg py-1.5 px-3 transition-colors cursor-pointer border border-slate-200 shadow-sm"
                         >
                           {meta.cta}
                         </button>
@@ -765,7 +765,7 @@ export default function AltrixCopilot() {
 
                 {/* Timestamp for user */}
                 {msg.role === "user" && (
-                  <span className="text-[9px] text-zinc-600 mt-1 mr-1">
+                  <span className="text-[9px] text-slate-400 mt-1 mr-1">
                     {msg.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                   </span>
                 )}
@@ -775,11 +775,11 @@ export default function AltrixCopilot() {
             {/* Thinking/streaming indicator */}
             {isThinking && (
               <div className="flex items-start gap-2">
-                <div className="h-5 w-5 rounded-full bg-gradient-to-br from-purple-600 to-indigo-600 flex items-center justify-center shrink-0 mt-0.5">
+                <div className="h-5 w-5 rounded-full bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center shrink-0 mt-0.5">
                   <Brain className="h-3 w-3 text-white" />
                 </div>
-                <div className="bg-zinc-900 border border-zinc-800/60 rounded-2xl rounded-bl-sm px-3 py-2.5 flex items-center gap-1.5">
-                  <span className="text-[11px] text-zinc-400 italic">Analyzing ERP data</span>
+                <div className="bg-slate-50 border border-slate-200/60 rounded-2xl rounded-bl-sm px-3 py-2.5 flex items-center gap-1.5 shadow-sm">
+                  <span className="text-[11px] text-slate-500 italic">Analyzing ERP data</span>
                   <TypingDots />
                 </div>
               </div>
@@ -790,7 +790,7 @@ export default function AltrixCopilot() {
           {showScrollBtn && (
             <button
               onClick={scrollToBottom}
-              className="absolute bottom-24 left-1/2 -translate-x-1/2 flex items-center gap-1 bg-zinc-800 border border-zinc-700 rounded-full px-2.5 py-1 text-[10px] text-zinc-300 shadow cursor-pointer hover:bg-zinc-700 transition-colors"
+              className="absolute bottom-24 left-1/2 -translate-x-1/2 flex items-center gap-1 bg-white border border-slate-200 rounded-full px-2.5 py-1 text-[10px] text-slate-600 shadow-md cursor-pointer hover:bg-slate-50 transition-colors"
             >
               <ChevronDown className="h-3 w-3" />
               Scroll to bottom
@@ -799,12 +799,12 @@ export default function AltrixCopilot() {
 
           {/* ── Suggestions ────────────────────────────────────────────── */}
           {!isStreaming && !isThinking && suggestions.length > 0 && (
-            <div className="px-3 py-2 border-t border-zinc-900/80 bg-zinc-950 flex gap-1.5 overflow-x-auto no-scrollbar shrink-0">
+            <div className="px-3 py-2 border-t border-slate-100 bg-white flex gap-1.5 overflow-x-auto no-scrollbar shrink-0">
               {suggestions.map((s, i) => (
                 <button
                   key={i}
                   onClick={() => handleSend(s)}
-                  className="rounded-full bg-zinc-900 border border-zinc-800 hover:border-purple-500/40 hover:bg-purple-500/5 text-zinc-300 hover:text-purple-300 text-[10px] px-3 py-1 font-medium transition-all cursor-pointer active:scale-95 whitespace-nowrap flex-shrink-0"
+                  className="rounded-full bg-slate-50 border border-slate-200 hover:border-blue-500 hover:bg-blue-50/50 text-slate-600 hover:text-blue-600 text-[10px] px-3 py-1 font-medium transition-all cursor-pointer active:scale-95 whitespace-nowrap flex-shrink-0"
                 >
                   {s}
                 </button>
@@ -818,7 +818,7 @@ export default function AltrixCopilot() {
               e.preventDefault();
               handleSend(input);
             }}
-            className="flex items-center gap-2 border-t border-zinc-800/80 bg-zinc-950 px-3 py-2.5 shrink-0"
+            className="flex items-center gap-2 border-t border-slate-100 bg-white px-3 py-2.5 shrink-0"
           >
             <input
               ref={inputRef}
@@ -827,7 +827,7 @@ export default function AltrixCopilot() {
               onChange={(e) => setInput(e.target.value)}
               placeholder={isStreaming ? "Generating response..." : "Ask AltRix Copilot…"}
               disabled={isStreaming}
-              className="flex-1 rounded-xl bg-zinc-900 border border-zinc-800 text-zinc-100 text-[12px] px-3.5 py-2 placeholder:text-zinc-600 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-purple-500/60 transition-shadow disabled:opacity-50"
+              className="flex-1 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 text-[12px] px-3.5 py-2 placeholder:text-slate-400 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-blue-500/60 transition-shadow disabled:opacity-50"
             />
             {isStreaming ? (
               <button
@@ -843,7 +843,7 @@ export default function AltrixCopilot() {
                 type="submit"
                 disabled={!input.trim()}
                 size="icon"
-                className="h-9 w-9 rounded-xl bg-gradient-to-br from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white border-0 cursor-pointer flex-shrink-0 shadow-sm"
+                className="h-9 w-9 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white border-0 cursor-pointer flex-shrink-0 shadow-sm"
               >
                 <Send className="h-4 w-4" />
               </Button>
@@ -851,8 +851,8 @@ export default function AltrixCopilot() {
           </form>
 
           {/* ── Footer Branding ─────────────────────────────────────────── */}
-          <div className="text-center py-1.5 bg-zinc-950 border-t border-zinc-900/50">
-            <p className="text-[9px] text-zinc-700 font-medium tracking-wider uppercase">
+          <div className="text-center py-1.5 bg-slate-50 border-t border-slate-100">
+            <p className="text-[9px] text-slate-400 font-medium tracking-wider uppercase">
               AltRix AI · Powered by Qwen &amp; DeepSeek R1
             </p>
           </div>
