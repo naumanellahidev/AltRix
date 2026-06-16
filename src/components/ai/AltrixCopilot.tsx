@@ -5,7 +5,7 @@ import {
   useMemo,
   useCallback,
 } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import {
   Brain,
   Send,
@@ -194,7 +194,15 @@ const getStorageKey = (schoolId: string | null | undefined, userId: string | und
 // ── Main Component ───────────────────────────────────────────────────────────
 
 export default function AltrixCopilot() {
-  const { schoolSlug } = useParams<{ schoolSlug: string }>();
+  const { schoolSlug: paramSlug } = useParams<{ schoolSlug: string }>();
+  const location = useLocation();
+  const schoolSlug = useMemo(() => {
+    if (paramSlug) return paramSlug;
+    const parts = location.pathname.split("/").filter(Boolean);
+    const first = parts[0];
+    if (!first || ["super_admin", "auth", "reset-password", "platform"].includes(first)) return "";
+    return first;
+  }, [paramSlug, location.pathname]);
   const navigate = useNavigate();
   const { user } = useSession();
   const tenant = useTenantOptimized(schoolSlug || "");
