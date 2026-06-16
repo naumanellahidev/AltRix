@@ -84,6 +84,28 @@ const formatCompact = (n: number) => {
   return sign + "Rs. " + compactFormatter.format(Math.abs(n));
 };
 
+const CustomTooltip = ({ active, payload, label }: any) => {
+  if (active && payload && payload.length) {
+    return (
+      <div className="bg-white/95 backdrop-blur-md border border-blue-100/80 p-4 rounded-2xl shadow-[0_10px_30px_rgba(8,112,184,0.08)]">
+        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">{label}</p>
+        <div className="space-y-1.5">
+          {payload.map((entry: any, index: number) => (
+            <div key={index} className="flex items-center justify-between gap-6 text-xs">
+              <span className="flex items-center gap-1.5 text-slate-500 font-semibold">
+                <span className="h-2 w-2 rounded-full" style={{ backgroundColor: entry.stroke }} />
+                {entry.name}
+              </span>
+              <span className="font-extrabold text-slate-800">Rs. {entry.value.toLocaleString()}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+  return null;
+};
+
 export function AccountantHomeModule() {
   const { schoolSlug } = useParams();
   const navigate = useNavigate();
@@ -592,53 +614,53 @@ export function AccountantHomeModule() {
     <div className="space-y-6">
       {/* Tab Navigation */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <div className="-mx-1 overflow-x-auto no-scrollbar pb-1.5">
-          <TabsList className="inline-flex w-max min-w-full md:min-w-0 bg-slate-50 border border-slate-100 p-1 rounded-2xl">
+        <div className="-mx-1 overflow-x-auto no-scrollbar pb-2">
+          <TabsList className="inline-flex w-max min-w-full md:min-w-0 bg-blue-50/20 backdrop-blur-md border border-blue-100/40 p-1.5 rounded-2xl">
             <TabsTrigger 
               value="overview" 
-              className="gap-2 px-4.5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-300 data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-blue-600"
+              className="gap-2 px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-all duration-300 data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-[0_8px_24px_rgba(37,99,235,0.08)] data-[state=active]:border data-[state=active]:border-blue-100/10 text-slate-500 hover:text-blue-600"
             >
               <Activity className="h-4 w-4 shrink-0" />
               <span>Overview</span>
             </TabsTrigger>
             <TabsTrigger 
               value="analytics" 
-              className="gap-2 px-4.5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-300 data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-blue-600"
+              className="gap-2 px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-all duration-300 data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-[0_8px_24px_rgba(37,99,235,0.08)] data-[state=active]:border data-[state=active]:border-blue-100/10 text-slate-500 hover:text-blue-600"
             >
               <BarChart3 className="h-4 w-4 shrink-0" />
               <span>Analytics</span>
             </TabsTrigger>
             <TabsTrigger 
               value="salary" 
-              className="gap-2 px-4.5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-300 data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-blue-600"
+              className="gap-2 px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-all duration-300 data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-[0_8px_24px_rgba(37,99,235,0.08)] data-[state=active]:border data-[state=active]:border-blue-100/10 text-slate-500 hover:text-blue-600"
             >
               <Users className="h-4 w-4 shrink-0" />
               <span>Salary Analysis</span>
             </TabsTrigger>
             <TabsTrigger 
               value="budget" 
-              className="gap-2 px-4.5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-300 data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-blue-600"
+              className="gap-2 px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-all duration-300 data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-[0_8px_24px_rgba(37,99,235,0.08)] data-[state=active]:border data-[state=active]:border-blue-100/10 text-slate-500 hover:text-blue-600"
             >
               <Target className="h-4 w-4 shrink-0" />
               <span>Budget Forecast</span>
             </TabsTrigger>
             <TabsTrigger 
               value="fees" 
-              className="gap-2 px-4.5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-300 data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-blue-600"
+              className="gap-2 px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-all duration-300 data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-[0_8px_24px_rgba(37,99,235,0.08)] data-[state=active]:border data-[state=active]:border-blue-100/10 text-slate-500 hover:text-blue-600"
             >
               <GraduationCap className="h-4 w-4 shrink-0" />
               <span>Student Fees</span>
             </TabsTrigger>
             <TabsTrigger 
               value="defaulters" 
-              className="gap-2 px-4.5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-300 data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-blue-600"
+              className="gap-2 px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-all duration-300 data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-[0_8px_24px_rgba(37,99,235,0.08)] data-[state=active]:border data-[state=active]:border-blue-100/10 text-slate-500 hover:text-blue-600"
             >
               <AlertTriangle className="h-4 w-4 shrink-0" />
               <span>Defaulters</span>
             </TabsTrigger>
             <TabsTrigger 
               value="reports" 
-              className="gap-2 px-4.5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-300 data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-blue-600"
+              className="gap-2 px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-all duration-300 data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-[0_8px_24px_rgba(37,99,235,0.08)] data-[state=active]:border data-[state=active]:border-blue-100/10 text-slate-500 hover:text-blue-600"
             >
               <Download className="h-4 w-4 shrink-0" />
               <span>Reports</span>
@@ -648,63 +670,85 @@ export function AccountantHomeModule() {
 
         <TabsContent value="overview" className="space-y-6">
           {/* Financial Health Score + Quick Stats */}
-          <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,260px)_minmax(0,1fr)]">
+          <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,270px)_minmax(0,1fr)]">
             {/* Health Score Card */}
             <MotionCard 
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              className="bg-white border border-slate-100 shadow-[0_8px_30px_rgb(0,0,0,0.02)] min-w-0 rounded-3xl overflow-hidden relative"
+              className="bg-gradient-to-br from-white via-white to-blue-50/10 border border-slate-100 shadow-[0_12px_40px_rgba(8,112,184,0.03)] min-w-0 rounded-3xl overflow-hidden relative group"
             >
               {/* Luxury Accent Line */}
-              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-500 to-indigo-600" />
-              <CardHeader className="pb-2">
-                <CardTitle className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-400">
-                  <Shield className="h-4 w-4 text-blue-600 shrink-0" />
+              <div className="absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r from-blue-600 via-indigo-600 to-sky-500" />
+              <CardHeader className="pb-2 pt-5">
+                <CardTitle className="flex items-center gap-2 text-[10px] font-extrabold uppercase tracking-widest text-slate-400">
+                  <div className="p-1.5 rounded-lg bg-blue-50 text-blue-600 border border-blue-100/40">
+                    <Shield className="h-3.5 w-3.5" />
+                  </div>
                   <span className="truncate">Financial Health</span>
                 </CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="pt-2">
                 <div className="flex items-center justify-center">
-                  <div className="relative h-[120px] w-[120px] sm:h-[130px] sm:w-[130px]">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <RadialBarChart
-                        cx="50%"
-                        cy="50%"
-                        innerRadius="70%"
-                        outerRadius="100%"
-                        data={healthChartData}
-                        startAngle={180}
-                        endAngle={0}
-                      >
-                        <RadialBar
-                          background={{ fill: "rgba(241, 245, 249, 0.8)" }}
-                          dataKey="value"
-                          cornerRadius={10}
-                        />
-                      </RadialBarChart>
-                    </ResponsiveContainer>
-                    <div className="absolute inset-0 flex flex-col items-center justify-center">
-                      <span className={`text-3xl font-black tracking-tight ${getHealthColor(financialHealth)}`}>
+                  <div className="relative h-[120px] w-[180px]">
+                    <svg viewBox="0 0 120 70" className="w-full h-full">
+                      <defs>
+                        <linearGradient id="healthGaugeGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                          <stop offset="0%" stopColor="#f43f5e" /> {/* rose-500 */}
+                          <stop offset="50%" stopColor="#fbbf24" /> {/* amber-400 */}
+                          <stop offset="100%" stopColor="#3b82f6" /> {/* blue-500 */}
+                        </linearGradient>
+                      </defs>
+                      {/* Background Track Arc */}
+                      <path
+                        d="M 15 60 A 45 45 0 0 1 105 60"
+                        fill="none"
+                        stroke="#f1f5f9"
+                        strokeWidth="8"
+                        strokeLinecap="round"
+                      />
+                      {/* Value Arc */}
+                      <path
+                        d="M 15 60 A 45 45 0 0 1 105 60"
+                        fill="none"
+                        stroke="url(#healthGaugeGradient)"
+                        strokeWidth="8"
+                        strokeLinecap="round"
+                        strokeDasharray="141"
+                        strokeDashoffset={141 - (141 * Math.min(financialHealth, 100)) / 100}
+                        className="transition-all duration-1000 ease-out"
+                      />
+                    </svg>
+                    <div className="absolute inset-x-0 bottom-2 flex flex-col items-center justify-center">
+                      <span className={`text-4xl font-extrabold tracking-tight ${getHealthColor(financialHealth)}`}>
                         {financialHealth}
                       </span>
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">{getHealthLabel(financialHealth)}</span>
+                      <span className="text-[9px] font-extrabold text-slate-400 uppercase tracking-widest mt-1">{getHealthLabel(financialHealth)}</span>
                     </div>
                   </div>
                 </div>
-                <div className="mt-4 space-y-2.5">
-                  <div className="flex justify-between gap-2 text-xs border-b border-slate-50 pb-1.5">
-                    <span className="text-slate-500 font-semibold truncate">Collection Rate</span>
-                    <span className="font-bold text-slate-700 shrink-0">{stats.collectionRate.toFixed(1)}%</span>
+                <div className="mt-6 space-y-3">
+                  <div className="flex justify-between items-center gap-2 text-xs border-b border-slate-100/80 pb-2">
+                    <div className="flex items-center gap-1.5 truncate">
+                      <div className="h-1.5 w-1.5 rounded-full bg-blue-500" />
+                      <span className="text-slate-500 font-semibold truncate">Collection Rate</span>
+                    </div>
+                    <span className="font-extrabold text-slate-800 shrink-0">{stats.collectionRate.toFixed(1)}%</span>
                   </div>
-                  <div className="flex justify-between gap-2 text-xs border-b border-slate-50 pb-1.5">
-                    <span className="text-slate-500 font-semibold truncate">Profit Margin</span>
-                    <span className={`font-bold shrink-0 ${stats.profitMargin >= 0 ? "text-blue-600" : "text-rose-500"}`}>
+                  <div className="flex justify-between items-center gap-2 text-xs border-b border-slate-100/80 pb-2">
+                    <div className="flex items-center gap-1.5 truncate">
+                      <div className={`h-1.5 w-1.5 rounded-full ${stats.profitMargin >= 0 ? "bg-emerald-500" : "bg-rose-500"}`} />
+                      <span className="text-slate-500 font-semibold truncate">Profit Margin</span>
+                    </div>
+                    <span className={`font-extrabold shrink-0 ${stats.profitMargin >= 0 ? "text-emerald-600" : "text-rose-500"}`}>
                       {stats.profitMargin.toFixed(1)}%
                     </span>
                   </div>
-                  <div className="flex justify-between gap-2 text-xs">
-                    <span className="text-slate-500 font-semibold truncate">Overdue Rate</span>
-                    <span className={`font-bold shrink-0 ${stats.overdueInvoices === 0 ? "text-blue-600" : "text-rose-500"}`}>
+                  <div className="flex justify-between items-center gap-2 text-xs">
+                    <div className="flex items-center gap-1.5 truncate">
+                      <div className={`h-1.5 w-1.5 rounded-full ${stats.overdueInvoices === 0 ? "bg-emerald-500" : "bg-rose-500"}`} />
+                      <span className="text-slate-500 font-semibold truncate">Overdue Rate</span>
+                    </div>
+                    <span className={`font-extrabold shrink-0 ${stats.overdueInvoices === 0 ? "text-emerald-600" : "text-rose-500"}`}>
                       {invoices.length > 0 ? ((stats.overdueInvoices / invoices.length) * 100).toFixed(1) : 0}%
                     </span>
                   </div>
@@ -718,18 +762,18 @@ export function AccountantHomeModule() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.1 }}
-                className="bg-white border border-slate-100 shadow-[0_8px_30px_rgb(0,0,0,0.02)] hover:border-blue-400 hover:shadow-[0_12px_45px_rgba(37,99,235,0.05)] hover:-translate-y-0.5 transition-all duration-300 cursor-pointer rounded-3xl min-w-0 group overflow-hidden relative"
+                className="bg-gradient-to-br from-white via-white to-blue-50/15 border border-slate-100/90 shadow-[0_12px_40px_rgba(8,112,184,0.03)] hover:border-blue-300 hover:shadow-[0_20px_45px_rgba(37,99,235,0.06)] hover:-translate-y-1 transition-all duration-300 cursor-pointer rounded-3xl min-w-0 group overflow-hidden relative h-[180px] flex flex-col justify-between"
                 onClick={() => navigate(`/${schoolSlug}/accountant/reports`)}
               >
                 {/* Accent Line */}
-                <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-500 to-indigo-600" />
+                <div className="absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r from-blue-500 to-indigo-600" />
                 <CardContent className="flex h-full flex-col justify-between p-6 pt-7">
                   <div className="flex items-center justify-between gap-2 w-full">
-                    <div className="rounded-2xl bg-blue-50 text-blue-600 border border-blue-100/50 p-2.5 shrink-0 shadow-sm shadow-blue-100/30">
+                    <div className="bg-gradient-to-br from-blue-500 to-indigo-600 text-white shadow-[0_6px_20px_rgba(37,99,235,0.25)] p-2.5 rounded-2xl shrink-0 group-hover:scale-105 transition-transform duration-300">
                       <TrendingUp className="h-4.5 w-4.5" />
                     </div>
                     {stats.revenueGrowth !== 0 ? (
-                      <div className={`flex items-center gap-0.5 text-xs font-bold px-2 py-0.5 rounded-full ${stats.revenueGrowth > 0 ? "bg-blue-50 text-blue-600" : "bg-rose-50 text-rose-600"}`}>
+                      <div className={`flex items-center gap-0.5 text-[10px] font-bold px-2 py-0.5 rounded-full ${stats.revenueGrowth > 0 ? "bg-emerald-50/80 text-emerald-600 border border-emerald-100/40" : "bg-rose-50/80 text-rose-600 border border-rose-100/40"}`}>
                         {stats.revenueGrowth > 0 ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
                         {Math.abs(stats.revenueGrowth).toFixed(1)}%
                       </div>
@@ -738,8 +782,8 @@ export function AccountantHomeModule() {
                     )}
                   </div>
                   <div className="mt-4">
-                    <p className="text-2xl font-black text-slate-800 tracking-tight truncate" title={stats.totalRevenue.toLocaleString()}>{formatCompact(stats.totalRevenue)}</p>
-                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-1 truncate">Total Revenue</p>
+                    <p className="text-3xl font-black text-slate-800 tracking-tight truncate" title={stats.totalRevenue.toLocaleString()}>{formatCompact(stats.totalRevenue)}</p>
+                    <p className="text-[10px] text-slate-400 font-extrabold uppercase tracking-widest mt-1 truncate">Total Revenue</p>
                   </div>
                 </CardContent>
               </MotionCard>
@@ -748,18 +792,18 @@ export function AccountantHomeModule() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.15 }}
-                className="bg-white border border-slate-100 shadow-[0_8px_30px_rgb(0,0,0,0.02)] hover:border-rose-400 hover:shadow-[0_12px_45px_rgba(244,63,94,0.05)] hover:-translate-y-0.5 transition-all duration-300 cursor-pointer rounded-3xl min-w-0 group overflow-hidden relative"
+                className="bg-gradient-to-br from-white via-white to-blue-50/15 border border-slate-100/90 shadow-[0_12px_40px_rgba(8,112,184,0.03)] hover:border-rose-300 hover:shadow-[0_20px_45px_rgba(244,63,94,0.06)] hover:-translate-y-1 transition-all duration-300 cursor-pointer rounded-3xl min-w-0 group overflow-hidden relative h-[180px] flex flex-col justify-between"
                 onClick={() => navigate(`/${schoolSlug}/accountant/expenses`)}
               >
                 {/* Accent Line */}
-                <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-rose-400 to-red-500" />
+                <div className="absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r from-rose-400 to-red-500" />
                 <CardContent className="flex h-full flex-col justify-between p-6 pt-7">
                   <div className="flex items-center justify-between gap-2 w-full">
-                    <div className="rounded-2xl bg-rose-50 text-rose-600 border border-rose-100/30 p-2.5 shrink-0 shadow-sm shadow-rose-100/30">
+                    <div className="bg-gradient-to-br from-rose-500 to-red-600 text-white shadow-[0_6px_20px_rgba(244,63,94,0.25)] p-2.5 rounded-2xl shrink-0 group-hover:scale-105 transition-transform duration-300">
                       <TrendingDown className="h-4.5 w-4.5" />
                     </div>
                     {stats.expenseGrowth !== 0 ? (
-                      <div className={`flex items-center gap-0.5 text-xs font-bold px-2 py-0.5 rounded-full ${stats.expenseGrowth > 0 ? "bg-rose-50 text-rose-600" : "bg-blue-50 text-blue-600"}`}>
+                      <div className={`flex items-center gap-0.5 text-[10px] font-bold px-2 py-0.5 rounded-full ${stats.expenseGrowth > 0 ? "bg-rose-50/80 text-rose-600 border border-rose-100/40" : "bg-emerald-50/80 text-emerald-600 border border-emerald-100/40"}`}>
                         {stats.expenseGrowth > 0 ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
                         {Math.abs(stats.expenseGrowth).toFixed(1)}%
                       </div>
@@ -768,8 +812,8 @@ export function AccountantHomeModule() {
                     )}
                   </div>
                   <div className="mt-4">
-                    <p className="text-2xl font-black text-rose-600 tracking-tight truncate" title={stats.totalExpenses.toLocaleString()}>{formatCompact(stats.totalExpenses)}</p>
-                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-1 truncate">Total Expenses</p>
+                    <p className="text-3xl font-black text-rose-600 tracking-tight truncate" title={stats.totalExpenses.toLocaleString()}>{formatCompact(stats.totalExpenses)}</p>
+                    <p className="text-[10px] text-slate-400 font-extrabold uppercase tracking-widest mt-1 truncate">Total Expenses</p>
                   </div>
                 </CardContent>
               </MotionCard>
@@ -778,23 +822,23 @@ export function AccountantHomeModule() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.2 }}
-                className="bg-white border border-slate-100 shadow-[0_8px_30px_rgb(0,0,0,0.02)] hover:border-blue-400 hover:shadow-[0_12px_45px_rgba(37,99,235,0.05)] hover:-translate-y-0.5 transition-all duration-300 cursor-pointer rounded-3xl min-w-0 group overflow-hidden relative"
+                className="bg-gradient-to-br from-white via-white to-blue-50/15 border border-slate-100/90 shadow-[0_12px_40px_rgba(8,112,184,0.03)] hover:border-blue-300 hover:shadow-[0_20px_45px_rgba(37,99,235,0.06)] hover:-translate-y-1 transition-all duration-300 cursor-pointer rounded-3xl min-w-0 group overflow-hidden relative h-[180px] flex flex-col justify-between"
                 onClick={() => navigate(`/${schoolSlug}/accountant/payroll`)}
               >
                 {/* Accent Line */}
-                <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-sky-400 to-blue-500" />
+                <div className="absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r from-sky-400 to-blue-500" />
                 <CardContent className="flex h-full flex-col justify-between p-6 pt-7">
                   <div className="flex items-center justify-between gap-2 w-full">
-                    <div className="rounded-2xl bg-blue-50 text-blue-600 border border-blue-100/50 p-2.5 shrink-0 shadow-sm shadow-blue-100/30">
+                    <div className="bg-gradient-to-br from-sky-400 to-blue-500 text-white shadow-[0_6px_20px_rgba(14,165,233,0.25)] p-2.5 rounded-2xl shrink-0 group-hover:scale-105 transition-transform duration-300">
                       <Coins className="h-4.5 w-4.5" />
                     </div>
                     <ArrowRight className="h-4 w-4 text-blue-400 opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all duration-200" />
                   </div>
                   <div className="mt-4">
-                    <p className="text-2xl font-black text-slate-800 tracking-tight truncate" title={stats.monthlyPayroll.toLocaleString()}>{formatCompact(stats.monthlyPayroll)}</p>
-                    <div className="flex items-center justify-between mt-1 gap-2">
-                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider truncate">Monthly Payroll</p>
-                      <p className="text-[9px] text-blue-600 font-bold bg-blue-50 px-1.5 py-0.5 rounded-full shrink-0 truncate">{stats.activeEmployees} staff</p>
+                    <p className="text-3xl font-black text-slate-800 tracking-tight truncate" title={stats.monthlyPayroll.toLocaleString()}>{formatCompact(stats.monthlyPayroll)}</p>
+                    <div className="flex items-center justify-between mt-1.5 gap-2">
+                      <p className="text-[10px] text-slate-400 font-extrabold uppercase tracking-widest truncate">Monthly Payroll</p>
+                      <p className="text-[9px] text-blue-600 font-bold bg-blue-50 px-2 py-0.5 rounded-full shrink-0 truncate border border-blue-100/30">{stats.activeEmployees} staff</p>
                     </div>
                   </div>
                 </CardContent>
@@ -804,23 +848,23 @@ export function AccountantHomeModule() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.25 }}
-                className="bg-white border border-slate-100 shadow-[0_8px_30px_rgb(0,0,0,0.02)] hover:border-emerald-400 hover:shadow-[0_12px_45px_rgba(16,185,129,0.05)] hover:-translate-y-0.5 transition-all duration-300 cursor-pointer rounded-3xl min-w-0 group overflow-hidden relative"
+                className="bg-gradient-to-br from-white via-white to-blue-50/15 border border-slate-100/90 shadow-[0_12px_40px_rgba(8,112,184,0.03)] hover:border-emerald-300 hover:shadow-[0_20px_45px_rgba(16,185,129,0.06)] hover:-translate-y-1 transition-all duration-300 cursor-pointer rounded-3xl min-w-0 group overflow-hidden relative h-[180px] flex flex-col justify-between"
                 onClick={() => navigate(`/${schoolSlug}/accountant/reports`)}
               >
                 {/* Accent Line */}
-                <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-400 to-teal-500" />
+                <div className="absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r from-emerald-400 to-teal-500" />
                 <CardContent className="flex h-full flex-col justify-between p-6 pt-7">
                   <div className="flex items-center justify-between gap-2 w-full">
-                    <div className="rounded-2xl bg-emerald-50 text-emerald-600 border border-emerald-100/30 p-2.5 shrink-0 shadow-sm shadow-emerald-100/30">
+                    <div className="bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-[0_6px_20px_rgba(16,185,129,0.25)] p-2.5 rounded-2xl shrink-0 group-hover:scale-105 transition-transform duration-300">
                       <PiggyBank className="h-4.5 w-4.5" />
                     </div>
                     <ArrowRight className="h-4 w-4 text-emerald-400 opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all duration-200" />
                   </div>
                   <div className="mt-4">
-                    <p className={`text-2xl font-black tracking-tight truncate ${stats.netProfit >= 0 ? "text-emerald-600" : "text-rose-600"}`} title={stats.netProfit.toLocaleString()}>
+                    <p className={`text-3xl font-black tracking-tight truncate ${stats.netProfit >= 0 ? "text-emerald-600" : "text-rose-600"}`} title={stats.netProfit.toLocaleString()}>
                       {stats.netProfit >= 0 ? "+" : ""}{formatCompact(stats.netProfit)}
                     </p>
-                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-1 truncate">Net Profit</p>
+                    <p className="text-[10px] text-slate-400 font-extrabold uppercase tracking-widest mt-1 truncate">Net Profit</p>
                   </div>
                 </CardContent>
               </MotionCard>
@@ -829,32 +873,43 @@ export function AccountantHomeModule() {
 
 
           {/* Quick Actions */}
-          <Card className="bg-white border border-slate-100 shadow-[0_8px_30px_rgb(0,0,0,0.02)] overflow-hidden rounded-3xl">
-            <div className="bg-slate-50/50 px-6 py-4 border-b border-slate-100">
+          <Card className="bg-gradient-to-br from-white via-white to-blue-50/10 border border-slate-100 shadow-[0_12px_40px_rgba(8,112,184,0.03)] overflow-hidden rounded-3xl relative">
+            <div className="absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r from-blue-500/80 via-indigo-500/80 to-sky-400/80" />
+            <div className="px-6 py-4.5 border-b border-slate-100 flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Zap className="h-4.5 w-4.5 text-blue-600" />
-                <span className="font-bold text-xs uppercase tracking-wider text-slate-700">Quick Actions</span>
+                <div className="p-1.5 rounded-lg bg-blue-50 text-blue-600">
+                  <Zap className="h-4 w-4" />
+                </div>
+                <span className="font-extrabold text-[10px] uppercase tracking-widest text-slate-700">Quick Actions Console</span>
               </div>
+              <Badge variant="outline" className="text-[10px] font-bold text-blue-600 bg-blue-50/50 border-blue-100/30">OPERATIONAL</Badge>
             </div>
             <CardContent className="p-6">
-              <div className="grid grid-cols-2 gap-4 md:grid-cols-6">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-6">
                 {quickActions.map((action, idx) => (
                   <motion.div
                     key={action.label}
-                    initial={{ opacity: 0, scale: 0.95 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ delay: idx * 0.03 }}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: idx * 0.04 }}
+                    whileHover={{ y: -3 }}
+                    className="group"
                   >
-                    <Button
-                      variant="outline"
-                      className="flex h-auto w-full flex-col items-center gap-3 border border-slate-100 bg-white p-5 rounded-2xl hover:border-blue-400 hover:shadow-[0_8px_25px_rgba(37,99,235,0.04)] hover:-translate-y-0.5 transition-all duration-300"
+                    <button
+                      className="flex h-full w-full flex-col justify-between items-start text-left border border-slate-100/80 bg-white p-5 rounded-2xl hover:border-blue-300 hover:shadow-[0_12px_30px_rgba(37,99,235,0.05)] transition-all duration-300 relative overflow-hidden"
                       onClick={() => navigate(action.path)}
                     >
-                      <div className={`rounded-full p-3 ${action.color} shadow-sm`}>
-                        <action.icon className="h-5 w-5" />
+                      <div className="flex justify-between items-center w-full mb-4">
+                        <div className={`rounded-xl p-2.5 ${action.color}`}>
+                          <action.icon className="h-4.5 w-4.5" />
+                        </div>
+                        <ArrowUpRight className="h-3.5 w-3.5 text-slate-300 group-hover:text-blue-500 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all duration-200" />
                       </div>
-                      <span className="text-[11px] font-bold text-slate-600 text-center tracking-wide uppercase">{action.label}</span>
-                    </Button>
+                      <div>
+                        <span className="text-[11px] font-bold text-slate-800 tracking-wide block uppercase mb-1">{action.label}</span>
+                        <span className="text-[9px] text-slate-400 font-semibold leading-normal block">{action.desc}</span>
+                      </div>
+                    </button>
                   </motion.div>
                 ))}
               </div>
@@ -900,13 +955,19 @@ export function AccountantHomeModule() {
 
           <div className="grid gap-6 lg:grid-cols-5 min-w-0">
             {/* Cash Flow Chart */}
-            <Card className="shadow-sm bg-gradient-to-br from-white to-blue-50/10 border border-blue-100/80 rounded-2xl lg:col-span-3 min-w-0 overflow-hidden">
-              <CardHeader className="flex flex-row items-center justify-between pb-2 border-b border-blue-50/60 bg-blue-50/20 px-6 py-4">
+            <Card className="bg-gradient-to-br from-white via-white to-blue-50/10 border border-slate-100 shadow-[0_12px_40px_rgba(8,112,184,0.03)] rounded-3xl lg:col-span-3 min-w-0 overflow-hidden relative">
+              <div className="absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r from-blue-600 via-indigo-600 to-sky-400" />
+              <CardHeader className="flex flex-row items-center justify-between pb-3 border-b border-slate-100/60 px-6 py-5">
                 <div>
-                  <CardTitle className="text-base font-bold text-slate-800">Cash Flow (Last 30 Days)</CardTitle>
-                  <p className="text-xs text-muted-foreground mt-0.5">Daily revenue vs expenses</p>
+                  <div className="flex items-center gap-2">
+                    <CardTitle className="text-base font-extrabold text-slate-800">Cash Flow Analytics</CardTitle>
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[8px] font-black bg-blue-50 text-blue-600 border border-blue-100/40 uppercase tracking-widest">
+                      <span className="h-1 w-1 rounded-full bg-blue-600 animate-pulse" /> Live Sync
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider mt-0.5">Daily cash inflow vs operational outflow (30 days)</p>
                 </div>
-                <Button variant="ghost" size="sm" className="rounded-xl border border-blue-100 text-blue-600 hover:bg-blue-50/50 text-xs" onClick={() => navigate(`/${schoolSlug}/accountant/reports`)}>
+                <Button variant="ghost" size="sm" className="rounded-xl border border-blue-100/60 text-blue-600 hover:bg-blue-50/50 hover:border-blue-200 text-xs font-semibold px-3" onClick={() => navigate(`/${schoolSlug}/accountant/reports`)}>
                   <Eye className="mr-1 h-3.5 w-3.5" /> Details
                 </Button>
               </CardHeader>
@@ -917,24 +978,21 @@ export function AccountantHomeModule() {
                       <ComposedChart data={cashFlowData}>
                         <defs>
                           <linearGradient id="revenueGradient" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stopColor="rgb(37, 99, 235)" stopOpacity={0.25} />
+                            <stop offset="0%" stopColor="rgb(37, 99, 235)" stopOpacity={0.15} />
                             <stop offset="100%" stopColor="rgb(37, 99, 235)" stopOpacity={0} />
                           </linearGradient>
                           <linearGradient id="expenseGradient" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stopColor="rgb(244, 63, 94)" stopOpacity={0.2} />
+                            <stop offset="0%" stopColor="rgb(244, 63, 94)" stopOpacity={0.12} />
                             <stop offset="100%" stopColor="rgb(244, 63, 94)" stopOpacity={0} />
                           </linearGradient>
                         </defs>
-                        <CartesianGrid strokeDasharray="3 3" className="stroke-muted/40" vertical={false} />
-                        <XAxis dataKey="date" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
-                        <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => `Rs. ${(v / 1000).toFixed(0)}K`} axisLine={false} tickLine={false} />
-                        <Tooltip
-                          formatter={(value: number) => "Rs. " + value.toLocaleString()}
-                          contentStyle={{ borderRadius: "0.75rem", border: "1px solid rgb(219, 234, 254)", background: "white", fontSize: "11px" }}
-                        />
-                        <Area type="monotone" dataKey="revenue" name="Revenue" stroke="rgb(37, 99, 235)" fill="url(#revenueGradient)" strokeWidth={2} />
-                        <Area type="monotone" dataKey="expenses" name="Expenses" stroke="rgb(244, 63, 94)" fill="url(#expenseGradient)" strokeWidth={2} />
-                        <Line type="monotone" dataKey="net" name="Net" stroke="rgb(14, 165, 233)" strokeWidth={2} dot={false} strokeDasharray="5 5" />
+                        <CartesianGrid strokeDasharray="3 3" className="stroke-slate-100" vertical={false} />
+                        <XAxis dataKey="date" tick={{ fontSize: 9, fill: "#94a3b8", fontWeight: 600 }} axisLine={false} tickLine={false} />
+                        <YAxis tick={{ fontSize: 9, fill: "#94a3b8", fontWeight: 600 }} tickFormatter={(v) => `Rs. ${(v / 1000).toFixed(0)}K`} axisLine={false} tickLine={false} />
+                        <Tooltip content={<CustomTooltip />} />
+                        <Area type="monotone" dataKey="revenue" name="Revenue" stroke="rgb(37, 99, 235)" fill="url(#revenueGradient)" strokeWidth={2.5} />
+                        <Area type="monotone" dataKey="expenses" name="Expenses" stroke="rgb(244, 63, 94)" fill="url(#expenseGradient)" strokeWidth={2.5} />
+                        <Line type="monotone" dataKey="net" name="Net" stroke="rgb(16, 185, 129)" strokeWidth={2} dot={false} strokeDasharray="4 4" />
                       </ComposedChart>
                     </ResponsiveContainer>
                   ) : (
@@ -950,32 +1008,34 @@ export function AccountantHomeModule() {
             </Card>
 
             {/* Recent Activity */}
-            <Card className="shadow-sm bg-gradient-to-br from-white to-blue-50/10 border border-blue-100/80 rounded-2xl lg:col-span-2 overflow-hidden">
-              <CardHeader className="pb-2 border-b border-blue-50/60 bg-blue-50/20 px-6 py-4">
-                <CardTitle className="text-base font-bold text-slate-800">Recent Activity</CardTitle>
+            <Card className="bg-gradient-to-br from-white via-white to-blue-50/10 border border-slate-100 shadow-[0_12px_40px_rgba(8,112,184,0.03)] rounded-3xl lg:col-span-2 overflow-hidden relative">
+              <div className="absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r from-indigo-500 to-purple-500" />
+              <CardHeader className="pb-3 border-b border-slate-100/60 px-6 py-5">
+                <CardTitle className="text-base font-extrabold text-slate-800">Recent Transactions</CardTitle>
+                <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider mt-0.5">Real-time ledger audit trail</p>
               </CardHeader>
               <CardContent className="p-6">
                 <ScrollArea className="h-[280px] pr-2">
-                  <div className="space-y-2.5">
+                  <div className="space-y-3">
                     {recentActivity.length > 0 ? (
                       recentActivity.map((activity, idx) => (
                         <motion.div
                           key={idx}
-                          initial={{ opacity: 0, x: 20 }}
+                          initial={{ opacity: 0, x: 10 }}
                           animate={{ opacity: 1, x: 0 }}
-                          transition={{ delay: idx * 0.05 }}
-                          className="flex items-center gap-3 rounded-xl border border-blue-50 bg-white/60 p-3 hover:bg-blue-50/20 hover:border-blue-100 transition-all duration-200"
+                          transition={{ delay: idx * 0.04 }}
+                          className="flex items-center gap-3 rounded-xl border border-slate-100 bg-white p-3 hover:bg-blue-50/10 hover:border-blue-100/60 transition-all duration-200"
                         >
-                          <div className={`rounded-xl p-2 shrink-0 ${activity.amount > 0 ? "bg-blue-50 text-blue-600 border border-blue-100/40" : "bg-rose-50 text-rose-600 border border-rose-100/20"}`}>
-                            <activity.icon className="h-3.5 w-3.5" />
+                          <div className={`rounded-xl p-2 shrink-0 ${activity.amount > 0 ? "bg-blue-50 text-blue-600 border border-blue-100/30" : "bg-rose-50 text-rose-600 border border-rose-100/30"}`}>
+                            <activity.icon className="h-4 w-4" />
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="text-xs font-semibold text-slate-700 truncate">{activity.description}</p>
-                            <p className="text-[10px] text-muted-foreground mt-0.5">
+                            <p className="text-xs font-bold text-slate-800 truncate">{activity.description}</p>
+                            <p className="text-[9px] text-slate-400 font-semibold mt-0.5">
                               {activity.date.toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
                             </p>
                           </div>
-                          <p className={`text-xs font-bold tabular-nums shrink-0 ${activity.amount > 0 ? "text-blue-600" : "text-rose-500"}`}>
+                          <p className={`text-xs font-extrabold tabular-nums shrink-0 ${activity.amount > 0 ? "text-blue-600" : "text-rose-500"}`}>
                             {activity.amount > 0 ? "+Rs. " : "-Rs. "}{Math.abs(activity.amount).toLocaleString()}
                           </p>
                         </motion.div>
@@ -995,30 +1055,32 @@ export function AccountantHomeModule() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 w-full">
             {/* Invoice Status */}
             <Card 
-              className="shadow-sm bg-gradient-to-br from-white to-blue-50/20 border border-blue-100/80 hover:border-blue-400 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 cursor-pointer rounded-2xl group flex flex-col justify-between h-[280px]"
+              className="bg-gradient-to-br from-white via-white to-blue-50/10 border border-slate-100 shadow-[0_12px_30px_rgba(8,112,184,0.02)] hover:border-blue-300 hover:shadow-[0_20px_45px_rgba(37,99,235,0.05)] hover:-translate-y-1 transition-all duration-300 cursor-pointer rounded-3xl group flex flex-col justify-between h-[280px]"
               onClick={() => navigate(`/${schoolSlug}/accountant/invoices`)}
             >
-              <CardHeader className="pb-2 flex flex-row items-center justify-between">
-                <CardTitle className="text-base font-bold text-slate-800">Invoices</CardTitle>
-                <ArrowRight className="h-4 w-4 text-blue-400 opacity-60 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all duration-200" />
-              </CardHeader>
-              <CardContent className="space-y-4 flex-1 flex flex-col justify-between pb-5">
-                <div className="text-center bg-blue-50/30 p-2.5 rounded-xl border border-blue-50/50">
-                  <p className="text-lg font-black text-blue-600 tabular-nums">Rs. {stats.pendingAmount.toLocaleString()}</p>
-                  <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">Pending Amount</p>
+              <CardHeader className="pb-2 pt-5 px-6 flex flex-row items-center justify-between">
+                <CardTitle className="text-xs font-extrabold text-slate-400 uppercase tracking-widest">Invoices</CardTitle>
+                <div className="p-1 rounded-lg bg-blue-50 text-blue-600 opacity-60 group-hover:opacity-100 group-hover:bg-blue-100 transition-all duration-300 border border-blue-100/40">
+                  <ArrowRight className="h-3.5 w-3.5 group-hover:translate-x-0.5 transition-transform" />
                 </div>
-                <div className="space-y-2.5">
-                  <div className="flex items-center justify-between text-xs border-b border-blue-50/40 pb-1.5">
-                    <span className="text-muted-foreground">Paid Invoices</span>
-                    <span className="font-bold text-slate-700">{stats.paidInvoices}</span>
+              </CardHeader>
+              <CardContent className="space-y-4 flex-1 flex flex-col justify-between pb-5 px-6">
+                <div className="text-center bg-gradient-to-br from-blue-50/40 to-indigo-50/30 p-3.5 rounded-2xl border border-blue-100/30">
+                  <p className="text-lg font-black text-blue-700 tabular-nums">Rs. {stats.pendingAmount.toLocaleString()}</p>
+                  <p className="text-[9px] text-slate-400 font-extrabold uppercase tracking-widest mt-0.5">Pending Amount</p>
+                </div>
+                <div className="space-y-3 px-1">
+                  <div className="flex items-center justify-between text-xs border-b border-slate-100/80 pb-2">
+                    <span className="text-slate-500 font-semibold">Paid Invoices</span>
+                    <span className="font-extrabold text-slate-800">{stats.paidInvoices}</span>
                   </div>
-                  <div className="flex items-center justify-between text-xs border-b border-blue-50/40 pb-1.5">
-                    <span className="text-muted-foreground">Pending Invoices</span>
-                    <span className="font-bold text-slate-700">{stats.pendingInvoices}</span>
+                  <div className="flex items-center justify-between text-xs border-b border-slate-100/80 pb-2">
+                    <span className="text-slate-500 font-semibold">Pending Invoices</span>
+                    <span className="font-extrabold text-slate-800">{stats.pendingInvoices}</span>
                   </div>
                   <div className="flex items-center justify-between text-xs">
-                    <span className="text-muted-foreground">Overdue Invoices</span>
-                    <span className="font-bold text-rose-500">{stats.overdueInvoices}</span>
+                    <span className="text-slate-500 font-semibold">Overdue Invoices</span>
+                    <span className="font-extrabold text-rose-500">{stats.overdueInvoices}</span>
                   </div>
                 </div>
               </CardContent>
@@ -1026,30 +1088,32 @@ export function AccountantHomeModule() {
 
             {/* Payroll Summary */}
             <Card 
-              className="shadow-sm bg-gradient-to-br from-white to-blue-50/20 border border-blue-100/80 hover:border-blue-400 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 cursor-pointer rounded-2xl group flex flex-col justify-between h-[280px]"
+              className="bg-gradient-to-br from-white via-white to-blue-50/10 border border-slate-100 shadow-[0_12px_30px_rgba(8,112,184,0.02)] hover:border-blue-300 hover:shadow-[0_20px_45px_rgba(37,99,235,0.05)] hover:-translate-y-1 transition-all duration-300 cursor-pointer rounded-3xl group flex flex-col justify-between h-[280px]"
               onClick={() => navigate(`/${schoolSlug}/accountant/payroll`)}
             >
-              <CardHeader className="pb-2 flex flex-row items-center justify-between">
-                <CardTitle className="text-base font-bold text-slate-800">Payroll</CardTitle>
-                <ArrowRight className="h-4 w-4 text-blue-400 opacity-60 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all duration-200" />
-              </CardHeader>
-              <CardContent className="space-y-4 flex-1 flex flex-col justify-between pb-5">
-                <div className="text-center bg-blue-50/30 p-2.5 rounded-xl border border-blue-50/50">
-                  <p className="text-lg font-black text-blue-600 tabular-nums">Rs. {stats.monthlyPayroll.toLocaleString()}</p>
-                  <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">Monthly Cost</p>
+              <CardHeader className="pb-2 pt-5 px-6 flex flex-row items-center justify-between">
+                <CardTitle className="text-xs font-extrabold text-slate-400 uppercase tracking-widest">Payroll</CardTitle>
+                <div className="p-1 rounded-lg bg-blue-50 text-blue-600 opacity-60 group-hover:opacity-100 group-hover:bg-blue-100 transition-all duration-300 border border-blue-100/40">
+                  <ArrowRight className="h-3.5 w-3.5 group-hover:translate-x-0.5 transition-transform" />
                 </div>
-                <div className="space-y-2.5">
-                  <div className="flex items-center justify-between text-xs border-b border-blue-50/40 pb-1.5">
-                    <span className="text-muted-foreground">Active Employees</span>
-                    <span className="font-bold text-slate-700">{stats.activeEmployees}</span>
+              </CardHeader>
+              <CardContent className="space-y-4 flex-1 flex flex-col justify-between pb-5 px-6">
+                <div className="text-center bg-gradient-to-br from-blue-50/40 to-indigo-50/30 p-3.5 rounded-2xl border border-blue-100/30">
+                  <p className="text-lg font-black text-blue-700 tabular-nums">Rs. {stats.monthlyPayroll.toLocaleString()}</p>
+                  <p className="text-[9px] text-slate-400 font-extrabold uppercase tracking-widest mt-0.5">Monthly Cost</p>
+                </div>
+                <div className="space-y-3 px-1">
+                  <div className="flex items-center justify-between text-xs border-b border-slate-100/80 pb-2">
+                    <span className="text-slate-500 font-semibold">Active Employees</span>
+                    <span className="font-extrabold text-slate-800">{stats.activeEmployees}</span>
                   </div>
-                  <div className="flex items-center justify-between text-xs border-b border-blue-50/40 pb-1.5">
-                    <span className="text-muted-foreground">Average Salary</span>
-                    <span className="font-bold text-slate-700">Rs. {Math.round(stats.avgSalary).toLocaleString()}</span>
+                  <div className="flex items-center justify-between text-xs border-b border-slate-100/80 pb-2">
+                    <span className="text-slate-500 font-semibold">Average Salary</span>
+                    <span className="font-extrabold text-slate-800">Rs. {Math.round(stats.avgSalary).toLocaleString()}</span>
                   </div>
                   <div className="flex items-center justify-between text-xs">
-                    <span className="text-muted-foreground">Pending Pay Runs</span>
-                    <span className={`font-bold ${stats.pendingPayRuns > 0 ? "text-amber-600" : "text-slate-700"}`}>{stats.pendingPayRuns}</span>
+                    <span className="text-slate-500 font-semibold">Pending Pay Runs</span>
+                    <span className={`font-extrabold ${stats.pendingPayRuns > 0 ? "text-amber-600" : "text-slate-700"}`}>{stats.pendingPayRuns}</span>
                   </div>
                 </div>
               </CardContent>
@@ -1057,30 +1121,32 @@ export function AccountantHomeModule() {
 
             {/* School Metrics */}
             <Card 
-              className="shadow-sm bg-gradient-to-br from-white to-blue-50/20 border border-blue-100/80 hover:border-blue-400 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 cursor-pointer rounded-2xl group flex flex-col justify-between h-[280px]"
+              className="bg-gradient-to-br from-white via-white to-blue-50/10 border border-slate-100 shadow-[0_12px_30px_rgba(8,112,184,0.02)] hover:border-blue-300 hover:shadow-[0_20px_45px_rgba(37,99,235,0.05)] hover:-translate-y-1 transition-all duration-300 cursor-pointer rounded-3xl group flex flex-col justify-between h-[280px]"
               onClick={() => navigate(`/${schoolSlug}/accountant/fees`)}
             >
-              <CardHeader className="pb-2 flex flex-row items-center justify-between">
-                <CardTitle className="text-base font-bold text-slate-800">School Metrics</CardTitle>
-                <ArrowRight className="h-4 w-4 text-blue-400 opacity-60 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all duration-200" />
-              </CardHeader>
-              <CardContent className="space-y-4 flex-1 flex flex-col justify-between pb-5">
-                <div className="text-center bg-blue-50/30 p-2.5 rounded-xl border border-blue-50/50">
-                  <p className="text-lg font-black text-blue-600 tabular-nums">{stats.totalStudents}</p>
-                  <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">Total Students</p>
+              <CardHeader className="pb-2 pt-5 px-6 flex flex-row items-center justify-between">
+                <CardTitle className="text-xs font-extrabold text-slate-400 uppercase tracking-widest">School Metrics</CardTitle>
+                <div className="p-1 rounded-lg bg-blue-50 text-blue-600 opacity-60 group-hover:opacity-100 group-hover:bg-blue-100 transition-all duration-300 border border-blue-100/40">
+                  <ArrowRight className="h-3.5 w-3.5 group-hover:translate-x-0.5 transition-transform" />
                 </div>
-                <div className="space-y-2.5">
-                  <div className="flex items-center justify-between text-xs border-b border-blue-50/40 pb-1.5">
-                    <span className="text-muted-foreground">Revenue per Student</span>
-                    <span className="font-bold text-slate-700">Rs. {Math.round(stats.revenuePerStudent).toLocaleString()}</span>
+              </CardHeader>
+              <CardContent className="space-y-4 flex-1 flex flex-col justify-between pb-5 px-6">
+                <div className="text-center bg-gradient-to-br from-blue-50/40 to-indigo-50/30 p-3.5 rounded-2xl border border-blue-100/30">
+                  <p className="text-lg font-black text-blue-700 tabular-nums">{stats.totalStudents}</p>
+                  <p className="text-[9px] text-slate-400 font-extrabold uppercase tracking-widest mt-0.5">Total Students</p>
+                </div>
+                <div className="space-y-3 px-1">
+                  <div className="flex items-center justify-between text-xs border-b border-slate-100/80 pb-2">
+                    <span className="text-slate-500 font-semibold">Revenue per Student</span>
+                    <span className="font-extrabold text-slate-800">Rs. {Math.round(stats.revenuePerStudent).toLocaleString()}</span>
                   </div>
-                  <div className="flex items-center justify-between text-xs border-b border-blue-50/40 pb-1.5">
-                    <span className="text-muted-foreground">Cost per Student</span>
-                    <span className="font-bold text-slate-700">Rs. {Math.round(stats.costPerStudent).toLocaleString()}</span>
+                  <div className="flex items-center justify-between text-xs border-b border-slate-100/80 pb-2">
+                    <span className="text-slate-500 font-semibold">Cost per Student</span>
+                    <span className="font-extrabold text-slate-800">Rs. {Math.round(stats.costPerStudent).toLocaleString()}</span>
                   </div>
                   <div className="flex items-center justify-between text-xs">
-                    <span className="text-muted-foreground">Estimated Margin</span>
-                    <span className={`font-bold ${stats.profitMargin >= 0 ? "text-blue-600" : "text-rose-500"}`}>{stats.profitMargin.toFixed(1)}%</span>
+                    <span className="text-slate-500 font-semibold">Estimated Margin</span>
+                    <span className={`font-extrabold ${stats.profitMargin >= 0 ? "text-emerald-600" : "text-rose-500"}`}>{stats.profitMargin.toFixed(1)}%</span>
                   </div>
                 </div>
               </CardContent>
@@ -1088,30 +1154,32 @@ export function AccountantHomeModule() {
 
             {/* Cash Position */}
             <Card 
-              className="shadow-sm bg-gradient-to-br from-white to-blue-50/20 border border-blue-100/80 hover:border-blue-400 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 cursor-pointer rounded-2xl group flex flex-col justify-between h-[280px]"
-              onClick={() => navigate(`/${schoolSlug}/accountant/finance`)}
+              className="bg-gradient-to-br from-white via-white to-blue-50/10 border border-slate-100 shadow-[0_12px_30px_rgba(8,112,184,0.02)] hover:border-blue-300 hover:shadow-[0_20px_45px_rgba(37,99,235,0.05)] hover:-translate-y-1 transition-all duration-300 cursor-pointer rounded-3xl group flex flex-col justify-between h-[280px]"
+              onClick={() => navigate(`/${schoolSlug}/accountant/reports`)}
             >
-              <CardHeader className="pb-2 flex flex-row items-center justify-between">
-                <CardTitle className="text-base font-bold text-slate-800">Cash Position</CardTitle>
-                <ArrowRight className="h-4 w-4 text-blue-400 opacity-60 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all duration-200" />
-              </CardHeader>
-              <CardContent className="space-y-4 flex-1 flex flex-col justify-between pb-5">
-                <div className="text-center bg-blue-50/30 p-2.5 rounded-xl border border-blue-50/50">
-                  <p className="text-lg font-black text-blue-600 tabular-nums">Rs. {stats.cashPosition.toLocaleString()}</p>
-                  <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">Estimated Balance</p>
+              <CardHeader className="pb-2 pt-5 px-6 flex flex-row items-center justify-between">
+                <CardTitle className="text-xs font-extrabold text-slate-400 uppercase tracking-widest">Cash Position</CardTitle>
+                <div className="p-1 rounded-lg bg-blue-50 text-blue-600 opacity-60 group-hover:opacity-100 group-hover:bg-blue-100 transition-all duration-300 border border-blue-100/40">
+                  <ArrowRight className="h-3.5 w-3.5 group-hover:translate-x-0.5 transition-transform" />
                 </div>
-                <div className="space-y-2.5">
-                  <div className="flex items-center justify-between text-xs border-b border-blue-50/40 pb-1.5">
-                    <span className="text-muted-foreground">Gross Profit</span>
-                    <span className="font-bold text-slate-700">Rs. {stats.grossProfit.toLocaleString()}</span>
+              </CardHeader>
+              <CardContent className="space-y-4 flex-1 flex flex-col justify-between pb-5 px-6">
+                <div className="text-center bg-gradient-to-br from-blue-50/40 to-indigo-50/30 p-3.5 rounded-2xl border border-blue-100/30">
+                  <p className="text-lg font-black text-blue-700 tabular-nums">Rs. {stats.cashPosition.toLocaleString()}</p>
+                  <p className="text-[9px] text-slate-400 font-extrabold uppercase tracking-widest mt-0.5">Estimated Balance</p>
+                </div>
+                <div className="space-y-3 px-1">
+                  <div className="flex items-center justify-between text-xs border-b border-slate-100/80 pb-2">
+                    <span className="text-slate-500 font-semibold">Gross Profit</span>
+                    <span className="font-extrabold text-slate-800">Rs. {stats.grossProfit.toLocaleString()}</span>
                   </div>
-                  <div className="flex items-center justify-between text-xs border-b border-blue-50/40 pb-1.5">
-                    <span className="text-muted-foreground">Annual Payroll Projection</span>
-                    <span className="font-bold text-slate-700">Rs. {stats.annualPayrollProjection.toLocaleString()}</span>
+                  <div className="flex items-center justify-between text-xs border-b border-slate-100/80 pb-2">
+                    <span className="text-slate-500 font-semibold">Annual Payroll Proj.</span>
+                    <span className="font-extrabold text-slate-800">Rs. {stats.annualPayrollProjection.toLocaleString()}</span>
                   </div>
                   <div className="flex items-center justify-between text-xs">
-                    <span className="text-muted-foreground">Total Expenses</span>
-                    <span className="font-bold text-rose-500">Rs. {stats.totalExpenses.toLocaleString()}</span>
+                    <span className="text-slate-500 font-semibold">Total Expenses</span>
+                    <span className="font-extrabold text-rose-500">Rs. {stats.totalExpenses.toLocaleString()}</span>
                   </div>
                 </div>
               </CardContent>
