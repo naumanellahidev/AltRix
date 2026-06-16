@@ -176,7 +176,8 @@ class OllamaAIService:
             logger.info(f"Connecting to AI provider '{current_prov}' at {url} using model '{current_model}'")
             
             try:
-                async with httpx.AsyncClient(timeout=60.0) as client:
+                timeout = httpx.Timeout(60.0, connect=5.0)
+                async with httpx.AsyncClient(timeout=timeout) as client:
                     async with client.stream("POST", url, json=payload, headers=headers) as response:
                         if response.status_code != 200:
                             err_text = await response.aread()
