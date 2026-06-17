@@ -515,7 +515,7 @@ async def dashboard_kpis(current_user: CurrentUser, db: DbSession):
                 SELECT
                     (SELECT COUNT(*) FROM students WHERE school_id = :sid AND status = 'active') as total_students,
                     (SELECT COUNT(*) FROM user_roles WHERE school_id = :sid AND role = 'teacher') as total_teachers,
-                    (SELECT COUNT(*) FROM admission_applications WHERE school_id = :sid AND status = 'pending') as pending_admissions,
+                    (SELECT COUNT(*) FROM admission_applications WHERE school_id = :sid AND status = 'submitted') as pending_admissions,
                     (SELECT COUNT(*) FROM fee_invoices WHERE school_id = :sid AND status NOT IN ('paid', 'cancelled')) as pending_payments,
                     (SELECT COALESCE(SUM(amount), 0) FROM fee_payments WHERE school_id = :sid AND paid_at >= :mtd_start) as collected_fees,
                     (SELECT COUNT(*) FROM campuses WHERE school_id = :sid AND is_active = true) as active_campuses,
@@ -677,6 +677,10 @@ async def get_ai_status(db: DbSession) -> bool:
             return val.get("enabled", True)
     except Exception as e:
         logger.warning(f"Error fetching AI status from database: {e}")
+        try:
+            await db.rollback()
+        except Exception:
+            pass
     return True
 
 async def set_ai_status(db: DbSession, enabled: bool):
@@ -709,6 +713,10 @@ async def get_school_ai_status(db: DbSession, school_id: str) -> bool:
             return val.get("enabled", False)
     except Exception as e:
         logger.warning(f"Error fetching per-school AI status for {school_id}: {e}")
+        try:
+            await db.rollback()
+        except Exception:
+            pass
     return False
 
 async def set_school_ai_status(db: DbSession, school_id: str, enabled: bool):
@@ -737,7 +745,10 @@ async def fetch_ai_context(db: DbSession, user: AuthenticatedUser, school_id: st
         if curr_row and curr_row[0]:
             currency = curr_row[0]
     except Exception:
-        pass
+        try:
+            await db.rollback()
+        except Exception:
+            pass
         
     def format_money(val):
         symbol = "Rs." if currency == "PKR" else currency
@@ -753,25 +764,37 @@ async def fetch_ai_context(db: DbSession, user: AuthenticatedUser, school_id: st
             return res.fetchall()
         except Exception as e:
             logger.warning(f"AI Context DB fetch failure: {sql[:100]}... error: {e}")
+            try:
+                await db.rollback()
+            except Exception:
+                pass
             return []
 
     # 1. School Owner / Principal / Super Admin Context
     if user.is_super_admin or "school_owner" in effective_roles or "principal" in effective_roles or "vice_principal" in effective_roles or "school_admin" in effective_roles:
         try:
             # Stats/Metrics
-            mtd_start = datetime.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-            res = await db.execute(
-                text("""
-                    SELECT
-                        (SELECT COUNT(*) FROM students WHERE school_id = :sid AND status = 'active') as total_students,
-                        (SELECT COUNT(*) FROM user_roles WHERE school_id = :sid AND role = 'teacher') as total_teachers,
-                        (SELECT COUNT(*) FROM fee_invoices WHERE school_id = :sid AND status NOT IN ('paid', 'cancelled')) as pending_payments,
-                        (SELECT COALESCE(SUM(amount), 0) FROM fee_payments WHERE school_id = :sid AND paid_at >= :mtd_start) as collected_fees,
-                        (SELECT COUNT(*) FROM campuses WHERE school_id = :sid AND is_active = true) as active_campuses
-                """),
-                {"sid": school_id, "mtd_start": mtd_start}
-            )
-            metrics = res.fetchone()
+            mtd_start = datetime.now(timezone.utc).replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+            metrics = (0, 0, 0, 0, 0)
+            try:
+                res = await db.execute(
+                    text("""
+                        SELECT
+                            (SELECT COUNT(*) FROM students WHERE school_id = :sid AND status = 'active') as total_students,
+                            (SELECT COUNT(*) FROM user_roles WHERE school_id = :sid AND role = 'teacher') as total_teachers,
+                            (SELECT COUNT(*) FROM fee_invoices WHERE school_id = :sid AND status NOT IN ('paid', 'cancelled')) as pending_payments,
+                            (SELECT COALESCE(SUM(amount), 0) FROM fee_payments WHERE school_id = :sid AND paid_at >= :mtd_start) as collected_fees,
+                            (SELECT COUNT(*) FROM campuses WHERE school_id = :sid AND is_active = true) as active_campuses
+                    """),
+                    {"sid": school_id, "mtd_start": mtd_start}
+                )
+                metrics = res.fetchone() or (0, 0, 0, 0, 0)
+            except Exception as e:
+                logger.warning(f"Error fetching principal metrics: {e}")
+                try:
+                    await db.rollback()
+                except Exception:
+                    pass
             
             # Campuses
             campuses = await fetch_rows("SELECT name, address, is_active FROM campuses WHERE school_id = :sid", {"sid": school_id})
@@ -810,7 +833,7 @@ async def fetch_ai_context(db: DbSession, user: AuthenticatedUser, school_id: st
 
             # Active Student Directory
             students_list = await fetch_rows("""
-                SELECT s.first_name, s.last_name, c.name as class_name, cs.name as section_name, s.student_code, s.email
+                SELECT s.first_name, s.last_name, c.name as class_name, cs.name as section_name, s.student_code, s.phone
                 FROM students s
                 LEFT JOIN student_enrollments se ON se.student_id = s.id AND se.end_date IS NULL
                 LEFT JOIN class_sections cs ON se.class_section_id = cs.id
@@ -820,7 +843,7 @@ async def fetch_ai_context(db: DbSession, user: AuthenticatedUser, school_id: st
                 LIMIT 300
             """, {"sid": school_id})
             students_str = "\n".join([
-                f"- {r[0]} {r[1] or ''} (Code: {r[4] or 'N/A'}, Class: {r[2] or 'Unassigned'}, Section: {r[3] or 'Unassigned'}, Email: {r[5] or 'N/A'})"
+                f"- {r[0]} {r[1] or ''} (Code: {r[4] or 'N/A'}, Class: {r[2] or 'Unassigned'}, Section: {r[3] or 'Unassigned'}, Phone: {r[5] or 'N/A'})"
                 for r in students_list
             ])
 
@@ -881,11 +904,16 @@ async def fetch_ai_context(db: DbSession, user: AuthenticatedUser, school_id: st
             # Pending admissions
             try:
                 adm_res = await db.execute(
-                    text("SELECT COUNT(*) FROM admission_applications WHERE school_id = :sid AND status = 'pending'"),
+                    text("SELECT COUNT(*) FROM admission_applications WHERE school_id = :sid AND status = 'submitted'"),
                     {"sid": school_id}
                 )
                 pending_admissions = adm_res.scalar() or 0
-            except Exception:
+            except Exception as e:
+                logger.warning(f"Error fetching pending admissions: {e}")
+                try:
+                    await db.rollback()
+                except Exception:
+                    pass
                 pending_admissions = 0
 
             metrics_data = {
@@ -941,17 +969,25 @@ Recent ERP Complaints & Feedback:
     elif "accountant" in effective_roles:
         try:
             # Metrics
-            res = await db.execute(
-                text("""
-                    SELECT 
-                        COALESCE(SUM(total_amount - paid_amount), 0) as outstanding,
-                        COALESCE(SUM(paid_amount), 0) as paid
-                    FROM fee_invoices
-                    WHERE school_id = :sid AND status != 'paid' AND student_id != '00000000-0000-0000-0000-000000000000'::uuid
-                """),
-                {"sid": school_id}
-            )
-            finance = res.fetchone()
+            try:
+                res = await db.execute(
+                    text("""
+                        SELECT 
+                            COALESCE(SUM(total_amount - paid_amount), 0) as outstanding,
+                            COALESCE(SUM(paid_amount), 0) as paid
+                        FROM fee_invoices
+                        WHERE school_id = :sid AND status != 'paid' AND student_id != '00000000-0000-0000-0000-000000000000'::uuid
+                    """),
+                    {"sid": school_id}
+                )
+                finance = res.fetchone()
+            except Exception as e:
+                logger.warning(f"Error fetching accountant metrics: {e}")
+                try:
+                    await db.rollback()
+                except Exception:
+                    pass
+                finance = (0, 0)
             
             # Top Outstanding Defaulters
             defaulters = await fetch_rows("""
@@ -1337,8 +1373,9 @@ Children Class Diary Logs:
         try:
             # Resolve student profile ID
             student_profile = await fetch_rows("""
-                SELECT id, first_name, last_name, student_code FROM students 
-                WHERE (profile_id = :uid OR email = :email) AND school_id = :sid LIMIT 1
+                SELECT s.id, s.first_name, s.last_name, s.student_code FROM students s
+                LEFT JOIN auth.users u ON s.profile_id = u.id
+                WHERE (s.profile_id = :uid OR u.email = :email) AND s.school_id = :sid LIMIT 1
             """, {"uid": user.id, "email": user.email, "sid": school_id})
             
             if not student_profile:

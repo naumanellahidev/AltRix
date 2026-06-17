@@ -32,6 +32,11 @@ import {
   Zap,
   Settings,
   Paperclip,
+  Mic,
+  MicOff,
+  Volume2,
+  VolumeX,
+  History,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/hooks/useSession";
@@ -107,6 +112,14 @@ type Message = {
   chart?: ChartPayload;
   fileAttachment?: { name: string; size: number };
   isError?: boolean;
+};
+
+type HistoryItem = {
+  id: string;
+  timestamp: Date;
+  label: string;
+  undoPath: string;
+  undoMethod: "DELETE" | "PATCH";
 };
 
 const genId = () => Math.random().toString(36).slice(2, 9);
@@ -416,10 +429,141 @@ export default function AltrixCopilot() {
   const [attachedFile, setAttachedFile] = useState<{ name: string; content: string; size: number } | null>(null);
   const [showScrollBtn, setShowScrollBtn] = useState(false);
 
+  // Advanced features states
+  const [isRecording, setIsRecording] = useState(false);
+  const [speakingMsgId, setSpeakingMsgId] = useState<string | null>(null);
+  const [actionHistory, setActionHistory] = useState<HistoryItem[]>([]);
+  const [showActionLog, setShowActionLog] = useState(false);
+
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const recognitionRef = useRef<any>(null);
   const storageKey = getStorageKey(schoolId, user?.id);
+
+  // Cleanup speech synthesis & recognition on unmount
+  useEffect(() => {
+    return () => {
+      if (recognitionRef.current) {
+        recognitionRef.current.stop();
+      }
+      window.speechSynthesis.cancel();
+    };
+  }, []);
+
+  const handleToggleRecord = () => {
+    if (isRecording) {
+      if (recognitionRef.current) {
+        recognitionRef.current.stop();
+      }
+      setIsRecording(false);
+      return;
+    }
+
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      toast.error("Speech Recognition is not supported in this browser.");
+      return;
+    }
+
+    const rec = new SpeechRecognition();
+    rec.continuous = true;
+    rec.interimResults = true;
+    rec.lang = "en-US";
+
+    let initialText = input;
+
+    rec.onstart = () => {
+      setIsRecording(true);
+    };
+
+    rec.onerror = (e: any) => {
+      console.error("Speech recognition error:", e);
+      if (e.error !== "no-speech") {
+        toast.error(`Speech recognition error: ${e.error}`);
+      }
+      setIsRecording(false);
+    };
+
+    rec.onend = () => {
+      setIsRecording(false);
+    };
+
+    rec.onresult = (event: any) => {
+      let finalTranscript = "";
+      for (let i = event.resultIndex; i < event.results.length; ++i) {
+        if (event.results[i].isFinal) {
+          finalTranscript += event.results[i][0].transcript;
+        }
+      }
+      if (finalTranscript) {
+        setInput(initialText + (initialText ? " " : "") + finalTranscript);
+      }
+    };
+
+    recognitionRef.current = rec;
+    rec.start();
+  };
+
+  const stripMarkdownAndTags = (text: string): string => {
+    let clean = text.replace(/<altrix_action>[\s\S]*?<\/altrix_action>/gi, "");
+    clean = clean.replace(/<altrix_chart[\s\S]*?\/>/gi, "");
+    clean = clean.replace(/<think>[\s\S]*?<\/think>/gi, "");
+    clean = clean.replace(/<[^>]*>/g, "");
+    clean = clean
+      .replace(/\*\*([^*]+)\*\*/g, "$1")
+      .replace(/\*([^*]+)\*/g, "$1")
+      .replace(/`([^`]+)`/g, "$1")
+      .replace(/__([^_]+)__/g, "$1")
+      .replace(/_([^_]+)_/g, "$1")
+      .replace(/#+\s+/g, "")
+      .replace(/^[*-]\s+/gm, "")
+      .replace(/^\d+\.\s+/gm, "");
+    return clean.trim();
+  };
+
+  const handleToggleSpeech = (msgId: string, content: string) => {
+    if (speakingMsgId === msgId) {
+      window.speechSynthesis.cancel();
+      setSpeakingMsgId(null);
+      return;
+    }
+
+    window.speechSynthesis.cancel();
+    const textToSpeak = stripMarkdownAndTags(content);
+    if (!textToSpeak) return;
+
+    const utterance = new SpeechSynthesisUtterance(textToSpeak);
+    utterance.onend = () => {
+      setSpeakingMsgId(null);
+    };
+    utterance.onerror = () => {
+      setSpeakingMsgId(null);
+    };
+
+    setSpeakingMsgId(msgId);
+    window.speechSynthesis.speak(utterance);
+  };
+
+  const handleUndo = async (historyId: string) => {
+    const item = actionHistory.find((h) => h.id === historyId);
+    if (!item) return;
+
+    const t = toast.loading(`Undoing: ${item.label}...`);
+    try {
+      if (item.undoMethod === "DELETE") {
+        await apiClient.delete(item.undoPath);
+      } else if (item.undoMethod === "PATCH") {
+        await apiClient.patch(item.undoPath, {});
+      }
+      
+      setActionHistory((prev) => prev.filter((h) => h.id !== historyId));
+      toast.success("Action undone successfully!", { id: t });
+    } catch (err: any) {
+      console.error("Undo action failed:", err);
+      toast.error(err.response?.data?.detail || err.message || "Failed to undo action", { id: t });
+    }
+  };
 
   // ── Fetch AI Settings ─────────────────────────────────────────────────────
   useEffect(() => {
@@ -515,10 +659,28 @@ export default function AltrixCopilot() {
   }, [isOpen]);
 
   // ── Suggestions ───────────────────────────────────────────────────────────
-  const suggestions = useMemo(
-    () => (primaryRole ? ROLE_SUGGESTIONS[primaryRole] || [] : []),
-    [primaryRole]
-  );
+  const suggestions = useMemo(() => {
+    const path = location.pathname.toLowerCase();
+    
+    if (
+      path.includes("/fees") ||
+      path.includes("/invoices") ||
+      path.includes("/payments") ||
+      path.includes("/accountant")
+    ) {
+      return ["Outstanding fees summary", "List unpaid invoices", "Defaulter analytics"];
+    }
+    
+    if (path.includes("/attendance")) {
+      return ["Absentees today", "Attendance rate trends"];
+    }
+    
+    if (path.includes("/exams") || path.includes("/results")) {
+      return ["Class-wise exam performance", "Generate student report card"];
+    }
+
+    return primaryRole ? ROLE_SUGGESTIONS[primaryRole] || [] : [];
+  }, [location.pathname, primaryRole]);
 
   if (!aiEnabled) return null;
 
@@ -679,7 +841,17 @@ export default function AltrixCopilot() {
 
       if (!response.ok) {
         const errData = await response.json().catch(() => ({}));
-        throw new Error(errData.detail || `Error ${response.status}`);
+        let errorMsg = `Error ${response.status}`;
+        if (errData.detail) {
+          if (typeof errData.detail === "string") {
+            errorMsg = errData.detail;
+          } else if (Array.isArray(errData.detail)) {
+            errorMsg = errData.detail.map((err: any) => err.msg || JSON.stringify(err)).join(", ");
+          } else if (typeof errData.detail === "object") {
+            errorMsg = errData.detail.message || errData.detail.error || JSON.stringify(errData.detail);
+          }
+        }
+        throw new Error(errorMsg);
       }
       if (!response.body) throw new Error("No response stream");
 
@@ -705,8 +877,9 @@ export default function AltrixCopilot() {
           try {
             const data = JSON.parse(jsonStr);
             if (data.error) {
-              toast.error(data.error);
-              assistantText += `\n\n⚠️ ${data.error}`;
+              const errMsg = typeof data.error === "object" ? (data.error.message || JSON.stringify(data.error)) : String(data.error);
+              toast.error(errMsg);
+              assistantText += `\n\n⚠️ ${errMsg}`;
             } else {
               assistantText += data.choices?.[0]?.delta?.content || "";
             }
@@ -849,7 +1022,7 @@ export default function AltrixCopilot() {
       if (msg.action.amount === undefined) return toast.error("Missing payment amount in action context");
       const t = toast.loading("Recording payment in system...");
       try {
-        await apiClient.post("/finance/payments", {
+        const res = await apiClient.post("/finance/payments", {
           student_id: msg.action.studentId,
           voucher_id: msg.action.voucherId || msg.action.invoiceId || null,
           amount: Number(msg.action.amount),
@@ -858,6 +1031,20 @@ export default function AltrixCopilot() {
           notes: msg.action.notes || ""
         });
         toast.success("Payment recorded successfully!", { id: t });
+
+        const id = res.data?.id;
+        if (id) {
+          setActionHistory((prev) => [
+            {
+              id: genId(),
+              timestamp: new Date(),
+              label: msg.action.label || `Record Payment: PKR ${msg.action.amount}`,
+              undoPath: `/finance/payments/${id}`,
+              undoMethod: "DELETE",
+            },
+            ...prev,
+          ]);
+        }
       } catch (err: any) {
         toast.error(err.response?.data?.detail || err.message || "Failed to record payment", { id: t });
       }
@@ -866,7 +1053,7 @@ export default function AltrixCopilot() {
       if (msg.action.totalAmount === undefined) return toast.error("Missing invoice amount in action context");
       const t = toast.loading("Generating fee invoice...");
       try {
-        await apiClient.post("/finance/vouchers", {
+        const res = await apiClient.post("/finance/vouchers", {
           student_id: msg.action.studentId,
           month: new Date().toLocaleString('default', { month: 'long' }),
           academic_year: new Date().getFullYear().toString(),
@@ -877,6 +1064,20 @@ export default function AltrixCopilot() {
           notes: msg.action.notes || ""
         });
         toast.success("Fee invoice generated successfully!", { id: t });
+
+        const id = res.data?.id;
+        if (id) {
+          setActionHistory((prev) => [
+            {
+              id: genId(),
+              timestamp: new Date(),
+              label: msg.action.label || `Create Fee Invoice: PKR ${msg.action.totalAmount}`,
+              undoPath: `/finance/vouchers/${id}/cancel`,
+              undoMethod: "PATCH",
+            },
+            ...prev,
+          ]);
+        }
       } catch (err: any) {
         toast.error(err.response?.data?.detail || err.message || "Failed to generate fee invoice", { id: t });
       }
@@ -886,7 +1087,7 @@ export default function AltrixCopilot() {
       if (!msg.action.title) return toast.error("Missing assignment title in action context");
       const t = toast.loading("Creating homework assignment...");
       try {
-        await apiClient.post("/assignments", {
+        const res = await apiClient.post("/assignments", {
           class_section_id: classSectionId,
           title: msg.action.title,
           description: msg.action.description || "",
@@ -894,6 +1095,20 @@ export default function AltrixCopilot() {
           max_marks: msg.action.maxMarks !== undefined ? Number(msg.action.maxMarks) : 100
         });
         toast.success("Homework assignment created successfully!", { id: t });
+
+        const id = res.data?.id;
+        if (id) {
+          setActionHistory((prev) => [
+            {
+              id: genId(),
+              timestamp: new Date(),
+              label: msg.action.label || `Create Assignment: ${msg.action.title}`,
+              undoPath: `/assignments/${id}`,
+              undoMethod: "DELETE",
+            },
+            ...prev,
+          ]);
+        }
       } catch (err: any) {
         toast.error(err.response?.data?.detail || err.message || "Failed to create assignment", { id: t });
       }
@@ -902,7 +1117,7 @@ export default function AltrixCopilot() {
       if (!msg.action.title) return toast.error("Missing note title in action context");
       const t = toast.loading("Saving behavior note...");
       try {
-        await apiClient.post("/behavior", {
+        const res = await apiClient.post("/behavior", {
           student_id: msg.action.studentId,
           title: msg.action.title,
           content: msg.action.content || "",
@@ -910,6 +1125,20 @@ export default function AltrixCopilot() {
           is_shared_with_parents: true
         });
         toast.success("Behavior note saved successfully!", { id: t });
+
+        const id = res.data?.id;
+        if (id) {
+          setActionHistory((prev) => [
+            {
+              id: genId(),
+              timestamp: new Date(),
+              label: msg.action.label || `Create Behavior Note: ${msg.action.title}`,
+              undoPath: `/behavior/${id}`,
+              undoMethod: "DELETE",
+            },
+            ...prev,
+          ]);
+        }
       } catch (err: any) {
         toast.error(err.response?.data?.detail || err.message || "Failed to save behavior note", { id: t });
       }
@@ -919,13 +1148,27 @@ export default function AltrixCopilot() {
       if (!msg.action.title) return toast.error("Missing diary title in action context");
       const t = toast.loading("Saving diary entry...");
       try {
-        await apiClient.post("/diary", {
+        const res = await apiClient.post("/diary", {
           class_section_id: classSectionId,
           title: msg.action.title,
           content: msg.action.content || "",
           entry_date: msg.action.entryDate || new Date().toISOString().split('T')[0]
         });
         toast.success("Diary entry saved successfully!", { id: t });
+
+        const id = res.data?.id;
+        if (id) {
+          setActionHistory((prev) => [
+            {
+              id: genId(),
+              timestamp: new Date(),
+              label: msg.action.label || `Create Diary Entry: ${msg.action.title}`,
+              undoPath: `/diary/${id}`,
+              undoMethod: "DELETE",
+            },
+            ...prev,
+          ]);
+        }
       } catch (err: any) {
         toast.error(err.response?.data?.detail || err.message || "Failed to save diary entry", { id: t });
       }
@@ -933,13 +1176,27 @@ export default function AltrixCopilot() {
       if (!msg.action.title) return toast.error("Missing notice title in action context");
       const t = toast.loading("Publishing notice...");
       try {
-        await apiClient.post("/notices", {
+        const res = await apiClient.post("/notices", {
           title: msg.action.title,
           content: msg.action.content || "",
           notice_type: "general",
           target_roles: msg.action.targetRoles || ["parent", "teacher", "student"]
         });
         toast.success("Notice published successfully!", { id: t });
+
+        const id = res.data?.id;
+        if (id) {
+          setActionHistory((prev) => [
+            {
+              id: genId(),
+              timestamp: new Date(),
+              label: msg.action.label || `Create Notice: ${msg.action.title}`,
+              undoPath: `/notices/${id}`,
+              undoMethod: "DELETE",
+            },
+            ...prev,
+          ]);
+        }
       } catch (err: any) {
         toast.error(err.response?.data?.detail || err.message || "Failed to publish notice", { id: t });
       }
@@ -951,12 +1208,27 @@ export default function AltrixCopilot() {
       }
       const t = toast.loading(`Executing: ${msg.action.label || "Action"}...`);
       try {
-        await apiClient.post("/ai/execute", {
+        const res = await apiClient.post("/ai/execute", {
           method,
           path,
           payload: msg.action.payload || {}
         });
         toast.success(`${msg.action.label || "Action"} completed successfully!`, { id: t });
+
+        const id = res.data?.id;
+        if (method.toUpperCase() === "POST" && id) {
+          const cleanPath = path.endsWith("/") ? path.slice(0, -1) : path;
+          setActionHistory((prev) => [
+            {
+              id: genId(),
+              timestamp: new Date(),
+              label: msg.action.label || `Executed: ${cleanPath}`,
+              undoPath: `${cleanPath}/${id}`,
+              undoMethod: "DELETE",
+            },
+            ...prev,
+          ]);
+        }
       } catch (err: any) {
         toast.error(err.response?.data?.detail || err.message || "Action failed", { id: t });
       }
@@ -1065,6 +1337,17 @@ export default function AltrixCopilot() {
                 </button>
               )}
               <button
+                onClick={() => setShowActionLog(!showActionLog)}
+                className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                  showActionLog 
+                    ? "text-blue-600 bg-blue-50" 
+                    : "text-slate-400 hover:text-slate-600 hover:bg-slate-50"
+                }`}
+                title="Action History & Undo Logs"
+              >
+                <History className="h-3.5 w-3.5" />
+              </button>
+              <button
                 onClick={() => setIsExpanded((e) => !e)}
                 className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer"
                 title={isExpanded ? "Collapse" : "Expand"}
@@ -1085,6 +1368,38 @@ export default function AltrixCopilot() {
             </div>
           </div>
 
+          {/* ── Action Log Panel ────────────────────────────────────────── */}
+          {showActionLog && (
+            <div className="border-b border-slate-100 bg-slate-50/90 backdrop-blur-sm px-4 py-3 space-y-2 max-h-48 overflow-y-auto animate-in slide-in-from-top duration-200 shrink-0 select-none">
+              <div className="flex justify-between items-center text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                <span>Recent AI Actions</span>
+                <span className="text-[9px] lowercase text-slate-400">{actionHistory.length} actions logged</span>
+              </div>
+              {actionHistory.length === 0 ? (
+                <p className="text-[11px] text-slate-400 italic py-1">No actions logged in this session.</p>
+              ) : (
+                <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
+                  {actionHistory.map((item) => (
+                    <div key={item.id} className="flex items-center justify-between bg-white border border-slate-100 rounded-xl p-2 text-[11px] shadow-sm">
+                      <div className="flex flex-col min-w-0 pr-2">
+                        <span className="font-semibold text-slate-700 truncate">{item.label}</span>
+                        <span className="text-[9px] text-slate-400 mt-0.5">
+                          {new Date(item.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </div>
+                      <button
+                        onClick={() => handleUndo(item.id)}
+                        className="bg-slate-50 hover:bg-rose-50 text-slate-600 hover:text-rose-600 border border-slate-200 hover:border-rose-100 rounded-lg px-2.5 py-1 text-[10px] font-bold transition-all cursor-pointer active:scale-95 flex-shrink-0"
+                      >
+                        Undo
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* ── Messages ───────────────────────────────────────────────── */}
           <div
             ref={scrollRef}
@@ -1098,7 +1413,7 @@ export default function AltrixCopilot() {
               >
                 {/* Avatar */}
                 {msg.role === "assistant" && (
-                  <div className="flex items-center gap-1.5 mb-1">
+                  <div className="flex items-center gap-1.5 mb-1 w-full">
                     <div className="h-5 w-5 rounded-full bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center">
                       <Brain className="h-3 w-3 text-white" />
                     </div>
@@ -1106,6 +1421,17 @@ export default function AltrixCopilot() {
                     <span className="text-[10px] text-slate-400">
                       {msg.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                     </span>
+                    <button
+                      onClick={() => handleToggleSpeech(msg.id, msg.content)}
+                      className="ml-auto p-1 rounded hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors cursor-pointer"
+                      title={speakingMsgId === msg.id ? "Stop Reading" : "Read Aloud"}
+                    >
+                      {speakingMsgId === msg.id ? (
+                        <VolumeX className="h-3.5 w-3.5 text-rose-500 animate-pulse" />
+                      ) : (
+                        <Volume2 className="h-3.5 w-3.5" />
+                      )}
+                    </button>
                   </div>
                 )}
 
@@ -1408,6 +1734,22 @@ export default function AltrixCopilot() {
               disabled={isStreaming}
               className="flex-1 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 text-[12px] px-3.5 py-2 placeholder:text-slate-400 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-blue-500/60 transition-shadow disabled:opacity-50"
             />
+            <button
+              type="button"
+              onClick={handleToggleRecord}
+              disabled={isStreaming}
+              className={`relative flex items-center justify-center h-9 w-9 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-500 hover:text-slate-700 cursor-pointer shrink-0 transition-all ${
+                isRecording ? "border-red-500/40 text-red-600 bg-red-50/50" : ""
+              }`}
+              title={isRecording ? "Stop voice recording" : "Record voice input"}
+            >
+              {isRecording && <span className="absolute inset-0 rounded-xl border-2 border-red-500 animate-ping opacity-60 pointer-events-none" style={{ animationDuration: '1.2s' }} />}
+              {isRecording ? (
+                <MicOff className="h-4 w-4 text-red-600" />
+              ) : (
+                <Mic className="h-4 w-4" />
+              )}
+            </button>
             {isStreaming ? (
               <button
                 type="button"
