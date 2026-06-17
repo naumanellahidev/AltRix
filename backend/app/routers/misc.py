@@ -1159,7 +1159,7 @@ Student Billing Directory (Active students list):
                 JOIN academic_classes c ON cs.class_id = c.id
                 WHERE cs.id IN (
                     SELECT class_section_id FROM teacher_subject_assignments WHERE teacher_user_id = :uid AND school_id = :sid
-                ) AND s.status = 'active'
+                ) AND s.status IN ('active', 'enrolled')
                 ORDER BY c.name, cs.name, s.first_name
             """, {"uid": user.id, "sid": school_id})
             students_str = "\n".join([
