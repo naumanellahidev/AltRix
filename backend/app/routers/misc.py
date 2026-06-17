@@ -1655,6 +1655,20 @@ async def ai_execute_action(
     path = body.get("path") or ""
     payload = body.get("payload") or {}
 
+    # Convert keys recursively from camelCase to snake_case
+    def sanitize_payload_keys(data):
+        if isinstance(data, dict):
+            import re
+            return {
+                re.sub(r'(?<!^)(?=[A-Z])', '_', k).lower(): sanitize_payload_keys(v)
+                for k, v in data.items()
+            }
+        elif isinstance(data, list):
+            return [sanitize_payload_keys(i) for i in data]
+        return data
+
+    payload = sanitize_payload_keys(payload)
+
     if method not in ("POST", "PATCH", "PUT", "DELETE"):
         raise HTTPException(status_code=400, detail=f"Unsupported method: {method}. Allowed: POST, PATCH, PUT, DELETE")
 

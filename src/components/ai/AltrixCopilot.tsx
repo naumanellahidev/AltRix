@@ -428,6 +428,10 @@ const isValidUuid = (id: any): boolean => {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
 };
 
+const camelToSnake = (str: string): string => {
+  return str.replace(/([A-Z])/g, "_$1").toLowerCase();
+};
+
 const sanitizePayload = (obj: any): any => {
   if (!obj || typeof obj !== "object") return obj;
   
@@ -437,6 +441,7 @@ const sanitizePayload = (obj: any): any => {
   
   const newObj: Record<string, any> = {};
   for (const [key, val] of Object.entries(obj)) {
+    const snakeKey = camelToSnake(key);
     if (typeof val === "string") {
       const lowerVal = val.toLowerCase().trim();
       if (
@@ -449,12 +454,12 @@ const sanitizePayload = (obj: any): any => {
       ) {
         continue;
       } else {
-        newObj[key] = val;
+        newObj[snakeKey] = val;
       }
     } else if (typeof val === "object" && val !== null) {
-      newObj[key] = sanitizePayload(val);
+      newObj[snakeKey] = sanitizePayload(val);
     } else {
-      newObj[key] = val;
+      newObj[snakeKey] = val;
     }
   }
   return newObj;
