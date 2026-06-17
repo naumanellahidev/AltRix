@@ -1661,6 +1661,33 @@ async def ai_execute_action(
     if not path or not path.startswith("/"):
         raise HTTPException(status_code=400, detail=f"Invalid path: {path}. Must start with /")
 
+    # ── Path Auto-Rewriting ────────────────────────────────────────────────
+    path_lower = path.lower().strip()
+    if path_lower in ("/invoices", "/invoices/", "/finance/invoices", "/finance/invoices/"):
+        path = "/finance/vouchers"
+    elif path_lower in ("/payments", "/payments/", "/finance/payments/"):
+        path = "/finance/payments"
+    elif path_lower in ("/vouchers", "/vouchers/"):
+        path = "/finance/vouchers"
+    elif path_lower in ("/expenses", "/expenses/", "/finance/expenses/"):
+        path = "/finance/expenses"
+    elif path_lower in ("/classes", "/classes/"):
+        path = "/academic/classes"
+    elif path_lower in ("/sections", "/sections/"):
+        path = "/academic/sections"
+    elif path_lower in ("/subjects", "/subjects/"):
+        path = "/academic/subjects"
+    elif path_lower in ("/timetable", "/timetable/"):
+        path = "/academic/timetable"
+    elif path_lower in ("/holidays", "/holidays/"):
+        path = "/academic/holidays"
+    elif path_lower in ("/guardians", "/guardians/"):
+        path = "/students/guardians"
+    elif path_lower in ("/payroll", "/payroll/"):
+        path = "/hr/payroll"
+    elif path_lower in ("/leave-requests", "/leave-requests/"):
+        path = "/hr/leave-requests"
+
     # ── Path Whitelist (security) ──────────────────────────────────────────
     ALLOWED_PREFIXES = [
         "/finance/",
@@ -1825,6 +1852,8 @@ When the user asks to perform ANY write action (create, update/modify, delete, r
 
 The format is:
 <altrix_action>{"type": "API_ACTION", "method": "POST|PATCH|DELETE", "path": "/api_endpoint", "payload": {...}, "label": "Action label description"}</altrix_action>
+
+CRITICAL PATH RULE: You MUST use the exact paths listed in the catalog below. Do NOT use frontend navigation routes (such as /invoices, /fees, /timetable) for the API action path. For instance, to create an invoice, use "/finance/vouchers" (NOT "/invoices").
 
 Allowed write endpoints catalog (forwarded via proxy, permission checks & school scoping are fully enforced):
 
