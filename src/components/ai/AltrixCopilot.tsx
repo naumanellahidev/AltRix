@@ -423,6 +423,43 @@ const getErrorMessage = (err: any, fallback: string): string => {
   return fallback;
 };
 
+const isValidUuid = (id: any): boolean => {
+  if (!id || typeof id !== "string") return false;
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+};
+
+const sanitizePayload = (obj: any): any => {
+  if (!obj || typeof obj !== "object") return obj;
+  
+  if (Array.isArray(obj)) {
+    return obj.map(sanitizePayload);
+  }
+  
+  const newObj: Record<string, any> = {};
+  for (const [key, val] of Object.entries(obj)) {
+    if (typeof val === "string") {
+      const lowerVal = val.toLowerCase().trim();
+      if (
+        lowerVal === "none" ||
+        lowerVal === "n/a" ||
+        lowerVal === "null" ||
+        lowerVal === "undefined" ||
+        lowerVal.includes("uuid") ||
+        lowerVal.includes("placeholder")
+      ) {
+        newObj[key] = null;
+      } else {
+        newObj[key] = val;
+      }
+    } else if (typeof val === "object" && val !== null) {
+      newObj[key] = sanitizePayload(val);
+    } else {
+      newObj[key] = val;
+    }
+  }
+  return newObj;
+};
+
 // ── Main Component ───────────────────────────────────────────────────────────
 
 export default function AltrixCopilot() {
@@ -801,20 +838,20 @@ export default function AltrixCopilot() {
     const chartMatch = cleanText.match(chartTagRegex);
     if (chartMatch) {
       try {
-        const attrStr = chartMatch[1];
-        const getAttr = (name: string) => {
-          const match = attrStr.match(new RegExp(`${name}=\\s*["']([^"']*)["']`, 'i'));
-          return match ? match[1] : undefined;
-        };
-        const type = getAttr("type") as "bar" | "line" | "pie" | undefined;
-        const title = getAttr("title") || "Analytics";
-        const xKey = getAttr("xKey") || "label";
-        const yKeysStr = getAttr("yKeys") || "";
-        const yKeys = yKeysStr.split(",").map(k => k.trim()).filter(Boolean);
-        const rawData = getAttr("data") || "[]";
-        const data = JSON.parse(rawData);
-        if (type && data && Array.isArray(data)) {
-          chartData = { type, title, xKey, yKeys, data };
+        const parser = new DOMParser();
+        const parsedDoc = parser.parseFromString(chartMatch[0], "text/html");
+        const chartElem = parsedDoc.querySelector("altrix_chart");
+        if (chartElem) {
+          const type = chartElem.getAttribute("type") as "bar" | "line" | "pie" | null;
+          const title = chartElem.getAttribute("title") || "Analytics";
+          const xKey = chartElem.getAttribute("xkey") || chartElem.getAttribute("xkeys") || "label";
+          const yKeysStr = chartElem.getAttribute("ykeys") || "";
+          const yKeys = yKeysStr.split(",").map(k => k.trim()).filter(Boolean);
+          const rawData = chartElem.getAttribute("data") || "[]";
+          const data = JSON.parse(rawData);
+          if (type && data && Array.isArray(data)) {
+            chartData = { type, title, xKey, yKeys, data };
+          }
         }
         cleanText = cleanText.replace(chartTagRegex, "").trim();
       } catch (e) {
@@ -1150,13 +1187,14 @@ export default function AltrixCopilot() {
       navigate(`/${schoolSlug}/${roleSegment}/reports`);
       setIsOpen(false);
     } else if (type === "RECORD_PAYMENT") {
-      if (!msg.action.studentId) return toast.error("Missing student ID in action context");
-      if (msg.action.amount === undefined) return toast.error("Missing payment amount in action context");
+      if (!isValidUuid(msg.action.studentId)) return toast.error("Please specify a valid student first.");
+      if (msg.action.amount === undefined || msg.action.amount <= 0) return toast.error("Missing or invalid payment amount");
+      const voucherId = isValidUuid(msg.action.voucherId || msg.action.invoiceId) ? (msg.action.voucherId || msg.action.invoiceId) : null;
       const t = toast.loading("Recording payment in system...");
       try {
         const res = await apiClient.post("/finance/payments", {
           student_id: msg.action.studentId,
-          voucher_id: msg.action.voucherId || msg.action.invoiceId || null,
+          voucher_id: voucherId,
           amount: Number(msg.action.amount),
           payment_date: new Date().toISOString().split('T')[0],
           payment_method: msg.action.paymentMethod || "cash",
@@ -1181,8 +1219,8 @@ export default function AltrixCopilot() {
         toast.error(getErrorMessage(err, "Failed to record payment"), { id: t });
       }
     } else if (type === "CREATE_INVOICE") {
-      if (!msg.action.studentId) return toast.error("Missing student ID in action context");
-      if (msg.action.totalAmount === undefined) return toast.error("Missing invoice amount in action context");
+      if (!isValidUuid(msg.action.studentId)) return toast.error("Please specify a valid student first.");
+      if (msg.action.totalAmount === undefined || msg.action.totalAmount <= 0) return toast.error("Missing or invalid invoice amount");
       const t = toast.loading("Generating fee invoice...");
       try {
         const res = await apiClient.post("/finance/vouchers", {
@@ -1215,8 +1253,8 @@ export default function AltrixCopilot() {
       }
     } else if (type === "CREATE_ASSIGNMENT") {
       const classSectionId = msg.action.classSectionId || msg.action.sectionId;
-      if (!classSectionId) return toast.error("Missing class section ID in action context");
-      if (!msg.action.title) return toast.error("Missing assignment title in action context");
+      if (!isValidUuid(classSectionId)) return toast.error("Please specify a valid class section first.");
+      if (!msg.action.title) return toast.error("Missing assignment title");
       const t = toast.loading("Creating homework assignment...");
       try {
         const res = await apiClient.post("/assignments", {
@@ -1245,8 +1283,8 @@ export default function AltrixCopilot() {
         toast.error(getErrorMessage(err, "Failed to create assignment"), { id: t });
       }
     } else if (type === "CREATE_BEHAVIOR_NOTE") {
-      if (!msg.action.studentId) return toast.error("Missing student ID in action context");
-      if (!msg.action.title) return toast.error("Missing note title in action context");
+      if (!isValidUuid(msg.action.studentId)) return toast.error("Please specify a valid student first.");
+      if (!msg.action.title) return toast.error("Missing note title");
       const t = toast.loading("Saving behavior note...");
       try {
         const res = await apiClient.post("/behavior", {
@@ -1276,8 +1314,8 @@ export default function AltrixCopilot() {
       }
     } else if (type === "CREATE_DIARY_ENTRY") {
       const classSectionId = msg.action.classSectionId || msg.action.sectionId;
-      if (!classSectionId) return toast.error("Missing class section ID in action context");
-      if (!msg.action.title) return toast.error("Missing diary title in action context");
+      if (!isValidUuid(classSectionId)) return toast.error("Please specify a valid class section first.");
+      if (!msg.action.title) return toast.error("Missing diary title");
       const t = toast.loading("Saving diary entry...");
       try {
         const res = await apiClient.post("/diary", {
@@ -1305,7 +1343,7 @@ export default function AltrixCopilot() {
         toast.error(getErrorMessage(err, "Failed to save diary entry"), { id: t });
       }
     } else if (type === "CREATE_NOTICE") {
-      if (!msg.action.title) return toast.error("Missing notice title in action context");
+      if (!msg.action.title) return toast.error("Missing notice title");
       const t = toast.loading("Publishing notice...");
       try {
         const res = await apiClient.post("/notices", {
@@ -1338,12 +1376,13 @@ export default function AltrixCopilot() {
       if (!method || !path) {
         return toast.error("Missing method or path in action context");
       }
+      const payload = sanitizePayload(msg.action.payload || {});
       const t = toast.loading(`Executing: ${msg.action.label || "Action"}...`);
       try {
         const res = await apiClient.post("/ai/execute-action", {
           method,
           path,
-          payload: msg.action.payload || {}
+          payload
         });
         toast.success(`${msg.action.label || "Action"} completed successfully!`, { id: t });
 

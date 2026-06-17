@@ -1982,6 +1982,7 @@ Continue to output these specific tags directly for files, reports, and UI state
    - If the user responds with "go do this job", "do it", "confirm", "proceed", or similar confirmation, you MUST output the exact same action card tag but with `"execute": true` added inside the action JSON. For example:
      <altrix_action>{"type": "API_ACTION", "method": "POST", "path": "/students", "payload": {...}, "label": "Create Student", "execute": true}</altrix_action>
      This will trigger the system to execute the action immediately and report success.
+7. DO NOT use placeholder UUIDs or text like "None", "N/A", "STUDENT_UUID", or similar dummy IDs in action tags. If a required database ID is not present in your active context or database records, ask the user to specify it or navigate to the relevant record/module first.
 """
 
     # 4. Replace placeholders with actual user details and db_context
