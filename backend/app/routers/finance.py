@@ -159,6 +159,9 @@ async def create_voucher(body: FeeVoucherCreate, current_user: CurrentUser, db: 
     if data.get("subtotal") is None:
         data["subtotal"] = data.get("total_amount", 0.0)
 
+    if data.get("net_amount") is None:
+        data["net_amount"] = data.get("total_amount", 0.0)
+
     voucher = FeeVoucher(
         school_id=current_user.school_id,
         created_by=current_user.id,
@@ -233,10 +236,15 @@ async def record_payment(body: FeePaymentCreate, current_user: CurrentUser, db: 
     if not (current_user.is_super_admin or any(r in effective_roles for r in FINANCE_GOV)):
         raise ForbiddenError()
 
+    data = body.model_dump()
+    if not data.get("payment_date"):
+        from datetime import date
+        data["payment_date"] = date.today().isoformat()
+
     payment = FeePayment(
         school_id=current_user.school_id,
         received_by=current_user.id,
-        **body.model_dump(),
+        **data,
     )
     db.add(payment)
 

@@ -1384,10 +1384,16 @@ export default function AltrixCopilot() {
         if (!isValidUuid(rawPayload.student_id)) {
           return toast.error("Action Aborted: A valid Student ID is required to record a payment.");
         }
+        if (!rawPayload.payment_date) {
+          rawPayload.payment_date = new Date().toISOString().split('T')[0];
+        }
       }
       if (pathLower.includes("/finance/vouchers")) {
         if (!isValidUuid(rawPayload.student_id)) {
           return toast.error("Action Aborted: A valid Student ID is required to create a fee invoice.");
+        }
+        if (rawPayload.net_amount === undefined || rawPayload.net_amount === null) {
+          rawPayload.net_amount = rawPayload.total_amount;
         }
       }
       if (pathLower.includes("/students/guardians")) {

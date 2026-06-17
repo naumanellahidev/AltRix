@@ -582,7 +582,7 @@ class FeeVoucherCreate(BaseModel):
     academic_year: Optional[str] = None
     total_amount: float
     discount_amount: Optional[float] = 0
-    net_amount: float
+    net_amount: Optional[float] = None
     due_date: Optional[date] = None
     campus_id: Optional[UUID] = None
     notes: Optional[str] = None
@@ -607,7 +607,7 @@ class FeePaymentCreate(BaseModel):
     student_id: UUID
     voucher_id: Optional[UUID] = None
     amount: float
-    payment_date: str
+    payment_date: Optional[str] = None
     payment_method: Optional[str] = "cash"
     transaction_id: Optional[str] = None
     reference_number: Optional[str] = None
