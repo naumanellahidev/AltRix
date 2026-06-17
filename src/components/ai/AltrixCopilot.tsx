@@ -30,6 +30,8 @@ import {
   BookOpen,
   Bell,
   Zap,
+  Settings,
+  Paperclip,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/hooks/useSession";
@@ -39,6 +41,21 @@ import { generateVoucherPdf, type VoucherCopyData } from "@/lib/fee-voucher-pdf"
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api-client";
+import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  LineChart,
+  Line,
+  PieChart,
+  Pie,
+  Cell,
+  XAxis,
+  YAxis,
+  Tooltip as RechartsTooltip,
+  Legend,
+  CartesianGrid,
+} from "recharts";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -73,12 +90,22 @@ type ActionPayload = {
   targetRoles?: string[];
 };
 
+type ChartPayload = {
+  type: "bar" | "line" | "pie";
+  title: string;
+  xKey: string;
+  yKeys: string[];
+  data: Record<string, any>[];
+};
+
 type Message = {
   id: string;
   role: "user" | "assistant";
   content: string;
   timestamp: Date;
   action?: ActionPayload;
+  chart?: ChartPayload;
+  fileAttachment?: { name: string; size: number };
   isError?: boolean;
 };
 
@@ -273,10 +300,84 @@ const ROLE_SUGGESTIONS: Record<string, string[]> = {
   student: ["Show my attendance rate", "My recent exam grades"],
 };
 
-// ── Storage Key ──────────────────────────────────────────────────────────────
-
 const getStorageKey = (schoolId: string | null | undefined, userId: string | undefined) =>
   `altrix_copilot_history_${schoolId}_${userId}`;
+
+// ── Chart Renderer Component ──────────────────────────────────────────────────
+function CopilotChart({ chart }: { chart: ChartPayload }) {
+  const { type, title, xKey, yKeys, data } = chart;
+
+  // Dynamic brand colors (primary, green, amber, red, indigo, pink, teal)
+  const COLORS = ["hsl(var(--primary))", "#10b981", "#f59e0b", "#ef4444", "#6366f1", "#ec4899", "#14b8a6"];
+
+  const renderChart = () => {
+    if (type === "bar") {
+      return (
+        <BarChart data={data} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+          <XAxis dataKey={xKey} tick={{ fontSize: 10 }} stroke="#94a3b8" />
+          <YAxis tick={{ fontSize: 10 }} stroke="#94a3b8" />
+          <RechartsTooltip contentStyle={{ fontSize: 11, borderRadius: 8, border: "1px solid #e2e8f0" }} />
+          <Legend wrapperStyle={{ fontSize: 10, paddingTop: 10 }} />
+          {yKeys.map((key, index) => (
+            <Bar key={key} dataKey={key} fill={COLORS[index % COLORS.length]} radius={[4, 4, 0, 0]} />
+          ))}
+        </BarChart>
+      );
+    }
+
+    if (type === "line") {
+      return (
+        <LineChart data={data} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+          <XAxis dataKey={xKey} tick={{ fontSize: 10 }} stroke="#94a3b8" />
+          <YAxis tick={{ fontSize: 10 }} stroke="#94a3b8" />
+          <RechartsTooltip contentStyle={{ fontSize: 11, borderRadius: 8, border: "1px solid #e2e8f0" }} />
+          <Legend wrapperStyle={{ fontSize: 10, paddingTop: 10 }} />
+          {yKeys.map((key, index) => (
+            <Line key={key} type="monotone" dataKey={key} stroke={COLORS[index % COLORS.length]} strokeWidth={2} dot={{ r: 3 }} />
+          ))}
+        </LineChart>
+      );
+    }
+
+    if (type === "pie") {
+      return (
+        <PieChart margin={{ top: 10, right: 10, left: 10, bottom: 10 }}>
+          <Pie
+            data={data}
+            dataKey={yKeys[0] || "value"}
+            nameKey={xKey}
+            cx="50%"
+            cy="50%"
+            outerRadius={65}
+            fill="hsl(var(--primary))"
+            label={{ fontSize: 9 }}
+          >
+            {data.map((entry, index) => (
+              <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+            ))}
+          </Pie>
+          <RechartsTooltip contentStyle={{ fontSize: 11, borderRadius: 8, border: "1px solid #e2e8f0" }} />
+          <Legend wrapperStyle={{ fontSize: 10, paddingTop: 10 }} />
+        </PieChart>
+      );
+    }
+
+    return null;
+  };
+
+  return (
+    <div className="mt-3 rounded-2xl border border-slate-100 bg-slate-50/50 p-4 shadow-sm">
+      <h4 className="text-xs font-bold text-slate-800 mb-3 tracking-tight">{title}</h4>
+      <div className="h-48 w-full">
+        <ResponsiveContainer width="100%" height="100%">
+          {renderChart() || <div>No chart data</div>}
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+}
 
 // ── Main Component ───────────────────────────────────────────────────────────
 
@@ -311,6 +412,8 @@ export default function AltrixCopilot() {
   const [isStreaming, setIsStreaming] = useState(false);
   const [isThinking, setIsThinking] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [editingMsgId, setEditingMsgId] = useState<string | null>(null);
+  const [attachedFile, setAttachedFile] = useState<{ name: string; content: string; size: number } | null>(null);
   const [showScrollBtn, setShowScrollBtn] = useState(false);
 
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -419,19 +522,51 @@ export default function AltrixCopilot() {
 
   if (!aiEnabled) return null;
 
-  // ── Parse Action Tag ──────────────────────────────────────────────────────
-  const parseMessageContent = (text: string): { content: string; action?: ActionPayload } => {
+  // ── Parse Action & Chart Tags ──────────────────────────────────────────────
+  const parseMessageContent = (text: string): { content: string; action?: ActionPayload; chart?: ChartPayload } => {
+    let cleanText = text;
+    let actionData: ActionPayload | undefined = undefined;
+    let chartData: ChartPayload | undefined = undefined;
+
+    // 1. Parse action tag
     const tagRegex = /<altrix_action>([\s\S]*?)<\/altrix_action>/i;
-    const match = text.match(tagRegex);
-    if (match) {
+    const actionMatch = cleanText.match(tagRegex);
+    if (actionMatch) {
       try {
-        const actionData = JSON.parse(match[1].trim());
-        return { content: text.replace(tagRegex, "").trim(), action: actionData };
+        actionData = JSON.parse(actionMatch[1].trim());
+        cleanText = cleanText.replace(tagRegex, "").trim();
       } catch {
         /* ignore bad JSON */
       }
     }
-    return { content: text };
+
+    // 2. Parse chart tag: <altrix_chart type="..." title="..." xKey="..." yKeys="..." data='...' />
+    const chartTagRegex = /<altrix_chart([\s\S]*?)\/>/i;
+    const chartMatch = cleanText.match(chartTagRegex);
+    if (chartMatch) {
+      try {
+        const attrStr = chartMatch[1];
+        const getAttr = (name: string) => {
+          const match = attrStr.match(new RegExp(`${name}=\\s*["']([^"']*)["']`, 'i'));
+          return match ? match[1] : undefined;
+        };
+        const type = getAttr("type") as "bar" | "line" | "pie" | undefined;
+        const title = getAttr("title") || "Analytics";
+        const xKey = getAttr("xKey") || "label";
+        const yKeysStr = getAttr("yKeys") || "";
+        const yKeys = yKeysStr.split(",").map(k => k.trim()).filter(Boolean);
+        const rawData = getAttr("data") || "[]";
+        const data = JSON.parse(rawData);
+        if (type && data && Array.isArray(data)) {
+          chartData = { type, title, xKey, yKeys, data };
+        }
+        cleanText = cleanText.replace(chartTagRegex, "").trim();
+      } catch (e) {
+        console.error("Failed to parse chart tag", e);
+      }
+    }
+
+    return { content: cleanText, action: actionData, chart: chartData };
   };
 
   // ── Copy Message ──────────────────────────────────────────────────────────
@@ -455,15 +590,54 @@ export default function AltrixCopilot() {
     setIsThinking(false);
   };
 
+  // ── File Upload Handler ───────────────────────────────────────────────────
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // File size constraint: 2MB limit
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error("File is too large. Limit is 2MB.");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const text = event.target?.result;
+      if (typeof text === "string") {
+        setAttachedFile({
+          name: file.name,
+          content: text,
+          size: file.size
+        });
+        toast.success(`Attached file: ${file.name}`);
+      } else {
+        toast.error("Failed to read file contents.");
+      }
+    };
+    reader.onerror = () => {
+      toast.error("Error reading file.");
+    };
+    reader.readAsText(file);
+    
+    // Clear target value so the same file can be uploaded again if cleared
+    e.target.value = "";
+  };
+
   // ── Send Message ──────────────────────────────────────────────────────────
   const handleSend = async (textToSend: string) => {
-    if (!textToSend.trim() || isStreaming) return;
+    if ((!textToSend.trim() && !attachedFile) || isStreaming) return;
+
+    // Capture current file attachment to submit and then clear
+    const fileToAttach = attachedFile;
+    setAttachedFile(null);
 
     const userMsg: Message = {
       id: genId(),
       role: "user",
-      content: textToSend,
+      content: textToSend || `Analyzed file: ${fileToAttach?.name}`,
       timestamp: new Date(),
+      fileAttachment: fileToAttach ? { name: fileToAttach.name, size: fileToAttach.size } : undefined,
     };
     setMessages((prev) => [...prev, userMsg]);
     setInput("");
@@ -478,6 +652,12 @@ export default function AltrixCopilot() {
         content: msg.content,
       }));
 
+      // Prepend file content to user message prompt if available
+      let promptToSend = textToSend;
+      if (fileToAttach) {
+        promptToSend = `[Attached File: ${fileToAttach.name} (${fileToAttach.size} bytes)]\n\nContent:\n${fileToAttach.content}\n\nUser Question:\n${textToSend || "Analyze the attached file."}`;
+      }
+
       const session = await supabase.auth.getSession();
       const token = session.data.session?.access_token || "";
 
@@ -490,7 +670,7 @@ export default function AltrixCopilot() {
             Authorization: `Bearer ${token}`,
             "X-School-Id": schoolId || "",
           },
-          body: JSON.stringify({ message: textToSend, history }),
+          body: JSON.stringify({ message: promptToSend, history }),
           signal: abortRef.current.signal,
         }
       );
@@ -534,7 +714,7 @@ export default function AltrixCopilot() {
             setMessages((prev) =>
               prev.map((m) =>
                 m.id === assistantId
-                  ? { ...m, content: parsed.content, action: parsed.action }
+                  ? { ...m, content: parsed.content, action: parsed.action, chart: parsed.chart }
                   : m
               )
             );
@@ -940,7 +1120,18 @@ export default function AltrixCopilot() {
                   }`}
                 >
                   {msg.role === "user" ? (
-                    <p className="whitespace-pre-wrap break-words">{msg.content}</p>
+                    <div className="flex flex-col gap-1.5">
+                      {msg.fileAttachment && (
+                        <div className="flex items-center gap-2 rounded-lg bg-white/15 px-2.5 py-1.5 border border-white/10 text-[10px] select-none mr-auto">
+                          <Paperclip className="h-3.5 w-3.5 text-white/95" />
+                          <div className="flex flex-col min-w-0">
+                            <span className="font-semibold truncate max-w-[150px] text-white leading-tight">{msg.fileAttachment.name}</span>
+                            <span className="text-[8px] text-white/75 leading-none mt-0.5">{(msg.fileAttachment.size / 1024).toFixed(1)} KB</span>
+                          </div>
+                        </div>
+                      )}
+                      <p className="whitespace-pre-wrap break-words">{msg.content}</p>
+                    </div>
                   ) : (
                     <div
                       className="copilot-msg-content whitespace-normal break-words leading-relaxed"
@@ -963,22 +1154,151 @@ export default function AltrixCopilot() {
                     </button>
                   )}
 
+                  {/* Chart Visual */}
+                  {msg.chart && <CopilotChart chart={msg.chart} />}
+
                   {/* Action Card */}
                   {msg.action && (() => {
                     const meta = ACTION_META[msg.action.type] || ACTION_META["API_ACTION"];
                     const Icon = meta.icon;
                     return (
                       <div className={`mt-3 rounded-xl bg-gradient-to-br ${meta.color} border p-3 flex flex-col gap-2`}>
-                        <div className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-700">
-                          <Icon className="h-3.5 w-3.5" />
-                          <span>{msg.action.label || meta.label}</span>
+                        <div className="flex items-center justify-between text-[11px] font-semibold text-slate-700">
+                          <div className="flex items-center gap-1.5">
+                            <Icon className="h-3.5 w-3.5" />
+                            <span>{msg.action.label || meta.label}</span>
+                          </div>
+                          <button
+                            onClick={() => setEditingMsgId(editingMsgId === msg.id ? null : msg.id)}
+                            className="p-1 rounded hover:bg-slate-100/50 text-slate-500 hover:text-slate-700 transition-colors cursor-pointer"
+                            title="Edit action parameters"
+                          >
+                            <Settings className="h-3 w-3" />
+                          </button>
                         </div>
-                        <button
-                          onClick={() => handleExecuteAction(msg)}
-                          className="w-full text-center bg-white hover:bg-slate-50 text-slate-700 text-[11px] font-semibold rounded-lg py-1.5 px-3 transition-colors cursor-pointer border border-slate-200 shadow-sm"
-                        >
-                          {meta.cta}
-                        </button>
+
+                        {editingMsgId === msg.id ? (
+                          <div className="flex flex-col gap-2.5 p-2.5 bg-white/80 backdrop-blur-sm rounded-lg border border-slate-100 text-[11px]">
+                            <div className="flex justify-between items-center border-b border-slate-100 pb-1.5 mb-1">
+                              <span className="font-bold text-slate-700">Tweak Action Parameters</span>
+                              <span className="text-[9px] text-slate-400">ID: {msg.id}</span>
+                            </div>
+
+                            {/* Standard top-level fields */}
+                            {Object.entries(msg.action).map(([key, val]) => {
+                              if (["type", "label", "payload"].includes(key)) return null;
+
+                              const handleFieldChange = (newVal: any) => {
+                                setMessages(prev => prev.map(m => {
+                                  if (m.id !== msg.id || !m.action) return m;
+                                  return {
+                                    ...m,
+                                    action: {
+                                      ...m.action,
+                                      [key]: newVal
+                                    }
+                                  };
+                                }));
+                              };
+
+                              if (key === "paymentMethod") {
+                                return (
+                                  <div key={key} className="flex flex-col gap-1">
+                                    <label className="text-[10px] text-slate-500 font-semibold capitalize">{key}</label>
+                                    <select
+                                      value={String(val || "")}
+                                      onChange={(e) => handleFieldChange(e.target.value)}
+                                      className="rounded border border-slate-200 bg-white px-2 py-1 text-slate-700 outline-none focus:border-primary text-[10px]"
+                                    >
+                                      <option value="cash">Cash</option>
+                                      <option value="bank">Bank Transfer</option>
+                                      <option value="card">Card Payment</option>
+                                    </select>
+                                  </div>
+                                );
+                              }
+
+                              const isDate = ["dueDate", "fromDate", "toDate", "entryDate"].includes(key);
+                              const isNumber = ["amount", "totalAmount", "maxMarks"].includes(key);
+
+                              return (
+                                <div key={key} className="flex flex-col gap-1">
+                                  <label className="text-[10px] text-slate-500 font-semibold capitalize">{key.replace(/([A-Z])/g, " $1")}</label>
+                                  <input
+                                    type={isDate ? "date" : isNumber ? "number" : "text"}
+                                    value={val === undefined ? "" : String(val)}
+                                    onChange={(e) => handleFieldChange(isNumber ? Number(e.target.value) : e.target.value)}
+                                    className="rounded border border-slate-200 bg-white px-2 py-1 text-slate-700 outline-none focus:border-primary text-[10px]"
+                                  />
+                                </div>
+                              );
+                            })}
+
+                            {/* Inner Payload fields (for API_ACTION) */}
+                            {msg.action.payload && typeof msg.action.payload === "object" && (
+                              <div className="flex flex-col gap-2 border-t border-slate-100 pt-2">
+                                <span className="text-[10px] font-bold text-slate-600">Request Data Fields</span>
+                                {Object.entries(msg.action.payload).map(([k, v]) => {
+                                  const handlePayloadChange = (newVal: any) => {
+                                    setMessages(prev => prev.map(m => {
+                                      if (m.id !== msg.id || !m.action || !m.action.payload) return m;
+                                      return {
+                                        ...m,
+                                        action: {
+                                          ...m.action,
+                                          payload: {
+                                            ...m.action.payload,
+                                            [k]: newVal
+                                          }
+                                        }
+                                      };
+                                    }));
+                                  };
+
+                                  const isNum = typeof v === "number";
+                                  const isBool = typeof v === "boolean";
+
+                                  return (
+                                    <div key={k} className="flex flex-col gap-1">
+                                      <label className="text-[10px] text-slate-500 font-semibold capitalize">{k.replace(/_/g, " ")}</label>
+                                      {isBool ? (
+                                        <select
+                                          value={String(v)}
+                                          onChange={(e) => handlePayloadChange(e.target.value === "true")}
+                                          className="rounded border border-slate-200 bg-white px-2 py-1 text-slate-700 outline-none focus:border-primary text-[10px]"
+                                        >
+                                          <option value="true">True</option>
+                                          <option value="false">False</option>
+                                        </select>
+                                      ) : (
+                                        <input
+                                          type={isNum ? "number" : "text"}
+                                          value={v === null || v === undefined ? "" : String(v)}
+                                          onChange={(e) => handlePayloadChange(isNum ? Number(e.target.value) : e.target.value)}
+                                          className="rounded border border-slate-200 bg-white px-2 py-1 text-slate-700 outline-none focus:border-primary text-[10px]"
+                                        />
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+
+                            <button
+                              onClick={() => setEditingMsgId(null)}
+                              className="mt-1 w-full bg-slate-800 hover:bg-slate-900 text-white font-semibold rounded py-1 transition-colors cursor-pointer"
+                            >
+                              Save Settings
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => handleExecuteAction(msg)}
+                            className="w-full text-center bg-white hover:bg-slate-50 text-slate-700 text-[11px] font-semibold rounded-lg py-1.5 px-3 transition-colors cursor-pointer border border-slate-200 shadow-sm"
+                          >
+                            {meta.cta}
+                          </button>
+                        )}
                       </div>
                     );
                   })()}
@@ -1034,6 +1354,24 @@ export default function AltrixCopilot() {
           )}
 
           {/* ── Input Area ─────────────────────────────────────────────── */}
+          {attachedFile && (
+            <div className="px-4 py-2 bg-slate-50 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-600 shrink-0">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <Paperclip className="h-3.5 w-3.5 text-primary" />
+                <span className="font-semibold truncate max-w-[200px] text-slate-700">{attachedFile.name}</span>
+                <span className="text-[9px] text-slate-400">({(attachedFile.size / 1024).toFixed(1)} KB)</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAttachedFile(null)}
+                className="p-1 rounded hover:bg-slate-200 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+                title="Remove attachment"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </div>
+          )}
+
           <form
             onSubmit={(e) => {
               e.preventDefault();
@@ -1041,6 +1379,26 @@ export default function AltrixCopilot() {
             }}
             className="flex items-center gap-2 border-t border-slate-100 bg-white px-3 py-2.5 shrink-0"
           >
+            {/* Hidden File Input */}
+            <input
+              type="file"
+              id="copilot-file-upload"
+              accept=".txt,.csv,.json,.xml,.html,.css,.js,.ts,.tsx,.py,.md"
+              onChange={handleFileUpload}
+              className="hidden"
+              disabled={isStreaming}
+            />
+            {/* Attachment Button */}
+            <label
+              htmlFor="copilot-file-upload"
+              className={`flex items-center justify-center h-9 w-9 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-500 hover:text-slate-700 cursor-pointer shrink-0 transition-colors ${
+                isStreaming ? "opacity-50 pointer-events-none" : ""
+              }`}
+              title="Attach text or CSV document"
+            >
+              <Paperclip className="h-4 w-4" />
+            </label>
+
             <input
               ref={inputRef}
               type="text"
@@ -1062,7 +1420,7 @@ export default function AltrixCopilot() {
             ) : (
               <Button
                 type="submit"
-                disabled={!input.trim()}
+                disabled={!input.trim() && !attachedFile}
                 size="icon"
                 className="h-9 w-9 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white border-0 cursor-pointer flex-shrink-0 shadow-sm"
               >
