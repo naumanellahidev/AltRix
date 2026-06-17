@@ -130,10 +130,35 @@ async def create_voucher(body: FeeVoucherCreate, current_user: CurrentUser, db: 
     effective_roles = expand_roles(current_user.roles)
     if not (current_user.is_super_admin or any(r in effective_roles for r in FINANCE_GOV)):
         raise ForbiddenError()
+    data = body.model_dump()
+    if data.get("due_date") and isinstance(data["due_date"], str):
+        from datetime import datetime as dt
+        try:
+            data["due_date"] = dt.strptime(data["due_date"], "%Y-%m-%d").date()
+        except ValueError:
+            pass
+
+    # Generate invoice_number using public.generate_invoice_number if not provided
+    if not data.get("invoice_number"):
+        try:
+            res = await db.execute(
+                text("SELECT public.generate_invoice_number(:school_id)"),
+                {"school_id": current_user.school_id}
+            )
+            data["invoice_number"] = res.scalar()
+        except Exception:
+            from datetime import datetime as dt
+            import random
+            data["invoice_number"] = f"INV-{dt.now().year}-{random.randint(100000, 999999)}"
+
+    # Set subtotal equal to total_amount if not specified (subtotal is NOT NULL in DB)
+    if data.get("subtotal") is None:
+        data["subtotal"] = data.get("total_amount", 0.0)
+
     voucher = FeeVoucher(
         school_id=current_user.school_id,
         created_by=current_user.id,
-        **body.model_dump(),
+        **data,
     )
     db.add(voucher)
     await db.flush()

@@ -1,7 +1,7 @@
 """
 Pydantic schemas for all API request/response models.
 """
-from datetime import datetime
+from datetime import datetime, date
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
@@ -583,7 +583,7 @@ class FeeVoucherCreate(BaseModel):
     total_amount: float
     discount_amount: Optional[float] = 0
     net_amount: float
-    due_date: Optional[str] = None
+    due_date: Optional[date] = None
     campus_id: Optional[UUID] = None
     notes: Optional[str] = None
 
@@ -597,7 +597,7 @@ class FeeVoucherOut(BaseModel):
     total_amount: float
     net_amount: float
     status: str
-    due_date: Optional[str] = None
+    due_date: Optional[date] = None
     created_at: Optional[datetime] = None
 
     model_config = {"from_attributes": True}

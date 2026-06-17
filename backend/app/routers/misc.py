@@ -1805,10 +1805,10 @@ __DB_CONTEXT__
 - For any explicit request to navigate or open a module, output a NAVIGATE_TO action
 - Supported navigation routes catalog (use ONLY these exact paths):
   - Academics: /academic, /timetable, /attendance, /exams, /report-cards, /diary
-  - Staff & HR: /users (use this for Staff & Teachers list), /staff-attendance, /leaves, /salaries, /contracts, /reviews, /documents, /recruitment, /onboarding, /offboarding, /hr-analytics
-  - Admissions & CRM: /admissions, /crm, /leads, /follow-ups, /calls, /sources, /campaigns, /inquiries
+  - Staff & HR: /users (use this for Staff & Teachers list), /staff-attendance, /leaves, /salaries, /contracts, /reviews, /documents
+  - Admissions & CRM: /admissions, /crm, /leads, /follow-ups, /calls, /sources, /campaigns
   - Finance: /finance, /fees, /invoices, /payments, /expenses, /payroll, /ledger, /vendors, /tax, /budget-simulator
-  - Operations & Communication: /complaints, /at-risk, /counseling, /behavior, /attendance-heatmap, /reports, /notices, /holidays, /ai-counselor, /messages, /collaboration, /support
+  - Operations & Communication: /complaints, /parent-notes, /counseling, /attendance-heatmap, /reports, /notices, /holidays, /ai-counselor, /messages, /collaboration, /support
   - Admin: /admin, /schools
   - Teacher-specific: /students (only if current user role is "teacher"; for all other roles use /users for staff, and /academic or /directory for students)
 

@@ -81,7 +81,7 @@ export function GlobalCommandPalette({ basePath }: Props) {
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      const isK = e.key.toLowerCase() === "k";
+      const isK = e.key?.toLowerCase() === "k";
       if ((e.metaKey || e.ctrlKey) && isK) {
         e.preventDefault();
         setOpen(true);

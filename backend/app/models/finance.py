@@ -6,7 +6,7 @@ from typing import Optional, List
 from datetime import datetime
 
 from sqlalchemy import Boolean, Column, Date, DateTime, Float, ForeignKey, Integer, String, Text, JSON
-from sqlalchemy.dialects.postgresql import UUID, ARRAY
+from sqlalchemy.dialects.postgresql import UUID, ARRAY, ENUM
 from sqlalchemy.sql import func
 
 from app.database import Base
@@ -167,10 +167,10 @@ class FeeVoucher(Base):
     late_fee = Column(Float, default=0, nullable=False)
     total_amount = Column(Float, nullable=False)
     paid_amount = Column(Float, default=0, nullable=False)
-    status = Column(String, nullable=False, default="pending")  # pending, paid, partial, overdue, cancelled
+    status = Column(ENUM("pending", "paid", "partial", "overdue", "cancelled", "draft", name="fee_invoice_status", create_type=False), nullable=False, default="pending")
     notes = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=True)
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=True)
     campus_id = Column(UUID(as_uuid=True), ForeignKey("campuses.id"), nullable=True)
     merit_discount_amount = Column(Float, default=0, nullable=False)
     merit_discount_reason = Column(Text, nullable=True)
