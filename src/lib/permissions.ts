@@ -119,6 +119,11 @@ export function resolvePermissions(inputRoles: EduverseRole[]): PermissionBundle
     allowedPaths.add("fee-vouchers");
   }
 
+  // Redirect alias for users / staff list
+  if (allowedPaths.has("users")) {
+    allowedPaths.add("teachers");
+  }
+
   const canAccess = (raw: string) => {
     // Normalize: strip leading slash, query, and pick first segment only.
     const first = (raw || "").replace(/^\/+/, "").split(/[/?#]/)[0];

@@ -507,6 +507,7 @@ const TenantDashboard = () => {
                 <Route path="schools" element={<PlatformSchoolsModule />} />
                 <Route path="messages" element={<MessagesModule schoolId={tenant.schoolId} />} />
                 <Route path="users" element={<UsersModule />} />
+                <Route path="teachers" element={<Navigate to={`/${tenant.slug}/${role}/users`} replace />} />
                 <Route path="directory" element={<DirectoryModule />} />
                 <Route path="crm" element={<CrmModule />} />
                 <Route path="leads" element={<MarketingLeadsModule />} />
