@@ -1274,7 +1274,7 @@ export default function AltrixCopilot() {
       }
       const t = toast.loading(`Executing: ${msg.action.label || "Action"}...`);
       try {
-        const res = await apiClient.post("/ai/execute", {
+        const res = await apiClient.post("/ai/execute-action", {
           method,
           path,
           payload: msg.action.payload || {}

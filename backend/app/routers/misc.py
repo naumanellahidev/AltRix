@@ -853,26 +853,42 @@ async def fetch_ai_context(db: DbSession, user: AuthenticatedUser, school_id: st
                 FROM hr_staff_directory WHERE school_id = :sid AND is_active = true
                 ORDER BY full_name
             """, {"sid": school_id})
-            staff_str = "\n".join([
-                f"- {r[0]} ({r[1] or 'Staff'}, Dept: {r[4] or 'General'}, Email: {r[2] or 'N/A'}, Phone: {r[3] or 'N/A'})"
-                for r in staff_list
-            ])
+            
+            if not staff_list:
+                # Fallback to profiles & user_roles
+                staff_list_roles = await fetch_rows("""
+                    SELECT p.display_name, ur.role, p.email
+                    FROM public.profiles p
+                    JOIN public.user_roles ur ON p.id = ur.user_id
+                    WHERE ur.school_id = :sid AND ur.role IN ('teacher', 'principal', 'vice_principal', 'school_admin', 'accountant', 'hr_manager', 'academic_coordinator', 'counselor')
+                    ORDER BY p.display_name
+                """, {"sid": school_id})
+                staff_str = "\n".join([
+                    f"- {r[0]} ({r[1].replace('_', ' ').capitalize()}, Dept: General, Email: {r[2] or 'N/A'}, Phone: N/A)"
+                    for r in staff_list_roles
+                ])
+            else:
+                staff_str = "\n".join([
+                    f"- {r[0]} ({r[1] or 'Staff'}, Dept: {r[4] or 'General'}, Email: {r[2] or 'N/A'}, Phone: {r[3] or 'N/A'})"
+                    for r in staff_list
+                ])
 
-            # Today's Staff Attendance (from hr_staff_attendance)
+            # Today's Staff Attendance (from hr_staff_attendance & profiles joined with roles)
             staff_att_str = "None"
             try:
                 today_date_obj = datetime.now(timezone.utc).date()
                 staff_att_list = await fetch_rows("""
-                    SELECT sd.full_name, sd.position, COALESCE(a.status, 'unmarked') as status, a.clock_in, a.clock_out, a.notes
-                    FROM public.hr_staff_directory sd
-                    LEFT JOIN public.hr_staff_attendance a ON a.user_id = sd.linked_user_id AND a.attendance_date = :today
-                    WHERE sd.school_id = :sid AND sd.is_active = true
-                    ORDER BY sd.full_name
+                    SELECT p.display_name, ur.role, COALESCE(a.status, 'unmarked') as status, a.clock_in, a.clock_out, a.notes
+                    FROM public.profiles p
+                    JOIN public.user_roles ur ON p.id = ur.user_id
+                    LEFT JOIN public.hr_staff_attendance a ON p.id = a.user_id AND a.attendance_date = :today
+                    WHERE ur.school_id = :sid AND ur.role IN ('teacher', 'principal', 'vice_principal', 'school_admin', 'accountant', 'hr_manager', 'academic_coordinator', 'counselor')
+                    ORDER BY p.display_name
                 """, {"sid": school_id, "today": today_date_obj})
                 
                 if staff_att_list:
                     staff_att_str = "\n".join([
-                        f"- {r[0]} ({r[1] or 'Staff'}): Status: **{r[2].upper()}** | Clock In: {r[3].strftime('%I:%M %p') if r[3] and hasattr(r[3], 'strftime') else (str(r[3])[:19] if r[3] else 'N/A')} | Clock Out: {r[4].strftime('%I:%M %p') if r[4] and hasattr(r[4], 'strftime') else (str(r[4])[:19] if r[4] else 'N/A')}{f' | Notes: {r[5]}' if r[5] else ''}"
+                        f"- {r[0]} ({r[1].replace('_', ' ').capitalize()}): Status: **{r[2].upper()}** | Clock In: {r[3].strftime('%I:%M %p') if r[3] and hasattr(r[3], 'strftime') else (str(r[3])[:19] if r[3] else 'N/A')} | Clock Out: {r[4].strftime('%I:%M %p') if r[4] and hasattr(r[4], 'strftime') else (str(r[4])[:19] if r[4] else 'N/A')}{f' | Notes: {r[5]}' if r[5] else ''}"
                         for r in staff_att_list
                     ])
             except Exception as e:
@@ -1608,7 +1624,7 @@ async def update_school_ai_settings(
     return {"success": True, "school_id": school_id, "enabled": body.enabled}
 
 
-@ai_router.post("/execute")
+@ai_router.post("/execute-action")
 async def ai_execute_action(
     body: dict,
     request: Request,
