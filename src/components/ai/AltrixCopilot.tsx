@@ -1187,8 +1187,34 @@ export default function AltrixCopilot() {
       navigate(`/${schoolSlug}/${roleSegment}/reports`);
       setIsOpen(false);
     } else if (type === "RECORD_PAYMENT") {
-      if (!isValidUuid(msg.action.studentId)) return toast.error("Please specify a valid student first.");
-      if (msg.action.amount === undefined || msg.action.amount <= 0) return toast.error("Missing or invalid payment amount");
+      if (!isValidUuid(msg.action.studentId)) {
+        toast.error("Please specify a valid student first.");
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: genId(),
+            role: "assistant",
+            content: "I need a valid **Student ID** to record a payment. Could you please specify which student this payment is for?",
+            timestamp: new Date(),
+            isError: true,
+          }
+        ]);
+        return;
+      }
+      if (msg.action.amount === undefined || msg.action.amount <= 0) {
+        toast.error("Missing or invalid payment amount");
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: genId(),
+            role: "assistant",
+            content: "Could you please specify the **Amount** to record for this payment?",
+            timestamp: new Date(),
+            isError: true,
+          }
+        ]);
+        return;
+      }
       const voucherId = isValidUuid(msg.action.voucherId || msg.action.invoiceId) ? (msg.action.voucherId || msg.action.invoiceId) : null;
       const t = toast.loading("Recording payment in system...");
       try {
@@ -1216,11 +1242,48 @@ export default function AltrixCopilot() {
           ]);
         }
       } catch (err: any) {
-        toast.error(getErrorMessage(err, "Failed to record payment"), { id: t });
+        const errMsg = getErrorMessage(err, "Failed to record payment");
+        toast.error(errMsg, { id: t });
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: genId(),
+            role: "assistant",
+            content: `Recording the payment failed: **${errMsg}**. Please verify if any required details are missing or incorrect.`,
+            timestamp: new Date(),
+            isError: true,
+          }
+        ]);
       }
     } else if (type === "CREATE_INVOICE") {
-      if (!isValidUuid(msg.action.studentId)) return toast.error("Please specify a valid student first.");
-      if (msg.action.totalAmount === undefined || msg.action.totalAmount <= 0) return toast.error("Missing or invalid invoice amount");
+      if (!isValidUuid(msg.action.studentId)) {
+        toast.error("Please specify a valid student first.");
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: genId(),
+            role: "assistant",
+            content: "I need a valid **Student ID** to generate a fee invoice. Please specify which student this invoice is for.",
+            timestamp: new Date(),
+            isError: true,
+          }
+        ]);
+        return;
+      }
+      if (msg.action.totalAmount === undefined || msg.action.totalAmount <= 0) {
+        toast.error("Missing or invalid invoice amount");
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: genId(),
+            role: "assistant",
+            content: "Could you please specify the **Amount** for the invoice?",
+            timestamp: new Date(),
+            isError: true,
+          }
+        ]);
+        return;
+      }
       const t = toast.loading("Generating fee invoice...");
       try {
         const res = await apiClient.post("/finance/vouchers", {
@@ -1249,12 +1312,49 @@ export default function AltrixCopilot() {
           ]);
         }
       } catch (err: any) {
-        toast.error(getErrorMessage(err, "Failed to generate fee invoice"), { id: t });
+        const errMsg = getErrorMessage(err, "Failed to generate fee invoice");
+        toast.error(errMsg, { id: t });
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: genId(),
+            role: "assistant",
+            content: `Generating the invoice failed: **${errMsg}**. Would you like me to help you fill in any missing details?`,
+            timestamp: new Date(),
+            isError: true,
+          }
+        ]);
       }
     } else if (type === "CREATE_ASSIGNMENT") {
       const classSectionId = msg.action.classSectionId || msg.action.sectionId;
-      if (!isValidUuid(classSectionId)) return toast.error("Please specify a valid class section first.");
-      if (!msg.action.title) return toast.error("Missing assignment title");
+      if (!isValidUuid(classSectionId)) {
+        toast.error("Please specify a valid class section first.");
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: genId(),
+            role: "assistant",
+            content: "I need a valid **Class Section ID** to create an assignment. Could you please specify which class and section this is for?",
+            timestamp: new Date(),
+            isError: true,
+          }
+        ]);
+        return;
+      }
+      if (!msg.action.title) {
+        toast.error("Missing assignment title");
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: genId(),
+            role: "assistant",
+            content: "What is the **Title** of the assignment?",
+            timestamp: new Date(),
+            isError: true,
+          }
+        ]);
+        return;
+      }
       const t = toast.loading("Creating homework assignment...");
       try {
         const res = await apiClient.post("/assignments", {
@@ -1280,11 +1380,48 @@ export default function AltrixCopilot() {
           ]);
         }
       } catch (err: any) {
-        toast.error(getErrorMessage(err, "Failed to create assignment"), { id: t });
+        const errMsg = getErrorMessage(err, "Failed to create assignment");
+        toast.error(errMsg, { id: t });
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: genId(),
+            role: "assistant",
+            content: `Creating the assignment failed: **${errMsg}**.`,
+            timestamp: new Date(),
+            isError: true,
+          }
+        ]);
       }
     } else if (type === "CREATE_BEHAVIOR_NOTE") {
-      if (!isValidUuid(msg.action.studentId)) return toast.error("Please specify a valid student first.");
-      if (!msg.action.title) return toast.error("Missing note title");
+      if (!isValidUuid(msg.action.studentId)) {
+        toast.error("Please specify a valid student first.");
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: genId(),
+            role: "assistant",
+            content: "I need a valid **Student ID** to save a behavior note. Please specify which student this note is for.",
+            timestamp: new Date(),
+            isError: true,
+          }
+        ]);
+        return;
+      }
+      if (!msg.action.title) {
+        toast.error("Missing note title");
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: genId(),
+            role: "assistant",
+            content: "What is the **Title** or summary of the behavior note?",
+            timestamp: new Date(),
+            isError: true,
+          }
+        ]);
+        return;
+      }
       const t = toast.loading("Saving behavior note...");
       try {
         const res = await apiClient.post("/behavior", {
@@ -1310,12 +1447,49 @@ export default function AltrixCopilot() {
           ]);
         }
       } catch (err: any) {
-        toast.error(getErrorMessage(err, "Failed to save behavior note"), { id: t });
+        const errMsg = getErrorMessage(err, "Failed to save behavior note");
+        toast.error(errMsg, { id: t });
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: genId(),
+            role: "assistant",
+            content: `Saving behavior note failed: **${errMsg}**.`,
+            timestamp: new Date(),
+            isError: true,
+          }
+        ]);
       }
     } else if (type === "CREATE_DIARY_ENTRY") {
       const classSectionId = msg.action.classSectionId || msg.action.sectionId;
-      if (!isValidUuid(classSectionId)) return toast.error("Please specify a valid class section first.");
-      if (!msg.action.title) return toast.error("Missing diary title");
+      if (!isValidUuid(classSectionId)) {
+        toast.error("Please specify a valid class section first.");
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: genId(),
+            role: "assistant",
+            content: "I need a valid **Class Section ID** to save a diary entry. Please specify which class and section this is for.",
+            timestamp: new Date(),
+            isError: true,
+          }
+        ]);
+        return;
+      }
+      if (!msg.action.title) {
+        toast.error("Missing diary title");
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: genId(),
+            role: "assistant",
+            content: "What is the **Title** of the diary entry?",
+            timestamp: new Date(),
+            isError: true,
+          }
+        ]);
+        return;
+      }
       const t = toast.loading("Saving diary entry...");
       try {
         const res = await apiClient.post("/diary", {
@@ -1340,10 +1514,34 @@ export default function AltrixCopilot() {
           ]);
         }
       } catch (err: any) {
-        toast.error(getErrorMessage(err, "Failed to save diary entry"), { id: t });
+        const errMsg = getErrorMessage(err, "Failed to save diary entry");
+        toast.error(errMsg, { id: t });
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: genId(),
+            role: "assistant",
+            content: `Saving diary entry failed: **${errMsg}**.`,
+            timestamp: new Date(),
+            isError: true,
+          }
+        ]);
       }
     } else if (type === "CREATE_NOTICE") {
-      if (!msg.action.title) return toast.error("Missing notice title");
+      if (!msg.action.title) {
+        toast.error("Missing notice title");
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: genId(),
+            role: "assistant",
+            content: "What is the **Title** of the notice?",
+            timestamp: new Date(),
+            isError: true,
+          }
+        ]);
+        return;
+      }
       const t = toast.loading("Publishing notice...");
       try {
         const res = await apiClient.post("/notices", {
@@ -1368,7 +1566,18 @@ export default function AltrixCopilot() {
           ]);
         }
       } catch (err: any) {
-        toast.error(getErrorMessage(err, "Failed to publish notice"), { id: t });
+        const errMsg = getErrorMessage(err, "Failed to publish notice");
+        toast.error(errMsg, { id: t });
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: genId(),
+            role: "assistant",
+            content: `Publishing notice failed: **${errMsg}**.`,
+            timestamp: new Date(),
+            isError: true,
+          }
+        ]);
       }
     } else if (type === "API_ACTION" || (msg.action.method && msg.action.path)) {
       const method = msg.action.method;
@@ -1382,7 +1591,18 @@ export default function AltrixCopilot() {
       // Pre-flight validation checks for required UUID parameters
       if (pathLower.includes("/finance/payments")) {
         if (!isValidUuid(rawPayload.student_id)) {
-          return toast.error("Action Aborted: A valid Student ID is required to record a payment.");
+          toast.error("Action Aborted: A valid Student ID is required to record a payment.");
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: genId(),
+              role: "assistant",
+              content: "I need a valid **Student ID** to record a payment. Could you please specify which student this payment is for?",
+              timestamp: new Date(),
+              isError: true,
+            }
+          ]);
+          return;
         }
         if (!rawPayload.payment_date) {
           rawPayload.payment_date = new Date().toISOString().split('T')[0];
@@ -1390,7 +1610,18 @@ export default function AltrixCopilot() {
       }
       if (pathLower.includes("/finance/vouchers")) {
         if (!isValidUuid(rawPayload.student_id)) {
-          return toast.error("Action Aborted: A valid Student ID is required to create a fee invoice.");
+          toast.error("Action Aborted: A valid Student ID is required to create a fee invoice.");
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: genId(),
+              role: "assistant",
+              content: "I need a valid **Student ID** to create a fee invoice. Please specify which student this invoice is for.",
+              timestamp: new Date(),
+              isError: true,
+            }
+          ]);
+          return;
         }
         if (rawPayload.net_amount === undefined || rawPayload.net_amount === null) {
           rawPayload.net_amount = rawPayload.total_amount;
@@ -1398,40 +1629,128 @@ export default function AltrixCopilot() {
       }
       if (pathLower.includes("/students/guardians")) {
         if (!isValidUuid(rawPayload.student_id)) {
-          return toast.error("Action Aborted: A valid Student ID is required to manage guardians.");
+          toast.error("Action Aborted: A valid Student ID is required to manage guardians.");
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: genId(),
+              role: "assistant",
+              content: "I need a valid **Student ID** to add or manage a guardian. Which student is this guardian for?",
+              timestamp: new Date(),
+              isError: true,
+            }
+          ]);
+          return;
         }
       }
       if (pathLower.includes("/behavior")) {
         if (!isValidUuid(rawPayload.student_id)) {
-          return toast.error("Action Aborted: A valid Student ID is required to save a behavior note.");
+          toast.error("Action Aborted: A valid Student ID is required to save a behavior note.");
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: genId(),
+              role: "assistant",
+              content: "I need a valid **Student ID** to save a behavior note. Please specify which student this note is for.",
+              timestamp: new Date(),
+              isError: true,
+            }
+          ]);
+          return;
         }
       }
       if (pathLower.includes("/attendance/sessions")) {
         if (!isValidUuid(rawPayload.class_section_id)) {
-          return toast.error("Action Aborted: A valid Class Section ID is required to create an attendance session.");
+          toast.error("Action Aborted: A valid Class Section ID is required to create an attendance session.");
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: genId(),
+              role: "assistant",
+              content: "I need a valid **Class Section ID** to create an attendance session. Please specify which class and section this is for.",
+              timestamp: new Date(),
+              isError: true,
+            }
+          ]);
+          return;
         }
       }
       if (pathLower.includes("/diary")) {
         if (!isValidUuid(rawPayload.class_section_id)) {
-          return toast.error("Action Aborted: A valid Class Section ID is required to save a diary entry.");
+          toast.error("Action Aborted: A valid Class Section ID is required to save a diary entry.");
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: genId(),
+              role: "assistant",
+              content: "I need a valid **Class Section ID** to save a diary entry. Please specify which class and section this is for.",
+              timestamp: new Date(),
+              isError: true,
+            }
+          ]);
+          return;
         }
       }
       if (pathLower.includes("/assignments") && method === "POST") {
         if (!isValidUuid(rawPayload.class_section_id)) {
-          return toast.error("Action Aborted: A valid Class Section ID is required to create a homework assignment.");
+          toast.error("Action Aborted: A valid Class Section ID is required to create a homework assignment.");
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: genId(),
+              role: "assistant",
+              content: "I need a valid **Class Section ID** to create a homework assignment. Please specify which class and section this is for.",
+              timestamp: new Date(),
+              isError: true,
+            }
+          ]);
+          return;
         }
       }
       if (pathLower.includes("/exams/") && pathLower.includes("/results")) {
         if (!isValidUuid(rawPayload.student_id)) {
-          return toast.error("Action Aborted: A valid Student ID is required to submit exam results.");
+          toast.error("Action Aborted: A valid Student ID is required to submit exam results.");
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: genId(),
+              role: "assistant",
+              content: "I need a valid **Student ID** to submit exam results.",
+              timestamp: new Date(),
+              isError: true,
+            }
+          ]);
+          return;
         }
         if (!isValidUuid(rawPayload.subject_id)) {
-          return toast.error("Action Aborted: A valid Subject ID is required to submit exam results.");
+          toast.error("Action Aborted: A valid Subject ID is required to submit exam results.");
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: genId(),
+              role: "assistant",
+              content: "I need a valid **Subject ID** to submit exam results.",
+              timestamp: new Date(),
+              isError: true,
+            }
+          ]);
+          return;
         }
       }
       if (pathLower.includes("/hr/payroll")) {
         if (!isValidUuid(rawPayload.staff_id)) {
-          return toast.error("Action Aborted: A valid Staff ID is required to generate payroll.");
+          toast.error("Action Aborted: A valid Staff ID is required to generate payroll.");
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: genId(),
+              role: "assistant",
+              content: "I need a valid **Staff ID** to generate payroll.",
+              timestamp: new Date(),
+              isError: true,
+            }
+          ]);
+          return;
         }
       }
 
@@ -1460,7 +1779,40 @@ export default function AltrixCopilot() {
           ]);
         }
       } catch (err: any) {
-        toast.error(getErrorMessage(err, "Action failed"), { id: t });
+        const errMsg = getErrorMessage(err, "Action failed");
+        toast.error(errMsg, { id: t });
+
+        // Extract detail about which field is missing or invalid
+        let promptSuggestion = "";
+        const data = err.response?.data;
+        if (data && Array.isArray(data.detail)) {
+          const missingFields = data.detail
+            .filter((d: any) => d.type === "missing" || d.type?.includes("missing"))
+            .map((d: any) => {
+              const field = d.loc ? d.loc[d.loc.length - 1] : "";
+              return field;
+            })
+            .filter(Boolean);
+
+          if (missingFields.length > 0) {
+            promptSuggestion = `It looks like the following required field(s) are missing to complete this action: **${missingFields.join(", ")}**. \n\nPlease provide them so I can retry this for you!`;
+          } else {
+            promptSuggestion = `The action failed with a validation error:\n\n\`\`\`json\n${JSON.stringify(data.detail, null, 2)}\n\`\`\`\n\nPlease clarify the missing or incorrect details so I can retry this for you!`;
+          }
+        } else {
+          promptSuggestion = `The action could not be completed because of the following error: **${errMsg}**.\n\nPlease clarify the missing parameters so we can proceed.`;
+        }
+
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: genId(),
+            role: "assistant",
+            content: promptSuggestion,
+            timestamp: new Date(),
+            isError: true,
+          }
+        ]);
       }
     }
   };
