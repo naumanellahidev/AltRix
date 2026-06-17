@@ -609,12 +609,18 @@ export default function AltrixCopilot() {
   const scrollToBottom = useCallback(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+      // Scroll again on next tick to account for layout / markdown updates
+      setTimeout(() => {
+        if (scrollRef.current) {
+          scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+        }
+      }, 50);
     }
   }, []);
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages, isThinking]);
+  }, [messages, isThinking, isOpen, scrollToBottom]);
 
   const handleScroll = () => {
     if (!scrollRef.current) return;
