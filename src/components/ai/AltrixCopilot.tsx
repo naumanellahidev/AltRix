@@ -690,19 +690,65 @@ export default function AltrixCopilot() {
     let actionData: ActionPayload | undefined = undefined;
     let chartData: ChartPayload | undefined = undefined;
 
-    // 1. Parse action tag
+    // 1. First search for action tag wrapped in <altrix_action>
     const tagRegex = /<altrix_action>([\s\S]*?)<\/altrix_action>/i;
     const actionMatch = cleanText.match(tagRegex);
     if (actionMatch) {
       try {
-        actionData = JSON.parse(actionMatch[1].trim());
+        let rawJson = actionMatch[1].trim();
+        // Clean double braces if present
+        if (rawJson.startsWith("{{") && rawJson.endsWith("}}")) {
+          rawJson = rawJson.slice(1, -1);
+        }
+        actionData = JSON.parse(rawJson);
         cleanText = cleanText.replace(tagRegex, "").trim();
       } catch {
         /* ignore bad JSON */
       }
     }
 
-    // 2. Parse chart tag: <altrix_chart type="..." title="..." xKey="..." yKeys="..." data='...' />
+    // 2. Search for loose JSON block in double braces: {{...}} if action not parsed yet
+    if (!actionData) {
+      const doubleBraceRegex = /(\{\{[\s\S]*?\}\})/g;
+      const matches = cleanText.match(doubleBraceRegex);
+      if (matches) {
+        for (const match of matches) {
+          try {
+            let cleaned = match.trim().slice(1, -1);
+            const parsed = JSON.parse(cleaned);
+            if (parsed && (parsed.type || parsed.method || parsed.route || parsed.path)) {
+              actionData = parsed;
+              cleanText = cleanText.replace(match, "").trim();
+              break;
+            }
+          } catch {
+            // Not valid JSON
+          }
+        }
+      }
+    }
+
+    // 3. Search for loose JSON block in single braces: {...} if action not parsed yet
+    if (!actionData) {
+      const singleBraceRegex = /(\{[\s\S]*?\})/g;
+      const matches = cleanText.match(singleBraceRegex);
+      if (matches) {
+        for (const match of matches) {
+          try {
+            const parsed = JSON.parse(match.trim());
+            if (parsed && (parsed.type || parsed.method || parsed.route || parsed.path)) {
+              actionData = parsed;
+              cleanText = cleanText.replace(match, "").trim();
+              break;
+            }
+          } catch {
+            // Not valid JSON
+          }
+        }
+      }
+    }
+
+    // 4. Parse chart tag: <altrix_chart type="..." title="..." xKey="..." yKeys="..." data='...' />
     const chartTagRegex = /<altrix_chart([\s\S]*?)\/>/i;
     const chartMatch = cleanText.match(chartTagRegex);
     if (chartMatch) {
@@ -895,6 +941,20 @@ export default function AltrixCopilot() {
             /* partial JSON chunk */
           }
         }
+      }
+
+      // ── Auto-execute Action if flagged ──────────────────────────────────────
+      const finalParsed = parseMessageContent(assistantText);
+      if (finalParsed.action && (finalParsed.action.execute || finalParsed.action.auto_execute)) {
+        const executeMsg = {
+          id: assistantId,
+          role: "assistant" as const,
+          content: finalParsed.content,
+          action: finalParsed.action,
+          chart: finalParsed.chart,
+          timestamp: new Date()
+        };
+        await handleExecuteAction(executeMsg);
       }
     } catch (err: any) {
       if (err.name === "AbortError") {

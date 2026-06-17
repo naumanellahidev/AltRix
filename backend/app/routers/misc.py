@@ -858,6 +858,26 @@ async def fetch_ai_context(db: DbSession, user: AuthenticatedUser, school_id: st
                 for r in staff_list
             ])
 
+            # Today's Staff Attendance (from hr_staff_attendance)
+            staff_att_str = "None"
+            try:
+                today_date_obj = datetime.now(timezone.utc).date()
+                staff_att_list = await fetch_rows("""
+                    SELECT sd.full_name, sd.position, COALESCE(a.status, 'unmarked') as status, a.clock_in, a.clock_out, a.notes
+                    FROM public.hr_staff_directory sd
+                    LEFT JOIN public.hr_staff_attendance a ON a.user_id = sd.linked_user_id AND a.attendance_date = :today
+                    WHERE sd.school_id = :sid AND sd.is_active = true
+                    ORDER BY sd.full_name
+                """, {"sid": school_id, "today": today_date_obj})
+                
+                if staff_att_list:
+                    staff_att_str = "\n".join([
+                        f"- {r[0]} ({r[1] or 'Staff'}): Status: **{r[2].upper()}** | Clock In: {r[3].strftime('%I:%M %p') if r[3] and hasattr(r[3], 'strftime') else (str(r[3])[:19] if r[3] else 'N/A')} | Clock Out: {r[4].strftime('%I:%M %p') if r[4] and hasattr(r[4], 'strftime') else (str(r[4])[:19] if r[4] else 'N/A')}{f' | Notes: {r[5]}' if r[5] else ''}"
+                        for r in staff_att_list
+                    ])
+            except Exception as e:
+                logger.warning(f"Error fetching today's staff attendance: {e}")
+
             # Exams List
             exams = await fetch_rows("""
                 SELECT name, term_label, status, start_date, end_date FROM exams 
@@ -945,6 +965,9 @@ All Enrolled Active Students (with Class & Section):
 
 Teachers & Active Staff Directory:
 {staff_str if staff_str else "None"}
+
+Today's Staff Attendance Summary:
+{staff_att_str if staff_att_str else "None"}
 
 School Exams & Terms:
 {exams_str if exams_str else "None"}
@@ -1923,6 +1946,11 @@ Continue to output these specific tags directly for files, reports, and UI state
 3. Always use the most descriptive label (e.g. "Record Rs. 8,500 Payment from Ahmed Khan — June 2025").
 4. Output ONLY ONE action tag per response, at the very END of your message.
 5. NEVER render raw JSON text or action tags as part of your visible reply body.
+6. CONFIRMATION & EXECUTION FLOW:
+   - When the user asks you to perform any database write, update, create, or delete operation, first output the action tag WITHOUT the "execute" parameter. This asks the user to confirm the task.
+   - If the user responds with "go do this job", "do it", "confirm", "proceed", or similar confirmation, you MUST output the exact same action card tag but with `"execute": true` added inside the action JSON. For example:
+     <altrix_action>{"type": "API_ACTION", "method": "POST", "path": "/students", "payload": {...}, "label": "Create Student", "execute": true}</altrix_action>
+     This will trigger the system to execute the action immediately and report success.
 """
 
     # 4. Replace placeholders with actual user details and db_context
