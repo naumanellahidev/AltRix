@@ -29,6 +29,7 @@ import {
   ShieldAlert,
   BookOpen,
   Bell,
+  Zap,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/hooks/useSession";
@@ -51,6 +52,10 @@ type ActionPayload = {
   examId?: string;
   route?: string;
   label?: string;
+  // Generic API Action parameters
+  method?: "POST" | "PATCH" | "DELETE" | "PUT";
+  path?: string;
+  payload?: Record<string, any>;
   // Write action parameters
   voucherId?: string;
   amount?: number;
@@ -209,6 +214,12 @@ const ACTION_META: Record<string, { icon: any; label: string; cta: string; color
     label: "Publish Notice",
     cta: "Publish Notice",
     color: "from-cyan-600/20 to-sky-600/20 border-cyan-500/30",
+  },
+  API_ACTION: {
+    icon: Zap,
+    label: "Execute Action",
+    cta: "Execute",
+    color: "from-violet-600/20 to-purple-600/20 border-violet-500/30",
   },
 };
 
@@ -752,6 +763,23 @@ export default function AltrixCopilot() {
       } catch (err: any) {
         toast.error(err.response?.data?.detail || err.message || "Failed to publish notice", { id: t });
       }
+    } else if (type === "API_ACTION" || (msg.action.method && msg.action.path)) {
+      const method = msg.action.method;
+      const path = msg.action.path;
+      if (!method || !path) {
+        return toast.error("Missing method or path in action context");
+      }
+      const t = toast.loading(`Executing: ${msg.action.label || "Action"}...`);
+      try {
+        await apiClient.post("/ai/execute", {
+          method,
+          path,
+          payload: msg.action.payload || {}
+        });
+        toast.success(`${msg.action.label || "Action"} completed successfully!`, { id: t });
+      } catch (err: any) {
+        toast.error(err.response?.data?.detail || err.message || "Action failed", { id: t });
+      }
     }
   };
 
@@ -936,8 +964,8 @@ export default function AltrixCopilot() {
                   )}
 
                   {/* Action Card */}
-                  {msg.action && ACTION_META[msg.action.type] && (() => {
-                    const meta = ACTION_META[msg.action.type];
+                  {msg.action && (() => {
+                    const meta = ACTION_META[msg.action.type] || ACTION_META["API_ACTION"];
                     const Icon = meta.icon;
                     return (
                       <div className={`mt-3 rounded-xl bg-gradient-to-br ${meta.color} border p-3 flex flex-col gap-2`}>

@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from typing import List, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Query, status
+from fastapi import APIRouter, Query, status, Request
 from sqlalchemy import func, select, text
 
 from app.dependencies import CurrentUser, DbSession, AuthenticatedUser
@@ -1548,6 +1548,120 @@ async def update_school_ai_settings(
     return {"success": True, "school_id": school_id, "enabled": body.enabled}
 
 
+@ai_router.post("/execute")
+async def ai_execute_action(
+    body: dict,
+    request: Request,
+    current_user: CurrentUser,
+    db: DbSession,
+):
+    """
+    Generic AI action executor. Accepts:
+    {
+      "method": "POST" | "PATCH" | "DELETE",
+      "path": "/finance/payments",
+      "payload": { ... }
+    }
+    Internally routes the request to the correct FastAPI endpoint
+    with the current user's auth context forwarded.
+    """
+    from fastapi import HTTPException
+    import httpx
+    import os
+
+    method = (body.get("method") or "").upper()
+    path = body.get("path") or ""
+    payload = body.get("payload") or {}
+
+    if method not in ("POST", "PATCH", "PUT", "DELETE"):
+        raise HTTPException(status_code=400, detail=f"Unsupported method: {method}. Allowed: POST, PATCH, PUT, DELETE")
+
+    if not path or not path.startswith("/"):
+        raise HTTPException(status_code=400, detail=f"Invalid path: {path}. Must start with /")
+
+    # ── Path Whitelist (security) ──────────────────────────────────────────
+    ALLOWED_PREFIXES = [
+        "/finance/",
+        "/academic/",
+        "/students/",
+        "/teachers/",
+        "/attendance/",
+        "/exams/",
+        "/admissions/",
+        "/assignments/",
+        "/behavior/",
+        "/notices/",
+        "/diary/",
+        "/complaints/",
+        "/hr/",
+        "/notifications/",
+        "/collaboration/",
+    ]
+    # Allow exact matches too (e.g. /students, /finance/payments)
+    path_normalized = path if path.endswith("/") else path + "/"
+    if not any(path_normalized.startswith(prefix) for prefix in ALLOWED_PREFIXES):
+        raise HTTPException(
+            status_code=403,
+            detail=f"AI actions are not permitted on path: {path}. Allowed modules: finance, academic, students, teachers, attendance, exams, admissions, assignments, behavior, notices, diary, complaints, hr, notifications, collaboration."
+        )
+
+    # ── Build internal request ─────────────────────────────────────────────
+    port = os.environ.get("PORT", "8000")
+    base_url = f"http://127.0.0.1:{port}/api"
+    target_url = f"{base_url}{path}"
+
+    headers = {
+        "Content-Type": "application/json",
+    }
+    
+    # Forward the user's actual auth token
+    auth_header = request.headers.get("Authorization") or request.headers.get("authorization")
+    if auth_header:
+        headers["Authorization"] = auth_header
+    else:
+        # Fallback to Supabase service role key if auth header is missing
+        supabase_service_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
+        headers["Authorization"] = f"Bearer {supabase_service_key}"
+    
+    if current_user.school_id:
+        headers["X-School-Id"] = str(current_user.school_id)
+
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            if method == "POST":
+                resp = await client.post(target_url, json=payload, headers=headers)
+            elif method == "PATCH":
+                resp = await client.patch(target_url, json=payload, headers=headers)
+            elif method == "PUT":
+                resp = await client.put(target_url, json=payload, headers=headers)
+            elif method == "DELETE":
+                resp = await client.delete(target_url, headers=headers)
+            else:
+                raise HTTPException(status_code=400, detail=f"Unsupported method: {method}")
+
+        if resp.status_code >= 400:
+            detail = "Action failed"
+            try:
+                err_body = resp.json()
+                detail = err_body.get("detail", str(err_body))
+            except Exception:
+                detail = resp.text[:500]
+            raise HTTPException(status_code=resp.status_code, detail=detail)
+
+        try:
+            return resp.json()
+        except Exception:
+            return {"message": "Action completed successfully", "status_code": resp.status_code}
+
+    except httpx.ConnectError:
+        raise HTTPException(status_code=503, detail="Could not connect to internal API. Is the backend server running?")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"AI execute action error: {e}")
+        raise HTTPException(status_code=500, detail=f"Action execution failed: {str(e)}")
+
+
 @ai_router.post("/copilot")
 async def copilot_chat(
     body: CopilotChatRequest,
@@ -1615,20 +1729,148 @@ Your role is to help users navigate the school ERP, analyze live data, summarize
 - For any request to navigate or open a module, output a NAVIGATE_TO action
 - Supported navigation routes for this role: /accountant, /fees, /invoices, /payments, /reports, /payroll
 
-**ERP ACTIONS (use these when user asks to generate a document or perform a write action):**
+**UNIVERSAL API ACTIONS:**
+When the user asks to perform ANY write action (create, update/modify, delete, record, register, schedule, send, or update status of any record in the database), you MUST output a dynamic action card tag of type "API_ACTION" at the very end of your response.
+
+The format is:
+<altrix_action>{{"type": "API_ACTION", "method": "POST|PATCH|DELETE", "path": "/api_endpoint", "payload": {{...}}, "label": "Action label description"}}</altrix_action>
+
+Allowed write endpoints catalog (forwarded via proxy, permission checks & school scoping are fully enforced):
+
+─── FINANCE & PAYMENTS ───
+- Record Payment:
+  `POST /finance/payments` -> Payload: `{{"student_id": "STUDENT_UUID", "voucher_id": "VOUCHER_UUID_OR_NULL", "amount": number, "payment_method": "cash|bank|card", "notes": "optional string"}}`
+- Create Invoice/Voucher:
+  `POST /finance/vouchers` -> Payload: `{{"student_id": "STUDENT_UUID", "month": "Month Name", "academic_year": "YYYY", "total_amount": number, "discount_amount": 0, "net_amount": number, "due_date": "YYYY-MM-DD", "notes": "optional string"}}`
+- Cancel Voucher:
+  `PATCH /finance/vouchers/{{id}}/cancel` -> Payload: `{{}}`
+- Fee Structures:
+  `POST /finance/structures` -> Payload: `{{"name": "Structure Name", "amount": number, "frequency": "monthly|one_time|termly"}}`
+  `PATCH /finance/structures/{{id}}` -> Payload: `{{"name": "...", "amount": ...}}`
+  `DELETE /finance/structures/{{id}}`
+- Budget Targets:
+  `POST /finance/budget-targets` -> Payload: `{{"target_amount": number, "target_date": "YYYY-MM-DD", "notes": "notes"}}`
+  `DELETE /finance/budget-targets/{{id}}`
+
+─── ACADEMICS ───
+- Classes:
+  `POST /academic/classes` -> Payload: `{{"name": "Class Name", "grade_level": number}}`
+  `PATCH /academic/classes/{{id}}` -> Payload: `{{"name": "Class Name", "grade_level": number}}`
+  `DELETE /academic/classes/{{id}}`
+- Sections:
+  `POST /academic/sections` -> Payload: `{{"name": "Section Name", "class_id": "CLASS_UUID", "room_number": "optional string", "capacity": number}}`
+  `PATCH /academic/sections/{{id}}` -> Payload: `{{"name": "Section Name", "class_id": "CLASS_UUID"}}`
+  `DELETE /academic/sections/{{id}}`
+- Subjects:
+  `POST /academic/subjects` -> Payload: `{{"name": "Subject Name", "code": "code", "subject_type": "theory|practical|both"}}`
+  `PATCH /academic/subjects/{{id}}`
+  `DELETE /academic/subjects/{{id}}`
+- Timetable Slot:
+  `POST /academic/timetable` -> Payload: `{{"class_section_id": "SECTION_UUID", "subject_id": "SUBJECT_UUID", "teacher_id": "TEACHER_UUID", "day_of_week": "Monday|Tuesday|...", "start_time": "HH:MM", "end_time": "HH:MM", "room_number": "room"}}`
+  `PATCH /academic/timetable/{{id}}`
+  `DELETE /academic/timetable/{{id}}`
+- Holidays:
+  `POST /academic/holidays` -> Payload: `{{"name": "Holiday Name", "start_date": "YYYY-MM-DD", "end_date": "YYYY-MM-DD", "description": "desc"}}`
+  `DELETE /academic/holidays/{{id}}`
+
+─── STUDENTS & GUARDIANS ───
+- Create Student:
+  `POST /students` -> Payload: `{{"first_name": "string", "last_name": "string", "registration_number": "string", "roll_number": "string", "gender": "male|female|other", "date_of_birth": "YYYY-MM-DD", "section_id": "SECTION_UUID_OR_NULL", "parent_name": "parent", "parent_phone": "phone", "address": "address"}}`
+- Update Student:
+  `PATCH /students/{{id}}` -> Payload: `{{"first_name": "string", "section_id": "SECTION_UUID"}}`
+- Delete Student:
+  `DELETE /students/{{id}}`
+- Guardian Management:
+  `POST /students/guardians` -> Payload: `{{"student_id": "STUDENT_UUID", "full_name": "name", "relationship": "father|mother|guardian", "phone": "phone", "email": "email", "is_primary": true}}`
+  `PATCH /students/guardians/{{id}}` -> Payload: `{{"full_name": "name"}}`
+  `DELETE /students/guardians/{{id}}`
+
+─── TEACHERS ───
+- Create Teacher:
+  `POST /teachers` -> Payload: `{{"first_name": "string", "last_name": "string", "email": "string", "phone": "string", "qualification": "string", "joining_date": "YYYY-MM-DD", "salary": number}}`
+- Update Teacher:
+  `PATCH /teachers/{{id}}` -> Payload: `{{"salary": 50000}}`
+- Delete Teacher:
+  `DELETE /teachers/{{id}}`
+
+─── ATTENDANCE ───
+- Record Attendance Session:
+  `POST /attendance/sessions` -> Payload: `{{"date": "YYYY-MM-DD", "class_section_id": "SECTION_UUID"}}`
+- Save/Update Student Attendance:
+  `POST /attendance/entries` -> Payload: `{{"student_id": "STUDENT_UUID", "session_id": "SESSION_UUID", "status": "present|absent|late|excused", "notes": "notes"}}`
+  `PATCH /attendance/entries/{{id}}` -> Payload: `{{"status": "present|absent|late|excused"}}`
+
+─── EXAMS & RESULTS ───
+- Exams:
+  `POST /exams` -> Payload: `{{"name": "Exam Name", "term": "Midterm|Final|...", "start_date": "YYYY-MM-DD", "end_date": "YYYY-MM-DD"}}`
+  `PATCH /exams/{{id}}`
+  `DELETE /exams/{{id}}`
+- Exam Results:
+  `POST /exams/{{id}}/results` -> Payload: `{{"student_id": "STUDENT_UUID", "subject_id": "SUBJECT_UUID", "marks_obtained": number, "max_marks": number, "remarks": "remarks"}}`
+
+─── ADMISSIONS ───
+- Create Admissions Inquiry/Application:
+  `POST /admissions` -> Payload: `{{"student_first_name": "string", "student_last_name": "string", "grade_level": number, "parent_name": "string", "parent_phone": "string", "parent_email": "string", "status": "inquiry|applied|approved|rejected"}}`
+- Update Admission Status:
+  `PATCH /admissions/{{id}}` -> Payload: `{{"status": "applied|approved|rejected"}}`
+
+─── ASSIGNMENTS & HOMEWORK ───
+- Create Homework:
+  `POST /assignments` -> Payload: `{{"class_section_id": "SECTION_UUID", "title": "Assignment Title", "description": "desc", "due_date": "YYYY-MM-DD", "max_marks": number}}`
+  `PATCH /assignments/{{id}}`
+  `DELETE /assignments/{{id}}`
+- Grade Submission:
+  `POST /assignments/submissions/{{id}}/grade` -> Payload: `{{"obtained_marks": number, "feedback": "feedback"}}`
+
+─── BEHAVIOR ───
+- Save Behavior Note:
+  `POST /behavior` -> Payload: `{{"student_id": "STUDENT_UUID", "title": "Note Title", "content": "details", "note_type": "general|warning|achievement", "is_shared_with_parents": true}}`
+- Delete Behavior Note:
+  `DELETE /behavior/{{id}}`
+
+─── NOTICES ───
+- Publish Notice:
+  `POST /notices` -> Payload: `{{"title": "Notice Title", "content": "notice body", "notice_type": "general|urgent|event", "target_roles": ["parent", "teacher", "student"]}}`
+- Delete Notice:
+  `DELETE /notices/{{id}}`
+
+─── CLASS DIARY ───
+- Save Class Diary Entry:
+  `POST /diary` -> Payload: `{{"class_section_id": "SECTION_UUID", "title": "Diary Title", "content": "body details", "entry_date": "YYYY-MM-DD"}}`
+  `PATCH /diary/{{id}}`
+  `DELETE /diary/{{id}}`
+
+─── COMPLAINTS & FEEDBACK ───
+- File Complaint:
+  `POST /complaints` -> Payload: `{{"title": "Complaint Title", "description": "details", "target_role": "admin|teacher"}}`
+- Update Complaint Status/Feedback:
+  `PATCH /complaints/{{id}}` -> Payload: `{{"status": "resolved|in_progress", "resolution_notes": "notes"}}`
+
+─── HUMAN RESOURCES (HR) & LEAVES ───
+- Submit Leave Request:
+  `POST /hr/leave-requests` -> Payload: `{{"start_date": "YYYY-MM-DD", "end_date": "YYYY-MM-DD", "leave_type": "sick|casual|annual", "reason": "reason"}}`
+- Update Leave Status (Approve/Reject):
+  `PATCH /hr/leave-requests/{{id}}` -> Payload: `{{"status": "approved|rejected", "manager_notes": "notes"}}`
+- Generate/Record Monthly Payroll:
+  `POST /hr/payroll` -> Payload: `{{"staff_id": "STAFF_UUID", "month": "Month Name", "year": "YYYY", "basic_salary": number, "allowances": number, "deductions": number, "status": "draft|paid"}}`
+
+─── COLLABORATION & EVENTS ───
+- Create Calendar Event:
+  `POST /collaboration/events` -> Payload: `{{"title": "Event Title", "description": "desc", "start_time": "YYYY-MM-DDTHH:MM:SS", "end_time": "YYYY-MM-DDTHH:MM:SS", "location": "location"}}`
+- Delete Calendar Event:
+  `DELETE /collaboration/events/{{id}}`
+- Send Group Message:
+  `POST /collaboration/messages` -> Payload: `{{"channel_id": "CHANNEL_UUID", "content": "message text"}}`
+
+**CLIENT-SIDE ACTIONS:**
+Continue to output these specific tags directly for files, reports, and UI state:
 - Download Fee Voucher: <altrix_action>{{"type": "GENERATE_VOUCHER", "invoiceId": "INVOICE_UUID", "studentId": "STUDENT_UUID", "label": "Fee Voucher for [Student Name]"}}</altrix_action>
 - Result Card: <altrix_action>{{"type": "GENERATE_RESULT_CARD", "studentId": "STUDENT_UUID", "examId": "EXAM_UUID", "label": "Result Card"}}</altrix_action>
 - Attendance Report: <altrix_action>{{"type": "EXPORT_ATTENDANCE", "sectionId": "SECTION_UUID", "fromDate": "YYYY-MM-DD", "toDate": "YYYY-MM-DD", "label": "Attendance Report"}}</altrix_action>
 - Grades Report: <altrix_action>{{"type": "EXPORT_GRADES", "sectionId": "SECTION_UUID", "label": "Grades Report"}}</altrix_action>
-- Navigate to Module: <altrix_action>{{"type": "NAVIGATE_TO", "route": "/accountant/invoices", "label": "Open Invoices Module"}}</altrix_action>
-- Record Payment: <altrix_action>{{"type": "RECORD_PAYMENT", "studentId": "STUDENT_UUID", "voucherId": "VOUCHER_UUID_OR_NULL", "amount": 1500, "paymentMethod": "cash", "notes": "notes", "label": "Record Payment of [Amount] for [Student]"}}</altrix_action>
-- Create Invoice: <altrix_action>{{"type": "CREATE_INVOICE", "studentId": "STUDENT_UUID", "totalAmount": 2000, "dueDate": "YYYY-MM-DD", "notes": "notes", "label": "Create Invoice of [Amount] for [Student]"}}</altrix_action>
-- Create Assignment: <altrix_action>{{"type": "CREATE_ASSIGNMENT", "classSectionId": "SECTION_UUID", "title": "Homework Title", "description": "Homework description", "dueDate": "YYYY-MM-DD", "maxMarks": 100, "label": "Create Assignment: [Title]"}}</altrix_action>
-- Create Behavior Note: <altrix_action>{{"type": "CREATE_BEHAVIOR_NOTE", "studentId": "STUDENT_UUID", "title": "Note Title", "content": "Note details", "noteType": "general", "label": "Save Behavior Note for [Student]"}}</altrix_action>
-- Create Diary Entry: <altrix_action>{{"type": "CREATE_DIARY_ENTRY", "classSectionId": "SECTION_UUID", "title": "Diary Title", "content": "Diary content", "entryDate": "YYYY-MM-DD", "label": "Save Diary Entry: [Title]"}}</altrix_action>
-- Create Notice: <altrix_action>{{"type": "CREATE_NOTICE", "title": "Notice Title", "content": "Notice content", "targetRoles": ["parent", "teacher"], "label": "Publish Notice: [Title]"}}</altrix_action>
+- Navigate to Module: <altrix_action>{{"type": "NAVIGATE_TO", "route": "/route", "label": "Go to [Module]"}}</altrix_action>
 
-**IMPORTANT:** Output exactly ONE action tag per response, at the very END of your message.
+**IMPORTANT:** Always choose the most descriptive "label" for your API_ACTION so that the card displays clearly to the user (e.g. "Create Invoice of Rs. 15,000 for Haris"). Output exactly ONE action tag per response, at the very END of your message.
 """
 
     # 4. Stream response from OllamaAIService
