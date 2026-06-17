@@ -23,6 +23,12 @@ import {
   ChevronDown,
   Keyboard,
   RefreshCw,
+  CreditCard,
+  FileText,
+  ClipboardList,
+  ShieldAlert,
+  BookOpen,
+  Bell,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/hooks/useSession";
@@ -45,6 +51,21 @@ type ActionPayload = {
   examId?: string;
   route?: string;
   label?: string;
+  // Write action parameters
+  voucherId?: string;
+  amount?: number;
+  paymentMethod?: string;
+  notes?: string;
+  totalAmount?: number;
+  dueDate?: string;
+  classSectionId?: string;
+  title?: string;
+  description?: string;
+  maxMarks?: number;
+  content?: string;
+  noteType?: string;
+  entryDate?: string;
+  targetRoles?: string[];
 };
 
 type Message = {
@@ -152,6 +173,42 @@ const ACTION_META: Record<string, { icon: any; label: string; cta: string; color
     label: "Navigate to Module",
     cta: "Go There",
     color: "from-slate-600/20 to-zinc-600/20 border-zinc-500/30",
+  },
+  RECORD_PAYMENT: {
+    icon: CreditCard,
+    label: "Record Payment in System",
+    cta: "Record Payment",
+    color: "from-emerald-600/20 to-green-600/20 border-emerald-500/30",
+  },
+  CREATE_INVOICE: {
+    icon: FileText,
+    label: "Generate Fee Invoice",
+    cta: "Create Invoice",
+    color: "from-blue-600/20 to-indigo-600/20 border-blue-500/30",
+  },
+  CREATE_ASSIGNMENT: {
+    icon: ClipboardList,
+    label: "Create Homework Assignment",
+    cta: "Publish Assignment",
+    color: "from-purple-600/20 to-pink-600/20 border-purple-500/30",
+  },
+  CREATE_BEHAVIOR_NOTE: {
+    icon: ShieldAlert,
+    label: "Save Behavior Note",
+    cta: "Save Note",
+    color: "from-rose-600/20 to-red-600/20 border-rose-500/30",
+  },
+  CREATE_DIARY_ENTRY: {
+    icon: BookOpen,
+    label: "Save Diary Entry",
+    cta: "Save Entry",
+    color: "from-amber-600/20 to-yellow-600/20 border-amber-500/30",
+  },
+  CREATE_NOTICE: {
+    icon: Bell,
+    label: "Publish Notice",
+    cta: "Publish Notice",
+    color: "from-cyan-600/20 to-sky-600/20 border-cyan-500/30",
   },
 };
 
@@ -596,6 +653,105 @@ export default function AltrixCopilot() {
       const roleSegment = getRolePathSegment(primaryRole);
       navigate(`/${schoolSlug}/${roleSegment}/reports`);
       setIsOpen(false);
+    } else if (type === "RECORD_PAYMENT") {
+      if (!msg.action.studentId) return toast.error("Missing student ID in action context");
+      if (msg.action.amount === undefined) return toast.error("Missing payment amount in action context");
+      const t = toast.loading("Recording payment in system...");
+      try {
+        await apiClient.post("/finance/payments", {
+          student_id: msg.action.studentId,
+          voucher_id: msg.action.voucherId || msg.action.invoiceId || null,
+          amount: Number(msg.action.amount),
+          payment_date: new Date().toISOString().split('T')[0],
+          payment_method: msg.action.paymentMethod || "cash",
+          notes: msg.action.notes || ""
+        });
+        toast.success("Payment recorded successfully!", { id: t });
+      } catch (err: any) {
+        toast.error(err.response?.data?.detail || err.message || "Failed to record payment", { id: t });
+      }
+    } else if (type === "CREATE_INVOICE") {
+      if (!msg.action.studentId) return toast.error("Missing student ID in action context");
+      if (msg.action.totalAmount === undefined) return toast.error("Missing invoice amount in action context");
+      const t = toast.loading("Generating fee invoice...");
+      try {
+        await apiClient.post("/finance/vouchers", {
+          student_id: msg.action.studentId,
+          month: new Date().toLocaleString('default', { month: 'long' }),
+          academic_year: new Date().getFullYear().toString(),
+          total_amount: Number(msg.action.totalAmount),
+          discount_amount: 0,
+          net_amount: Number(msg.action.totalAmount),
+          due_date: msg.action.dueDate || new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString().split('T')[0],
+          notes: msg.action.notes || ""
+        });
+        toast.success("Fee invoice generated successfully!", { id: t });
+      } catch (err: any) {
+        toast.error(err.response?.data?.detail || err.message || "Failed to generate fee invoice", { id: t });
+      }
+    } else if (type === "CREATE_ASSIGNMENT") {
+      const classSectionId = msg.action.classSectionId || msg.action.sectionId;
+      if (!classSectionId) return toast.error("Missing class section ID in action context");
+      if (!msg.action.title) return toast.error("Missing assignment title in action context");
+      const t = toast.loading("Creating homework assignment...");
+      try {
+        await apiClient.post("/assignments", {
+          class_section_id: classSectionId,
+          title: msg.action.title,
+          description: msg.action.description || "",
+          due_date: msg.action.dueDate || new Date(Date.now() + 24 * 3600 * 1000).toISOString().split('T')[0],
+          max_marks: msg.action.maxMarks !== undefined ? Number(msg.action.maxMarks) : 100
+        });
+        toast.success("Homework assignment created successfully!", { id: t });
+      } catch (err: any) {
+        toast.error(err.response?.data?.detail || err.message || "Failed to create assignment", { id: t });
+      }
+    } else if (type === "CREATE_BEHAVIOR_NOTE") {
+      if (!msg.action.studentId) return toast.error("Missing student ID in action context");
+      if (!msg.action.title) return toast.error("Missing note title in action context");
+      const t = toast.loading("Saving behavior note...");
+      try {
+        await apiClient.post("/behavior", {
+          student_id: msg.action.studentId,
+          title: msg.action.title,
+          content: msg.action.content || "",
+          note_type: msg.action.noteType || "general",
+          is_shared_with_parents: true
+        });
+        toast.success("Behavior note saved successfully!", { id: t });
+      } catch (err: any) {
+        toast.error(err.response?.data?.detail || err.message || "Failed to save behavior note", { id: t });
+      }
+    } else if (type === "CREATE_DIARY_ENTRY") {
+      const classSectionId = msg.action.classSectionId || msg.action.sectionId;
+      if (!classSectionId) return toast.error("Missing class section ID in action context");
+      if (!msg.action.title) return toast.error("Missing diary title in action context");
+      const t = toast.loading("Saving diary entry...");
+      try {
+        await apiClient.post("/diary", {
+          class_section_id: classSectionId,
+          title: msg.action.title,
+          content: msg.action.content || "",
+          entry_date: msg.action.entryDate || new Date().toISOString().split('T')[0]
+        });
+        toast.success("Diary entry saved successfully!", { id: t });
+      } catch (err: any) {
+        toast.error(err.response?.data?.detail || err.message || "Failed to save diary entry", { id: t });
+      }
+    } else if (type === "CREATE_NOTICE") {
+      if (!msg.action.title) return toast.error("Missing notice title in action context");
+      const t = toast.loading("Publishing notice...");
+      try {
+        await apiClient.post("/notices", {
+          title: msg.action.title,
+          content: msg.action.content || "",
+          notice_type: "general",
+          target_roles: msg.action.targetRoles || ["parent", "teacher", "student"]
+        });
+        toast.success("Notice published successfully!", { id: t });
+      } catch (err: any) {
+        toast.error(err.response?.data?.detail || err.message || "Failed to publish notice", { id: t });
+      }
     }
   };
 
