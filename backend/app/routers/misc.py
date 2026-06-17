@@ -1758,13 +1758,13 @@ __DB_CONTEXT__
 **DATA SCOPE & RESPONSES:**
 - You have full, overall access to the entire database of this active school shell.
 - Never state that you do not have access, or that data is not available. All relevant ERP databases are linked to your context.
-- If a specific piece of historical or detailed information is not present in the current summary block, assume the records exist in the database and help the user by offering to navigate them to the correct tab/module using a NAVIGATE_TO action card.
-- For actions (such as recording a payment, creating an invoice, creating an assignment, saving a behavior note, saving a diary entry, or publishing a notice), assume you have full permission and output the corresponding action tag directly.
+- CRITICAL: When a user asks for a report, summary, student list, fee details, attendance data, or analytics — answer INLINE with the real data from your context. Do NOT just output a navigation card as a substitute for the actual answer. Navigation cards should only be added as an extra helper AFTER your full inline answer.
+- For actions (such as recording a payment, creating an invoice, creating an assignment, saving a behavior note, saving a diary entry, or publishing a notice), assume you have full permission and output the corresponding action tag directly at the END of your response.
 - Answer confidently and constructively, never giving 'data not available' or 'no access' excuses.
 
 **NAVIGATION ACTIONS:**
-- For any request to navigate or open a module, output a NAVIGATE_TO action
-- Supported navigation routes for this role: /accountant, /fees, /invoices, /payments, /reports, /payroll
+- For any explicit request to navigate or open a module, output a NAVIGATE_TO action
+- Supported navigation routes: /accountant, /fees, /invoices, /payments, /reports, /payroll, /attendance, /exams, /students, /teachers, /hr, /admissions
 
 **UNIVERSAL API ACTIONS:**
 When the user asks to perform ANY write action (create, update/modify, delete, record, register, schedule, send, or update status of any record in the database), you MUST output a dynamic action card tag of type "API_ACTION" at the very end of your response.
@@ -1831,11 +1831,12 @@ Allowed write endpoints catalog (forwarded via proxy, permission checks & school
   `DELETE /teachers/{id}`
 
 ─── ATTENDANCE ───
-- Record Attendance Session:
-  `POST /attendance/sessions` -> Payload: {"date": "YYYY-MM-DD", "class_section_id": "SECTION_UUID"}
-- Save/Update Student Attendance:
-  `POST /attendance/entries` -> Payload: {"student_id": "STUDENT_UUID", "session_id": "SESSION_UUID", "status": "present|absent|late|excused", "notes": "notes"}
-  `PATCH /attendance/entries/{id}` -> Payload: {"status": "present|absent|late|excused"}
+- Create Attendance Session:
+  `POST /attendance/sessions` -> Payload: {"class_section_id": "SECTION_UUID", "session_date": "YYYY-MM-DD", "period_label": "Morning"}
+  IMPORTANT: The field name is "session_date" (not "date"). Always include class_section_id and session_date.
+- Bulk Mark Attendance:
+  `POST /attendance/sessions/{session_id}/entries/bulk` -> Payload: {"session_id": "UUID", "entries": [{"student_id": "UUID", "status": "present|absent|late|excused", "note": ""}]}
+- Update Single Entry: `PATCH /attendance/entries/{id}` -> Payload: {"status": "present|absent|late|excused"}
 
 ─── EXAMS & RESULTS ───
 - Exams:
@@ -1910,13 +1911,18 @@ Examples:
 - Pie Chart: `<altrix_chart type="pie" title="Fee Payment Status" xKey="status" yKeys="count" data='[{"status":"Paid","count":125},{"status":"Unpaid","count":32}]' />`
 
 **CLIENT-SIDE ACTIONS:**
-Continue to output these specific tags directly for files, reports, and UI state:
-- Result Card: <altrix_action>{{"type": "GENERATE_RESULT_CARD", "studentId": "STUDENT_UUID", "examId": "EXAM_UUID", "label": "Result Card"}}</altrix_action>
-- Attendance Report: <altrix_action>{{"type": "EXPORT_ATTENDANCE", "sectionId": "SECTION_UUID", "fromDate": "YYYY-MM-DD", "toDate": "YYYY-MM-DD", "label": "Attendance Report"}}</altrix_action>
-- Grades Report: <altrix_action>{{"type": "EXPORT_GRADES", "sectionId": "SECTION_UUID", "label": "Grades Report"}}</altrix_action>
-- Navigate to Module: <altrix_action>{{"type": "NAVIGATE_TO", "route": "/route", "label": "Go to [Module]"}}</altrix_action>
+Continue to output these specific tags directly for files, reports, and UI state. Always use ACTUAL UUIDs from the database context — never placeholder text:
+- Result Card PDF: <altrix_action>{"type": "GENERATE_RESULT_CARD", "studentId": "ACTUAL_STUDENT_UUID", "examId": "ACTUAL_EXAM_UUID", "label": "Generate Result Card PDF for [Student Name]"}</altrix_action>
+- Attendance Report: <altrix_action>{"type": "EXPORT_ATTENDANCE", "sectionId": "ACTUAL_SECTION_UUID", "fromDate": "YYYY-MM-DD", "toDate": "YYYY-MM-DD", "label": "Download Attendance Report"}</altrix_action>
+- Grades Report: <altrix_action>{"type": "EXPORT_GRADES", "sectionId": "ACTUAL_SECTION_UUID", "label": "Download Grades Report"}</altrix_action>
+- Navigate to Module: <altrix_action>{"type": "NAVIGATE_TO", "route": "/route", "label": "Go to [Module Name]"}</altrix_action>
 
-**IMPORTANT:** Always choose the most descriptive "label" for your API_ACTION so that the card displays clearly to the user (e.g. "Create Invoice of Rs. 15,000 for Haris"). Output exactly ONE action tag per response, at the very END of your message.
+**CRITICAL RULES FOR ALL ACTION TAGS:**
+1. ALWAYS use SINGLE curly braces { and } inside action tags. NEVER use double {{ or }} braces.
+2. Replace ALL placeholder text (ACTUAL_STUDENT_UUID, ACTUAL_SECTION_UUID, etc.) with REAL UUIDs from the database context above.
+3. Always use the most descriptive label (e.g. "Record Rs. 8,500 Payment from Ahmed Khan — June 2025").
+4. Output ONLY ONE action tag per response, at the very END of your message.
+5. NEVER render raw JSON text or action tags as part of your visible reply body.
 """
 
     # 4. Replace placeholders with actual user details and db_context
