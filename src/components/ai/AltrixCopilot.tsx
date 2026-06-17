@@ -392,6 +392,35 @@ function CopilotChart({ chart }: { chart: ChartPayload }) {
   );
 }
 
+const getErrorMessage = (err: any, fallback: string): string => {
+  if (!err) return fallback;
+  if (typeof err === "string") return err;
+  
+  const data = err.response?.data;
+  if (data) {
+    if (typeof data.detail === "string") return data.detail;
+    if (Array.isArray(data.detail)) {
+      return data.detail
+        .map((d: any) => {
+          const locStr = d.loc ? d.loc.filter((l: any) => l !== "body" && l !== "query").join(".") : "";
+          return `${locStr ? locStr + ": " : ""}${d.msg || JSON.stringify(d)}`;
+        })
+        .join(", ");
+    }
+    if (typeof data.detail === "object" && data.detail !== null) {
+      return data.detail.message || data.detail.error || JSON.stringify(data.detail);
+    }
+    if (typeof data.error === "string") return data.error;
+    if (typeof data.error === "object" && data.error !== null) {
+      return data.error.message || data.error.details || JSON.stringify(data.error);
+    }
+    return JSON.stringify(data);
+  }
+  
+  if (err.message && typeof err.message === "string") return err.message;
+  return fallback;
+};
+
 // ── Main Component ───────────────────────────────────────────────────────────
 
 export default function AltrixCopilot() {
@@ -621,6 +650,14 @@ export default function AltrixCopilot() {
   useEffect(() => {
     scrollToBottom();
   }, [messages, isThinking, isOpen, scrollToBottom]);
+
+  // Ensure scroll is at the very bottom when panel is opened
+  useEffect(() => {
+    if (isOpen) {
+      const t = setTimeout(scrollToBottom, 250);
+      return () => clearTimeout(t);
+    }
+  }, [isOpen, scrollToBottom]);
 
   const handleScroll = () => {
     if (!scrollRef.current) return;
@@ -1112,7 +1149,7 @@ export default function AltrixCopilot() {
           ]);
         }
       } catch (err: any) {
-        toast.error(err.response?.data?.detail || err.message || "Failed to record payment", { id: t });
+        toast.error(getErrorMessage(err, "Failed to record payment"), { id: t });
       }
     } else if (type === "CREATE_INVOICE") {
       if (!msg.action.studentId) return toast.error("Missing student ID in action context");
@@ -1145,7 +1182,7 @@ export default function AltrixCopilot() {
           ]);
         }
       } catch (err: any) {
-        toast.error(err.response?.data?.detail || err.message || "Failed to generate fee invoice", { id: t });
+        toast.error(getErrorMessage(err, "Failed to generate fee invoice"), { id: t });
       }
     } else if (type === "CREATE_ASSIGNMENT") {
       const classSectionId = msg.action.classSectionId || msg.action.sectionId;
@@ -1176,7 +1213,7 @@ export default function AltrixCopilot() {
           ]);
         }
       } catch (err: any) {
-        toast.error(err.response?.data?.detail || err.message || "Failed to create assignment", { id: t });
+        toast.error(getErrorMessage(err, "Failed to create assignment"), { id: t });
       }
     } else if (type === "CREATE_BEHAVIOR_NOTE") {
       if (!msg.action.studentId) return toast.error("Missing student ID in action context");
@@ -1206,7 +1243,7 @@ export default function AltrixCopilot() {
           ]);
         }
       } catch (err: any) {
-        toast.error(err.response?.data?.detail || err.message || "Failed to save behavior note", { id: t });
+        toast.error(getErrorMessage(err, "Failed to save behavior note"), { id: t });
       }
     } else if (type === "CREATE_DIARY_ENTRY") {
       const classSectionId = msg.action.classSectionId || msg.action.sectionId;
@@ -1236,7 +1273,7 @@ export default function AltrixCopilot() {
           ]);
         }
       } catch (err: any) {
-        toast.error(err.response?.data?.detail || err.message || "Failed to save diary entry", { id: t });
+        toast.error(getErrorMessage(err, "Failed to save diary entry"), { id: t });
       }
     } else if (type === "CREATE_NOTICE") {
       if (!msg.action.title) return toast.error("Missing notice title in action context");
@@ -1264,7 +1301,7 @@ export default function AltrixCopilot() {
           ]);
         }
       } catch (err: any) {
-        toast.error(err.response?.data?.detail || err.message || "Failed to publish notice", { id: t });
+        toast.error(getErrorMessage(err, "Failed to publish notice"), { id: t });
       }
     } else if (type === "API_ACTION" || (msg.action.method && msg.action.path)) {
       const method = msg.action.method;
@@ -1296,7 +1333,7 @@ export default function AltrixCopilot() {
           ]);
         }
       } catch (err: any) {
-        toast.error(err.response?.data?.detail || err.message || "Action failed", { id: t });
+        toast.error(getErrorMessage(err, "Action failed"), { id: t });
       }
     }
   };

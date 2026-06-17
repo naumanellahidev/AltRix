@@ -797,15 +797,16 @@ async def fetch_ai_context(db: DbSession, user: AuthenticatedUser, school_id: st
                     pass
             
             # Campuses
-            campuses = await fetch_rows("SELECT name, address, is_active FROM campuses WHERE school_id = :sid", {"sid": school_id})
-            campuses_str = "\n".join([f"- {r[0]} ({r[1] or 'No Address'}): {'Active' if r[2] else 'Inactive'}" for r in campuses])
+            campuses = await fetch_rows("SELECT id, name, address, is_active FROM campuses WHERE school_id = :sid", {"sid": school_id})
+            campuses_str = "\n".join([f"- {r[1]} ({r[2] or 'No Address'}) [Campus ID: {r[0]}]: {'Active' if r[3] else 'Inactive'}" for r in campuses])
 
             # Top fee defaulters
             defaulters = await fetch_rows("""
                 SELECT 
                     s.first_name, s.last_name, 
                     COALESCE(i.total_amount, 0) - COALESCE(i.paid_amount, 0) as balance, 
-                    i.invoice_number, c.name as class_name, cs.name as section_name
+                    i.invoice_number, c.name as class_name, cs.name as section_name,
+                    s.id as student_id, i.id as invoice_id, cs.id as section_id, c.id as class_id
                 FROM fee_invoices i
                 JOIN students s ON i.student_id = s.id
                 LEFT JOIN student_enrollments se ON se.student_id = s.id AND se.end_date IS NULL
@@ -815,13 +816,13 @@ async def fetch_ai_context(db: DbSession, user: AuthenticatedUser, school_id: st
                 ORDER BY balance DESC LIMIT 10
             """, {"sid": school_id})
             defaulters_str = "\n".join([
-                f"- {r[0]} {r[1] or ''} (Class: {r[4] or 'Unassigned'}, Section: {r[5] or 'Unassigned'}): Outstanding: {format_money(r[2])} (Invoice: {r[3]})"
+                f"- {r[0]} {r[1] or ''} (Class: {r[4] or 'Unassigned'} [Class ID: {r[9]}], Section: {r[5] or 'Unassigned'} [Section ID: {r[8]}]) [Student ID: {r[6]}]: Outstanding: {format_money(r[2])} (Invoice: {r[3]} [Invoice ID: {r[7]}])"
                 for r in defaulters
             ])
             
             # Classes/sections enrollment
             classes_list = await fetch_rows("""
-                SELECT c.name as class_name, cs.name as section_name, COUNT(se.id) as student_count
+                SELECT c.name as class_name, cs.name as section_name, COUNT(se.id) as student_count, c.id as class_id, cs.id as section_id
                 FROM academic_classes c
                 JOIN class_sections cs ON cs.class_id = c.id
                 LEFT JOIN student_enrollments se ON se.class_section_id = cs.id AND se.end_date IS NULL
@@ -829,11 +830,11 @@ async def fetch_ai_context(db: DbSession, user: AuthenticatedUser, school_id: st
                 GROUP BY c.id, c.name, cs.id, cs.name
                 ORDER BY c.name, cs.name
             """, {"sid": school_id})
-            classes_str = "\n".join([f"- {r[0]} (Section {r[1]}): {r[2]} students enrolled" for r in classes_list])
+            classes_str = "\n".join([f"- {r[0]} [Class ID: {r[3]}] (Section {r[1]} [Section ID: {r[4]}]): {r[2]} students enrolled" for r in classes_list])
 
             # Active Student Directory
             students_list = await fetch_rows("""
-                SELECT s.first_name, s.last_name, c.name as class_name, cs.name as section_name, s.student_code, s.phone
+                SELECT s.first_name, s.last_name, c.name as class_name, cs.name as section_name, s.student_code, s.phone, s.id as student_id, cs.id as section_id
                 FROM students s
                 LEFT JOIN student_enrollments se ON se.student_id = s.id AND se.end_date IS NULL
                 LEFT JOIN class_sections cs ON se.class_section_id = cs.id
@@ -843,13 +844,13 @@ async def fetch_ai_context(db: DbSession, user: AuthenticatedUser, school_id: st
                 LIMIT 300
             """, {"sid": school_id})
             students_str = "\n".join([
-                f"- {r[0]} {r[1] or ''} (Code: {r[4] or 'N/A'}, Class: {r[2] or 'Unassigned'}, Section: {r[3] or 'Unassigned'}, Phone: {r[5] or 'N/A'})"
+                f"- {r[0]} {r[1] or ''} (Code: {r[4] or 'N/A'}, Class: {r[2] or 'Unassigned'}, Section: {r[3] or 'Unassigned'} [Section ID: {r[7]}], Phone: {r[5] or 'N/A'}) [Student ID: {r[6]}]"
                 for r in students_list
             ])
 
             # Teachers & Staff Directory
             staff_list = await fetch_rows("""
-                SELECT full_name, position, email, phone, department, is_active 
+                SELECT full_name, position, email, phone, department, is_active, id as staff_id, linked_user_id 
                 FROM hr_staff_directory WHERE school_id = :sid AND is_active = true
                 ORDER BY full_name
             """, {"sid": school_id})
@@ -857,19 +858,19 @@ async def fetch_ai_context(db: DbSession, user: AuthenticatedUser, school_id: st
             if not staff_list:
                 # Fallback to profiles & user_roles
                 staff_list_roles = await fetch_rows("""
-                    SELECT p.display_name, ur.role, p.email
+                    SELECT p.display_name, ur.role, p.email, p.id as user_id
                     FROM public.profiles p
                     JOIN public.user_roles ur ON p.id = ur.user_id
                     WHERE ur.school_id = :sid AND ur.role IN ('teacher', 'principal', 'vice_principal', 'school_admin', 'accountant', 'hr_manager', 'academic_coordinator', 'counselor')
                     ORDER BY p.display_name
                 """, {"sid": school_id})
                 staff_str = "\n".join([
-                    f"- {r[0]} ({r[1].replace('_', ' ').capitalize()}, Dept: General, Email: {r[2] or 'N/A'}, Phone: N/A)"
+                    f"- {r[0]} ({r[1].replace('_', ' ').capitalize()}, Dept: General, Email: {r[2] or 'N/A'}, Phone: N/A) [User ID: {r[3]}]"
                     for r in staff_list_roles
                 ])
             else:
                 staff_str = "\n".join([
-                    f"- {r[0]} ({r[1] or 'Staff'}, Dept: {r[4] or 'General'}, Email: {r[2] or 'N/A'}, Phone: {r[3] or 'N/A'})"
+                    f"- {r[0]} ({r[1] or 'Staff'}, Dept: {r[4] or 'General'}, Email: {r[2] or 'N/A'}, Phone: {r[3] or 'N/A'}) [Staff ID: {r[6]}, User ID: {r[7] or 'N/A'}]"
                     for r in staff_list
                 ])
 
@@ -878,7 +879,7 @@ async def fetch_ai_context(db: DbSession, user: AuthenticatedUser, school_id: st
             try:
                 today_date_obj = datetime.now(timezone.utc).date()
                 staff_att_list = await fetch_rows("""
-                    SELECT p.display_name, ur.role, COALESCE(a.status, 'unmarked') as status, a.clock_in, a.clock_out, a.notes
+                    SELECT p.display_name, ur.role, COALESCE(a.status, 'unmarked') as status, a.clock_in, a.clock_out, a.notes, a.id as attendance_id, p.id as user_id
                     FROM public.profiles p
                     JOIN public.user_roles ur ON p.id = ur.user_id
                     LEFT JOIN public.hr_staff_attendance a ON p.id = a.user_id AND a.attendance_date = :today
@@ -888,7 +889,7 @@ async def fetch_ai_context(db: DbSession, user: AuthenticatedUser, school_id: st
                 
                 if staff_att_list:
                     staff_att_str = "\n".join([
-                        f"- {r[0]} ({r[1].replace('_', ' ').capitalize()}): Status: **{r[2].upper()}** | Clock In: {r[3].strftime('%I:%M %p') if r[3] and hasattr(r[3], 'strftime') else (str(r[3])[:19] if r[3] else 'N/A')} | Clock Out: {r[4].strftime('%I:%M %p') if r[4] and hasattr(r[4], 'strftime') else (str(r[4])[:19] if r[4] else 'N/A')}{f' | Notes: {r[5]}' if r[5] else ''}"
+                        f"- {r[0]} ({r[1].replace('_', ' ').capitalize()}): Status: **{r[2].upper()}** | Clock In: {r[3].strftime('%I:%M %p') if r[3] and hasattr(r[3], 'strftime') else (str(r[3])[:19] if r[3] else 'N/A')} | Clock Out: {r[4].strftime('%I:%M %p') if r[4] and hasattr(r[4], 'strftime') else (str(r[4])[:19] if r[4] else 'N/A')}{f' | Notes: {r[5]}' if r[5] else ''} [Attendance ID: {r[6] or 'N/A'}, User ID: {r[7]}]"
                         for r in staff_att_list
                     ])
             except Exception as e:
@@ -896,44 +897,44 @@ async def fetch_ai_context(db: DbSession, user: AuthenticatedUser, school_id: st
 
             # Exams List
             exams = await fetch_rows("""
-                SELECT name, term_label, status, start_date, end_date FROM exams 
+                SELECT id, name, term_label, status, start_date, end_date FROM exams 
                 WHERE school_id = :sid ORDER BY created_at DESC LIMIT 15
             """, {"sid": school_id})
             exams_str = "\n".join([
-                f"- {r[0]} (Term: {r[1] or 'N/A'}, Status: {r[2]}, Dates: {r[3]} to {r[4]})"
+                f"- {r[1]} (Term: {r[2] or 'N/A'}, Status: {r[3]}, Dates: {r[4]} to {r[5]}) [Exam ID: {r[0]}]"
                 for r in exams
             ])
 
             # Active Complaints
             complaints = await fetch_rows("""
-                SELECT subject, category, status, flow, created_at FROM complaints 
+                SELECT id, subject, category, status, flow, created_at, student_id, sender_user_id FROM complaints 
                 WHERE school_id = :sid ORDER BY created_at DESC LIMIT 15
             """, {"sid": school_id})
             complaints_str = "\n".join([
-                f"- {r[0]} (Category: {r[1] or 'General'}, Status: {r[2]}, Flow: {r[3]})"
+                f"- {r[1]} (Category: {r[2] or 'General'}, Status: {r[3]}, Flow: {r[4]}) [Complaint ID: {r[0]}, Student ID: {r[6] or 'N/A'}, Sender User ID: {r[7] or 'N/A'}]"
                 for r in complaints
             ])
 
             # Recent Leave Requests
             leaves = await fetch_rows("""
-                SELECT sd.full_name, lr.start_date, lr.end_date, lr.reason, lr.status 
+                SELECT sd.full_name, lr.start_date, lr.end_date, lr.reason, lr.status, lr.id as leave_id, lr.user_id
                 FROM hr_leave_requests lr 
                 LEFT JOIN hr_staff_directory sd ON lr.user_id = sd.linked_user_id 
                 WHERE lr.school_id = :sid 
                 ORDER BY lr.created_at DESC LIMIT 15
             """, {"sid": school_id})
             leaves_str = "\n".join([
-                f"- {r[0]} Leave: {r[1]} to {r[2]} | Reason: '{r[3] or 'None'}' | Status: {r[4]}"
+                f"- {r[0]} Leave: {r[1]} to {r[2]} | Reason: '{r[3] or 'None'}' | Status: {r[4]} [Leave ID: {r[5]}, User ID: {r[6]}]"
                 for r in leaves
             ])
 
             # Recent Notices
             notices = await fetch_rows("""
-                SELECT title, body, audience, created_at FROM notices 
+                SELECT id, title, body, audience, created_at FROM notices 
                 WHERE school_id = :sid ORDER BY created_at DESC LIMIT 10
             """, {"sid": school_id})
             notices_str = "\n".join([
-                f"- {r[0]} (Audience: {r[2]}, Date: {r[3].strftime('%Y-%m-%d') if r[3] else 'N/A'}): {r[1][:100]}..."
+                f"- {r[1]} (Audience: {r[3]}, Date: {r[4].strftime('%Y-%m-%d') if r[4] else 'N/A'}): {r[2][:100]}... [Notice ID: {r[0]}]"
                 for r in notices
             ])
 
@@ -1030,17 +1031,17 @@ Recent ERP Complaints & Feedback:
             
             # Top Outstanding Defaulters
             defaulters = await fetch_rows("""
-                SELECT s.first_name, s.last_name, COALESCE(i.total_amount, 0) - COALESCE(i.paid_amount, 0) as balance, i.invoice_number
+                SELECT s.first_name, s.last_name, COALESCE(i.total_amount, 0) - COALESCE(i.paid_amount, 0) as balance, i.invoice_number, s.id as student_id, i.id as invoice_id
                 FROM fee_invoices i
                 JOIN students s ON i.student_id = s.id
                 WHERE i.school_id = :sid AND i.status != 'paid' AND i.student_id != '00000000-0000-0000-0000-000000000000'::uuid
                 ORDER BY balance DESC LIMIT 15
             """, {"sid": school_id})
-            defaulters_str = "\n".join([f"- {r[0]} {r[1] or ''}: Balance: {format_money(r[2])} (Invoice: {r[3]})" for r in defaulters])
+            defaulters_str = "\n".join([f"- {r[0]} {r[1] or ''}: Balance: {format_money(r[2])} (Invoice: {r[3]} [Invoice ID: {r[5]}]) [Student ID: {r[4]}]" for r in defaulters])
 
             # Detailed Unpaid Invoices
             unpaid_invoices = await fetch_rows("""
-                SELECT i.invoice_number, s.first_name, s.last_name, c.name, cs.name, i.total_amount, i.paid_amount, i.due_date, i.status
+                SELECT i.invoice_number, s.first_name, s.last_name, c.name, cs.name, i.total_amount, i.paid_amount, i.due_date, i.status, s.id as student_id, i.id as invoice_id, c.id as class_id, cs.id as section_id
                 FROM fee_invoices i
                 JOIN students s ON i.student_id = s.id
                 LEFT JOIN student_enrollments se ON se.student_id = s.id AND se.end_date IS NULL
@@ -1050,45 +1051,45 @@ Recent ERP Complaints & Feedback:
                 ORDER BY i.due_date ASC LIMIT 50
             """, {"sid": school_id})
             invoices_str = "\n".join([
-                f"- Inv #{r[0]}: {r[1]} {r[2] or ''} (Class: {r[3] or 'N/A'} {r[4] or ''}), Total: {format_money(r[5])}, Paid: {format_money(r[6])}, Due: {r[7]}, Status: {r[8]}"
+                f"- Inv #{r[0]}: {r[1]} {r[2] or ''} (Class: {r[3] or 'N/A'} [Class ID: {r[11]}], Section: {r[4] or ''} [Section ID: {r[12]}]), Total: {format_money(r[5])}, Paid: {format_money(r[6])}, Due: {r[7]}, Status: {r[8]} [Invoice ID: {r[10]}, Student ID: {r[9]}]"
                 for r in unpaid_invoices
             ])
 
             # Fee Plans
             fee_plans = await fetch_rows("""
-                SELECT name, currency, is_active, billing_frequency, description FROM fee_plans WHERE school_id = :sid
+                SELECT name, currency, is_active, billing_frequency, description, id as fee_plan_id, class_id FROM fee_plans WHERE school_id = :sid
             """, {"sid": school_id})
             plans_str = "\n".join([
-                f"- {r[0]} ({r[3]}, currency: {r[1]}): {r[4] or 'No details'} | {'Active' if r[2] else 'Inactive'}"
+                f"- {r[0]} ({r[3]}, currency: {r[1]}): {r[4] or 'No details'} | {'Active' if r[2] else 'Inactive'} [Fee Plan ID: {r[5]}, Class ID: {r[6] or 'N/A'}]"
                 for r in fee_plans
             ])
 
             # Recent Payments
             recent_payments = await fetch_rows("""
-                SELECT fp.amount, fp.method, fp.paid_at, fp.status, s.first_name, s.last_name
+                SELECT fp.amount, fp.method, fp.paid_at, fp.status, s.first_name, s.last_name, fp.id as payment_id, fp.invoice_id, s.id as student_id
                 FROM fee_payments fp
                 JOIN students s ON fp.student_id = s.id
                 WHERE fp.school_id = :sid
                 ORDER BY fp.paid_at DESC LIMIT 20
             """, {"sid": school_id})
             payments_str = "\n".join([
-                f"- Recieved: {format_money(r[0])} via {r[1]} on {r[2].strftime('%Y-%m-%d') if r[2] else 'N/A'} | Status: {r[3]} | Student: {r[4]} {r[5] or ''}"
+                f"- Recieved: {format_money(r[0])} via {r[1]} on {r[2].strftime('%Y-%m-%d') if r[2] else 'N/A'} | Status: {r[3]} | Student: {r[4]} {r[5] or ''} [Payment ID: {r[6]}, Invoice ID: {r[7] or 'N/A'}, Student ID: {r[8]}]"
                 for r in recent_payments
             ])
 
             # Recent Expenses
             recent_expenses = await fetch_rows("""
-                SELECT description, amount, category, expense_date, vendor FROM finance_expenses 
+                SELECT description, amount, category, expense_date, vendor, id as expense_id FROM finance_expenses 
                 WHERE school_id = :sid ORDER BY expense_date DESC LIMIT 20
             """, {"sid": school_id})
             expenses_str = "\n".join([
-                f"- Expense: {format_money(r[1])} for '{r[0]}' ({r[2]}) on {r[3]} | Vendor: {r[4] or 'N/A'}"
+                f"- Expense: {format_money(r[1])} for '{r[0]}' ({r[2]}) on {r[3]} | Vendor: {r[4] or 'N/A'} [Expense ID: {r[5]}]"
                 for r in recent_expenses
             ])
 
             # Student Directory for Billing
             billing_students = await fetch_rows("""
-                SELECT s.first_name, s.last_name, s.student_code, c.name, cs.name
+                SELECT s.first_name, s.last_name, s.student_code, c.name, cs.name, s.id as student_id, c.id as class_id, cs.id as section_id
                 FROM students s
                 LEFT JOIN student_enrollments se ON se.student_id = s.id AND se.end_date IS NULL
                 LEFT JOIN class_sections cs ON se.class_section_id = cs.id
@@ -1098,7 +1099,7 @@ Recent ERP Complaints & Feedback:
                 LIMIT 200
             """, {"sid": school_id})
             students_str = "\n".join([
-                f"- {r[0]} {r[1] or ''} (Code: {r[2] or 'N/A'}, Class: {r[3] or 'N/A'} {r[4] or ''})"
+                f"- {r[0]} {r[1] or ''} (Code: {r[2] or 'N/A'}, Class: {r[3] or 'N/A'} [Class ID: {r[6]}], Section: {r[4] or ''} [Section ID: {r[7]}]) [Student ID: {r[5]}]"
                 for r in billing_students
             ])
 
@@ -1135,18 +1136,18 @@ Student Billing Directory (Active students list):
         try:
             # Assinged sections
             assigned_sections = await fetch_rows("""
-                SELECT tsa.class_section_id, c.name, cs.name, sub.name
+                SELECT tsa.class_section_id, c.name, cs.name, sub.name, tsa.id as assignment_id, tsa.subject_id, c.id as class_id
                 FROM teacher_subject_assignments tsa
                 JOIN class_sections cs ON tsa.class_section_id = cs.id
                 JOIN academic_classes c ON cs.class_id = c.id
                 JOIN subjects sub ON tsa.subject_id = sub.id
                 WHERE tsa.teacher_user_id = :uid AND tsa.school_id = :sid
             """, {"uid": user.id, "sid": school_id})
-            sections_str = "\n".join([f"- Class/Section: {r[1]} - {r[2]} | Subject: {r[3]}" for r in assigned_sections])
+            sections_str = "\n".join([f"- Class/Section: {r[1]} - {r[2]} [Section ID: {r[0]}, Class ID: {r[6]}] | Subject: {r[3]} [Subject ID: {r[5]}] [Assignment ID: {r[4]}]" for r in assigned_sections])
 
             # Class/Section student count & details
             teacher_students = await fetch_rows("""
-                SELECT s.first_name, s.last_name, s.student_code, c.name, cs.name
+                SELECT s.first_name, s.last_name, s.student_code, c.name, cs.name, s.id as student_id, c.id as class_id, cs.id as section_id
                 FROM students s
                 JOIN student_enrollments se ON se.student_id = s.id AND se.end_date IS NULL
                 JOIN class_sections cs ON se.class_section_id = cs.id
@@ -1157,13 +1158,13 @@ Student Billing Directory (Active students list):
                 ORDER BY c.name, cs.name, s.first_name
             """, {"uid": user.id, "sid": school_id})
             students_str = "\n".join([
-                f"- {r[0]} {r[1] or ''} (Code: {r[2] or 'N/A'}, Class: {r[3]} {r[4]})"
+                f"- {r[0]} {r[1] or ''} (Code: {r[2] or 'N/A'}, Class: {r[3]} [Class ID: {r[6]}], Section: {r[4]} [Section ID: {r[7]}]) [Student ID: {r[5]}]"
                 for r in teacher_students
             ])
 
             # Attendance Summaries
             attendance = await fetch_rows("""
-                SELECT s.first_name, s.last_name, COUNT(*) FILTER (WHERE ae.status = 'present') as present, COUNT(*) as total
+                SELECT s.first_name, s.last_name, COUNT(*) FILTER (WHERE ae.status = 'present') as present, COUNT(*) as total, s.id as student_id
                 FROM attendance_entries ae
                 JOIN attendance_sessions sess ON ae.session_id = sess.id
                 JOIN students s ON ae.student_id = s.id
@@ -1173,13 +1174,13 @@ Student Billing Directory (Active students list):
                 GROUP BY s.id, s.first_name, s.last_name
             """, {"uid": user.id, "sid": school_id})
             attendance_str = "\n".join([
-                f"- {r[0]} {r[1] or ''}: Attendance Rate: {round(r[2]/r[3]*100, 1)}% ({r[2]} present of {r[3]} sessions)"
+                f"- {r[0]} {r[1] or ''}: Attendance Rate: {round(r[2]/r[3]*100, 1)}% ({r[2]} present of {r[3]} sessions) [Student ID: {r[4]}]"
                 for r in attendance if r[3] > 0
             ])
 
             # Recent assignments/homework
             assignments = await fetch_rows("""
-                SELECT a.title, a.description, a.due_date, a.max_marks, c.name, cs.name
+                SELECT a.title, a.description, a.due_date, a.max_marks, c.name, cs.name, a.id as assignment_id, a.class_section_id
                 FROM assignments a
                 JOIN class_sections cs ON a.class_section_id = cs.id
                 JOIN academic_classes c ON cs.class_id = c.id
@@ -1189,13 +1190,13 @@ Student Billing Directory (Active students list):
                 ORDER BY a.due_date DESC LIMIT 15
             """, {"uid": user.id, "sid": school_id})
             assignments_str = "\n".join([
-                f"- Assignment: '{r[0]}' ({r[1] or 'No details'}) | Due: {r[2]} | Max Marks: {r[3]} | Class: {r[4]} {r[5]}"
+                f"- Assignment: '{r[0]}' ({r[1] or 'No details'}) | Due: {r[2]} | Max Marks: {r[3]} | Class: {r[4]} {r[5]} [Assignment ID: {r[6]}, Section ID: {r[7]}]"
                 for r in assignments
             ])
 
             # Recent diary entries
             diary = await fetch_rows("""
-                SELECT d.title, d.content, d.entry_date, c.name, cs.name
+                SELECT d.title, d.content, d.entry_date, c.name, cs.name, d.id as diary_id, d.class_section_id, d.subject_id
                 FROM diary_entries d
                 JOIN class_sections cs ON d.class_section_id = cs.id
                 JOIN academic_classes c ON cs.class_id = c.id
@@ -1205,13 +1206,13 @@ Student Billing Directory (Active students list):
                 ORDER BY d.entry_date DESC LIMIT 15
             """, {"uid": user.id, "sid": school_id})
             diary_str = "\n".join([
-                f"- Diary Entry: '{r[0]}' on {r[2]} | Content: '{r[1] or 'None'}' | Class: {r[3]} {r[4]}"
+                f"- Diary Entry: '{r[0]}' on {r[2]} | Content: '{r[1] or 'None'}' | Class: {r[3]} {r[4]} [Diary ID: {r[5]}, Section ID: {r[6]}, Subject ID: {r[7] or 'N/A'}]"
                 for r in diary
             ])
 
             # Behavior notes
             behavior = await fetch_rows("""
-                SELECT s.first_name, s.last_name, bn.title, bn.content, bn.note_type, bn.created_at
+                SELECT s.first_name, s.last_name, bn.title, bn.content, bn.note_type, bn.created_at, bn.id as note_id, s.id as student_id
                 FROM behavior_notes bn
                 JOIN students s ON bn.student_id = s.id
                 WHERE bn.student_id IN (
@@ -1222,13 +1223,13 @@ Student Billing Directory (Active students list):
                 ORDER BY bn.created_at DESC LIMIT 20
             """, {"uid": user.id, "sid": school_id})
             behavior_str = "\n".join([
-                f"- student: {r[0]} {r[1] or ''} | Note: '{r[2]}' ({r[3] or 'None'}) | Type: {r[4]} | logged on {r[5].strftime('%Y-%m-%d') if r[5] else 'N/A'}"
+                f"- student: {r[0]} {r[1] or ''} | Note: '{r[2]}' ({r[3] or 'None'}) | Type: {r[4]} | logged on {r[5].strftime('%Y-%m-%d') if r[5] else 'N/A'} [Behavior Note ID: {r[6]}, Student ID: {r[7]}]"
                 for r in behavior
             ])
 
             # Exam results
             exam_results = await fetch_rows("""
-                SELECT e.name, s.first_name, s.last_name, sub.name, er.marks_obtained, er.max_marks, er.grade
+                SELECT e.name, s.first_name, s.last_name, sub.name, er.marks_obtained, er.max_marks, er.grade, er.id as result_id, er.exam_id, s.id as student_id, er.subject_id
                 FROM exam_results er
                 JOIN exams e ON er.exam_id = e.id
                 JOIN students s ON er.student_id = s.id
@@ -1242,7 +1243,7 @@ Student Billing Directory (Active students list):
                 LIMIT 100
             """, {"uid": user.id, "sid": school_id})
             exams_str = "\n".join([
-                f"- Exam: {r[0]} | Student: {r[1]} {r[2] or ''} | Subject: {r[3]} | Marks: {r[4]}/{r[5]} (Grade: {r[6]})"
+                f"- Exam: {r[0]} | Student: {r[1]} {r[2] or ''} | Subject: {r[3]} | Marks: {r[4]}/{r[5]} (Grade: {r[6]}) [Result ID: {r[7]}, Exam ID: {r[8]}, Student ID: {r[9]}, Subject ID: {r[10]}]"
                 for r in exam_results
             ])
 
@@ -1278,7 +1279,7 @@ Exam Marks & Results entries in your sections:
         try:
             # Children
             children = await fetch_rows("""
-                SELECT s.id, s.first_name, s.last_name, s.student_code, c.name, cs.name, sg.relationship
+                SELECT s.id, s.first_name, s.last_name, s.student_code, c.name, cs.name, sg.relationship, c.id as class_id, cs.id as section_id
                 FROM student_guardians sg
                 JOIN students s ON sg.student_id = s.id
                 LEFT JOIN student_enrollments se ON se.student_id = s.id AND se.end_date IS NULL
@@ -1291,13 +1292,13 @@ Exam Marks & Results entries in your sections:
                 return "[Role Context: Parent (No linked children found)]"
             
             children_str = "\n".join([
-                f"- Child: {r[1]} {r[2] or ''} (Code: {r[3] or 'N/A'}, Class: {r[4] or 'Unassigned'} {r[5] or ''}, Relationship: {r[6]})"
+                f"- Child: {r[1]} {r[2] or ''} (Code: {r[3] or 'N/A'}, Class: {r[4] or 'Unassigned'} [Class ID: {r[7] or 'N/A'}], Section: {r[5] or ''} [Section ID: {r[8] or 'N/A'}], Relationship: {r[6]}) [Student ID: {r[0]}]"
                 for r in children
             ])
 
             # Detailed attendance logs
             attendance = await fetch_rows("""
-                SELECT s.first_name, s.last_name, ae.status, sess.session_date, sess.period_label
+                SELECT s.first_name, s.last_name, ae.status, sess.session_date, sess.period_label, ae.id as entry_id, ae.student_id, ae.session_id
                 FROM attendance_entries ae
                 JOIN attendance_sessions sess ON ae.session_id = sess.id
                 JOIN students s ON ae.student_id = s.id
@@ -1305,13 +1306,13 @@ Exam Marks & Results entries in your sections:
                 ORDER BY sess.session_date DESC LIMIT 30
             """, {"uid": user.id, "sid": school_id})
             attendance_str = "\n".join([
-                f"- {r[0]} {r[1] or ''}: {r[2]} on {r[3]} (Period: {r[4] or 'General'})"
+                f"- {r[0]} {r[1] or ''}: {r[2]} on {r[3]} (Period: {r[4] or 'General'}) [Entry ID: {r[5]}, Student ID: {r[6]}, Session ID: {r[7]}]"
                 for r in attendance
             ])
 
             # Behavior notes
             behavior = await fetch_rows("""
-                SELECT s.first_name, s.last_name, bn.title, bn.content, bn.note_type, bn.created_at
+                SELECT s.first_name, s.last_name, bn.title, bn.content, bn.note_type, bn.created_at, bn.id as note_id, s.id as student_id
                 FROM behavior_notes bn
                 JOIN students s ON bn.student_id = s.id
                 WHERE bn.student_id IN (SELECT student_id FROM student_guardians WHERE user_id = :uid AND school_id = :sid)
@@ -1319,26 +1320,26 @@ Exam Marks & Results entries in your sections:
                 ORDER BY bn.created_at DESC LIMIT 15
             """, {"uid": user.id, "sid": school_id})
             behavior_str = "\n".join([
-                f"- Child: {r[0]} {r[1] or ''} | Title: '{r[2]}' | Remarks: '{r[3] or 'None'}' | Type: {r[4]} | Logged on: {r[5].strftime('%Y-%m-%d') if r[5] else 'N/A'}"
+                f"- Child: {r[0]} {r[1] or ''} | Title: '{r[2]}' | Remarks: '{r[3] or 'None'}' | Type: {r[4]} | Logged on: {r[5].strftime('%Y-%m-%d') if r[5] else 'N/A'} [Behavior Note ID: {r[6]}, Student ID: {r[7]}]"
                 for r in behavior
             ])
 
             # Fee invoices
             invoices = await fetch_rows("""
-                SELECT i.invoice_number, s.first_name, s.last_name, i.total_amount, i.paid_amount, i.due_date, i.status
+                SELECT i.invoice_number, s.first_name, s.last_name, i.total_amount, i.paid_amount, i.due_date, i.status, i.id as invoice_id, s.id as student_id
                 FROM fee_invoices i
                 JOIN students s ON i.student_id = s.id
                 WHERE i.student_id IN (SELECT student_id FROM student_guardians WHERE user_id = :uid AND school_id = :sid)
                 ORDER BY i.due_date DESC
             """, {"uid": user.id, "sid": school_id})
             invoices_str = "\n".join([
-                f"- Inv #{r[0]} for {r[1]} {r[2] or ''}: Total Amount: {format_money(r[3])}, Paid Amount: {format_money(r[4])}, Due Date: {r[5]}, Status: {r[6]}"
+                f"- Inv #{r[0]} for {r[1]} {r[2] or ''}: Total Amount: {format_money(r[3])}, Paid Amount: {format_money(r[4])}, Due Date: {r[5]}, Status: {r[6]} [Invoice ID: {r[7]}, Student ID: {r[8]}]"
                 for r in invoices
             ])
 
             # Exam results
             exam_results = await fetch_rows("""
-                SELECT s.first_name, s.last_name, e.name, sub.name, er.marks_obtained, er.max_marks, er.grade, er.remarks
+                SELECT s.first_name, s.last_name, e.name, sub.name, er.marks_obtained, er.max_marks, er.grade, er.remarks, er.id as result_id, er.exam_id, s.id as student_id, er.subject_id
                 FROM exam_results er
                 JOIN exams e ON er.exam_id = e.id
                 JOIN subjects sub ON er.subject_id = sub.id
@@ -1347,13 +1348,13 @@ Exam Marks & Results entries in your sections:
                 ORDER BY e.name, sub.name
             """, {"uid": user.id, "sid": school_id})
             exams_str = "\n".join([
-                f"- Child: {r[0]} {r[1] or ''} | Exam: {r[2]} | Subject: {r[3]} | Marks Obtained: {r[4]}/{r[5]} (Grade: {r[6]}, Teacher Remarks: '{r[7] or 'None'}')"
+                f"- Child: {r[0]} {r[1] or ''} | Exam: {r[2]} | Subject: {r[3]} | Marks Obtained: {r[4]}/{r[5]} (Grade: {r[6]}, Teacher Remarks: '{r[7] or 'None'}') [Result ID: {r[8]}, Exam ID: {r[9]}, Student ID: {r[10]}, Subject ID: {r[11]}]"
                 for r in exam_results
             ])
 
             # Homework
             homework = await fetch_rows("""
-                SELECT s.first_name, s.last_name, a.title, a.description, a.due_date, a.max_marks
+                SELECT s.first_name, s.last_name, a.title, a.description, a.due_date, a.max_marks, a.id as assignment_id, s.id as student_id, a.class_section_id
                 FROM assignments a
                 JOIN student_enrollments se ON a.class_section_id = se.class_section_id AND se.end_date IS NULL
                 JOIN students s ON se.student_id = s.id
@@ -1362,13 +1363,13 @@ Exam Marks & Results entries in your sections:
                 ORDER BY a.due_date DESC LIMIT 15
             """, {"uid": user.id, "sid": school_id})
             homework_str = "\n".join([
-                f"- Child: {r[0]} {r[1] or ''} | Homework: '{r[2]}' ({r[3] or 'No details'}) | Due: {r[4]} | Max Marks: {r[5]}"
+                f"- Child: {r[0]} {r[1] or ''} | Homework: '{r[2]}' ({r[3] or 'No details'}) | Due: {r[4]} | Max Marks: {r[5]} [Assignment ID: {r[6]}, Student ID: {r[7]}, Section ID: {r[8]}]"
                 for r in homework
             ])
 
             # Diary entries
             diary = await fetch_rows("""
-                SELECT s.first_name, s.last_name, d.title, d.content, d.entry_date
+                SELECT s.first_name, s.last_name, d.title, d.content, d.entry_date, d.id as diary_id, s.id as student_id, d.class_section_id, d.subject_id
                 FROM diary_entries d
                 JOIN student_enrollments se ON d.class_section_id = se.class_section_id AND se.end_date IS NULL
                 JOIN students s ON se.student_id = s.id
@@ -1376,7 +1377,7 @@ Exam Marks & Results entries in your sections:
                 ORDER BY d.entry_date DESC LIMIT 15
             """, {"uid": user.id, "sid": school_id})
             diary_str = "\n".join([
-                f"- Child: {r[0]} {r[1] or ''} | Title: '{r[2]}' | Content: '{r[3] or 'None'}' | Date: {r[4]}"
+                f"- Child: {r[0]} {r[1] or ''} | Title: '{r[2]}' | Content: '{r[3] or 'None'}' | Date: {r[4]} [Diary ID: {r[5]}, Student ID: {r[6]}, Section ID: {r[7]}, Subject ID: {r[8] or 'N/A'}]"
                 for r in diary
             ])
 
@@ -1426,20 +1427,20 @@ Children Class Diary Logs:
 
             # Attendance
             attendance = await fetch_rows("""
-                SELECT ae.status, sess.session_date, sess.period_label
+                SELECT ae.status, sess.session_date, sess.period_label, ae.id as entry_id, ae.session_id
                 FROM attendance_entries ae
                 JOIN attendance_sessions sess ON ae.session_id = sess.id
                 WHERE ae.student_id = :student_id
                 ORDER BY sess.session_date DESC LIMIT 30
             """, {"student_id": student_id})
             attendance_str = "\n".join([
-                f"- {r[0]} on {r[1]} (Period: {r[2] or 'General'})"
+                f"- {r[0]} on {r[1]} (Period: {r[2] or 'General'}) [Entry ID: {r[3]}, Session ID: {r[4]}]"
                 for r in attendance
             ])
 
             # Results
             results = await fetch_rows("""
-                SELECT e.name, sub.name, er.marks_obtained, er.max_marks, er.grade, er.remarks
+                SELECT e.name, sub.name, er.marks_obtained, er.max_marks, er.grade, er.remarks, er.id as result_id, er.exam_id, er.subject_id
                 FROM exam_results er
                 JOIN exams e ON er.exam_id = e.id
                 JOIN subjects sub ON er.subject_id = sub.id
@@ -1447,32 +1448,32 @@ Children Class Diary Logs:
                 ORDER BY e.name, sub.name
             """, {"student_id": student_id})
             results_str = "\n".join([
-                f"- Exam: {r[0]} | Subject: {r[1]} | Marks Obtained: {r[2]}/{r[3]} (Grade: {r[4]}, Remarks: '{r[5] or 'None'}')"
+                f"- Exam: {r[0]} | Subject: {r[1]} | Marks Obtained: {r[2]}/{r[3]} (Grade: {r[4]}, Remarks: '{r[5] or 'None'}') [Result ID: {r[6]}, Exam ID: {r[7]}, Subject ID: {r[8]}]"
                 for r in results
             ])
 
             # Homework
             homework = await fetch_rows("""
-                SELECT a.title, a.description, a.due_date, a.max_marks
+                SELECT a.title, a.description, a.due_date, a.max_marks, a.id as assignment_id, a.class_section_id
                 FROM assignments a
                 JOIN student_enrollments se ON a.class_section_id = se.class_section_id AND se.end_date IS NULL
                 WHERE se.student_id = :student_id AND a.status = 'active'
                 ORDER BY a.due_date DESC LIMIT 20
             """, {"student_id": student_id})
             homework_str = "\n".join([
-                f"- Homework: '{r[0]}' ({r[1] or 'No details'}) | Due: {r[2]} | Max Marks: {r[3]}"
+                f"- Homework: '{r[0]}' ({r[1] or 'No details'}) | Due: {r[2]} | Max Marks: {r[3]} [Assignment ID: {r[4]}, Section ID: {r[5]}]"
                 for r in homework
             ])
 
             # Behavior
             behavior = await fetch_rows("""
-                SELECT bn.title, bn.content, bn.note_type, bn.created_at
+                SELECT bn.title, bn.content, bn.note_type, bn.created_at, bn.id as note_id
                 FROM behavior_notes bn
                 WHERE bn.student_id = :student_id AND bn.is_shared_with_parents = true
                 ORDER BY bn.created_at DESC LIMIT 15
             """, {"student_id": student_id})
             behavior_str = "\n".join([
-                f"- Note: '{r[0]}' | Remarks: '{r[1] or 'None'}' | Type: {r[2]} | logged on {r[3].strftime('%Y-%m-%d') if r[3] else 'N/A'}"
+                f"- Note: '{r[0]}' | Remarks: '{r[1] or 'None'}' | Type: {r[2]} | logged on {r[3].strftime('%Y-%m-%d') if r[3] else 'N/A'} [Behavior Note ID: {r[4]}]"
                 for r in behavior
             ])
 
@@ -1502,37 +1503,37 @@ Your Behavior Notes & Conduct Remarks:
         try:
             # Full Staff directory
             staff = await fetch_rows("""
-                SELECT full_name, position, email, phone, is_active, department FROM hr_staff_directory 
+                SELECT full_name, position, email, phone, is_active, department, id as staff_id, linked_user_id FROM hr_staff_directory 
                 WHERE school_id = :sid ORDER BY full_name
             """, {"sid": school_id})
             staff_str = "\n".join([
-                f"- {r[0]} ({r[1] or 'Staff'}, Dept: {r[5] or 'General'}, Email: {r[2] or 'N/A'}, Phone: {r[3] or 'N/A'}) | Status: {'Active' if r[4] else 'Inactive'}"
+                f"- {r[0]} ({r[1] or 'Staff'}, Dept: {r[5] or 'General'}, Email: {r[2] or 'N/A'}, Phone: {r[3] or 'N/A'}) | Status: {'Active' if r[4] else 'Inactive'} [Staff ID: {r[6]}, User ID: {r[7] or 'N/A'}]"
                 for r in staff
             ])
 
             # Leave requests
             leaves = await fetch_rows("""
-                SELECT sd.full_name, lr.leave_type_id, lr.start_date, lr.end_date, lr.reason, lr.status
+                SELECT sd.full_name, lr.leave_type_id, lr.start_date, lr.end_date, lr.reason, lr.status, lr.id as leave_id, lr.user_id
                 FROM hr_leave_requests lr
                 LEFT JOIN hr_staff_directory sd ON lr.user_id = sd.linked_user_id
                 WHERE lr.school_id = :sid
                 ORDER BY lr.created_at DESC LIMIT 25
             """, {"sid": school_id})
             leaves_str = "\n".join([
-                f"- Staff: {r[0]} | Type ID: {r[1]} | Dates: {r[2]} to {r[3]} | Reason: '{r[4] or 'None'}' | Status: {r[5]}"
+                f"- Staff: {r[0]} | Type ID: {r[1]} | Dates: {r[2]} to {r[3]} | Reason: '{r[4] or 'None'}' | Status: {r[5]} [Leave Request ID: {r[6]}, User ID: {r[7]}]"
                 for r in leaves
             ])
 
             # Salary records
             salaries = await fetch_rows("""
-                SELECT sd.full_name, sr.base_salary, sr.allowances, sr.deductions, sr.status, sr.month, sr.year
+                SELECT sd.full_name, sr.base_salary, sr.allowances, sr.deductions, sr.status, sr.month, sr.year, sr.id as salary_record_id, sr.user_id
                 FROM hr_salary_records sr
                 LEFT JOIN hr_staff_directory sd ON sr.user_id = sd.linked_user_id
                 WHERE sr.school_id = :sid
                 ORDER BY sr.year DESC, sr.month DESC LIMIT 30
             """, {"sid": school_id})
             salaries_str = "\n".join([
-                f"- Staff: {r[0]} | Base: {format_money(r[1])}, Allowances: {format_money(r[2])}, Deductions: {format_money(r[3])} | Status: {r[4]} | Month/Year: {r[5]}/{r[6]}"
+                f"- Staff: {r[0]} | Base: {format_money(r[1])}, Allowances: {format_money(r[2])}, Deductions: {format_money(r[3])} | Status: {r[4]} | Month/Year: {r[5]}/{r[6]} [Salary Record ID: {r[7]}, User ID: {r[8]}]"
                 for r in salaries
             ])
 
@@ -1805,10 +1806,10 @@ __DB_CONTEXT__
 - For any explicit request to navigate or open a module, output a NAVIGATE_TO action
 - Supported navigation routes catalog (use ONLY these exact paths):
   - Academics: /academic, /timetable, /attendance, /exams, /report-cards, /diary
-  - Staff & HR: /users (use this for Staff & Teachers list), /staff-attendance, /leaves, /salaries, /contracts, /reviews, /documents
-  - Admissions & CRM: /admissions, /crm, /leads, /follow-ups, /calls, /sources, /campaigns
+  - Staff & HR: /users (use this for Staff & Teachers list), /staff-attendance, /leaves, /salaries, /contracts, /reviews, /documents, /recruitment, /onboarding, /offboarding, /hr-analytics
+  - Admissions & CRM: /admissions, /crm, /leads, /follow-ups, /calls, /sources, /campaigns, /inquiries
   - Finance: /finance, /fees, /invoices, /payments, /expenses, /payroll, /ledger, /vendors, /tax, /budget-simulator
-  - Operations & Communication: /complaints, /parent-notes, /counseling, /attendance-heatmap, /reports, /notices, /holidays, /ai-counselor, /messages, /collaboration, /support
+  - Operations & Communication: /complaints, /parent-notes, /counseling, /attendance-heatmap, /reports, /notices, /holidays, /ai-counselor, /messages, /collaboration, /support, /at-risk, /behavior, /student-cards
   - Admin: /admin, /schools
   - Teacher-specific: /students (only if current user role is "teacher"; for all other roles use /users for staff, and /academic or /directory for students)
 

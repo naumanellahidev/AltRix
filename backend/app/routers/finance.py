@@ -138,6 +138,10 @@ async def create_voucher(body: FeeVoucherCreate, current_user: CurrentUser, db: 
         except ValueError:
             pass
 
+    if not data.get("due_date"):
+        from datetime import date, timedelta
+        data["due_date"] = date.today() + timedelta(days=7)
+
     # Generate invoice_number using public.generate_invoice_number if not provided
     if not data.get("invoice_number"):
         try:
