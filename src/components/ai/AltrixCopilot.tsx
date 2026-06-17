@@ -447,7 +447,7 @@ const sanitizePayload = (obj: any): any => {
         lowerVal.includes("uuid") ||
         lowerVal.includes("placeholder")
       ) {
-        newObj[key] = null;
+        continue;
       } else {
         newObj[key] = val;
       }
@@ -1376,7 +1376,60 @@ export default function AltrixCopilot() {
       if (!method || !path) {
         return toast.error("Missing method or path in action context");
       }
-      const payload = sanitizePayload(msg.action.payload || {});
+      const rawPayload = msg.action.payload || {};
+      const pathLower = path.toLowerCase();
+
+      // Pre-flight validation checks for required UUID parameters
+      if (pathLower.includes("/finance/payments")) {
+        if (!isValidUuid(rawPayload.student_id)) {
+          return toast.error("Action Aborted: A valid Student ID is required to record a payment.");
+        }
+      }
+      if (pathLower.includes("/finance/vouchers")) {
+        if (!isValidUuid(rawPayload.student_id)) {
+          return toast.error("Action Aborted: A valid Student ID is required to create a fee invoice.");
+        }
+      }
+      if (pathLower.includes("/students/guardians")) {
+        if (!isValidUuid(rawPayload.student_id)) {
+          return toast.error("Action Aborted: A valid Student ID is required to manage guardians.");
+        }
+      }
+      if (pathLower.includes("/behavior")) {
+        if (!isValidUuid(rawPayload.student_id)) {
+          return toast.error("Action Aborted: A valid Student ID is required to save a behavior note.");
+        }
+      }
+      if (pathLower.includes("/attendance/sessions")) {
+        if (!isValidUuid(rawPayload.class_section_id)) {
+          return toast.error("Action Aborted: A valid Class Section ID is required to create an attendance session.");
+        }
+      }
+      if (pathLower.includes("/diary")) {
+        if (!isValidUuid(rawPayload.class_section_id)) {
+          return toast.error("Action Aborted: A valid Class Section ID is required to save a diary entry.");
+        }
+      }
+      if (pathLower.includes("/assignments") && method === "POST") {
+        if (!isValidUuid(rawPayload.class_section_id)) {
+          return toast.error("Action Aborted: A valid Class Section ID is required to create a homework assignment.");
+        }
+      }
+      if (pathLower.includes("/exams/") && pathLower.includes("/results")) {
+        if (!isValidUuid(rawPayload.student_id)) {
+          return toast.error("Action Aborted: A valid Student ID is required to submit exam results.");
+        }
+        if (!isValidUuid(rawPayload.subject_id)) {
+          return toast.error("Action Aborted: A valid Subject ID is required to submit exam results.");
+        }
+      }
+      if (pathLower.includes("/hr/payroll")) {
+        if (!isValidUuid(rawPayload.staff_id)) {
+          return toast.error("Action Aborted: A valid Staff ID is required to generate payroll.");
+        }
+      }
+
+      const payload = sanitizePayload(rawPayload);
       const t = toast.loading(`Executing: ${msg.action.label || "Action"}...`);
       try {
         const res = await apiClient.post("/ai/execute-action", {
