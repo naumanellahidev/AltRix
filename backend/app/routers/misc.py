@@ -1803,7 +1803,14 @@ __DB_CONTEXT__
 
 **NAVIGATION ACTIONS:**
 - For any explicit request to navigate or open a module, output a NAVIGATE_TO action
-- Supported navigation routes: /accountant, /fees, /invoices, /payments, /reports, /payroll, /attendance, /exams, /students, /teachers, /hr, /admissions
+- Supported navigation routes catalog (use ONLY these exact paths):
+  - Academics: /academic, /timetable, /attendance, /exams, /report-cards, /diary
+  - Staff & HR: /users (use this for Staff & Teachers list), /staff-attendance, /leaves, /salaries, /contracts, /reviews, /documents, /recruitment, /onboarding, /offboarding, /hr-analytics
+  - Admissions & CRM: /admissions, /crm, /leads, /follow-ups, /calls, /sources, /campaigns, /inquiries
+  - Finance: /finance, /fees, /invoices, /payments, /expenses, /payroll, /ledger, /vendors, /tax, /budget-simulator
+  - Operations & Communication: /complaints, /at-risk, /counseling, /behavior, /attendance-heatmap, /reports, /notices, /holidays, /ai-counselor, /messages, /collaboration, /support
+  - Admin: /admin, /schools
+  - Teacher-specific: /students (only if current user role is "teacher"; for all other roles use /users for staff, and /academic or /directory for students)
 
 **UNIVERSAL API ACTIONS:**
 When the user asks to perform ANY write action (create, update/modify, delete, record, register, schedule, send, or update status of any record in the database), you MUST output a dynamic action card tag of type "API_ACTION" at the very end of your response.
