@@ -46,6 +46,8 @@ import { generateVoucherPdf, type VoucherCopyData } from "@/lib/fee-voucher-pdf"
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api-client";
+import { useActiveCampus } from "@/hooks/useActiveCampus";
+import { useActiveChild } from "@/context/ActiveChildContext";
 import {
   ResponsiveContainer,
   BarChart,
@@ -438,6 +440,9 @@ export default function AltrixCopilot() {
   const tenant = useTenantOptimized(schoolSlug || "");
   const schoolId = tenant.schoolId;
   const { primaryRole } = useUserRole(schoolId, user?.id ?? null);
+  const activeCampusId = useActiveCampus(schoolId);
+  const { activeChild } = useActiveChild();
+  const activeStudentId = activeChild?.student_id || null;
 
   const getRolePathSegment = (role: string | null) => {
     if (!role) return "";
@@ -912,6 +917,23 @@ export default function AltrixCopilot() {
       const session = await supabase.auth.getSession();
       const token = session.data.session?.access_token || "";
 
+      const getModuleFromPath = (path: string): string => {
+        const p = path.toLowerCase();
+        if (p.includes("/finance") || p.includes("/fees") || p.includes("/invoices") || p.includes("/payments") || p.includes("/expenses")) return "Finance";
+        if (p.includes("/attendance")) return "Attendance";
+        if (p.includes("/exam") || p.includes("/result") || p.includes("/report-card")) return "Exams & Results";
+        if (p.includes("/student")) return "Students";
+        if (p.includes("/teacher") || p.includes("/users")) return "Staff & HR";
+        if (p.includes("/admission") || p.includes("/crm") || p.includes("/lead")) return "Admissions & CRM";
+        if (p.includes("/complaint")) return "Complaints";
+        if (p.includes("/diary") || p.includes("/notice")) return "Communication";
+        return "General";
+      };
+
+      const pathParts = location.pathname.split("/").filter(Boolean);
+      const lastPart = pathParts[pathParts.length - 1];
+      const pathUuid = lastPart && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(lastPart) ? lastPart : null;
+
       const response = await fetch(
         `${apiClient.defaults.baseURL || "/api"}/ai/copilot`,
         {
@@ -921,7 +943,14 @@ export default function AltrixCopilot() {
             Authorization: `Bearer ${token}`,
             "X-School-Id": schoolId || "",
           },
-          body: JSON.stringify({ message: promptToSend, history }),
+          body: JSON.stringify({
+            message: promptToSend,
+            history,
+            current_screen: location.pathname,
+            current_module: getModuleFromPath(location.pathname),
+            active_campus_id: activeCampusId || null,
+            active_student_id: activeStudentId || pathUuid || null,
+          }),
           signal: abortRef.current.signal,
         }
       );

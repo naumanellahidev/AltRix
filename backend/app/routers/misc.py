@@ -660,6 +660,11 @@ logger = logging.getLogger("app.misc.copilot")
 class CopilotChatRequest(BaseModel):
     message: str
     history: List[dict] = []
+    current_screen: Optional[str] = None
+    current_module: Optional[str] = None
+    active_campus_id: Optional[str] = None
+    active_class_section_id: Optional[str] = None
+    active_student_id: Optional[str] = None
 
 class AiSettingsUpdate(BaseModel):
     enabled: bool
@@ -1780,6 +1785,8 @@ Your role is to help users navigate the school ERP, analyze live data, summarize
 - Roles: __USER_ROLES__
 - School ID: __USER_SCHOOL_ID__
 
+__ACTIVE_CONTEXT__
+
 __DB_CONTEXT__
 
 ---
@@ -1979,11 +1986,27 @@ Continue to output these specific tags directly for files, reports, and UI state
 
     # 4. Replace placeholders with actual user details and db_context
     roles_str = ", ".join(current_user.roles) if isinstance(current_user.roles, list) else str(current_user.roles)
+    
+    active_context_str = ""
+    if body.current_screen:
+        active_context_str += f"- Current Screen/Route: {body.current_screen}\n"
+    if body.current_module:
+        active_context_str += f"- Current Module: {body.current_module}\n"
+    if body.active_campus_id:
+        active_context_str += f"- Active Campus ID: {body.active_campus_id}\n"
+    if body.active_class_section_id:
+        active_context_str += f"- Active Class Section ID: {body.active_class_section_id}\n"
+    if body.active_student_id:
+        active_context_str += f"- Active Student/Child ID: {body.active_student_id}\n"
+    if active_context_str:
+        active_context_str = "**Active UI Context:**\n" + active_context_str + "\n"
+
     system_prompt = (
         system_prompt.replace("__USER_ID__", str(current_user.id or ""))
         .replace("__USER_EMAIL__", str(current_user.email or ""))
         .replace("__USER_ROLES__", roles_str)
         .replace("__USER_SCHOOL_ID__", str(current_user.school_id or ""))
+        .replace("__ACTIVE_CONTEXT__", active_context_str)
         .replace("__DB_CONTEXT__", str(db_context or ""))
     )
 
