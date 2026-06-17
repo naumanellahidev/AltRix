@@ -1586,12 +1586,41 @@ export default function AltrixCopilot() {
       }
     } else if (type === "API_ACTION" || (msg.action.method && msg.action.path)) {
       const method = msg.action.method;
-      const path = msg.action.path;
+      let path = msg.action.path;
       if (!method || !path) {
         return toast.error("Missing method or path in action context");
       }
+
+      // Normalize path on frontend to ensure pre-flight validators match and correct path is sent
+      let pathLower = path.toLowerCase().trim();
+      if (["/invoices", "/invoices/", "/finance/invoices", "/finance/invoices/"].includes(pathLower)) {
+        path = "/finance/vouchers";
+      } else if (["/payments", "/payments/", "/finance/payments/"].includes(pathLower)) {
+        path = "/finance/payments";
+      } else if (["/vouchers", "/vouchers/"].includes(pathLower)) {
+        path = "/finance/vouchers";
+      } else if (["/expenses", "/expenses/", "/finance/expenses/"].includes(pathLower)) {
+        path = "/finance/expenses";
+      } else if (["/classes", "/classes/"].includes(pathLower)) {
+        path = "/academic/classes";
+      } else if (["/sections", "/sections/"].includes(pathLower)) {
+        path = "/academic/sections";
+      } else if (["/subjects", "/subjects/"].includes(pathLower)) {
+        path = "/academic/subjects";
+      } else if (["/timetable", "/timetable/"].includes(pathLower)) {
+        path = "/academic/timetable";
+      } else if (["/holidays", "/holidays/"].includes(pathLower)) {
+        path = "/academic/holidays";
+      } else if (["/guardians", "/guardians/"].includes(pathLower)) {
+        path = "/students/guardians";
+      } else if (["/payroll", "/payroll/"].includes(pathLower)) {
+        path = "/hr/payroll";
+      } else if (["/leave-requests", "/leave-requests/"].includes(pathLower)) {
+        path = "/hr/leave-requests";
+      }
+
+      pathLower = path.toLowerCase();
       const rawPayload = msg.action.payload || {};
-      const pathLower = path.toLowerCase();
 
       // Pre-flight validation checks for required UUID parameters
       if (pathLower.includes("/finance/payments")) {
@@ -1603,6 +1632,21 @@ export default function AltrixCopilot() {
               id: genId(),
               role: "assistant",
               content: "I need a valid **Student ID** to record a payment. Could you please specify which student this payment is for?",
+              timestamp: new Date(),
+              isError: true,
+            }
+          ]);
+          return;
+        }
+        const amount = rawPayload.amount !== undefined ? rawPayload.amount : rawPayload.total_amount;
+        if (amount === undefined || amount === null || Number(amount) <= 0) {
+          toast.error("Action Aborted: A valid payment amount is required.");
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: genId(),
+              role: "assistant",
+              content: "Could you please specify the **Amount** to record for this payment?",
               timestamp: new Date(),
               isError: true,
             }
@@ -1628,8 +1672,23 @@ export default function AltrixCopilot() {
           ]);
           return;
         }
+        const totalAmount = rawPayload.total_amount !== undefined ? rawPayload.total_amount : rawPayload.totalAmount;
+        if (totalAmount === undefined || totalAmount === null || Number(totalAmount) <= 0) {
+          toast.error("Action Aborted: A valid total amount is required to create a fee invoice.");
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: genId(),
+              role: "assistant",
+              content: "Could you please specify the **Total Amount** for this fee invoice?",
+              timestamp: new Date(),
+              isError: true,
+            }
+          ]);
+          return;
+        }
         if (rawPayload.net_amount === undefined || rawPayload.net_amount === null) {
-          rawPayload.net_amount = rawPayload.total_amount;
+          rawPayload.net_amount = totalAmount;
         }
       }
       if (pathLower.includes("/students/guardians")) {
@@ -1657,6 +1716,20 @@ export default function AltrixCopilot() {
               id: genId(),
               role: "assistant",
               content: "I need a valid **Student ID** to save a behavior note. Please specify which student this note is for.",
+              timestamp: new Date(),
+              isError: true,
+            }
+          ]);
+          return;
+        }
+        if (!rawPayload.title) {
+          toast.error("Action Aborted: Behavior note title is required.");
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: genId(),
+              role: "assistant",
+              content: "What is the **Title** or summary of the behavior note?",
               timestamp: new Date(),
               isError: true,
             }
@@ -1695,6 +1768,20 @@ export default function AltrixCopilot() {
           ]);
           return;
         }
+        if (!rawPayload.title) {
+          toast.error("Action Aborted: Diary entry title is required.");
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: genId(),
+              role: "assistant",
+              content: "What is the **Title** of the diary entry?",
+              timestamp: new Date(),
+              isError: true,
+            }
+          ]);
+          return;
+        }
       }
       if (pathLower.includes("/assignments") && method === "POST") {
         if (!isValidUuid(rawPayload.class_section_id)) {
@@ -1705,6 +1792,36 @@ export default function AltrixCopilot() {
               id: genId(),
               role: "assistant",
               content: "I need a valid **Class Section ID** to create a homework assignment. Please specify which class and section this is for.",
+              timestamp: new Date(),
+              isError: true,
+            }
+          ]);
+          return;
+        }
+        if (!rawPayload.title) {
+          toast.error("Action Aborted: Assignment title is required.");
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: genId(),
+              role: "assistant",
+              content: "What is the **Title** of the assignment?",
+              timestamp: new Date(),
+              isError: true,
+            }
+          ]);
+          return;
+        }
+      }
+      if (pathLower.includes("/notices") && method === "POST") {
+        if (!rawPayload.title) {
+          toast.error("Action Aborted: Notice title is required.");
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: genId(),
+              role: "assistant",
+              content: "What is the **Title** of the notice?",
               timestamp: new Date(),
               isError: true,
             }
