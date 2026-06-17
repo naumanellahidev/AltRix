@@ -785,7 +785,7 @@ async def fetch_ai_context(db: DbSession, user: AuthenticatedUser, school_id: st
                 res = await db.execute(
                     text("""
                         SELECT
-                            (SELECT COUNT(*) FROM students WHERE school_id = :sid AND status = 'active') as total_students,
+                            (SELECT COUNT(*) FROM students WHERE school_id = :sid AND status IN ('active', 'enrolled')) as total_students,
                             (SELECT COUNT(*) FROM user_roles WHERE school_id = :sid AND role = 'teacher') as total_teachers,
                             (SELECT COUNT(*) FROM fee_invoices WHERE school_id = :sid AND status NOT IN ('paid', 'cancelled')) as pending_payments,
                             (SELECT COALESCE(SUM(amount), 0) FROM fee_payments WHERE school_id = :sid AND paid_at >= :mtd_start) as collected_fees,
@@ -844,7 +844,7 @@ async def fetch_ai_context(db: DbSession, user: AuthenticatedUser, school_id: st
                 LEFT JOIN student_enrollments se ON se.student_id = s.id AND se.end_date IS NULL
                 LEFT JOIN class_sections cs ON se.class_section_id = cs.id
                 LEFT JOIN academic_classes c ON cs.class_id = c.id
-                WHERE s.school_id = :sid AND s.status = 'active'
+                WHERE s.school_id = :sid AND s.status IN ('active', 'enrolled')
                 ORDER BY c.name, cs.name, s.first_name, s.last_name
                 LIMIT 300
             """, {"sid": school_id})
@@ -1099,7 +1099,7 @@ Recent ERP Complaints & Feedback:
                 LEFT JOIN student_enrollments se ON se.student_id = s.id AND se.end_date IS NULL
                 LEFT JOIN class_sections cs ON se.class_section_id = cs.id
                 LEFT JOIN academic_classes c ON cs.class_id = c.id
-                WHERE s.school_id = :sid AND s.status = 'active'
+                WHERE s.school_id = :sid AND s.status IN ('active', 'enrolled')
                 ORDER BY c.name, cs.name, s.first_name
                 LIMIT 200
             """, {"sid": school_id})
