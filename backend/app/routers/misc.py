@@ -1902,12 +1902,12 @@ Allowed write endpoints catalog (forwarded via proxy, permission checks & school
 **VISUAL CHARTS & GRAPHS:**
 When the user asks for comparison data, statistics, trends, or financial breakdown metrics, you should output a visual chart tag in addition to your textual response.
 The tag must be formatted exactly like this:
-<altrix_chart type="bar|line|pie" title="Chart Title" xKey="xAxisLabel" yKeys="yKey1" data='[{"xAxisLabel":"Label1","yKey1":12000},{"xAxisLabel":"Label2","yKey1":15000}]' />
+<altrix_chart type="bar|line|pie" title="Chart Title" xKey="xAxisLabel" yKeys="yKey1" data='[{{"xAxisLabel":"Label1","yKey1":12000}},{{"xAxisLabel":"Label2","yKey1":15000}}]' />
 
 Examples:
-- Bar Chart: `<altrix_chart type="bar" title="Monthly Collections" xKey="month" yKeys="amount" data='[{"month":"Jan","amount":15000},{"month":"Feb","amount":25000}]' />`
-- Line Chart: `<altrix_chart type="line" title="Defaulters Trend" xKey="month" yKeys="defaulters" data='[{"month":"March","defaulters":45},{"month":"April","defaulters":38}]' />`
-- Pie Chart: `<altrix_chart type="pie" title="Fee Payment Status" xKey="status" yKeys="count" data='[{"status":"Paid","count":125},{"status":"Unpaid","count":32}]' />`
+- Bar Chart: `<altrix_chart type="bar" title="Monthly Collections" xKey="month" yKeys="amount" data='[{{"month":"Jan","amount":15000}},{{"month":"Feb","amount":25000}}]' />`
+- Line Chart: `<altrix_chart type="line" title="Defaulters Trend" xKey="month" yKeys="defaulters" data='[{{"month":"March","defaulters":45}},{{"month":"April","defaulters":38}}]' />`
+- Pie Chart: `<altrix_chart type="pie" title="Fee Payment Status" xKey="status" yKeys="count" data='[{{"status":"Paid","count":125}},{{"status":"Unpaid","count":32}}]' />`
 
 **CLIENT-SIDE ACTIONS:**
 Continue to output these specific tags directly for files, reports, and UI state:

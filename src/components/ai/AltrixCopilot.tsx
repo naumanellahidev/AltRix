@@ -1311,9 +1311,9 @@ export default function AltrixCopilot() {
           style={{ fontFamily: "'Inter', sans-serif" }}
         >
           {/* ── Header ─────────────────────────────────────────────────── */}
-          <div className="flex items-center justify-between border-b border-slate-100 bg-gradient-to-r from-white via-blue-50/50 to-white px-4 py-3 shrink-0">
+          <div className="flex items-center justify-between border-b border-slate-100 bg-gradient-to-r from-white via-primary/5 to-white px-4 py-3 shrink-0">
             <div className="flex items-center gap-2.5">
-              <div className="relative flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 shadow-sm">
+              <div className="relative flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-primary/80 shadow-sm">
                 <Sparkles className="h-4 w-4 text-white" />
                 <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-emerald-500 border border-white" />
               </div>
@@ -1340,7 +1340,7 @@ export default function AltrixCopilot() {
                 onClick={() => setShowActionLog(!showActionLog)}
                 className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
                   showActionLog 
-                    ? "text-blue-600 bg-blue-50" 
+                    ? "text-primary bg-primary/10" 
                     : "text-slate-400 hover:text-slate-600 hover:bg-slate-50"
                 }`}
                 title="Action History & Undo Logs"
@@ -1414,7 +1414,7 @@ export default function AltrixCopilot() {
                 {/* Avatar */}
                 {msg.role === "assistant" && (
                   <div className="flex items-center gap-1.5 mb-1 w-full">
-                    <div className="h-5 w-5 rounded-full bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center">
+                    <div className="h-5 w-5 rounded-full bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center">
                       <Brain className="h-3 w-3 text-white" />
                     </div>
                     <span className="text-[10px] text-slate-500 font-medium">AltRix AI</span>
@@ -1439,7 +1439,7 @@ export default function AltrixCopilot() {
                 <div
                   className={`group relative max-w-[88%] rounded-2xl px-3 py-2.5 text-[12px] leading-relaxed ${
                     msg.role === "user"
-                      ? "bg-gradient-to-br from-blue-600 to-indigo-600 text-white rounded-br-sm shadow-md"
+                      ? "bg-gradient-to-br from-primary to-primary/90 text-primary-foreground rounded-br-sm shadow-md"
                       : msg.isError
                       ? "bg-rose-50 text-rose-800 border border-rose-200 rounded-bl-sm"
                       : "bg-slate-50 text-slate-800 border border-slate-200/60 rounded-bl-sm shadow-sm"
@@ -1642,7 +1642,7 @@ export default function AltrixCopilot() {
             {/* Thinking/streaming indicator */}
             {isThinking && (
               <div className="flex items-start gap-2">
-                <div className="h-5 w-5 rounded-full bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center shrink-0 mt-0.5">
+                <div className="h-5 w-5 rounded-full bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shrink-0 mt-0.5">
                   <Brain className="h-3 w-3 text-white" />
                 </div>
                 <div className="bg-slate-50 border border-slate-200/60 rounded-2xl rounded-bl-sm px-3 py-2.5 flex items-center gap-1.5 shadow-sm">
@@ -1671,7 +1671,7 @@ export default function AltrixCopilot() {
                 <button
                   key={i}
                   onClick={() => handleSend(s)}
-                  className="rounded-full bg-slate-50 border border-slate-200 hover:border-blue-500 hover:bg-blue-50/50 text-slate-600 hover:text-blue-600 text-[10px] px-3 py-1 font-medium transition-all cursor-pointer active:scale-95 whitespace-nowrap flex-shrink-0"
+                  className="rounded-full bg-slate-50 border border-slate-200 hover:border-primary hover:bg-primary/5 text-slate-600 hover:text-primary text-[10px] px-3 py-1 font-medium transition-all cursor-pointer active:scale-95 whitespace-nowrap flex-shrink-0"
                 >
                   {s}
                 </button>
@@ -1732,7 +1732,7 @@ export default function AltrixCopilot() {
               onChange={(e) => setInput(e.target.value)}
               placeholder={isStreaming ? "Generating response..." : "Ask AltRix Copilot…"}
               disabled={isStreaming}
-              className="flex-1 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 text-[12px] px-3.5 py-2 placeholder:text-slate-400 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-blue-500/60 transition-shadow disabled:opacity-50"
+              className="flex-1 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 text-[12px] px-3.5 py-2 placeholder:text-slate-400 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/60 transition-shadow disabled:opacity-50"
             />
             <button
               type="button"
@@ -1764,7 +1764,7 @@ export default function AltrixCopilot() {
                 type="submit"
                 disabled={!input.trim() && !attachedFile}
                 size="icon"
-                className="h-9 w-9 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white border-0 cursor-pointer flex-shrink-0 shadow-sm"
+                className="h-9 w-9 rounded-xl bg-gradient-to-br from-primary to-primary/95 hover:from-primary/95 hover:to-primary/90 text-primary-foreground border-0 cursor-pointer flex-shrink-0 shadow-sm"
               >
                 <Send className="h-4 w-4" />
               </Button>
