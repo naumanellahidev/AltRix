@@ -206,27 +206,23 @@ export function BrandingSettingsDialog({ schoolId, trigger }: BrandingSettingsDi
     try {
       const { error: colorErr } = await supabase
         .from("school_branding")
-        .update({
+        .upsert({
+          school_id: schoolId,
           accent_hue: hue,
           accent_saturation: saturation,
           accent_lightness: lightness,
-        })
-        .eq("school_id", schoolId);
+        }, { onConflict: 'school_id' });
 
       if (colorErr) {
-        // If no row exists, try insert
-        const { error: insertErr } = await supabase
-          .from("school_branding")
-          .insert({
-            school_id: schoolId,
-            accent_hue: hue,
-            accent_saturation: saturation,
-            accent_lightness: lightness,
-          });
-        if (insertErr) {
-          brandingError = insertErr;
-        }
+        brandingError = colorErr;
       }
+      
+      // Save directly in localStorage to bypass any RLS race conditions on reload
+      localStorage.setItem(`eduverse_brand_color_${schoolId}`, JSON.stringify({
+        accent_hue: hue,
+        accent_saturation: saturation,
+        accent_lightness: lightness,
+      }));
     } catch (err: any) {
       brandingError = err;
     }

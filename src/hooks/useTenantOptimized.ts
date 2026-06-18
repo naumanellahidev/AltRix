@@ -171,8 +171,29 @@ export function useTenantOptimized(schoolSlug: string | undefined): TenantResult
   });
 
   // Apply branding when data is available
-  if (data?.id && data.branding) {
-    applyBranding(data.id, data.branding);
+  if (data?.id) {
+    let applied = false;
+    try {
+      const localBranding = localStorage.getItem(`eduverse_brand_color_${data.id}`);
+      if (localBranding) {
+        const parsed = JSON.parse(localBranding);
+        if (parsed && parsed.accent_hue != null) {
+          applyBranding(data.id, {
+            accent_hue: parsed.accent_hue,
+            accent_saturation: parsed.accent_saturation,
+            accent_lightness: parsed.accent_lightness,
+            radius_scale: data.branding?.radius_scale ?? 1.0,
+          });
+          applied = true;
+        }
+      }
+    } catch (e) {
+      console.warn("Failed to apply local branding fallback:", e);
+    }
+
+    if (!applied && data.branding) {
+      applyBranding(data.id, data.branding);
+    }
   }
 
   if (!normalizedSlug) {
