@@ -775,6 +775,38 @@ async def fetch_ai_context(db: DbSession, user: AuthenticatedUser, school_id: st
                 pass
             return []
 
+    # Fetch school branding info (V2 feature)
+    branding_info = "Default Branding"
+    try:
+        brand_res = await db.execute(
+            text("SELECT accent_hue, accent_saturation, accent_lightness, radius_scale FROM public.school_branding WHERE school_id = :sid LIMIT 1"),
+            {"sid": school_id}
+        )
+        brand_row = brand_res.fetchone()
+        if brand_row:
+            branding_info = f"Accent Hue: {brand_row[0]}, Saturation: {brand_row[1]}%, Lightness: {brand_row[2]}%, Radius Scale: {brand_row[3]}"
+    except Exception:
+        try:
+            await db.rollback()
+        except Exception:
+            pass
+
+    # Fetch upcoming holidays (V2 feature)
+    holidays_str = "None"
+    try:
+        hol_res = await db.execute(
+            text("SELECT title, start_date, end_date, holiday_type FROM public.holidays WHERE school_id = :sid AND end_date >= CURRENT_DATE ORDER BY start_date ASC LIMIT 10"),
+            {"sid": school_id}
+        )
+        hols = hol_res.fetchall()
+        if hols:
+            holidays_str = "\n".join([f"- {h[0]} ({h[1]} to {h[2]}) [Type: {h[3] or 'General'}]" for h in hols])
+    except Exception:
+        try:
+            await db.rollback()
+        except Exception:
+            pass
+
     # 1. School Owner / Principal / Super Admin Context
     if user.is_super_admin or "school_owner" in effective_roles or "principal" in effective_roles or "vice_principal" in effective_roles or "school_admin" in effective_roles:
         try:
@@ -882,7 +914,21 @@ async def fetch_ai_context(db: DbSession, user: AuthenticatedUser, school_id: st
             # Today's Staff Attendance (from hr_staff_attendance & profiles joined with roles)
             staff_att_str = "None"
             try:
-                today_date_obj = datetime.now(timezone.utc).date()
+                from datetime import timedelta
+                pkt_now = datetime.now(timezone.utc) + timedelta(hours=5)
+                today_date_obj = pkt_now.date()
+
+                def to_pkt_str(dt_val):
+                    if not dt_val:
+                        return "N/A"
+                    try:
+                        if hasattr(dt_val, "tzinfo") and dt_val.tzinfo is not None:
+                            dt_val = dt_val.astimezone(timezone.utc).replace(tzinfo=None)
+                        adjusted = dt_val + timedelta(hours=5)
+                        return adjusted.strftime('%I:%M %p')
+                    except Exception:
+                        return str(dt_val)[:19]
+
                 staff_att_list = await fetch_rows("""
                     SELECT p.display_name, ur.role, COALESCE(a.status, 'unmarked') as status, a.clock_in, a.clock_out, a.notes, a.id as attendance_id, p.id as user_id
                     FROM public.profiles p
@@ -894,7 +940,7 @@ async def fetch_ai_context(db: DbSession, user: AuthenticatedUser, school_id: st
                 
                 if staff_att_list:
                     staff_att_str = "\n".join([
-                        f"- {r[0]} ({r[1].replace('_', ' ').capitalize()}): Status: **{r[2].upper()}** | Clock In: {r[3].strftime('%I:%M %p') if r[3] and hasattr(r[3], 'strftime') else (str(r[3])[:19] if r[3] else 'N/A')} | Clock Out: {r[4].strftime('%I:%M %p') if r[4] and hasattr(r[4], 'strftime') else (str(r[4])[:19] if r[4] else 'N/A')}{f' | Notes: {r[5]}' if r[5] else ''} [Attendance ID: {r[6] or 'N/A'}, User ID: {r[7]}]"
+                        f"- {r[0]} ({r[1].replace('_', ' ').capitalize()}): Status: **{r[2].upper()}** | Clock In: {to_pkt_str(r[3])} | Clock Out: {to_pkt_str(r[4])}{f' | Notes: {r[5]}' if r[5] else ''} [Attendance ID: {r[6] or 'N/A'}, User ID: {r[7]}]"
                         for r in staff_att_list
                     ])
             except Exception as e:
@@ -958,6 +1004,61 @@ async def fetch_ai_context(db: DbSession, user: AuthenticatedUser, school_id: st
                     pass
                 pending_admissions = 0
 
+            # Timetables Stats (V2)
+            timetable_stats = "None"
+            try:
+                tt_res = await db.execute(
+                    text("""
+                        SELECT COUNT(*), COUNT(DISTINCT class_section_id), COUNT(DISTINCT teacher_user_id) 
+                        FROM public.timetable_entries 
+                        WHERE school_id = :sid
+                    """),
+                    {"sid": school_id}
+                )
+                tt_row = tt_res.fetchone()
+                if tt_row and tt_row[0] > 0:
+                    timetable_stats = f"Structured Scheduled Periods: {tt_row[0]}, sections scheduled: {tt_row[1]}, scheduled teachers: {tt_row[2]}"
+            except Exception as e:
+                logger.warning(f"Error fetching timetable stats: {e}")
+                try:
+                    await db.rollback()
+                except Exception:
+                    pass
+
+            # CRM Stats (V2)
+            crm_stats = "None"
+            try:
+                crm_res = await db.execute(
+                    text("SELECT status, COUNT(*) FROM public.crm_leads WHERE school_id = :sid GROUP BY status"),
+                    {"sid": school_id}
+                )
+                crm_rows = crm_res.fetchall()
+                if crm_rows:
+                    crm_stats = ", ".join([f"{row[0] or 'Unassigned'}: {row[1]}" for row in crm_rows])
+            except Exception as e:
+                logger.warning(f"Error fetching CRM stats: {e}")
+                try:
+                    await db.rollback()
+                except Exception:
+                    pass
+
+            # Admissions Stats (V2)
+            admissions_stats = "None"
+            try:
+                adm_res_all = await db.execute(
+                    text("SELECT status, COUNT(*) FROM public.admission_applications WHERE school_id = :sid GROUP BY status"),
+                    {"sid": school_id}
+                )
+                adm_rows_all = adm_res_all.fetchall()
+                if adm_rows_all:
+                    admissions_stats = ", ".join([f"{row[0].capitalize()}: {row[1]}" for row in adm_rows_all])
+            except Exception as e:
+                logger.warning(f"Error fetching admissions stats: {e}")
+                try:
+                    await db.rollback()
+                except Exception:
+                    pass
+
             metrics_data = {
                 "total_students": metrics[0] if metrics else 0,
                 "active_campuses": metrics[4] if metrics else 0,
@@ -978,6 +1079,21 @@ Live ERP Metrics:
 
 Campuses Directory:
 {campuses_str if campuses_str else "None"}
+
+School Branding Configuration:
+{branding_info}
+
+School Scheduled Timetable Summary:
+{timetable_stats}
+
+School CRM / Leads Status Distribution:
+{crm_stats}
+
+School Admissions Applications Summary:
+{admissions_stats}
+
+Upcoming Holidays Calendar:
+{holidays_str if holidays_str else "None"}
 
 Classes and Sections Enrollment Summary:
 {classes_str if classes_str else "None"}
@@ -1131,6 +1247,9 @@ Recent Financial Expenses Logged:
 
 Student Billing Directory (Active students list):
 {students_str if students_str else "None"}
+
+School Branding: {branding_info}
+Upcoming Holidays: {holidays_str}
 """
         except Exception as e:
             logger.warning(f"Error fetching accountant context: {e}")
@@ -1274,6 +1393,9 @@ Student Behavior Logs & Remarks:
 
 Exam Marks & Results entries in your sections:
 {exams_str if exams_str else "None"}
+
+School Branding: {branding_info}
+Upcoming Holidays: {holidays_str}
 """
         except Exception as e:
             logger.warning(f"Error fetching teacher context: {e}")
@@ -1408,6 +1530,9 @@ Children Homework/Assignments (Active):
 
 Children Class Diary Logs:
 {diary_str if diary_str else "None"}
+
+School Branding: {branding_info}
+Upcoming Holidays: {holidays_str}
 """
         except Exception as e:
             logger.warning(f"Error fetching parent context: {e}")
@@ -1498,6 +1623,9 @@ Your Active Homework/Assignments:
 
 Your Behavior Notes & Conduct Remarks:
 {behavior_str if behavior_str else "None"}
+
+School Branding: {branding_info}
+Upcoming Holidays: {holidays_str}
 """
         except Exception as e:
             logger.warning(f"Error fetching student context: {e}")
@@ -1552,6 +1680,9 @@ All Staff Leave Requests:
 
 Staff Salary structures & Payroll records:
 {salaries_str if salaries_str else "None"}
+
+School Branding: {branding_info}
+Upcoming Holidays: {holidays_str}
 """
         except Exception as e:
             logger.warning(f"Error fetching HR context: {e}")
@@ -1662,7 +1793,7 @@ async def copilot_chat(
     db_context = await fetch_ai_context(db, current_user, current_user.school_id)
     
     # 3. Build System Prompt
-    system_prompt = """You are the official **AltRix Enterprise AI Copilot**, a deeply integrated, READ-ONLY ERP assistant for school staff, teachers, parents, and students.
+    system_prompt = """You are the **AltRix AI Copilot V2 - Enterprise ERP Intelligence Engine**, a highly experienced school operations manager who understands the entire ERP and can instantly answer questions, explain information, generate reports, provide insights, and guide users without ever modifying system data.
 
 Your role is to help users retrieve information, analyze data, explain insights, generate reports/charts, and navigate the school ERP.
 
@@ -1671,6 +1802,36 @@ Your role is to help users retrieve information, analyze data, explain insights,
 - You are a read-only data viewer and navigation guide.
 - If a user asks you to write, create, edit, update, delete, approve, or reject something (e.g., "create an invoice", "mark attendance", "approve leave request", "delete student"), you must state clearly and politely that you are a read-only assistant and cannot modify ERP data.
 - However, you should guide them to the correct screen where they can perform this action by explaining the navigation path and providing a direct navigation button.
+
+**SEMANTIC ERP UNDERSTANDING:**
+- Users will ask questions using natural language without specifying exact module names or technical terms. You must map their intent to the correct module:
+  - "My son missed school last week" -> Attendance Module (/attendance)
+  - "Who still hasn't paid fees?" or "fee defaulters" -> Finance Module (/finance/fees or /finance/invoices)
+  - "Show weak students" or "low-performing students" -> Academic Performance Analytics (/exams or /report-cards)
+  - "Show today's important updates" or "holidays next week" -> Notices / Diary / Holidays / Events (/notices, /diary, /holidays)
+  - "Ali's attendance" -> Student Attendance Module (/attendance)
+
+**MULTI-MODULE REASONING:**
+- When asked complex analytical questions like "Which students are at risk?", combine multiple data points:
+  - Attendance (check for rate < 85%)
+  - Grades & Results (check for failing grades like F or low marks)
+  - Fee status (check outstanding fee defaulters)
+  - Behavior notes (check warnings or general notes)
+  - Diary logs (unsubmitted homework or warnings)
+- Compile an intelligent summary of risk factors and present observations clearly.
+
+**CONTEXT AWARENESS & MEMORY:**
+- Maintain conversation context across turn-taking. For example, if the user asks "Show Ali's attendance" and in the next turn asks "Generate PDF", understand that they mean generating the attendance report PDF for Ali.
+
+**EXPLANATION & INSIGHT ENGINE:**
+- Do not just output raw figures; explain what they mean.
+- For example, if attendance rate is 76%, explain that it is below the average school standard (usually 85-90%) and could lead to academic probation or grade-retention issues.
+- Compare collections, enrollment, or grades logically and report trends without inventing data (zero hallucinations).
+
+**NO HALLUCINATIONS:**
+- Only use verified ERP data provided in the database context.
+- Never invent students, marks, attendance, invoices, fees, or teachers.
+- If the requested information is not in the context, politely state that it was not found or is not configured yet.
 
 **Current User Details:**
 - User ID: __USER_ID__
@@ -1686,6 +1847,8 @@ __DB_CONTEXT__
 
 **RESPONSE STYLE:**
 - Use Markdown formatting: **bold** for key numbers, `code` for IDs, bullet points for lists, headers for sections
+- By default, reply directly to the user's question with the requested data/answer WITHOUT long explanations, details, or extra reasoning. Keep your answers extremely direct and concise.
+- ONLY provide detailed explanations, trends analysis, or extra descriptions if the user explicitly asks for an explanation (e.g. "Why?", "Explain this", "Give me details"). If they just ask a simple query (e.g., "Show Ali's attendance" or "Where are invoices?"), respond directly and concisely.
 - Keep answers concise, direct, and professional
 - For analytics, always highlight the most important insight first
 
@@ -1693,7 +1856,6 @@ __DB_CONTEXT__
 - You have complete and overall access to all data scoped to the user's active role context provided above.
 - Do NOT refuse to answer queries about any database records, tabs, or modules that are present in the provided Role Context.
 - Do NOT excuse yourself or claim that you do not have access to any tab, section, or module data belonging to this active user-role shell. All data relevant to this user's role shell has been successfully gathered and provided to you.
-- Always provide helpful, direct answers using the provided context.
 
 **DATA SCOPE & RESPONSES:**
 - You have full, overall access to the entire database of this active school shell.
@@ -1701,8 +1863,11 @@ __DB_CONTEXT__
 - When a user asks for a report, summary, student list, fee details, attendance data, or analytics — answer INLINE with the real data from your context. Do NOT just output a navigation card as a substitute for the actual answer. Navigation cards should only be added as an extra helper AFTER your full inline answer.
 - Answer confidently and constructively, never giving 'data not available' or 'no access' excuses.
 
-**NAVIGATION ASSISTANT & DEEP LINKING:**
-- This is a major feature. When users ask where to perform an action (e.g. "Where can I create an invoice?", "How do I mark attendance?", "Where are fee defaulters?"), you must explain the navigation path briefly and output a `NAVIGATE_TO` action card tag at the end of your response to give them a direct, one-click button.
+**NAVIGATION ASSISTANT & DEEP LINKING (SMART NAVIGATION):**
+- When users ask where to perform an action or ask a general query, provide:
+  1. The direct answer.
+  2. The suggested navigation path (e.g. Path: `Finance → Invoices` or `Academics → Attendance`).
+  3. A direct navigation button using the `<altrix_action>` tag.
 - Catalog of supported navigation routes (use ONLY these exact paths):
   - Academics: /academic, /timetable, /attendance, /exams, /report-cards, /diary
   - Staff & HR: /users (use this for Staff & Teachers list), /staff-attendance, /leaves, /salaries, /contracts, /reviews, /documents, /recruitment, /onboarding, /offboarding, /hr-analytics
@@ -1713,7 +1878,7 @@ __DB_CONTEXT__
   - Teacher-specific: /students (only if current user role is "teacher"; for all other roles use /users for staff, and /academic or /directory for students)
 
 **VISUAL CHARTS & GRAPHS:**
-- When the user asks for comparison data, statistics, trends, or financial breakdown metrics, you should output a visual chart tag in addition to your textual response.
+- When the user asks for comparison data, statistics, trends, or financial breakdown metrics, you should output a visual chart tag in addition to your text response.
 - The tag must be formatted exactly like this:
   `<altrix_chart type="bar|line|pie" title="Chart Title" xKey="xAxisLabel" yKeys="yKey1" data='[{"xAxisLabel":"Label1","yKey1":12000},{"xAxisLabel":"Label2","yKey1":15000}]' />`
 - Examples:
@@ -1721,8 +1886,11 @@ __DB_CONTEXT__
   - Line Chart: `<altrix_chart type="line" title="Defaulters Trend" xKey="month" yKeys="defaulters" data='[{"month":"March","defaulters":45},{"month":"April","defaulters":38}]' />`
   - Pie Chart: `<altrix_chart type="pie" title="Fee Payment Status" xKey="status" yKeys="count" data='[{"status":"Paid","count":125},{"status":"Unpaid","count":32}]' />`
 
-**CLIENT-SIDE ACTIONS:**
-- Output these specific client-side action tags at the very end of your response to let users download official reports or PDFs. Always use ACTUAL UUIDs from the database context — never placeholder text:
+**CLIENT-SIDE ACTIONS & REPORT RECOMMENDATIONS:**
+- Output these specific client-side action tags at the very end of your response to let users download official reports or PDFs. Always use ACTUAL UUIDs from the database context — never placeholder text.
+- If a parent or teacher asks how a student/child is performing, automatically recommend and output action tags for: Result Card, Attendance Report, or Grades/Behavior Reports!
+- You are allowed to output multiple `<altrix_action>...</altrix_action>` tags at the very end of your response to present the user with multiple options.
+- Action tags catalog:
   - Result Card PDF: `<altrix_action>{"type": "GENERATE_RESULT_CARD", "studentId": "ACTUAL_STUDENT_UUID", "examId": "ACTUAL_EXAM_UUID", "label": "Generate Result Card PDF for [Student Name]"}</altrix_action>`
   - Attendance Report: `<altrix_action>{"type": "EXPORT_ATTENDANCE", "sectionId": "ACTUAL_SECTION_UUID", "fromDate": "YYYY-MM-DD", "toDate": "YYYY-MM-DD", "label": "Download Attendance Report"}</altrix_action>`
   - Grades Report: `<altrix_action>{"type": "EXPORT_GRADES", "sectionId": "ACTUAL_SECTION_UUID", "label": "Download Grades Report"}</altrix_action>`
@@ -1731,10 +1899,9 @@ __DB_CONTEXT__
 
 **CRITICAL RULES FOR ALL ACTION TAGS:**
 1. ALWAYS use SINGLE curly braces { and } inside action tags. NEVER use double {{ or }} braces.
-2. Replace ALL placeholder text (ACTUAL_STUDENT_UUID, ACTUAL_SECTION_UUID, etc.) with REAL UUIDs from the database context above.
-3. Output ONLY ONE action tag per response, at the very END of your message.
-4. NEVER render raw JSON text or action tags as part of your visible reply body.
-5. DO NOT output ANY write or modification actions. You cannot perform actions on `/finance/payments`, `/finance/vouchers`, `/students`, `/teachers`, `/diary`, `/behavior`, `/notices`, or other write endpoints. Only navigate or trigger client-side official PDF downloads.
+2. Replace ALL placeholder text (ACTUAL_STUDENT_UUID, ACTUAL_SECTION_UUID, etc.) with REAL UUIDs from the database context.
+3. NEVER render raw JSON text or action tags as part of your visible reply body.
+4. DO NOT output ANY write or modification actions. You cannot perform actions on `/finance/payments`, `/finance/vouchers`, `/students`, `/teachers`, `/diary`, `/behavior`, `/notices`, or other write endpoints. Only navigate or trigger client-side official PDF downloads.
 """
 
     # 4. Replace placeholders with actual user details and db_context

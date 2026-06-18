@@ -109,6 +109,7 @@ type Message = {
   content: string;
   timestamp: Date;
   action?: ActionPayload;
+  actions?: ActionPayload[];
   chart?: ChartPayload;
   fileAttachment?: { name: string; size: number };
   isError?: boolean;
@@ -217,27 +218,24 @@ const ACTION_META: Record<string, { icon: any; label: string; cta: string; color
 
 const ROLE_SUGGESTIONS: Record<string, string[]> = {
   super_admin: [
-    "Show overall revenue summary",
-    "Attendance trends this month",
-    "How many pending admissions?",
     "Compare all campuses",
+    "Show revenue summaries",
+    "Show overall school performance",
   ],
   school_owner: [
-    "Show revenue vs expenses",
-    "Attendance trends",
-    "Outstanding fee defaulters",
-    "Pending admission applications",
+    "Compare all campuses",
+    "Show revenue summaries",
+    "Show overall school performance",
   ],
   principal: [
-    "Show top 5 fee defaulters",
-    "Which students are at risk?",
-    "Class attendance rate today",
-    "Show top performers",
+    "Show school analytics",
+    "Show finance insights",
+    "Show exam trends",
   ],
   vice_principal: [
-    "Weak students this term",
-    "Top performers by class",
-    "Attendance trends",
+    "Show school analytics",
+    "Show finance insights",
+    "Show exam trends",
   ],
   accountant: [
     "Show unpaid invoice summary",
@@ -251,14 +249,15 @@ const ROLE_SUGGESTIONS: Record<string, string[]> = {
     "Staff pending approvals",
   ],
   teacher: [
-    "Show my assigned classes",
-    "Find weak students in my sections",
-    "Attendance trends for my classes",
+    "Class performance details",
+    "Class attendance trends",
+    "Show weak students",
   ],
   parent: [
     "Show my child's attendance",
-    "Any outstanding fee invoices?",
-    "Recent exam marks",
+    "Recent exam results",
+    "Outstanding fee status",
+    "My child's behavior report",
   ],
   student: ["Show my attendance rate", "My recent exam grades"],
 };
@@ -268,15 +267,22 @@ const getStorageKey = (schoolId: string | null | undefined, userId: string | und
 
 // ── Chart Renderer Component ──────────────────────────────────────────────────
 function CopilotChart({ chart }: { chart: ChartPayload }) {
+  if (!chart) return null;
   const { type, title, xKey, yKeys, data } = chart;
+  if (!data || !Array.isArray(data) || data.length === 0) return null;
+  if (!xKey || !yKeys || !Array.isArray(yKeys)) return null;
 
   // Dynamic brand colors (primary, green, amber, red, indigo, pink, teal)
   const COLORS = ["hsl(var(--primary))", "#10b981", "#f59e0b", "#ef4444", "#6366f1", "#ec4899", "#14b8a6"];
 
+  const safeData = useMemo(() => {
+    return data.filter(item => item && typeof item === "object");
+  }, [data]);
+
   const renderChart = () => {
     if (type === "bar") {
       return (
-        <BarChart data={data} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+        <BarChart data={safeData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
           <XAxis dataKey={xKey} tick={{ fontSize: 10 }} stroke="#94a3b8" />
           <YAxis tick={{ fontSize: 10 }} stroke="#94a3b8" />
@@ -291,7 +297,7 @@ function CopilotChart({ chart }: { chart: ChartPayload }) {
 
     if (type === "line") {
       return (
-        <LineChart data={data} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+        <LineChart data={safeData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
           <XAxis dataKey={xKey} tick={{ fontSize: 10 }} stroke="#94a3b8" />
           <YAxis tick={{ fontSize: 10 }} stroke="#94a3b8" />
@@ -308,7 +314,7 @@ function CopilotChart({ chart }: { chart: ChartPayload }) {
       return (
         <PieChart margin={{ top: 10, right: 10, left: 10, bottom: 10 }}>
           <Pie
-            data={data}
+            data={safeData}
             dataKey={yKeys[0] || "value"}
             nameKey={xKey}
             cx="50%"
@@ -317,7 +323,7 @@ function CopilotChart({ chart }: { chart: ChartPayload }) {
             fill="hsl(var(--primary))"
             label={{ fontSize: 9 }}
           >
-            {data.map((entry, index) => (
+            {safeData.map((entry, index) => (
               <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
             ))}
           </Pie>
@@ -701,41 +707,43 @@ export default function AltrixCopilot() {
   if (!aiEnabled) return null;
 
   // ── Parse Action & Chart Tags ──────────────────────────────────────────────
-  const parseMessageContent = (text: string): { content: string; action?: ActionPayload; chart?: ChartPayload } => {
+  const parseMessageContent = (text: string): { content: string; action?: ActionPayload; actions?: ActionPayload[]; chart?: ChartPayload } => {
     let cleanText = text;
-    let actionData: ActionPayload | undefined = undefined;
+    const actionsList: ActionPayload[] = [];
     let chartData: ChartPayload | undefined = undefined;
 
-    // 1. First search for action tag wrapped in <altrix_action>
-    const tagRegex = /<altrix_action>([\s\S]*?)<\/altrix_action>/i;
-    const actionMatch = cleanText.match(tagRegex);
-    if (actionMatch) {
+    // 1. Extract all <altrix_action> tags
+    const tagRegexGlobal = /<altrix_action>([\s\S]*?)<\/altrix_action>/gi;
+    let match;
+    while ((match = tagRegexGlobal.exec(text)) !== null) {
       try {
-        let rawJson = actionMatch[1].trim();
+        let rawJson = match[1].trim();
         // Clean double braces if present
         if (rawJson.startsWith("{{") && rawJson.endsWith("}}")) {
           rawJson = rawJson.slice(1, -1);
         }
-        actionData = JSON.parse(rawJson);
-        cleanText = cleanText.replace(tagRegex, "").trim();
-      } catch {
-        /* ignore bad JSON */
+        const parsed = JSON.parse(rawJson);
+        if (parsed) {
+          actionsList.push(parsed);
+        }
+      } catch (e) {
+        console.error("Failed to parse action json from tag:", e);
       }
     }
+    cleanText = cleanText.replace(tagRegexGlobal, "").trim();
 
-    // 2. Search for loose JSON block in double braces: {{...}} if action not parsed yet
-    if (!actionData) {
+    // 2. If no <altrix_action> tags were found, search for loose JSON block in double braces: {{...}}
+    if (actionsList.length === 0) {
       const doubleBraceRegex = /(\{\{[\s\S]*?\}\})/g;
-      const matches = cleanText.match(doubleBraceRegex);
-      if (matches) {
-        for (const match of matches) {
+      const dbMatches = cleanText.match(doubleBraceRegex);
+      if (dbMatches) {
+        for (const matchStr of dbMatches) {
           try {
-            let cleaned = match.trim().slice(1, -1);
+            let cleaned = matchStr.trim().slice(1, -1);
             const parsed = JSON.parse(cleaned);
             if (parsed && (parsed.type || parsed.method || parsed.route || parsed.path)) {
-              actionData = parsed;
-              cleanText = cleanText.replace(match, "").trim();
-              break;
+              actionsList.push(parsed);
+              cleanText = cleanText.replace(matchStr, "").trim();
             }
           } catch {
             // Not valid JSON
@@ -745,17 +753,16 @@ export default function AltrixCopilot() {
     }
 
     // 3. Search for loose JSON block in single braces: {...} if action not parsed yet
-    if (!actionData) {
+    if (actionsList.length === 0) {
       const singleBraceRegex = /(\{[\s\S]*?\})/g;
-      const matches = cleanText.match(singleBraceRegex);
-      if (matches) {
-        for (const match of matches) {
+      const sbMatches = cleanText.match(singleBraceRegex);
+      if (sbMatches) {
+        for (const matchStr of sbMatches) {
           try {
-            const parsed = JSON.parse(match.trim());
+            const parsed = JSON.parse(matchStr.trim());
             if (parsed && (parsed.type || parsed.method || parsed.route || parsed.path)) {
-              actionData = parsed;
-              cleanText = cleanText.replace(match, "").trim();
-              break;
+              actionsList.push(parsed);
+              cleanText = cleanText.replace(matchStr, "").trim();
             }
           } catch {
             // Not valid JSON
@@ -775,8 +782,8 @@ export default function AltrixCopilot() {
         if (chartElem) {
           const type = chartElem.getAttribute("type") as "bar" | "line" | "pie" | null;
           const title = chartElem.getAttribute("title") || "Analytics";
-          const xKey = chartElem.getAttribute("xkey") || chartElem.getAttribute("xkeys") || "label";
-          const yKeysStr = chartElem.getAttribute("ykeys") || "";
+          const xKey = chartElem.getAttribute("xkey") || chartElem.getAttribute("xKey") || chartElem.getAttribute("xkeys") || chartElem.getAttribute("xKeys") || "label";
+          const yKeysStr = chartElem.getAttribute("ykeys") || chartElem.getAttribute("yKeys") || "";
           const yKeys = yKeysStr.split(",").map(k => k.trim()).filter(Boolean);
           const rawData = chartElem.getAttribute("data") || "[]";
           const data = JSON.parse(rawData);
@@ -790,7 +797,7 @@ export default function AltrixCopilot() {
       }
     }
 
-    return { content: cleanText, action: actionData, chart: chartData };
+    return { content: cleanText, action: actionsList[0], actions: actionsList, chart: chartData };
   };
 
   // ── Copy Message ──────────────────────────────────────────────────────────
@@ -973,7 +980,7 @@ export default function AltrixCopilot() {
             setMessages((prev) =>
               prev.map((m) =>
                 m.id === assistantId
-                  ? { ...m, content: parsed.content, action: parsed.action, chart: parsed.chart }
+                  ? { ...m, content: parsed.content, action: parsed.action, actions: parsed.actions, chart: parsed.chart }
                   : m
               )
             );
@@ -985,16 +992,20 @@ export default function AltrixCopilot() {
 
       // ── Auto-execute Action if flagged ──────────────────────────────────────
       const finalParsed = parseMessageContent(assistantText);
-      if (finalParsed.action && (finalParsed.action.execute || finalParsed.action.auto_execute)) {
-        const executeMsg = {
-          id: assistantId,
-          role: "assistant" as const,
-          content: finalParsed.content,
-          action: finalParsed.action,
-          chart: finalParsed.chart,
-          timestamp: new Date()
-        };
-        await handleExecuteAction(executeMsg);
+      if (finalParsed.actions && finalParsed.actions.length > 0) {
+        const shouldExecute = finalParsed.actions.some(a => a.execute || a.auto_execute);
+        if (shouldExecute) {
+          const executeMsg = {
+            id: assistantId,
+            role: "assistant" as const,
+            content: finalParsed.content,
+            action: finalParsed.action,
+            actions: finalParsed.actions,
+            chart: finalParsed.chart,
+            timestamp: new Date()
+          };
+          await handleExecuteAction(executeMsg);
+        }
       }
     } catch (err: any) {
       if (err.name === "AbortError") {
@@ -1018,10 +1029,9 @@ export default function AltrixCopilot() {
     }
   };
 
-  // ── Execute Action ────────────────────────────────────────────────────────
-  const handleExecuteAction = async (msg: Message) => {
-    if (!msg.action) return;
-    const { type, invoiceId, route } = msg.action;
+  // ── Execute Action Direct ──────────────────────────────────────────────────
+  const handleExecuteActionDirect = async (action: ActionPayload) => {
+    const { type, invoiceId, route } = action;
 
     if (type === "GENERATE_VOUCHER") {
       if (!invoiceId) return toast.error("Missing invoice ID in action context");
@@ -1107,16 +1117,30 @@ export default function AltrixCopilot() {
           finalRoute = `/${roleSegment}${route.startsWith('/') ? '' : '/'}${route}`;
         }
       }
-      navigate(`/${schoolSlug}${finalRoute}`);
+      const slugPrefix = schoolSlug ? `/${schoolSlug}` : "";
+      navigate(`${slugPrefix}${finalRoute}`);
       setIsOpen(false);
     } else if (type === "GENERATE_RESULT_CARD") {
       const roleSegment = getRolePathSegment(primaryRole);
-      navigate(`/${schoolSlug}/${roleSegment}/report-cards`);
+      const slugPrefix = schoolSlug ? `/${schoolSlug}` : "";
+      navigate(`${slugPrefix}/${roleSegment}/report-cards`);
       setIsOpen(false);
     } else if (type === "EXPORT_ATTENDANCE" || type === "EXPORT_GRADES") {
       const roleSegment = getRolePathSegment(primaryRole);
-      navigate(`/${schoolSlug}/${roleSegment}/reports`);
+      const slugPrefix = schoolSlug ? `/${schoolSlug}` : "";
+      navigate(`${slugPrefix}/${roleSegment}/reports`);
       setIsOpen(false);
+    }
+  };
+
+  // ── Execute Action ────────────────────────────────────────────────────────
+  const handleExecuteAction = async (msg: Message) => {
+    if (msg.actions && msg.actions.length > 0) {
+      for (const action of msg.actions) {
+        await handleExecuteActionDirect(action);
+      }
+    } else if (msg.action) {
+      await handleExecuteActionDirect(msg.action);
     }
   };
 
@@ -1327,25 +1351,30 @@ export default function AltrixCopilot() {
                   {/* Chart Visual */}
                   {msg.chart && <CopilotChart chart={msg.chart} />}
 
-                  {/* Action Card */}
-                  {msg.action && (() => {
-                    const meta = ACTION_META[msg.action.type] || ACTION_META.NAVIGATE_TO;
-                    const Icon = meta.icon;
-                    return (
-                      <div className={`mt-3 rounded-xl bg-gradient-to-br ${meta.color} border p-3 flex flex-col gap-2`}>
-                        <div className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-700">
-                          <Icon className="h-3.5 w-3.5" />
-                          <span>{msg.action.label || meta.label}</span>
-                        </div>
-                        <button
-                          onClick={() => handleExecuteAction(msg)}
-                          className="w-full text-center bg-white hover:bg-slate-50 text-slate-700 text-[11px] font-semibold rounded-lg py-1.5 px-3 transition-colors cursor-pointer border border-slate-200 shadow-sm"
-                        >
-                          {meta.cta}
-                        </button>
-                      </div>
-                    );
-                  })()}
+                  {/* Action Cards */}
+                  {((msg.actions && msg.actions.length > 0) || msg.action) && (
+                    <div className="mt-3 flex flex-col gap-2 w-full">
+                      {(msg.actions && msg.actions.length > 0 ? msg.actions : [msg.action!]).map((action, idx) => {
+                        if (!action) return null;
+                        const meta = ACTION_META[action.type] || ACTION_META.NAVIGATE_TO;
+                        const Icon = meta.icon;
+                        return (
+                          <div key={idx} className={`rounded-xl bg-gradient-to-br ${meta.color} border p-3 flex flex-col gap-2`}>
+                            <div className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-700">
+                              <Icon className="h-3.5 w-3.5" />
+                              <span>{action.label || meta.label}</span>
+                            </div>
+                            <button
+                              onClick={() => handleExecuteActionDirect(action)}
+                              className="w-full text-center bg-white hover:bg-slate-50 text-slate-700 text-[11px] font-semibold rounded-lg py-1.5 px-3 transition-colors cursor-pointer border border-slate-200 shadow-sm"
+                            >
+                              {action.cta || meta.cta}
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
 
                 {/* Timestamp for user */}
