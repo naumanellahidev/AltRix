@@ -120,9 +120,36 @@ const genId = () => Math.random().toString(36).slice(2, 9);
 // ── Simple Markdown Renderer ─────────────────────────────────────────────────
 
 function renderMarkdown(text: string): string {
-  if (!text) return "";
+  if (!text || typeof text !== "string") return "";
   
   let formatted = text;
+
+  // Strip raw database UUIDs (e.g., 8ea67280-cd68-45fa-bb2a-fa67623910c2)
+  const uuidPattern = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
+  formatted = formatted.replace(uuidPattern, "");
+
+  // Strip bracketed ID expressions like [ID: ...], [Student ID: ...], or (User ID: ...)
+  const bracketedIdPattern = /[\[\(][^\]\)]*\bid\b[^\]\)]*[\]\)]/gi;
+  formatted = formatted.replace(bracketedIdPattern, "");
+
+  // Convert ERP routes (e.g., /exams or `/exams`) to direct navigation buttons
+  const routeNames = [
+    "academic", "timetable", "attendance", "exams", "report-cards", "diary",
+    "users", "staff-attendance", "leaves", "salaries", "contracts", "reviews",
+    "documents", "recruitment", "onboarding", "offboarding", "hr-analytics",
+    "admissions", "crm", "leads", "follow-ups", "calls", "sources",
+    "campaigns", "inquiries", "finance", "fees", "invoices", "payments",
+    "expenses", "payroll", "ledger", "vendors", "tax", "budget-simulator",
+    "complaints", "parent-notes", "counseling", "attendance-heatmap",
+    "reports", "notices", "holidays", "ai-counselor", "messages",
+    "collaboration", "support", "at-risk", "behavior", "student-cards",
+    "admin", "schools", "students"
+  ];
+  const routePattern = new RegExp(`\`?\\/(${routeNames.join("|")})(\\/[a-zA-Z0-9_\\-]+)?\`?`, "g");
+  formatted = formatted.replace(routePattern, (match, routeSegment, subRoute) => {
+    const fullRoute = "/" + routeSegment + (subRoute || "");
+    return `<button data-route="${fullRoute}" class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-primary/10 hover:bg-primary/20 text-primary text-[10px] font-semibold transition-all border border-primary/20 cursor-pointer shadow-xs my-0.5 align-middle select-none active:scale-95">${fullRoute} <span class="text-[8px] font-bold">↗</span></button>`;
+  });
   
   // Handle <think>...</think> block beautifully for reasoning models
   if (formatted.includes("<think>")) {
@@ -800,6 +827,27 @@ export default function AltrixCopilot() {
     return { content: cleanText, action: actionsList[0], actions: actionsList, chart: chartData };
   };
 
+  // ── Intercept clicks on inline route buttons ──────────────────────────────
+  const handleBubbleClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    const target = e.target as HTMLElement;
+    const button = target.closest("[data-route]");
+    const routeAttr = button?.getAttribute("data-route");
+    if (routeAttr) {
+      e.preventDefault();
+      let finalRoute = routeAttr;
+      const roleSegment = getRolePathSegment(primaryRole);
+      if (roleSegment) {
+        const isPrefixed = /^\/(teacher|hr|accountant|marketing|student|parent|school_owner|principal|vice_principal|school_admin|academic_coordinator)\b/.test(routeAttr);
+        if (!isPrefixed) {
+          finalRoute = `/${roleSegment}${routeAttr.startsWith('/') ? '' : '/'}${routeAttr}`;
+        }
+      }
+      const slugPrefix = schoolSlug ? `/${schoolSlug}` : "";
+      navigate(`${slugPrefix}${finalRoute}`);
+      setIsOpen(false);
+    }
+  };
+
   // ── Copy Message ──────────────────────────────────────────────────────────
   const handleCopy = (id: string, content: string) => {
     navigator.clipboard.writeText(content).then(() => {
@@ -1329,6 +1377,7 @@ export default function AltrixCopilot() {
                   ) : (
                     <div
                       className="copilot-msg-content whitespace-normal break-words leading-relaxed"
+                      onClick={handleBubbleClick}
                       dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.content) }}
                     />
                   )}
