@@ -976,6 +976,10 @@ class BrandingUpdate(BaseModel):
     logo_url: Optional[str] = None
     favicon_url: Optional[str] = None
     font_family: Optional[str] = None
+    accent_hue: Optional[float] = None
+    accent_saturation: Optional[float] = None
+    accent_lightness: Optional[float] = None
+    radius_scale: Optional[float] = None
 
 
 class BrandingOut(BaseModel):
@@ -986,6 +990,10 @@ class BrandingOut(BaseModel):
     accent_color: Optional[str] = None
     logo_url: Optional[str] = None
     font_family: Optional[str] = None
+    accent_hue: Optional[float] = None
+    accent_saturation: Optional[float] = None
+    accent_lightness: Optional[float] = None
+    radius_scale: Optional[float] = None
     created_at: Optional[datetime] = None
 
     model_config = {"from_attributes": True}

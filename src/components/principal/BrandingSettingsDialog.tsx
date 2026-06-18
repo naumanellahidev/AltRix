@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { supabase, USE_FASTAPI } from "@/integrations/supabase/client";
 import { apiClient } from "@/lib/api-client";
+import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
@@ -37,6 +38,7 @@ const PRESET_COLORS = [
 ];
 
 export function BrandingSettingsDialog({ schoolId, trigger }: BrandingSettingsDialogProps) {
+  const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [hue, setHue] = useState(210);
   const [saturation, setSaturation] = useState(100);
@@ -278,6 +280,34 @@ export function BrandingSettingsDialog({ schoolId, trigger }: BrandingSettingsDi
     // Apply color theme immediately
     const root = document.documentElement;
     root.style.setProperty("--brand", `${hue} ${saturation}% ${lightness}%`);
+
+    // Update local storage cache to prevent default color flash or revert on page reload
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith("eduverse_tenant_") && !key.startsWith("eduverse_tenant_basic_")) {
+          const cached = localStorage.getItem(key);
+          if (cached) {
+            const parsed = JSON.parse(cached);
+            if (parsed && parsed.data && parsed.data.id === schoolId) {
+              parsed.data.branding = {
+                ...parsed.data.branding,
+                accent_hue: hue,
+                accent_saturation: saturation,
+                accent_lightness: lightness,
+              };
+              parsed.timestamp = Date.now();
+              localStorage.setItem(key, JSON.stringify(parsed));
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("Failed to update tenant localStorage cache:", e);
+    }
+
+    // Invalidate react-query cache for the tenant
+    queryClient.invalidateQueries({ queryKey: ["tenant"] });
 
     toast.success("Settings updated successfully!");
     setSaving(false);
