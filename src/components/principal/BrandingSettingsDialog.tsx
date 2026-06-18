@@ -201,19 +201,9 @@ export function BrandingSettingsDialog({ schoolId, trigger }: BrandingSettingsDi
     const lngVal = Number(longitude);
     const altVal = altitude.trim() !== "" ? Number(altitude) : null;
 
-    // 1. Update branding
+    // 1. Update branding - Always update Supabase first to ensure database persistent write bypasses any uvicorn reloading delay
     let brandingError = null;
-    if (USE_FASTAPI) {
-      try {
-        await apiClient.put(`/schools/${schoolId}/branding`, {
-          accent_hue: hue,
-          accent_saturation: saturation,
-          accent_lightness: lightness,
-        });
-      } catch (err: any) {
-        brandingError = err;
-      }
-    } else {
+    try {
       const { error: colorErr } = await supabase
         .from("school_branding")
         .update({
@@ -233,7 +223,24 @@ export function BrandingSettingsDialog({ schoolId, trigger }: BrandingSettingsDi
             accent_saturation: saturation,
             accent_lightness: lightness,
           });
-        brandingError = insertErr;
+        if (insertErr) {
+          brandingError = insertErr;
+        }
+      }
+    } catch (err: any) {
+      brandingError = err;
+    }
+
+    // Also call FastAPI if enabled to keep backend state in sync (non-blocking, don't fail if schema hasn't reloaded)
+    if (USE_FASTAPI) {
+      try {
+        await apiClient.put(`/schools/${schoolId}/branding`, {
+          accent_hue: hue,
+          accent_saturation: saturation,
+          accent_lightness: lightness,
+        });
+      } catch (err: any) {
+        console.warn("FastAPI branding sync failed or was ignored:", err);
       }
     }
 

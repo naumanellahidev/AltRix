@@ -104,6 +104,25 @@ export function useTenantOptimized(schoolSlug: string | undefined): TenantResult
           console.warn("Failed to fetch school branding:", e);
         }
 
+        // Fallback: If FastAPI did not return branding or some color values are missing (e.g. backend schema cache or reloading delay), fetch directly from Supabase
+        if (!branding || branding.accent_hue == null || branding.accent_saturation == null || branding.accent_lightness == null) {
+          try {
+            const { data: sbBranding } = await supabase
+              .from("school_branding")
+              .select("accent_hue,accent_saturation,accent_lightness,radius_scale")
+              .eq("school_id", schoolData.id)
+              .maybeSingle();
+            if (sbBranding) {
+              branding = {
+                ...branding,
+                ...sbBranding,
+              };
+            }
+          } catch (e) {
+            console.warn("Failed to fetch school branding from Supabase fallback:", e);
+          }
+        }
+
         const tenantData: TenantData = {
           id: schoolData.id,
           slug: schoolData.slug,
