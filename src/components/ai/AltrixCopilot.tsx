@@ -1221,17 +1221,7 @@ export default function AltrixCopilot() {
                   <Trash2 className="h-3.5 w-3.5" />
                 </button>
               )}
-              <button
-                onClick={() => setShowActionLog(!showActionLog)}
-                className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
-                  showActionLog 
-                    ? "text-primary bg-primary/10" 
-                    : "text-slate-400 hover:text-slate-600 hover:bg-slate-50"
-                }`}
-                title="Action History & Undo Logs"
-              >
-                <History className="h-3.5 w-3.5" />
-              </button>
+
               <button
                 onClick={() => setIsExpanded((e) => !e)}
                 className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer"
