@@ -119,6 +119,81 @@ const genId = () => Math.random().toString(36).slice(2, 9);
 
 // ── Simple Markdown Renderer ─────────────────────────────────────────────────
 
+const routeNames = [
+  "academic", "timetable", "attendance", "exams", "report-cards", "diary",
+  "users", "staff-attendance", "leaves", "salaries", "contracts", "reviews",
+  "documents", "recruitment", "onboarding", "offboarding", "hr-analytics",
+  "admissions", "crm", "leads", "follow-ups", "calls", "sources",
+  "campaigns", "inquiries", "finance", "fees", "invoices", "payments",
+  "expenses", "payroll", "ledger", "vendors", "tax", "budget-simulator",
+  "complaints", "parent-notes", "counseling", "attendance-heatmap",
+  "reports", "notices", "holidays", "ai-counselor", "messages",
+  "collaboration", "support", "at-risk", "behavior", "student-cards",
+  "admin", "schools", "students"
+];
+
+const getRouteLabel = (route: string): string => {
+  const clean = route.toLowerCase();
+  
+  if (clean.includes("report-cards") || clean.includes("report_cards")) return "Report Cards";
+  if (clean.includes("staff-attendance") || clean.includes("staff_attendance")) return "Staff Attendance";
+  if (clean.includes("hr-analytics") || clean.includes("hr_analytics")) return "HR Analytics";
+  if (clean.includes("follow-ups") || clean.includes("follow_ups")) return "Follow-ups";
+  if (clean.includes("budget-simulator") || clean.includes("budget_simulator")) return "Budget Simulator";
+  if (clean.includes("attendance-heatmap") || clean.includes("attendance_heatmap")) return "Attendance Heatmap";
+  if (clean.includes("ai-counselor") || clean.includes("ai_counselor")) return "AI Counselor";
+  if (clean.includes("student-cards") || clean.includes("student_cards")) return "Student ID Cards";
+  if (clean.includes("parent-notes") || clean.includes("parent_notes")) return "Parent Notes";
+  
+  if (clean.includes("invoices")) return "Invoices";
+  if (clean.includes("payments")) return "Payments";
+  if (clean.includes("expenses")) return "Expenses";
+  if (clean.includes("payroll")) return "Payroll";
+  if (clean.includes("ledger")) return "Cash Ledger";
+  if (clean.includes("vendors")) return "Vendors";
+  if (clean.includes("tax")) return "Tax Center";
+  if (clean.includes("fees")) return "Fees Center";
+  if (clean.includes("finance")) return "Finance & Cashflow";
+  if (clean.includes("academic")) return "Academics";
+  if (clean.includes("timetable")) return "Timetable";
+  if (clean.includes("attendance")) return "Attendance";
+  if (clean.includes("exams")) return "Exams";
+  if (clean.includes("diary")) return "Diary";
+  if (clean.includes("users")) return "Staff Management";
+  if (clean.includes("leaves")) return "Leaves";
+  if (clean.includes("salaries")) return "Salaries";
+  if (clean.includes("contracts")) return "Contracts";
+  if (clean.includes("reviews")) return "Performance Reviews";
+  if (clean.includes("documents")) return "Documents";
+  if (clean.includes("recruitment")) return "Recruitment";
+  if (clean.includes("onboarding")) return "Onboarding";
+  if (clean.includes("offboarding")) return "Offboarding";
+  if (clean.includes("admissions")) return "Admissions";
+  if (clean.includes("crm")) return "CRM Dashboard";
+  if (clean.includes("leads")) return "Leads";
+  if (clean.includes("calls")) return "Call Logs";
+  if (clean.includes("sources")) return "Lead Sources";
+  if (clean.includes("campaigns")) return "Campaigns";
+  if (clean.includes("inquiries")) return "Inquiries Center";
+  if (clean.includes("complaints")) return "Complaints";
+  if (clean.includes("counseling")) return "Counseling Center";
+  if (clean.includes("reports")) return "Reports";
+  if (clean.includes("notices")) return "Notices";
+  if (clean.includes("holidays")) return "Holidays";
+  if (clean.includes("messages")) return "Messages";
+  if (clean.includes("collaboration")) return "Collaboration Hub";
+  if (clean.includes("support")) return "Support";
+  if (clean.includes("at-risk")) return "At-Risk Students";
+  if (clean.includes("behavior")) return "Behavior Notes";
+  if (clean.includes("admin")) return "Admin Console";
+  if (clean.includes("schools")) return "Schools";
+  if (clean.includes("students")) return "Students";
+  
+  // Format nicely if none matched
+  const lastSegment = route.split("/").filter(Boolean).pop() || route;
+  return lastSegment.charAt(0).toUpperCase() + lastSegment.slice(1).replace(/[-_]/g, " ");
+};
+
 function renderMarkdown(text: string): string {
   if (!text || typeof text !== "string") return "";
   
@@ -133,22 +208,11 @@ function renderMarkdown(text: string): string {
   formatted = formatted.replace(bracketedIdPattern, "");
 
   // Convert ERP routes (e.g., /exams or `/exams`) to direct navigation buttons
-  const routeNames = [
-    "academic", "timetable", "attendance", "exams", "report-cards", "diary",
-    "users", "staff-attendance", "leaves", "salaries", "contracts", "reviews",
-    "documents", "recruitment", "onboarding", "offboarding", "hr-analytics",
-    "admissions", "crm", "leads", "follow-ups", "calls", "sources",
-    "campaigns", "inquiries", "finance", "fees", "invoices", "payments",
-    "expenses", "payroll", "ledger", "vendors", "tax", "budget-simulator",
-    "complaints", "parent-notes", "counseling", "attendance-heatmap",
-    "reports", "notices", "holidays", "ai-counselor", "messages",
-    "collaboration", "support", "at-risk", "behavior", "student-cards",
-    "admin", "schools", "students"
-  ];
   const routePattern = new RegExp(`\`?\\/(${routeNames.join("|")})(\\/[a-zA-Z0-9_\\-]+)?\`?`, "g");
   formatted = formatted.replace(routePattern, (match, routeSegment, subRoute) => {
     const fullRoute = "/" + routeSegment + (subRoute || "");
-    return `<button data-route="${fullRoute}" class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-primary/10 hover:bg-primary/20 text-primary text-[10px] font-semibold transition-all border border-primary/20 cursor-pointer shadow-xs my-0.5 align-middle select-none active:scale-95">${fullRoute} <span class="text-[8px] font-bold">↗</span></button>`;
+    const label = getRouteLabel(fullRoute);
+    return `<button data-route="${fullRoute}" class="inline-flex items-center gap-1.5 px-3 py-1.5 my-1.5 rounded-xl bg-gradient-to-r from-primary/10 to-indigo-600/10 hover:from-primary/20 hover:to-indigo-600/20 text-primary text-xs font-semibold border border-primary/20 hover:border-primary/40 cursor-pointer shadow-xs hover:shadow-sm transition-all duration-300 select-none active:scale-95 align-middle"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" d="M13 5l7 7-7 7M5 5l7 7-7 7"></path></svg><span>${label}</span></button>`;
   });
   
   // Handle <think>...</think> block beautifully for reasoning models
@@ -834,14 +898,30 @@ export default function AltrixCopilot() {
     const routeAttr = button?.getAttribute("data-route");
     if (routeAttr) {
       e.preventDefault();
-      let finalRoute = routeAttr;
-      const roleSegment = getRolePathSegment(primaryRole);
-      if (roleSegment) {
-        const isPrefixed = /^\/(teacher|hr|accountant|marketing|student|parent|school_owner|principal|vice_principal|school_admin|academic_coordinator)\b/.test(routeAttr);
-        if (!isPrefixed) {
-          finalRoute = `/${roleSegment}${routeAttr.startsWith('/') ? '' : '/'}${routeAttr}`;
+      
+      // 1. Clean up the route (strip any existing role prefix if present)
+      let cleanRoute = routeAttr;
+      const rolePrefixPattern = /^\/(teacher|hr|accountant|marketing|student|parent|school_owner|principal|vice_principal|school_admin|academic_coordinator)\b/;
+      cleanRoute = cleanRoute.replace(rolePrefixPattern, "");
+      
+      // 2. Resolve sub-routes (e.g., /finance/invoices -> /invoices)
+      const segments = cleanRoute.split("/").filter(Boolean);
+      let resolvedRelativePath = "";
+      for (let i = segments.length - 1; i >= 0; i--) {
+        if (routeNames.includes(segments[i])) {
+          resolvedRelativePath = "/" + segments.slice(i).join("/");
+          break;
         }
       }
+      if (!resolvedRelativePath) {
+        resolvedRelativePath = cleanRoute.startsWith("/") ? cleanRoute : "/" + cleanRoute;
+      }
+      
+      // 3. Prepend current role path segment
+      const roleSegment = getRolePathSegment(primaryRole);
+      const finalRoute = roleSegment ? `/${roleSegment}${resolvedRelativePath}` : resolvedRelativePath;
+      
+      // 4. Prepend school slug
       const slugPrefix = schoolSlug ? `/${schoolSlug}` : "";
       navigate(`${slugPrefix}${finalRoute}`);
       setIsOpen(false);
