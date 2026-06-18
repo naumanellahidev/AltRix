@@ -762,6 +762,21 @@ async def fetch_ai_context(db: DbSession, user: AuthenticatedUser, school_id: st
         except Exception:
             return f"{symbol} {val}"
 
+    from datetime import timedelta
+    def to_pkt_date_str(val):
+        if not val:
+            return "N/A"
+        try:
+            if hasattr(val, "tzinfo"):
+                adjusted = val
+                if val.tzinfo is not None:
+                    adjusted = val.astimezone(timezone.utc)
+                adjusted = adjusted + timedelta(hours=5)
+                return adjusted.strftime('%Y-%m-%d')
+            return val.strftime('%Y-%m-%d')
+        except Exception:
+            return str(val)[:10]
+
     # Helper function to query rows safely and avoid database errors
     async def fetch_rows(sql, params):
         try:
@@ -855,6 +870,37 @@ async def fetch_ai_context(db: DbSession, user: AuthenticatedUser, school_id: st
             defaulters_str = "\n".join([
                 f"- {r[0]} {r[1] or ''} (Class: {r[4] or 'Unassigned'} [Class ID: {r[9]}], Section: {r[5] or 'Unassigned'} [Section ID: {r[8]}]) [Student ID: {r[6]}]: Outstanding: {format_money(r[2])} (Invoice: {r[3]} [Invoice ID: {r[7]}])"
                 for r in defaulters
+            ])
+
+            # Recent Fee Invoices (All Statuses) for Principal/Owner
+            recent_invoices = await fetch_rows("""
+                SELECT i.invoice_number, s.first_name, s.last_name, c.name, cs.name, 
+                       i.total_amount, i.paid_amount, i.due_date, i.status, i.created_at,
+                       s.id as student_id, i.id as invoice_id, c.id as class_id, cs.id as section_id
+                FROM fee_invoices i
+                JOIN students s ON i.student_id = s.id
+                LEFT JOIN student_enrollments se ON se.student_id = s.id AND se.end_date IS NULL
+                LEFT JOIN class_sections cs ON se.class_section_id = cs.id
+                LEFT JOIN academic_classes c ON cs.class_id = c.id
+                WHERE i.school_id = :sid AND i.student_id != '00000000-0000-0000-0000-000000000000'::uuid
+                ORDER BY i.created_at DESC LIMIT 100
+            """, {"sid": school_id})
+            recent_invoices_str = "\n".join([
+                f"- Inv #{r[0]}: {r[1]} {r[2] or ''} (Class: {r[3] or 'N/A'} [Class ID: {r[12]}], Section: {r[4] or 'N/A'} [Section ID: {r[13]}]), Total: {format_money(r[5])}, Paid: {format_money(r[6])}, Issue Date: {to_pkt_date_str(r[9])}, Due Date: {to_pkt_date_str(r[7])}, Status: {r[8]} [Invoice ID: {r[11]}, Student ID: {r[10]}]"
+                for r in recent_invoices
+            ])
+
+            # Recent Fee Payments Collected for Principal/Owner
+            recent_payments = await fetch_rows("""
+                SELECT fp.amount, fp.method, fp.paid_at, fp.status, s.first_name, s.last_name, fp.id as payment_id, fp.invoice_id, s.id as student_id
+                FROM fee_payments fp
+                JOIN students s ON fp.student_id = s.id
+                WHERE fp.school_id = :sid
+                ORDER BY fp.paid_at DESC LIMIT 30
+            """, {"sid": school_id})
+            recent_payments_str = "\n".join([
+                f"- Received: {format_money(r[0])} via {r[1]} on {to_pkt_date_str(r[2])} | Status: {r[3]} | Student: {r[4]} {r[5] or ''} [Payment ID: {r[6]}, Invoice ID: {r[7] or 'N/A'}, Student ID: {r[8]}]"
+                for r in recent_payments
             ])
             
             # Classes/sections enrollment
@@ -1113,6 +1159,12 @@ School Exams & Terms:
 Outstanding Fee Defaulters:
 {defaulters_str if defaulters_str else "None"}
 
+Recent Fee Invoices (All Statuses):
+{recent_invoices_str if recent_invoices_str else "None"}
+
+Recent Fee Payments Collected:
+{recent_payments_str if recent_payments_str else "None"}
+
 Recent Staff Leave Requests:
 {leaves_str if leaves_str else "None"}
 
@@ -1160,20 +1212,22 @@ Recent ERP Complaints & Feedback:
             """, {"sid": school_id})
             defaulters_str = "\n".join([f"- {r[0]} {r[1] or ''}: Balance: {format_money(r[2])} (Invoice: {r[3]} [Invoice ID: {r[5]}]) [Student ID: {r[4]}]" for r in defaulters])
 
-            # Detailed Unpaid Invoices
-            unpaid_invoices = await fetch_rows("""
-                SELECT i.invoice_number, s.first_name, s.last_name, c.name, cs.name, i.total_amount, i.paid_amount, i.due_date, i.status, s.id as student_id, i.id as invoice_id, c.id as class_id, cs.id as section_id
+            # Detailed Fee Invoices (All Statuses)
+            recent_invoices = await fetch_rows("""
+                SELECT i.invoice_number, s.first_name, s.last_name, c.name, cs.name, 
+                       i.total_amount, i.paid_amount, i.due_date, i.status, i.created_at,
+                       s.id as student_id, i.id as invoice_id, c.id as class_id, cs.id as section_id
                 FROM fee_invoices i
                 JOIN students s ON i.student_id = s.id
                 LEFT JOIN student_enrollments se ON se.student_id = s.id AND se.end_date IS NULL
                 LEFT JOIN class_sections cs ON se.class_section_id = cs.id
                 LEFT JOIN academic_classes c ON cs.class_id = c.id
-                WHERE i.school_id = :sid AND i.status != 'paid' AND i.student_id != '00000000-0000-0000-0000-000000000000'::uuid
-                ORDER BY i.due_date ASC LIMIT 50
+                WHERE i.school_id = :sid AND i.student_id != '00000000-0000-0000-0000-000000000000'::uuid
+                ORDER BY i.created_at DESC LIMIT 100
             """, {"sid": school_id})
             invoices_str = "\n".join([
-                f"- Inv #{r[0]}: {r[1]} {r[2] or ''} (Class: {r[3] or 'N/A'} [Class ID: {r[11]}], Section: {r[4] or ''} [Section ID: {r[12]}]), Total: {format_money(r[5])}, Paid: {format_money(r[6])}, Due: {r[7]}, Status: {r[8]} [Invoice ID: {r[10]}, Student ID: {r[9]}]"
-                for r in unpaid_invoices
+                f"- Inv #{r[0]}: {r[1]} {r[2] or ''} (Class: {r[3] or 'N/A'} [Class ID: {r[12]}], Section: {r[4] or 'N/A'} [Section ID: {r[13]}]), Total: {format_money(r[5])}, Paid: {format_money(r[6])}, Issue Date: {to_pkt_date_str(r[9])}, Due Date: {to_pkt_date_str(r[7])}, Status: {r[8]} [Invoice ID: {r[11]}, Student ID: {r[10]}]"
+                for r in recent_invoices
             ])
 
             # Fee Plans
@@ -1191,10 +1245,10 @@ Recent ERP Complaints & Feedback:
                 FROM fee_payments fp
                 JOIN students s ON fp.student_id = s.id
                 WHERE fp.school_id = :sid
-                ORDER BY fp.paid_at DESC LIMIT 20
+                ORDER BY fp.paid_at DESC LIMIT 30
             """, {"sid": school_id})
             payments_str = "\n".join([
-                f"- Recieved: {format_money(r[0])} via {r[1]} on {r[2].strftime('%Y-%m-%d') if r[2] else 'N/A'} | Status: {r[3]} | Student: {r[4]} {r[5] or ''} [Payment ID: {r[6]}, Invoice ID: {r[7] or 'N/A'}, Student ID: {r[8]}]"
+                f"- Received: {format_money(r[0])} via {r[1]} on {to_pkt_date_str(r[2])} | Status: {r[3]} | Student: {r[4]} {r[5] or ''} [Payment ID: {r[6]}, Invoice ID: {r[7] or 'N/A'}, Student ID: {r[8]}]"
                 for r in recent_payments
             ])
 
@@ -1233,7 +1287,7 @@ Live Financial Metrics:
 Outstanding Defaulters:
 {defaulters_str if defaulters_str else "None"}
 
-Pending Unpaid Invoices:
+Recent Fee Invoices (All Statuses):
 {invoices_str if invoices_str else "None"}
 
 Active Fee Plans & Structures:
@@ -1453,14 +1507,14 @@ Upcoming Holidays: {holidays_str}
 
             # Fee invoices
             invoices = await fetch_rows("""
-                SELECT i.invoice_number, s.first_name, s.last_name, i.total_amount, i.paid_amount, i.due_date, i.status, i.id as invoice_id, s.id as student_id
+                SELECT i.invoice_number, s.first_name, s.last_name, i.total_amount, i.paid_amount, i.due_date, i.status, i.created_at, i.id as invoice_id, s.id as student_id
                 FROM fee_invoices i
                 JOIN students s ON i.student_id = s.id
                 WHERE i.student_id IN (SELECT student_id FROM student_guardians WHERE user_id = :uid AND school_id = :sid)
-                ORDER BY i.due_date DESC
+                ORDER BY i.created_at DESC
             """, {"uid": user.id, "sid": school_id})
             invoices_str = "\n".join([
-                f"- Inv #{r[0]} for {r[1]} {r[2] or ''}: Total Amount: {format_money(r[3])}, Paid Amount: {format_money(r[4])}, Due Date: {r[5]}, Status: {r[6]} [Invoice ID: {r[7]}, Student ID: {r[8]}]"
+                f"- Inv #{r[0]} for {r[1]} {r[2] or ''}: Total Amount: {format_money(r[3])}, Paid Amount: {format_money(r[4])}, Issue Date: {to_pkt_date_str(r[7])}, Due Date: {to_pkt_date_str(r[5])}, Status: {r[6]} [Invoice ID: {r[8]}, Student ID: {r[9]}]"
                 for r in invoices
             ])
 
@@ -1828,10 +1882,11 @@ Your role is to help users retrieve information, analyze data, explain insights,
 - For example, if attendance rate is 76%, explain that it is below the average school standard (usually 85-90%) and could lead to academic probation or grade-retention issues.
 - Compare collections, enrollment, or grades logically and report trends without inventing data (zero hallucinations).
 
-**NO HALLUCINATIONS:**
+**NO HALLUCINATIONS & ID PRIVACY:**
 - Only use verified ERP data provided in the database context.
 - Never invent students, marks, attendance, invoices, fees, or teachers.
 - If the requested information is not in the context, politely state that it was not found or is not configured yet.
+- NEVER expose, print, or mention any database UUIDs, database IDs, school IDs, student IDs, parent IDs, teacher IDs, or staff IDs in your text reply to the user. All raw UUIDs must remain strictly private and hidden. You can only use them inside the `<altrix_action>` tags (since action tags are parsed by the client side and not displayed as visible text to the user).
 
 **Current User Details:**
 - User ID: __USER_ID__
@@ -1868,6 +1923,7 @@ __DB_CONTEXT__
   1. The direct answer.
   2. The suggested navigation path (e.g. Path: `Finance → Invoices` or `Academics → Attendance`).
   3. A direct navigation button using the `<altrix_action>` tag.
+- ALWAYS wrap routes inside your text response in backticks (e.g. `/exams` or `/finance/invoices`). The frontend will automatically detect these and render them as beautiful, small responsive buttons that route the user directly on click.
 - Catalog of supported navigation routes (use ONLY these exact paths):
   - Academics: /academic, /timetable, /attendance, /exams, /report-cards, /diary
   - Staff & HR: /users (use this for Staff & Teachers list), /staff-attendance, /leaves, /salaries, /contracts, /reviews, /documents, /recruitment, /onboarding, /offboarding, /hr-analytics
