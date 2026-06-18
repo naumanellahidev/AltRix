@@ -194,6 +194,18 @@ const getRouteLabel = (route: string): string => {
   return lastSegment.charAt(0).toUpperCase() + lastSegment.slice(1).replace(/[-_]/g, " ");
 };
 
+const extractRoutesFromText = (text: string): string[] => {
+  if (!text) return [];
+  const matches: string[] = [];
+  const routePattern = new RegExp(`\\/(${routeNames.join("|")})(\\/[a-zA-Z0-9_\\-]+)?\\b`, "g");
+  let match;
+  while ((match = routePattern.exec(text)) !== null) {
+    matches.push(match[0]);
+  }
+  // Deduplicate
+  return Array.from(new Set(matches));
+};
+
 function renderMarkdown(text: string): string {
   if (!text || typeof text !== "string") return "";
   
@@ -206,14 +218,6 @@ function renderMarkdown(text: string): string {
   // Strip bracketed ID expressions like [ID: ...], [Student ID: ...], or (User ID: ...)
   const bracketedIdPattern = /[\[\(][^\]\)]*\bid\b[^\]\)]*[\]\)]/gi;
   formatted = formatted.replace(bracketedIdPattern, "");
-
-  // Convert ERP routes (e.g., /exams or `/exams`) to direct navigation buttons
-  const routePattern = new RegExp(`\`?\\/(${routeNames.join("|")})(\\/[a-zA-Z0-9_\\-]+)?\`?`, "g");
-  formatted = formatted.replace(routePattern, (match, routeSegment, subRoute) => {
-    const fullRoute = "/" + routeSegment + (subRoute || "");
-    const label = getRouteLabel(fullRoute);
-    return `<button data-route="${fullRoute}" class="inline-flex items-center gap-1.5 px-3 py-1.5 my-1.5 rounded-xl bg-gradient-to-r from-primary/10 to-indigo-600/10 hover:from-primary/20 hover:to-indigo-600/20 text-primary text-xs font-semibold border border-primary/20 hover:border-primary/40 cursor-pointer shadow-xs hover:shadow-sm transition-all duration-300 select-none active:scale-95 align-middle"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" d="M13 5l7 7-7 7M5 5l7 7-7 7"></path></svg><span>${label}</span></button>`;
-  });
   
   // Handle <think>...</think> block beautifully for reasoning models
   if (formatted.includes("<think>")) {
@@ -891,6 +895,35 @@ export default function AltrixCopilot() {
     return { content: cleanText, action: actionsList[0], actions: actionsList, chart: chartData };
   };
 
+  const handleDirectRouteNavigation = (routeAttr: string) => {
+    // 1. Clean up the route (strip any existing role prefix if present)
+    let cleanRoute = routeAttr;
+    const rolePrefixPattern = /^\/(teacher|hr|accountant|marketing|student|parent|school_owner|principal|vice_principal|school_admin|academic_coordinator)\b/;
+    cleanRoute = cleanRoute.replace(rolePrefixPattern, "");
+    
+    // 2. Resolve sub-routes (e.g., /finance/invoices -> /invoices)
+    const segments = cleanRoute.split("/").filter(Boolean);
+    let resolvedRelativePath = "";
+    for (let i = segments.length - 1; i >= 0; i--) {
+      if (routeNames.includes(segments[i])) {
+        resolvedRelativePath = "/" + segments.slice(i).join("/");
+        break;
+      }
+    }
+    if (!resolvedRelativePath) {
+      resolvedRelativePath = cleanRoute.startsWith("/") ? cleanRoute : "/" + cleanRoute;
+    }
+    
+    // 3. Prepend current role path segment
+    const roleSegment = getRolePathSegment(primaryRole);
+    const finalRoute = roleSegment ? `/${roleSegment}${resolvedRelativePath}` : resolvedRelativePath;
+    
+    // 4. Prepend school slug
+    const slugPrefix = schoolSlug ? `/${schoolSlug}` : "";
+    navigate(`${slugPrefix}${finalRoute}`);
+    setIsOpen(false);
+  };
+
   // ── Intercept clicks on inline route buttons ──────────────────────────────
   const handleBubbleClick = (e: React.MouseEvent<HTMLDivElement>) => {
     const target = e.target as HTMLElement;
@@ -898,33 +931,7 @@ export default function AltrixCopilot() {
     const routeAttr = button?.getAttribute("data-route");
     if (routeAttr) {
       e.preventDefault();
-      
-      // 1. Clean up the route (strip any existing role prefix if present)
-      let cleanRoute = routeAttr;
-      const rolePrefixPattern = /^\/(teacher|hr|accountant|marketing|student|parent|school_owner|principal|vice_principal|school_admin|academic_coordinator)\b/;
-      cleanRoute = cleanRoute.replace(rolePrefixPattern, "");
-      
-      // 2. Resolve sub-routes (e.g., /finance/invoices -> /invoices)
-      const segments = cleanRoute.split("/").filter(Boolean);
-      let resolvedRelativePath = "";
-      for (let i = segments.length - 1; i >= 0; i--) {
-        if (routeNames.includes(segments[i])) {
-          resolvedRelativePath = "/" + segments.slice(i).join("/");
-          break;
-        }
-      }
-      if (!resolvedRelativePath) {
-        resolvedRelativePath = cleanRoute.startsWith("/") ? cleanRoute : "/" + cleanRoute;
-      }
-      
-      // 3. Prepend current role path segment
-      const roleSegment = getRolePathSegment(primaryRole);
-      const finalRoute = roleSegment ? `/${roleSegment}${resolvedRelativePath}` : resolvedRelativePath;
-      
-      // 4. Prepend school slug
-      const slugPrefix = schoolSlug ? `/${schoolSlug}` : "";
-      navigate(`${slugPrefix}${finalRoute}`);
-      setIsOpen(false);
+      handleDirectRouteNavigation(routeAttr);
     }
   };
 
@@ -1455,11 +1462,43 @@ export default function AltrixCopilot() {
                       <p className="whitespace-pre-wrap break-words">{msg.content}</p>
                     </div>
                   ) : (
-                    <div
-                      className="copilot-msg-content whitespace-normal break-words leading-relaxed"
-                      onClick={handleBubbleClick}
-                      dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.content) }}
-                    />
+                    <div className="flex flex-col gap-3">
+                      <div
+                        className="copilot-msg-content whitespace-normal break-words leading-relaxed"
+                        onClick={handleBubbleClick}
+                        dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.content) }}
+                      />
+                      {/* Beautiful Global-themed Navigation Buttons */}
+                      {(() => {
+                        const routes = extractRoutesFromText(msg.content);
+                        if (routes.length === 0) return null;
+                        return (
+                          <div className="flex flex-col gap-1.5 pt-2 border-t border-slate-200/60 mt-1">
+                            <div className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider flex items-center gap-1">
+                              <Zap className="h-3 w-3 text-primary animate-pulse" />
+                              <span>Quick Actions & Navigation</span>
+                            </div>
+                            <div className="flex flex-wrap gap-2 mt-0.5">
+                              {routes.map((route) => (
+                                <button
+                                  key={route}
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    handleDirectRouteNavigation(route);
+                                  }}
+                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-primary/10 to-indigo-600/10 hover:from-primary/20 hover:to-indigo-600/20 text-primary text-xs font-bold border border-primary/20 hover:border-primary/40 cursor-pointer shadow-xs hover:shadow-sm transition-all duration-300 select-none active:scale-95 align-middle"
+                                >
+                                  <svg className="w-3.5 h-3.5 text-primary" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M13 5l7 7-7 7M5 5l7 7-7 7"></path>
+                                  </svg>
+                                  <span>{getRouteLabel(route)}</span>
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })()}
+                    </div>
                   )}
 
                   {/* Copy button */}
