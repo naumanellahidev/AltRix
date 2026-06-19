@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Check, Clock, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -46,6 +46,15 @@ export function PeriodLogDialog({
   const [notes, setNotes] = useState(existingLog?.notes || "");
   const [topicsCovered, setTopicsCovered] = useState(existingLog?.topics_covered || "");
   const [saving, setSaving] = useState(false);
+
+  // Reset fields when dialog is opened or existingLog changes to prevent stale data
+  useEffect(() => {
+    if (open) {
+      setStatus(existingLog?.status || "completed");
+      setNotes(existingLog?.notes || "");
+      setTopicsCovered(existingLog?.topics_covered || "");
+    }
+  }, [open, existingLog]);
 
   const handleSave = async () => {
     setSaving(true);

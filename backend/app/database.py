@@ -44,11 +44,18 @@ def build_engine(database_url: str | None = None):
         pool_kwargs["pool_size"] = settings.db_pool_size
         pool_kwargs["max_overflow"] = settings.db_pool_max_overflow
         
+    # Disable prepared statements cache if using pgpooler/pgbouncer (Transaction mode)
+    # Supabase Transaction Pooler uses port 6543
+    connect_args = {}
+    if "6543" in url:
+        connect_args["prepared_statement_cache_size"] = 0
+        
     return create_async_engine(
         url,
         echo=settings.is_development,
         pool_pre_ping=True,
         poolclass=poolclass,
+        connect_args=connect_args,
         **pool_kwargs
     )
 
