@@ -292,6 +292,14 @@ const Index = () => {
         }
       });
       if (error) {
+        // Log full error details for debugging SMTP/Resend failures
+        console.error("[OTP] signInWithOtp error:", {
+          message: error.message,
+          status: (error as any).status,
+          code: (error as any).code,
+          name: error.name,
+          full: error,
+        });
         const isNotFound = error.message.toLowerCase().includes("user not found") || 
                            error.message.toLowerCase().includes("not allowed");
         if (isNotFound) {
