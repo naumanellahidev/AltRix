@@ -285,30 +285,20 @@ const Index = () => {
 
     setBusy(true);
     try {
-      const { error } = await supabase.auth.signInWithOtp({
-        email: parsedEmail.data,
-        options: {
-          shouldCreateUser: false,
-        }
+      // Use our custom send-otp edge function (Resend REST API — no SMTP/domain required)
+      const { data, error } = await supabase.functions.invoke<{ ok: boolean; error?: string; code?: string; cooldownSeconds?: number }>("send-otp", {
+        body: { email: parsedEmail.data, purpose: "password_reset" },
       });
-      if (error) {
-        // Log full error details for debugging SMTP/Resend failures
-        console.error("[OTP] signInWithOtp error:", {
-          message: error.message,
-          status: (error as any).status,
-          code: (error as any).code,
-          name: error.name,
-          full: error,
-        });
-        const isNotFound = error.message.toLowerCase().includes("user not found") || 
-                           error.message.toLowerCase().includes("not allowed");
+      if (error || !data?.ok) {
+        const msg = data?.error || error?.message || "Failed to send code. Please try again.";
+        const isNotFound = msg.toLowerCase().includes("not found") || msg.toLowerCase().includes("not allowed");
         if (isNotFound) {
           return showError("No active account was found for this email. Please check the spelling or contact your school administrator.");
         }
-        return showError(error.message || "Failed to send code. Please try again.");
+        return showError(msg);
       }
       startOtpCooldown(parsedEmail.data);
-      setOtpCooldown(60);
+      setOtpCooldown(data.cooldownSeconds ?? 60);
       setOtpCode("");
       setOtpError(null);
       setAuthMode('forgot_password_otp');
@@ -327,24 +317,41 @@ const Index = () => {
       return showError("Email is invalid.");
     }
     try {
-      const { data, error } = await supabase.auth.verifyOtp({
-        email: parsedEmail.data,
-        token: code,
-        type: 'magiclink',
+      // Use our custom verify-otp edge function — returns a Supabase recovery redirect URL
+      const { data, error } = await supabase.functions.invoke<{
+        ok: boolean;
+        action?: "redirect" | "session";
+        url?: string;
+        error?: string;
+        code?: string;
+      }>("verify-otp", {
+        body: { email: parsedEmail.data, code, purpose: "password_reset" },
       });
-      if (error) {
-        setOtpError(error.message);
-        showError("Invalid or expired verification code.");
+
+      if (error || !data?.ok) {
+        const msg = data?.error || error?.message || "Invalid or expired verification code.";
+        setOtpError(msg);
+        showError(msg);
         setOtpCode("");
         return;
       }
-      showSuccess("Verification successful! Redirecting you to set a new password...");
-      setTimeout(() => {
-        navigate(`/reset-password?returnTo=/${safeSlug}/auth`);
-      }, 1200);
+
+      if (data.action === "redirect" && data.url) {
+        showSuccess("Verification successful! Redirecting you to set a new password...");
+        setTimeout(() => {
+          // Navigate via the Supabase recovery link which sets the session automatically
+          window.location.href = data.url!;
+        }, 1200);
+        return;
+      }
+
+      // Fallback in case action is missing
+      showSuccess("Verified! Redirecting...");
+      setTimeout(() => navigate(`/reset-password?returnTo=/${safeSlug}/auth`), 1200);
     } catch (err: any) {
-      setOtpError(err.message || "Verification failed");
-      showError(err.message || "Verification failed");
+      const msg = err.message || "Verification failed";
+      setOtpError(msg);
+      showError(msg);
     } finally {
       setIsVerificationPending(false);
     }
