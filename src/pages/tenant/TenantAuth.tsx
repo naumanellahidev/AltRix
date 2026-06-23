@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { z } from "zod";
 import { motion, useReducedMotion } from "framer-motion";
-import { Building2, KeyRound, Loader2 } from "lucide-react";
+import { Building2, Eye, EyeOff, KeyRound, Loader2 } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
 import { useTenant } from "@/hooks/useTenant";
@@ -62,6 +62,7 @@ const TenantAuth = () => {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [resetCooldown, setResetCooldown] = useState(0);
@@ -244,14 +245,26 @@ const TenantAuth = () => {
 
                 <div className="space-y-2">
                   <label className="text-sm font-medium" htmlFor="login-password">Password</label>
-                  <Input
-                    id="login-password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="••••••••"
-                    type="password"
-                    autoComplete="current-password"
-                  />
+                  <div className="relative">
+                    <Input
+                      id="login-password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="••••••••"
+                      type={showPassword ? "text" : "password"}
+                      autoComplete="current-password"
+                      className="pr-10"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((v) => !v)}
+                      className="absolute inset-y-0 right-0 flex items-center px-3 text-muted-foreground hover:text-foreground transition-colors"
+                      tabIndex={-1}
+                      aria-label={showPassword ? "Hide password" : "Show password"}
+                    >
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
                 </div>
 
                 <Button type="submit" variant="hero" size="xl" className="w-full" disabled={busy}>

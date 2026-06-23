@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { motion, useReducedMotion } from "framer-motion";
-import { KeyRound, School } from "lucide-react";
+import { Eye, EyeOff, KeyRound, School } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
 import { useTenant } from "@/hooks/useTenant";
@@ -19,6 +19,8 @@ const TenantBootstrap = () => {
   const [schoolName, setSchoolName] = useState("Beacon International School");
   const [adminEmail, setAdminEmail] = useState("");
   const [adminPassword, setAdminPassword] = useState("");
+  const [showBootstrapSecret, setShowBootstrapSecret] = useState(false);
+  const [showAdminPassword, setShowAdminPassword] = useState(false);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<string | null>(null);
   const [force, setForce] = useState(false);
@@ -85,12 +87,24 @@ const TenantBootstrap = () => {
 
               <div className="space-y-2">
                 <label className="text-sm font-medium">Bootstrap Secret</label>
-                <Input
-                  value={bootstrapSecret}
-                  onChange={(e) => setBootstrapSecret(e.target.value)}
-                  type="password"
-                  placeholder="(provided in backend secrets)"
-                />
+                <div className="relative">
+                  <Input
+                    value={bootstrapSecret}
+                    onChange={(e) => setBootstrapSecret(e.target.value)}
+                    type={showBootstrapSecret ? "text" : "password"}
+                    placeholder="(provided in backend secrets)"
+                    className="pr-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowBootstrapSecret((v) => !v)}
+                    className="absolute inset-y-0 right-0 flex items-center px-3 text-muted-foreground hover:text-foreground transition-colors"
+                    tabIndex={-1}
+                    aria-label={showBootstrapSecret ? "Hide secret" : "Show secret"}
+                  >
+                    {showBootstrapSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
               </div>
 
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -100,12 +114,24 @@ const TenantBootstrap = () => {
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Super Admin Password</label>
-                  <Input
-                    value={adminPassword}
-                    onChange={(e) => setAdminPassword(e.target.value)}
-                    type="password"
-                    placeholder="Minimum 8 characters"
-                  />
+                  <div className="relative">
+                    <Input
+                      value={adminPassword}
+                      onChange={(e) => setAdminPassword(e.target.value)}
+                      type={showAdminPassword ? "text" : "password"}
+                      placeholder="Minimum 8 characters"
+                      className="pr-10"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowAdminPassword((v) => !v)}
+                      className="absolute inset-y-0 right-0 flex items-center px-3 text-muted-foreground hover:text-foreground transition-colors"
+                      tabIndex={-1}
+                      aria-label={showAdminPassword ? "Hide password" : "Show password"}
+                    >
+                      {showAdminPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
                 </div>
               </div>
 
