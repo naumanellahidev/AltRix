@@ -317,11 +317,13 @@ const Index = () => {
       return showError("Email is invalid.");
     }
     try {
-      // Use our custom verify-otp edge function — returns a Supabase recovery redirect URL
+      // Use our custom verify-otp edge function — returns session tokens directly
       const { data, error } = await supabase.functions.invoke<{
         ok: boolean;
-        action?: "redirect" | "session";
-        url?: string;
+        action?: "session";
+        accessToken?: string;
+        refreshToken?: string;
+        expiresAt?: number;
         error?: string;
         code?: string;
       }>("verify-otp", {
@@ -336,16 +338,18 @@ const Index = () => {
         return;
       }
 
-      if (data.action === "redirect" && data.url) {
-        showSuccess("Verification successful! Redirecting you to set a new password...");
-        setTimeout(() => {
-          // Navigate via the Supabase recovery link which sets the session automatically
-          window.location.href = data.url!;
-        }, 1200);
+      if (data.action === "session" && data.accessToken) {
+        showSuccess("Verification successful! Taking you to reset your password...");
+        // Set the Supabase session directly — no redirect URL or Site URL needed
+        await supabase.auth.setSession({
+          access_token: data.accessToken,
+          refresh_token: data.refreshToken ?? "",
+        });
+        setTimeout(() => navigate(`/reset-password?returnTo=/${safeSlug}/auth`), 1200);
         return;
       }
 
-      // Fallback in case action is missing
+      // Fallback
       showSuccess("Verified! Redirecting...");
       setTimeout(() => navigate(`/reset-password?returnTo=/${safeSlug}/auth`), 1200);
     } catch (err: any) {

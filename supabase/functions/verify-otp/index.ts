@@ -47,7 +47,6 @@ serve(async (req) => {
     const email = String(body.email ?? "").trim().toLowerCase();
     const code = String(body.code ?? "").trim();
     const purpose = String(body.purpose ?? "password_reset");
-    const origin = req.headers.get("origin") ?? "https://alt-rix.vercel.app";
 
     if (!isEmail(email)) {
       return json({ ok: false, code: "invalid_email", error: "Invalid email address." });
@@ -107,25 +106,23 @@ serve(async (req) => {
     }
 
     if (purpose === "password_reset") {
-      // Generate a password-reset magic link and extract the token for /reset-password
-      const { data: linkData, error: linkErr } = await admin.auth.admin.generateLink({
-        type: "recovery",
-        email,
-        options: {
-          redirectTo: `${origin}/reset-password`,
-        },
+      // Create a real session for the user so the frontend can call setSession()
+      // and navigate directly to /reset-password — no redirect URLs needed.
+      const { data: sessionData, error: sessionErr } = await admin.auth.admin.createSession({
+        user_id: userId,
       });
 
-      if (linkErr || !linkData?.properties?.hashed_token) {
-        console.error("generateLink error:", linkErr);
-        return json({ ok: false, code: "link_error", error: "Could not generate reset link. Please try again." }, 500);
+      if (sessionErr || !sessionData?.session) {
+        console.error("[verify-otp] createSession error:", sessionErr);
+        return json({ ok: false, code: "session_error", error: "Could not create reset session. Please try again." });
       }
 
-      // Return the full action_link so the frontend can redirect directly
       return json({
         ok: true,
-        action: "redirect",
-        url: linkData.properties.action_link,
+        action: "session",
+        accessToken: sessionData.session.access_token,
+        refreshToken: sessionData.session.refresh_token,
+        expiresAt: sessionData.session.expires_at,
       });
     }
 
