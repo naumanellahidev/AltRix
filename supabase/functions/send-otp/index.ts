@@ -50,8 +50,8 @@ const buildEmailHtml = (otp: string, purpose: "password_reset" | "verify_email")
       ? "If you didn't create an AltRix account, you can safely ignore this email."
       : "If you didn't request a password reset, no action is needed — your password remains unchanged.";
 
-  // Split OTP into two groups of 3 for readability: e.g. "847 291"
-  const otpFormatted = `${otp.slice(0, 3)}&thinsp;${otp.slice(3)}`;
+  // Always exactly 6 digits — no separators. Letter-spacing handles visual spacing.
+  const otpDisplay = otp; // plain "847291" — never modified
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -118,8 +118,8 @@ const buildEmailHtml = (otp: string, purpose: "password_reset" | "verify_email")
               <table cellpadding="0" cellspacing="0" border="0" style="background:#0a0e18;border:1px solid #252d40;border-radius:12px;width:100%;">
                 <tr>
                   <td align="center" style="padding:28px 24px 24px;">
-                    <p style="margin:0 0 6px;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#3d4a63;font-weight:500;">Your Verification Code</p>
-                    <p style="margin:0;font-size:48px;font-weight:800;letter-spacing:10px;color:#ffffff;font-family:'Courier New',Courier,monospace;text-shadow:0 0 32px rgba(99,102,241,0.5);">${otpFormatted}</p>
+                    <p style="margin:0 0 8px;font-size:11px;letter-spacing:3px;text-transform:uppercase;color:#3d4a63;font-weight:600;">Your Verification Code</p>
+                    <p style="margin:0;font-size:52px;font-weight:800;letter-spacing:14px;color:#ffffff;font-family:'Courier New',Courier,monospace;text-shadow:0 0 32px rgba(99,102,241,0.4);">${otpDisplay}</p>
                     <table cellpadding="0" cellspacing="0" border="0" style="margin:16px auto 0;">
                       <tr>
                         <td style="background:#1a1f2e;border:1px solid #252d40;border-radius:20px;padding:5px 14px;">
