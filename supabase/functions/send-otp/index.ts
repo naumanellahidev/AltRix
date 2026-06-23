@@ -1,11 +1,9 @@
 /**
- * send-otp — Generates a 6-digit OTP and sends it via Resend.
+ * send-otp — Generates a 6-digit OTP and sends a premium HTML email via Resend REST API.
+ * No SMTP. No Resend template dashboard needed. Template is embedded here.
  *
- * Required secrets:
- *   RESEND_API_KEY          — Resend API key (re_xxxxx)
- *   RESEND_TEMPLATE_ID      — (optional) Template ID from Resend dashboard
- *                             When set, Resend uses your saved template with {{code}} variable.
- *                             When not set, falls back to built-in HTML template.
+ * Required secret:
+ *   RESEND_API_KEY  — Resend API key (re_xxxxx)
  *
  * POST body: { email: string, purpose?: "password_reset" | "verify_email" }
  * Returns:   { ok: true, cooldownSeconds: 60 } | { ok: false, error: string, code: string }
@@ -19,7 +17,6 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// Always HTTP 200 — error details live in { ok: false, code, error }
 const json = (data: Record<string, unknown>) =>
   new Response(JSON.stringify(data), {
     status: 200,
@@ -33,36 +30,42 @@ const sha256 = async (input: string) => {
   return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
 };
 
-/** Always returns exactly 6 numeric digits, zero-padded. e.g. "047291" */
+/** Guaranteed exactly 6 numeric digits, zero-padded. e.g. "047291" */
 const generateOtp = (): string => {
   const bytes = new Uint8Array(4);
   crypto.getRandomValues(bytes);
-  const view = new DataView(bytes.buffer);
-  const num = view.getUint32(0) % 1_000_000;   // 0 – 999 999
-  const otp = num.toString().padStart(6, "0");  // always exactly 6 chars
-  // Defensive assertion
-  if (otp.length !== 6 || !/^\d{6}$/.test(otp)) {
-    throw new Error(`OTP generation produced invalid value: "${otp}"`);
-  }
-  return otp;
+  const num = new DataView(bytes.buffer).getUint32(0) % 1_000_000;
+  return num.toString().padStart(6, "0");
 };
 
-// ─── Fallback inline HTML (used when RESEND_TEMPLATE_ID is not set) ───────────
-const buildFallbackHtml = (otp: string, purpose: "password_reset" | "verify_email") => {
-  const title = purpose === "verify_email" ? "Verify Your Email" : "Reset Your Password";
-  const subtitle = purpose === "verify_email"
-    ? "Enter the 6-digit code below to activate your AltRix account."
-    : "Enter the 6-digit code below on the AltRix sign-in page.";
+// ─── Premium email template ────────────────────────────────────────────────────
+// Each OTP digit gets its own bordered box — no letter-spacing tricks,
+// no HTML entities, always exactly 6 visible digits.
+const buildEmailHtml = (otp: string, purpose: "password_reset" | "verify_email"): string => {
+  const isReset = purpose === "password_reset";
+  const title   = isReset ? "Reset Your Password"   : "Verify Your Email";
+  const subtitle = isReset
+    ? "Enter the 6-digit code below on the AltRix sign-in page to reset your password."
+    : "Enter the 6-digit code below to activate your AltRix account.";
+  const footerNote = isReset
+    ? "If you didn't request a password reset, no action is needed — your account is safe."
+    : "If you didn't create an AltRix account, you can safely ignore this email.";
 
-  // Each digit in its own box — no letter-spacing trick, no HTML entities
-  const digitBoxes = otp.split("").map((d) =>
-    `<td style="padding:0 4px;">` +
+  // Build 6 individual digit boxes
+  const digitBoxes = otp.split("").map((digit) =>
+    `<td style="padding:0 5px;">` +
     `<table cellpadding="0" cellspacing="0" border="0"><tr>` +
-    `<td align="center" valign="middle" style="width:48px;height:60px;` +
-    `background:#0a0e18;border:1.5px solid #2d3a54;border-radius:10px;` +
-    `font-size:30px;font-weight:800;color:#ffffff;` +
-    `font-family:'Courier New',Courier,monospace;">` +
-    `${d}</td></tr></table></td>`
+    `<td align="center" valign="middle" ` +
+      `style="width:52px;height:66px;` +
+      `background:#080c16;` +
+      `border:1.5px solid #2d3a54;` +
+      `border-radius:10px;` +
+      `font-size:32px;font-weight:800;` +
+      `color:#ffffff;` +
+      `font-family:'Courier New',Courier,monospace;` +
+      `letter-spacing:0;">` +
+    `${digit}` +
+    `</td></tr></table></td>`
   ).join("");
 
   return `<!DOCTYPE html>
@@ -70,58 +73,142 @@ const buildFallbackHtml = (otp: string, purpose: "password_reset" | "verify_emai
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <meta http-equiv="X-UA-Compatible" content="IE=edge"/>
   <title>${title} — AltRix</title>
 </head>
-<body style="margin:0;padding:0;background:#07090f;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">
+<body style="margin:0;padding:0;background:#07090f;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;">
+
   <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#07090f;">
     <tr><td align="center" style="padding:48px 16px;">
+
+      <!-- ─── Card ─────────────────────────────────────────────────────────── -->
       <table width="520" cellpadding="0" cellspacing="0" border="0"
-             style="max-width:520px;width:100%;background:#0d1117;border:1px solid #1e2433;border-radius:16px;overflow:hidden;">
-        <!-- Accent bar -->
-        <tr><td style="height:3px;background:linear-gradient(90deg,#4f46e5,#7c3aed,#4f46e5);"></td></tr>
+             style="max-width:520px;width:100%;background:#0d1117;
+                    border:1px solid #1a2235;border-radius:18px;overflow:hidden;">
+
+        <!-- Violet accent bar -->
+        <tr>
+          <td style="height:3px;background:linear-gradient(90deg,#4f46e5 0%,#7c3aed 50%,#4f46e5 100%);"></td>
+        </tr>
+
         <!-- Logo -->
-        <tr><td align="center" style="padding:36px 48px 0;">
-          <span style="font-size:22px;font-weight:800;color:#fff;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">
-            Alt<span style="color:#6366f1;">Rix</span>
-          </span>
-          <p style="margin:4px 0 0;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#3d4a63;">School Operating System</p>
-        </td></tr>
+        <tr>
+          <td align="center" style="padding:36px 48px 0;">
+            <table cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td style="font-size:24px;font-weight:800;letter-spacing:-0.5px;
+                            color:#ffffff;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">
+                  Alt<span style="color:#6366f1;">Rix</span>
+                </td>
+                <td width="7" style="vertical-align:middle;padding-bottom:3px;">
+                  &nbsp;<span style="display:inline-block;width:6px;height:6px;
+                    background:#6366f1;border-radius:50%;"></span>
+                </td>
+              </tr>
+            </table>
+            <p style="margin:5px 0 0;font-size:10px;letter-spacing:2.5px;
+                       text-transform:uppercase;color:#2e3a52;font-weight:600;">
+              School Operating System
+            </p>
+          </td>
+        </tr>
+
         <!-- Divider -->
-        <tr><td style="padding:24px 48px 0;"><div style="height:1px;background:#1e2433;"></div></td></tr>
-        <!-- Title -->
-        <tr><td align="center" style="padding:28px 48px 0;">
-          <h1 style="margin:0;font-size:24px;font-weight:700;color:#f1f5f9;">${title}</h1>
-          <p style="margin:8px 0 0;font-size:14px;color:#64748b;">${subtitle}</p>
+        <tr><td style="padding:24px 48px 0;">
+          <div style="height:1px;background:#161f30;"></div>
         </td></tr>
-        <!-- OTP boxes -->
-        <tr><td align="center" style="padding:28px 48px 20px;">
-          <table cellpadding="0" cellspacing="0" border="0"
-                 style="background:#0b0f1a;border:1px solid #1e2a3d;border-radius:14px;width:100%;">
-            <tr><td align="center" style="padding:24px 16px 20px;">
-              <p style="margin:0 0 16px;font-size:11px;letter-spacing:3px;text-transform:uppercase;color:#3d4a63;font-weight:600;">
-                Verification Code
-              </p>
-              <!-- 6 individual digit boxes — always exactly 6 digits -->
-              <table cellpadding="0" cellspacing="0" border="0" style="margin:0 auto;">
-                <tr>${digitBoxes}</tr>
-              </table>
-              <table cellpadding="0" cellspacing="0" border="0" style="margin:16px auto 0;">
-                <tr><td style="background:#141b2d;border:1px solid #252d40;border-radius:20px;padding:5px 16px;">
-                  <p style="margin:0;font-size:12px;color:#6366f1;font-weight:500;">Expires in 10 minutes</p>
-                </td></tr>
-              </table>
-            </td></tr>
-          </table>
+
+        <!-- Title & subtitle -->
+        <tr>
+          <td align="center" style="padding:30px 48px 0;">
+            <h1 style="margin:0;font-size:24px;font-weight:700;
+                        color:#f1f5f9;letter-spacing:-0.4px;line-height:1.25;">
+              ${title}
+            </h1>
+            <p style="margin:10px 0 0;font-size:14px;color:#5a6a83;
+                       line-height:1.65;max-width:340px;">
+              ${subtitle}
+            </p>
+          </td>
+        </tr>
+
+        <!-- ─── OTP box ─────────────────────────────────────────────────── -->
+        <tr>
+          <td align="center" style="padding:28px 40px 24px;">
+            <table cellpadding="0" cellspacing="0" border="0"
+                   style="width:100%;background:#090d16;
+                          border:1px solid #182030;border-radius:14px;">
+              <tr><td align="center" style="padding:26px 16px 22px;">
+
+                <p style="margin:0 0 18px;font-size:10px;letter-spacing:3px;
+                           text-transform:uppercase;color:#2e3a52;font-weight:700;">
+                  Verification Code
+                </p>
+
+                <!-- 6 digit boxes — each digit isolated, zero ambiguity -->
+                <table cellpadding="0" cellspacing="0" border="0" style="margin:0 auto;">
+                  <tr>${digitBoxes}</tr>
+                </table>
+
+                <!-- Expiry pill -->
+                <table cellpadding="0" cellspacing="0" border="0" style="margin:18px auto 0;">
+                  <tr>
+                    <td style="background:#0f1829;border:1px solid #1e2d44;
+                                border-radius:20px;padding:5px 18px;">
+                      <p style="margin:0;font-size:12px;color:#5b63f5;font-weight:500;">
+                        Expires in 10 minutes
+                      </p>
+                    </td>
+                  </tr>
+                </table>
+
+              </td></tr>
+            </table>
+          </td>
+        </tr>
+
+        <!-- How-to note -->
+        <tr>
+          <td style="padding:0 40px 28px;">
+            <table cellpadding="0" cellspacing="0" border="0"
+                   style="width:100%;background:#0b1020;
+                          border:1px solid #161f30;border-radius:10px;">
+              <tr><td style="padding:14px 18px;">
+                <p style="margin:0;font-size:13px;color:#8492a6;line-height:1.7;">
+                  <strong style="color:#c8d5e8;">How to use:</strong>&nbsp;
+                  Go back to the AltRix sign-in page and enter this 6-digit code
+                  in the verification field to continue.
+                </p>
+              </td></tr>
+            </table>
+          </td>
+        </tr>
+
+        <!-- Divider -->
+        <tr><td style="padding:0 40px;">
+          <div style="height:1px;background:#161f30;"></div>
         </td></tr>
+
         <!-- Footer -->
-        <tr><td align="center" style="padding:20px 48px 32px;">
-          <p style="margin:0;font-size:11px;color:#3d4a63;">
-            &copy; ${new Date().getFullYear()} AltRix &nbsp;&middot;&nbsp; School Operating System
-          </p>
-        </td></tr>
+        <tr>
+          <td align="center" style="padding:22px 48px 34px;">
+            <p style="margin:0 0 5px;font-size:12px;color:#2e3a52;line-height:1.6;">
+              ${footerNote}
+            </p>
+            <p style="margin:0;font-size:11px;color:#1e2940;">
+              &copy; ${new Date().getFullYear()} AltRix
+              &nbsp;&middot;&nbsp;
+              <span style="color:#2e3a52;">School Operating System</span>
+            </p>
+          </td>
+        </tr>
+
       </table>
+      <!-- ─── /Card ─────────────────────────────────────────────────────── -->
+
     </td></tr>
   </table>
+
 </body>
 </html>`;
 };
@@ -130,28 +217,26 @@ const buildFallbackHtml = (otp: string, purpose: "password_reset" | "verify_emai
 const RATE_LIMIT_WINDOW_SECONDS = 60;
 const MAX_OTP_PER_WINDOW = 3;
 
-// ─── Main handler ─────────────────────────────────────────────────────────────
+// ─── Handler ──────────────────────────────────────────────────────────────────
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   if (req.method !== "POST") return json({ ok: false, code: "method_not_allowed", error: "Method not allowed" });
 
   try {
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const serviceRole = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabaseUrl  = Deno.env.get("SUPABASE_URL")!;
+    const serviceRole  = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const resendApiKey = Deno.env.get("RESEND_API_KEY");
-    const resendTemplateId = Deno.env.get("RESEND_TEMPLATE_ID"); // optional
-    const pepper = serviceRole.slice(0, 32);
+    const pepper       = serviceRole.slice(0, 32);
 
     if (!resendApiKey) {
-      console.error("[send-otp] RESEND_API_KEY is not set");
-      return json({ ok: false, code: "config_error", error: "Email service not configured. Please contact your administrator." });
+      console.error("[send-otp] RESEND_API_KEY not set");
+      return json({ ok: false, code: "config_error", error: "Email service not configured." });
     }
 
-    const body = await req.json().catch(() => ({}));
-    const email = String(body.email ?? "").trim().toLowerCase();
+    const body    = await req.json().catch(() => ({}));
+    const email   = String(body.email ?? "").trim().toLowerCase();
     const purpose = (body.purpose === "verify_email" ? "verify_email" : "password_reset") as
-      | "password_reset"
-      | "verify_email";
+      "password_reset" | "verify_email";
 
     if (!isEmail(email)) {
       return json({ ok: false, code: "invalid_email", error: "Please enter a valid email address." });
@@ -163,7 +248,7 @@ serve(async (req) => {
 
     const emailHash = await sha256(`${email}::${pepper}::${purpose}`);
 
-    // ── Rate limit ─────────────────────────────────────────────────────────
+    // Rate limit
     const since = new Date(Date.now() - RATE_LIMIT_WINDOW_SECONDS * 1000).toISOString();
     const { count } = await admin
       .from("custom_otp_codes")
@@ -176,14 +261,15 @@ serve(async (req) => {
       return json({ ok: false, code: "rate_limited", error: "Too many codes requested. Please wait 60 seconds and try again." });
     }
 
-    // ── Generate OTP (exactly 6 digits, always) ─────────────────────────────
-    const otp = generateOtp();
-    console.log(`[send-otp] Generated OTP length: ${otp.length}, value: ${otp}`); // verify in logs
+    // Generate OTP — always exactly 6 digits
+    const otp      = generateOtp();
     const codeHash = await sha256(`${otp}::${emailHash}`);
+
+    console.log(`[send-otp] OTP generated — length: ${otp.length}`);
 
     const { error: insertErr } = await admin.from("custom_otp_codes").insert({
       email_hash: emailHash,
-      code_hash: codeHash,
+      code_hash:  codeHash,
       purpose,
       expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
     });
@@ -193,52 +279,39 @@ serve(async (req) => {
       return json({ ok: false, code: "storage_error", error: "Unable to generate code. Please try again." });
     }
 
-    // ── Build Resend payload ─────────────────────────────────────────────────
+    // Send via Resend REST API — inline HTML, no dashboard template needed
     const subject = purpose === "verify_email"
       ? "Verify your AltRix account"
       : "Your AltRix password reset code";
 
-    // If RESEND_TEMPLATE_ID is set, use the Resend template with {{code}} variable.
-    // Otherwise fall back to our inline HTML.
-    const resendPayload = resendTemplateId
-      ? {
-          from: "AltRix <onboarding@resend.dev>",
-          to: [email],
-          subject,
-          template_id: resendTemplateId,
-          variables: { code: otp },  // Use {{code}} in your Resend template
-        }
-      : {
-          from: "AltRix <onboarding@resend.dev>",
-          to: [email],
-          subject,
-          html: buildFallbackHtml(otp, purpose),
-        };
-
-    // ── Send ─────────────────────────────────────────────────────────────────
     const resendRes = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${resendApiKey}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(resendPayload),
+      body: JSON.stringify({
+        from:    "AltRix <onboarding@resend.dev>",
+        to:      [email],
+        subject,
+        html:    buildEmailHtml(otp, purpose),
+      }),
     });
 
     if (!resendRes.ok) {
       const errBody = await resendRes.text().catch(() => "");
-      console.error(`[send-otp] Resend error ${resendRes.status}:`, errBody);
+      console.error(`[send-otp] Resend ${resendRes.status}:`, errBody);
       await admin.from("custom_otp_codes").delete().eq("code_hash", codeHash);
 
       if (resendRes.status === 403 || errBody.toLowerCase().includes("domain")) {
         return json({
           ok: false,
           code: "resend_sandbox",
-          error: "Resend sandbox mode: email can only be sent to your Resend-registered address.",
+          error: "Resend sandbox: email can only be sent to your Resend-registered address. Verify a domain to send to anyone.",
         });
       }
 
-      return json({ ok: false, code: "email_send_failed", error: "Failed to send code. Please try again." });
+      return json({ ok: false, code: "email_send_failed", error: "Failed to send code. Please try again shortly." });
     }
 
     return json({ ok: true, cooldownSeconds: RATE_LIMIT_WINDOW_SECONDS });
