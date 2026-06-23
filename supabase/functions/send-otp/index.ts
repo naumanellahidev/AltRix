@@ -17,9 +17,11 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const json = (data: Record<string, unknown>, status = 200) =>
+// Always return 200 so supabase.functions.invoke() surfaces the JSON body.
+// Error details live in { ok: false, code, error } — not in HTTP status.
+const json = (data: Record<string, unknown>, _httpStatus = 200) =>
   new Response(JSON.stringify(data), {
-    status,
+    status: 200,
     headers: { "Content-Type": "application/json", ...corsHeaders },
   });
 
@@ -182,7 +184,7 @@ const MAX_OTP_PER_WINDOW = 3;
 // ─── Main handler ─────────────────────────────────────────────────────────────
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
-  if (req.method !== "POST") return json({ ok: false, error: "Method not allowed" }, 405);
+  if (req.method !== "POST") return json({ ok: false, code: "method_not_allowed", error: "Method not allowed" });
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
