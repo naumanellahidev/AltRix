@@ -1,12 +1,14 @@
 /**
  * verify-otp — Validates the 6-digit OTP from send-otp.
- * On success returns a short-lived Supabase session token via admin.auth.admin.generateLink()
- * so the frontend can directly navigate to the reset-password page.
+ *
+ * password_reset → { ok: true, action: "token", token: string }
+ *   Frontend calls supabase.auth.verifyOtp({ token_hash: token, type: "recovery" })
+ *   to create a PASSWORD_RECOVERY session, then navigates to /reset-password.
+ *
+ * verify_email → { ok: true, action: "confirmed" }
+ *   User's email is confirmed, they can sign in normally.
  *
  * POST body: { email: string, code: string, purpose?: "password_reset" | "verify_email" }
- * Returns:
- *   password_reset → { ok: true, action: "redirect", url: string }
- *   verify_email   → { ok: true, action: "session", accessToken: string, refreshToken: string }
  */
 
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
@@ -17,8 +19,8 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// Always return 200 so supabase.functions.invoke() surfaces the JSON body.
-const json = (data: Record<string, unknown>, _httpStatus = 200) =>
+// Always HTTP 200 — error info lives in { ok: false, code, error }
+const json = (data: Record<string, unknown>) =>
   new Response(JSON.stringify(data), {
     status: 200,
     headers: { "Content-Type": "application/json", ...corsHeaders },
@@ -27,11 +29,8 @@ const json = (data: Record<string, unknown>, _httpStatus = 200) =>
 const isEmail = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
 
 const sha256 = async (input: string) => {
-  const data = new TextEncoder().encode(input);
-  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
-  return [...new Uint8Array(hashBuffer)]
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(input));
+  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
 };
 
 serve(async (req) => {
@@ -41,12 +40,12 @@ serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceRole = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const pepper = serviceRole.slice(0, 32);
+    const pepper      = serviceRole.slice(0, 32);
 
-    const body = await req.json().catch(() => ({}));
-    const email = String(body.email ?? "").trim().toLowerCase();
-    const code = String(body.code ?? "").trim();
-    const purpose = String(body.purpose ?? "password_reset");
+    const body    = await req.json().catch(() => ({}));
+    const email   = String(body.email ?? "").trim().toLowerCase();
+    const code    = String(body.code  ?? "").trim();
+    const purpose = String(body.purpose ?? "password_reset") as "password_reset" | "verify_email";
 
     if (!isEmail(email)) {
       return json({ ok: false, code: "invalid_email", error: "Invalid email address." });
@@ -60,44 +59,43 @@ serve(async (req) => {
     });
 
     const emailHash = await sha256(`${email}::${pepper}::${purpose}`);
-    const codeHash = await sha256(`${code}::${emailHash}`);
+    const codeHash  = await sha256(`${code}::${emailHash}`);
 
-    // Find a valid, unused, unexpired OTP matching both hashes
+    // ── Lookup OTP ────────────────────────────────────────────────────────────
     const { data: rows, error: fetchErr } = await admin
       .from("custom_otp_codes")
-      .select("id, expires_at, used")
+      .select("id")
       .eq("email_hash", emailHash)
-      .eq("code_hash", codeHash)
-      .eq("purpose", purpose)
-      .eq("used", false)
+      .eq("code_hash",  codeHash)
+      .eq("purpose",    purpose)
+      .eq("used",       false)
       .gte("expires_at", new Date().toISOString())
       .order("created_at", { ascending: false })
       .limit(1);
 
     if (fetchErr) {
-      console.error("OTP lookup error:", fetchErr);
-      return json({ ok: false, code: "lookup_error", error: "Verification failed. Please try again." }, 500);
+      console.error("[verify-otp] DB lookup error:", fetchErr);
+      return json({ ok: false, code: "lookup_error", error: "Verification failed. Please try again." });
     }
 
     if (!rows || rows.length === 0) {
       return json({ ok: false, code: "invalid_or_expired", error: "Invalid or expired code. Please request a new one." });
     }
 
-    const otpRow = rows[0];
+    // Mark used immediately (prevent replay attacks)
+    await admin.from("custom_otp_codes").update({ used: true }).eq("id", rows[0].id);
 
-    // Mark as used immediately to prevent replay
-    await admin
-      .from("custom_otp_codes")
-      .update({ used: true })
-      .eq("id", otpRow.id);
-
-    // Find the user
+    // ── Find user ─────────────────────────────────────────────────────────────
+    // listUsers doesn't support filtering — paginate until found
     let userId: string | null = null;
-    for (let page = 1; page <= 10; page++) {
+    for (let page = 1; page <= 10 && !userId; page++) {
       const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 1000 });
-      if (error) break;
-      const user = data.users.find((u) => (u.email ?? "").toLowerCase() === email);
-      if (user) { userId = user.id; break; }
+      if (error) {
+        console.error("[verify-otp] listUsers error:", error);
+        break;
+      }
+      const match = data.users.find((u) => (u.email ?? "").toLowerCase() === email);
+      if (match) userId = match.id;
       if (data.users.length < 1000) break;
     }
 
@@ -105,44 +103,42 @@ serve(async (req) => {
       return json({ ok: false, code: "user_not_found", error: "Account not found." });
     }
 
+    // ── password_reset path ───────────────────────────────────────────────────
+    // Generate a recovery link → extract hashed_token → return to frontend.
+    // Frontend uses: supabase.auth.verifyOtp({ token_hash, type: "recovery" })
+    // This creates a PASSWORD_RECOVERY session with NO redirect URL involved.
     if (purpose === "password_reset") {
-      // Create a real session for the user so the frontend can call setSession()
-      // and navigate directly to /reset-password — no redirect URLs needed.
-      const { data: sessionData, error: sessionErr } = await admin.auth.admin.createSession({
-        user_id: userId,
+      const { data: linkData, error: linkErr } = await admin.auth.admin.generateLink({
+        type:  "recovery",
+        email,
       });
 
-      if (sessionErr || !sessionData?.session) {
-        console.error("[verify-otp] createSession error:", sessionErr);
-        return json({ ok: false, code: "session_error", error: "Could not create reset session. Please try again." });
+      if (linkErr || !linkData?.properties?.hashed_token) {
+        console.error("[verify-otp] generateLink error:", linkErr);
+        return json({ ok: false, code: "link_error", error: "Could not create reset token. Please try again." });
       }
 
       return json({
-        ok: true,
-        action: "session",
-        accessToken: sessionData.session.access_token,
-        refreshToken: sessionData.session.refresh_token,
-        expiresAt: sessionData.session.expires_at,
+        ok:     true,
+        action: "token",
+        token:  linkData.properties.hashed_token,
       });
     }
 
-    // For verify_email: confirm the user and return a session
-    await admin.auth.admin.updateUserById(userId, { email_confirm: true });
+    // ── verify_email path ─────────────────────────────────────────────────────
+    const { error: confirmErr } = await admin.auth.admin.updateUserById(userId, {
+      email_confirm: true,
+    });
 
-    const { data: sessionData, error: sessionErr } = await admin.auth.admin.createSession({ user_id: userId });
-    if (sessionErr || !sessionData?.session) {
-      console.error("createSession error:", sessionErr);
-      return json({ ok: false, code: "session_error", error: "Verification succeeded but login failed. Please sign in manually." }, 500);
+    if (confirmErr) {
+      console.error("[verify-otp] updateUserById error:", confirmErr);
+      return json({ ok: false, code: "confirm_error", error: "Could not confirm email. Please try again." });
     }
 
-    return json({
-      ok: true,
-      action: "session",
-      accessToken: sessionData.session.access_token,
-      refreshToken: sessionData.session.refresh_token,
-    });
+    return json({ ok: true, action: "confirmed" });
+
   } catch (err) {
-    console.error("verify-otp unexpected error:", err);
-    return json({ ok: false, code: "unexpected", error: "Unexpected error. Please try again." }, 500);
+    console.error("[verify-otp] Unexpected error:", err);
+    return json({ ok: false, code: "unexpected", error: "Unexpected error. Please try again." });
   }
 });

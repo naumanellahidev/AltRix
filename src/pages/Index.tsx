@@ -317,13 +317,11 @@ const Index = () => {
       return showError("Email is invalid.");
     }
     try {
-      // Use our custom verify-otp edge function — returns session tokens directly
+      // Verify OTP against our custom table → get a hashed_token back
       const { data, error } = await supabase.functions.invoke<{
         ok: boolean;
-        action?: "session";
-        accessToken?: string;
-        refreshToken?: string;
-        expiresAt?: number;
+        action?: "token" | "confirmed";
+        token?: string;
         error?: string;
         code?: string;
       }>("verify-otp", {
@@ -338,14 +336,24 @@ const Index = () => {
         return;
       }
 
-      if (data.action === "session" && data.accessToken) {
-        showSuccess("Verification successful! Taking you to reset your password...");
-        // Set the Supabase session directly — no redirect URL or Site URL needed
-        await supabase.auth.setSession({
-          access_token: data.accessToken,
-          refresh_token: data.refreshToken ?? "",
+      if (data.action === "token" && data.token) {
+        showSuccess("Code verified! Taking you to reset your password...");
+
+        // Exchange the hashed_token for a PASSWORD_RECOVERY session (no redirect URL needed)
+        const { error: verifyErr } = await supabase.auth.verifyOtp({
+          token_hash: data.token,
+          type: "recovery",
         });
-        setTimeout(() => navigate(`/reset-password?returnTo=/${safeSlug}/auth`), 1200);
+
+        if (verifyErr) {
+          const msg = verifyErr.message || "Session creation failed. Please try again.";
+          setOtpError(msg);
+          showError(msg);
+          return;
+        }
+
+        // ResetPassword page will detect the PASSWORD_RECOVERY event via onAuthStateChange
+        setTimeout(() => navigate(`/reset-password?returnTo=/${safeSlug}/auth`), 1000);
         return;
       }
 
