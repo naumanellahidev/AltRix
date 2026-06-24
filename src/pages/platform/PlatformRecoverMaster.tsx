@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { z } from "zod";
-import { KeyRound, Mail, ShieldCheck } from "lucide-react";
+import { KeyRound, Mail, ShieldCheck, Eye, EyeOff } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,8 @@ export default function PlatformRecoverMaster() {
   const [recoverySecret, setRecoverySecret] = useState("");
   const [newEmail, setNewEmail] = useState("");
   const [newPassword, setNewPassword] = useState("");
+  const [showSecret, setShowSecret] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -96,12 +98,19 @@ export default function PlatformRecoverMaster() {
               <div className="relative">
                 <KeyRound className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                 <Input
-                  className="pl-9"
-                  type="password"
+                  className="pl-9 pr-10"
+                  type={showSecret ? "text" : "password"}
                   value={recoverySecret}
                   onChange={(e) => setRecoverySecret(e.target.value)}
                   placeholder="Your secure recovery secret"
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowSecret(!showSecret)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  {showSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
               </div>
             </div>
 
@@ -124,12 +133,19 @@ export default function PlatformRecoverMaster() {
               <div className="relative">
                 <KeyRound className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                 <Input
-                  className="pl-9"
-                  type="password"
+                  className="pl-9 pr-10"
+                  type={showPassword ? "text" : "password"}
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
                   placeholder="Minimum 8 characters"
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
               </div>
             </div>
 

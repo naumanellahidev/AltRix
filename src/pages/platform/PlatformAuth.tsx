@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { z } from "zod";
 import { motion, useReducedMotion } from "framer-motion";
-import { KeyRound, Mail, ShieldCheck } from "lucide-react";
+import { KeyRound, Mail, ShieldCheck, Eye, EyeOff } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/hooks/useSession";
@@ -31,6 +31,7 @@ export default function PlatformAuth() {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [resetCooldown, setResetCooldown] = useState(0);
@@ -200,12 +201,22 @@ export default function PlatformAuth() {
                   >
                     <div className="space-y-2">
                       <label className="text-sm font-medium">Password</label>
-                      <Input
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        placeholder="••••••••"
-                        type="password"
-                      />
+                      <div className="relative">
+                        <Input
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
+                          placeholder="••••••••"
+                          type={showPassword ? "text" : "password"}
+                          className="pr-10"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword(!showPassword)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                        >
+                          {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </button>
+                      </div>
                     </div>
                     <Button type="submit" variant="hero" size="xl" className="w-full" disabled={busy}>
                       Sign in

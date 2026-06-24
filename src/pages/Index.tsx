@@ -76,6 +76,8 @@ const Index = () => {
   const [recentEmails, setRecentEmails] = useState<string[]>(() => getRecentEmails());
   const emailInputRef = useRef<HTMLInputElement>(null);
 
+  const [showPassword, setShowPassword] = useState(false);
+
   // OTP-specific states
   const [authMode, setAuthMode] = useState<'login' | 'forgot_password' | 'verify_email' | 'forgot_password_otp'>('login');
   const [otpCode, setOtpCode] = useState("");
@@ -446,7 +448,7 @@ const Index = () => {
             {/* LEFT: value prop + bento */}
             <motion.div initial={reduce?false:{opacity:0,x:-16}} animate={reduce?undefined:{opacity:1,x:0}} transition={{duration:.6,ease:[.2,.8,.2,1]}} style={{flex:1,minWidth:"280px",display:"flex",flexDirection:"column",gap:"16px"}}>
               <div>
-                <h2 style={{fontFamily:"'Manrope',sans-serif",fontSize:"clamp(22px,3.2vw,34px)",fontWeight:700,lineHeight:1.22,letterSpacing:"-0.01em",margin:"0 0 12px",background:"linear-gradient(135deg,#003fa4,#0066ff)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",backgroundClip:"text"}}>
+                <h2 style={{fontFamily:"'Manrope',sans-serif",fontSize:"clamp(22px,3.2vw,34px)",fontWeight:700,lineHeight:1.22,letterSpacing:"-0.01em",margin:"0 0 12px",color:"hsl(var(--primary))"}}>
                   Empowering education through intelligent operations
                 </h2>
                 <p style={{fontSize:"16px",color:"#424656",lineHeight:1.7,maxWidth:"480px",margin:0}}>
@@ -487,7 +489,7 @@ const Index = () => {
                 {/* Card header */}
                 {authMode==='login' && (
                   <div style={{marginBottom:"20px",position:"relative",zIndex:1}}>
-                    <h2 style={{fontFamily:"'Manrope',sans-serif",fontSize:"clamp(20px,2.5vw,26px)",fontWeight:700,margin:"0 0 4px",background:"linear-gradient(135deg,#003fa4,#0066ff)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",backgroundClip:"text"}}>Welcome Back</h2>
+                    <h2 style={{fontFamily:"'Manrope',sans-serif",fontSize:"clamp(20px,2.5vw,26px)",fontWeight:700,margin:"0 0 4px",color:"hsl(var(--primary))"}}>Welcome Back</h2>
                     <p style={{fontSize:"14px",color:"#424656",margin:0}}>Enter your school code and credentials.</p>
                   </div>
                 )}
@@ -539,7 +541,12 @@ const Index = () => {
                       </div>
                       <div className="idx-iw" style={iWrap}>
                         <span className="idx-ico"><span className="material-symbols-outlined" style={{fontSize:"19px"}}>lock</span></span>
-                        <input id="login-password" style={{...iBase,paddingRight:"44px"}} value={password} onChange={e=>setPassword(e.target.value)} placeholder="••••••••" type="password" autoComplete="current-password"/>
+                        <input id="login-password" style={{...iBase,paddingRight:"44px"}} value={password} onChange={e=>setPassword(e.target.value)} placeholder="••••••••" type={showPassword ? "text" : "password"} autoComplete="current-password"/>
+                        <button type="button" onClick={() => setShowPassword(!showPassword)} style={{position:"absolute",right:"13px",top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",color:"rgba(0,102,255,0.6)",display:"flex",alignItems:"center",padding:0}}>
+                          <span className="material-symbols-outlined" style={{fontSize:"20px"}}>
+                            {showPassword ? "visibility_off" : "visibility"}
+                          </span>
+                        </button>
                       </div>
                     </div>
 
@@ -638,7 +645,7 @@ const Index = () => {
             <div style={{display:"flex",gap:"20px",flexWrap:"wrap",justifyContent:"center"}}>
               {["Privacy Policy","Terms of Service","Compliance"].map(l=><a key={l} href="#" style={{fontSize:"12px",fontWeight:600,color:"#424656",textDecoration:"none",letterSpacing:"0.01em",transition:"color .15s"}} onMouseEnter={e=>(e.currentTarget.style.color="#0066ff")} onMouseLeave={e=>(e.currentTarget.style.color="#424656")}>{l}</a>)}
             </div>
-            <p style={{fontSize:"12px",color:"rgba(66,70,86,.55)",margin:0}}>© 2025 AltRix School OS. All rights reserved.</p>
+            <p style={{fontSize:"12px",color:"rgba(66,70,86,.55)",margin:0}}>© {new Date().getFullYear()} AltRix School OS. All rights reserved.</p>
           </div>
         </footer>
       </div>
