@@ -651,7 +651,7 @@ const TenantAuth = () => {
               ))}
             </div>
             <p style={{ fontSize: "12px", color: "rgba(66,70,86,0.55)", margin: 0 }}>
-              © 2025 AltRix School OS. All rights reserved.
+              © {new Date().getFullYear()} AltRix School OS. All rights reserved.
             </p>
           </div>
         </footer>

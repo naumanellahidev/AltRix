@@ -576,7 +576,7 @@ export function OwnerFinanceModule({ schoolId, role = "school_owner" }: Props) {
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }} className="h-full">
           <Card 
             className="shadow-sm shadow-blue-50/50 bg-gradient-to-br from-white to-blue-50/20 border border-blue-100/80 hover:border-blue-400 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 cursor-pointer border-l-4 border-l-emerald-500 rounded-2xl h-full flex flex-col justify-between group"
-            onClick={() => navigate(role === "accountant" ? `/${schoolSlug}/accountant/payments` : `/${schoolSlug}/owner/finance`)}
+            onClick={() => navigate(role === "accountant" ? `/${schoolSlug}/accountant/payments` : `/${schoolSlug}/school_owner/finance`)}
           >
             <CardContent className="p-4 flex flex-col justify-between h-full">
               <div className="flex items-center justify-between text-muted-foreground">
@@ -596,7 +596,7 @@ export function OwnerFinanceModule({ schoolId, role = "school_owner" }: Props) {
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2, delay: 0.05 }} className="h-full">
           <Card 
             className="shadow-sm shadow-blue-50/50 bg-gradient-to-br from-white to-blue-50/20 border border-blue-100/80 hover:border-blue-400 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 cursor-pointer border-l-4 border-l-rose-500 rounded-2xl h-full flex flex-col justify-between group"
-            onClick={() => navigate(role === "accountant" ? `/${schoolSlug}/accountant/expenses` : `/${schoolSlug}/owner/finance`)}
+            onClick={() => navigate(role === "accountant" ? `/${schoolSlug}/accountant/expenses` : `/${schoolSlug}/school_owner/finance`)}
           >
             <CardContent className="p-4 flex flex-col justify-between h-full">
               <div className="flex items-center justify-between text-muted-foreground">
@@ -616,7 +616,7 @@ export function OwnerFinanceModule({ schoolId, role = "school_owner" }: Props) {
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2, delay: 0.1 }} className="h-full">
           <Card 
             className="shadow-sm shadow-blue-50/50 bg-gradient-to-br from-white to-blue-50/20 border border-blue-100/80 hover:border-blue-400 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 cursor-pointer border-l-4 border-l-blue-500 rounded-2xl h-full flex flex-col justify-between group"
-            onClick={() => navigate(role === "accountant" ? `/${schoolSlug}/accountant/ledger` : `/${schoolSlug}/owner/finance`)}
+            onClick={() => navigate(role === "accountant" ? `/${schoolSlug}/accountant/ledger` : `/${schoolSlug}/school_owner/finance`)}
           >
             <CardContent className="p-4 flex flex-col justify-between h-full">
               <div className="flex items-center justify-between text-muted-foreground">
@@ -640,7 +640,7 @@ export function OwnerFinanceModule({ schoolId, role = "school_owner" }: Props) {
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2, delay: 0.15 }} className="h-full">
           <Card 
             className="shadow-sm shadow-blue-50/50 bg-gradient-to-br from-white to-blue-50/20 border border-blue-100/80 hover:border-blue-400 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 cursor-pointer border-l-4 border-l-violet-500 rounded-2xl h-full flex flex-col justify-between group"
-            onClick={() => navigate(role === "accountant" ? `/${schoolSlug}/accountant/payroll` : `/${schoolSlug}/owner/finance`)}
+            onClick={() => navigate(role === "accountant" ? `/${schoolSlug}/accountant/payroll` : `/${schoolSlug}/school_owner/finance`)}
           >
             <CardContent className="p-4 flex flex-col justify-between h-full">
               <div className="flex items-center justify-between text-muted-foreground">
@@ -660,7 +660,7 @@ export function OwnerFinanceModule({ schoolId, role = "school_owner" }: Props) {
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2, delay: 0.2 }} className="h-full">
           <Card 
             className="shadow-sm shadow-blue-50/50 bg-gradient-to-br from-white to-blue-50/20 border border-blue-100/80 hover:border-blue-400 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 cursor-pointer border-l-4 border-l-amber-500 rounded-2xl h-full flex flex-col justify-between group"
-            onClick={() => navigate(role === "accountant" ? `/${schoolSlug}/accountant/fees?tab=invoices` : `/${schoolSlug}/owner/finance`)}
+            onClick={() => navigate(role === "accountant" ? `/${schoolSlug}/accountant/fees?tab=invoices` : `/${schoolSlug}/school_owner/finance`)}
           >
             <CardContent className="p-4 flex flex-col justify-between h-full">
               <div className="flex items-center justify-between text-muted-foreground">
@@ -684,7 +684,7 @@ export function OwnerFinanceModule({ schoolId, role = "school_owner" }: Props) {
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2, delay: 0.25 }} className="h-full">
           <Card 
             className="shadow-sm shadow-blue-50/50 bg-gradient-to-br from-white to-blue-50/20 border border-blue-100/80 hover:border-blue-400 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 cursor-pointer border-l-4 border-l-indigo-500 rounded-2xl h-full flex flex-col justify-between group"
-            onClick={() => navigate(role === "accountant" ? `/${schoolSlug}/accountant/fees?tab=invoices` : `/${schoolSlug}/owner/finance`)}
+            onClick={() => navigate(role === "accountant" ? `/${schoolSlug}/accountant/fees?tab=invoices` : `/${schoolSlug}/school_owner/finance`)}
           >
             <CardContent className="p-4 flex flex-col justify-between h-full">
               <div className="flex items-center justify-between text-muted-foreground">

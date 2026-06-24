@@ -7,6 +7,7 @@ import { LayoutGrid, LogOut, Sparkles, MessageSquare, Menu, FileText, CreditCard
 import { supabase } from "@/integrations/supabase/client";
 import { GlobalCommandPalette } from "@/components/global/GlobalCommandPalette";
 import { NotificationsBell } from "@/components/global/NotificationsBell";
+import { DashboardNotificationsBanner } from "@/components/global/DashboardNotificationsBanner";
 import { StaffAttendanceWidget } from "./StaffAttendanceWidget";
 import { useUnreadMessagesOptimized } from "@/hooks/useUnreadMessagesOptimized";
 import { useTenantOptimized } from "@/hooks/useTenantOptimized";
@@ -214,7 +215,7 @@ export function AccountantShell({ title, subtitle, schoolSlug, children }: Props
         </aside>
 
         {/* Main Content */}
-        <section className="rounded-2xl bg-surface p-4 shadow-elevated lg:rounded-3xl lg:p-6">
+        <section className="rounded-2xl bg-surface p-4 shadow-elevated lg:rounded-3xl lg:p-6 pb-20 lg:pb-6">
           <header className="mb-4 hidden lg:mb-6 lg:block">
             <div className="flex items-center justify-between">
               <div className="min-w-0">
@@ -238,6 +239,9 @@ export function AccountantShell({ title, subtitle, schoolSlug, children }: Props
               </div>
             </div>
           </header>
+          <div className="mb-4 lg:mb-5">
+            <DashboardNotificationsBanner schoolId={schoolId} schoolSlug={schoolSlug} role="accountant" />
+          </div>
           {children}
         </section>
       </div>

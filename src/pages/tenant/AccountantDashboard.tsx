@@ -87,7 +87,7 @@ const AccountantDashboard = () => {
   }
 
   return (
-    <AccountantShell title={`${tenant.school?.name || "EDUVERSE"} • Finance`} subtitle="Accounting & Finance" schoolSlug={tenant.slug}>
+    <AccountantShell title={`${tenant.school?.name || "AltRix"} • Finance`} subtitle="Accounting & Finance" schoolSlug={tenant.slug}>
       <RouteGuard extraAllowedPaths={[
         "finance","fees","invoices","payments","expenses","payroll","reports","messages",
         "fees-pro","fee-vouchers","ledger","vendors","tax",

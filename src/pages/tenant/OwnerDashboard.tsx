@@ -278,8 +278,8 @@ export default function OwnerDashboard() {
             <Route path="ledger" element={<AccountantLedgerModule />} />
             <Route path="vendors" element={<AccountantVendorsModule />} />
             <Route path="tax" element={<AccountantTaxModule />} />
-            <Route path="fees-pro" element={<Navigate to={`/${schoolSlug}/owner/fees?tab=advanced`} replace />} />
-            <Route path="fee-vouchers" element={<Navigate to={`/${schoolSlug}/owner/fees?tab=vouchers`} replace />} />
+            <Route path="fees-pro" element={<Navigate to={`/${schoolSlug}/school_owner/fees?tab=advanced`} replace />} />
+            <Route path="fee-vouchers" element={<Navigate to={`/${schoolSlug}/school_owner/fees?tab=vouchers`} replace />} />
             <Route path="hr" element={<OwnerHrModule schoolId={schoolId} />} />
             <Route path="wellbeing" element={<OwnerWellbeingModule schoolId={schoolId} />} />
             <Route path="compliance" element={<OwnerComplianceModule schoolId={schoolId} />} />

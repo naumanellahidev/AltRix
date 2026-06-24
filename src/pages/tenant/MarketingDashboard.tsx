@@ -77,7 +77,7 @@ const MarketingDashboard = () => {
   }
 
   return (
-    <MarketingShell title={`${tenant.school?.name || "EDUVERSE"} • Marketing`} subtitle="CRM & campaigns" schoolSlug={tenant.slug}>
+    <MarketingShell title={`${tenant.school?.name || "AltRix"} • Marketing`} subtitle="CRM & campaigns" schoolSlug={tenant.slug}>
       <RouteGuard extraAllowedPaths={[
         "leads","follow-ups","calls","sources","campaigns","reports",
         "messages","templates","intake"

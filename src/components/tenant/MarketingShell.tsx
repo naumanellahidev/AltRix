@@ -7,6 +7,7 @@ import { BarChart3, ClipboardList, Megaphone, PhoneCall, Target, Users, MessageS
 import { supabase } from "@/integrations/supabase/client";
 import { GlobalCommandPalette } from "@/components/global/GlobalCommandPalette";
 import { NotificationsBell } from "@/components/global/NotificationsBell";
+import { DashboardNotificationsBanner } from "@/components/global/DashboardNotificationsBanner";
 import { StaffAttendanceWidget } from "./StaffAttendanceWidget";
 import { useUnreadMessagesOptimized } from "@/hooks/useUnreadMessagesOptimized";
 import { useTenantOptimized } from "@/hooks/useTenantOptimized";
@@ -188,29 +189,32 @@ export function MarketingShell({ title, subtitle, schoolSlug, children }: Props)
         </aside>
 
         {/* Main Content */}
-        <section className="rounded-2xl bg-surface p-4 shadow-elevated lg:rounded-3xl lg:p-6">
+        <section className="rounded-2xl bg-surface p-4 shadow-elevated lg:rounded-3xl lg:p-6 pb-20 lg:pb-6">
           <header className="mb-4 hidden lg:mb-6 lg:block">
             <p className="font-display text-2xl font-semibold tracking-tight">{title}</p>
             {subtitle && <p className="mt-1 text-sm text-muted-foreground">{subtitle}</p>}
           </header>
+          <div className="mb-4 lg:mb-5">
+            <DashboardNotificationsBanner schoolId={schoolId} schoolSlug={schoolSlug} role="marketing_staff" />
+          </div>
           {children}
         </section>
       </div>
 
       {/* Mobile Bottom Navigation */}
-      <nav className="fixed bottom-0 left-0 right-0 z-50 flex items-center justify-around border-t bg-background/95 px-2 py-2 backdrop-blur lg:hidden">
+      <nav className="fixed bottom-3 left-1/2 z-50 flex -translate-x-1/2 items-center justify-around gap-0.5 rounded-3xl border border-border/60 bg-background/90 px-1.5 py-1.5 shadow-elevated backdrop-blur-xl lg:hidden w-[calc(100%-1rem)] max-w-md">
         {bottomNavItems.map((item) => (
           <NavLink
             key={item.to}
             to={item.to}
             end={item.end}
-            className="flex flex-1 flex-col items-center gap-1 rounded-xl px-2 py-2 text-muted-foreground transition-colors relative"
-            activeClassName="text-primary-foreground bg-primary shadow-sm"
+            className="relative flex flex-1 flex-col items-center gap-0.5 rounded-2xl px-1 py-1.5 text-muted-foreground transition-all duration-200 min-w-0"
+            activeClassName="text-primary-foreground bg-primary shadow-soft"
           >
-            <item.icon className="h-5 w-5" />
-            <span className="text-[10px] font-medium">{item.label}</span>
+            <item.icon className="h-[18px] w-[18px]" />
+            <span className="text-[9px] font-medium leading-tight truncate max-w-full">{item.label}</span>
             {"badge" in item && item.badge !== undefined && item.badge > 0 && (
-              <span className="absolute -top-0.5 right-1/4 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-[8px] font-bold text-destructive-foreground">
+              <span className="absolute -top-0.5 right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[8px] font-bold text-destructive-foreground">
                 {item.badge > 9 ? "9+" : item.badge}
               </span>
             )}
@@ -218,10 +222,10 @@ export function MarketingShell({ title, subtitle, schoolSlug, children }: Props)
         ))}
         <button
           onClick={() => setMobileNavOpen(true)}
-          className="flex flex-1 flex-col items-center gap-1 rounded-xl px-2 py-2 text-muted-foreground transition-colors"
+          className="flex flex-1 flex-col items-center gap-0.5 rounded-2xl px-1 py-1.5 text-muted-foreground transition-colors min-w-0"
         >
-          <Menu className="h-5 w-5" />
-          <span className="text-[10px] font-medium">More</span>
+          <Menu className="h-[18px] w-[18px]" />
+          <span className="text-[9px] font-medium leading-tight">More</span>
         </button>
       </nav>
 

@@ -140,7 +140,7 @@ const [voiceOpen, setVoiceOpen] = useState(false);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
-    navigate(`/${schoolSlug}/auth`);
+    window.location.href = `/${schoolSlug}/auth`;
   };
 
   const handleVoiceCommand = (cmd: string) => {
