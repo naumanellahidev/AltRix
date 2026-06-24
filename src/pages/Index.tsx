@@ -4,12 +4,10 @@ import { motion, useReducedMotion, AnimatePresence } from "framer-motion";
 import {
   Brain, ShieldCheck, Eye, EyeOff, MessageSquare, ArrowRight,
   Loader2, CheckCircle2, AlertCircle, Info, Sparkles, GraduationCap,
-  TrendingUp, Lock, ChevronLeft, Mail
+  TrendingUp, Lock, ChevronLeft, Mail, Zap,
 } from "lucide-react";
 import { z } from "zod";
 
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useTenant } from "@/hooks/useTenant";
@@ -19,7 +17,6 @@ import {
   getRecentEmails,
   getResetCooldownRemaining,
   rememberRecentEmail,
-  rememberResetEmail,
   requestPasswordResetLink,
   startResetCooldown,
 } from "@/lib/password-reset";
@@ -54,10 +51,10 @@ const resolveDestinationRole = (roles: EduverseRole[]): EduverseRole | null => {
 };
 
 const features = [
-  { icon: Brain, label: "AI-Powered Insights", color: "from-violet-500 to-purple-600" },
-  { icon: ShieldCheck, label: "Enterprise Security", color: "from-emerald-500 to-teal-600" },
-  { icon: TrendingUp, label: "Real-time Analytics", color: "from-blue-500 to-cyan-600" },
-  { icon: MessageSquare, label: "Unified Communication", color: "from-rose-500 to-pink-600" },
+  { icon: Brain, label: "AI-Powered Insights", sub: "Smart analytics for every role", color: "bg-blue-50 text-blue-600", ring: "ring-blue-100" },
+  { icon: ShieldCheck, label: "Enterprise Security", sub: "Role-based access control", color: "bg-indigo-50 text-indigo-600", ring: "ring-indigo-100" },
+  { icon: TrendingUp, label: "Real-time Analytics", sub: "Live performance dashboards", color: "bg-sky-50 text-sky-600", ring: "ring-sky-100" },
+  { icon: MessageSquare, label: "Unified Messaging", sub: "Across all 12 user roles", color: "bg-blue-50 text-blue-500", ring: "ring-blue-100" },
 ];
 
 const stats = [
@@ -66,53 +63,42 @@ const stats = [
   { value: "99.9%", label: "Uptime" },
 ];
 
-/* ─── Floating Orb ─── */
-function Orb({ className }: { className: string }) {
-  return (
-    <div
-      className={cn(
-        "pointer-events-none absolute rounded-full blur-3xl opacity-30",
-        className
-      )}
-    />
-  );
-}
-
-/* ─── Luxury Input ─── */
+/* ── Floating Label Input ── */
 interface LuxInputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   label: string;
   suffix?: React.ReactNode;
-  status?: "ok" | "err" | "loading" | null;
   hint?: React.ReactNode;
   inputRef?: React.RefObject<HTMLInputElement>;
+  status?: "ok" | "err" | "loading" | null;
 }
 
-function LuxInput({ label, suffix, status, hint, inputRef, ...props }: LuxInputProps) {
+function LuxInput({ label, suffix, hint, inputRef, status, ...props }: LuxInputProps) {
   const [focused, setFocused] = useState(false);
   const hasValue = !!props.value;
+  const floated = focused || hasValue;
 
   return (
     <div className="space-y-1.5">
       <div
         className={cn(
-          "relative rounded-xl border bg-white/5 transition-all duration-300",
+          "relative rounded-2xl border-2 bg-white transition-all duration-200",
           focused
-            ? "border-blue-400/70 shadow-[0_0_0_3px_hsl(210_100%_50%/0.15)]"
+            ? "border-blue-500 shadow-[0_0_0_4px_hsl(210_100%_50%/0.08)]"
             : status === "ok"
-            ? "border-emerald-400/50"
+            ? "border-emerald-400 shadow-[0_0_0_3px_hsl(152_65%_40%/0.08)]"
             : status === "err"
-            ? "border-red-400/50"
-            : "border-white/10 hover:border-white/20",
+            ? "border-red-400 shadow-[0_0_0_3px_hsl(0_84%_60%/0.08)]"
+            : "border-slate-200 hover:border-blue-300",
         )}
       >
         <label
-          className={cn(
-            "pointer-events-none absolute left-3.5 font-medium transition-all duration-200 select-none",
-            focused || hasValue
-              ? "top-2 text-[10px] tracking-widest uppercase text-blue-300/80"
-              : "top-1/2 -translate-y-1/2 text-sm text-white/40",
-          )}
           htmlFor={props.id}
+          className={cn(
+            "pointer-events-none absolute left-4 font-medium select-none transition-all duration-200 z-10",
+            floated
+              ? "top-2.5 text-[10px] tracking-widest uppercase text-blue-500"
+              : "top-1/2 -translate-y-1/2 text-sm text-slate-400",
+          )}
         >
           {label}
         </label>
@@ -122,13 +108,12 @@ function LuxInput({ label, suffix, status, hint, inputRef, ...props }: LuxInputP
           onFocus={(e) => { setFocused(true); props.onFocus?.(e); }}
           onBlur={(e) => { setFocused(false); props.onBlur?.(e); }}
           className={cn(
-            "w-full rounded-xl bg-transparent px-3.5 pb-2.5 pt-6 text-sm text-white outline-none",
-            "placeholder:text-white/20",
-            suffix ? "pr-10" : "",
+            "w-full rounded-2xl bg-transparent px-4 pb-3 pt-7 text-sm text-slate-800 outline-none placeholder:text-transparent",
+            suffix ? "pr-11" : "",
           )}
         />
         {suffix && (
-          <div className="absolute inset-y-0 right-0 flex items-center px-3">
+          <div className="absolute inset-y-0 right-0 flex items-center pr-4">
             {suffix}
           </div>
         )}
@@ -138,7 +123,7 @@ function LuxInput({ label, suffix, status, hint, inputRef, ...props }: LuxInputP
   );
 }
 
-/* ─── Main Component ─── */
+/* ── Main Component ── */
 const Index = () => {
   const params = useParams();
   const navigate = useNavigate();
@@ -211,7 +196,7 @@ const Index = () => {
     const { data: rolesData } = await supabase.from("user_roles").select("role").eq("school_id", schoolId).eq("user_id", userId);
     const roles = (rolesData || []).map((r) => r.role as EduverseRole);
     const destRole = resolveDestinationRole(roles);
-    if (!destRole) { showError("No role assigned to your account. Contact an administrator."); await supabase.auth.signOut(); return; }
+    if (!destRole) { showError("No role assigned. Contact an administrator."); await supabase.auth.signOut(); return; }
     navigate(`/${tenant.slug}/${roleToPathSegment(destRole)}`);
   };
 
@@ -219,8 +204,8 @@ const Index = () => {
     setIsResendingOtp(true);
     try {
       const { error } = await supabase.auth.resend({ type: 'signup', email: targetEmail });
-      if (error) { showError("Failed to send verification code: " + error.message); return; }
-      showSuccess("A verification code was sent to " + targetEmail);
+      if (error) { showError("Failed to send code: " + error.message); return; }
+      showSuccess("Verification code sent to " + targetEmail);
       startOtpCooldown(targetEmail);
       setOtpCooldown(60);
     } finally { setIsResendingOtp(false); }
@@ -231,8 +216,8 @@ const Index = () => {
     setOtpError(null);
     try {
       const { data, error } = await supabase.auth.verifyOtp({ email: email.trim().toLowerCase(), token: code, type: 'signup' });
-      if (error) { setOtpError(error.message); showError("Invalid verification code. Please try again."); setOtpCode(""); return; }
-      showSuccess("Email verified successfully!");
+      if (error) { setOtpError(error.message); showError("Invalid code. Please try again."); setOtpCode(""); return; }
+      showSuccess("Email verified!");
       if (data.user) await routeUserAfterLogin(data.user.id);
     } catch (err: any) {
       setOtpError(err.message || "Verification failed");
@@ -268,24 +253,24 @@ const Index = () => {
   const handleSendForgotPasswordOtp = async () => {
     setMessage(null);
     const parsedEmail = emailSchema.safeParse(email.trim());
-    if (!parsedEmail.success) { focusEmail(); return showError("Please enter a valid email to receive the code."); }
+    if (!parsedEmail.success) { focusEmail(); return showError("Please enter a valid email."); }
     if (parsedEmail.data.toLowerCase() === MASTER_SUPER_ADMIN_EMAIL.toLowerCase()) return showError("Platform Super Admin cannot use OTP reset.");
     const cooldown = getOtpCooldownRemaining(parsedEmail.data);
-    if (cooldown > 0) { setOtpCooldown(cooldown); return showInfo(`Please wait ${cooldown}s before requesting another code.`); }
+    if (cooldown > 0) { setOtpCooldown(cooldown); return showInfo(`Wait ${cooldown}s before requesting another code.`); }
     setBusy(true);
     try {
       const { data, error } = await supabase.functions.invoke<{ ok: boolean; error?: string; cooldownSeconds?: number }>("send-otp", { body: { email: parsedEmail.data, purpose: "password_reset" } });
       if (error || !data?.ok) {
-        const msg = data?.error || error?.message || "Failed to send code. Please try again.";
+        const msg = data?.error || error?.message || "Failed to send code.";
         const isNotFound = msg.toLowerCase().includes("not found") || msg.toLowerCase().includes("not allowed");
-        if (isNotFound) return showError("No active account found for this email. Contact your school administrator.");
+        if (isNotFound) return showError("No account found for this email. Contact your school administrator.");
         return showError(msg);
       }
       startOtpCooldown(parsedEmail.data);
       setOtpCooldown(data.cooldownSeconds ?? 60);
       setOtpCode(""); setOtpError(null);
       setAuthMode('forgot_password_otp');
-      showSuccess(`We sent a 6-digit code to ${parsedEmail.data}. Check your inbox.`);
+      showSuccess(`6-digit code sent to ${parsedEmail.data}. Check your inbox.`);
     } finally { setBusy(false); }
   };
 
@@ -296,15 +281,15 @@ const Index = () => {
     if (!parsedEmail.success) { setIsVerificationPending(false); return showError("Email is invalid."); }
     try {
       const { data, error } = await supabase.functions.invoke<{ ok: boolean; action?: "token" | "confirmed"; token?: string; error?: string }>("verify-otp", { body: { email: parsedEmail.data, code, purpose: "password_reset" } });
-      if (error || !data?.ok) { const msg = data?.error || error?.message || "Invalid or expired verification code."; setOtpError(msg); showError(msg); setOtpCode(""); return; }
+      if (error || !data?.ok) { const msg = data?.error || error?.message || "Invalid or expired code."; setOtpError(msg); showError(msg); setOtpCode(""); return; }
       if (data.action === "token" && data.token) {
-        showSuccess("Code verified! Taking you to reset your password...");
+        showSuccess("Code verified! Redirecting to reset your password…");
         const { error: verifyErr } = await supabase.auth.verifyOtp({ token_hash: data.token, type: "recovery" });
-        if (verifyErr) { const msg = verifyErr.message || "Session creation failed."; setOtpError(msg); showError(msg); return; }
+        if (verifyErr) { const msg = verifyErr.message || "Session error."; setOtpError(msg); showError(msg); return; }
         setTimeout(() => navigate(`/reset-password?returnTo=/${safeSlug}/auth`), 1000);
         return;
       }
-      showSuccess("Verified! Redirecting...");
+      showSuccess("Verified! Redirecting…");
       setTimeout(() => navigate(`/reset-password?returnTo=/${safeSlug}/auth`), 1200);
     } catch (err: any) {
       const msg = err.message || "Verification failed";
@@ -316,98 +301,105 @@ const Index = () => {
   const schoolName = tenant.status === "ready" ? tenant.school.name : null;
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-[#080c14] text-white">
-      {/* ── Ambient orbs ── */}
-      <Orb className="w-[900px] h-[900px] bg-blue-600 -top-48 -left-48 animate-[pulse_8s_ease-in-out_infinite]" />
-      <Orb className="w-[600px] h-[600px] bg-violet-700 top-1/2 -right-64 animate-[pulse_10s_ease-in-out_infinite_2s]" />
-      <Orb className="w-[400px] h-[400px] bg-cyan-600 bottom-0 left-1/3 animate-[pulse_12s_ease-in-out_infinite_4s]" />
+    <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-slate-50 via-blue-50/40 to-indigo-50/60">
 
-      {/* ── Subtle grid overlay ── */}
-      <div
-        className="pointer-events-none absolute inset-0 opacity-[0.04]"
-        style={{
-          backgroundImage: `linear-gradient(hsl(210 100% 70% / 0.5) 1px, transparent 1px), linear-gradient(90deg, hsl(210 100% 70% / 0.5) 1px, transparent 1px)`,
-          backgroundSize: "60px 60px",
-        }}
-      />
+      {/* ── Decorative background blobs ── */}
+      <div className="pointer-events-none absolute inset-0 overflow-hidden">
+        {/* Top-left large orb */}
+        <div className="absolute -top-40 -left-40 h-[700px] w-[700px] rounded-full bg-gradient-to-br from-blue-200/60 to-indigo-200/40 blur-3xl" />
+        {/* Top-right medium orb */}
+        <div className="absolute -top-20 right-0 h-[500px] w-[500px] rounded-full bg-gradient-to-bl from-sky-200/50 to-blue-100/30 blur-3xl" />
+        {/* Bottom-center orb */}
+        <div className="absolute bottom-0 left-1/2 -translate-x-1/2 h-[400px] w-[800px] rounded-full bg-gradient-to-t from-indigo-100/50 to-transparent blur-3xl" />
+        {/* Subtle dot grid */}
+        <div
+          className="absolute inset-0 opacity-[0.35]"
+          style={{
+            backgroundImage: `radial-gradient(circle, hsl(210 100% 60% / 0.18) 1px, transparent 1px)`,
+            backgroundSize: "32px 32px",
+          }}
+        />
+      </div>
 
       {/* ── Header ── */}
       <header className="relative z-10 mx-auto flex w-full max-w-7xl items-center justify-between px-6 py-5">
         <div className="flex items-center gap-3">
-          {/* Logo mark */}
-          <div className="relative flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-violet-600 shadow-lg shadow-blue-500/30">
+          <div className="relative flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-600 shadow-lg shadow-blue-500/25">
             <GraduationCap className="h-5 w-5 text-white" />
-            <div className="absolute inset-0 rounded-xl ring-1 ring-white/20" />
           </div>
-          <span className="font-bold tracking-tight text-xl bg-gradient-to-r from-white to-white/70 bg-clip-text text-transparent">
-            AltRix
-          </span>
+          <div>
+            <span className="font-bold text-xl tracking-tight text-slate-800">AltRix</span>
+            <span className="ml-2 text-xs text-slate-400 hidden sm:inline">School OS</span>
+          </div>
         </div>
 
-        <div className="hidden items-center gap-2 md:flex">
-          <div className="flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 backdrop-blur-sm">
-            <div className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_hsl(152_65%_50%)]" />
-            <span className="text-xs text-white/60">All systems operational</span>
+        <div className="hidden items-center gap-3 md:flex">
+          <div className="flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2">
+            <div className="h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_8px_hsl(152_65%_45%)]" />
+            <span className="text-xs font-medium text-emerald-700">All systems operational</span>
           </div>
         </div>
       </header>
 
-      {/* ── Main split layout ── */}
-      <main className="relative z-10 mx-auto w-full max-w-7xl px-6 pb-16 pt-4 lg:pt-8">
-        <div className="grid gap-12 lg:grid-cols-[1fr_420px] xl:grid-cols-[1fr_460px] lg:gap-16 lg:items-center min-h-[calc(100vh-120px)]">
+      {/* ── Main layout ── */}
+      <main className="relative z-10 mx-auto w-full max-w-7xl px-6 pb-16 pt-4 lg:pt-6">
+        <div className="grid gap-12 lg:grid-cols-[1fr_460px] lg:gap-16 lg:items-center" style={{ minHeight: "calc(100vh - 140px)" }}>
 
           {/* ════ LEFT: Brand panel ════ */}
           <motion.div
             initial={reduce ? false : { opacity: 0, x: -24 }}
             animate={reduce ? undefined : { opacity: 1, x: 0 }}
-            transition={{ duration: 0.7, ease: [0.2, 0.8, 0.2, 1] }}
-            className="order-2 lg:order-1 space-y-10"
+            transition={{ duration: 0.65, ease: [0.2, 0.8, 0.2, 1] }}
+            className="order-2 lg:order-1 space-y-9"
           >
-            {/* Eyebrow */}
-            <div className="inline-flex items-center gap-2 rounded-full border border-blue-400/20 bg-blue-500/10 px-3.5 py-1.5 text-xs font-medium text-blue-300">
-              <Sparkles className="h-3 w-3" />
+            {/* Eyebrow pill */}
+            <div className="inline-flex items-center gap-2 rounded-full border border-blue-200 bg-blue-50 px-4 py-2 text-xs font-semibold text-blue-600 shadow-sm">
+              <Sparkles className="h-3.5 w-3.5" />
               AI-Powered School Management Platform
             </div>
 
             {/* Headline */}
             <div className="space-y-4">
-              <h1 className="font-bold text-4xl md:text-5xl xl:text-6xl leading-[1.1] tracking-tight">
-                <span className="bg-gradient-to-br from-white via-white to-white/50 bg-clip-text text-transparent">
-                  The Operating System
-                </span>
+              <h1 className="font-bold leading-[1.1] tracking-tight text-slate-900" style={{ fontSize: "clamp(2.2rem, 4vw, 3.5rem)" }}>
+                The Operating System
                 <br />
-                <span className="bg-gradient-to-r from-blue-400 via-cyan-400 to-violet-400 bg-clip-text text-transparent">
+                <span className="bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-500 bg-clip-text text-transparent">
                   for Modern Schools
                 </span>
               </h1>
-              <p className="text-white/50 text-lg leading-relaxed max-w-lg">
-                One unified platform for academics, finance, HR, communication, and AI‑driven insights — built for 12 distinct roles.
+              <p className="text-slate-500 text-lg leading-relaxed max-w-lg">
+                One unified platform for academics, finance, HR, communication, and AI-driven insights — built for 12 distinct roles.
               </p>
             </div>
 
-            {/* Stats */}
-            <div className="flex items-center gap-8">
-              {stats.map((s) => (
-                <div key={s.label}>
-                  <p className="text-3xl font-bold bg-gradient-to-br from-white to-white/60 bg-clip-text text-transparent">{s.value}</p>
-                  <p className="text-xs text-white/40 mt-0.5">{s.label}</p>
+            {/* Stats row */}
+            <div className="flex items-center gap-10">
+              {stats.map((s, i) => (
+                <div key={s.label} className={cn("relative", i !== 0 && "pl-10 before:absolute before:left-0 before:top-1/2 before:-translate-y-1/2 before:h-8 before:w-px before:bg-slate-200")}>
+                  <p className="text-3xl font-extrabold bg-gradient-to-br from-blue-600 to-indigo-600 bg-clip-text text-transparent">{s.value}</p>
+                  <p className="text-xs text-slate-400 mt-0.5 font-medium">{s.label}</p>
                 </div>
               ))}
             </div>
 
-            {/* Feature pills */}
-            <div className="grid grid-cols-2 gap-3">
+            {/* Feature cards */}
+            <div className="grid grid-cols-2 gap-3.5">
               {features.map((f) => (
                 <motion.div
                   key={f.label}
-                  whileHover={reduce ? undefined : { y: -2, scale: 1.01 }}
+                  whileHover={reduce ? undefined : { y: -3, scale: 1.01 }}
                   transition={{ duration: 0.2 }}
-                  className="group flex items-center gap-3 rounded-2xl border border-white/5 bg-white/[0.03] p-3.5 backdrop-blur-sm hover:border-white/10 hover:bg-white/[0.06] transition-all duration-300"
+                  className="group relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white/80 p-4 shadow-sm backdrop-blur-sm hover:shadow-md hover:border-blue-200 transition-all duration-300"
                 >
-                  <div className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br", f.color, "shadow-lg")}>
-                    <f.icon className="h-4 w-4 text-white" />
+                  {/* Subtle gradient tint on hover */}
+                  <div className="absolute inset-0 bg-gradient-to-br from-blue-50/0 to-indigo-50/0 group-hover:from-blue-50/60 group-hover:to-indigo-50/40 transition-all duration-300 rounded-2xl" />
+                  <div className="relative">
+                    <div className={cn("mb-3 inline-flex h-9 w-9 items-center justify-center rounded-xl ring-4", f.color, f.ring)}>
+                      <f.icon className="h-4 w-4" />
+                    </div>
+                    <p className="text-sm font-semibold text-slate-800 leading-tight">{f.label}</p>
+                    <p className="text-xs text-slate-400 mt-0.5">{f.sub}</p>
                   </div>
-                  <span className="text-sm font-medium text-white/70 group-hover:text-white/90 transition-colors">{f.label}</span>
                 </motion.div>
               ))}
             </div>
@@ -417,340 +409,354 @@ const Index = () => {
           <motion.div
             initial={reduce ? false : { opacity: 0, y: 24 }}
             animate={reduce ? undefined : { opacity: 1, y: 0 }}
-            transition={{ delay: 0.15, duration: 0.7, ease: [0.2, 0.8, 0.2, 1] }}
+            transition={{ delay: 0.12, duration: 0.65, ease: [0.2, 0.8, 0.2, 1] }}
             className="order-1 lg:order-2"
           >
-            {/* Glass card */}
-            <div className="relative rounded-3xl border border-white/10 bg-white/[0.04] p-8 backdrop-blur-2xl shadow-2xl shadow-black/40">
-              {/* Card inner glow */}
-              <div className="pointer-events-none absolute inset-0 rounded-3xl bg-gradient-to-b from-white/[0.06] to-transparent" />
-              <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent rounded-t-3xl" />
+            {/* Outer glow ring */}
+            <div className="relative">
+              <div className="absolute -inset-1.5 rounded-[28px] bg-gradient-to-br from-blue-400/20 via-indigo-400/15 to-blue-300/20 blur-lg" />
 
-              <AnimatePresence mode="wait">
+              {/* Card */}
+              <div className="relative rounded-3xl border border-slate-200/80 bg-white/90 p-8 shadow-2xl shadow-blue-900/8 backdrop-blur-xl">
 
-                {/* ── LOGIN FORM ── */}
-                {authMode === 'login' && (
-                  <motion.div
-                    key="login"
-                    initial={reduce ? false : { opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
-                    transition={{ duration: 0.3 }}
-                  >
-                    {/* Card header */}
-                    <div className="mb-8">
-                      <div className="flex items-center gap-3 mb-1">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 to-violet-600 shadow-lg shadow-blue-500/30">
+                {/* Top accent bar */}
+                <div className="absolute inset-x-0 top-0 h-1 rounded-t-3xl bg-gradient-to-r from-blue-500 via-indigo-500 to-blue-400" />
+
+                <AnimatePresence mode="wait">
+
+                  {/* ── LOGIN ── */}
+                  {authMode === 'login' && (
+                    <motion.div
+                      key="login"
+                      initial={reduce ? false : { opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      transition={{ duration: 0.28 }}
+                    >
+                      {/* Card header */}
+                      <div className="mb-7 flex items-center gap-4">
+                        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-600 shadow-lg shadow-blue-500/30">
                           <Lock className="h-5 w-5 text-white" />
                         </div>
                         <div>
-                          <h2 className="font-bold text-xl text-white tracking-tight">Welcome back</h2>
-                          <p className="text-xs text-white/40">Sign in to your school portal</p>
+                          <h2 className="font-bold text-xl text-slate-900 tracking-tight">Welcome back</h2>
+                          <p className="text-sm text-slate-400">Sign in to your school portal</p>
                         </div>
                       </div>
-                    </div>
 
-                    <form
-                      className="space-y-4"
-                      onSubmit={(e) => { e.preventDefault(); if (!busy) void doLogin(); }}
-                    >
-                      {/* School Code */}
-                      <LuxInput
-                        id="school-code"
-                        label="School Code"
-                        value={schoolSlug}
-                        onChange={(e) => setSchoolSlug((e.target as HTMLInputElement).value)}
-                        autoCapitalize="none"
-                        autoCorrect="off"
-                        spellCheck={false}
-                        status={slugStatus}
-                        suffix={
-                          !safeSlug ? null : tenant.status === "loading" ? (
-                            <Loader2 className="h-4 w-4 animate-spin text-white/30" />
-                          ) : tenant.status === "ready" ? (
-                            <CheckCircle2 className="h-4 w-4 text-emerald-400" />
-                          ) : tenant.status === "error" ? (
-                            <AlertCircle className="h-4 w-4 text-red-400" />
-                          ) : null
-                        }
-                        hint={
-                          safeSlug && tenant.status === "ready" ? (
-                            <p className="text-xs text-emerald-400/80 flex items-center gap-1">
-                              <CheckCircle2 className="h-3 w-3" />
-                              Verified: {schoolName}
-                            </p>
-                          ) : safeSlug && tenant.status === "error" ? (
-                            <p className="text-xs text-red-400/80 flex items-center gap-1">
-                              <AlertCircle className="h-3 w-3" />
-                              School not found
-                            </p>
-                          ) : null
-                        }
-                      />
-
-                      {/* Email */}
-                      <div>
+                      <form
+                        className="space-y-4"
+                        onSubmit={(e) => { e.preventDefault(); if (!busy) void doLogin(); }}
+                      >
+                        {/* School Code */}
                         <LuxInput
-                          id="login-email"
-                          label="Email Address"
-                          type="email"
-                          inputRef={emailInputRef}
-                          value={email}
-                          onChange={(e) => setEmail((e.target as HTMLInputElement).value)}
-                          autoComplete="username"
-                          inputMode="email"
-                          list="saved-emails"
-                        />
-                        {recentEmails.length > 0 && (
-                          <datalist id="saved-emails">
-                            {recentEmails.map((e) => <option key={e} value={e} />)}
-                          </datalist>
-                        )}
-                      </div>
-
-                      {/* Password */}
-                      <div>
-                        <LuxInput
-                          id="login-password"
-                          label="Password"
-                          type={showPassword ? "text" : "password"}
-                          value={password}
-                          onChange={(e) => setPassword((e.target as HTMLInputElement).value)}
-                          autoComplete="current-password"
+                          id="school-code"
+                          label="School Code"
+                          value={schoolSlug}
+                          onChange={(e) => setSchoolSlug((e.target as HTMLInputElement).value)}
+                          autoCapitalize="none"
+                          autoCorrect="off"
+                          spellCheck={false}
+                          status={slugStatus}
                           suffix={
-                            <button
-                              type="button"
-                              onClick={() => setShowPassword((v) => !v)}
-                              className="text-white/30 hover:text-white/60 transition-colors"
-                              tabIndex={-1}
-                              aria-label={showPassword ? "Hide password" : "Show password"}
-                            >
-                              {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                            </button>
+                            !safeSlug ? null
+                            : tenant.status === "loading" ? <Loader2 className="h-4 w-4 animate-spin text-slate-300" />
+                            : tenant.status === "ready" ? <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                            : tenant.status === "error" ? <AlertCircle className="h-4 w-4 text-red-400" />
+                            : null
+                          }
+                          hint={
+                            safeSlug && tenant.status === "ready" ? (
+                              <p className="text-xs text-emerald-600 flex items-center gap-1 font-medium">
+                                <CheckCircle2 className="h-3 w-3" /> Verified: {schoolName}
+                              </p>
+                            ) : safeSlug && tenant.status === "error" ? (
+                              <p className="text-xs text-red-500 flex items-center gap-1">
+                                <AlertCircle className="h-3 w-3" /> School not found
+                              </p>
+                            ) : null
                           }
                         />
-                        <div className="flex justify-end mt-2">
-                          <button
-                            type="button"
-                            onClick={() => { setMessage(null); setAuthMode('forgot_password'); }}
-                            className="text-xs text-blue-400/80 hover:text-blue-300 transition-colors"
-                          >
-                            Forgot password?
-                          </button>
-                        </div>
-                      </div>
 
-                      {/* Submit */}
-                      <button
-                        type="submit"
-                        disabled={busy || tenant.status !== "ready"}
-                        className={cn(
-                          "relative w-full overflow-hidden rounded-xl px-6 py-3.5 text-sm font-semibold text-white transition-all duration-300",
-                          "bg-gradient-to-r from-blue-600 via-blue-500 to-violet-600",
-                          "shadow-lg shadow-blue-500/30",
-                          "hover:shadow-xl hover:shadow-blue-500/40 hover:brightness-110",
-                          "disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none",
-                          "active:scale-[0.98]",
-                        )}
-                      >
-                        <span className="relative z-10 flex items-center justify-center gap-2">
-                          {busy ? (
-                            <><Loader2 className="h-4 w-4 animate-spin" /> Signing in…</>
-                          ) : tenant.status === "loading" && safeSlug ? (
-                            <><Loader2 className="h-4 w-4 animate-spin" /> Verifying school…</>
-                          ) : tenant.status === "error" ? (
-                            "Invalid school code"
-                          ) : !safeSlug ? (
-                            "Enter school code to continue"
-                          ) : (
-                            <>Sign in <ArrowRight className="h-4 w-4" /></>
+                        {/* Email */}
+                        <div>
+                          <LuxInput
+                            id="login-email"
+                            label="Email Address"
+                            type="email"
+                            inputRef={emailInputRef}
+                            value={email}
+                            onChange={(e) => setEmail((e.target as HTMLInputElement).value)}
+                            autoComplete="username"
+                            inputMode="email"
+                            list="saved-emails"
+                          />
+                          {recentEmails.length > 0 && (
+                            <datalist id="saved-emails">
+                              {recentEmails.map((e) => <option key={e} value={e} />)}
+                            </datalist>
                           )}
-                        </span>
-                        {/* Shimmer */}
-                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full animate-[shimmer_3s_infinite] pointer-events-none" />
-                      </button>
-                    </form>
+                        </div>
 
-                    {/* Footer note */}
-                    <p className="mt-6 text-center text-xs text-white/25">
-                      Demo school: <span className="text-white/50 font-medium">beacon</span> · Accounts are created by administrators
-                    </p>
-                  </motion.div>
-                )}
+                        {/* Password */}
+                        <div>
+                          <LuxInput
+                            id="login-password"
+                            label="Password"
+                            type={showPassword ? "text" : "password"}
+                            value={password}
+                            onChange={(e) => setPassword((e.target as HTMLInputElement).value)}
+                            autoComplete="current-password"
+                            suffix={
+                              <button
+                                type="button"
+                                onClick={() => setShowPassword((v) => !v)}
+                                className="text-slate-400 hover:text-blue-500 transition-colors"
+                                tabIndex={-1}
+                                aria-label={showPassword ? "Hide password" : "Show password"}
+                              >
+                                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                              </button>
+                            }
+                          />
+                          <div className="flex justify-end mt-2">
+                            <button
+                              type="button"
+                              onClick={() => { setMessage(null); setAuthMode('forgot_password'); }}
+                              className="text-xs text-blue-500 hover:text-blue-700 font-medium transition-colors"
+                            >
+                              Forgot password?
+                            </button>
+                          </div>
+                        </div>
 
-                {/* ── FORGOT PASSWORD FORM ── */}
-                {authMode === 'forgot_password' && (
-                  <motion.div
-                    key="forgot"
-                    initial={reduce ? false : { opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
-                    transition={{ duration: 0.3 }}
-                    className="space-y-6"
-                  >
-                    <button
-                      onClick={() => { setMessage(null); setAuthMode('login'); }}
-                      className="flex items-center gap-1.5 text-xs text-white/40 hover:text-white/70 transition-colors"
+                        {/* Submit button */}
+                        <button
+                          type="submit"
+                          disabled={busy || tenant.status !== "ready"}
+                          className={cn(
+                            "group relative w-full overflow-hidden rounded-2xl px-6 py-3.5 text-sm font-semibold text-white transition-all duration-300",
+                            "bg-gradient-to-r from-blue-600 via-blue-500 to-indigo-600",
+                            "shadow-lg shadow-blue-500/30",
+                            "hover:shadow-xl hover:shadow-blue-500/40 hover:scale-[1.01]",
+                            "active:scale-[0.99]",
+                            "disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:shadow-md",
+                          )}
+                        >
+                          {/* Shimmer overlay */}
+                          <div className="absolute inset-0 translate-x-[-100%] bg-gradient-to-r from-transparent via-white/20 to-transparent group-hover:translate-x-[100%] transition-transform duration-700 ease-in-out" />
+                          <span className="relative flex items-center justify-center gap-2">
+                            {busy ? (
+                              <><Loader2 className="h-4 w-4 animate-spin" /> Signing in…</>
+                            ) : tenant.status === "loading" && safeSlug ? (
+                              <><Loader2 className="h-4 w-4 animate-spin" /> Verifying school…</>
+                            ) : tenant.status === "error" ? (
+                              "Invalid school code"
+                            ) : !safeSlug ? (
+                              "Enter school code to continue"
+                            ) : (
+                              <>Sign in <ArrowRight className="h-4 w-4 group-hover:translate-x-0.5 transition-transform" /></>
+                            )}
+                          </span>
+                        </button>
+                      </form>
+
+                      {/* Footer */}
+                      <div className="mt-6 flex items-center justify-center gap-2">
+                        <ShieldCheck className="h-3.5 w-3.5 text-slate-300" />
+                        <p className="text-center text-xs text-slate-400">
+                          Demo school: <span className="font-semibold text-slate-600">beacon</span> · Admin-created accounts only
+                        </p>
+                      </div>
+                    </motion.div>
+                  )}
+
+                  {/* ── FORGOT PASSWORD ── */}
+                  {authMode === 'forgot_password' && (
+                    <motion.div
+                      key="forgot"
+                      initial={reduce ? false : { opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      transition={{ duration: 0.28 }}
+                      className="space-y-6"
                     >
-                      <ChevronLeft className="h-3.5 w-3.5" /> Back to sign in
-                    </button>
+                      <button
+                        onClick={() => { setMessage(null); setAuthMode('login'); }}
+                        className="flex items-center gap-1.5 text-xs font-medium text-slate-400 hover:text-blue-600 transition-colors"
+                      >
+                        <ChevronLeft className="h-3.5 w-3.5" /> Back to sign in
+                      </button>
 
-                    <div>
-                      <div className="flex items-center gap-3 mb-1">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-500 to-purple-600 shadow-lg shadow-violet-500/30">
+                      <div className="flex items-center gap-4">
+                        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-blue-600 shadow-lg shadow-indigo-500/25">
                           <Mail className="h-5 w-5 text-white" />
                         </div>
                         <div>
-                          <h2 className="font-bold text-xl text-white tracking-tight">Reset password</h2>
-                          <p className="text-xs text-white/40">We'll send a 6-digit code to your email</p>
+                          <h2 className="font-bold text-xl text-slate-900 tracking-tight">Reset password</h2>
+                          <p className="text-sm text-slate-400">We'll send a 6-digit code to your email</p>
                         </div>
                       </div>
-                    </div>
 
-                    <form
-                      className="space-y-4"
-                      onSubmit={(e) => { e.preventDefault(); if (!busy) void handleSendForgotPasswordOtp(); }}
-                    >
-                      <LuxInput
-                        id="reset-email"
-                        label="Email Address"
-                        type="email"
-                        value={email}
-                        onChange={(e) => setEmail((e.target as HTMLInputElement).value)}
-                        autoComplete="email"
-                        inputMode="email"
-                      />
-                      <button
-                        type="submit"
-                        disabled={busy}
-                        className={cn(
-                          "relative w-full overflow-hidden rounded-xl px-6 py-3.5 text-sm font-semibold text-white transition-all duration-300",
-                          "bg-gradient-to-r from-violet-600 to-purple-600 shadow-lg shadow-violet-500/30",
-                          "hover:shadow-xl hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98]",
-                        )}
+                      <form
+                        className="space-y-4"
+                        onSubmit={(e) => { e.preventDefault(); if (!busy) void handleSendForgotPasswordOtp(); }}
                       >
-                        <span className="flex items-center justify-center gap-2">
-                          {busy ? <><Loader2 className="h-4 w-4 animate-spin" /> Sending…</> : <>Send Verification Code <ArrowRight className="h-4 w-4" /></>}
-                        </span>
-                      </button>
-                    </form>
-                  </motion.div>
-                )}
-
-                {/* ── OTP / VERIFY EMAIL ── */}
-                {(authMode === 'forgot_password_otp' || authMode === 'verify_email') && (
-                  <motion.div
-                    key="otp"
-                    initial={reduce ? false : { opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
-                    transition={{ duration: 0.3 }}
-                    className="space-y-6"
-                  >
-                    <button
-                      onClick={() => { setMessage(null); setOtpError(null); setOtpCode(""); setAuthMode(authMode === 'verify_email' ? 'login' : 'forgot_password'); }}
-                      className="flex items-center gap-1.5 text-xs text-white/40 hover:text-white/70 transition-colors"
-                    >
-                      <ChevronLeft className="h-3.5 w-3.5" /> Go back
-                    </button>
-
-                    <div className="text-center space-y-1">
-                      <h3 className="font-bold text-xl text-white">
-                        {authMode === 'verify_email' ? "Verify your email" : "Enter verification code"}
-                      </h3>
-                      <p className="text-xs text-white/40 text-balance">
-                        {authMode === 'verify_email'
-                          ? `Enter the 6-digit code sent to ${email}`
-                          : `We sent a 6-digit password reset code to ${email}`}
-                      </p>
-                    </div>
-
-                    <motion.div
-                      animate={otpError ? { x: [-8, 8, -8, 8, 0], transition: { duration: 0.4 } } : {}}
-                      className="flex justify-center py-2"
-                    >
-                      <InputOTP
-                        maxLength={6}
-                        value={otpCode}
-                        onChange={(val) => {
-                          setOtpCode(val);
-                          if (val.length === 6) {
-                            if (authMode === 'verify_email') void handleVerifySignUpOtp(val);
-                            else void handleVerifyForgotPasswordOtp(val);
-                          }
-                        }}
-                        disabled={isVerificationPending}
-                      >
-                        <InputOTPGroup className="gap-2 justify-center w-full">
-                          {[0,1,2,3,4,5].map((i) => (
-                            <InputOTPSlot
-                              key={i}
-                              index={i}
-                              className="w-11 h-12 text-lg rounded-xl border-2 border-white/10 bg-white/5 text-white focus:border-blue-400/70 focus:ring-2 focus:ring-blue-500/20"
-                            />
-                          ))}
-                        </InputOTPGroup>
-                      </InputOTP>
+                        <LuxInput
+                          id="reset-email"
+                          label="Email Address"
+                          type="email"
+                          value={email}
+                          onChange={(e) => setEmail((e.target as HTMLInputElement).value)}
+                          autoComplete="email"
+                          inputMode="email"
+                        />
+                        <button
+                          type="submit"
+                          disabled={busy}
+                          className={cn(
+                            "group relative w-full overflow-hidden rounded-2xl px-6 py-3.5 text-sm font-semibold text-white transition-all duration-300",
+                            "bg-gradient-to-r from-indigo-600 to-blue-600 shadow-lg shadow-indigo-500/30",
+                            "hover:shadow-xl hover:scale-[1.01] active:scale-[0.99]",
+                            "disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100",
+                          )}
+                        >
+                          <div className="absolute inset-0 translate-x-[-100%] bg-gradient-to-r from-transparent via-white/20 to-transparent group-hover:translate-x-[100%] transition-transform duration-700" />
+                          <span className="relative flex items-center justify-center gap-2">
+                            {busy ? <><Loader2 className="h-4 w-4 animate-spin" /> Sending…</> : <>Send Verification Code <ArrowRight className="h-4 w-4" /></>}
+                          </span>
+                        </button>
+                      </form>
                     </motion.div>
+                  )}
 
-                    {otpError && <p className="text-xs text-red-400 text-center font-medium">{otpError}</p>}
+                  {/* ── OTP VERIFY ── */}
+                  {(authMode === 'forgot_password_otp' || authMode === 'verify_email') && (
+                    <motion.div
+                      key="otp"
+                      initial={reduce ? false : { opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      transition={{ duration: 0.28 }}
+                      className="space-y-6"
+                    >
+                      <button
+                        onClick={() => { setMessage(null); setOtpError(null); setOtpCode(""); setAuthMode(authMode === 'verify_email' ? 'login' : 'forgot_password'); }}
+                        className="flex items-center gap-1.5 text-xs font-medium text-slate-400 hover:text-blue-600 transition-colors"
+                      >
+                        <ChevronLeft className="h-3.5 w-3.5" /> Go back
+                      </button>
 
-                    <div className="flex flex-col gap-2">
+                      <div className="text-center space-y-1">
+                        <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 shadow-lg shadow-blue-500/25">
+                          <Zap className="h-6 w-6 text-white" />
+                        </div>
+                        <h3 className="font-bold text-xl text-slate-900">
+                          {authMode === 'verify_email' ? "Verify your email" : "Enter verification code"}
+                        </h3>
+                        <p className="text-xs text-slate-400 text-balance max-w-xs mx-auto">
+                          {authMode === 'verify_email'
+                            ? `Enter the 6-digit code sent to ${email}`
+                            : `We sent a 6-digit password reset code to ${email}`}
+                        </p>
+                      </div>
+
+                      <motion.div
+                        animate={otpError ? { x: [-8, 8, -8, 8, 0], transition: { duration: 0.4 } } : {}}
+                        className="flex justify-center py-2"
+                      >
+                        <InputOTP
+                          maxLength={6}
+                          value={otpCode}
+                          onChange={(val) => {
+                            setOtpCode(val);
+                            if (val.length === 6) {
+                              if (authMode === 'verify_email') void handleVerifySignUpOtp(val);
+                              else void handleVerifyForgotPasswordOtp(val);
+                            }
+                          }}
+                          disabled={isVerificationPending}
+                        >
+                          <InputOTPGroup className="gap-2 justify-center w-full">
+                            {[0, 1, 2, 3, 4, 5].map((i) => (
+                              <InputOTPSlot
+                                key={i}
+                                index={i}
+                                className="w-11 h-12 text-lg font-bold rounded-2xl border-2 border-slate-200 bg-slate-50 text-slate-800 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15"
+                              />
+                            ))}
+                          </InputOTPGroup>
+                        </InputOTP>
+                      </motion.div>
+
+                      {otpError && (
+                        <p className="text-xs text-red-500 text-center font-medium">{otpError}</p>
+                      )}
+
                       <button
                         type="button"
                         onClick={() => { if (authMode === 'verify_email') void handleResendVerifyEmailOtp(email); else void handleSendForgotPasswordOtp(); }}
                         disabled={otpCooldown > 0 || isResendingOtp}
-                        className="w-full rounded-xl border border-white/10 bg-white/5 py-3 text-sm text-white/60 hover:bg-white/10 hover:text-white/80 transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
+                        className="w-full rounded-2xl border-2 border-slate-200 bg-slate-50 py-3 text-sm font-medium text-slate-600 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-600 transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
                       >
-                        {isResendingOtp ? <><Loader2 className="inline mr-2 h-3.5 w-3.5 animate-spin" />Sending…</> : otpCooldown > 0 ? `Resend code in ${otpCooldown}s` : "Resend code"}
+                        {isResendingOtp
+                          ? <><Loader2 className="inline mr-2 h-3.5 w-3.5 animate-spin" />Sending…</>
+                          : otpCooldown > 0
+                          ? `Resend code in ${otpCooldown}s`
+                          : "Resend code"}
                       </button>
-                    </div>
-                  </motion.div>
-                )}
+                    </motion.div>
+                  )}
 
-              </AnimatePresence>
+                </AnimatePresence>
 
-              {/* ── Feedback message ── */}
-              <AnimatePresence>
-                {message && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 8, scale: 0.98 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: -4, scale: 0.98 }}
-                    transition={{ duration: 0.25 }}
-                    role={message.tone === "error" ? "alert" : "status"}
-                    className={cn(
-                      "mt-5 rounded-2xl p-3.5 text-xs flex items-start gap-2.5 border",
-                      message.tone === "success" && "bg-emerald-500/10 border-emerald-500/20 text-emerald-300",
-                      message.tone === "error" && "bg-red-500/10 border-red-500/20 text-red-300",
-                      message.tone === "info" && "bg-blue-500/10 border-blue-500/20 text-blue-300",
-                    )}
-                  >
-                    {message.tone === "success" && <CheckCircle2 className="h-4 w-4 mt-0.5 shrink-0" />}
-                    {message.tone === "error" && <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />}
-                    {message.tone === "info" && <Info className="h-4 w-4 mt-0.5 shrink-0" />}
-                    <span className="flex-1 leading-relaxed">{message.text}</span>
-                  </motion.div>
-                )}
-              </AnimatePresence>
+                {/* ── Feedback message ── */}
+                <AnimatePresence>
+                  {message && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 8, scale: 0.97 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: -4, scale: 0.97 }}
+                      transition={{ duration: 0.22 }}
+                      role={message.tone === "error" ? "alert" : "status"}
+                      className={cn(
+                        "mt-5 rounded-2xl p-4 text-xs flex items-start gap-2.5 border",
+                        message.tone === "success" && "bg-emerald-50 border-emerald-200 text-emerald-700",
+                        message.tone === "error" && "bg-red-50 border-red-200 text-red-700",
+                        message.tone === "info" && "bg-blue-50 border-blue-200 text-blue-700",
+                      )}
+                    >
+                      {message.tone === "success" && <CheckCircle2 className="h-4 w-4 mt-0.5 shrink-0 text-emerald-500" />}
+                      {message.tone === "error" && <AlertCircle className="h-4 w-4 mt-0.5 shrink-0 text-red-500" />}
+                      {message.tone === "info" && <Info className="h-4 w-4 mt-0.5 shrink-0 text-blue-500" />}
+                      <span className="flex-1 leading-relaxed font-medium">{message.text}</span>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
             </div>
 
-            {/* Security badge below card */}
-            <div className="mt-4 flex items-center justify-center gap-2">
-              <ShieldCheck className="h-3.5 w-3.5 text-white/25" />
-              <span className="text-xs text-white/25">256-bit encrypted · Admin-created accounts only</span>
+            {/* Trust badges below card */}
+            <div className="mt-5 flex items-center justify-center gap-4 flex-wrap">
+              <div className="flex items-center gap-1.5 text-xs text-slate-400">
+                <ShieldCheck className="h-3.5 w-3.5 text-blue-400" />
+                <span>256-bit SSL encrypted</span>
+              </div>
+              <div className="h-3 w-px bg-slate-200" />
+              <div className="flex items-center gap-1.5 text-xs text-slate-400">
+                <CheckCircle2 className="h-3.5 w-3.5 text-blue-400" />
+                <span>SOC 2 compliant</span>
+              </div>
+              <div className="h-3 w-px bg-slate-200" />
+              <div className="flex items-center gap-1.5 text-xs text-slate-400">
+                <Zap className="h-3.5 w-3.5 text-blue-400" />
+                <span>99.9% uptime SLA</span>
+              </div>
             </div>
           </motion.div>
+
         </div>
       </main>
-
-      {/* ── Shimmer keyframe ── */}
-      <style>{`
-        @keyframes shimmer {
-          0% { transform: translateX(-100%); }
-          100% { transform: translateX(300%); }
-        }
-      `}</style>
     </div>
   );
 };
