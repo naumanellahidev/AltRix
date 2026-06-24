@@ -400,16 +400,15 @@ const Index = () => {
     letterSpacing: "0.07em", textTransform: "uppercase",
     color: "#003fa4", marginBottom: "7px",
   };
-
   return (
     <>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@700;800&family=Hanken+Grotesk:wght@400;500;600&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@700;800&family=Hanken+Grotesk:wght@400;500;600&display=swap');
         @import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0&display=swap');
         .idx-iw:focus-within{box-shadow:0 0 0 4px rgba(0,102,255,.14),0 4px 18px -5px rgba(0,102,255,.10)!important;border-color:#0066ff!important;background:rgba(255,255,255,.96)!important;transform:scale(1.005);}
         .idx-iw:focus-within .idx-ico{color:#0066ff!important;}
         .idx-ico{position:absolute;left:13px;top:50%;transform:translateY(-50%);color:rgba(0,102,255,.6);display:flex;align-items:center;transition:color .2s;}
-        .idx-btn{width:100%;padding:14px;border-radius:12px;border:none;cursor:pointer;background:linear-gradient(135deg,#0050cb,#00a3ff);box-shadow:0 8px 24px -5px rgba(0,102,255,.4);color:#fff;font-family:'Manrope',sans-serif;font-size:16px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:8px;position:relative;z-index:1;overflow:hidden;transition:transform .3s cubic-bezier(.16,1,.3,1),box-shadow .3s;}
+        .idx-btn{width:100%;padding:14px;border-radius:12px;border:none;cursor:pointer;background:linear-gradient(135deg,#0050cb,#00a3ff);box-shadow:0 8px 24px -5px rgba(0,102,255,.4);color:#fff;font-family:'Plus Jakarta Sans',sans-serif;font-size:16px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:8px;position:relative;z-index:1;overflow:hidden;transition:transform .3s cubic-bezier(.16,1,.3,1),box-shadow .3s;}
         .idx-btn::before{content:'';position:absolute;inset:0;background:linear-gradient(135deg,#003fa4,#0066ff);z-index:-1;opacity:0;transition:opacity .3s ease;}
         .idx-btn:hover:not(:disabled){transform:translateY(-2px);box-shadow:0 14px 30px -5px rgba(0,102,255,.52);}
         .idx-btn:hover:not(:disabled)::before{opacity:1;}
@@ -436,7 +435,7 @@ const Index = () => {
         <header style={{width:"100%",padding:"18px 24px 14px",display:"flex",flexDirection:"column",alignItems:"center",position:"relative",zIndex:10}}>
           <div style={{display:"flex",alignItems:"center",gap:"12px"}}>
             <img src="/pwa-512.png" alt="AltRix" style={{width:"44px",height:"44px",borderRadius:"12px",boxShadow:"0 4px 14px rgba(0,80,203,.22)"}}/>
-            <span style={{fontFamily:"'Manrope',sans-serif",fontSize:"clamp(28px,5vw,40px)",fontWeight:800,letterSpacing:"-0.02em",lineHeight:1,background:"linear-gradient(135deg,#0050cb,#00a3ff)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",backgroundClip:"text"}}>AltRix</span>
+            <span style={{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:"clamp(28px,5vw,40px)",fontWeight:800,letterSpacing:"-0.03em",lineHeight:1,background:"linear-gradient(135deg,#0050cb,#00a3ff)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",backgroundClip:"text"}}>AltRix</span>
           </div>
           <p style={{marginTop:"5px",fontSize:"11px",fontWeight:600,color:"#424656",letterSpacing:"0.18em",textTransform:"uppercase",opacity:.8}}>School Operating System</p>
         </header>
@@ -448,7 +447,7 @@ const Index = () => {
             {/* LEFT: value prop + bento */}
             <motion.div initial={reduce?false:{opacity:0,x:-16}} animate={reduce?undefined:{opacity:1,x:0}} transition={{duration:.6,ease:[.2,.8,.2,1]}} style={{flex:1,minWidth:"280px",display:"flex",flexDirection:"column",gap:"16px"}}>
               <div>
-                <h2 style={{fontFamily:"'Manrope',sans-serif",fontSize:"clamp(22px,3.2vw,34px)",fontWeight:700,lineHeight:1.22,letterSpacing:"-0.01em",margin:"0 0 12px",color:"hsl(var(--primary))"}}>
+                <h2 style={{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:"clamp(22px,3.2vw,34px)",fontWeight:800,lineHeight:1.22,letterSpacing:"-0.025em",margin:"0 0 12px",color:"hsl(var(--primary))"}}>
                   Empowering education through intelligent operations
                 </h2>
                 <p style={{fontSize:"16px",color:"#424656",lineHeight:1.7,maxWidth:"480px",margin:0}}>
@@ -468,7 +467,7 @@ const Index = () => {
                     <div className="idx-bento-ico" style={{background:bg,border:`1px solid ${bd}`}}>
                       <span className="material-symbols-outlined" style={{fontSize:"22px",color:ic,fontVariationSettings:`'FILL' ${fill},'wght' 400,'GRAD' 0,'opsz' 24`}}>{icon}</span>
                     </div>
-                    <p style={{fontSize:"12px",fontWeight:700,letterSpacing:"0.05em",color:"#0050cb",margin:"0 0 5px"}}>{label}</p>
+                    <p style={{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:"12px",fontWeight:700,letterSpacing:"0.04em",color:"#0050cb",margin:"0 0 5px"}}>{label}</p>
                     <p style={{fontSize:"13px",color:"#424656",lineHeight:1.55,margin:0}}>{desc}</p>
                   </div>
                 ))}
@@ -489,7 +488,7 @@ const Index = () => {
                 {/* Card header */}
                 {authMode==='login' && (
                   <div style={{marginBottom:"20px",position:"relative",zIndex:1}}>
-                    <h2 style={{fontFamily:"'Manrope',sans-serif",fontSize:"clamp(20px,2.5vw,26px)",fontWeight:700,margin:"0 0 4px",color:"hsl(var(--primary))"}}>Welcome Back</h2>
+                    <h2 style={{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:"clamp(20px,2.5vw,26px)",fontWeight:800,letterSpacing:"-0.025em",margin:"0 0 4px",color:"hsl(var(--primary))"}}>Welcome Back</h2>
                     <p style={{fontSize:"14px",color:"#424656",margin:0}}>Enter your school code and credentials.</p>
                   </div>
                 )}
@@ -570,7 +569,7 @@ const Index = () => {
                       <div style={{display:"inline-flex",padding:"13px",borderRadius:"14px",background:"rgba(0,102,255,.08)",marginBottom:"12px"}}>
                         <span className="material-symbols-outlined" style={{fontSize:"26px",color:"#0066ff",fontVariationSettings:"'FILL' 1"}}>key</span>
                       </div>
-                      <h3 style={{fontFamily:"'Manrope',sans-serif",margin:"0 0 6px",fontSize:"20px",fontWeight:700,color:"#1a1c1e"}}>Reset Password</h3>
+                      <h3 style={{fontFamily:"'Plus Jakarta Sans',sans-serif",margin:"0 0 6px",fontSize:"20px",fontWeight:800,color:"#1a1c1e",letterSpacing:"-0.025em"}}>Reset Password</h3>
                       <p style={{fontSize:"14px",color:"#424656",margin:0,lineHeight:1.6}}>We'll send a 6-digit code to reset your password.</p>
                     </div>
                     <div>
@@ -591,7 +590,7 @@ const Index = () => {
                 {(authMode==='forgot_password_otp'||authMode==='verify_email') && (
                   <div style={{display:"flex",flexDirection:"column",gap:"16px",position:"relative",zIndex:1}}>
                     <div style={{textAlign:"center"}}>
-                      <h3 style={{fontFamily:"'Manrope',sans-serif",margin:"0 0 6px",fontSize:"20px",fontWeight:700,color:"#1a1c1e"}}>
+                      <h3 style={{fontFamily:"'Plus Jakarta Sans',sans-serif",margin:"0 0 6px",fontSize:"20px",fontWeight:800,color:"#1a1c1e",letterSpacing:"-0.025em"}}>
                         {authMode==='verify_email'?"Verify your email":"Enter Verification Code"}
                       </h3>
                       <p style={{fontSize:"13px",color:"#424656",margin:0,lineHeight:1.6}}>
@@ -640,7 +639,7 @@ const Index = () => {
           <div style={{maxWidth:"1280px",margin:"0 auto",display:"flex",flexWrap:"wrap",alignItems:"center",justifyContent:"space-between",gap:"8px"}}>
             <div style={{display:"flex",alignItems:"center",gap:"8px",opacity:.45,filter:"grayscale(1)",transition:"opacity .3s,filter .3s"}} onMouseEnter={e=>{(e.currentTarget as HTMLDivElement).style.opacity="1";(e.currentTarget as HTMLDivElement).style.filter="grayscale(0)";}} onMouseLeave={e=>{(e.currentTarget as HTMLDivElement).style.opacity=".45";(e.currentTarget as HTMLDivElement).style.filter="grayscale(1)";}}>
               <img src="/pwa-512.png" alt="AltRix" style={{width:"22px",height:"22px",borderRadius:"5px"}}/>
-              <span style={{fontFamily:"'Manrope',sans-serif",fontSize:"15px",fontWeight:700,color:"#1a1c1e"}}>AltRix</span>
+              <span style={{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:"15px",fontWeight:800,color:"#1a1c1e",letterSpacing:"-0.025em"}}>AltRix</span>
             </div>
             <div style={{display:"flex",gap:"20px",flexWrap:"wrap",justifyContent:"center"}}>
               {["Privacy Policy","Terms of Service","Compliance"].map(l=><a key={l} href="#" style={{fontSize:"12px",fontWeight:600,color:"#424656",textDecoration:"none",letterSpacing:"0.01em",transition:"color .15s"}} onMouseEnter={e=>(e.currentTarget.style.color="#0066ff")} onMouseLeave={e=>(e.currentTarget.style.color="#424656")}>{l}</a>)}
