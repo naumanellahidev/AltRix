@@ -380,84 +380,690 @@ const Index = () => {
           ? { label: "Checking…", tone: "neutral" as const }
           : null;
 
-  /* ── inline styles (scoped to auth page only) ── */
-  const iWrap: React.CSSProperties = {
-    position: "relative", borderRadius: "12px",
-    border: "1px solid rgba(255,255,255,0.85)",
-    background: "rgba(255,255,255,0.60)",
-    overflow: "hidden", backdropFilter: "blur(8px)",
-    boxShadow: "0 2px 8px rgba(0,0,0,0.02)",
-    transition: "box-shadow .25s,border-color .25s,background .25s",
-  };
-  const iBase: React.CSSProperties = {
-    width: "100%", padding: "13px 14px 13px 44px",
-    background: "transparent", border: "none", outline: "none",
-    fontFamily: "'Hanken Grotesk',sans-serif", fontSize: "15px",
-    color: "#1a1c1e", boxSizing: "border-box",
-  };
-  const lbl: React.CSSProperties = {
-    display: "block", fontSize: "11px", fontWeight: 700,
-    letterSpacing: "0.07em", textTransform: "uppercase",
-    color: "#003fa4", marginBottom: "7px",
-  };
-
   return (
     <>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@700;800&family=Hanken+Grotesk:wght@400;500;600&display=swap');
         @import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0&display=swap');
-        .idx-iw:focus-within{box-shadow:0 0 0 4px rgba(0,102,255,.14),0 4px 18px -5px rgba(0,102,255,.10)!important;border-color:#0066ff!important;background:rgba(255,255,255,.96)!important;transform:scale(1.005);}
-        .idx-iw:focus-within .idx-ico{color:#0066ff!important;}
-        .idx-ico{position:absolute;left:13px;top:50%;transform:translateY(-50%);color:rgba(0,102,255,.6);display:flex;align-items:center;transition:color .2s;}
-        .idx-btn{width:100%;padding:14px;border-radius:12px;border:none;cursor:pointer;background:linear-gradient(135deg,#0050cb,#00a3ff);box-shadow:0 8px 24px -5px rgba(0,102,255,.4);color:#fff;font-family:'Manrope',sans-serif;font-size:16px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:8px;position:relative;z-index:1;overflow:hidden;transition:transform .3s cubic-bezier(.16,1,.3,1),box-shadow .3s;}
-        .idx-btn::before{content:'';position:absolute;inset:0;background:linear-gradient(135deg,#003fa4,#0066ff);z-index:-1;opacity:0;transition:opacity .3s ease;}
-        .idx-btn:hover:not(:disabled){transform:translateY(-2px);box-shadow:0 14px 30px -5px rgba(0,102,255,.52);}
-        .idx-btn:hover:not(:disabled)::before{opacity:1;}
-        .idx-btn:disabled{opacity:.6;cursor:not-allowed;}
-        .idx-bento{padding:20px;border-radius:12px;background:rgba(255,255,255,.65);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,.85);box-shadow:0 8px 30px -8px rgba(0,102,255,.08);position:relative;overflow:hidden;transition:box-shadow .3s,transform .3s,border-color .3s;cursor:default;}
-        .idx-bento:hover{box-shadow:0 16px 48px -10px rgba(0,102,255,.18);transform:translateY(-3px);border-color:rgba(255,255,255,1);}
-        .idx-bento-ico{width:46px;height:46px;border-radius:12px;display:flex;align-items:center;justify-content:center;margin-bottom:12px;transition:transform .3s;}
-        .idx-bento:hover .idx-bento-ico{transform:scale(1.1);}
-        .idx-ghost{background:none;border:none;cursor:pointer;padding:0;font-family:'Hanken Grotesk',sans-serif;transition:color .15s;}
-        .idx-ghost:hover{text-decoration:underline;}
-        .material-symbols-outlined{font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24;user-select:none;line-height:1;}
-        @keyframes idx-spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
-        .idx-spin{animation:idx-spin 1s linear infinite;}
-        input::placeholder{color:rgba(114,118,135,.4)!important;}
+        
+        .idx-container {
+          font-family: 'Hanken Grotesk', sans-serif;
+          min-height: 100vh;
+          display: flex;
+          flex-direction: column;
+          background: linear-gradient(145deg, #f0f6ff 0%, #e0edff 50%, #cce0ff 100%);
+          position: relative;
+          overflow-x: hidden;
+        }
+
+        .idx-header {
+          width: 100%;
+          padding: 18px 24px 14px;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          position: relative;
+          z-index: 10;
+          transition: padding 0.3s ease;
+        }
+
+        .idx-logo {
+          width: 44px;
+          height: 44px;
+          border-radius: 12px;
+          box-shadow: 0 4px 14px rgba(0,80,203,.22);
+          transition: width 0.3s, height 0.3s;
+        }
+
+        .idx-header-title {
+          font-family: 'Manrope', sans-serif;
+          font-size: clamp(28px, 5vw, 40px);
+          font-weight: 800;
+          letter-spacing: -0.02em;
+          line-height: 1;
+          background: linear-gradient(135deg, #0050cb, #00a3ff);
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+          background-clip: text;
+          transition: font-size 0.3s;
+        }
+
+        .idx-header-sub {
+          margin-top: 5px;
+          font-size: 11px;
+          font-weight: 600;
+          color: #424656;
+          letter-spacing: 0.18em;
+          text-transform: uppercase;
+          opacity: 0.8;
+          transition: margin-top 0.3s, font-size 0.3s;
+        }
+
+        .idx-main {
+          flex: 1;
+          width: 100%;
+          max-width: 1280px;
+          margin: 0 auto;
+          padding: 4px 24px 60px;
+          position: relative;
+          z-index: 10;
+          display: flex;
+          align-items: center;
+          transition: padding 0.3s ease;
+        }
+
+        .idx-layout-grid {
+          display: flex;
+          flex-direction: row;
+          align-items: flex-start;
+          gap: 40px;
+          flex-wrap: wrap;
+          width: 100%;
+          transition: gap 0.3s ease;
+        }
+
+        .idx-left-col {
+          flex: 1;
+          min-width: 280px;
+          display: flex;
+          flex-direction: column;
+          gap: 16px;
+          transition: gap 0.3s ease;
+        }
+
+        .idx-left-h2 {
+          font-family: 'Manrope', sans-serif;
+          font-size: clamp(22px, 3.2vw, 34px);
+          font-weight: 700;
+          line-height: 1.22;
+          letter-spacing: -0.01em;
+          margin: 0 0 12px;
+          color: hsl(var(--primary));
+          transition: font-size 0.3s, margin-bottom 0.3s;
+        }
+
+        .idx-left-desc {
+          font-size: 16px;
+          color: #424656;
+          line-height: 1.7;
+          max-width: 480px;
+          margin: 0;
+          transition: font-size 0.3s;
+        }
+
+        .idx-bento-grid {
+          display: grid;
+          grid-template-columns: repeat(2, 1fr);
+          gap: 14px;
+          transition: gap 0.3s ease;
+        }
+
+        .idx-bento {
+          padding: 20px;
+          border-radius: 12px;
+          background: rgba(255,255,255,.65);
+          backdrop-filter: blur(20px);
+          -webkit-backdrop-filter: blur(20px);
+          border: 1px solid rgba(255,255,255,.85);
+          box-shadow: 0 8px 30px -8px rgba(0,102,255,.08);
+          position: relative;
+          overflow: hidden;
+          transition: box-shadow .3s, transform .3s, border-color .3s, padding 0.3s ease;
+          cursor: default;
+        }
+        .idx-bento:hover {
+          box-shadow: 0 16px 48px -10px rgba(0,102,255,.18);
+          transform: translateY(-3px);
+          border-color: rgba(255,255,255,1);
+        }
+        .idx-bento-ico {
+          width: 46px;
+          height: 46px;
+          border-radius: 12px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          margin-bottom: 12px;
+          transition: transform .3s, width 0.3s, height 0.3s, margin-bottom 0.3s;
+        }
+        .idx-bento:hover .idx-bento-ico {
+          transform: scale(1.1);
+        }
+        .idx-bento-title {
+          font-size: 12px;
+          font-weight: 700;
+          letter-spacing: 0.05em;
+          color: #0050cb;
+          margin: 0 0 5px;
+          transition: font-size 0.3s, margin-bottom 0.3s;
+        }
+        .idx-bento-desc {
+          font-size: 13px;
+          color: #424656;
+          line-height: 1.55;
+          margin: 0;
+          transition: font-size 0.3s;
+        }
+
+        .idx-right-col {
+          width: 100%;
+          max-width: 415px;
+          flex-shrink: 0;
+        }
+
+        .idx-card {
+          background: rgba(255,255,255,.72);
+          backdrop-filter: blur(20px);
+          -webkit-backdrop-filter: blur(20px);
+          border: 1px solid rgba(255,255,255,.88);
+          border-top: 1px solid rgba(255,255,255,.96);
+          border-radius: 20px;
+          padding: 28px;
+          position: relative;
+          overflow: hidden;
+          box-shadow: 0 20px 60px -15px rgba(0,102,255,.16), 0 1px 0 rgba(255,255,255,.8) inset;
+          transition: padding 0.3s ease;
+        }
+
+        .idx-card-header {
+          margin-bottom: 20px;
+          position: relative;
+          z-index: 1;
+          transition: margin-bottom 0.3s ease;
+        }
+        .idx-card-title {
+          font-family: 'Manrope', sans-serif;
+          font-size: clamp(20px, 2.5vw, 26px);
+          font-weight: 700;
+          margin: 0 0 4px;
+          color: hsl(var(--primary));
+          transition: font-size 0.3s ease;
+        }
+        .idx-card-sub {
+          font-size: 14px;
+          color: #424656;
+          margin: 0;
+          transition: font-size 0.3s ease;
+        }
+
+        .idx-form {
+          display: flex;
+          flex-direction: column;
+          gap: 16px;
+          position: relative;
+          z-index: 1;
+          transition: gap 0.3s ease;
+        }
+
+        .idx-label {
+          display: block;
+          font-size: 11px;
+          font-weight: 700;
+          letter-spacing: 0.07em;
+          text-transform: uppercase;
+          color: #003fa4;
+          margin-bottom: 7px;
+          transition: margin-bottom 0.3s ease, font-size 0.3s ease;
+        }
+
+        .idx-input-wrap {
+          position: relative;
+          border-radius: 12px;
+          border: 1px solid rgba(255,255,255,0.85);
+          background: rgba(255,255,255,0.60);
+          overflow: hidden;
+          backdrop-filter: blur(8px);
+          box-shadow: 0 2px 8px rgba(0,0,0,0.02);
+          transition: box-shadow .25s, border-color .25s, background .25s, border-radius 0.3s;
+        }
+        .idx-input-wrap:focus-within {
+          box-shadow: 0 0 0 4px rgba(0,102,255,.14), 0 4px 18px -5px rgba(0,102,255,.10) !important;
+          border-color: #0066ff !important;
+          background: rgba(255,255,255,.96) !important;
+          transform: scale(1.005);
+        }
+        .idx-input-wrap:focus-within .idx-ico {
+          color: #0066ff !important;
+        }
+        .idx-ico {
+          position: absolute;
+          left: 13px;
+          top: 50%;
+          transform: translateY(-50%);
+          color: rgba(0,102,255,.6);
+          display: flex;
+          align-items: center;
+          transition: color .2s, left 0.3s;
+        }
+        
+        .idx-input {
+          width: 100%;
+          padding: 13px 14px 13px 44px;
+          background: transparent;
+          border: none;
+          outline: none;
+          font-family: 'Hanken Grotesk', sans-serif;
+          font-size: 15px;
+          color: #1a1c1e;
+          box-sizing: border-box;
+          transition: padding 0.3s ease, font-size 0.3s ease;
+        }
+
+        .idx-input-school-code {
+          padding-right: 90px !important;
+        }
+        .idx-school-badge {
+          position: absolute;
+          right: 8px;
+          top: 50%;
+          transform: translateY(-50%);
+          display: flex;
+          align-items: center;
+          gap: 4px;
+          padding: 4px 10px;
+          border-radius: 999px;
+          background: linear-gradient(135deg, rgba(179,197,255,.55), rgba(194,232,255,.55));
+          border: 1px solid rgba(255,255,255,.65);
+          font-size: 11px;
+          font-weight: 700;
+          color: #003fa4;
+          letter-spacing: 0.03em;
+          pointer-events: none;
+          transition: right 0.3s, padding 0.3s, font-size 0.3s;
+        }
+
+        .idx-input-password {
+          padding-right: 44px !important;
+        }
+        .idx-password-toggle {
+          position: absolute;
+          right: 13px;
+          top: 50%;
+          transform: translateY(-50%);
+          background: none;
+          border: none;
+          cursor: pointer;
+          color: rgba(0,102,255,0.6);
+          display: flex;
+          align-items: center;
+          padding: 0;
+          transition: right 0.3s ease;
+        }
+
+        .idx-notice {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 10px 12px;
+          background: rgba(255,255,255,.45);
+          border-radius: 12px;
+          border: 1px solid rgba(255,255,255,.65);
+          backdrop-filter: blur(8px);
+          transition: padding 0.3s ease, border-radius 0.3s;
+        }
+        .idx-notice-text {
+          font-size: 12px;
+          color: rgba(66,70,86,.8);
+          margin: 0;
+          letter-spacing: 0.02em;
+          transition: font-size 0.3s ease;
+        }
+
+        .idx-btn {
+          width: 100%;
+          padding: 14px;
+          border-radius: 12px;
+          border: none;
+          cursor: pointer;
+          background: linear-gradient(135deg,#0050cb,#00a3ff);
+          box-shadow: 0 8px 24px -5px rgba(0,102,255,.4);
+          color: #fff;
+          font-family: 'Manrope', sans-serif;
+          font-size: 16px;
+          font-weight: 700;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          position: relative;
+          z-index: 1;
+          overflow: hidden;
+          transition: transform .3s cubic-bezier(.16,1,.3,1), box-shadow .3s, padding 0.3s ease, font-size 0.3s ease, border-radius 0.3s;
+        }
+        .idx-btn::before {
+          content: '';
+          position: absolute;
+          inset: 0;
+          background: linear-gradient(135deg,#003fa4,#0066ff);
+          z-index: -1;
+          opacity: 0;
+          transition: opacity .3s ease;
+        }
+        .idx-btn:hover:not(:disabled) {
+          transform: translateY(-2px);
+          box-shadow: 0 14px 30px -5px rgba(0,102,255,.52);
+        }
+        .idx-btn:hover:not(:disabled)::before {
+          opacity: 1;
+        }
+        .idx-btn:disabled {
+          opacity: .6;
+          cursor: not-allowed;
+        }
+
+        .idx-footer {
+          width: 100%;
+          background: rgba(255,255,255,.30);
+          backdrop-filter: blur(12px);
+          -webkit-backdrop-filter: blur(12px);
+          border-top: 1px solid rgba(255,255,255,.55);
+          padding: 10px 24px;
+          position: relative;
+          z-index: 10;
+          transition: padding 0.3s ease;
+        }
+
+        .idx-ghost {
+          background: none;
+          border: none;
+          cursor: pointer;
+          padding: 0;
+          font-family: 'Hanken Grotesk', sans-serif;
+          transition: color .15s;
+        }
+        .idx-ghost:hover {
+          text-decoration: underline;
+        }
+        .material-symbols-outlined {
+          font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+          user-select: none;
+          line-height: 1;
+        }
+        @keyframes idx-spin {
+          from { transform: rotate(0deg) }
+          to { transform: rotate(360deg) }
+        }
+        .idx-spin {
+          animation: idx-spin 1s linear infinite;
+        }
+        input::placeholder {
+          color: rgba(114,118,135,.4) !important;
+        }
+
+        /* ── HEIGHT-SENSITIVE RESPONSIVE STYLES FOR DESKTOP (No Scrollbar on 1080p screens) ── */
+        @media (min-width: 1024px) and (max-height: 900px) {
+          .idx-header {
+            padding: 8px 24px 4px;
+          }
+          .idx-logo {
+            width: 36px;
+            height: 36px;
+            border-radius: 9px;
+          }
+          .idx-header-title {
+            font-size: 26px;
+          }
+          .idx-header-sub {
+            margin-top: 2px;
+            font-size: 10px;
+          }
+          .idx-main {
+            padding: 4px 24px 10px;
+          }
+          .idx-layout-grid {
+            gap: 24px;
+            align-items: center; /* Center side-by-side components vertically */
+          }
+          .idx-left-col {
+            gap: 12px;
+          }
+          .idx-left-h2 {
+            font-size: 26px;
+            margin-bottom: 6px;
+          }
+          .idx-left-desc {
+            font-size: 14px;
+            line-height: 1.5;
+          }
+          .idx-bento-grid {
+            gap: 10px;
+          }
+          .idx-bento {
+            padding: 12px 14px;
+          }
+          .idx-bento-ico {
+            width: 36px;
+            height: 36px;
+            margin-bottom: 8px;
+            border-radius: 9px;
+          }
+          .idx-bento-ico span {
+            font-size: 18px !important;
+          }
+          .idx-bento-title {
+            font-size: 11px;
+            margin-bottom: 3px;
+          }
+          .idx-bento-desc {
+            font-size: 12px;
+            line-height: 1.4;
+          }
+          .idx-card {
+            padding: 20px;
+            border-radius: 16px;
+          }
+          .idx-card-header {
+            margin-bottom: 12px;
+          }
+          .idx-card-title {
+            font-size: 20px;
+          }
+          .idx-card-sub {
+            font-size: 12px;
+          }
+          .idx-form {
+            gap: 12px;
+          }
+          .idx-label {
+            font-size: 10px;
+            margin-bottom: 4px;
+          }
+          .idx-input {
+            padding: 9px 12px 9px 38px;
+            font-size: 14px;
+          }
+          .idx-input-school-code {
+            padding-right: 80px !important;
+          }
+          .idx-school-badge {
+            right: 6px;
+            padding: 3px 8px;
+            font-size: 10px;
+          }
+          .idx-input-password {
+            padding-right: 36px !important;
+          }
+          .idx-password-toggle {
+            right: 10px;
+          }
+          .idx-password-toggle span {
+            font-size: 17px !important;
+          }
+          .idx-ico {
+            left: 11px;
+          }
+          .idx-ico span {
+            font-size: 17px !important;
+          }
+          .idx-notice {
+            padding: 6px 10px;
+            border-radius: 9px;
+          }
+          .idx-notice-text {
+            font-size: 11px;
+          }
+          .idx-btn {
+            padding: 10px;
+            font-size: 14px;
+            border-radius: 9px;
+          }
+          .idx-footer {
+            padding: 6px 24px;
+          }
+        }
+
+        @media (min-width: 1024px) and (max-height: 720px) {
+          .idx-header {
+            padding: 4px 24px 2px;
+          }
+          .idx-logo {
+            width: 28px;
+            height: 28px;
+            border-radius: 6px;
+          }
+          .idx-header-title {
+            font-size: 22px;
+          }
+          .idx-header-sub {
+            display: none;
+          }
+          .idx-main {
+            padding: 2px 24px 6px;
+          }
+          .idx-layout-grid {
+            gap: 16px;
+          }
+          .idx-left-col {
+            gap: 8px;
+          }
+          .idx-left-h2 {
+            font-size: 22px;
+            margin-bottom: 4px;
+          }
+          .idx-left-desc {
+            font-size: 13px;
+            line-height: 1.4;
+          }
+          .idx-bento-grid {
+            gap: 8px;
+          }
+          .idx-bento {
+            padding: 8px 10px;
+          }
+          .idx-bento-ico {
+            width: 28px;
+            height: 28px;
+            margin-bottom: 4px;
+            border-radius: 6px;
+          }
+          .idx-bento-ico span {
+            font-size: 16px !important;
+          }
+          .idx-bento-title {
+            font-size: 10px;
+            margin-bottom: 2px;
+          }
+          .idx-bento-desc {
+            font-size: 11px;
+            line-height: 1.3;
+          }
+          .idx-card {
+            padding: 14px 18px;
+            border-radius: 12px;
+          }
+          .idx-card-header {
+            margin-bottom: 8px;
+          }
+          .idx-card-title {
+            font-size: 18px;
+          }
+          .idx-card-sub {
+            font-size: 11px;
+          }
+          .idx-form {
+            gap: 8px;
+          }
+          .idx-label {
+            font-size: 9px;
+            margin-bottom: 2px;
+          }
+          .idx-input {
+            padding: 7px 10px 7px 34px;
+            font-size: 13px;
+          }
+          .idx-input-school-code {
+            padding-right: 70px !important;
+          }
+          .idx-school-badge {
+            right: 4px;
+            padding: 2px 6px;
+            font-size: 9px;
+          }
+          .idx-input-password {
+            padding-right: 32px !important;
+          }
+          .idx-password-toggle {
+            right: 8px;
+          }
+          .idx-password-toggle span {
+            font-size: 15px !important;
+          }
+          .idx-ico {
+            left: 9px;
+          }
+          .idx-ico span {
+            font-size: 15px !important;
+          }
+          .idx-notice {
+            padding: 4px 8px;
+            border-radius: 6px;
+          }
+          .idx-notice-text {
+            font-size: 10px;
+          }
+          .idx-btn {
+            padding: 8px;
+            font-size: 13px;
+            border-radius: 6px;
+          }
+          .idx-footer {
+            padding: 4px 24px;
+          }
+        }
       `}</style>
 
-      <div style={{fontFamily:"'Hanken Grotesk',sans-serif",minHeight:"100vh",display:"flex",flexDirection:"column",background:"linear-gradient(145deg,#f0f6ff 0%,#e0edff 50%,#cce0ff 100%)",position:"relative",overflowX:"hidden"}}>
+      <div className="idx-container">
 
         {/* Orbs */}
         <div style={{position:"fixed",top:"-10%",left:"-10%",width:"40%",height:"40%",borderRadius:"9999px",background:"rgba(147,197,253,.28)",filter:"blur(100px)",pointerEvents:"none",zIndex:0}}/>
         <div style={{position:"fixed",bottom:"-10%",right:"-5%",width:"50%",height:"50%",borderRadius:"9999px",background:"rgba(165,243,252,.18)",filter:"blur(120px)",pointerEvents:"none",zIndex:0}}/>
 
         {/* HEADER */}
-        <header style={{width:"100%",padding:"18px 24px 14px",display:"flex",flexDirection:"column",alignItems:"center",position:"relative",zIndex:10}}>
+        <header className="idx-header">
           <div style={{display:"flex",alignItems:"center",gap:"12px"}}>
-            <img src="/pwa-512.png" alt="AltRix" style={{width:"44px",height:"44px",borderRadius:"12px",boxShadow:"0 4px 14px rgba(0,80,203,.22)"}}/>
-            <span style={{fontFamily:"'Manrope',sans-serif",fontSize:"clamp(28px,5vw,40px)",fontWeight:800,letterSpacing:"-0.02em",lineHeight:1,background:"linear-gradient(135deg,#0050cb,#00a3ff)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",backgroundClip:"text"}}>AltRix</span>
+            <img src="/pwa-512.png" alt="AltRix" className="idx-logo"/>
+            <span className="idx-header-title">AltRix</span>
           </div>
-          <p style={{marginTop:"5px",fontSize:"11px",fontWeight:600,color:"#424656",letterSpacing:"0.18em",textTransform:"uppercase",opacity:.8}}>School Operating System</p>
+          <p className="idx-header-sub">School Operating System</p>
         </header>
 
         {/* MAIN */}
-        <main style={{flex:1,width:"100%",maxWidth:"1280px",margin:"0 auto",padding:"4px 24px 60px",position:"relative",zIndex:10}}>
-          <div style={{display:"flex",flexDirection:"row",alignItems:"flex-start",gap:"40px",flexWrap:"wrap"}}>
+        <main className="idx-main">
+          <div className="idx-layout-grid">
 
             {/* LEFT: value prop + bento */}
-            <motion.div initial={reduce?false:{opacity:0,x:-16}} animate={reduce?undefined:{opacity:1,x:0}} transition={{duration:.6,ease:[.2,.8,.2,1]}} style={{flex:1,minWidth:"280px",display:"flex",flexDirection:"column",gap:"16px"}}>
+            <motion.div initial={reduce?false:{opacity:0,x:-16}} animate={reduce?undefined:{opacity:1,x:0}} transition={{duration:.6,ease:[.2,.8,.2,1]}} className="idx-left-col">
               <div>
-                <h2 style={{fontFamily:"'Manrope',sans-serif",fontSize:"clamp(22px,3.2vw,34px)",fontWeight:700,lineHeight:1.22,letterSpacing:"-0.01em",margin:"0 0 12px",color:"hsl(var(--primary))"}}>
+                <h2 className="idx-left-h2">
                   Empowering education through intelligent operations
                 </h2>
-                <p style={{fontSize:"16px",color:"#424656",lineHeight:1.7,maxWidth:"480px",margin:0}}>
+                <p className="idx-left-desc">
                   AltRix provides the infrastructure for modern schools to manage performance, security, and communication in one unified platform.
                 </p>
               </div>
 
               {/* Bento */}
-              <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:"14px"}}>
+              <div className="idx-bento-grid">
                 {[
                   {icon:"auto_awesome",fill:1,ic:"#0050cb",bg:"rgba(0,80,203,.08)",bd:"rgba(0,80,203,.10)",label:"AI Insights",desc:"Predictive student performance analytics and trend spotting."},
                   {icon:"shield_with_heart",fill:1,ic:"#006688",bg:"rgba(0,102,136,.08)",bd:"rgba(0,102,136,.10)",label:"Secure Vault",desc:"Military-grade data encryption and privacy compliance."},
@@ -468,8 +1074,8 @@ const Index = () => {
                     <div className="idx-bento-ico" style={{background:bg,border:`1px solid ${bd}`}}>
                       <span className="material-symbols-outlined" style={{fontSize:"22px",color:ic,fontVariationSettings:`'FILL' ${fill},'wght' 400,'GRAD' 0,'opsz' 24`}}>{icon}</span>
                     </div>
-                    <p style={{fontSize:"12px",fontWeight:700,letterSpacing:"0.05em",color:"#0050cb",margin:"0 0 5px"}}>{label}</p>
-                    <p style={{fontSize:"13px",color:"#424656",lineHeight:1.55,margin:0}}>{desc}</p>
+                    <p className="idx-bento-title">{label}</p>
+                    <p className="idx-bento-desc">{desc}</p>
                   </div>
                 ))}
               </div>
@@ -481,32 +1087,32 @@ const Index = () => {
             </motion.div>
 
             {/* RIGHT: sign-in card */}
-            <motion.div initial={reduce?false:{opacity:0,y:18}} animate={reduce?undefined:{opacity:1,y:0}} transition={{duration:.55,delay:.06,ease:[.2,.8,.2,1]}} style={{width:"100%",maxWidth:"415px",flexShrink:0}}>
-              <div style={{background:"rgba(255,255,255,.72)",backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",border:"1px solid rgba(255,255,255,.88)",borderTop:"1px solid rgba(255,255,255,.96)",borderRadius:"20px",padding:"28px",position:"relative",overflow:"hidden",boxShadow:"0 20px 60px -15px rgba(0,102,255,.16),0 1px 0 rgba(255,255,255,.8) inset"}}>
+            <motion.div initial={reduce?false:{opacity:0,y:18}} animate={reduce?undefined:{opacity:1,y:0}} transition={{duration:.55,delay:.06,ease:[.2,.8,.2,1]}} className="idx-right-col">
+              <div className="idx-card">
                 {/* Corner deco */}
                 <div style={{position:"absolute",top:0,right:0,width:"120px",height:"120px",background:"linear-gradient(225deg,rgba(0,193,253,.16),transparent)",borderBottomLeftRadius:"100%",pointerEvents:"none"}}/>
 
                 {/* Card header */}
                 {authMode==='login' && (
-                  <div style={{marginBottom:"20px",position:"relative",zIndex:1}}>
-                    <h2 style={{fontFamily:"'Manrope',sans-serif",fontSize:"clamp(20px,2.5vw,26px)",fontWeight:700,margin:"0 0 4px",color:"hsl(var(--primary))"}}>Welcome Back</h2>
-                    <p style={{fontSize:"14px",color:"#424656",margin:0}}>Enter your school code and credentials.</p>
+                  <div className="idx-card-header">
+                    <h2 className="idx-card-title">Welcome Back</h2>
+                    <p className="idx-card-sub">Enter your school code and credentials.</p>
                   </div>
                 )}
 
                 {/* ── LOGIN MODE ── */}
                 {authMode==='login' && (
-                  <form onSubmit={e=>{e.preventDefault();if(!busy)void doLogin();}} style={{display:"flex",flexDirection:"column",gap:"16px",position:"relative",zIndex:1}}>
+                  <form onSubmit={e=>{e.preventDefault();if(!busy)void doLogin();}} className="idx-form">
 
                     {/* School code */}
                     <div>
-                      <label style={lbl}>School Code</label>
-                      <div className="idx-iw" style={iWrap}>
+                      <label className="idx-label">School Code</label>
+                      <div className="idx-input-wrap">
                         <span className="idx-ico"><span className="material-symbols-outlined" style={{fontSize:"19px"}}>apartment</span></span>
-                        <input style={{...iBase,paddingRight:"90px"}} value={schoolSlug} onChange={e=>setSchoolSlug(e.target.value)} placeholder="e.g. beacon" autoCapitalize="none" autoCorrect="off" spellCheck={false}/>
+                        <input className="idx-input idx-input-school-code" value={schoolSlug} onChange={e=>setSchoolSlug(e.target.value)} placeholder="e.g. beacon" autoCapitalize="none" autoCorrect="off" spellCheck={false}/>
                         {/* status badge */}
                         {safeSlug && (
-                          <div style={{position:"absolute",right:"8px",top:"50%",transform:"translateY(-50%)",display:"flex",alignItems:"center",gap:"4px",padding:"4px 10px",borderRadius:"999px",background:"linear-gradient(135deg,rgba(179,197,255,.55),rgba(194,232,255,.55))",border:"1px solid rgba(255,255,255,.65)",fontSize:"11px",fontWeight:700,color:"#003fa4",letterSpacing:"0.03em",pointerEvents:"none"}}>
+                          <div className="idx-school-badge">
                             {tenant.status==="loading" ? <Loader2 size={11} className="idx-spin"/> : tenant.status==="ready" ? "✓ Verified" : tenant.status==="error" ? "✗ Not found" : null}
                           </div>
                         )}
@@ -525,10 +1131,10 @@ const Index = () => {
 
                     {/* Email */}
                     <div>
-                      <label htmlFor="login-email" style={lbl}>Work Email</label>
-                      <div className="idx-iw" style={iWrap}>
+                      <label htmlFor="login-email" className="idx-label">Work Email</label>
+                      <div className="idx-input-wrap">
                         <span className="idx-ico"><span className="material-symbols-outlined" style={{fontSize:"19px"}}>mail</span></span>
-                        <input id="login-email" name="email" ref={emailInputRef} style={iBase} value={email} onChange={e=>setEmail(e.target.value)} placeholder="admin@school.edu" type="email" autoComplete="username" inputMode="email" list="saved-emails"/>
+                        <input id="login-email" name="email" ref={emailInputRef} className="idx-input" value={email} onChange={e=>setEmail(e.target.value)} placeholder="admin@school.edu" type="email" autoComplete="username" inputMode="email" list="saved-emails"/>
                       </div>
                       {recentEmails.length>0 && <datalist id="saved-emails">{recentEmails.map(e=><option key={e} value={e}/>)}</datalist>}
                     </div>
@@ -536,13 +1142,13 @@ const Index = () => {
                     {/* Password */}
                     <div>
                       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"7px"}}>
-                        <label htmlFor="login-password" style={{...lbl,margin:0}}>Password</label>
+                        <label htmlFor="login-password" className="idx-label" style={{margin:0}}>Password</label>
                         <button type="button" className="idx-ghost" onClick={()=>{setMessage(null);setAuthMode('forgot_password');}} style={{fontSize:"12px",fontWeight:600,color:"#0066ff"}}>Forgot?</button>
                       </div>
-                      <div className="idx-iw" style={iWrap}>
+                      <div className="idx-input-wrap">
                         <span className="idx-ico"><span className="material-symbols-outlined" style={{fontSize:"19px"}}>lock</span></span>
-                        <input id="login-password" style={{...iBase,paddingRight:"44px"}} value={password} onChange={e=>setPassword(e.target.value)} placeholder="••••••••" type={showPassword ? "text" : "password"} autoComplete="current-password"/>
-                        <button type="button" onClick={() => setShowPassword(!showPassword)} style={{position:"absolute",right:"13px",top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",color:"rgba(0,102,255,0.6)",display:"flex",alignItems:"center",padding:0}}>
+                        <input id="login-password" className="idx-input idx-input-password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="••••••••" type={showPassword ? "text" : "password"} autoComplete="current-password"/>
+                        <button type="button" onClick={() => setShowPassword(!showPassword)} className="idx-password-toggle">
                           <span className="material-symbols-outlined" style={{fontSize:"20px"}}>
                             {showPassword ? "visibility_off" : "visibility"}
                           </span>
@@ -551,9 +1157,9 @@ const Index = () => {
                     </div>
 
                     {/* Notice */}
-                    <div style={{display:"flex",alignItems:"center",justifyContent:"center",padding:"10px 12px",background:"rgba(255,255,255,.45)",borderRadius:"12px",border:"1px solid rgba(255,255,255,.65)",backdropFilter:"blur(8px)"}}>
+                    <div className="idx-notice">
                       <span className="material-symbols-outlined" style={{fontSize:"17px",color:"#555a5d",marginRight:"7px",flexShrink:0}}>info</span>
-                      <p style={{fontSize:"12px",color:"rgba(66,70,86,.8)",margin:0,letterSpacing:"0.02em"}}>Admin-created accounts only · No public signup</p>
+                      <p className="idx-notice-text">Admin-created accounts only · No public signup</p>
                     </div>
 
                     {/* CTA */}
@@ -565,7 +1171,7 @@ const Index = () => {
 
                 {/* ── FORGOT PASSWORD MODE ── */}
                 {authMode==='forgot_password' && (
-                  <form onSubmit={e=>{e.preventDefault();if(!busy)void handleSendForgotPasswordOtp();}} style={{display:"flex",flexDirection:"column",gap:"16px",position:"relative",zIndex:1}}>
+                  <form onSubmit={e=>{e.preventDefault();if(!busy)void handleSendForgotPasswordOtp();}} className="idx-form">
                     <div style={{textAlign:"center"}}>
                       <div style={{display:"inline-flex",padding:"13px",borderRadius:"14px",background:"rgba(0,102,255,.08)",marginBottom:"12px"}}>
                         <span className="material-symbols-outlined" style={{fontSize:"26px",color:"#0066ff",fontVariationSettings:"'FILL' 1"}}>key</span>
@@ -574,10 +1180,10 @@ const Index = () => {
                       <p style={{fontSize:"14px",color:"#424656",margin:0,lineHeight:1.6}}>We'll send a 6-digit code to reset your password.</p>
                     </div>
                     <div>
-                      <label style={lbl}>Work Email</label>
-                      <div className="idx-iw" style={iWrap}>
+                      <label className="idx-label">Work Email</label>
+                      <div className="idx-input-wrap">
                         <span className="idx-ico"><span className="material-symbols-outlined" style={{fontSize:"19px"}}>mail</span></span>
-                        <input style={iBase} value={email} onChange={e=>setEmail(e.target.value)} placeholder="admin@school.edu" type="email" autoComplete="email" inputMode="email"/>
+                        <input className="idx-input" value={email} onChange={e=>setEmail(e.target.value)} placeholder="admin@school.edu" type="email" autoComplete="email" inputMode="email"/>
                       </div>
                     </div>
                     <button type="submit" className="idx-btn" disabled={busy}>
@@ -636,7 +1242,7 @@ const Index = () => {
         </main>
 
         {/* FOOTER */}
-        <footer style={{width:"100%",background:"rgba(255,255,255,.30)",backdropFilter:"blur(12px)",WebkitBackdropFilter:"blur(12px)",borderTop:"1px solid rgba(255,255,255,.55)",padding:"10px 24px",position:"relative",zIndex:10}}>
+        <footer className="idx-footer">
           <div style={{maxWidth:"1280px",margin:"0 auto",display:"flex",flexWrap:"wrap",alignItems:"center",justifyContent:"space-between",gap:"8px"}}>
             <div style={{display:"flex",alignItems:"center",gap:"8px",opacity:.45,filter:"grayscale(1)",transition:"opacity .3s,filter .3s"}} onMouseEnter={e=>{(e.currentTarget as HTMLDivElement).style.opacity="1";(e.currentTarget as HTMLDivElement).style.filter="grayscale(0)";}} onMouseLeave={e=>{(e.currentTarget as HTMLDivElement).style.opacity=".45";(e.currentTarget as HTMLDivElement).style.filter="grayscale(1)";}}>
               <img src="/pwa-512.png" alt="AltRix" style={{width:"22px",height:"22px",borderRadius:"5px"}}/>
