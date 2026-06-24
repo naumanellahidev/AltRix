@@ -10,11 +10,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest",
-    "check-ports": "node scratch/check_ports.js",
-    "diagnose": "node scratch/diagnose.js",
-    "run-servers": "python scratch/run_servers.py",
-    "kill-ports": "node scratch/kill_ports.js"
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
