@@ -761,7 +761,7 @@ class AssignmentCreate(BaseModel):
     class_section_id: UUID
     title: str
     description: Optional[str] = None
-    due_date: Optional[str] = None
+    due_date: Optional[date] = None
     max_marks: Optional[float] = None
     campus_id: Optional[UUID] = None
     attachment_urls: Optional[List[str]] = None
@@ -774,7 +774,7 @@ class AssignmentOut(BaseModel):
     teacher_user_id: Optional[UUID] = None
     title: str
     description: Optional[str] = None
-    due_date: Optional[str] = None
+    due_date: Optional[date] = None
     max_marks: Optional[float] = None
     status: Optional[str] = None
     created_at: Optional[datetime] = None

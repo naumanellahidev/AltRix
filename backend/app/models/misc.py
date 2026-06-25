@@ -112,7 +112,7 @@ class Assignment(Base):
     teacher_user_id = Column(UUID(as_uuid=True), nullable=True)
     title = Column(String, nullable=False)
     description = Column(Text, nullable=True)
-    due_date = Column(String, nullable=True)
+    due_date = Column(Date, nullable=True)
     max_marks = Column(Float, nullable=True)
     status = Column(String, nullable=True, default="active")
     attachment_urls = Column(ARRAY(String), nullable=True)
