@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { z } from "zod";
 import { motion, useReducedMotion } from "framer-motion";
-import { Loader2 } from "lucide-react";
+import { Loader2, Sparkles, Shield, Activity, Workflow, Building2, Mail, Lock, Eye, EyeOff, Info, ArrowRight, ArrowLeft, Key } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
 import { useTenant } from "@/hooks/useTenant";
@@ -38,28 +38,6 @@ const resolveDestinationRole = (roles: EduverseRole[]): EduverseRole | null => {
   for (const r of ROLE_PRIORITY) if (roles.includes(r)) return r;
   return roles[0] ?? null;
 };
-
-/* ── Material Symbol icon helper ── */
-interface IconProps {
-  name: string;
-  fill?: number;
-  size?: number;
-  style?: React.CSSProperties;
-}
-const MIcon = ({ name, fill = 0, size = 20, style }: IconProps) => (
-  <span
-    className="material-symbols-outlined"
-    style={{
-      fontSize: `${size}px`,
-      fontVariationSettings: `'FILL' ${fill}, 'wght' 400, 'GRAD' 0, 'opsz' 24`,
-      userSelect: "none",
-      lineHeight: 1,
-      ...style,
-    }}
-  >
-    {name}
-  </span>
-);
 
 const TenantAuth = () => {
   const { schoolSlug } = useParams();
@@ -170,493 +148,338 @@ const TenantAuth = () => {
     } finally { setBusy(false); }
   };
 
-  /* ─── shared input field style ─── */
-  const inputWrapBase: React.CSSProperties = {
-    position: "relative",
-    borderRadius: "12px",
-    border: "1px solid rgba(255,255,255,0.9)",
-    background: "rgba(255,255,255,0.60)",
-    overflow: "hidden",
-    backdropFilter: "blur(8px)",
-    boxShadow: "0 2px 10px rgba(0,0,0,0.02)",
-    transition: "box-shadow 0.25s ease, border-color 0.25s ease, background 0.25s ease",
-  };
-
-  const inputBase: React.CSSProperties = {
-    width: "100%",
-    padding: "14px 14px 14px 46px",
-    background: "transparent",
-    border: "none",
-    outline: "none",
-    fontFamily: "'Hanken Grotesk', sans-serif",
-    fontSize: "15px",
-    color: "#1a1c1e",
-    boxSizing: "border-box",
-  };
-
   return (
-    <>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&family=Hanken+Grotesk:wght@400;500;600&display=swap');
-        @import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0&display=swap');
+    <div className="min-h-screen flex flex-col bg-gradient-to-br from-blue-50 via-indigo-50/40 to-sky-100/30 relative overflow-x-hidden font-sans">
+      {/* Decorative background glass orbs */}
+      <div className="absolute top-[-10%] left-[-10%] w-[45vw] h-[45vw] rounded-full bg-blue-400/10 blur-[120px] pointer-events-none z-0" />
+      <div className="absolute bottom-[-10%] right-[-5%] w-[50vw] h-[50vw] rounded-full bg-sky-300/10 blur-[130px] pointer-events-none z-0" />
 
-        .ta-body * { box-sizing: border-box; }
-        .ta-body input::placeholder { color: rgba(114,118,135,0.45); }
-        .ta-body input { font-family: 'Hanken Grotesk', sans-serif; }
+      {/* ── HEADER ── */}
+      <header className="w-full py-8 px-6 flex flex-col items-center relative z-10">
+        <div className="flex items-center gap-3.5">
+          <img
+            src="/pwa-512.png"
+            alt="AltRix"
+            className="w-11 h-11 rounded-xl shadow-md shadow-blue-500/20 border border-white/40"
+          />
+          <span className="font-sans text-3xl font-extrabold tracking-tight bg-gradient-to-r from-blue-800 to-indigo-600 bg-clip-text text-transparent">
+            AltRix
+          </span>
+        </div>
+        <p className="mt-1.5 text-[10px] font-bold text-slate-500 tracking-[0.2em] uppercase opacity-85">
+          School Operating System
+        </p>
+      </header>
 
-        .ta-input-wrap:focus-within {
-          box-shadow: 0 0 0 4px rgba(0,102,255,0.15), 0 4px 20px -5px rgba(0,102,255,0.10) !important;
-          border-color: #0066ff !important;
-          background: rgba(255,255,255,0.95) !important;
-          transform: scale(1.005);
-        }
-        .ta-input-wrap:focus-within .ta-icon-left { color: #0066ff !important; }
-
-        .ta-btn {
-          width: 100%; padding: 15px; border-radius: 12px; border: none; cursor: pointer;
-          background: linear-gradient(135deg, #0050cb 0%, #00a3ff 100%);
-          box-shadow: 0 8px 25px -5px rgba(0,102,255,0.40);
-          color: white; font-family: 'Manrope', sans-serif; font-size: 16px; font-weight: 700;
-          display: flex; align-items: center; justify-content: center; gap: 8px;
-          position: relative; z-index: 1; overflow: hidden;
-          transition: transform 0.3s cubic-bezier(0.16,1,0.3,1), box-shadow 0.3s ease;
-          letter-spacing: 0.01em;
-        }
-        .ta-btn::before {
-          content: ''; position: absolute; inset: 0;
-          background: linear-gradient(135deg, #003fa4 0%, #0066ff 100%);
-          z-index: -1; opacity: 0; transition: opacity 0.3s ease;
-        }
-        .ta-btn:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 14px 32px -5px rgba(0,102,255,0.55); }
-        .ta-btn:hover:not(:disabled)::before { opacity: 1; }
-        .ta-btn:disabled { opacity: 0.60; cursor: not-allowed; }
-
-        .ta-bento {
-          padding: 20px; border-radius: 12px;
-          background: rgba(255,255,255,0.65);
-          backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
-          border: 1px solid rgba(255,255,255,0.85);
-          box-shadow: 0 8px 32px -8px rgba(0,102,255,0.08);
-          position: relative; overflow: hidden; cursor: default;
-          transition: box-shadow 0.3s ease, transform 0.3s ease, border-color 0.3s ease;
-        }
-        .ta-bento:hover {
-          box-shadow: 0 16px 48px -10px rgba(0,102,255,0.18);
-          transform: translateY(-3px);
-          border-color: rgba(255,255,255,1);
-        }
-        .ta-bento-icon {
-          width: 48px; height: 48px; border-radius: 12px;
-          display: flex; align-items: center; justify-content: center; margin-bottom: 12px;
-          transition: transform 0.3s ease;
-        }
-        .ta-bento:hover .ta-bento-icon { transform: scale(1.12); }
-
-        .ta-footer-logo { opacity: 0.45; filter: grayscale(1); transition: opacity 0.3s, filter 0.3s; }
-        .ta-footer-logo:hover { opacity: 1; filter: grayscale(0); }
-
-        .ta-footer-link { font-size: 12px; font-weight: 600; color: #424656; text-decoration: none; letter-spacing: 0.01em; transition: color 0.15s; }
-        .ta-footer-link:hover { color: #0066ff; }
-
-        .ta-forgot-btn { background:none; border:none; cursor:pointer; padding:0; transition:color 0.15s; }
-        .ta-forgot-btn:hover { color: #0050cb !important; }
-        .ta-back-btn { background:none; border:none; cursor:pointer; font-size:14px; color:#727687; padding:0; transition:color 0.15s; width:100%; text-align:center; }
-        .ta-back-btn:hover { color: #0050cb; }
-
-        @keyframes ta-spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
-        .ta-spin { animation: ta-spin 1s linear infinite; }
-
-        @keyframes ta-fade-in { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
-        .ta-fade-in { animation: ta-fade-in 0.5s cubic-bezier(0.2,0.8,0.2,1) both; }
-      `}</style>
-
-      <div
-        className="ta-body"
-        style={{
-          fontFamily: "'Hanken Grotesk', sans-serif",
-          minHeight: "100vh",
-          display: "flex",
-          flexDirection: "column",
-          background: "linear-gradient(145deg, #f0f6ff 0%, #e0edff 50%, #cce0ff 100%)",
-          position: "relative",
-          overflowX: "hidden",
-        }}
-      >
-        {/* Decorative orbs */}
-        <div style={{ position: "fixed", top: "-10%", left: "-10%", width: "40%", height: "40%", borderRadius: "9999px", background: "rgba(147,197,253,0.30)", filter: "blur(100px)", pointerEvents: "none", zIndex: 0 }} />
-        <div style={{ position: "fixed", bottom: "-10%", right: "-5%", width: "50%", height: "50%", borderRadius: "9999px", background: "rgba(165,243,252,0.20)", filter: "blur(120px)", pointerEvents: "none", zIndex: 0 }} />
-
-        {/* ── HEADER ── */}
-        <header style={{ width: "100%", padding: "20px 24px 16px", display: "flex", flexDirection: "column", alignItems: "center", position: "relative", zIndex: 10 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-            <img
-              src="/pwa-512.png"
-              alt="AltRix"
-              style={{ width: "46px", height: "46px", borderRadius: "12px", boxShadow: "0 4px 16px rgba(0,80,203,0.22)" }}
-            />
-            <span
-              style={{
-                fontFamily: "'Manrope', sans-serif",
-                fontSize: "clamp(30px, 5vw, 42px)",
-                fontWeight: 800,
-                letterSpacing: "-0.02em",
-                lineHeight: 1,
-                background: "linear-gradient(135deg, #0050cb, #00a3ff)",
-                WebkitBackgroundClip: "text",
-                WebkitTextFillColor: "transparent",
-                backgroundClip: "text",
-              }}
-            >
-              AltRix
-            </span>
-          </div>
-          <p style={{ marginTop: "6px", fontSize: "11px", fontWeight: 600, color: "#424656", letterSpacing: "0.18em", textTransform: "uppercase", opacity: 0.75, margin: "6px 0 0" }}>
-            School Operating System
-          </p>
-        </header>
-
-        {/* ── MAIN ── */}
-        <main style={{ flex: 1, width: "100%", maxWidth: "1280px", margin: "0 auto", padding: "8px 24px 64px", position: "relative", zIndex: 10 }}>
-          <div style={{ display: "flex", flexDirection: "row", alignItems: "flex-start", gap: "40px", flexWrap: "wrap" }}>
-
-            {/* ── LEFT: Value proposition + Bento Grid ── */}
-            <motion.div
-              initial={reduce ? false : { opacity: 0, x: -18 }}
-              animate={reduce ? undefined : { opacity: 1, x: 0 }}
-              transition={{ duration: 0.6, ease: [0.2, 0.8, 0.2, 1] }}
-              style={{ flex: 1, minWidth: "280px", display: "flex", flexDirection: "column", gap: "16px" }}
-            >
-              <div>
-                <h2
-                  style={{
-                    fontFamily: "'Manrope', sans-serif",
-                    fontSize: "clamp(22px, 3.2vw, 34px)",
-                    fontWeight: 700,
-                    lineHeight: 1.2,
-                    letterSpacing: "-0.01em",
-                    margin: "0 0 12px",
-                    background: "linear-gradient(135deg, #003fa4, #0066ff)",
-                    WebkitBackgroundClip: "text",
-                    WebkitTextFillColor: "transparent",
-                    backgroundClip: "text",
-                  }}
-                >
-                  Empowering education through intelligent operations
-                </h2>
-                <p style={{ fontSize: "16px", color: "#424656", lineHeight: 1.7, maxWidth: "480px", margin: 0 }}>
-                  AltRix provides the infrastructure for modern schools to manage performance, security, and communication in one unified platform.
-                </p>
-              </div>
-
-              {/* Bento Grid */}
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "14px" }}>
-                {[
-                  { icon: "auto_awesome", fill: 1, iconColor: "#0050cb", bg: "rgba(0,80,203,0.08)", border: "rgba(0,80,203,0.10)", label: "AI Insights", desc: "Predictive student performance analytics and trend spotting." },
-                  { icon: "shield_with_heart", fill: 1, iconColor: "#006688", bg: "rgba(0,102,136,0.08)", border: "rgba(0,102,136,0.10)", label: "Secure Vault", desc: "Military-grade data encryption and privacy compliance." },
-                  { icon: "analytics", fill: 1, iconColor: "#555a5d", bg: "rgba(109,114,118,0.10)", border: "rgba(109,114,118,0.10)", label: "Real-time Audit", desc: "Live transparent audit logs for staff and administrators." },
-                  { icon: "hub", fill: 1, iconColor: "#0088aa", bg: "rgba(0,193,253,0.12)", border: "rgba(0,193,253,0.15)", label: "Universal Hub", desc: "Unified school-parent communication and collaboration." },
-                ].map(({ icon, fill, iconColor, bg, border, label, desc }) => (
-                  <div key={label} className="ta-bento">
-                    <div className="ta-bento-icon" style={{ background: bg, border: `1px solid ${border}` }}>
-                      <MIcon name={icon} fill={fill} size={22} style={{ color: iconColor }} />
-                    </div>
-                    <p style={{ fontSize: "12px", fontWeight: 700, letterSpacing: "0.05em", color: "#0050cb", marginBottom: "6px", margin: "0 0 6px" }}>{label}</p>
-                    <p style={{ fontSize: "13px", color: "#424656", lineHeight: 1.55, margin: 0 }}>{desc}</p>
-                  </div>
-                ))}
-              </div>
-
-              <p style={{ fontSize: "13px", color: "#424656", margin: 0 }}>
-                Need a school account?{" "}
-                <a
-                  href="mailto:sales@altrix.io"
-                  style={{ color: "#0066ff", fontWeight: 600, textDecoration: "none" }}
-                  onMouseEnter={(e) => (e.currentTarget.style.textDecoration = "underline")}
-                  onMouseLeave={(e) => (e.currentTarget.style.textDecoration = "none")}
-                >
-                  Contact Sales
-                </a>
-              </p>
-            </motion.div>
-
-            {/* ── RIGHT: Sign-in Card ── */}
-            <motion.div
-              initial={reduce ? false : { opacity: 0, y: 18 }}
-              animate={reduce ? undefined : { opacity: 1, y: 0 }}
-              transition={{ duration: 0.55, delay: 0.06, ease: [0.2, 0.8, 0.2, 1] }}
-              style={{ width: "100%", maxWidth: "410px", flexShrink: 0 }}
-            >
-              <div
-                style={{
-                  background: "rgba(255,255,255,0.72)",
-                  backdropFilter: "blur(20px)",
-                  WebkitBackdropFilter: "blur(20px)",
-                  border: "1px solid rgba(255,255,255,0.85)",
-                  borderTop: "1px solid rgba(255,255,255,0.95)",
-                  borderRadius: "20px",
-                  padding: "28px",
-                  position: "relative",
-                  overflow: "hidden",
-                  boxShadow: "0 20px 60px -15px rgba(0,102,255,0.15), 0 1px 0 rgba(255,255,255,0.8) inset",
-                }}
-              >
-                {/* Corner decoration */}
-                <div style={{ position: "absolute", top: 0, right: 0, width: "120px", height: "120px", background: "linear-gradient(225deg, rgba(0,193,253,0.16), transparent)", borderBottomLeftRadius: "100%", pointerEvents: "none" }} />
-
-                {!showReset ? (
-                  <>
-                    {/* Header */}
-                    <div style={{ marginBottom: "22px", position: "relative", zIndex: 1 }}>
-                      <h2
-                        style={{
-                          fontFamily: "'Manrope', sans-serif",
-                          fontSize: "clamp(20px, 2.5vw, 26px)",
-                          fontWeight: 700,
-                          margin: "0 0 4px",
-                          background: "linear-gradient(135deg, #003fa4, #0066ff)",
-                          WebkitBackgroundClip: "text",
-                          WebkitTextFillColor: "transparent",
-                          backgroundClip: "text",
-                        }}
-                      >
-                        Welcome Back
-                      </h2>
-                      <p style={{ fontSize: "14px", color: "#424656", margin: 0 }}>
-                        {tenant.status === "ready" ? `Access ${schoolName} portal` : "Access your administrative portal"}
-                      </p>
-                    </div>
-
-                    {/* Sign-in Form */}
-                    <form
-                      onSubmit={(e) => { e.preventDefault(); if (!busy) void doPasswordLogin(); }}
-                      style={{ display: "flex", flexDirection: "column", gap: "16px", position: "relative", zIndex: 1 }}
-                    >
-                      {/* School (read-only display) */}
-                      {tenant.slug && (
-                        <div>
-                          <label style={{ display: "block", fontSize: "12px", fontWeight: 700, letterSpacing: "0.06em", color: "#003fa4", marginBottom: "8px", marginLeft: "2px" }}>
-                            School
-                          </label>
-                          <div className="ta-input-wrap" style={{ ...inputWrapBase, pointerEvents: "none" }}>
-                            <span className="ta-icon-left" style={{ position: "absolute", left: "14px", top: "50%", transform: "translateY(-50%)", color: "rgba(0,102,255,0.65)", display: "flex", alignItems: "center" }}>
-                              <MIcon name="apartment" size={20} />
-                            </span>
-                            <div style={{ ...inputBase, display: "flex", alignItems: "center", gap: "10px" }}>
-                              <span style={{ fontWeight: 500 }}>{schoolName}</span>
-                              <span style={{ fontSize: "11px", padding: "3px 9px", borderRadius: "999px", background: "linear-gradient(135deg, rgba(179,197,255,0.55), rgba(194,232,255,0.55))", border: "1px solid rgba(255,255,255,0.6)", color: "#003fa4", fontWeight: 700, letterSpacing: "0.03em", flexShrink: 0 }}>
-                                ✓ Verified
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Email */}
-                      <div>
-                        <label htmlFor="login-email" style={{ display: "block", fontSize: "12px", fontWeight: 700, letterSpacing: "0.06em", color: "#003fa4", marginBottom: "8px", marginLeft: "2px" }}>
-                          Work Email
-                        </label>
-                        <div className="ta-input-wrap" style={inputWrapBase}>
-                          <span className="ta-icon-left" style={{ position: "absolute", left: "14px", top: "50%", transform: "translateY(-50%)", color: "rgba(0,102,255,0.65)", display: "flex", alignItems: "center" }}>
-                            <MIcon name="mail" size={20} />
-                          </span>
-                          <input
-                            id="login-email"
-                            name="email"
-                            style={inputBase}
-                            value={email}
-                            onChange={(e) => setEmail(e.target.value)}
-                            placeholder="admin@school.edu"
-                            type="email"
-                            autoComplete="username"
-                            inputMode="email"
-                            list="saved-emails"
-                          />
-                        </div>
-                        {recentEmails.length > 0 && (
-                          <datalist id="saved-emails">{recentEmails.map((e) => <option key={e} value={e} />)}</datalist>
-                        )}
-                      </div>
-
-                      {/* Password */}
-                      <div>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px", marginLeft: "2px", marginRight: "2px" }}>
-                          <label htmlFor="login-password" style={{ fontSize: "12px", fontWeight: 700, letterSpacing: "0.06em", color: "#003fa4" }}>
-                            Password
-                          </label>
-                          <button
-                            type="button"
-                            className="ta-forgot-btn"
-                            onClick={() => { setShowReset(true); setMessage(null); }}
-                            style={{ fontSize: "12px", fontWeight: 600, color: "#0066ff", letterSpacing: "0.01em" }}
-                          >
-                            Forgot?
-                          </button>
-                        </div>
-                        <div className="ta-input-wrap" style={inputWrapBase}>
-                          <span className="ta-icon-left" style={{ position: "absolute", left: "14px", top: "50%", transform: "translateY(-50%)", color: "rgba(0,102,255,0.65)", display: "flex", alignItems: "center" }}>
-                            <MIcon name="lock" size={20} />
-                          </span>
-                          <input
-                            id="login-password"
-                            style={{ ...inputBase, paddingRight: "48px" }}
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            placeholder="••••••••"
-                            type={showPassword ? "text" : "password"}
-                            autoComplete="current-password"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => setShowPassword((v) => !v)}
-                            tabIndex={-1}
-                            aria-label={showPassword ? "Hide password" : "Show password"}
-                            style={{ position: "absolute", right: "12px", top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "#727687", display: "flex", alignItems: "center", padding: "4px", transition: "color 0.15s" }}
-                            onMouseEnter={(e) => (e.currentTarget.style.color = "#0050cb")}
-                            onMouseLeave={(e) => (e.currentTarget.style.color = "#727687")}
-                          >
-                            <MIcon name={showPassword ? "visibility_off" : "visibility"} size={20} />
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Notice badge */}
-                      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "10px 14px", background: "rgba(255,255,255,0.45)", borderRadius: "12px", border: "1px solid rgba(255,255,255,0.65)", backdropFilter: "blur(8px)" }}>
-                        <MIcon name="info" size={17} style={{ color: "#555a5d", marginRight: "8px", flexShrink: 0 }} />
-                        <p style={{ fontSize: "12px", color: "rgba(66,70,86,0.80)", margin: 0, letterSpacing: "0.02em" }}>
-                          Admin-created accounts only · No public signup
-                        </p>
-                      </div>
-
-                      {/* Sign In CTA */}
-                      <button type="submit" className="ta-btn" disabled={busy}>
-                        {busy
-                          ? <><Loader2 size={17} className="ta-spin" /> Signing in…</>
-                          : <><span>Sign In to AltRix</span><MIcon name="arrow_forward" size={20} /></>
-                        }
-                      </button>
-
-                      {/* Super admin quick-access */}
-                      {perms.isPlatformSuperAdmin && tenant.status === "ready" && (
-                        <div style={{ padding: "12px 14px", borderRadius: "12px", background: "rgba(255,255,255,0.5)", border: "1px solid rgba(0,102,255,0.15)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px" }}>
-                          <div>
-                            <p style={{ margin: 0, fontSize: "13px", fontWeight: 600, color: "#0050cb" }}>Platform Super Admin</p>
-                            <p style={{ margin: "2px 0 0", fontSize: "12px", color: "#424656" }}>Quick access to bootstrap tools.</p>
-                          </div>
-                          <Button type="button" variant="soft" onClick={() => navigate(`/${tenant.slug}/bootstrap`)}>Bootstrap</Button>
-                        </div>
-                      )}
-                    </form>
-                  </>
-                ) : (
-                  /* ── RESET PASSWORD ── */
-                  <div style={{ display: "flex", flexDirection: "column", gap: "18px", position: "relative", zIndex: 1 }}>
-                    <div style={{ textAlign: "center" }}>
-                      <div style={{ display: "inline-flex", padding: "14px", borderRadius: "14px", background: "rgba(0,102,255,0.08)", marginBottom: "12px" }}>
-                        <MIcon name="key" fill={1} size={28} style={{ color: "#0066ff" }} />
-                      </div>
-                      <h3 style={{ fontFamily: "'Manrope', sans-serif", margin: "0 0 6px", fontSize: "20px", fontWeight: 700, color: "#1a1c1e" }}>
-                        Reset Password
-                      </h3>
-                      <p style={{ fontSize: "14px", color: "#424656", lineHeight: 1.6, margin: 0 }}>
-                        Enter your email and we'll send a secure reset link.
-                      </p>
-                    </div>
-
-                    <div>
-                      <label style={{ display: "block", fontSize: "12px", fontWeight: 700, letterSpacing: "0.06em", color: "#003fa4", marginBottom: "8px", marginLeft: "2px" }}>
-                        Work Email
-                      </label>
-                      <div className="ta-input-wrap" style={inputWrapBase}>
-                        <span style={{ position: "absolute", left: "14px", top: "50%", transform: "translateY(-50%)", color: "rgba(0,102,255,0.65)", display: "flex", alignItems: "center" }}>
-                          <MIcon name="mail" size={20} />
-                        </span>
-                        <input
-                          style={inputBase}
-                          value={email}
-                          onChange={(e) => setEmail(e.target.value)}
-                          placeholder="admin@school.edu"
-                          type="email"
-                          autoComplete="email"
-                        />
-                      </div>
-                    </div>
-
-                    <button
-                      type="button"
-                      className="ta-btn"
-                      disabled={busy || resetCooldown > 0}
-                      onClick={() => { if (!busy && resetCooldown <= 0) void doForgotPassword(); }}
-                    >
-                      {busy
-                        ? <><Loader2 size={17} className="ta-spin" /> Sending…</>
-                        : resetCooldown > 0
-                          ? `Resend in ${resetCooldown}s`
-                          : "Send Reset Link"
-                      }
-                    </button>
-
-                    <button
-                      type="button"
-                      className="ta-back-btn"
-                      onClick={() => { setShowReset(false); setMessage(null); }}
-                    >
-                      ← Back to sign in
-                    </button>
-                  </div>
-                )}
-
-                {/* Feedback message */}
-                {message && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 6 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    style={{
-                      marginTop: "14px",
-                      padding: "12px 14px",
-                      borderRadius: "10px",
-                      fontSize: "13px",
-                      background: messageType === "success" ? "rgba(0,160,80,0.07)" : "rgba(186,26,26,0.06)",
-                      border: `1px solid ${messageType === "success" ? "rgba(0,140,70,0.22)" : "rgba(186,26,26,0.18)"}`,
-                      color: messageType === "success" ? "#007a40" : "#ba1a1a",
-                      lineHeight: 1.55,
-                      position: "relative",
-                      zIndex: 1,
-                    }}
-                  >
-                    {message}
-                  </motion.div>
-                )}
-
-                {tenant.status === "error" && (
-                  <div style={{ marginTop: "12px", padding: "12px 14px", borderRadius: "10px", fontSize: "13px", background: "rgba(186,26,26,0.06)", border: "1px solid rgba(186,26,26,0.18)", color: "#ba1a1a", lineHeight: 1.55 }}>
-                    {tenant.error}
-                  </div>
-                )}
-              </div>
-            </motion.div>
-          </div>
-        </main>
-
-        {/* ── FOOTER ── */}
-        <footer style={{ width: "100%", background: "rgba(255,255,255,0.30)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", borderTop: "1px solid rgba(255,255,255,0.55)", padding: "12px 24px", position: "relative", zIndex: 10 }}>
-          <div style={{ maxWidth: "1280px", margin: "0 auto", display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: "8px" }}>
-            <div className="ta-footer-logo" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <img src="/pwa-512.png" alt="AltRix" style={{ width: "24px", height: "24px", borderRadius: "6px" }} />
-              <span style={{ fontFamily: "'Manrope', sans-serif", fontSize: "16px", fontWeight: 700, color: "#1a1c1e" }}>AltRix</span>
-            </div>
-            <div style={{ display: "flex", gap: "24px", flexWrap: "wrap", justifyContent: "center" }}>
-              {["Privacy Policy", "Terms of Service", "Compliance"].map((link) => (
-                <a key={link} href="#" className="ta-footer-link">{link}</a>
-              ))}
-            </div>
-            <p style={{ fontSize: "12px", color: "rgba(66,70,86,0.55)", margin: 0 }}>
-              © {new Date().getFullYear()} AltRix School OS. All rights reserved.
+      {/* ── MAIN ── */}
+      <main className="flex-1 w-full max-w-7xl mx-auto px-6 pb-16 lg:pb-24 grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-16 items-center z-10 relative">
+        
+        {/* ── LEFT: Value proposition + Bento Grid ── */}
+        <motion.div
+          initial={reduce ? false : { opacity: 0, x: -18 }}
+          animate={reduce ? undefined : { opacity: 1, x: 0 }}
+          transition={{ duration: 0.6, ease: [0.2, 0.8, 0.2, 1] }}
+          className="lg:col-span-7 flex flex-col gap-6 sm:gap-8 min-w-0"
+        >
+          <div>
+            <h2 className="font-sans text-3xl sm:text-4xl font-extrabold tracking-tight text-slate-900 leading-tight bg-gradient-to-r from-blue-800 to-indigo-600 bg-clip-text text-transparent">
+              Empowering education through intelligent operations
+            </h2>
+            <p className="mt-4 text-base text-slate-600 leading-relaxed max-w-xl">
+              AltRix provides the infrastructure for modern schools to manage performance, security, and communication in one unified platform.
             </p>
           </div>
-        </footer>
-      </div>
-    </>
+
+          {/* Bento Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {[
+              { icon: Sparkles, iconColor: "text-blue-600", bg: "bg-blue-50", border: "border-blue-100", label: "AI Insights", desc: "Predictive student performance analytics and trend spotting." },
+              { icon: Shield, iconColor: "text-indigo-600", bg: "bg-indigo-50", border: "border-indigo-100", label: "Secure Vault", desc: "Military-grade data encryption and privacy compliance." },
+              { icon: Activity, iconColor: "text-slate-600", bg: "bg-slate-100", border: "border-slate-200", label: "Real-time Audit", desc: "Live transparent audit logs for staff and administrators." },
+              { icon: Workflow, iconColor: "text-sky-600", bg: "bg-sky-50", border: "border-sky-100", label: "Universal Hub", desc: "Unified school-parent communication and collaboration." },
+            ].map(({ icon: Icon, iconColor, bg, border, label, desc }) => (
+              <div 
+                key={label} 
+                className="p-5 rounded-2xl bg-white/40 border border-white/60 shadow-sm backdrop-blur-md transition-all duration-300 hover:bg-white/60 hover:border-blue-100/60 hover:shadow-soft"
+              >
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-3 ${bg} ${border}`}>
+                  <Icon className={`h-5 w-5 ${iconColor}`} />
+                </div>
+                <p className="text-xs font-bold tracking-wider text-blue-700 uppercase mb-1">{label}</p>
+                <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">{desc}</p>
+              </div>
+            ))}
+          </div>
+
+          <p className="text-sm text-slate-600">
+            Need a school account?{" "}
+            <a
+              href="mailto:sales@altrix.io"
+              className="text-blue-600 font-semibold hover:underline"
+            >
+              Contact Sales
+            </a>
+          </p>
+        </motion.div>
+
+        {/* ── RIGHT: Sign-in Card ── */}
+        <motion.div
+          initial={reduce ? false : { opacity: 0, y: 18 }}
+          animate={reduce ? undefined : { opacity: 1, y: 0 }}
+          transition={{ duration: 0.55, delay: 0.06, ease: [0.2, 0.8, 0.2, 1] }}
+          className="lg:col-span-5 w-full max-w-md mx-auto"
+        >
+          <div className="bg-white/80 border border-white/80 shadow-elevated rounded-3xl p-6 sm:p-8 backdrop-blur-xl relative overflow-hidden transition-all duration-300 hover:shadow-2xl">
+            {/* Corner decoration gradient */}
+            <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl from-blue-400/10 to-transparent rounded-bl-full pointer-events-none" />
+
+            {!showReset ? (
+              <>
+                {/* Header */}
+                <div className="mb-6 relative z-10">
+                  <h2 className="font-sans text-2xl font-bold tracking-tight text-slate-900 bg-gradient-to-r from-blue-800 to-indigo-600 bg-clip-text text-transparent">
+                    Welcome Back
+                  </h2>
+                  <p className="text-xs sm:text-sm text-slate-600 mt-1">
+                    {tenant.status === "ready" ? `Access ${schoolName} portal` : "Access your administrative portal"}
+                  </p>
+                </div>
+
+                {/* Sign-in Form */}
+                <form
+                  onSubmit={(e) => { e.preventDefault(); if (!busy) void doPasswordLogin(); }}
+                  className="flex flex-col gap-5 relative z-10"
+                >
+                  {/* School Name Display */}
+                  {tenant.slug && (
+                    <div>
+                      <label className="block text-xs font-bold tracking-wider text-blue-700 uppercase mb-2 ml-1">
+                        School
+                      </label>
+                      <div className="relative rounded-xl border border-slate-200 bg-white/50 px-4 py-3 text-sm text-slate-800 flex items-center justify-between gap-3 backdrop-blur-sm">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <Building2 className="h-4 w-4 text-blue-600 shrink-0" />
+                          <span className="font-semibold truncate">{schoolName}</span>
+                        </div>
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 font-bold shrink-0">
+                          Verified
+                        </span>
+                      </div>
+                      <a 
+                        href="/auth" 
+                        className="text-xs text-blue-600 hover:underline font-semibold mt-1.5 inline-block transition-colors"
+                      >
+                        Not your school? Switch school
+                      </a>
+                    </div>
+                  )}
+
+                  {/* Email Input */}
+                  <div>
+                    <label htmlFor="login-email" className="block text-xs font-bold tracking-wider text-blue-700 uppercase mb-2 ml-1">
+                      Work Email
+                    </label>
+                    <div className="relative rounded-xl border border-slate-200 bg-white/50 transition-all duration-200 focus-within:ring-4 focus-within:ring-primary/10 focus-within:border-primary focus-within:bg-white">
+                      <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-primary/60 flex items-center">
+                        <Mail className="h-4 w-4" />
+                      </span>
+                      <input
+                        id="login-email"
+                        name="email"
+                        className="w-full pl-11 pr-4 py-3 bg-transparent text-sm text-slate-900 placeholder:text-slate-400/70 outline-none"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        placeholder="admin@school.edu"
+                        type="email"
+                        autoComplete="username"
+                        inputMode="email"
+                        list="saved-emails"
+                      />
+                    </div>
+                    {recentEmails.length > 0 && (
+                      <datalist id="saved-emails">{recentEmails.map((e) => <option key={e} value={e} />)}</datalist>
+                    )}
+                  </div>
+
+                  {/* Password Input */}
+                  <div>
+                    <div className="flex justify-between items-center mb-2 ml-1">
+                      <label htmlFor="login-password" className="text-xs font-bold tracking-wider text-blue-700 uppercase">
+                        Password
+                      </label>
+                      <button
+                        type="button"
+                        className="text-xs font-semibold text-blue-600 hover:text-blue-800 transition-colors"
+                        onClick={() => { setShowReset(true); setMessage(null); }}
+                      >
+                        Forgot?
+                      </button>
+                    </div>
+                    <div className="relative rounded-xl border border-slate-200 bg-white/50 transition-all duration-200 focus-within:ring-4 focus-within:ring-primary/10 focus-within:border-primary focus-within:bg-white">
+                      <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-primary/60 flex items-center">
+                        <Lock className="h-4 w-4" />
+                      </span>
+                      <input
+                        id="login-password"
+                        className="w-full pl-11 pr-11 py-3 bg-transparent text-sm text-slate-900 placeholder:text-slate-400/70 outline-none"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder="••••••••"
+                        type={showPassword ? "text" : "password"}
+                        autoComplete="current-password"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword((v) => !v)}
+                        tabIndex={-1}
+                        aria-label={showPassword ? "Hide password" : "Show password"}
+                        className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-primary transition-colors p-1 rounded-lg focus:outline-none"
+                      >
+                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Info Badge */}
+                  <div className="flex items-start gap-2.5 p-3.5 bg-slate-50/50 rounded-xl border border-slate-100 backdrop-blur-sm">
+                    <Info className="h-4 w-4 text-slate-500 shrink-0 mt-0.5" />
+                    <p className="text-[11px] sm:text-xs text-slate-600 leading-normal">
+                      Admin-created accounts only · No public signup
+                    </p>
+                  </div>
+
+                  {/* Sign In CTA */}
+                  <button 
+                    type="submit" 
+                    className="w-full py-3.5 rounded-xl bg-gradient-to-r from-blue-700 to-sky-500 hover:from-blue-800 hover:to-sky-600 text-white font-semibold text-sm shadow-md shadow-blue-500/20 hover:shadow-lg hover:shadow-blue-500/30 transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+                    disabled={busy}
+                  >
+                    {busy ? (
+                      <><Loader2 className="h-4 w-4 animate-spin" /> Signing in…</>
+                    ) : (
+                      <><span>Sign In to AltRix</span><ArrowRight className="h-4 w-4" /></>
+                    )}
+                  </button>
+
+                  {/* Super admin quick-access */}
+                  {perms.isPlatformSuperAdmin && tenant.status === "ready" && (
+                    <div className="mt-2 p-3.5 rounded-xl bg-blue-50/30 border border-blue-100/50 flex items-center justify-between gap-3 backdrop-blur-sm">
+                      <div>
+                        <p className="text-xs font-semibold text-blue-700">Platform Super Admin</p>
+                        <p className="text-[10px] text-slate-500 mt-0.5">Quick access to bootstrap tools.</p>
+                      </div>
+                      <Button type="button" size="sm" variant="soft" onClick={() => navigate(`/${tenant.slug}/bootstrap`)}>Bootstrap</Button>
+                    </div>
+                  )}
+                </form>
+              </>
+            ) : (
+              /* ── RESET PASSWORD ── */
+              <div className="flex flex-col gap-6 relative z-10">
+                <div className="text-center">
+                  <div className="inline-flex p-3 rounded-xl bg-blue-50 border border-blue-100 mb-3.5">
+                    <Key className="h-6 w-6 text-blue-600" />
+                  </div>
+                  <h3 className="font-sans text-xl font-bold text-slate-900">
+                    Reset Password
+                  </h3>
+                  <p className="text-xs sm:text-sm text-slate-600 mt-2 leading-relaxed">
+                    Enter your email and we'll send a secure reset link.
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold tracking-wider text-blue-700 uppercase mb-2 ml-1">
+                    Work Email
+                  </label>
+                  <div className="relative rounded-xl border border-slate-200 bg-white/50 transition-all duration-200 focus-within:ring-4 focus-within:ring-primary/10 focus-within:border-primary focus-within:bg-white">
+                    <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-primary/60 flex items-center">
+                      <Mail className="h-4 w-4" />
+                    </span>
+                    <input
+                      className="w-full pl-11 pr-4 py-3 bg-transparent text-sm text-slate-900 placeholder:text-slate-400/70 outline-none"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="admin@school.edu"
+                      type="email"
+                      autoComplete="email"
+                    />
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  className="w-full py-3.5 rounded-xl bg-gradient-to-r from-blue-700 to-sky-500 hover:from-blue-800 hover:to-sky-600 text-white font-semibold text-sm shadow-md shadow-blue-500/20 hover:shadow-lg hover:shadow-blue-500/30 transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+                  disabled={busy || resetCooldown > 0}
+                  onClick={() => { if (!busy && resetCooldown <= 0) void doForgotPassword(); }}
+                >
+                  {busy ? (
+                    <><Loader2 className="h-4 w-4 animate-spin" /> Sending…</>
+                  ) : resetCooldown > 0 ? (
+                    `Resend in ${resetCooldown}s`
+                  ) : (
+                    "Send Reset Link"
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  className="text-xs font-semibold text-slate-500 hover:text-blue-600 transition-colors flex items-center justify-center gap-1.5"
+                  onClick={() => { setShowReset(false); setMessage(null); }}
+                >
+                  <ArrowLeft className="h-3.5 w-3.5" /> Back to sign in
+                </button>
+              </div>
+            )}
+
+            {/* Feedback message banner */}
+            {message && (
+              <motion.div
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                className={`mt-4 p-3.5 rounded-xl text-xs sm:text-sm border relative z-10 leading-relaxed ${
+                  messageType === "success" 
+                    ? "bg-emerald-50/50 border-emerald-200 text-emerald-800" 
+                    : "bg-red-50/50 border-red-200 text-red-800"
+                }`}
+              >
+                {message}
+              </motion.div>
+            )}
+
+            {tenant.status === "error" && (
+              <div className="mt-4 p-3.5 rounded-xl text-xs sm:text-sm bg-red-50/50 border border-red-200 text-red-800 leading-relaxed">
+                {tenant.error}
+              </div>
+            )}
+          </div>
+        </motion.div>
+      </main>
+
+      {/* ── FOOTER ── */}
+      <footer className="w-full bg-white/40 border-t border-white/50 py-4 px-6 relative z-10 backdrop-blur-sm">
+        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-2 opacity-50 hover:opacity-100 transition-opacity duration-200">
+            <img src="/pwa-512.png" alt="AltRix" className="w-6 h-6 rounded-md" />
+            <span className="font-sans text-sm font-bold text-slate-900">AltRix</span>
+          </div>
+          <div className="flex gap-6 justify-center flex-wrap">
+            {["Privacy Policy", "Terms of Service", "Compliance"].map((link) => (
+              <a 
+                key={link} 
+                href="#" 
+                className="text-[11px] sm:text-xs font-semibold text-slate-600 hover:text-blue-600 transition-colors"
+              >
+                {link}
+              </a>
+            ))}
+          </div>
+          <p className="text-[11px] sm:text-xs text-slate-500">
+            © {new Date().getFullYear()} AltRix School OS. All rights reserved.
+          </p>
+        </div>
+      </footer>
+    </div>
   );
 };
 
