@@ -225,7 +225,7 @@ const TenantAuth = () => {
                       <label className="block text-xs font-bold tracking-wider text-primary uppercase mb-2 ml-1">
                         School
                       </label>
-                      <div className="relative rounded-xl border border-white/35 bg-white/45 px-4 py-3 text-sm text-slate-800 flex items-center justify-between gap-3 backdrop-blur-sm overflow-hidden">
+                      <div className="relative rounded-xl border border-white/35 bg-white/45 px-4 py-3 text-sm text-slate-800 flex items-center justify-between gap-3 backdrop-blur-sm overflow-hidden shadow-soft">
                         <div className="flex items-center gap-2.5 min-w-0">
                           <Building2 className="h-4 w-4 text-primary shrink-0" />
                           <span className="font-semibold truncate">{schoolName}</span>
@@ -248,7 +248,7 @@ const TenantAuth = () => {
                     <label htmlFor="login-email" className="block text-xs font-bold tracking-wider text-primary uppercase mb-2 ml-1">
                       Work Email
                     </label>
-                    <div className="relative rounded-xl border border-white/35 bg-white/45 transition-all duration-200 focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary focus-within:bg-white/60 overflow-hidden">
+                    <div className="relative rounded-xl border border-white/35 bg-white/45 shadow-soft transition-all duration-200 focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary focus-within:bg-white/60 overflow-hidden">
                       <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-primary/60 flex items-center">
                         <Mail className="h-4 w-4" />
                       </span>
@@ -284,7 +284,7 @@ const TenantAuth = () => {
                         Forgot?
                       </button>
                     </div>
-                    <div className="relative rounded-xl border border-white/35 bg-white/45 transition-all duration-200 focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary focus-within:bg-white/60 overflow-hidden">
+                    <div className="relative rounded-xl border border-white/35 bg-white/45 shadow-soft transition-all duration-200 focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary focus-within:bg-white/60 overflow-hidden">
                       <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-primary/60 flex items-center">
                         <Lock className="h-4 w-4" />
                       </span>
@@ -361,7 +361,7 @@ const TenantAuth = () => {
                   <label className="block text-xs font-bold tracking-wider text-primary uppercase mb-2 ml-1">
                     Work Email
                   </label>
-                  <div className="relative rounded-xl border border-white/35 bg-white/45 transition-all duration-200 focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary focus-within:bg-white/60 overflow-hidden">
+                  <div className="relative rounded-xl border border-white/35 bg-white/45 shadow-soft transition-all duration-200 focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary focus-within:bg-white/60 overflow-hidden">
                     <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-primary/60 flex items-center">
                       <Mail className="h-4 w-4" />
                     </span>

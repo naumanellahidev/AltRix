@@ -457,7 +457,7 @@ const Index = () => {
                   <label className="block text-xs font-bold tracking-wider text-primary uppercase mb-2 ml-1">
                     School Code
                   </label>
-                  <div className="relative rounded-xl border border-white/35 bg-white/45 transition-all duration-200 focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary focus-within:bg-white/60 overflow-hidden">
+                  <div className="relative rounded-xl border border-white/35 bg-white/45 shadow-soft transition-all duration-200 focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary focus-within:bg-white/60 overflow-hidden">
                     <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-primary/60 flex items-center">
                       <Building2 className="h-4 w-4" />
                     </span>
@@ -500,7 +500,7 @@ const Index = () => {
                   <label htmlFor="login-email" className="block text-xs font-bold tracking-wider text-primary uppercase mb-2 ml-1">
                     Work Email
                   </label>
-                  <div className="relative rounded-xl border border-white/35 bg-white/45 transition-all duration-200 focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary focus-within:bg-white/60 overflow-hidden">
+                  <div className="relative rounded-xl border border-white/35 bg-white/45 shadow-soft transition-all duration-200 focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary focus-within:bg-white/60 overflow-hidden">
                     <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-primary/60 flex items-center">
                       <Mail className="h-4 w-4" />
                     </span>
@@ -539,7 +539,7 @@ const Index = () => {
                       Forgot?
                     </button>
                   </div>
-                  <div className="relative rounded-xl border border-white/35 bg-white/45 transition-all duration-200 focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary focus-within:bg-white/60 overflow-hidden">
+                  <div className="relative rounded-xl border border-white/35 bg-white/45 shadow-soft transition-all duration-200 focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary focus-within:bg-white/60 overflow-hidden">
                     <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-primary/60 flex items-center">
                       <Lock className="h-4 w-4" />
                     </span>
@@ -613,7 +613,7 @@ const Index = () => {
                   <label className="block text-xs font-bold tracking-wider text-primary uppercase mb-2 ml-1">
                     Work Email
                   </label>
-                  <div className="relative rounded-xl border border-white/35 bg-white/45 transition-all duration-200 focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary focus-within:bg-white/60 overflow-hidden">
+                  <div className="relative rounded-xl border border-white/35 bg-white/45 shadow-soft transition-all duration-200 focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary focus-within:bg-white/60 overflow-hidden">
                     <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-primary/60 flex items-center">
                       <Mail className="h-4 w-4" />
                     </span>
