@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { format, startOfWeek, addDays, isSameDay } from "date-fns";
-import { BookOpen, ChevronLeft, ChevronRight, Plus, Save, Trash2 } from "lucide-react";
+import { BookOpen, ChevronLeft, ChevronRight, Plus, Save, Sparkles, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { CurriculumPlannerAI } from "@/components/ai";
 import { useTenant } from "@/hooks/useTenant";
 import { useSession } from "@/hooks/useSession";
 import { Button } from "@/components/ui/button";
@@ -65,6 +66,7 @@ export function TeacherLessonPlannerModule() {
   const [formResources, setFormResources] = useState<string>("");
   const [formNotes, setFormNotes] = useState<string>("");
   const [formSubject, setFormSubject] = useState<string>("");
+  const [aiPlannerOpen, setAiPlannerOpen] = useState(false);
 
   const weekDays = Array.from({ length: 6 }, (_, i) => addDays(weekStart, i));
 
@@ -263,6 +265,14 @@ export function TeacherLessonPlannerModule() {
               ))}
             </SelectContent>
           </Select>
+
+          <Button
+            onClick={() => setAiPlannerOpen(true)}
+            className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold flex items-center gap-1.5 shadow-[0_4px_12px_rgba(59,130,246,0.25)] transition-all"
+          >
+            <Sparkles className="h-4 w-4" />
+            AI Lesson Plan
+          </Button>
         </div>
 
         <div className="flex items-center gap-2">
@@ -427,6 +437,16 @@ export function TeacherLessonPlannerModule() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <CurriculumPlannerAI
+        open={aiPlannerOpen}
+        onClose={() => setAiPlannerOpen(false)}
+        sections={sections}
+        subjects={subjects}
+        initialSectionId={selectedSection}
+        onSaveSuccess={loadPlans}
+        schoolId={schoolId}
+      />
     </div>
   );
 }

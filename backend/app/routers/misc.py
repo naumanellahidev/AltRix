@@ -496,6 +496,182 @@ async def get_teacher_performance(
     return result.scalars().all()
 
 
+from pydantic import BaseModel
+
+class CurriculumPlannerRequest(BaseModel):
+    topic: str
+    subjectName: str
+    gradeLevel: str
+    curriculumType: str
+    durationMinutes: int = 45
+    bloomLevels: List[str] = []
+    additionalContext: Optional[str] = None
+
+
+@ai_router.post("/curriculum-planner")
+async def generate_curriculum_plan(
+    body: CurriculumPlannerRequest,
+    current_user: CurrentUser,
+    db: DbSession,
+):
+    from fastapi import HTTPException
+    from app.utils.ai_service import OllamaAIService
+    import json
+
+    # 1. Enforce Per-School AI Enabled Setting
+    if current_user.school_id:
+        ai_enabled = await get_school_ai_status(db, current_user.school_id)
+    else:
+        ai_enabled = await get_ai_status(db)
+    if not ai_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="AI features are not enabled for this school."
+        )
+
+    # 2. Build system prompt for structured output
+    system_prompt = f"""You are an expert curriculum designer and pedagogy specialist.
+Your task is to generate a comprehensive, highly structured lesson plan and related resources based on the user's inputs.
+
+You MUST respond ONLY with a valid JSON object matching the following structure. Do NOT wrap the JSON in markdown code blocks (e.g. do NOT use ```json ... ```) or include any surrounding text. Just output raw, valid JSON.
+
+JSON Structure:
+{{
+  "lessonPlan": {{
+    "title": "A descriptive title for the lesson",
+    "learningObjectives": [
+      "Objective 1: What students will know/be able to do",
+      "Objective 2"
+    ],
+    "priorKnowledge": [
+      "Prerequisite concept 1",
+      "Prerequisite concept 2"
+    ],
+    "materialsNeeded": [
+      "Material 1",
+      "Material 2"
+    ],
+    "schedule": [
+      {{
+        "timeRange": "0-5 min",
+        "phase": "Warm-up / Hook",
+        "activity": "Detailed explanation of what happens",
+        "teacherAction": "What the teacher does",
+        "studentAction": "What the students do"
+      }}
+    ],
+    "differentiationStrategies": {{
+      "advanced": "Extension activities for fast learners",
+      "struggling": "Support and scaffolding for struggling students",
+      "ell": "Visual aids and vocabulary support for English language learners"
+    }},
+    "assessmentStrategy": "How learning will be checked during and after the lesson",
+    "homeworkSuggestion": "Relevant practice task or extension"
+  }},
+  "slideScript": [
+    {{
+      "slideNumber": 1,
+      "title": "Title of the slide",
+      "bulletPoints": [
+        "Key point 1",
+        "Key point 2"
+      ],
+      "speakerNotes": "Scripts and explanations for the teacher to speak",
+      "visualSuggestion": "Description of matching diagrams, images, or layout"
+    }}
+  ],
+  "activities": [
+    {{
+      "name": "Name of activity",
+      "type": "group | individual | pair | class-discussion",
+      "duration": "10 min",
+      "description": "Step-by-step instructions for the activity",
+      "materials": "Required materials"
+    }}
+  ],
+  "quiz": [
+    {{
+      "questionNumber": 1,
+      "question": "Multiple choice question text",
+      "type": "mcq",
+      "options": ["Option A", "Option B", "Option C", "Option D"],
+      "correctAnswer": "A",
+      "explanation": "Why this answer is correct and educational context",
+      "bloomLevel": "Selected Bloom's level"
+    }}
+  ],
+  "rubric": {{
+    "criteria": [
+      {{
+        "name": "Understanding of concept",
+        "excellent": "Descriptor for excellent work",
+        "good": "Descriptor for good work",
+        "developing": "Descriptor for developing work"
+      }}
+    ]
+  }}
+}}
+
+Constraints:
+1. Align the plan to:
+   - Curriculum Framework: {body.curriculumType}
+   - Target Grade: {body.gradeLevel}
+   - Subject: {body.subjectName}
+   - Duration: {body.durationMinutes} minutes
+2. Incorporate activities targeting these Bloom's Taxonomy levels: {", ".join(body.bloomLevels) if body.bloomLevels else "Remember, Understand, Apply"}
+3. The quiz must contain exactly 5 high-quality multiple choice questions matching the topic and curriculum standard.
+"""
+
+    user_message = f"Generate a lesson plan for the topic: '{body.topic}'."
+    if body.additionalContext:
+        user_message += f"\nAdditional Context: {body.additionalContext}"
+
+    # 3. Call OllamaAIService and build full response
+    full_response = ""
+    try:
+        async for chunk in OllamaAIService.stream_completion(
+            system_prompt=system_prompt,
+            user_message=user_message,
+        ):
+            if chunk.startswith("data: "):
+                data_content = chunk[6:].strip()
+                if data_content == "[DONE]":
+                    continue
+                try:
+                    data_json = json.loads(data_content)
+                    if "error" in data_json:
+                        raise Exception(data_json["error"])
+                    content = data_json.get("choices", [{}])[0].get("delta", {}).get("content", "")
+                    full_response += content
+                except json.JSONDecodeError:
+                    continue
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"AI generation failed: {str(e)}"
+        )
+
+    # 4. Clean and parse JSON
+    cleaned_response = full_response.strip()
+    if cleaned_response.startswith("```json"):
+        cleaned_response = cleaned_response[7:]
+    elif cleaned_response.startswith("```"):
+        cleaned_response = cleaned_response[3:]
+    if cleaned_response.endswith("```"):
+        cleaned_response = cleaned_response[:-3]
+    cleaned_response = cleaned_response.strip()
+
+    try:
+        parsed_json = json.loads(cleaned_response)
+        return parsed_json
+    except json.JSONDecodeError as e:
+        logger.error(f"Failed to parse AI response as JSON: {cleaned_response}")
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="AI generated an invalid JSON response. Please try again."
+        )
+
+
 # ─── REPORTS ──────────────────────────────────────────────────────────────────
 reports_router = APIRouter(prefix="/reports", tags=["Reports"])
 

@@ -9,3 +9,5 @@ export { AICounselorMode } from "./AICounselorMode";
 export { PredictiveAcademicModel } from "./PredictiveAcademicModel";
 export { StudentCareerPathAI } from "./StudentCareerPathAI";
 export { AICommandCenter } from "./AICommandCenter";
+export { CurriculumPlannerAI } from "./CurriculumPlannerAI";
+

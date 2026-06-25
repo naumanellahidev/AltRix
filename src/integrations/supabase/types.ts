@@ -5124,6 +5124,15 @@ export type Database = {
           teacher_user_id: string
           topic: string
           updated_at: string | null
+          bloom_levels: string[] | null
+          curriculum_type: string | null
+          grade_level: string | null
+          lesson_duration_minutes: number | null
+          ai_plan_data: Json | null
+          ai_slide_script: Json | null
+          ai_quiz_data: Json | null
+          ai_model_used: string | null
+          generation_status: string | null
         }
         Insert: {
           class_section_id: string
@@ -5140,6 +5149,15 @@ export type Database = {
           teacher_user_id: string
           topic: string
           updated_at?: string | null
+          bloom_levels?: string[] | null
+          curriculum_type?: string | null
+          grade_level?: string | null
+          lesson_duration_minutes?: number | null
+          ai_plan_data?: Json | null
+          ai_slide_script?: Json | null
+          ai_quiz_data?: Json | null
+          ai_model_used?: string | null
+          generation_status?: string | null
         }
         Update: {
           class_section_id?: string
@@ -5156,6 +5174,15 @@ export type Database = {
           teacher_user_id?: string
           topic?: string
           updated_at?: string | null
+          bloom_levels?: string[] | null
+          curriculum_type?: string | null
+          grade_level?: string | null
+          lesson_duration_minutes?: number | null
+          ai_plan_data?: Json | null
+          ai_slide_script?: Json | null
+          ai_quiz_data?: Json | null
+          ai_model_used?: string | null
+          generation_status?: string | null
         }
         Relationships: [
           {
