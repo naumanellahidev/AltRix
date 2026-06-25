@@ -457,12 +457,12 @@ const Index = () => {
                   <label className="block text-xs font-bold tracking-wider text-primary uppercase mb-2 ml-1">
                     School Code
                   </label>
-                  <div className="relative rounded-xl border border-white/35 bg-white/45 transition-all duration-200 focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary focus-within:bg-white/60">
+                  <div className="relative rounded-xl border border-white/35 bg-white/45 transition-all duration-200 focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary focus-within:bg-white/60 overflow-hidden">
                     <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-primary/60 flex items-center">
                       <Building2 className="h-4 w-4" />
                     </span>
                     <input
-                      className="w-full pl-11 pr-24 py-3 bg-transparent text-sm text-slate-900 placeholder:text-slate-400/70 outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0"
+                      className="w-full rounded-xl pl-11 pr-24 py-3 bg-transparent text-sm text-slate-900 placeholder:text-slate-400/70 outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0"
                       value={schoolSlug}
                       onChange={(e) => setSchoolSlug(e.target.value)}
                       placeholder="e.g. beacon"
@@ -500,7 +500,7 @@ const Index = () => {
                   <label htmlFor="login-email" className="block text-xs font-bold tracking-wider text-primary uppercase mb-2 ml-1">
                     Work Email
                   </label>
-                  <div className="relative rounded-xl border border-white/35 bg-white/45 transition-all duration-200 focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary focus-within:bg-white/60">
+                  <div className="relative rounded-xl border border-white/35 bg-white/45 transition-all duration-200 focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary focus-within:bg-white/60 overflow-hidden">
                     <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-primary/60 flex items-center">
                       <Mail className="h-4 w-4" />
                     </span>
@@ -508,7 +508,7 @@ const Index = () => {
                       id="login-email"
                       name="email"
                       ref={emailInputRef}
-                      className="w-full pl-11 pr-4 py-3 bg-transparent text-sm text-slate-900 placeholder:text-slate-400/70 outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0"
+                      className="w-full rounded-xl pl-11 pr-4 py-3 bg-transparent text-sm text-slate-900 placeholder:text-slate-400/70 outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       placeholder="admin@school.edu"
@@ -539,13 +539,13 @@ const Index = () => {
                       Forgot?
                     </button>
                   </div>
-                  <div className="relative rounded-xl border border-white/35 bg-white/45 transition-all duration-200 focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary focus-within:bg-white/60">
+                  <div className="relative rounded-xl border border-white/35 bg-white/45 transition-all duration-200 focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary focus-within:bg-white/60 overflow-hidden">
                     <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-primary/60 flex items-center">
                       <Lock className="h-4 w-4" />
                     </span>
                     <input
                       id="login-password"
-                      className="w-full pl-11 pr-11 py-3 bg-transparent text-sm text-slate-900 placeholder:text-slate-400/70 outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0"
+                      className="w-full rounded-xl pl-11 pr-11 py-3 bg-transparent text-sm text-slate-900 placeholder:text-slate-400/70 outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       placeholder="••••••••"
@@ -613,12 +613,12 @@ const Index = () => {
                   <label className="block text-xs font-bold tracking-wider text-primary uppercase mb-2 ml-1">
                     Work Email
                   </label>
-                  <div className="relative rounded-xl border border-white/35 bg-white/45 transition-all duration-200 focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary focus-within:bg-white/60">
+                  <div className="relative rounded-xl border border-white/35 bg-white/45 transition-all duration-200 focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary focus-within:bg-white/60 overflow-hidden">
                     <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-primary/60 flex items-center">
                       <Mail className="h-4 w-4" />
                     </span>
                     <input
-                      className="w-full pl-11 pr-4 py-3 bg-transparent text-sm text-slate-900 placeholder:text-slate-400/70 outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0"
+                      className="w-full rounded-xl pl-11 pr-4 py-3 bg-transparent text-sm text-slate-900 placeholder:text-slate-400/70 outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       placeholder="admin@school.edu"

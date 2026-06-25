@@ -225,7 +225,7 @@ const TenantAuth = () => {
                       <label className="block text-xs font-bold tracking-wider text-primary uppercase mb-2 ml-1">
                         School
                       </label>
-                      <div className="relative rounded-xl border border-white/35 bg-white/45 px-4 py-3 text-sm text-slate-800 flex items-center justify-between gap-3 backdrop-blur-sm">
+                      <div className="relative rounded-xl border border-white/35 bg-white/45 px-4 py-3 text-sm text-slate-800 flex items-center justify-between gap-3 backdrop-blur-sm overflow-hidden">
                         <div className="flex items-center gap-2.5 min-w-0">
                           <Building2 className="h-4 w-4 text-primary shrink-0" />
                           <span className="font-semibold truncate">{schoolName}</span>
@@ -248,14 +248,14 @@ const TenantAuth = () => {
                     <label htmlFor="login-email" className="block text-xs font-bold tracking-wider text-primary uppercase mb-2 ml-1">
                       Work Email
                     </label>
-                    <div className="relative rounded-xl border border-white/35 bg-white/45 transition-all duration-200 focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary focus-within:bg-white/60">
+                    <div className="relative rounded-xl border border-white/35 bg-white/45 transition-all duration-200 focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary focus-within:bg-white/60 overflow-hidden">
                       <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-primary/60 flex items-center">
                         <Mail className="h-4 w-4" />
                       </span>
                       <input
                         id="login-email"
                         name="email"
-                        className="w-full pl-11 pr-4 py-3 bg-transparent text-sm text-slate-900 placeholder:text-slate-400/70 outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0"
+                        className="w-full rounded-xl pl-11 pr-4 py-3 bg-transparent text-sm text-slate-900 placeholder:text-slate-400/70 outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         placeholder="admin@school.edu"
@@ -284,13 +284,13 @@ const TenantAuth = () => {
                         Forgot?
                       </button>
                     </div>
-                    <div className="relative rounded-xl border border-white/35 bg-white/45 transition-all duration-200 focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary focus-within:bg-white/60">
+                    <div className="relative rounded-xl border border-white/35 bg-white/45 transition-all duration-200 focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary focus-within:bg-white/60 overflow-hidden">
                       <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-primary/60 flex items-center">
                         <Lock className="h-4 w-4" />
                       </span>
                       <input
                         id="login-password"
-                        className="w-full pl-11 pr-11 py-3 bg-transparent text-sm text-slate-900 placeholder:text-slate-400/70 outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0"
+                        className="w-full rounded-xl pl-11 pr-11 py-3 bg-transparent text-sm text-slate-900 placeholder:text-slate-400/70 outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         placeholder="••••••••"
@@ -361,12 +361,12 @@ const TenantAuth = () => {
                   <label className="block text-xs font-bold tracking-wider text-primary uppercase mb-2 ml-1">
                     Work Email
                   </label>
-                  <div className="relative rounded-xl border border-white/35 bg-white/45 transition-all duration-200 focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary focus-within:bg-white/60">
+                  <div className="relative rounded-xl border border-white/35 bg-white/45 transition-all duration-200 focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary focus-within:bg-white/60 overflow-hidden">
                     <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-primary/60 flex items-center">
                       <Mail className="h-4 w-4" />
                     </span>
                     <input
-                      className="w-full pl-11 pr-4 py-3 bg-transparent text-sm text-slate-900 placeholder:text-slate-400/70 outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0"
+                      className="w-full rounded-xl pl-11 pr-4 py-3 bg-transparent text-sm text-slate-900 placeholder:text-slate-400/70 outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       placeholder="admin@school.edu"
