@@ -430,7 +430,7 @@ const Index = () => {
           transition={{ duration: 0.55, delay: 0.06, ease: [0.2, 0.8, 0.2, 1] }}
           className="lg:col-span-5 lg:row-span-2 w-full max-w-md mx-auto"
         >
-          <div className="bg-white/80 border border-white/80 shadow-elevated rounded-3xl p-6 sm:p-8 backdrop-blur-xl relative overflow-hidden transition-all duration-300 hover:shadow-2xl">
+          <div className="bg-white/25 border border-white/40 shadow-elevated rounded-3xl p-6 sm:p-8 backdrop-blur-2xl relative overflow-hidden transition-all duration-300 hover:shadow-2xl hover:bg-white/30">
             {/* Corner decoration gradient */}
             <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl from-primary/10 to-transparent rounded-bl-full pointer-events-none" />
 
@@ -457,7 +457,7 @@ const Index = () => {
                   <label className="block text-xs font-bold tracking-wider text-primary uppercase mb-2 ml-1">
                     School Code
                   </label>
-                  <div className="relative rounded-xl border border-slate-200 bg-white/50 transition-all duration-200 focus-within:ring-4 focus-within:ring-primary/10 focus-within:border-primary focus-within:bg-white">
+                  <div className="relative rounded-xl border border-white/30 bg-white/15 transition-all duration-200 focus-within:ring-4 focus-within:ring-primary/15 focus-within:border-primary focus-within:bg-white/35">
                     <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-primary/60 flex items-center">
                       <Building2 className="h-4 w-4" />
                     </span>
@@ -472,7 +472,7 @@ const Index = () => {
                     />
                     {/* status badge */}
                     {safeSlug && (
-                      <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-50 border border-slate-200/80 text-[10px] font-bold text-slate-700 shrink-0 select-none">
+                      <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/20 border border-white/30 text-[10px] font-bold text-slate-700 shrink-0 select-none">
                         {tenant.status === "loading" ? (
                           <Loader2 className="h-3 w-3 animate-spin text-primary" />
                         ) : tenant.status === "ready" ? (
@@ -500,7 +500,7 @@ const Index = () => {
                   <label htmlFor="login-email" className="block text-xs font-bold tracking-wider text-primary uppercase mb-2 ml-1">
                     Work Email
                   </label>
-                  <div className="relative rounded-xl border border-slate-200 bg-white/50 transition-all duration-200 focus-within:ring-4 focus-within:ring-primary/10 focus-within:border-primary focus-within:bg-white">
+                  <div className="relative rounded-xl border border-white/30 bg-white/15 transition-all duration-200 focus-within:ring-4 focus-within:ring-primary/15 focus-within:border-primary focus-within:bg-white/35">
                     <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-primary/60 flex items-center">
                       <Mail className="h-4 w-4" />
                     </span>
@@ -539,7 +539,7 @@ const Index = () => {
                       Forgot?
                     </button>
                   </div>
-                  <div className="relative rounded-xl border border-slate-200 bg-white/50 transition-all duration-200 focus-within:ring-4 focus-within:ring-primary/10 focus-within:border-primary focus-within:bg-white">
+                  <div className="relative rounded-xl border border-white/30 bg-white/15 transition-all duration-200 focus-within:ring-4 focus-within:ring-primary/15 focus-within:border-primary focus-within:bg-white/35">
                     <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-primary/60 flex items-center">
                       <Lock className="h-4 w-4" />
                     </span>
@@ -563,7 +563,7 @@ const Index = () => {
                 </div>
 
                 {/* Notice */}
-                <div className="flex items-start gap-2.5 p-3.5 bg-slate-50/50 rounded-xl border border-slate-100 backdrop-blur-sm">
+                <div className="flex items-start gap-2.5 p-3.5 bg-white/10 rounded-xl border border-white/20 backdrop-blur-md">
                   <Info className="h-4 w-4 text-slate-500 shrink-0 mt-0.5" />
                   <p className="text-[11px] sm:text-xs text-slate-600 leading-normal">
                     Admin-created accounts only · No public signup
@@ -598,7 +598,7 @@ const Index = () => {
                 className="flex flex-col gap-5 relative z-10"
               >
                 <div className="text-center">
-                  <div className="inline-flex p-3 rounded-xl bg-primary/10 border border-primary/20 mb-3.5">
+                  <div className="inline-flex p-3 rounded-xl bg-primary/15 border border-primary/30 mb-3.5">
                     <Key className="h-6 w-6 text-primary" />
                   </div>
                   <h3 className="font-sans text-xl font-bold text-slate-900">
@@ -613,7 +613,7 @@ const Index = () => {
                   <label className="block text-xs font-bold tracking-wider text-primary uppercase mb-2 ml-1">
                     Work Email
                   </label>
-                  <div className="relative rounded-xl border border-slate-200 bg-white/50 transition-all duration-200 focus-within:ring-4 focus-within:ring-primary/10 focus-within:border-primary focus-within:bg-white">
+                  <div className="relative rounded-xl border border-white/30 bg-white/15 transition-all duration-200 focus-within:ring-4 focus-within:ring-primary/15 focus-within:border-primary focus-within:bg-white/35">
                     <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-primary/60 flex items-center">
                       <Mail className="h-4 w-4" />
                     </span>
@@ -686,7 +686,7 @@ const Index = () => {
                         <InputOTPSlot
                           key={i}
                           index={i}
-                          className="w-12 h-12 text-lg rounded-xl border-2 border-slate-200 focus:border-primary focus:ring-2 focus:ring-primary/20 bg-white"
+                          className="w-12 h-12 text-lg rounded-xl border border-white/30 focus:border-primary focus:ring-4 focus:ring-primary/10 bg-white/20 text-slate-900 font-semibold backdrop-blur-sm"
                         />
                       ))}
                     </InputOTPGroup>
@@ -741,12 +741,12 @@ const Index = () => {
               <motion.div
                 initial={{ opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
-                className={`mt-4 p-3.5 rounded-xl text-xs sm:text-sm border relative z-10 leading-relaxed ${
+                className={`mt-4 p-3.5 rounded-xl text-xs sm:text-sm border relative z-10 backdrop-blur-md leading-relaxed ${
                   message.tone === "success" 
-                    ? "bg-emerald-50/50 border-emerald-200 text-emerald-800" 
+                    ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-800" 
                     : message.tone === "error" 
-                    ? "bg-red-50/50 border-red-200 text-red-800"
-                    : "bg-primary/5 border-primary/10 text-primary"
+                    ? "bg-red-500/10 border-red-500/20 text-red-800"
+                    : "bg-primary/10 border-primary/20 text-primary"
                 }`}
               >
                 <div className="flex items-start gap-2">

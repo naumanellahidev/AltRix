@@ -198,7 +198,7 @@ const TenantAuth = () => {
           transition={{ duration: 0.55, delay: 0.06, ease: [0.2, 0.8, 0.2, 1] }}
           className="lg:col-span-5 lg:row-span-2 w-full max-w-md mx-auto"
         >
-          <div className="bg-white/80 border border-white/80 shadow-elevated rounded-3xl p-6 sm:p-8 backdrop-blur-xl relative overflow-hidden transition-all duration-300 hover:shadow-2xl">
+          <div className="bg-white/25 border border-white/40 shadow-elevated rounded-3xl p-6 sm:p-8 backdrop-blur-2xl relative overflow-hidden transition-all duration-300 hover:shadow-2xl hover:bg-white/30">
             {/* Corner decoration gradient */}
             <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl from-primary/10 to-transparent rounded-bl-full pointer-events-none" />
 
@@ -225,12 +225,12 @@ const TenantAuth = () => {
                       <label className="block text-xs font-bold tracking-wider text-primary uppercase mb-2 ml-1">
                         School
                       </label>
-                      <div className="relative rounded-xl border border-slate-200 bg-white/50 px-4 py-3 text-sm text-slate-800 flex items-center justify-between gap-3 backdrop-blur-sm">
+                      <div className="relative rounded-xl border border-white/30 bg-white/15 px-4 py-3 text-sm text-slate-800 flex items-center justify-between gap-3 backdrop-blur-sm">
                         <div className="flex items-center gap-2.5 min-w-0">
                           <Building2 className="h-4 w-4 text-primary shrink-0" />
                           <span className="font-semibold truncate">{schoolName}</span>
                         </div>
-                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 font-bold shrink-0">
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 font-bold shrink-0">
                           Verified
                         </span>
                       </div>
@@ -248,7 +248,7 @@ const TenantAuth = () => {
                     <label htmlFor="login-email" className="block text-xs font-bold tracking-wider text-primary uppercase mb-2 ml-1">
                       Work Email
                     </label>
-                    <div className="relative rounded-xl border border-slate-200 bg-white/50 transition-all duration-200 focus-within:ring-4 focus-within:ring-primary/10 focus-within:border-primary focus-within:bg-white">
+                    <div className="relative rounded-xl border border-white/30 bg-white/15 transition-all duration-200 focus-within:ring-4 focus-within:ring-primary/15 focus-within:border-primary focus-within:bg-white/35">
                       <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-primary/60 flex items-center">
                         <Mail className="h-4 w-4" />
                       </span>
@@ -284,7 +284,7 @@ const TenantAuth = () => {
                         Forgot?
                       </button>
                     </div>
-                    <div className="relative rounded-xl border border-slate-200 bg-white/50 transition-all duration-200 focus-within:ring-4 focus-within:ring-primary/10 focus-within:border-primary focus-within:bg-white">
+                    <div className="relative rounded-xl border border-white/30 bg-white/15 transition-all duration-200 focus-within:ring-4 focus-within:ring-primary/15 focus-within:border-primary focus-within:bg-white/35">
                       <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-primary/60 flex items-center">
                         <Lock className="h-4 w-4" />
                       </span>
@@ -310,7 +310,7 @@ const TenantAuth = () => {
                   </div>
 
                   {/* Info Badge */}
-                  <div className="flex items-start gap-2.5 p-3.5 bg-slate-50/50 rounded-xl border border-slate-100 backdrop-blur-sm">
+                  <div className="flex items-start gap-2.5 p-3.5 bg-white/10 rounded-xl border border-white/20 backdrop-blur-md">
                     <Info className="h-4 w-4 text-slate-500 shrink-0 mt-0.5" />
                     <p className="text-[11px] sm:text-xs text-slate-600 leading-normal">
                       Admin-created accounts only · No public signup
@@ -332,7 +332,7 @@ const TenantAuth = () => {
 
                   {/* Super admin quick-access */}
                   {perms.isPlatformSuperAdmin && tenant.status === "ready" && (
-                    <div className="mt-2 p-3.5 rounded-xl bg-primary/5 border border-primary/10 flex items-center justify-between gap-3 backdrop-blur-sm">
+                    <div className="mt-2 p-3.5 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-between gap-3 backdrop-blur-md">
                       <div>
                         <p className="text-xs font-semibold text-primary">Platform Super Admin</p>
                         <p className="text-[10px] text-slate-500 mt-0.5">Quick access to bootstrap tools.</p>
@@ -346,7 +346,7 @@ const TenantAuth = () => {
               /* ── RESET PASSWORD ── */
               <div className="flex flex-col gap-6 relative z-10">
                 <div className="text-center">
-                  <div className="inline-flex p-3 rounded-xl bg-primary/10 border border-primary/20 mb-3.5">
+                  <div className="inline-flex p-3 rounded-xl bg-primary/15 border border-primary/30 mb-3.5">
                     <Key className="h-6 w-6 text-primary" />
                   </div>
                   <h3 className="font-sans text-xl font-bold text-slate-900">
@@ -361,7 +361,7 @@ const TenantAuth = () => {
                   <label className="block text-xs font-bold tracking-wider text-primary uppercase mb-2 ml-1">
                     Work Email
                   </label>
-                  <div className="relative rounded-xl border border-slate-200 bg-white/50 transition-all duration-200 focus-within:ring-4 focus-within:ring-primary/10 focus-within:border-primary focus-within:bg-white">
+                  <div className="relative rounded-xl border border-white/30 bg-white/15 transition-all duration-200 focus-within:ring-4 focus-within:ring-primary/15 focus-within:border-primary focus-within:bg-white/35">
                     <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-primary/60 flex items-center">
                       <Mail className="h-4 w-4" />
                     </span>
@@ -406,10 +406,10 @@ const TenantAuth = () => {
               <motion.div
                 initial={{ opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
-                className={`mt-4 p-3.5 rounded-xl text-xs sm:text-sm border relative z-10 leading-relaxed ${
+                className={`mt-4 p-3.5 rounded-xl text-xs sm:text-sm border relative z-10 backdrop-blur-md leading-relaxed ${
                   messageType === "success" 
-                    ? "bg-emerald-50/50 border-emerald-200 text-emerald-800" 
-                    : "bg-red-50/50 border-red-200 text-red-800"
+                    ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-800" 
+                    : "bg-red-500/10 border-red-500/20 text-red-800"
                 }`}
               >
                 {message}
@@ -417,7 +417,7 @@ const TenantAuth = () => {
             )}
 
             {tenant.status === "error" && (
-              <div className="mt-4 p-3.5 rounded-xl text-xs sm:text-sm bg-red-50/50 border border-red-200 text-red-800 leading-relaxed">
+              <div className="mt-4 p-3.5 rounded-xl text-xs sm:text-sm bg-red-500/10 border border-red-500/20 text-red-800 backdrop-blur-md leading-relaxed">
                 {tenant.error}
               </div>
             )}
