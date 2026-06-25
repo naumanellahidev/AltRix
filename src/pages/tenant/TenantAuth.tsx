@@ -183,7 +183,7 @@ const TenantAuth = () => {
           transition={{ duration: 0.6, ease: [0.2, 0.8, 0.2, 1] }}
           className="lg:col-span-7 flex flex-col gap-4 min-w-0"
         >
-          <h2 className="font-sans text-3xl sm:text-4xl font-extrabold tracking-tight text-slate-900 leading-tight bg-gradient-to-r from-primary to-primary/80 bg-clip-text text-transparent">
+          <h2 className="font-display text-3xl sm:text-4xl font-extrabold tracking-tight text-slate-900 leading-snug pb-1 bg-gradient-to-r from-primary to-primary/80 bg-clip-text text-transparent">
             Empowering education through intelligent operations
           </h2>
           <p className="text-base text-slate-600 leading-relaxed max-w-xl">

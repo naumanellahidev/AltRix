@@ -55,8 +55,8 @@ All colors MUST be HSL.
     --info-foreground: 0 0% 100%;
 
     /* Typography */
-    --font-display: ui-sans-serif;
-    --font-sans: ui-sans-serif;
+    --font-display: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
+    --font-sans: 'Hanken Grotesk', ui-sans-serif, system-ui, sans-serif;
 
     /* Signature visuals */
     --gradient-brand: radial-gradient(1100px circle at 10% 10%, hsl(210 100% 50% / 0.22), transparent 55%),
