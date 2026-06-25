@@ -1,5 +1,4 @@
 import React, { useState } from "react";
-import { useUser } from "@supabase/auth-helpers-react";
 import { useSession } from "@/hooks/useSession";
 import { supabase } from "@/integrations/supabase/client";
 import { apiClient } from "@/lib/api-client";
@@ -28,7 +27,6 @@ import {
   Sparkles,
   BookOpen,
   Presentation,
-  FileText,
   ListTodo,
   HelpCircle,
   Table,
@@ -40,7 +38,7 @@ import {
   Plus,
   Trash2,
   FileDown,
-  ChevronDown,
+  UserPlus,
 } from "lucide-react";
 import { toast } from "sonner";
 import jsPDF from "jspdf";
@@ -115,6 +113,7 @@ export function CurriculumPlannerAI({
   const [aiData, setAiData] = useState<any>(null);
   const [activeTab, setActiveTab] = useState("plan");
   const [isEditing, setIsEditing] = useState(false);
+  const [assigningQuiz, setAssigningQuiz] = useState(false);
 
   // Form states
   const [topic, setTopic] = useState("");
@@ -256,6 +255,42 @@ export function CurriculumPlannerAI({
     }
   };
 
+  const handleAssignQuiz = async () => {
+    if (!aiData?.quiz || !sectionId) return;
+
+    setAssigningQuiz(true);
+    try {
+      const quizMarkdown = aiData.quiz
+        .map((q: any) => {
+          const optionsList = (q.options || [])
+            .map((opt: string, k: number) => `   ${String.fromCharCode(65 + k)}. ${opt}`)
+            .join("\n");
+          return `**Q${q.questionNumber}: ${q.question}**\n${optionsList}\n\n*Correct Answer: ${q.correctAnswer}*\n*Explanation: ${q.explanation}*\n`;
+        })
+        .join("\n---\n\n");
+
+      const payload = {
+        class_section_id: sectionId,
+        title: `Quiz: ${aiData.lessonPlan?.title || topic}`,
+        description: `Please complete the following quiz questions generated for our topic:\n\n${quizMarkdown}`,
+        due_date: planDate,
+        max_marks: 5.0,
+      };
+
+      const response = await apiClient.post("/assignments", payload);
+      if (response.status === 200 || response.status === 201) {
+        toast.success("Quiz successfully assigned as a class assignment!");
+      } else {
+        throw new Error("Failed to assign quiz");
+      }
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err.message || "Failed to assign quiz to class");
+    } finally {
+      setAssigningQuiz(false);
+    }
+  };
+
   const handleExportPDF = () => {
     if (!aiData) return;
 
@@ -360,20 +395,21 @@ export function CurriculumPlannerAI({
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="max-w-[96vw] w-[95%] lg:w-[90vw] max-h-[92vh] h-[90vh] bg-slate-900/95 backdrop-blur-xl border-slate-800 text-white overflow-hidden p-0 rounded-2xl flex flex-col shadow-[0_20px_50px_rgba(0,0,0,0.5)]">
-        <DialogHeader className="p-6 pb-4 border-b border-slate-800 flex flex-row items-center justify-between">
-          <DialogTitle className="flex items-center gap-2 text-2xl font-bold bg-gradient-to-r from-blue-400 via-indigo-300 to-purple-400 bg-clip-text text-transparent">
-            <Sparkles className="h-6 w-6 text-blue-400 animate-pulse" />
+      <DialogContent className="max-w-[96vw] w-[95%] lg:w-[90vw] max-h-[92vh] h-[90vh] bg-slate-50 border-slate-200 text-slate-900 overflow-hidden p-0 rounded-2xl flex flex-col shadow-[0_20px_50px_rgba(15,23,42,0.15)]">
+        {/* Header - Light white & blue theme */}
+        <DialogHeader className="p-6 pb-4 border-b border-slate-200 bg-white flex flex-row items-center justify-between">
+          <DialogTitle className="flex items-center gap-2 text-2xl font-bold bg-gradient-to-r from-blue-700 via-indigo-600 to-blue-800 bg-clip-text text-transparent">
+            <Sparkles className="h-6 w-6 text-blue-600 animate-pulse" />
             AI Lesson Plan & Slide-Script Generator
           </DialogTitle>
         </DialogHeader>
 
         <div className="flex-1 overflow-hidden grid grid-cols-1 lg:grid-cols-12">
-          {/* LEFT: Config Panel */}
-          <div className="lg:col-span-4 border-r border-slate-800 p-6 overflow-y-auto space-y-5 bg-slate-950/40">
+          {/* LEFT: Config Panel (Soft light blue-gray) */}
+          <div className="lg:col-span-4 border-r border-slate-200 p-6 overflow-y-auto space-y-5 bg-slate-100/40">
             <form onSubmit={handleGenerate} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="topic" className="text-slate-300 font-medium">
+                <Label htmlFor="topic" className="text-slate-700 font-semibold">
                   Lesson Topic / Chapter <span className="text-rose-500">*</span>
                 </Label>
                 <Input
@@ -381,20 +417,20 @@ export function CurriculumPlannerAI({
                   placeholder="e.g., Photosynthesis & Plant Cells"
                   value={topic}
                   onChange={(e) => setTopic(e.target.value)}
-                  className="bg-slate-900 border-slate-800 text-white placeholder-slate-500 focus:border-blue-500/50 focus:ring-blue-500/20"
+                  className="bg-white border-slate-200 text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:ring-blue-200"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-2">
-                  <Label htmlFor="section" className="text-slate-300 font-medium">
+                  <Label htmlFor="section" className="text-slate-700 font-semibold">
                     Class Section <span className="text-rose-500">*</span>
                   </Label>
                   <Select value={sectionId} onValueChange={setSectionId}>
-                    <SelectTrigger className="bg-slate-900 border-slate-800 text-white">
+                    <SelectTrigger className="bg-white border-slate-200 text-slate-900">
                       <SelectValue placeholder="Select class" />
                     </SelectTrigger>
-                    <SelectContent className="bg-slate-900 border-slate-800 text-white">
+                    <SelectContent className="bg-white border-slate-200 text-slate-900">
                       {sections.map((sec) => (
                         <SelectItem key={sec.id} value={sec.id}>
                           {sec.class_name} - {sec.name}
@@ -405,14 +441,14 @@ export function CurriculumPlannerAI({
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="subject" className="text-slate-300 font-medium">
+                  <Label htmlFor="subject" className="text-slate-700 font-semibold">
                     Subject
                   </Label>
                   <Select value={subjectId} onValueChange={setSubjectId}>
-                    <SelectTrigger className="bg-slate-900 border-slate-800 text-white">
+                    <SelectTrigger className="bg-white border-slate-200 text-slate-900">
                       <SelectValue placeholder="Select subject" />
                     </SelectTrigger>
-                    <SelectContent className="bg-slate-900 border-slate-800 text-white">
+                    <SelectContent className="bg-white border-slate-200 text-slate-900">
                       {subjects.map((sub) => (
                         <SelectItem key={sub.id} value={sub.id}>
                           {sub.name}
@@ -425,12 +461,12 @@ export function CurriculumPlannerAI({
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-2">
-                  <Label className="text-slate-300 font-medium">Grade Level</Label>
+                  <Label className="text-slate-700 font-semibold">Grade Level</Label>
                   <Select value={gradeLevel} onValueChange={setGradeLevel}>
-                    <SelectTrigger className="bg-slate-900 border-slate-800 text-white">
+                    <SelectTrigger className="bg-white border-slate-200 text-slate-900">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent className="bg-slate-900 border-slate-800 text-white">
+                    <SelectContent className="bg-white border-slate-200 text-slate-900">
                       {GRADES.map((g) => (
                         <SelectItem key={g} value={g}>
                           {g}
@@ -441,25 +477,25 @@ export function CurriculumPlannerAI({
                 </div>
 
                 <div className="space-y-2">
-                  <Label className="text-slate-300 font-medium">Duration (mins)</Label>
+                  <Label className="text-slate-700 font-semibold">Duration (mins)</Label>
                   <Input
                     type="number"
                     min={15}
                     max={120}
                     value={durationMinutes}
                     onChange={(e) => setDurationMinutes(parseInt(e.target.value) || 45)}
-                    className="bg-slate-900 border-slate-800 text-white"
+                    className="bg-white border-slate-200 text-slate-900"
                   />
                 </div>
               </div>
 
               <div className="space-y-2">
-                <Label className="text-slate-300 font-medium">Curriculum Framework</Label>
+                <Label className="text-slate-700 font-semibold">Curriculum Framework</Label>
                 <Select value={curriculumType} onValueChange={setCurriculumType}>
-                  <SelectTrigger className="bg-slate-900 border-slate-800 text-white">
+                  <SelectTrigger className="bg-white border-slate-200 text-slate-900">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent className="bg-slate-900 border-slate-800 text-white">
+                  <SelectContent className="bg-white border-slate-200 text-slate-900">
                     {CURRICULUMS.map((c) => (
                       <SelectItem key={c} value={c}>
                         {c}
@@ -470,7 +506,7 @@ export function CurriculumPlannerAI({
               </div>
 
               <div className="space-y-2">
-                <Label className="text-slate-300 font-medium block">
+                <Label className="text-slate-700 font-semibold block">
                   Bloom's Taxonomy Focus
                 </Label>
                 <div className="flex flex-wrap gap-2 pt-1">
@@ -483,8 +519,8 @@ export function CurriculumPlannerAI({
                         onClick={() => toggleBlooms(level)}
                         className={`text-xs px-2.5 py-1.5 rounded-full border transition-all duration-200 ${
                           active
-                            ? "bg-blue-600/30 border-blue-500 text-blue-300 shadow-[0_0_12px_rgba(59,130,246,0.3)]"
-                            : "bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700"
+                            ? "bg-blue-600 border-blue-500 text-white shadow-[0_2px_8px_rgba(59,130,246,0.25)]"
+                            : "bg-white border-slate-200 text-slate-600 hover:border-slate-300"
                         }`}
                       >
                         {level}
@@ -495,7 +531,7 @@ export function CurriculumPlannerAI({
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="context" className="text-slate-300 font-medium">
+                <Label htmlFor="context" className="text-slate-700 font-semibold">
                   Additional Pedagogy Context (Optional)
                 </Label>
                 <Textarea
@@ -503,27 +539,27 @@ export function CurriculumPlannerAI({
                   placeholder="e.g., Focus more on lab experiments, or include review of cell division since students struggled with it last time."
                   value={additionalContext}
                   onChange={(e) => setAdditionalContext(e.target.value)}
-                  className="bg-slate-900 border-slate-800 text-white placeholder-slate-600 min-h-[80px]"
+                  className="bg-white border-slate-200 text-slate-900 placeholder-slate-400 min-h-[80px]"
                 />
               </div>
 
-              <div className="border-t border-slate-800/80 pt-4 grid grid-cols-2 gap-3">
+              <div className="border-t border-slate-200/80 pt-4 grid grid-cols-2 gap-3">
                 <div className="space-y-2">
-                  <Label className="text-slate-300 font-medium">Plan Date</Label>
+                  <Label className="text-slate-700 font-semibold">Plan Date</Label>
                   <Input
                     type="date"
                     value={planDate}
                     onChange={(e) => setPlanDate(e.target.value)}
-                    className="bg-slate-900 border-slate-800 text-white"
+                    className="bg-white border-slate-200 text-slate-900"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-slate-300 font-medium">Period / Slot</Label>
+                  <Label className="text-slate-700 font-semibold">Period / Slot</Label>
                   <Input
                     type="text"
                     value={periodLabel}
                     onChange={(e) => setPeriodLabel(e.target.value)}
-                    className="bg-slate-900 border-slate-800 text-white"
+                    className="bg-white border-slate-200 text-slate-900"
                   />
                 </div>
               </div>
@@ -531,7 +567,7 @@ export function CurriculumPlannerAI({
               <Button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white py-5 rounded-xl font-bold flex items-center justify-center gap-2 shadow-[0_4px_20px_rgba(59,130,246,0.3)] transition-all duration-300 mt-2"
+                className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white py-5 rounded-xl font-bold flex items-center justify-center gap-2 shadow-[0_4px_12px_rgba(59,130,246,0.2)] transition-all duration-300 mt-2 border-none"
               >
                 {loading ? (
                   <>
@@ -549,26 +585,26 @@ export function CurriculumPlannerAI({
           </div>
 
           {/* RIGHT: Output Panel */}
-          <div className="lg:col-span-8 overflow-hidden flex flex-col h-full bg-slate-950/20">
+          <div className="lg:col-span-8 overflow-hidden flex flex-col h-full bg-white">
             {loading ? (
               // Loading State Screen
               <div className="flex-1 flex flex-col items-center justify-center p-8 space-y-6">
                 <div className="relative">
-                  <div className="h-16 w-16 rounded-full border-4 border-blue-500/20 border-t-blue-500 animate-spin" />
-                  <Sparkles className="h-6 w-6 text-blue-400 absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 animate-pulse" />
+                  <div className="h-16 w-16 rounded-full border-4 border-blue-500/10 border-t-blue-600 animate-spin" />
+                  <Sparkles className="h-6 w-6 text-blue-600 absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 animate-pulse" />
                 </div>
                 <div className="space-y-2 text-center max-w-md">
-                  <h3 className="text-xl font-bold text-slate-100">
+                  <h3 className="text-xl font-bold text-slate-800">
                     AltRix Pedagogy Engine Active
                   </h3>
-                  <p className="text-sm text-slate-400 animate-pulse transition-all">
+                  <p className="text-sm text-slate-500 animate-pulse transition-all">
                     {LOADING_PHASES[loadingPhase].label}
                   </p>
                 </div>
                 <div className="w-64">
                   <Progress
                     value={LOADING_PHASES[loadingPhase].progress}
-                    className="h-2 bg-slate-800"
+                    className="h-2 bg-slate-100 [&>div]:bg-blue-600"
                   />
                 </div>
               </div>
@@ -576,9 +612,9 @@ export function CurriculumPlannerAI({
               // Loaded Content Panel
               <div className="flex-1 flex flex-col overflow-hidden">
                 {/* Header Action Bar */}
-                <div className="p-4 bg-slate-900/60 border-b border-slate-800 flex items-center justify-between">
+                <div className="p-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/30 font-medium">
+                    <Badge className="bg-blue-50 text-blue-700 border-blue-200/60 font-semibold">
                       Generative Framework Ready
                     </Badge>
                   </div>
@@ -586,8 +622,8 @@ export function CurriculumPlannerAI({
                     <Button
                       onClick={() => setIsEditing(!isEditing)}
                       variant="outline"
-                      className={`border-slate-800 hover:bg-slate-800 text-slate-300 text-xs flex items-center gap-1.5 transition-all ${
-                        isEditing ? "bg-blue-600/25 border-blue-500 text-blue-300" : "bg-slate-900"
+                      className={`border-slate-200 hover:bg-slate-100 text-slate-700 text-xs flex items-center gap-1.5 transition-all ${
+                        isEditing ? "bg-blue-50 border-blue-300 text-blue-700" : "bg-white"
                       }`}
                     >
                       <Edit3 className="h-4 w-4" />
@@ -596,14 +632,14 @@ export function CurriculumPlannerAI({
                     <Button
                       onClick={handleExportPDF}
                       variant="outline"
-                      className="bg-slate-900 border-slate-800 hover:bg-slate-800 text-slate-300 text-xs flex items-center gap-1.5"
+                      className="bg-white border-slate-200 hover:bg-slate-100 text-slate-700 text-xs flex items-center gap-1.5"
                     >
                       <FileDown className="h-4 w-4" />
                       Download PDF
                     </Button>
                     <Button
                       onClick={handleSaveToPlanner}
-                      className="bg-blue-600 hover:bg-blue-500 text-white text-xs flex items-center gap-1.5 font-semibold"
+                      className="bg-blue-600 hover:bg-blue-500 text-white text-xs flex items-center gap-1.5 font-semibold border-none"
                     >
                       <Save className="h-4 w-4" />
                       Save to Planner
@@ -613,62 +649,62 @@ export function CurriculumPlannerAI({
 
                 {/* Tabs Selector */}
                 <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col overflow-hidden">
-                  <TabsList className="bg-slate-900 border-b border-slate-800 justify-start h-12 p-0 rounded-none w-full flex overflow-x-auto scrollbar-none">
+                  <TabsList className="bg-slate-50 border-b border-slate-200 justify-start h-12 p-0 rounded-none w-full flex overflow-x-auto scrollbar-none">
                     <TabsTrigger
                       value="plan"
-                      className="rounded-none border-b-2 border-transparent data-[state=active]:border-blue-500 data-[state=active]:bg-slate-900/60 text-slate-400 data-[state=active]:text-white h-full px-5 gap-2 text-sm font-medium"
+                      className="rounded-none border-b-2 border-transparent data-[state=active]:border-blue-600 data-[state=active]:bg-white text-slate-500 data-[state=active]:text-blue-700 h-full px-5 gap-2 text-sm font-semibold"
                     >
                       <BookOpen className="h-4 w-4" />
                       Lesson Plan
                     </TabsTrigger>
                     <TabsTrigger
                       value="slides"
-                      className="rounded-none border-b-2 border-transparent data-[state=active]:border-blue-500 data-[state=active]:bg-slate-900/60 text-slate-400 data-[state=active]:text-white h-full px-5 gap-2 text-sm font-medium"
+                      className="rounded-none border-b-2 border-transparent data-[state=active]:border-blue-600 data-[state=active]:bg-white text-slate-500 data-[state=active]:text-blue-700 h-full px-5 gap-2 text-sm font-semibold"
                     >
                       <Presentation className="h-4 w-4" />
                       Slide Scripts
                     </TabsTrigger>
                     <TabsTrigger
                       value="activities"
-                      className="rounded-none border-b-2 border-transparent data-[state=active]:border-blue-500 data-[state=active]:bg-slate-900/60 text-slate-400 data-[state=active]:text-white h-full px-5 gap-2 text-sm font-medium"
+                      className="rounded-none border-b-2 border-transparent data-[state=active]:border-blue-600 data-[state=active]:bg-white text-slate-500 data-[state=active]:text-blue-700 h-full px-5 gap-2 text-sm font-semibold"
                     >
                       <ListTodo className="h-4 w-4" />
                       Activities
                     </TabsTrigger>
                     <TabsTrigger
                       value="quiz"
-                      className="rounded-none border-b-2 border-transparent data-[state=active]:border-blue-500 data-[state=active]:bg-slate-900/60 text-slate-400 data-[state=active]:text-white h-full px-5 gap-2 text-sm font-medium"
+                      className="rounded-none border-b-2 border-transparent data-[state=active]:border-blue-600 data-[state=active]:bg-white text-slate-500 data-[state=active]:text-blue-700 h-full px-5 gap-2 text-sm font-semibold"
                     >
                       <HelpCircle className="h-4 w-4" />
                       Quiz questions
                     </TabsTrigger>
                     <TabsTrigger
                       value="rubric"
-                      className="rounded-none border-b-2 border-transparent data-[state=active]:border-blue-500 data-[state=active]:bg-slate-900/60 text-slate-400 data-[state=active]:text-white h-full px-5 gap-2 text-sm font-medium"
+                      className="rounded-none border-b-2 border-transparent data-[state=active]:border-blue-600 data-[state=active]:bg-white text-slate-500 data-[state=active]:text-blue-700 h-full px-5 gap-2 text-sm font-semibold"
                     >
                       <Table className="h-4 w-4" />
                       Rubric
                     </TabsTrigger>
                   </TabsList>
 
-                  <ScrollArea className="flex-1 p-6">
+                  <ScrollArea className="flex-1 p-6 bg-slate-50/30">
                     {/* TAB 1: Lesson Plan */}
                     <TabsContent value="plan" className="space-y-6 mt-0">
-                      <div className="bg-slate-900/40 border border-slate-800/80 p-5 rounded-2xl space-y-4">
+                      <div className="bg-white border border-slate-200 p-5 rounded-2xl space-y-4 shadow-sm">
                         <div className="flex items-start justify-between">
                           <div className="w-full">
                             {isEditing ? (
                               <div className="space-y-1">
-                                <Label className="text-xs text-slate-400">Lesson Title</Label>
+                                <Label className="text-xs text-slate-500 font-bold">Lesson Title</Label>
                                 <Input
                                   value={aiData.lessonPlan?.title || ""}
                                   onChange={(e) => updateAiField(["lessonPlan", "title"], e.target.value)}
-                                  className="bg-slate-950 border-slate-800 text-white w-full font-bold text-lg"
+                                  className="bg-white border-slate-200 text-slate-900 w-full font-bold text-lg focus:border-blue-500 focus:ring-blue-200"
                                 />
                               </div>
                             ) : (
                               <>
-                                <h2 className="text-xl font-bold text-slate-100">
+                                <h2 className="text-xl font-bold text-slate-800">
                                   {aiData.lessonPlan?.title}
                                 </h2>
                                 <p className="text-xs text-slate-400 mt-1">
@@ -679,9 +715,9 @@ export function CurriculumPlannerAI({
                           </div>
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-slate-800/80 pt-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-slate-100 pt-4">
                           <div className="space-y-2">
-                            <h4 className="text-xs font-bold uppercase tracking-wider text-blue-400">
+                            <h4 className="text-xs font-bold uppercase tracking-wider text-blue-600">
                               Learning Objectives
                             </h4>
                             {isEditing ? (
@@ -695,13 +731,13 @@ export function CurriculumPlannerAI({
                                         newObjectives[i] = e.target.value;
                                         updateAiField(["lessonPlan", "learningObjectives"], newObjectives);
                                       }}
-                                      className="bg-slate-950 border-slate-800 text-white text-sm"
+                                      className="bg-white border-slate-200 text-slate-900 text-sm"
                                     />
                                     <Button
                                       type="button"
                                       variant="ghost"
                                       size="icon"
-                                      className="text-rose-500 hover:text-rose-400"
+                                      className="text-rose-500 hover:text-rose-600"
                                       onClick={() => {
                                         const newObjectives = aiData.lessonPlan.learningObjectives.filter((_: any, idx: number) => idx !== i);
                                         updateAiField(["lessonPlan", "learningObjectives"], newObjectives);
@@ -715,7 +751,7 @@ export function CurriculumPlannerAI({
                                   type="button"
                                   variant="outline"
                                   size="sm"
-                                  className="text-xs border-slate-800 text-slate-300 mt-1"
+                                  className="text-xs border-slate-200 text-slate-600 mt-1 hover:bg-slate-100"
                                   onClick={() => {
                                     const newObjectives = [...(aiData.lessonPlan?.learningObjectives || []), "New learning goal"];
                                     updateAiField(["lessonPlan", "learningObjectives"], newObjectives);
@@ -727,7 +763,7 @@ export function CurriculumPlannerAI({
                             ) : (
                               <ul className="space-y-1.5">
                                 {(aiData.lessonPlan?.learningObjectives || []).map((obj: string, i: number) => (
-                                  <li key={i} className="text-sm text-slate-300 flex items-start gap-2">
+                                  <li key={i} className="text-sm text-slate-600 flex items-start gap-2">
                                     <Check className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" />
                                     <span>{obj}</span>
                                   </li>
@@ -738,7 +774,7 @@ export function CurriculumPlannerAI({
 
                           <div className="space-y-3">
                             <div>
-                              <h4 className="text-xs font-bold uppercase tracking-wider text-blue-400">
+                              <h4 className="text-xs font-bold uppercase tracking-wider text-blue-600">
                                 Prior Knowledge prerequisites
                               </h4>
                               {isEditing ? (
@@ -746,16 +782,16 @@ export function CurriculumPlannerAI({
                                   value={(aiData.lessonPlan?.priorKnowledge || []).join(", ")}
                                   onChange={(e) => updateAiField(["lessonPlan", "priorKnowledge"], e.target.value.split(",").map(s => s.trim()))}
                                   placeholder="Separated by commas"
-                                  className="bg-slate-950 border-slate-800 text-white text-xs mt-1 min-h-[50px]"
+                                  className="bg-white border-slate-200 text-slate-900 text-xs mt-1 min-h-[50px]"
                                 />
                               ) : (
-                                <p className="text-sm text-slate-300 mt-1">
+                                <p className="text-sm text-slate-600 mt-1">
                                   {(aiData.lessonPlan?.priorKnowledge || []).join(", ") || "None specified"}
                                 </p>
                               )}
                             </div>
                             <div>
-                              <h4 className="text-xs font-bold uppercase tracking-wider text-blue-400">
+                              <h4 className="text-xs font-bold uppercase tracking-wider text-blue-600">
                                 Materials & Equipment Needed
                               </h4>
                               {isEditing ? (
@@ -763,12 +799,12 @@ export function CurriculumPlannerAI({
                                   value={(aiData.lessonPlan?.materialsNeeded || []).join(", ")}
                                   onChange={(e) => updateAiField(["lessonPlan", "materialsNeeded"], e.target.value.split(",").map(s => s.trim()))}
                                   placeholder="Separated by commas"
-                                  className="bg-slate-950 border-slate-800 text-white text-xs mt-1 min-h-[50px]"
+                                  className="bg-white border-slate-200 text-slate-900 text-xs mt-1 min-h-[50px]"
                                 />
                               ) : (
                                 <div className="flex flex-wrap gap-1.5 mt-1.5">
                                   {(aiData.lessonPlan?.materialsNeeded || []).map((mat: string, i: number) => (
-                                    <Badge key={i} variant="outline" className="bg-slate-900/60 border-slate-800 text-slate-300 font-normal">
+                                    <Badge key={i} variant="outline" className="bg-blue-50/50 border-blue-100 text-blue-700 font-semibold">
                                       {mat}
                                     </Badge>
                                   ))}
@@ -781,17 +817,17 @@ export function CurriculumPlannerAI({
 
                       {/* Schedule Timeline */}
                       <div className="space-y-4">
-                        <h3 className="text-lg font-bold text-slate-200">
+                        <h3 className="text-lg font-bold text-slate-800">
                           Minute-by-Minute Classroom Roadmap
                         </h3>
-                        <div className="relative border-l border-slate-800 pl-6 ml-3 space-y-6">
+                        <div className="relative border-l-2 border-blue-100 pl-6 ml-3 space-y-6">
                           {(aiData.lessonPlan?.schedule || []).map((item: any, i: number) => (
                             <div key={i} className="relative">
                               {/* Dot marker */}
-                              <div className="absolute -left-[31px] top-1.5 h-4.5 w-4.5 rounded-full border border-blue-500 bg-slate-900 flex items-center justify-center shadow-[0_0_8px_rgba(59,130,246,0.5)]">
-                                <div className="h-2 w-2 rounded-full bg-blue-400" />
+                              <div className="absolute -left-[32px] top-1.5 h-4.5 w-4.5 rounded-full border-2 border-blue-500 bg-white flex items-center justify-center shadow-[0_0_8px_rgba(59,130,246,0.15)]">
+                                <div className="h-2 w-2 rounded-full bg-blue-500 animate-pulse" />
                               </div>
-                              <div className="bg-slate-900/30 border border-slate-800/80 p-4.5 rounded-xl space-y-2">
+                              <div className="bg-white border border-slate-200 p-4.5 rounded-xl space-y-2 shadow-sm">
                                 {isEditing ? (
                                   <div className="space-y-3">
                                     <div className="grid grid-cols-2 gap-2">
@@ -804,7 +840,7 @@ export function CurriculumPlannerAI({
                                             newSchedule[i].timeRange = e.target.value;
                                             updateAiField(["lessonPlan", "schedule"], newSchedule);
                                           }}
-                                          className="bg-slate-950 border-slate-800 text-white text-xs"
+                                          className="bg-white border-slate-200 text-slate-900 text-xs focus:border-blue-500 focus:ring-blue-200"
                                         />
                                       </div>
                                       <div>
@@ -816,7 +852,7 @@ export function CurriculumPlannerAI({
                                             newSchedule[i].phase = e.target.value;
                                             updateAiField(["lessonPlan", "schedule"], newSchedule);
                                           }}
-                                          className="bg-slate-950 border-slate-800 text-white text-xs"
+                                          className="bg-white border-slate-200 text-slate-900 text-xs focus:border-blue-500 focus:ring-blue-200"
                                         />
                                       </div>
                                     </div>
@@ -829,7 +865,7 @@ export function CurriculumPlannerAI({
                                           newSchedule[i].activity = e.target.value;
                                           updateAiField(["lessonPlan", "schedule"], newSchedule);
                                         }}
-                                        className="bg-slate-950 border-slate-800 text-white text-xs"
+                                        className="bg-white border-slate-200 text-slate-900 text-xs focus:border-blue-500 focus:ring-blue-200"
                                       />
                                     </div>
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
@@ -842,7 +878,7 @@ export function CurriculumPlannerAI({
                                             newSchedule[i].teacherAction = e.target.value;
                                             updateAiField(["lessonPlan", "schedule"], newSchedule);
                                           }}
-                                          className="bg-slate-950 border-slate-800 text-white text-xs min-h-[60px]"
+                                          className="bg-white border-slate-200 text-slate-900 text-xs min-h-[60px] focus:border-blue-500 focus:ring-blue-200"
                                         />
                                       </div>
                                       <div>
@@ -854,7 +890,7 @@ export function CurriculumPlannerAI({
                                             newSchedule[i].studentAction = e.target.value;
                                             updateAiField(["lessonPlan", "schedule"], newSchedule);
                                           }}
-                                          className="bg-slate-950 border-slate-800 text-white text-xs min-h-[60px]"
+                                          className="bg-white border-slate-200 text-slate-900 text-xs min-h-[60px] focus:border-blue-500 focus:ring-blue-200"
                                         />
                                       </div>
                                     </div>
@@ -862,30 +898,30 @@ export function CurriculumPlannerAI({
                                 ) : (
                                   <>
                                     <div className="flex items-center gap-2">
-                                      <span className="text-xs font-bold bg-blue-600/20 text-blue-400 border border-blue-500/20 px-2 py-0.5 rounded font-mono">
+                                      <span className="text-xs font-bold bg-blue-50 text-blue-700 border border-blue-100 px-2 py-0.5 rounded font-mono">
                                         {item.timeRange}
                                       </span>
-                                      <span className="text-sm font-semibold text-slate-200">
+                                      <span className="text-sm font-semibold text-slate-800">
                                         {item.phase}
                                       </span>
                                     </div>
-                                    <p className="text-sm text-slate-300 font-medium">
+                                    <p className="text-sm text-slate-700 font-medium">
                                       {item.activity}
                                     </p>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2 border-t border-slate-800/50 mt-2 text-xs">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2 border-t border-slate-100 mt-2 text-xs">
                                       <div>
-                                        <span className="text-slate-500 font-bold uppercase tracking-wider block mb-0.5">
+                                        <span className="text-slate-400 font-bold uppercase tracking-wider block mb-0.5">
                                           Teacher Action:
                                         </span>
-                                        <p className="text-slate-400 leading-relaxed">
+                                        <p className="text-slate-600 leading-relaxed">
                                           {item.teacherAction}
                                         </p>
                                       </div>
                                       <div>
-                                        <span className="text-slate-500 font-bold uppercase tracking-wider block mb-0.5">
+                                        <span className="text-slate-400 font-bold uppercase tracking-wider block mb-0.5">
                                           Student Action:
                                         </span>
-                                        <p className="text-slate-400 leading-relaxed">
+                                        <p className="text-slate-600 leading-relaxed">
                                           {item.studentAction}
                                         </p>
                                       </div>
@@ -899,65 +935,65 @@ export function CurriculumPlannerAI({
                       </div>
 
                       {/* Homework & Differentiation */}
-                      <div className="bg-slate-900/40 border border-slate-800/80 p-5 rounded-2xl space-y-4">
-                        <h3 className="text-sm font-bold uppercase tracking-wider text-indigo-400">
+                      <div className="bg-white border border-slate-200 p-5 rounded-2xl space-y-4 shadow-sm">
+                        <h3 className="text-sm font-bold uppercase tracking-wider text-blue-600">
                           Homework & Pedagogy Differentiation
                         </h3>
                         
                         <div className="space-y-2">
-                          <Label className="text-xs text-slate-400 font-bold">Homework Suggestion</Label>
+                          <Label className="text-xs text-slate-500 font-bold">Homework Suggestion</Label>
                           {isEditing ? (
                             <Textarea
                               value={aiData.lessonPlan?.homeworkSuggestion || ""}
                               onChange={(e) => updateAiField(["lessonPlan", "homeworkSuggestion"], e.target.value)}
-                              className="bg-slate-950 border-slate-800 text-white text-xs min-h-[60px]"
+                              className="bg-white border-slate-200 text-slate-900 text-xs min-h-[60px]"
                             />
                           ) : (
-                            <p className="text-sm text-slate-300">
+                            <p className="text-sm text-slate-700">
                               {aiData.lessonPlan?.homeworkSuggestion}
                             </p>
                           )}
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2 border-t border-slate-800/50">
-                          <div className="bg-slate-950/40 border border-slate-800 p-4 rounded-xl">
-                            <span className="text-xs font-semibold text-emerald-400">Advanced / High Achievers</span>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2 border-t border-slate-100">
+                          <div className="bg-emerald-50/50 border border-emerald-100 p-4 rounded-xl">
+                            <span className="text-xs font-semibold text-emerald-700">Advanced / High Achievers</span>
                             {isEditing ? (
                               <Textarea
                                 value={aiData.lessonPlan?.differentiationStrategies?.advanced || ""}
                                 onChange={(e) => updateAiField(["lessonPlan", "differentiationStrategies", "advanced"], e.target.value)}
-                                className="bg-slate-950 border-slate-800 text-white text-xs mt-2 min-h-[85px]"
+                                className="bg-white border-slate-200 text-slate-900 text-xs mt-2 min-h-[85px]"
                               />
                             ) : (
-                              <p className="text-xs text-slate-400 mt-2 leading-relaxed">
+                              <p className="text-xs text-slate-600 mt-2 leading-relaxed">
                                 {aiData.lessonPlan?.differentiationStrategies?.advanced}
                               </p>
                             )}
                           </div>
-                          <div className="bg-slate-950/40 border border-slate-800 p-4 rounded-xl">
-                            <span className="text-xs font-semibold text-amber-400">Support / Struggling Students</span>
+                          <div className="bg-amber-50/50 border border-amber-100 p-4 rounded-xl">
+                            <span className="text-xs font-semibold text-amber-700">Support / Struggling Students</span>
                             {isEditing ? (
                               <Textarea
                                 value={aiData.lessonPlan?.differentiationStrategies?.struggling || ""}
                                 onChange={(e) => updateAiField(["lessonPlan", "differentiationStrategies", "struggling"], e.target.value)}
-                                className="bg-slate-950 border-slate-800 text-white text-xs mt-2 min-h-[85px]"
+                                className="bg-white border-slate-200 text-slate-900 text-xs mt-2 min-h-[85px]"
                               />
                             ) : (
-                              <p className="text-xs text-slate-400 mt-2 leading-relaxed">
+                              <p className="text-xs text-slate-600 mt-2 leading-relaxed">
                                 {aiData.lessonPlan?.differentiationStrategies?.struggling}
                               </p>
                             )}
                           </div>
-                          <div className="bg-slate-950/40 border border-slate-800 p-4 rounded-xl">
-                            <span className="text-xs font-semibold text-blue-400">Language (ELL) Scaffolding</span>
+                          <div className="bg-blue-50/50 border border-blue-100 p-4 rounded-xl">
+                            <span className="text-xs font-semibold text-blue-700">Language (ELL) Scaffolding</span>
                             {isEditing ? (
                               <Textarea
                                 value={aiData.lessonPlan?.differentiationStrategies?.ell || ""}
                                 onChange={(e) => updateAiField(["lessonPlan", "differentiationStrategies", "ell"], e.target.value)}
-                                className="bg-slate-950 border-slate-800 text-white text-xs mt-2 min-h-[85px]"
+                                className="bg-white border-slate-200 text-slate-900 text-xs mt-2 min-h-[85px]"
                               />
                             ) : (
-                              <p className="text-xs text-slate-400 mt-2 leading-relaxed">
+                              <p className="text-xs text-slate-600 mt-2 leading-relaxed">
                                 {aiData.lessonPlan?.differentiationStrategies?.ell}
                               </p>
                             )}
@@ -969,7 +1005,7 @@ export function CurriculumPlannerAI({
                     {/* TAB 2: Slides presentation script */}
                     <TabsContent value="slides" className="space-y-4 mt-0">
                       <div className="space-y-1">
-                        <h2 className="text-xl font-bold text-slate-100">Presentation Script Decks</h2>
+                        <h2 className="text-xl font-bold text-slate-800">Presentation Script Decks</h2>
                         <p className="text-xs text-slate-400">
                           Slide-by-slide visuals, teacher speaking script, and key details
                         </p>
@@ -977,9 +1013,9 @@ export function CurriculumPlannerAI({
 
                       <div className="space-y-4">
                         {(aiData.slideScript || []).map((slide: any, i: number) => (
-                          <div key={i} className="bg-slate-900/40 border border-slate-800/80 p-5 rounded-xl space-y-3.5">
+                          <div key={i} className="bg-white border border-slate-200 p-5 rounded-xl space-y-3.5 shadow-sm">
                             <div className="flex items-center justify-between">
-                              <Badge className="bg-blue-600/20 text-blue-400 border border-blue-500/25 font-mono">
+                              <Badge className="bg-blue-50 text-blue-700 border-blue-200 font-mono font-bold">
                                 Slide {slide.slideNumber}
                               </Badge>
                               {isEditing ? (
@@ -990,20 +1026,20 @@ export function CurriculumPlannerAI({
                                     newSlides[i].title = e.target.value;
                                     updateAiField(["slideScript"], newSlides);
                                   }}
-                                  className="bg-slate-950 border-slate-800 text-white text-sm w-72"
+                                  className="bg-white border-slate-200 text-slate-900 text-sm w-72 focus:border-blue-500 focus:ring-blue-200"
                                 />
                               ) : (
-                                <span className="text-sm font-semibold text-slate-300">
+                                <span className="text-sm font-bold text-slate-700">
                                   {slide.title}
                                 </span>
                               )}
                             </div>
 
-                            <div className="grid grid-cols-1 md:grid-cols-12 gap-4 pt-2 border-t border-slate-800/40">
+                            <div className="grid grid-cols-1 md:grid-cols-12 gap-4 pt-2 border-t border-slate-100">
                               {/* Left points & suggestions */}
                               <div className="md:col-span-5 space-y-3">
                                 <div className="space-y-1.5">
-                                  <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                                  <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
                                     Bullet points (Visual text):
                                   </span>
                                   {isEditing ? (
@@ -1015,18 +1051,18 @@ export function CurriculumPlannerAI({
                                         updateAiField(["slideScript"], newSlides);
                                       }}
                                       placeholder="Each line represents a bullet point"
-                                      className="bg-slate-950 border-slate-800 text-white text-xs min-h-[80px]"
+                                      className="bg-white border-slate-200 text-slate-900 text-xs min-h-[80px]"
                                     />
                                   ) : (
-                                    <ul className="space-y-1 list-disc list-inside text-xs text-slate-300">
+                                    <ul className="space-y-1 list-disc list-inside text-xs text-slate-600">
                                       {(slide.bulletPoints || []).map((bp: string, k: number) => (
                                         <li key={k}>{bp}</li>
                                       ))}
                                     </ul>
                                   )}
                                 </div>
-                                <div className="bg-slate-950/30 p-3 rounded-lg border border-slate-800/50">
-                                  <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider block mb-1">
+                                <div className="bg-slate-50 p-3 rounded-lg border border-slate-150">
+                                  <span className="text-[10px] font-bold text-indigo-600 uppercase tracking-wider block mb-1">
                                     Suggested Diagram / Visual asset:
                                   </span>
                                   {isEditing ? (
@@ -1037,10 +1073,10 @@ export function CurriculumPlannerAI({
                                         newSlides[i].visualSuggestion = e.target.value;
                                         updateAiField(["slideScript"], newSlides);
                                       }}
-                                      className="bg-slate-950 border-slate-800 text-white text-xs"
+                                      className="bg-white border-slate-200 text-slate-900 text-xs"
                                     />
                                   ) : (
-                                    <p className="text-xs text-slate-400 italic">
+                                    <p className="text-xs text-slate-500 italic">
                                       {slide.visualSuggestion}
                                     </p>
                                   )}
@@ -1048,8 +1084,8 @@ export function CurriculumPlannerAI({
                               </div>
 
                               {/* Right speaking notes */}
-                              <div className="md:col-span-7 bg-indigo-950/15 border border-indigo-900/20 p-4 rounded-lg">
-                                <span className="text-xs font-bold text-indigo-400 uppercase tracking-wider block mb-1.5">
+                              <div className="md:col-span-7 bg-blue-50/40 border border-blue-100/60 p-4 rounded-lg">
+                                <span className="text-xs font-bold text-blue-600 uppercase tracking-wider block mb-1.5">
                                   Teacher Script (What to say):
                                 </span>
                                 {isEditing ? (
@@ -1060,10 +1096,10 @@ export function CurriculumPlannerAI({
                                       newSlides[i].speakerNotes = e.target.value;
                                       updateAiField(["slideScript"], newSlides);
                                     }}
-                                    className="bg-slate-950 border-slate-800 text-white text-xs font-serif min-h-[140px]"
+                                    className="bg-white border-slate-200 text-slate-900 text-xs font-serif min-h-[140px]"
                                   />
                                 ) : (
-                                  <p className="text-xs text-slate-300 leading-relaxed font-serif">
+                                  <p className="text-xs text-slate-700 leading-relaxed font-serif">
                                     "{slide.speakerNotes}"
                                   </p>
                                 )}
@@ -1077,7 +1113,7 @@ export function CurriculumPlannerAI({
                     {/* TAB 3: Activities */}
                     <TabsContent value="activities" className="space-y-4 mt-0">
                       <div className="space-y-1">
-                        <h2 className="text-xl font-bold text-slate-100">Interactive Student Activities</h2>
+                        <h2 className="text-xl font-bold text-slate-800">Interactive Student Activities</h2>
                         <p className="text-xs text-slate-400">
                           Group work, experiments, and individual tasks
                         </p>
@@ -1085,7 +1121,7 @@ export function CurriculumPlannerAI({
 
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {(aiData.activities || []).map((act: any, i: number) => (
-                          <div key={i} className="bg-slate-900/40 border border-slate-800/80 p-5 rounded-xl flex flex-col justify-between space-y-4">
+                          <div key={i} className="bg-white border border-slate-200 p-5 rounded-xl flex flex-col justify-between space-y-4 shadow-sm">
                             <div className="space-y-2">
                               <div className="flex items-center justify-between">
                                 {isEditing ? (
@@ -1096,10 +1132,10 @@ export function CurriculumPlannerAI({
                                       newActs[i].name = e.target.value;
                                       updateAiField(["activities"], newActs);
                                     }}
-                                    className="bg-slate-950 border-slate-800 text-white text-xs font-bold w-48"
+                                    className="bg-white border-slate-200 text-slate-900 text-xs font-bold w-48 h-8"
                                   />
                                 ) : (
-                                  <h3 className="text-sm font-bold text-slate-200">
+                                  <h3 className="text-sm font-bold text-slate-800">
                                     {act.name}
                                   </h3>
                                 )}
@@ -1111,10 +1147,10 @@ export function CurriculumPlannerAI({
                                       newActs[i].type = e.target.value;
                                       updateAiField(["activities"], newActs);
                                     }}
-                                    className="bg-slate-950 border-slate-800 text-white text-[10px] w-28 h-6"
+                                    className="bg-white border-slate-200 text-slate-900 text-[10px] w-28 h-6"
                                   />
                                 ) : (
-                                  <Badge variant="outline" className="bg-indigo-950/20 text-indigo-300 border-indigo-500/20">
+                                  <Badge variant="outline" className="bg-indigo-50 text-indigo-700 border-indigo-200 font-semibold">
                                     {act.type}
                                   </Badge>
                                 )}
@@ -1127,19 +1163,19 @@ export function CurriculumPlannerAI({
                                     newActs[i].description = e.target.value;
                                     updateAiField(["activities"], newActs);
                                   }}
-                                  className="bg-slate-950 border-slate-800 text-white text-xs min-h-[70px]"
+                                  className="bg-white border-slate-200 text-slate-900 text-xs min-h-[70px]"
                                 />
                               ) : (
-                                <p className="text-xs text-slate-400 leading-relaxed">
+                                <p className="text-xs text-slate-500 leading-relaxed">
                                   {act.description}
                                 </p>
                               )}
                             </div>
 
-                            <div className="flex items-center justify-between pt-3 border-t border-slate-800/60 text-xs">
+                            <div className="flex items-center justify-between pt-3 border-t border-slate-100 text-xs">
                               {isEditing ? (
                                 <div className="flex items-center gap-1">
-                                  <Clock className="h-3 w-3 text-slate-500" />
+                                  <Clock className="h-3 w-3 text-slate-400" />
                                   <Input
                                     value={act.duration}
                                     onChange={(e) => {
@@ -1147,12 +1183,12 @@ export function CurriculumPlannerAI({
                                       newActs[i].duration = e.target.value;
                                       updateAiField(["activities"], newActs);
                                     }}
-                                    className="bg-slate-950 border-slate-800 text-white text-[10px] w-20 h-6"
+                                    className="bg-white border-slate-200 text-slate-900 text-[10px] w-20 h-6"
                                   />
                                 </div>
                               ) : (
                                 <span className="text-slate-500 flex items-center gap-1 font-mono">
-                                  <Clock className="h-3.5 w-3.5" />
+                                  <Clock className="h-3.5 w-3.5 text-slate-400" />
                                   {act.duration}
                                 </span>
                               )}
@@ -1165,7 +1201,7 @@ export function CurriculumPlannerAI({
                                     updateAiField(["activities"], newActs);
                                   }}
                                   placeholder="Required materials"
-                                  className="bg-slate-950 border-slate-800 text-white text-[10px] w-36 h-6"
+                                  className="bg-white border-slate-200 text-slate-900 text-[10px] w-36 h-6"
                                 />
                               ) : (
                                 <span className="text-slate-400 italic">
@@ -1178,20 +1214,40 @@ export function CurriculumPlannerAI({
                       </div>
                     </TabsContent>
 
-                    {/* TAB 4: Quiz */}
+                    {/* TAB 4: Quiz (Fully assigned as a classroom assignment) */}
                     <TabsContent value="quiz" className="space-y-5 mt-0">
-                      <div className="space-y-1">
-                        <h2 className="text-xl font-bold text-slate-100">Formative Assessment Quiz</h2>
-                        <p className="text-xs text-slate-400">
-                          5 aligned questions to assess comprehension
-                        </p>
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div className="space-y-1">
+                          <h2 className="text-xl font-bold text-slate-800">Formative Assessment Quiz</h2>
+                          <p className="text-xs text-slate-400">
+                            5 aligned questions to assess comprehension
+                          </p>
+                        </div>
+                        <Button
+                          type="button"
+                          onClick={handleAssignQuiz}
+                          disabled={assigningQuiz}
+                          className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs flex items-center gap-1.5 font-bold shadow-[0_2px_8px_rgba(59,130,246,0.2)] border-none"
+                        >
+                          {assigningQuiz ? (
+                            <>
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                              Assigning Quiz...
+                            </>
+                          ) : (
+                            <>
+                              <UserPlus className="h-4 w-4" />
+                              Assign Quiz to Class
+                            </>
+                          )}
+                        </Button>
                       </div>
 
                       <div className="space-y-4">
                         {(aiData.quiz || []).map((q: any, i: number) => (
-                          <div key={i} className="bg-slate-900/40 border border-slate-800/80 p-5 rounded-xl space-y-3">
+                          <div key={i} className="bg-white border border-slate-200 p-5 rounded-xl space-y-3 shadow-sm">
                             <div className="flex items-center justify-between">
-                              <span className="text-sm font-bold text-slate-200">
+                              <span className="text-sm font-bold text-slate-800">
                                 Question {q.questionNumber}
                               </span>
                               {isEditing ? (
@@ -1202,10 +1258,10 @@ export function CurriculumPlannerAI({
                                     newQuiz[i].bloomLevel = e.target.value;
                                     updateAiField(["quiz"], newQuiz);
                                   }}
-                                  className="bg-slate-950 border-slate-800 text-white text-[10px] w-28 h-6"
+                                  className="bg-white border-slate-200 text-slate-900 text-[10px] w-28 h-6"
                                 />
                               ) : (
-                                <Badge className="bg-blue-600/10 text-blue-400 border border-blue-500/20 font-medium">
+                                <Badge className="bg-blue-50 text-blue-700 border border-blue-200 font-semibold">
                                   Bloom: {q.bloomLevel}
                                 </Badge>
                               )}
@@ -1218,10 +1274,10 @@ export function CurriculumPlannerAI({
                                   newQuiz[i].question = e.target.value;
                                   updateAiField(["quiz"], newQuiz);
                                 }}
-                                className="bg-slate-950 border-slate-800 text-white text-sm"
+                                className="bg-white border-slate-200 text-slate-900 text-sm focus:border-blue-500 focus:ring-blue-200"
                               />
                             ) : (
-                              <p className="text-sm text-slate-300 font-medium">
+                              <p className="text-sm text-slate-700 font-medium">
                                 {q.question}
                               </p>
                             )}
@@ -1234,14 +1290,14 @@ export function CurriculumPlannerAI({
                                     key={k}
                                     className={`p-2.5 rounded-lg border text-xs flex items-center gap-2.5 transition-all ${
                                       isCorrect
-                                        ? "bg-emerald-600/15 border-emerald-500/40 text-emerald-300 shadow-[0_0_10px_rgba(16,185,129,0.1)]"
-                                        : "bg-slate-950/20 border-slate-800/60 text-slate-400"
+                                        ? "bg-emerald-50 border-emerald-300 text-emerald-800 shadow-[0_2px_8px_rgba(16,185,129,0.1)] font-medium"
+                                        : "bg-slate-50 border-slate-100 text-slate-600"
                                     }`}
                                   >
                                     <span className={`h-5 w-5 rounded-full flex items-center justify-center text-[10px] font-bold ${
                                       isCorrect
-                                        ? "bg-emerald-500/20 border border-emerald-400/30 text-emerald-300"
-                                        : "bg-slate-900 border border-slate-800 text-slate-500"
+                                        ? "bg-emerald-100 border border-emerald-300 text-emerald-700"
+                                        : "bg-white border border-slate-200 text-slate-400"
                                     }`}>
                                       {optionLetter}
                                     </span>
@@ -1253,7 +1309,7 @@ export function CurriculumPlannerAI({
                                           newQuiz[i].options[k] = e.target.value;
                                           updateAiField(["quiz"], newQuiz);
                                         }}
-                                        className="bg-slate-950 border-slate-800 text-white text-xs h-7"
+                                        className="bg-white border-slate-200 text-slate-900 text-xs h-7"
                                       />
                                     ) : (
                                       <span>{opt}</span>
@@ -1265,24 +1321,26 @@ export function CurriculumPlannerAI({
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2">
                               <div className="space-y-1">
-                                <Label className="text-[10px] text-slate-500 font-bold uppercase">Correct Answer Letter (A-D)</Label>
                                 {isEditing ? (
-                                  <Input
-                                    value={q.correctAnswer}
-                                    maxLength={1}
-                                    onChange={(e) => {
-                                      const newQuiz = [...aiData.quiz];
-                                      newQuiz[i].correctAnswer = e.target.value.toUpperCase();
-                                      updateAiField(["quiz"], newQuiz);
-                                    }}
-                                    className="bg-slate-950 border-slate-800 text-white text-xs h-8 w-16"
-                                  />
+                                  <>
+                                    <Label className="text-[10px] text-slate-500 font-bold uppercase">Correct Answer Letter (A-D)</Label>
+                                    <Input
+                                      value={q.correctAnswer}
+                                      maxLength={1}
+                                      onChange={(e) => {
+                                        const newQuiz = [...aiData.quiz];
+                                        newQuiz[i].correctAnswer = e.target.value.toUpperCase();
+                                        updateAiField(["quiz"], newQuiz);
+                                      }}
+                                      className="bg-white border-slate-200 text-slate-900 text-xs h-8 w-16"
+                                    />
+                                  </>
                                 ) : null}
                               </div>
                             </div>
 
-                            <div className="bg-slate-950/40 p-3 rounded-lg border border-slate-800/80 mt-2 text-xs">
-                              <span className="text-slate-500 font-bold uppercase tracking-wider block mb-0.5">
+                            <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 mt-2 text-xs">
+                              <span className="text-slate-400 font-bold uppercase tracking-wider block mb-0.5">
                                 Explanation:
                               </span>
                               {isEditing ? (
@@ -1293,10 +1351,10 @@ export function CurriculumPlannerAI({
                                     newQuiz[i].explanation = e.target.value;
                                     updateAiField(["quiz"], newQuiz);
                                   }}
-                                  className="bg-slate-950 border-slate-800 text-white text-xs min-h-[50px]"
+                                  className="bg-white border-slate-200 text-slate-900 text-xs min-h-[50px]"
                                 />
                               ) : (
-                                <p className="text-slate-400 leading-relaxed">
+                                <p className="text-slate-600 leading-relaxed">
                                   {q.explanation}
                                 </p>
                               )}
@@ -1309,26 +1367,26 @@ export function CurriculumPlannerAI({
                     {/* TAB 5: Rubric */}
                     <TabsContent value="rubric" className="space-y-4 mt-0">
                       <div className="space-y-1">
-                        <h2 className="text-xl font-bold text-slate-100">Performance Grading Rubric</h2>
+                        <h2 className="text-xl font-bold text-slate-800">Performance Grading Rubric</h2>
                         <p className="text-xs text-slate-400">
                           Structured evaluation criteria mapping student competency levels
                         </p>
                       </div>
 
-                      <div className="border border-slate-800 rounded-xl overflow-hidden bg-slate-900/20">
+                      <div className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm">
                         <table className="w-full text-left text-xs border-collapse">
                           <thead>
-                            <tr className="bg-slate-900 border-b border-slate-800 text-slate-400 font-bold">
+                            <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold">
                               <th className="p-3 w-1/4">Criteria</th>
-                              <th className="p-3 w-1/4 text-emerald-400">Excellent</th>
-                              <th className="p-3 w-1/4 text-blue-400">Good</th>
-                              <th className="p-3 w-1/4 text-amber-400">Developing</th>
+                              <th className="p-3 w-1/4 text-emerald-700">Excellent</th>
+                              <th className="p-3 w-1/4 text-blue-700">Good</th>
+                              <th className="p-3 w-1/4 text-amber-700">Developing</th>
                             </tr>
                           </thead>
-                          <tbody className="divide-y divide-slate-800 text-slate-300">
+                          <tbody className="divide-y divide-slate-200 text-slate-700">
                             {(aiData.rubric?.criteria || []).map((crit: any, i: number) => (
-                              <tr key={i} className="hover:bg-slate-900/10">
-                                <td className="p-3 font-semibold text-slate-200 border-r border-slate-800/50">
+                              <tr key={i} className="hover:bg-slate-50/40">
+                                <td className="p-3 font-semibold text-slate-800 border-r border-slate-100">
                                   {isEditing ? (
                                     <Input
                                       value={crit.name}
@@ -1337,13 +1395,13 @@ export function CurriculumPlannerAI({
                                         newCriteria[i].name = e.target.value;
                                         updateAiField(["rubric", "criteria"], newCriteria);
                                       }}
-                                      className="bg-slate-950 border-slate-800 text-white text-xs"
+                                      className="bg-white border-slate-200 text-slate-900 text-xs"
                                     />
                                   ) : (
                                     crit.name
                                   )}
                                 </td>
-                                <td className="p-3 border-r border-slate-800/50 leading-relaxed">
+                                <td className="p-3 border-r border-slate-100 leading-relaxed text-slate-600">
                                   {isEditing ? (
                                     <Textarea
                                       value={crit.excellent}
@@ -1352,13 +1410,13 @@ export function CurriculumPlannerAI({
                                         newCriteria[i].excellent = e.target.value;
                                         updateAiField(["rubric", "criteria"], newCriteria);
                                       }}
-                                      className="bg-slate-950 border-slate-800 text-white text-xs min-h-[60px]"
+                                      className="bg-white border-slate-200 text-slate-900 text-xs min-h-[60px]"
                                     />
                                   ) : (
                                     crit.excellent
                                   )}
                                 </td>
-                                <td className="p-3 border-r border-slate-800/50 leading-relaxed">
+                                <td className="p-3 border-r border-slate-100 leading-relaxed text-slate-600">
                                   {isEditing ? (
                                     <Textarea
                                       value={crit.good}
@@ -1367,13 +1425,13 @@ export function CurriculumPlannerAI({
                                         newCriteria[i].good = e.target.value;
                                         updateAiField(["rubric", "criteria"], newCriteria);
                                       }}
-                                      className="bg-slate-950 border-slate-800 text-white text-xs min-h-[60px]"
+                                      className="bg-white border-slate-200 text-slate-900 text-xs min-h-[60px]"
                                     />
                                   ) : (
                                     crit.good
                                   )}
                                 </td>
-                                <td className="p-3 leading-relaxed">
+                                <td className="p-3 leading-relaxed text-slate-600">
                                   {isEditing ? (
                                     <Textarea
                                       value={crit.developing}
@@ -1382,7 +1440,7 @@ export function CurriculumPlannerAI({
                                         newCriteria[i].developing = e.target.value;
                                         updateAiField(["rubric", "criteria"], newCriteria);
                                       }}
-                                      className="bg-slate-950 border-slate-800 text-white text-xs min-h-[60px]"
+                                      className="bg-white border-slate-200 text-slate-900 text-xs min-h-[60px]"
                                     />
                                   ) : (
                                     crit.developing
@@ -1398,16 +1456,16 @@ export function CurriculumPlannerAI({
                 </Tabs>
               </div>
             ) : (
-              // Empty State Screen
+              // Empty State Screen (White/Blue aesthetic)
               <div className="flex-1 flex flex-col items-center justify-center p-8 space-y-4 text-center">
-                <div className="h-16 w-16 rounded-2xl bg-blue-500/10 flex items-center justify-center border border-blue-500/20 shadow-[0_0_20px_rgba(59,130,246,0.15)] animate-pulse">
-                  <Sparkles className="h-8 w-8 text-blue-400" />
+                <div className="h-16 w-16 rounded-2xl bg-blue-50 flex items-center justify-center border border-blue-100 shadow-[0_0_25px_rgba(59,130,246,0.1)] animate-pulse">
+                  <Sparkles className="h-8 w-8 text-blue-500" />
                 </div>
                 <div className="space-y-1.5 max-w-sm">
-                  <h3 className="text-lg font-bold text-slate-100">
+                  <h3 className="text-lg font-bold text-slate-800">
                     Design a Classroom Session
                   </h3>
-                  <p className="text-xs text-slate-400 leading-relaxed">
+                  <p className="text-xs text-slate-500 leading-relaxed">
                     Set your chapter, target curriculum, duration, and pedagogical focus on the left. Click **Generate with AI** to create lesson roadmaps instantly.
                   </p>
                 </div>
