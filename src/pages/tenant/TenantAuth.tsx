@@ -172,53 +172,20 @@ const TenantAuth = () => {
       </header>
 
       {/* ── MAIN ── */}
-      <main className="flex-1 w-full max-w-7xl mx-auto px-6 pb-16 lg:pb-24 grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-16 items-center z-10 relative">
+      <main className="flex-1 w-full max-w-7xl mx-auto px-6 pb-16 lg:pb-24 grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-16 items-start z-10 relative">
         
-        {/* ── LEFT: Value proposition + Bento Grid ── */}
+        {/* ── HEADING BLOCK ── */}
         <motion.div
           initial={reduce ? false : { opacity: 0, x: -18 }}
           animate={reduce ? undefined : { opacity: 1, x: 0 }}
           transition={{ duration: 0.6, ease: [0.2, 0.8, 0.2, 1] }}
-          className="lg:col-span-7 flex flex-col gap-6 sm:gap-8 min-w-0"
+          className="lg:col-span-7 flex flex-col gap-4 min-w-0"
         >
-          <div>
-            <h2 className="font-sans text-3xl sm:text-4xl font-extrabold tracking-tight text-slate-900 leading-tight bg-gradient-to-r from-blue-800 to-indigo-600 bg-clip-text text-transparent">
-              Empowering education through intelligent operations
-            </h2>
-            <p className="mt-4 text-base text-slate-600 leading-relaxed max-w-xl">
-              AltRix provides the infrastructure for modern schools to manage performance, security, and communication in one unified platform.
-            </p>
-          </div>
-
-          {/* Bento Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {[
-              { icon: Sparkles, iconColor: "text-blue-600", bg: "bg-blue-50", border: "border-blue-100", label: "AI Insights", desc: "Predictive student performance analytics and trend spotting." },
-              { icon: Shield, iconColor: "text-indigo-600", bg: "bg-indigo-50", border: "border-indigo-100", label: "Secure Vault", desc: "Military-grade data encryption and privacy compliance." },
-              { icon: Activity, iconColor: "text-slate-600", bg: "bg-slate-100", border: "border-slate-200", label: "Real-time Audit", desc: "Live transparent audit logs for staff and administrators." },
-              { icon: Workflow, iconColor: "text-sky-600", bg: "bg-sky-50", border: "border-sky-100", label: "Universal Hub", desc: "Unified school-parent communication and collaboration." },
-            ].map(({ icon: Icon, iconColor, bg, border, label, desc }) => (
-              <div 
-                key={label} 
-                className="p-5 rounded-2xl bg-white/40 border border-white/60 shadow-sm backdrop-blur-md transition-all duration-300 hover:bg-white/60 hover:border-blue-100/60 hover:shadow-soft"
-              >
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-3 ${bg} ${border}`}>
-                  <Icon className={`h-5 w-5 ${iconColor}`} />
-                </div>
-                <p className="text-xs font-bold tracking-wider text-blue-700 uppercase mb-1">{label}</p>
-                <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">{desc}</p>
-              </div>
-            ))}
-          </div>
-
-          <p className="text-sm text-slate-600">
-            Need a school account?{" "}
-            <a
-              href="mailto:sales@altrix.io"
-              className="text-blue-600 font-semibold hover:underline"
-            >
-              Contact Sales
-            </a>
+          <h2 className="font-sans text-3xl sm:text-4xl font-extrabold tracking-tight text-slate-900 leading-tight bg-gradient-to-r from-blue-800 to-indigo-600 bg-clip-text text-transparent">
+            Empowering education through intelligent operations
+          </h2>
+          <p className="text-base text-slate-600 leading-relaxed max-w-xl">
+            AltRix provides the infrastructure for modern schools to manage performance, security, and communication in one unified platform.
           </p>
         </motion.div>
 
@@ -227,7 +194,7 @@ const TenantAuth = () => {
           initial={reduce ? false : { opacity: 0, y: 18 }}
           animate={reduce ? undefined : { opacity: 1, y: 0 }}
           transition={{ duration: 0.55, delay: 0.06, ease: [0.2, 0.8, 0.2, 1] }}
-          className="lg:col-span-5 w-full max-w-md mx-auto"
+          className="lg:col-span-5 lg:row-span-2 w-full max-w-md mx-auto"
         >
           <div className="bg-white/80 border border-white/80 shadow-elevated rounded-3xl p-6 sm:p-8 backdrop-blur-xl relative overflow-hidden transition-all duration-300 hover:shadow-2xl">
             {/* Corner decoration gradient */}
@@ -453,6 +420,45 @@ const TenantAuth = () => {
               </div>
             )}
           </div>
+        </motion.div>
+
+        {/* ── BENTO GRID BLOCK ── */}
+        <motion.div
+          initial={reduce ? false : { opacity: 0, x: -18 }}
+          animate={reduce ? undefined : { opacity: 1, x: 0 }}
+          transition={{ duration: 0.6, delay: 0.12, ease: [0.2, 0.8, 0.2, 1] }}
+          className="lg:col-span-7 flex flex-col gap-6 min-w-0"
+        >
+          {/* Bento Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {[
+              { icon: Sparkles, iconColor: "text-blue-600", bg: "bg-blue-50", border: "border-blue-100", label: "AI Insights", desc: "Predictive student performance analytics and trend spotting." },
+              { icon: Shield, iconColor: "text-indigo-600", bg: "bg-indigo-50", border: "border-indigo-100", label: "Secure Vault", desc: "Military-grade data encryption and privacy compliance." },
+              { icon: Activity, iconColor: "text-slate-600", bg: "bg-slate-100", border: "border-slate-200", label: "Real-time Audit", desc: "Live transparent audit logs for staff and administrators." },
+              { icon: Workflow, iconColor: "text-sky-600", bg: "bg-sky-50", border: "border-sky-100", label: "Universal Hub", desc: "Unified school-parent communication and collaboration." },
+            ].map(({ icon: Icon, iconColor, bg, border, label, desc }) => (
+              <div 
+                key={label} 
+                className="p-5 rounded-2xl bg-white/40 border border-white/60 shadow-sm backdrop-blur-md transition-all duration-300 hover:bg-white/60 hover:border-blue-100/60 hover:shadow-soft"
+              >
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-3 ${bg} ${border}`}>
+                  <Icon className={`h-5 w-5 ${iconColor}`} />
+                </div>
+                <p className="text-xs font-bold tracking-wider text-blue-700 uppercase mb-1">{label}</p>
+                <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">{desc}</p>
+              </div>
+            ))}
+          </div>
+
+          <p className="text-sm text-slate-600">
+            Need a school account?{" "}
+            <a
+              href="mailto:sales@altrix.io"
+              className="text-blue-600 font-semibold hover:underline"
+            >
+              Contact Sales
+            </a>
+          </p>
         </motion.div>
       </main>
 
