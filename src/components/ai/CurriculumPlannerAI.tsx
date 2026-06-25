@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useUser } from "@supabase/auth-helpers-react";
 import { useSession } from "@/hooks/useSession";
 import { supabase } from "@/integrations/supabase/client";
 import { apiClient } from "@/lib/api-client";
@@ -22,7 +23,6 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
 import {
   Sparkles,
@@ -32,18 +32,15 @@ import {
   ListTodo,
   HelpCircle,
   Table,
-  Download,
   Save,
   Edit3,
   Loader2,
-  Calendar,
   Clock,
-  ArrowRight,
   Check,
-  CheckCircle2,
   Plus,
-  X,
+  Trash2,
   FileDown,
+  ChevronDown,
 } from "lucide-react";
 import { toast } from "sonner";
 import jsPDF from "jspdf";
@@ -137,6 +134,19 @@ export function CurriculumPlannerAI({
     );
   };
 
+  const updateAiField = (path: string[], value: any) => {
+    setAiData((prev: any) => {
+      if (!prev) return prev;
+      const copy = JSON.parse(JSON.stringify(prev));
+      let current = copy;
+      for (let i = 0; i < path.length - 1; i++) {
+        current = current[path[i]];
+      }
+      current[path[path.length - 1]] = value;
+      return copy;
+    });
+  };
+
   const handleGenerate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!topic.trim()) {
@@ -153,7 +163,6 @@ export function CurriculumPlannerAI({
     setIsEditing(false);
     setLoadingPhase(0);
 
-    // Simulated progress timer for loading phase messages
     const phaseInterval = setInterval(() => {
       setLoadingPhase((p) => {
         if (p < LOADING_PHASES.length - 1) {
@@ -169,7 +178,6 @@ export function CurriculumPlannerAI({
 
       const token = (await supabase.auth.getSession()).data.session?.access_token;
 
-      // API call to FastAPI backend
       const response = await fetch(
         `${apiClient.defaults.baseURL || "/api"}/ai/curriculum-planner`,
         {
@@ -213,8 +221,6 @@ export function CurriculumPlannerAI({
     if (!aiData || !user?.id || !schoolId) return;
 
     try {
-      const selectedSubjectObj = subjects.find((s) => s.id === subjectId);
-      
       const payload = {
         school_id: schoolId,
         teacher_user_id: user.id,
@@ -259,12 +265,12 @@ export function CurriculumPlannerAI({
 
       // Title & Header Info
       doc.setFontSize(22);
-      doc.setTextColor(15, 23, 42); // slate-900
+      doc.setTextColor(15, 23, 42); 
       doc.text("AltRix AI Lesson Plan", 20, y);
       y += 10;
 
       doc.setFontSize(14);
-      doc.setTextColor(71, 85, 105); // slate-600
+      doc.setTextColor(71, 85, 105); 
       doc.text(`Topic: ${aiData.lessonPlan?.title || topic}`, 20, y);
       y += 7;
       doc.text(`Curriculum: ${curriculumType} | Grade: ${gradeLevel}`, 20, y);
@@ -274,11 +280,11 @@ export function CurriculumPlannerAI({
 
       // Objectives
       doc.setFontSize(16);
-      doc.setTextColor(30, 41, 59); // slate-800
+      doc.setTextColor(30, 41, 59); 
       doc.text("Learning Objectives", 20, y);
       y += 8;
       doc.setFontSize(11);
-      doc.setTextColor(51, 65, 85); // slate-700
+      doc.setTextColor(51, 65, 85); 
       (aiData.lessonPlan?.learningObjectives || []).forEach((obj: string) => {
         doc.text(`• ${obj}`, 20, y);
         y += 6;
@@ -344,7 +350,6 @@ export function CurriculumPlannerAI({
         y += (notesSplit.length * 5) + 8;
       });
 
-      // Save PDF
       doc.save(`Lesson_Plan_${topic.replace(/\s+/g, "_")}.pdf`);
       toast.success("PDF exported successfully!");
     } catch (err: any) {
@@ -573,11 +578,21 @@ export function CurriculumPlannerAI({
                 {/* Header Action Bar */}
                 <div className="p-4 bg-slate-900/60 border-b border-slate-800 flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/30">
+                    <Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/30 font-medium">
                       Generative Framework Ready
                     </Badge>
                   </div>
                   <div className="flex items-center gap-2">
+                    <Button
+                      onClick={() => setIsEditing(!isEditing)}
+                      variant="outline"
+                      className={`border-slate-800 hover:bg-slate-800 text-slate-300 text-xs flex items-center gap-1.5 transition-all ${
+                        isEditing ? "bg-blue-600/25 border-blue-500 text-blue-300" : "bg-slate-900"
+                      }`}
+                    >
+                      <Edit3 className="h-4 w-4" />
+                      {isEditing ? "View Mode" : "Edit Plan"}
+                    </Button>
                     <Button
                       onClick={handleExportPDF}
                       variant="outline"
@@ -641,13 +656,26 @@ export function CurriculumPlannerAI({
                     <TabsContent value="plan" className="space-y-6 mt-0">
                       <div className="bg-slate-900/40 border border-slate-800/80 p-5 rounded-2xl space-y-4">
                         <div className="flex items-start justify-between">
-                          <div>
-                            <h2 className="text-xl font-bold text-slate-100">
-                              {aiData.lessonPlan?.title}
-                            </h2>
-                            <p className="text-xs text-slate-400 mt-1">
-                              Pedagogical roadmap structured for curriculum objectives
-                            </p>
+                          <div className="w-full">
+                            {isEditing ? (
+                              <div className="space-y-1">
+                                <Label className="text-xs text-slate-400">Lesson Title</Label>
+                                <Input
+                                  value={aiData.lessonPlan?.title || ""}
+                                  onChange={(e) => updateAiField(["lessonPlan", "title"], e.target.value)}
+                                  className="bg-slate-950 border-slate-800 text-white w-full font-bold text-lg"
+                                />
+                              </div>
+                            ) : (
+                              <>
+                                <h2 className="text-xl font-bold text-slate-100">
+                                  {aiData.lessonPlan?.title}
+                                </h2>
+                                <p className="text-xs text-slate-400 mt-1">
+                                  Pedagogical roadmap structured for curriculum objectives
+                                </p>
+                              </>
+                            )}
                           </div>
                         </div>
 
@@ -656,14 +684,56 @@ export function CurriculumPlannerAI({
                             <h4 className="text-xs font-bold uppercase tracking-wider text-blue-400">
                               Learning Objectives
                             </h4>
-                            <ul className="space-y-1.5">
-                              {(aiData.lessonPlan?.learningObjectives || []).map((obj: string, i: number) => (
-                                <li key={i} className="text-sm text-slate-300 flex items-start gap-2">
-                                  <Check className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" />
-                                  <span>{obj}</span>
-                                </li>
-                              ))}
-                            </ul>
+                            {isEditing ? (
+                              <div className="space-y-2">
+                                {(aiData.lessonPlan?.learningObjectives || []).map((obj: string, i: number) => (
+                                  <div key={i} className="flex items-center gap-2">
+                                    <Input
+                                      value={obj}
+                                      onChange={(e) => {
+                                        const newObjectives = [...aiData.lessonPlan.learningObjectives];
+                                        newObjectives[i] = e.target.value;
+                                        updateAiField(["lessonPlan", "learningObjectives"], newObjectives);
+                                      }}
+                                      className="bg-slate-950 border-slate-800 text-white text-sm"
+                                    />
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="icon"
+                                      className="text-rose-500 hover:text-rose-400"
+                                      onClick={() => {
+                                        const newObjectives = aiData.lessonPlan.learningObjectives.filter((_: any, idx: number) => idx !== i);
+                                        updateAiField(["lessonPlan", "learningObjectives"], newObjectives);
+                                      }}
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  </div>
+                                ))}
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  className="text-xs border-slate-800 text-slate-300 mt-1"
+                                  onClick={() => {
+                                    const newObjectives = [...(aiData.lessonPlan?.learningObjectives || []), "New learning goal"];
+                                    updateAiField(["lessonPlan", "learningObjectives"], newObjectives);
+                                  }}
+                                >
+                                  <Plus className="h-3.5 w-3.5 mr-1" /> Add Objective
+                                </Button>
+                              </div>
+                            ) : (
+                              <ul className="space-y-1.5">
+                                {(aiData.lessonPlan?.learningObjectives || []).map((obj: string, i: number) => (
+                                  <li key={i} className="text-sm text-slate-300 flex items-start gap-2">
+                                    <Check className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" />
+                                    <span>{obj}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
                           </div>
 
                           <div className="space-y-3">
@@ -671,21 +741,39 @@ export function CurriculumPlannerAI({
                               <h4 className="text-xs font-bold uppercase tracking-wider text-blue-400">
                                 Prior Knowledge prerequisites
                               </h4>
-                              <p className="text-sm text-slate-300 mt-1">
-                                {(aiData.lessonPlan?.priorKnowledge || []).join(", ") || "None specified"}
-                              </p>
+                              {isEditing ? (
+                                <Textarea
+                                  value={(aiData.lessonPlan?.priorKnowledge || []).join(", ")}
+                                  onChange={(e) => updateAiField(["lessonPlan", "priorKnowledge"], e.target.value.split(",").map(s => s.trim()))}
+                                  placeholder="Separated by commas"
+                                  className="bg-slate-950 border-slate-800 text-white text-xs mt-1 min-h-[50px]"
+                                />
+                              ) : (
+                                <p className="text-sm text-slate-300 mt-1">
+                                  {(aiData.lessonPlan?.priorKnowledge || []).join(", ") || "None specified"}
+                                </p>
+                              )}
                             </div>
                             <div>
                               <h4 className="text-xs font-bold uppercase tracking-wider text-blue-400">
                                 Materials & Equipment Needed
                               </h4>
-                              <div className="flex flex-wrap gap-1.5 mt-1.5">
-                                {(aiData.lessonPlan?.materialsNeeded || []).map((mat: string, i: number) => (
-                                  <Badge key={i} variant="outline" className="bg-slate-900/60 border-slate-800 text-slate-300">
-                                    {mat}
-                                  </Badge>
-                                ))}
-                              </div>
+                              {isEditing ? (
+                                <Textarea
+                                  value={(aiData.lessonPlan?.materialsNeeded || []).join(", ")}
+                                  onChange={(e) => updateAiField(["lessonPlan", "materialsNeeded"], e.target.value.split(",").map(s => s.trim()))}
+                                  placeholder="Separated by commas"
+                                  className="bg-slate-950 border-slate-800 text-white text-xs mt-1 min-h-[50px]"
+                                />
+                              ) : (
+                                <div className="flex flex-wrap gap-1.5 mt-1.5">
+                                  {(aiData.lessonPlan?.materialsNeeded || []).map((mat: string, i: number) => (
+                                    <Badge key={i} variant="outline" className="bg-slate-900/60 border-slate-800 text-slate-300 font-normal">
+                                      {mat}
+                                    </Badge>
+                                  ))}
+                                </div>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -704,64 +792,175 @@ export function CurriculumPlannerAI({
                                 <div className="h-2 w-2 rounded-full bg-blue-400" />
                               </div>
                               <div className="bg-slate-900/30 border border-slate-800/80 p-4.5 rounded-xl space-y-2">
-                                <div className="flex items-center gap-2">
-                                  <span className="text-xs font-bold bg-blue-600/20 text-blue-400 border border-blue-500/20 px-2 py-0.5 rounded">
-                                    {item.timeRange}
-                                  </span>
-                                  <span className="text-sm font-semibold text-slate-200">
-                                    {item.phase}
-                                  </span>
-                                </div>
-                                <p className="text-sm text-slate-300 font-medium">
-                                  {item.activity}
-                                </p>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2 border-t border-slate-800/50 mt-2 text-xs">
-                                  <div>
-                                    <span className="text-slate-500 font-bold uppercase tracking-wider block mb-0.5">
-                                      Teacher Action:
-                                    </span>
-                                    <p className="text-slate-400 leading-relaxed">
-                                      {item.teacherAction}
-                                    </p>
+                                {isEditing ? (
+                                  <div className="space-y-3">
+                                    <div className="grid grid-cols-2 gap-2">
+                                      <div>
+                                        <Label className="text-[10px] text-slate-500 uppercase font-bold">Time Range</Label>
+                                        <Input
+                                          value={item.timeRange}
+                                          onChange={(e) => {
+                                            const newSchedule = [...aiData.lessonPlan.schedule];
+                                            newSchedule[i].timeRange = e.target.value;
+                                            updateAiField(["lessonPlan", "schedule"], newSchedule);
+                                          }}
+                                          className="bg-slate-950 border-slate-800 text-white text-xs"
+                                        />
+                                      </div>
+                                      <div>
+                                        <Label className="text-[10px] text-slate-500 uppercase font-bold">Phase</Label>
+                                        <Input
+                                          value={item.phase}
+                                          onChange={(e) => {
+                                            const newSchedule = [...aiData.lessonPlan.schedule];
+                                            newSchedule[i].phase = e.target.value;
+                                            updateAiField(["lessonPlan", "schedule"], newSchedule);
+                                          }}
+                                          className="bg-slate-950 border-slate-800 text-white text-xs"
+                                        />
+                                      </div>
+                                    </div>
+                                    <div>
+                                      <Label className="text-[10px] text-slate-500 uppercase font-bold">Activity</Label>
+                                      <Input
+                                        value={item.activity}
+                                        onChange={(e) => {
+                                          const newSchedule = [...aiData.lessonPlan.schedule];
+                                          newSchedule[i].activity = e.target.value;
+                                          updateAiField(["lessonPlan", "schedule"], newSchedule);
+                                        }}
+                                        className="bg-slate-950 border-slate-800 text-white text-xs"
+                                      />
+                                    </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                      <div>
+                                        <Label className="text-[10px] text-slate-500 uppercase font-bold">Teacher Action</Label>
+                                        <Textarea
+                                          value={item.teacherAction}
+                                          onChange={(e) => {
+                                            const newSchedule = [...aiData.lessonPlan.schedule];
+                                            newSchedule[i].teacherAction = e.target.value;
+                                            updateAiField(["lessonPlan", "schedule"], newSchedule);
+                                          }}
+                                          className="bg-slate-950 border-slate-800 text-white text-xs min-h-[60px]"
+                                        />
+                                      </div>
+                                      <div>
+                                        <Label className="text-[10px] text-slate-500 uppercase font-bold">Student Action</Label>
+                                        <Textarea
+                                          value={item.studentAction}
+                                          onChange={(e) => {
+                                            const newSchedule = [...aiData.lessonPlan.schedule];
+                                            newSchedule[i].studentAction = e.target.value;
+                                            updateAiField(["lessonPlan", "schedule"], newSchedule);
+                                          }}
+                                          className="bg-slate-950 border-slate-800 text-white text-xs min-h-[60px]"
+                                        />
+                                      </div>
+                                    </div>
                                   </div>
-                                  <div>
-                                    <span className="text-slate-500 font-bold uppercase tracking-wider block mb-0.5">
-                                      Student Action:
-                                    </span>
-                                    <p className="text-slate-400 leading-relaxed">
-                                      {item.studentAction}
+                                ) : (
+                                  <>
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-xs font-bold bg-blue-600/20 text-blue-400 border border-blue-500/20 px-2 py-0.5 rounded font-mono">
+                                        {item.timeRange}
+                                      </span>
+                                      <span className="text-sm font-semibold text-slate-200">
+                                        {item.phase}
+                                      </span>
+                                    </div>
+                                    <p className="text-sm text-slate-300 font-medium">
+                                      {item.activity}
                                     </p>
-                                  </div>
-                                </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2 border-t border-slate-800/50 mt-2 text-xs">
+                                      <div>
+                                        <span className="text-slate-500 font-bold uppercase tracking-wider block mb-0.5">
+                                          Teacher Action:
+                                        </span>
+                                        <p className="text-slate-400 leading-relaxed">
+                                          {item.teacherAction}
+                                        </p>
+                                      </div>
+                                      <div>
+                                        <span className="text-slate-500 font-bold uppercase tracking-wider block mb-0.5">
+                                          Student Action:
+                                        </span>
+                                        <p className="text-slate-400 leading-relaxed">
+                                          {item.studentAction}
+                                        </p>
+                                      </div>
+                                    </div>
+                                  </>
+                                )}
                               </div>
                             </div>
                           ))}
                         </div>
                       </div>
 
-                      {/* Differentiation Panel */}
+                      {/* Homework & Differentiation */}
                       <div className="bg-slate-900/40 border border-slate-800/80 p-5 rounded-2xl space-y-4">
                         <h3 className="text-sm font-bold uppercase tracking-wider text-indigo-400">
-                          Pedagogical differentiation strategies
+                          Homework & Pedagogy Differentiation
                         </h3>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        
+                        <div className="space-y-2">
+                          <Label className="text-xs text-slate-400 font-bold">Homework Suggestion</Label>
+                          {isEditing ? (
+                            <Textarea
+                              value={aiData.lessonPlan?.homeworkSuggestion || ""}
+                              onChange={(e) => updateAiField(["lessonPlan", "homeworkSuggestion"], e.target.value)}
+                              className="bg-slate-950 border-slate-800 text-white text-xs min-h-[60px]"
+                            />
+                          ) : (
+                            <p className="text-sm text-slate-300">
+                              {aiData.lessonPlan?.homeworkSuggestion}
+                            </p>
+                          )}
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2 border-t border-slate-800/50">
                           <div className="bg-slate-950/40 border border-slate-800 p-4 rounded-xl">
                             <span className="text-xs font-semibold text-emerald-400">Advanced / High Achievers</span>
-                            <p className="text-xs text-slate-400 mt-2 leading-relaxed">
-                              {aiData.lessonPlan?.differentiationStrategies?.advanced}
-                            </p>
+                            {isEditing ? (
+                              <Textarea
+                                value={aiData.lessonPlan?.differentiationStrategies?.advanced || ""}
+                                onChange={(e) => updateAiField(["lessonPlan", "differentiationStrategies", "advanced"], e.target.value)}
+                                className="bg-slate-950 border-slate-800 text-white text-xs mt-2 min-h-[85px]"
+                              />
+                            ) : (
+                              <p className="text-xs text-slate-400 mt-2 leading-relaxed">
+                                {aiData.lessonPlan?.differentiationStrategies?.advanced}
+                              </p>
+                            )}
                           </div>
                           <div className="bg-slate-950/40 border border-slate-800 p-4 rounded-xl">
                             <span className="text-xs font-semibold text-amber-400">Support / Struggling Students</span>
-                            <p className="text-xs text-slate-400 mt-2 leading-relaxed">
-                              {aiData.lessonPlan?.differentiationStrategies?.struggling}
-                            </p>
+                            {isEditing ? (
+                              <Textarea
+                                value={aiData.lessonPlan?.differentiationStrategies?.struggling || ""}
+                                onChange={(e) => updateAiField(["lessonPlan", "differentiationStrategies", "struggling"], e.target.value)}
+                                className="bg-slate-950 border-slate-800 text-white text-xs mt-2 min-h-[85px]"
+                              />
+                            ) : (
+                              <p className="text-xs text-slate-400 mt-2 leading-relaxed">
+                                {aiData.lessonPlan?.differentiationStrategies?.struggling}
+                              </p>
+                            )}
                           </div>
                           <div className="bg-slate-950/40 border border-slate-800 p-4 rounded-xl">
                             <span className="text-xs font-semibold text-blue-400">Language (ELL) Scaffolding</span>
-                            <p className="text-xs text-slate-400 mt-2 leading-relaxed">
-                              {aiData.lessonPlan?.differentiationStrategies?.ell}
-                            </p>
+                            {isEditing ? (
+                              <Textarea
+                                value={aiData.lessonPlan?.differentiationStrategies?.ell || ""}
+                                onChange={(e) => updateAiField(["lessonPlan", "differentiationStrategies", "ell"], e.target.value)}
+                                className="bg-slate-950 border-slate-800 text-white text-xs mt-2 min-h-[85px]"
+                              />
+                            ) : (
+                              <p className="text-xs text-slate-400 mt-2 leading-relaxed">
+                                {aiData.lessonPlan?.differentiationStrategies?.ell}
+                              </p>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -780,12 +979,24 @@ export function CurriculumPlannerAI({
                         {(aiData.slideScript || []).map((slide: any, i: number) => (
                           <div key={i} className="bg-slate-900/40 border border-slate-800/80 p-5 rounded-xl space-y-3.5">
                             <div className="flex items-center justify-between">
-                              <Badge className="bg-blue-600/20 text-blue-400 border border-blue-500/25">
+                              <Badge className="bg-blue-600/20 text-blue-400 border border-blue-500/25 font-mono">
                                 Slide {slide.slideNumber}
                               </Badge>
-                              <span className="text-sm font-semibold text-slate-300">
-                                {slide.title}
-                              </span>
+                              {isEditing ? (
+                                <Input
+                                  value={slide.title}
+                                  onChange={(e) => {
+                                    const newSlides = [...aiData.slideScript];
+                                    newSlides[i].title = e.target.value;
+                                    updateAiField(["slideScript"], newSlides);
+                                  }}
+                                  className="bg-slate-950 border-slate-800 text-white text-sm w-72"
+                                />
+                              ) : (
+                                <span className="text-sm font-semibold text-slate-300">
+                                  {slide.title}
+                                </span>
+                              )}
                             </div>
 
                             <div className="grid grid-cols-1 md:grid-cols-12 gap-4 pt-2 border-t border-slate-800/40">
@@ -795,19 +1006,44 @@ export function CurriculumPlannerAI({
                                   <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
                                     Bullet points (Visual text):
                                   </span>
-                                  <ul className="space-y-1 list-disc list-inside text-xs text-slate-300">
-                                    {(slide.bulletPoints || []).map((bp: string, k: number) => (
-                                      <li key={k}>{bp}</li>
-                                    ))}
-                                  </ul>
+                                  {isEditing ? (
+                                    <Textarea
+                                      value={(slide.bulletPoints || []).join("\n")}
+                                      onChange={(e) => {
+                                        const newSlides = [...aiData.slideScript];
+                                        newSlides[i].bulletPoints = e.target.value.split("\n").filter(Boolean);
+                                        updateAiField(["slideScript"], newSlides);
+                                      }}
+                                      placeholder="Each line represents a bullet point"
+                                      className="bg-slate-950 border-slate-800 text-white text-xs min-h-[80px]"
+                                    />
+                                  ) : (
+                                    <ul className="space-y-1 list-disc list-inside text-xs text-slate-300">
+                                      {(slide.bulletPoints || []).map((bp: string, k: number) => (
+                                        <li key={k}>{bp}</li>
+                                      ))}
+                                    </ul>
+                                  )}
                                 </div>
                                 <div className="bg-slate-950/30 p-3 rounded-lg border border-slate-800/50">
                                   <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider block mb-1">
                                     Suggested Diagram / Visual asset:
                                   </span>
-                                  <p className="text-xs text-slate-400 italic">
-                                    {slide.visualSuggestion}
-                                  </p>
+                                  {isEditing ? (
+                                    <Input
+                                      value={slide.visualSuggestion}
+                                      onChange={(e) => {
+                                        const newSlides = [...aiData.slideScript];
+                                        newSlides[i].visualSuggestion = e.target.value;
+                                        updateAiField(["slideScript"], newSlides);
+                                      }}
+                                      className="bg-slate-950 border-slate-800 text-white text-xs"
+                                    />
+                                  ) : (
+                                    <p className="text-xs text-slate-400 italic">
+                                      {slide.visualSuggestion}
+                                    </p>
+                                  )}
                                 </div>
                               </div>
 
@@ -816,9 +1052,21 @@ export function CurriculumPlannerAI({
                                 <span className="text-xs font-bold text-indigo-400 uppercase tracking-wider block mb-1.5">
                                   Teacher Script (What to say):
                                 </span>
-                                <p className="text-xs text-slate-300 leading-relaxed font-serif">
-                                  "{slide.speakerNotes}"
-                                </p>
+                                {isEditing ? (
+                                  <Textarea
+                                    value={slide.speakerNotes}
+                                    onChange={(e) => {
+                                      const newSlides = [...aiData.slideScript];
+                                      newSlides[i].speakerNotes = e.target.value;
+                                      updateAiField(["slideScript"], newSlides);
+                                    }}
+                                    className="bg-slate-950 border-slate-800 text-white text-xs font-serif min-h-[140px]"
+                                  />
+                                ) : (
+                                  <p className="text-xs text-slate-300 leading-relaxed font-serif">
+                                    "{slide.speakerNotes}"
+                                  </p>
+                                )}
                               </div>
                             </div>
                           </div>
@@ -840,26 +1088,90 @@ export function CurriculumPlannerAI({
                           <div key={i} className="bg-slate-900/40 border border-slate-800/80 p-5 rounded-xl flex flex-col justify-between space-y-4">
                             <div className="space-y-2">
                               <div className="flex items-center justify-between">
-                                <h3 className="text-sm font-bold text-slate-200">
-                                  {act.name}
-                                </h3>
-                                <Badge variant="outline" className="bg-indigo-950/20 text-indigo-300 border-indigo-500/20">
-                                  {act.type}
-                                </Badge>
+                                {isEditing ? (
+                                  <Input
+                                    value={act.name}
+                                    onChange={(e) => {
+                                      const newActs = [...aiData.activities];
+                                      newActs[i].name = e.target.value;
+                                      updateAiField(["activities"], newActs);
+                                    }}
+                                    className="bg-slate-950 border-slate-800 text-white text-xs font-bold w-48"
+                                  />
+                                ) : (
+                                  <h3 className="text-sm font-bold text-slate-200">
+                                    {act.name}
+                                  </h3>
+                                )}
+                                {isEditing ? (
+                                  <Input
+                                    value={act.type}
+                                    onChange={(e) => {
+                                      const newActs = [...aiData.activities];
+                                      newActs[i].type = e.target.value;
+                                      updateAiField(["activities"], newActs);
+                                    }}
+                                    className="bg-slate-950 border-slate-800 text-white text-[10px] w-28 h-6"
+                                  />
+                                ) : (
+                                  <Badge variant="outline" className="bg-indigo-950/20 text-indigo-300 border-indigo-500/20">
+                                    {act.type}
+                                  </Badge>
+                                )}
                               </div>
-                              <p className="text-xs text-slate-400 leading-relaxed">
-                                {act.description}
-                              </p>
+                              {isEditing ? (
+                                <Textarea
+                                  value={act.description}
+                                  onChange={(e) => {
+                                    const newActs = [...aiData.activities];
+                                    newActs[i].description = e.target.value;
+                                    updateAiField(["activities"], newActs);
+                                  }}
+                                  className="bg-slate-950 border-slate-800 text-white text-xs min-h-[70px]"
+                                />
+                              ) : (
+                                <p className="text-xs text-slate-400 leading-relaxed">
+                                  {act.description}
+                                </p>
+                              )}
                             </div>
 
                             <div className="flex items-center justify-between pt-3 border-t border-slate-800/60 text-xs">
-                              <span className="text-slate-500 flex items-center gap-1">
-                                <Clock className="h-3.5 w-3.5" />
-                                {act.duration}
-                              </span>
-                              <span className="text-slate-400 italic">
-                                Materials: {act.materials || "Standard classroom supplies"}
-                              </span>
+                              {isEditing ? (
+                                <div className="flex items-center gap-1">
+                                  <Clock className="h-3 w-3 text-slate-500" />
+                                  <Input
+                                    value={act.duration}
+                                    onChange={(e) => {
+                                      const newActs = [...aiData.activities];
+                                      newActs[i].duration = e.target.value;
+                                      updateAiField(["activities"], newActs);
+                                    }}
+                                    className="bg-slate-950 border-slate-800 text-white text-[10px] w-20 h-6"
+                                  />
+                                </div>
+                              ) : (
+                                <span className="text-slate-500 flex items-center gap-1 font-mono">
+                                  <Clock className="h-3.5 w-3.5" />
+                                  {act.duration}
+                                </span>
+                              )}
+                              {isEditing ? (
+                                <Input
+                                  value={act.materials}
+                                  onChange={(e) => {
+                                    const newActs = [...aiData.activities];
+                                    newActs[i].materials = e.target.value;
+                                    updateAiField(["activities"], newActs);
+                                  }}
+                                  placeholder="Required materials"
+                                  className="bg-slate-950 border-slate-800 text-white text-[10px] w-36 h-6"
+                                />
+                              ) : (
+                                <span className="text-slate-400 italic">
+                                  Materials: {act.materials || "Standard classroom supplies"}
+                                </span>
+                              )}
                             </div>
                           </div>
                         ))}
@@ -882,23 +1194,47 @@ export function CurriculumPlannerAI({
                               <span className="text-sm font-bold text-slate-200">
                                 Question {q.questionNumber}
                               </span>
-                              <Badge className="bg-blue-600/10 text-blue-400 border border-blue-500/20">
-                                Bloom: {q.bloomLevel}
-                              </Badge>
+                              {isEditing ? (
+                                <Input
+                                  value={q.bloomLevel}
+                                  onChange={(e) => {
+                                    const newQuiz = [...aiData.quiz];
+                                    newQuiz[i].bloomLevel = e.target.value;
+                                    updateAiField(["quiz"], newQuiz);
+                                  }}
+                                  className="bg-slate-950 border-slate-800 text-white text-[10px] w-28 h-6"
+                                />
+                              ) : (
+                                <Badge className="bg-blue-600/10 text-blue-400 border border-blue-500/20 font-medium">
+                                  Bloom: {q.bloomLevel}
+                                </Badge>
+                              )}
                             </div>
-                            <p className="text-sm text-slate-300">
-                              {q.question}
-                            </p>
+                            {isEditing ? (
+                              <Input
+                                value={q.question}
+                                onChange={(e) => {
+                                  const newQuiz = [...aiData.quiz];
+                                  newQuiz[i].question = e.target.value;
+                                  updateAiField(["quiz"], newQuiz);
+                                }}
+                                className="bg-slate-950 border-slate-800 text-white text-sm"
+                              />
+                            ) : (
+                              <p className="text-sm text-slate-300 font-medium">
+                                {q.question}
+                              </p>
+                            )}
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-2 pt-1">
                               {(q.options || []).map((opt: string, k: number) => {
-                                const optionLetter = String.fromCharCode(65 + k); // A, B, C, D
+                                const optionLetter = String.fromCharCode(65 + k); 
                                 const isCorrect = optionLetter === q.correctAnswer;
                                 return (
                                   <div
                                     key={k}
                                     className={`p-2.5 rounded-lg border text-xs flex items-center gap-2.5 transition-all ${
                                       isCorrect
-                                        ? "bg-emerald-600/15 border-emerald-500/40 text-emerald-300"
+                                        ? "bg-emerald-600/15 border-emerald-500/40 text-emerald-300 shadow-[0_0_10px_rgba(16,185,129,0.1)]"
                                         : "bg-slate-950/20 border-slate-800/60 text-slate-400"
                                     }`}
                                   >
@@ -909,18 +1245,61 @@ export function CurriculumPlannerAI({
                                     }`}>
                                       {optionLetter}
                                     </span>
-                                    <span>{opt}</span>
+                                    {isEditing ? (
+                                      <Input
+                                        value={opt}
+                                        onChange={(e) => {
+                                          const newQuiz = [...aiData.quiz];
+                                          newQuiz[i].options[k] = e.target.value;
+                                          updateAiField(["quiz"], newQuiz);
+                                        }}
+                                        className="bg-slate-950 border-slate-800 text-white text-xs h-7"
+                                      />
+                                    ) : (
+                                      <span>{opt}</span>
+                                    )}
                                   </div>
                                 );
                               })}
                             </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2">
+                              <div className="space-y-1">
+                                <Label className="text-[10px] text-slate-500 font-bold uppercase">Correct Answer Letter (A-D)</Label>
+                                {isEditing ? (
+                                  <Input
+                                    value={q.correctAnswer}
+                                    maxLength={1}
+                                    onChange={(e) => {
+                                      const newQuiz = [...aiData.quiz];
+                                      newQuiz[i].correctAnswer = e.target.value.toUpperCase();
+                                      updateAiField(["quiz"], newQuiz);
+                                    }}
+                                    className="bg-slate-950 border-slate-800 text-white text-xs h-8 w-16"
+                                  />
+                                ) : null}
+                              </div>
+                            </div>
+
                             <div className="bg-slate-950/40 p-3 rounded-lg border border-slate-800/80 mt-2 text-xs">
                               <span className="text-slate-500 font-bold uppercase tracking-wider block mb-0.5">
                                 Explanation:
                               </span>
-                              <p className="text-slate-400 leading-relaxed">
-                                {q.explanation}
-                              </p>
+                              {isEditing ? (
+                                <Textarea
+                                  value={q.explanation}
+                                  onChange={(e) => {
+                                    const newQuiz = [...aiData.quiz];
+                                    newQuiz[i].explanation = e.target.value;
+                                    updateAiField(["quiz"], newQuiz);
+                                  }}
+                                  className="bg-slate-950 border-slate-800 text-white text-xs min-h-[50px]"
+                                />
+                              ) : (
+                                <p className="text-slate-400 leading-relaxed">
+                                  {q.explanation}
+                                </p>
+                              )}
                             </div>
                           </div>
                         ))}
@@ -950,16 +1329,64 @@ export function CurriculumPlannerAI({
                             {(aiData.rubric?.criteria || []).map((crit: any, i: number) => (
                               <tr key={i} className="hover:bg-slate-900/10">
                                 <td className="p-3 font-semibold text-slate-200 border-r border-slate-800/50">
-                                  {crit.name}
+                                  {isEditing ? (
+                                    <Input
+                                      value={crit.name}
+                                      onChange={(e) => {
+                                        const newCriteria = [...aiData.rubric.criteria];
+                                        newCriteria[i].name = e.target.value;
+                                        updateAiField(["rubric", "criteria"], newCriteria);
+                                      }}
+                                      className="bg-slate-950 border-slate-800 text-white text-xs"
+                                    />
+                                  ) : (
+                                    crit.name
+                                  )}
                                 </td>
                                 <td className="p-3 border-r border-slate-800/50 leading-relaxed">
-                                  {crit.excellent}
+                                  {isEditing ? (
+                                    <Textarea
+                                      value={crit.excellent}
+                                      onChange={(e) => {
+                                        const newCriteria = [...aiData.rubric.criteria];
+                                        newCriteria[i].excellent = e.target.value;
+                                        updateAiField(["rubric", "criteria"], newCriteria);
+                                      }}
+                                      className="bg-slate-950 border-slate-800 text-white text-xs min-h-[60px]"
+                                    />
+                                  ) : (
+                                    crit.excellent
+                                  )}
                                 </td>
                                 <td className="p-3 border-r border-slate-800/50 leading-relaxed">
-                                  {crit.good}
+                                  {isEditing ? (
+                                    <Textarea
+                                      value={crit.good}
+                                      onChange={(e) => {
+                                        const newCriteria = [...aiData.rubric.criteria];
+                                        newCriteria[i].good = e.target.value;
+                                        updateAiField(["rubric", "criteria"], newCriteria);
+                                      }}
+                                      className="bg-slate-950 border-slate-800 text-white text-xs min-h-[60px]"
+                                    />
+                                  ) : (
+                                    crit.good
+                                  )}
                                 </td>
                                 <td className="p-3 leading-relaxed">
-                                  {crit.developing}
+                                  {isEditing ? (
+                                    <Textarea
+                                      value={crit.developing}
+                                      onChange={(e) => {
+                                        const newCriteria = [...aiData.rubric.criteria];
+                                        newCriteria[i].developing = e.target.value;
+                                        updateAiField(["rubric", "criteria"], newCriteria);
+                                      }}
+                                      className="bg-slate-950 border-slate-800 text-white text-xs min-h-[60px]"
+                                    />
+                                  ) : (
+                                    crit.developing
+                                  )}
                                 </td>
                               </tr>
                             ))}
