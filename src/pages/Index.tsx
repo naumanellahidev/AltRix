@@ -381,10 +381,12 @@ const Index = () => {
           : null;
 
   return (
-    <div className="min-h-screen flex flex-col bg-gradient-to-br from-blue-50 via-indigo-50/40 to-sky-100/30 relative overflow-x-hidden font-sans">
+    <div className="min-h-screen flex flex-col bg-gradient-to-br from-primary/5 via-slate-50 to-primary/10 relative overflow-x-hidden font-sans">
       {/* Decorative background glass orbs */}
-      <div className="absolute top-[-10%] left-[-10%] w-[45vw] h-[45vw] rounded-full bg-blue-400/10 blur-[120px] pointer-events-none z-0" />
-      <div className="absolute bottom-[-10%] right-[-5%] w-[50vw] h-[50vw] rounded-full bg-sky-300/10 blur-[130px] pointer-events-none z-0" />
+      <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
+        <div className="absolute top-[-10%] left-[-10%] w-[45vw] h-[45vw] rounded-full bg-primary/10 blur-[120px]" />
+        <div className="absolute bottom-[-10%] right-[-5%] w-[50vw] h-[50vw] rounded-full bg-primary/10 blur-[130px]" />
+      </div>
 
       {/* ── HEADER ── */}
       <header className="w-full py-8 px-6 flex flex-col items-center relative z-10">
@@ -392,9 +394,9 @@ const Index = () => {
           <img
             src="/pwa-512.png"
             alt="AltRix"
-            className="w-11 h-11 rounded-xl shadow-md shadow-blue-500/20 border border-white/40"
+            className="w-11 h-11 rounded-xl shadow-md shadow-primary/20 border border-white/40"
           />
-          <span className="font-sans text-3xl font-extrabold tracking-tight bg-gradient-to-r from-blue-800 to-indigo-600 bg-clip-text text-transparent">
+          <span className="font-sans text-3xl font-extrabold tracking-tight bg-gradient-to-r from-primary to-primary/80 bg-clip-text text-transparent">
             AltRix
           </span>
         </div>
@@ -413,7 +415,7 @@ const Index = () => {
           transition={{ duration: 0.6, ease: [0.2, 0.8, 0.2, 1] }}
           className="lg:col-span-7 flex flex-col gap-4 min-w-0"
         >
-          <h2 className="font-sans text-3xl sm:text-4xl font-extrabold tracking-tight text-slate-900 leading-tight bg-gradient-to-r from-blue-800 to-indigo-600 bg-clip-text text-transparent">
+          <h2 className="font-sans text-3xl sm:text-4xl font-extrabold tracking-tight text-slate-900 leading-tight bg-gradient-to-r from-primary to-primary/80 bg-clip-text text-transparent">
             Empowering education through intelligent operations
           </h2>
           <p className="text-base text-slate-600 leading-relaxed max-w-xl">
@@ -430,12 +432,12 @@ const Index = () => {
         >
           <div className="bg-white/80 border border-white/80 shadow-elevated rounded-3xl p-6 sm:p-8 backdrop-blur-xl relative overflow-hidden transition-all duration-300 hover:shadow-2xl">
             {/* Corner decoration gradient */}
-            <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl from-blue-400/10 to-transparent rounded-bl-full pointer-events-none" />
+            <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl from-primary/10 to-transparent rounded-bl-full pointer-events-none" />
 
             {/* Card header */}
             {authMode === 'login' && (
               <div className="mb-6 relative z-10">
-                <h2 className="font-sans text-2xl font-bold tracking-tight text-slate-900 bg-gradient-to-r from-blue-800 to-indigo-600 bg-clip-text text-transparent">
+                <h2 className="font-sans text-2xl font-bold tracking-tight text-slate-900 bg-gradient-to-r from-primary to-primary/80 bg-clip-text text-transparent">
                   Welcome Back
                 </h2>
                 <p className="text-xs sm:text-sm text-slate-600 mt-1">
@@ -452,7 +454,7 @@ const Index = () => {
               >
                 {/* School code */}
                 <div>
-                  <label className="block text-xs font-bold tracking-wider text-blue-700 uppercase mb-2 ml-1">
+                  <label className="block text-xs font-bold tracking-wider text-primary uppercase mb-2 ml-1">
                     School Code
                   </label>
                   <div className="relative rounded-xl border border-slate-200 bg-white/50 transition-all duration-200 focus-within:ring-4 focus-within:ring-primary/10 focus-within:border-primary focus-within:bg-white">
@@ -482,7 +484,7 @@ const Index = () => {
                     )}
                   </div>
                   {tenantBadge && tenant.status === "ready" && (
-                    <p className="text-xs text-blue-600 mt-1.5 flex items-center gap-1.5 ml-1">
+                    <p className="text-xs text-primary mt-1.5 flex items-center gap-1.5 ml-1">
                       <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" /> Verified: {tenantBadge.label}
                     </p>
                   )}
@@ -495,7 +497,7 @@ const Index = () => {
 
                 {/* Email */}
                 <div>
-                  <label htmlFor="login-email" className="block text-xs font-bold tracking-wider text-blue-700 uppercase mb-2 ml-1">
+                  <label htmlFor="login-email" className="block text-xs font-bold tracking-wider text-primary uppercase mb-2 ml-1">
                     Work Email
                   </label>
                   <div className="relative rounded-xl border border-slate-200 bg-white/50 transition-all duration-200 focus-within:ring-4 focus-within:ring-primary/10 focus-within:border-primary focus-within:bg-white">
@@ -526,12 +528,12 @@ const Index = () => {
                 {/* Password */}
                 <div>
                   <div className="flex justify-between items-center mb-2 ml-1">
-                    <label htmlFor="login-password" className="text-xs font-bold tracking-wider text-blue-700 uppercase">
+                    <label htmlFor="login-password" className="text-xs font-bold tracking-wider text-primary uppercase">
                       Password
                     </label>
                     <button
                       type="button"
-                      className="text-xs font-semibold text-blue-600 hover:text-blue-800 transition-colors"
+                      className="text-xs font-semibold text-primary hover:text-primary/80 transition-colors"
                       onClick={() => { setMessage(null); setAuthMode('forgot_password'); }}
                     >
                       Forgot?
@@ -596,8 +598,8 @@ const Index = () => {
                 className="flex flex-col gap-5 relative z-10"
               >
                 <div className="text-center">
-                  <div className="inline-flex p-3 rounded-xl bg-blue-50 border border-blue-100 mb-3.5">
-                    <Key className="h-6 w-6 text-blue-600" />
+                  <div className="inline-flex p-3 rounded-xl bg-primary/10 border border-primary/20 mb-3.5">
+                    <Key className="h-6 w-6 text-primary" />
                   </div>
                   <h3 className="font-sans text-xl font-bold text-slate-900">
                     Reset Password
@@ -608,7 +610,7 @@ const Index = () => {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold tracking-wider text-blue-700 uppercase mb-2 ml-1">
+                  <label className="block text-xs font-bold tracking-wider text-primary uppercase mb-2 ml-1">
                     Work Email
                   </label>
                   <div className="relative rounded-xl border border-slate-200 bg-white/50 transition-all duration-200 focus-within:ring-4 focus-within:ring-primary/10 focus-within:border-primary focus-within:bg-white">
@@ -641,7 +643,7 @@ const Index = () => {
 
                 <button
                   type="button"
-                  className="text-xs font-semibold text-slate-500 hover:text-blue-600 transition-colors flex items-center justify-center gap-1.5"
+                  className="text-xs font-semibold text-slate-500 hover:text-primary transition-colors flex items-center justify-center gap-1.5"
                   onClick={() => { setMessage(null); setAuthMode('login'); }}
                 >
                   <ArrowLeft className="h-3.5 w-3.5" /> Back to sign in
@@ -744,7 +746,7 @@ const Index = () => {
                     ? "bg-emerald-50/50 border-emerald-200 text-emerald-800" 
                     : message.tone === "error" 
                     ? "bg-red-50/50 border-red-200 text-red-800"
-                    : "bg-blue-50/50 border-blue-200 text-blue-800"
+                    : "bg-primary/5 border-primary/10 text-primary"
                 }`}
               >
                 <div className="flex items-start gap-2">
@@ -772,19 +774,19 @@ const Index = () => {
           {/* Bento Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {[
-              { icon: Brain, iconColor: "text-blue-600", bg: "bg-blue-50", border: "border-blue-100", label: "AI Insights", desc: "Predictive student performance analytics and trend spotting." },
-              { icon: ShieldCheck, iconColor: "text-indigo-600", bg: "bg-indigo-50", border: "border-indigo-100", label: "Secure Vault", desc: "Military-grade data encryption and privacy compliance." },
-              { icon: Eye, iconColor: "text-slate-600", bg: "bg-slate-100", border: "border-slate-200", label: "Real-time Audit", desc: "Live transparent audit logs for staff and administrators." },
-              { icon: MessageSquare, iconColor: "text-sky-600", bg: "bg-sky-50", border: "border-sky-100", label: "Universal Hub", desc: "Unified school-parent communication and collaboration." },
+              { icon: Brain, iconColor: "text-primary", bg: "bg-primary/10", border: "border-primary/20", label: "AI Insights", desc: "Predictive student performance analytics and trend spotting." },
+              { icon: ShieldCheck, iconColor: "text-primary", bg: "bg-primary/10", border: "border-primary/20", label: "Secure Vault", desc: "Military-grade data encryption and privacy compliance." },
+              { icon: Eye, iconColor: "text-primary", bg: "bg-primary/10", border: "border-primary/20", label: "Transparency", desc: "Clear visibility with real-time data." },
+              { icon: MessageSquare, iconColor: "text-primary", bg: "bg-primary/10", border: "border-primary/20", label: "Universal Hub", desc: "Unified school-parent communication and collaboration." },
             ].map(({ icon: Icon, iconColor, bg, border, label, desc }) => (
               <div 
                 key={label} 
-                className="p-5 rounded-2xl bg-white/40 border border-white/60 shadow-sm backdrop-blur-md transition-all duration-300 hover:bg-white/60 hover:border-blue-100/60 hover:shadow-soft"
+                className="p-5 rounded-2xl bg-white/40 border border-white/60 shadow-sm backdrop-blur-md transition-all duration-300 hover:bg-white/60 hover:border-primary/30 hover:shadow-soft"
               >
                 <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-3 ${bg} ${border}`}>
                   <Icon className={`h-5 w-5 ${iconColor}`} />
                 </div>
-                <p className="text-xs font-bold tracking-wider text-blue-700 uppercase mb-1">{label}</p>
+                <p className="text-xs font-bold tracking-wider text-primary uppercase mb-1">{label}</p>
                 <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">{desc}</p>
               </div>
             ))}
@@ -794,7 +796,7 @@ const Index = () => {
             Need a school account?{" "}
             <a
               href="mailto:sales@altrix.io"
-              className="text-blue-600 font-semibold hover:underline"
+              className="text-primary font-semibold hover:underline"
             >
               Contact Sales
             </a>
@@ -815,7 +817,7 @@ const Index = () => {
               <a 
                 key={link} 
                 href="#" 
-                className="text-[11px] sm:text-xs font-semibold text-slate-600 hover:text-blue-600 transition-colors"
+                className="text-[11px] sm:text-xs font-semibold text-slate-600 hover:text-primary transition-colors"
               >
                 {link}
               </a>
