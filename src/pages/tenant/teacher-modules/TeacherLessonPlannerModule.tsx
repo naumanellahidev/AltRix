@@ -251,10 +251,10 @@ export function TeacherLessonPlannerModule() {
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div className="flex items-center gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
           <Select value={selectedSection} onValueChange={setSelectedSection}>
-            <SelectTrigger className="w-[200px]">
+            <SelectTrigger className="w-full sm:w-[200px]">
               <SelectValue placeholder="Select section" />
             </SelectTrigger>
             <SelectContent>
@@ -268,18 +268,18 @@ export function TeacherLessonPlannerModule() {
 
           <Button
             onClick={() => setAiPlannerOpen(true)}
-            className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold flex items-center gap-1.5 shadow-[0_4px_12px_rgba(59,130,246,0.25)] transition-all"
+            className="w-full sm:w-auto bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold flex items-center justify-center gap-1.5 shadow-[0_4px_12px_rgba(59,130,246,0.25)] transition-all"
           >
             <Sparkles className="h-4 w-4" />
             AI Lesson Plan
           </Button>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center justify-between sm:justify-end gap-2 w-full sm:w-auto">
           <Button variant="outline" size="icon" onClick={() => setWeekStart(addDays(weekStart, -7))}>
             <ChevronLeft className="h-4 w-4" />
           </Button>
-          <span className="text-sm font-medium min-w-[180px] text-center">
+          <span className="text-sm font-medium min-w-[150px] sm:min-w-[180px] text-center">
             {format(weekStart, "MMM d")} - {format(addDays(weekStart, 5), "MMM d, yyyy")}
           </span>
           <Button variant="outline" size="icon" onClick={() => setWeekStart(addDays(weekStart, 7))}>
