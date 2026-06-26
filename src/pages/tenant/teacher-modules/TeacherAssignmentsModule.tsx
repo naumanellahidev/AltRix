@@ -1366,7 +1366,8 @@ Explanation: Paris is the capital and most populous city of France.`}
             )}
           </div>
         </DialogContent>
-      </Dialo      {/* Assignment Detail Modal */}
+      </Dialog>
+      {/* Assignment Detail Modal */}
       <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
         <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
           {viewingAssignment && (() => {
