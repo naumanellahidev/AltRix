@@ -621,8 +621,23 @@ Constraints:
    - Duration: {body.durationMinutes} minutes
 2. Incorporate activities targeting these Bloom's Taxonomy levels: {", ".join(body.bloomLevels) if body.bloomLevels else "Remember, Understand, Apply"}
 3. The quiz must contain exactly {body.quizQuestionCount} high-quality multiple choice questions matching the topic and curriculum standard.
-4. Teacher-Friendly Simplicity: Make the lesson plan, schedule actions, slide scripts, and activities extremely clear and direct. Use simple English and avoid overly dense academic jargon. Write the learning objectives as actionable "Students will be able to (SWBAT)" statements.
-5. Classroom-Ready Explanations: Write the quiz explanation text so it can be read directly to {body.gradeLevel} students as a clear, easy-to-understand explanation of why the answer is correct.
+4. Content Accuracy & Logical Flow:
+   - All academic facts, definitions, and concepts must be 100% accurate and aligned to {body.curriculumType} standards for {body.gradeLevel}.
+   - The lesson plan must follow a clear, scaffolded chronological flow: Hook/Warm-up -> Core Concept Explanation -> Guided Practice -> Hands-on Activity -> Wrap-up & Assessment.
+   - Timings in the schedule must be realistic and sum up to exactly {body.durationMinutes} minutes.
+5. Teleprompter-Style Slide Script:
+   - Provide a complete, highly detailed speaker script for every slide in the presentation.
+   - Do NOT use shorthand notes, bullet summaries, or placeholders like "[Explain diagram here]". Write out the exact, word-for-word explanation paragraphs the teacher should speak to explain each concept clearly to {body.gradeLevel} students.
+6. Interactive Student Activities:
+   - Outline age-appropriate, interactive, engaging learning tasks with step-by-step student directives and required materials.
+7. High-Quality MCQs:
+   - Multiple choice questions must have four distinct, plausible options (A, B, C, D) with exactly one clearly correct answer. Avoid trivial options or jokes.
+   - Include a classroom-friendly explanation that explains the logic behind the correct answer and clears up common student misconceptions, written so it can be read directly to {body.gradeLevel} students.
+8. Rubric Integrity:
+   - Generate evaluation rubrics with clear, actionable grading criteria (Excellent, Good, Developing) that describe concrete, observable student behaviors and skills.
+9. No Shortcuts:
+   - Ensure all sections are fully written out. Do not truncate, skip, or write "..." or use templates. Output the complete, fully formed lesson planner resource in the required JSON schema.
+
 """
 
     user_message = f"Generate a lesson plan for the topic: '{body.topic}'."
