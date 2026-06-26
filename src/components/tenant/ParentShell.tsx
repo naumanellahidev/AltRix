@@ -103,6 +103,7 @@ import {
   PartyPopper,
   HeartHandshake,
   ShieldAlert,
+  ScrollText,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -197,6 +198,7 @@ export function ParentShell({
     { to: `${basePath}/ai-insights`, icon: Brain, label: "AI Insights", badge: 0 },
     { to: `${basePath}/attendance`, icon: Calendar, label: "Attendance", badge: 0 },
     { to: `${basePath}/grades`, icon: GraduationCap, label: "Grades", badge: 0 },
+    { to: `${basePath}/assignments`, icon: ScrollText, label: "Assignments", badge: 0 },
     { to: `${basePath}/report-card`, icon: FileText, label: "Report Card", badge: 0 },
     { to: `${basePath}/exams`, icon: GraduationCap, label: "Exams", badge: 0 },
     { to: `${basePath}/diary`, icon: NotebookPen, label: "Diary", badge: 0 },

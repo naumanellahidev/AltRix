@@ -426,8 +426,8 @@ export function StudentAssignmentsModule({ myStudent, schoolId }: { myStudent: a
       <Tabs defaultValue="assignments" className="w-full">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-3">
           <TabsList className="bg-slate-100/80">
-            <TabsTrigger value="assignments" className="data-[state=active]:bg-white">Assignments</TabsTrigger>
-            <TabsTrigger value="homework" className="data-[state=active]:bg-white">Homework</TabsTrigger>
+            <TabsTrigger value="assignments" className="data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm text-slate-600">Assignments</TabsTrigger>
+            <TabsTrigger value="homework" className="data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm text-slate-600">Homework</TabsTrigger>
           </TabsList>
 
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:w-[480px]">

@@ -10,6 +10,7 @@ import { ParentShell } from "@/components/tenant/ParentShell";
 const ParentHomeModule = lazy(() => import("./parent-modules/ParentHomeModule"));
 const ParentAttendanceModule = lazy(() => import("./parent-modules/ParentAttendanceModule"));
 const ParentGradesModule = lazy(() => import("./parent-modules/ParentGradesModule"));
+const ParentAssignmentsModule = lazy(() => import("./parent-modules/ParentAssignmentsModule"));
 const ParentFeesModule = lazy(() => import("./parent-modules/ParentFeesModule"));
 const ParentMessagesModule = lazy(() => import("./parent-modules/ParentMessagesModule"));
 const ParentTimetableModule = lazy(() => import("./parent-modules/ParentTimetableModule"));
@@ -303,7 +304,7 @@ const ParentDashboard = () => {
         onLogout={handleLogout}
       >
         <RouteGuard extraAllowedPaths={[
-          "ai-insights","attendance","grades","fees","messages","timetable",
+          "ai-insights","attendance","grades","assignments","fees","messages","timetable",
           "notifications","support","behavior","notices","holidays","diary",
           "exams","report-card","complaints",
         ]}>
@@ -313,6 +314,7 @@ const ParentDashboard = () => {
             <Route path="ai-insights" element={<ParentAIModule child={selectedChild} schoolId={schoolId} />} />
             <Route path="attendance" element={<ParentAttendanceModule child={selectedChild} schoolId={schoolId} />} />
             <Route path="grades" element={<ParentGradesModule child={selectedChild} schoolId={schoolId} />} />
+            <Route path="assignments" element={<ParentAssignmentsModule child={selectedChild} schoolId={schoolId} />} />
             <Route path="fees" element={<ParentFeesModule child={selectedChild} schoolId={schoolId} />} />
             <Route path="messages" element={<ParentMessagesModule child={selectedChild} schoolId={schoolId} />} />
             <Route path="timetable" element={<ParentTimetableModule child={selectedChild} schoolId={schoolId} />} />
