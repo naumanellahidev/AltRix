@@ -126,6 +126,7 @@ export function CurriculumPlannerAI({
   const [additionalContext, setAdditionalContext] = useState("");
   const [planDate, setPlanDate] = useState(new Date().toISOString().split("T")[0]);
   const [periodLabel, setPeriodLabel] = useState("Period 1");
+  const [quizQuestionCount, setQuizQuestionCount] = useState(5);
 
   const toggleBlooms = (level: string) => {
     setSelectedBlooms((prev) =>
@@ -194,6 +195,7 @@ export function CurriculumPlannerAI({
             durationMinutes,
             bloomLevels: selectedBlooms,
             additionalContext,
+            quizQuestionCount,
           }),
         }
       );
@@ -477,6 +479,24 @@ export function CurriculumPlannerAI({
                 </div>
 
                 <div className="space-y-2">
+                  <Label className="text-slate-700 font-semibold">Curriculum Framework</Label>
+                  <Select value={curriculumType} onValueChange={setCurriculumType}>
+                    <SelectTrigger className="bg-white border-slate-200 text-slate-900">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-white border-slate-200 text-slate-900">
+                      {CURRICULUMS.map((c) => (
+                        <SelectItem key={c} value={c}>
+                          {c}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
                   <Label className="text-slate-700 font-semibold">Duration (mins)</Label>
                   <Input
                     type="number"
@@ -487,28 +507,32 @@ export function CurriculumPlannerAI({
                     className="bg-white border-slate-200 text-slate-900"
                   />
                 </div>
+
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-slate-700 font-semibold">Quiz MCQs Count</Label>
+                    <span className="text-[10px] text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded font-semibold">Count</span>
+                  </div>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={25}
+                    value={quizQuestionCount}
+                    onChange={(e) => setQuizQuestionCount(parseInt(e.target.value) || 5)}
+                    className="bg-white border-slate-200 text-slate-900"
+                  />
+                </div>
               </div>
 
               <div className="space-y-2">
-                <Label className="text-slate-700 font-semibold">Curriculum Framework</Label>
-                <Select value={curriculumType} onValueChange={setCurriculumType}>
-                  <SelectTrigger className="bg-white border-slate-200 text-slate-900">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="bg-white border-slate-200 text-slate-900">
-                    {CURRICULUMS.map((c) => (
-                      <SelectItem key={c} value={c}>
-                        {c}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-slate-700 font-semibold block">
-                  Bloom's Taxonomy Focus
-                </Label>
+                <div className="flex flex-col">
+                  <Label className="text-slate-700 font-semibold">
+                    Bloom's Taxonomy Focus
+                  </Label>
+                  <span className="text-[10px] text-slate-400 mt-0.5">
+                    Select cognitive levels to focus interactive activities and quiz questions on.
+                  </span>
+                </div>
                 <div className="flex flex-wrap gap-2 pt-1">
                   {BLOOM_LEVELS.map((level) => {
                     const active = selectedBlooms.includes(level);
@@ -531,9 +555,14 @@ export function CurriculumPlannerAI({
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="context" className="text-slate-700 font-semibold">
-                  Additional Pedagogy Context (Optional)
-                </Label>
+                <div className="flex flex-col">
+                  <Label htmlFor="context" className="text-slate-700 font-semibold">
+                    Additional Pedagogy Context (Optional)
+                  </Label>
+                  <span className="text-[10px] text-slate-400 mt-0.5">
+                    Provide instructions for the AI: e.g., 'focus on hands-on labs' or 'simplify mathematical steps'.
+                  </span>
+                </div>
                 <Textarea
                   id="context"
                   placeholder="e.g., Focus more on lab experiments, or include review of cell division since students struggled with it last time."

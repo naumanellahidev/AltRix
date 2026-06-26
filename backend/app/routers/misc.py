@@ -506,6 +506,7 @@ class CurriculumPlannerRequest(BaseModel):
     durationMinutes: int = 45
     bloomLevels: List[str] = []
     additionalContext: Optional[str] = None
+    quizQuestionCount: int = 5
 
 
 @ai_router.post("/curriculum-planner")
@@ -619,7 +620,9 @@ Constraints:
    - Subject: {body.subjectName}
    - Duration: {body.durationMinutes} minutes
 2. Incorporate activities targeting these Bloom's Taxonomy levels: {", ".join(body.bloomLevels) if body.bloomLevels else "Remember, Understand, Apply"}
-3. The quiz must contain exactly 5 high-quality multiple choice questions matching the topic and curriculum standard.
+3. The quiz must contain exactly {body.quizQuestionCount} high-quality multiple choice questions matching the topic and curriculum standard.
+4. Teacher-Friendly Simplicity: Make the lesson plan, schedule actions, slide scripts, and activities extremely clear and direct. Use simple English and avoid overly dense academic jargon. Write the learning objectives as actionable "Students will be able to (SWBAT)" statements.
+5. Classroom-Ready Explanations: Write the quiz explanation text so it can be read directly to {body.gradeLevel} students as a clear, easy-to-understand explanation of why the answer is correct.
 """
 
     user_message = f"Generate a lesson plan for the topic: '{body.topic}'."
