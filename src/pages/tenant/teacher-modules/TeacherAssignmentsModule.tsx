@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useParams } from "react-router-dom";
 import { Plus, Users, CheckCircle, Clock, FileCheck, MessageSquare, Paperclip, AlertTriangle, Check, AlertCircle, Info, Trash2, Search, Filter, Calendar, TrendingUp, Award, FileText, BookOpen } from "lucide-react";
 import { AttachmentsList } from "@/components/assignments/AttachmentsList";
