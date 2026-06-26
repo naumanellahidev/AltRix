@@ -244,7 +244,11 @@ export function CurriculumPlannerAI({
         grade_level: gradeLevel,
         lesson_duration_minutes: durationMinutes,
         bloom_levels: selectedBlooms,
-        ai_plan_data: aiData.lessonPlan,
+        ai_plan_data: {
+          ...aiData.lessonPlan,
+          activities: aiData.activities,
+          rubric: aiData.rubric,
+        },
         ai_slide_script: aiData.slideScript,
         ai_quiz_data: aiData.quiz,
         ai_model_used: "Gemini / Fast AI Model Routing",
