@@ -38,6 +38,174 @@ type Submission = {
 
 type Homework = { id: string; title: string; due_date: string; status: string };
 
+export function parseRawQuizToJSON(text: string): { questions: any[]; instructions: string } | null {
+  if (!text) return null;
+  if (text.startsWith("[ALTRIX_QUIZ_JSON]:")) return null;
+
+  const questions: any[] = [];
+  const lines = text.split("\n");
+  
+  let currentQuestion: any = null;
+  let instructionsLines: string[] = [];
+  let isParsingQuestions = false;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (!line) continue;
+
+    const qMatch = line.match(/^(?:\*\*|)?(?:Q(?:uestion)?\s*[-.:\d\s]+|\d+\.)/i);
+    
+    if (qMatch) {
+      isParsingQuestions = true;
+      if (currentQuestion) {
+        questions.push(currentQuestion);
+      }
+      
+      const cleanQuestion = line.replace(/^\**/, "").replace(/\*\*$/, "").replace(/^[Q|q](?:uestion)?\s*[-.:\d\s]+/, "").replace(/^\d+\.\s*/, "").trim();
+      currentQuestion = {
+        questionNumber: questions.length + 1,
+        question: cleanQuestion,
+        options: {},
+        correctAnswer: "",
+        explanation: ""
+      };
+      continue;
+    }
+
+    if (!isParsingQuestions) {
+      instructionsLines.push(line);
+      continue;
+    }
+
+    const optMatch = line.match(/^(?:\*\*|)?([A-D])[-.)\s]+(.*)/i);
+    if (optMatch && currentQuestion) {
+      const letter = optMatch[1].toUpperCase();
+      const optionText = optMatch[2].replace(/\*\*$/, "").trim();
+      currentQuestion.options[letter] = optionText;
+      continue;
+    }
+
+    const ansMatch = line.match(/(?:Correct\s+)?Answer\s*[-.:\s*]+([A-D])/i);
+    if (ansMatch && currentQuestion) {
+      currentQuestion.correctAnswer = ansMatch[1].toUpperCase();
+      continue;
+    }
+
+    const expMatch = line.match(/(?:Explanation|Exp)\s*[-.:\s*]+(.*)/i);
+    if (expMatch && currentQuestion) {
+      currentQuestion.explanation = expMatch[1].replace(/\*+$/, "").trim();
+      continue;
+    }
+
+    if (currentQuestion) {
+      if (currentQuestion.explanation) {
+        currentQuestion.explanation += " " + line;
+      } else if (Object.keys(currentQuestion.options).length === 0) {
+        currentQuestion.question += " " + line;
+      }
+    }
+  }
+
+  if (currentQuestion) {
+    questions.push(currentQuestion);
+  }
+
+  if (questions.length > 0) {
+    questions.forEach((q) => {
+      if (!q.correctAnswer) q.correctAnswer = "A";
+      const optionList: string[] = [];
+      ["A", "B", "C", "D"].forEach((letter) => {
+        if (q.options[letter]) {
+          optionList.push(q.options[letter]);
+        }
+      });
+      if (optionList.length === 0) {
+        optionList.push("Option A", "Option B", "Option C", "Option D");
+      }
+      q.options = optionList;
+    });
+
+    return {
+      questions,
+      instructions: instructionsLines.join("\n") || "Please complete the following quiz questions generated for our topic."
+    };
+  }
+
+  return null;
+}
+
+export function getAssignmentType(description: string | null, title: string | null): {
+  type: "mcq" | "written_test" | "paragraph" | "test" | "other";
+  label: string;
+  cleanDescription: string;
+} {
+  const desc = description || "";
+  const t = title || "";
+
+  if (desc.startsWith("[ALTRIX_QUIZ_JSON]:")) {
+    return { type: "mcq", label: "MCQ Quiz", cleanDescription: desc.substring(19) };
+  }
+  
+  if (desc.startsWith("[ALTRIX_TYPE:written_test]:")) {
+    return { type: "written_test", label: "Written Test", cleanDescription: desc.substring(27) };
+  }
+  if (desc.startsWith("[ALTRIX_TYPE:paragraph]:")) {
+    return { type: "paragraph", label: "Paragraph Assignment", cleanDescription: desc.substring(24) };
+  }
+  if (desc.startsWith("[ALTRIX_TYPE:test]:")) {
+    return { type: "test", label: "Test Assignment", cleanDescription: desc.substring(19) };
+  }
+  if (desc.startsWith("[ALTRIX_TYPE:other]:")) {
+    return { type: "other", label: "General Assignment", cleanDescription: desc.substring(20) };
+  }
+
+  const hasOptions = desc.match(/[A-D]\s*[-.)]\s*\w+/i);
+  const isQuizTitle = t.toLowerCase().includes("quiz") || t.toLowerCase().includes("mcq");
+  
+  if (isQuizTitle || (hasOptions && desc.toLowerCase().includes("correct answer"))) {
+    return { type: "mcq", label: "MCQ Quiz", cleanDescription: desc };
+  }
+  if (t.toLowerCase().includes("written test") || t.toLowerCase().includes("written-test")) {
+    return { type: "written_test", label: "Written Test", cleanDescription: desc };
+  }
+  if (t.toLowerCase().includes("paragraph")) {
+    return { type: "paragraph", label: "Paragraph Assignment", cleanDescription: desc };
+  }
+  if (t.toLowerCase().includes("test")) {
+    return { type: "test", label: "Test Assignment", cleanDescription: desc };
+  }
+
+  return { type: "other", label: "General Assignment", cleanDescription: desc };
+}
+
+export function getQuizData(description: string | null): { questions: any[]; instructions: string } | null {
+  if (!description) return null;
+  if (description.startsWith("[ALTRIX_QUIZ_JSON]:")) {
+    try {
+      return JSON.parse(description.substring(19));
+    } catch (e) {
+      console.error(e);
+      return null;
+    }
+  }
+  return parseRawQuizToJSON(description);
+}
+
+export function getBadgeStyle(type: string): string {
+  switch (type) {
+    case "mcq":
+      return "bg-blue-50 text-blue-700 border-blue-200";
+    case "written_test":
+      return "bg-violet-50 text-violet-700 border-violet-200";
+    case "paragraph":
+      return "bg-amber-50 text-amber-700 border-amber-200";
+    case "test":
+      return "bg-emerald-50 text-emerald-700 border-emerald-200";
+    default:
+      return "bg-slate-50 text-slate-700 border-slate-200";
+  }
+}
+
 const BUCKET_NAME = "assignment-submissions";
 
 export function StudentAssignmentsModule({ myStudent, schoolId }: { myStudent: any; schoolId: string }) {
@@ -144,7 +312,8 @@ export function StudentAssignmentsModule({ myStudent, schoolId }: { myStudent: a
     const existing = submissions.get(assignment.id);
     setSelectedAssignment(assignment);
     
-    if (assignment.description?.startsWith("[ALTRIX_QUIZ_JSON]:")) {
+    const quizData = getQuizData(assignment.description);
+    if (quizData) {
       let parsedAnswers = {};
       if (existing?.content?.startsWith("[ALTRIX_QUIZ_SUBMISSION]:")) {
         try {
@@ -191,19 +360,12 @@ export function StudentAssignmentsModule({ myStudent, schoolId }: { myStudent: a
   const handleSubmit = async () => {
     if (!selectedAssignment || myStudent.status !== "ready") return;
     
-    const isQuiz = selectedAssignment.description?.startsWith("[ALTRIX_QUIZ_JSON]:");
+    const quizData = getQuizData(selectedAssignment.description);
     let contentValue = submissionText;
     let quizMarks: number | null = null;
 
-    if (isQuiz) {
-      let quizData: any = null;
-      try {
-        quizData = JSON.parse(selectedAssignment.description.substring(19));
-      } catch (e) {
-        console.error(e);
-      }
-      
-      const totalQuestions = quizData?.questions?.length || 0;
+    if (quizData) {
+      const totalQuestions = quizData.questions?.length || 0;
       const answeredCount = Object.keys(quizAnswers).length;
       if (answeredCount < totalQuestions) {
         toast.error(`Please answer all ${totalQuestions} questions before submitting.`);
@@ -214,7 +376,7 @@ export function StudentAssignmentsModule({ myStudent, schoolId }: { myStudent: a
       
       // Calculate score for auto-grading!
       let correctCount = 0;
-      (quizData?.questions || []).forEach((q: any) => {
+      (quizData.questions || []).forEach((q: any) => {
         if (quizAnswers[q.questionNumber] === q.correctAnswer) {
           correctCount++;
         }
@@ -236,9 +398,9 @@ export function StudentAssignmentsModule({ myStudent, schoolId }: { myStudent: a
     const savePayload = {
       content: contentValue,
       attachment_urls: attachmentUrls.length > 0 ? attachmentUrls : null,
-      status: isQuiz ? (isLate ? "late" : "graded") : (isLate ? "late" : "submitted"),
+      status: quizData ? (isLate ? "late" : "graded") : (isLate ? "late" : "submitted"),
       submitted_at: new Date().toISOString(),
-      ...(isQuiz ? {
+      ...(quizData ? {
         marks: quizMarks,
         marks_obtained: quizMarks,
         feedback: "Auto-graded by AI Quiz Engine."
@@ -254,7 +416,7 @@ export function StudentAssignmentsModule({ myStudent, schoolId }: { myStudent: a
       if (error) {
         toast.error(error.message);
       } else {
-        toast.success(isQuiz ? "Quiz submitted & auto-graded successfully!" : "Submission updated!");
+        toast.success(quizData ? "Quiz submitted & auto-graded successfully!" : "Submission updated!");
         setSubmitOpen(false);
         refreshSubmissions();
       }
@@ -271,7 +433,7 @@ export function StudentAssignmentsModule({ myStudent, schoolId }: { myStudent: a
       if (error) {
         toast.error(error.message);
       } else {
-        toast.success(isQuiz ? "Quiz submitted & auto-graded successfully!" : "Assignment submitted!");
+        toast.success(quizData ? "Quiz submitted & auto-graded successfully!" : "Assignment submitted!");
         setSubmitOpen(false);
         refreshSubmissions();
       }
@@ -479,15 +641,7 @@ export function StudentAssignmentsModule({ myStudent, schoolId }: { myStudent: a
                 const sub = submissions.get(a.id);
                 const overdue = isOverdue(a.due_date) && !sub;
                 
-                const isQuiz = a.description?.startsWith("[ALTRIX_QUIZ_JSON]:");
-                let quizData: any = null;
-                if (isQuiz && a.description) {
-                  try {
-                    quizData = JSON.parse(a.description.substring(19));
-                  } catch (e) {
-                    console.error(e);
-                  }
-                }
+                const { type, label, cleanDescription } = getAssignmentType(a.description, a.title);
 
                 return (
                   <Card 
@@ -502,20 +656,16 @@ export function StudentAssignmentsModule({ myStudent, schoolId }: { myStudent: a
                         <div className="space-y-1">
                           <div className="flex flex-wrap items-center gap-2">
                             <CardTitle className="text-base font-bold text-slate-800">{a.title}</CardTitle>
-                            <Badge variant="outline" className="text-[10px] font-semibold rounded-full uppercase tracking-wider">
-                              {isQuiz ? "MCQ Quiz" : "Assignment"}
+                            <Badge variant="outline" className={`text-[10px] font-semibold rounded-full uppercase tracking-wider ${getBadgeStyle(type)}`}>
+                              {label}
                             </Badge>
                             {hasAttachments(a) && (
                               <Paperclip className="h-3.5 w-3.5 text-slate-400" />
                             )}
                           </div>
-                          {a.description && (
+                          {cleanDescription && (
                             <CardDescription className="text-xs text-slate-650 pt-1 line-clamp-2 max-w-2xl">
-                              {isQuiz && quizData ? (
-                                quizData.instructions || "Please complete the MCQ Quiz."
-                              ) : (
-                                a.description
-                              )}
+                              {cleanDescription}
                             </CardDescription>
                           )}
                         </div>
@@ -540,14 +690,13 @@ export function StudentAssignmentsModule({ myStudent, schoolId }: { myStudent: a
                         </div>
                         {!isOffline && (
                           <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
-                            {sub?.status === "graded" && (
+                            {sub ? (
                               <Button size="sm" variant="outline" className="border-slate-200 text-slate-650 font-semibold h-8 text-xs" onClick={() => openViewDialog(a)}>
-                                <Eye className="h-3.5 w-3.5 mr-1 text-blue-600" /> View Result
+                                <Eye className="h-3.5 w-3.5 mr-1 text-blue-600" /> {sub.status === "graded" ? "View Result" : "View Submission"}
                               </Button>
-                            )}
-                            {sub?.status !== "graded" && (
+                            ) : (
                               <Button size="sm" className="bg-blue-750 hover:bg-blue-700 font-semibold h-8 text-xs" onClick={() => openSubmitDialog(a)}>
-                                <Send className="h-3.5 w-3.5 mr-1" /> {sub ? "Update" : "Submit"}
+                                <Send className="h-3.5 w-3.5 mr-1" /> {type === "mcq" ? "Solve Quiz" : "Submit"}
                               </Button>
                             )}
                           </div>
@@ -595,7 +744,10 @@ export function StudentAssignmentsModule({ myStudent, schoolId }: { myStudent: a
         <DialogContent className="max-w-xl">
           <DialogHeader>
             <DialogTitle>
-              {selectedAssignment?.description?.startsWith("[ALTRIX_QUIZ_JSON]:") ? "Solve MCQ Quiz" : "Submit Assignment"}
+              {(() => {
+                const quizData = selectedAssignment ? getQuizData(selectedAssignment.description) : null;
+                return quizData ? "Solve MCQ Quiz" : "Submit Assignment";
+              })()}
             </DialogTitle>
             <DialogDescription>
               {selectedAssignment?.title}
@@ -608,20 +760,15 @@ export function StudentAssignmentsModule({ myStudent, schoolId }: { myStudent: a
           </DialogHeader>
           
           {(() => {
-            const isQuiz = selectedAssignment?.description?.startsWith("[ALTRIX_QUIZ_JSON]:");
-            let quizData: any = null;
-            if (isQuiz && selectedAssignment?.description) {
-              try {
-                quizData = JSON.parse(selectedAssignment.description.substring(19));
-              } catch (e) {
-                console.error(e);
-              }
-            }
+            const quizData = selectedAssignment ? getQuizData(selectedAssignment.description) : null;
+            const { type } = selectedAssignment 
+              ? getAssignmentType(selectedAssignment.description, selectedAssignment.title)
+              : { type: "other" as const };
 
             return (
               <div className="space-y-4 py-4">
                 {selectedAssignment?.due_date && new Date(selectedAssignment.due_date) < new Date() && (
-                  <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-950">
+                  <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-955">
                     <Clock className="h-5 w-5 text-amber-600 dark:text-amber-400 mt-0.5" />
                     <div className="text-sm">
                       <p className="font-medium text-amber-800 dark:text-amber-200">
@@ -631,7 +778,7 @@ export function StudentAssignmentsModule({ myStudent, schoolId }: { myStudent: a
                   </div>
                 )}
                 
-                {isQuiz && quizData ? (
+                {quizData ? (
                   // Quiz Solve View
                   <div className="space-y-5 max-h-[55vh] overflow-y-auto pr-2">
                     {quizData.questions.map((q: any) => {
@@ -682,6 +829,80 @@ export function StudentAssignmentsModule({ myStudent, schoolId }: { myStudent: a
                       );
                     })}
                   </div>
+                ) : type === "paragraph" ? (
+                  // Paragraph Assignment View
+                  <div>
+                    <label className="text-sm font-medium">Your Paragraph Assignment Answer</label>
+                    <Textarea
+                      value={submissionText}
+                      onChange={(e) => setSubmissionText(e.target.value)}
+                      placeholder="Type your paragraph answer here..."
+                      rows={8}
+                      className="mt-2"
+                    />
+                    <div className="mt-1 flex items-center justify-between text-xs text-slate-500 font-medium">
+                      <span>Words: {submissionText.trim().split(/\s+/).filter(Boolean).length}</span>
+                      <span>Characters: {submissionText.length}</span>
+                    </div>
+                  </div>
+                ) : type === "written_test" ? (
+                  // Written Test View
+                  <div>
+                    <div className="flex items-start gap-2 rounded-lg border border-violet-200 bg-violet-50 p-3 mb-3">
+                      <FileText className="h-5 w-5 text-violet-600 mt-0.5" />
+                      <div className="text-sm">
+                        <p className="font-semibold text-violet-850">Written Test Mode</p>
+                        <p className="text-xs text-violet-700">Please write your answers below and/or upload your scanned hand-written answer sheet images or documents.</p>
+                      </div>
+                    </div>
+                    <label className="text-sm font-medium">Written Answers (Text)</label>
+                    <Textarea
+                      value={submissionText}
+                      onChange={(e) => setSubmissionText(e.target.value)}
+                      placeholder="Write your test answers here..."
+                      rows={6}
+                      className="mt-2 mb-4"
+                    />
+                    <label className="text-sm font-medium mb-2 block">Upload Answer Sheet / Scanned Documents</label>
+                    <FileUploadArea
+                      files={uploadedFiles}
+                      onFilesChange={setUploadedFiles}
+                      onUpload={handleUploadFile}
+                      uploading={uploading}
+                      disabled={submitting}
+                      maxFiles={5}
+                    />
+                  </div>
+                ) : type === "test" ? (
+                  // Test Assignment View
+                  <div>
+                    <div className="flex items-start gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-3 mb-3">
+                      <AlertCircle className="h-5 w-5 text-emerald-600 mt-0.5" />
+                      <div className="text-sm">
+                        <p className="font-semibold text-emerald-850">Test Assignment - Document Upload Required</p>
+                        <p className="text-xs text-emerald-700">Please upload your primary solution document/file. Use the remarks section below for any supporting notes.</p>
+                      </div>
+                    </div>
+                    <label className="text-sm font-medium mb-2 block">Upload Solution File (PDF, Word, or Image)</label>
+                    <FileUploadArea
+                      files={uploadedFiles}
+                      onFilesChange={setUploadedFiles}
+                      onUpload={handleUploadFile}
+                      uploading={uploading}
+                      disabled={submitting}
+                      maxFiles={5}
+                    />
+                    <div className="mt-4">
+                      <label className="text-sm font-medium">Remarks / Additional Notes (Optional)</label>
+                      <Textarea
+                        value={submissionText}
+                        onChange={(e) => setSubmissionText(e.target.value)}
+                        placeholder="Add any details, notes or explanations for your files..."
+                        rows={3}
+                        className="mt-2"
+                      />
+                    </div>
+                  </div>
                 ) : (
                   // Standard Submit View
                   <>
@@ -723,29 +944,21 @@ export function StudentAssignmentsModule({ myStudent, schoolId }: { myStudent: a
             </Button>
           </DialogFooter>
         </DialogContent>
-      </Dialog>
-
-      {/* View Result Dialog */}
+      </Dialog>      {/* View Result Dialog */}
       <Dialog open={viewOpen} onOpenChange={setViewOpen}>
         <DialogContent className="max-w-xl">
           <DialogHeader>
             <DialogTitle>
-              {selectedAssignment?.description?.startsWith("[ALTRIX_QUIZ_JSON]:") ? "Quiz Performance Review" : "Assignment Result"}
+              {(() => {
+                const quizData = selectedAssignment ? getQuizData(selectedAssignment.description) : null;
+                return quizData ? "Quiz Performance Review" : "Assignment Result";
+              })()}
             </DialogTitle>
             <DialogDescription>{selectedAssignment?.title}</DialogDescription>
           </DialogHeader>
           
           {(() => {
-            const isQuiz = selectedAssignment?.description?.startsWith("[ALTRIX_QUIZ_JSON]:");
-            let quizData: any = null;
-            if (isQuiz && selectedAssignment?.description) {
-              try {
-                quizData = JSON.parse(selectedAssignment.description.substring(19));
-              } catch (e) {
-                console.error(e);
-              }
-            }
-
+            const quizData = selectedAssignment ? getQuizData(selectedAssignment.description) : null;
             const studentQuizAnswers = (() => {
               if (viewSubmission?.content?.startsWith("[ALTRIX_QUIZ_SUBMISSION]:")) {
                 try {
@@ -775,7 +988,7 @@ export function StudentAssignmentsModule({ myStudent, schoolId }: { myStudent: a
                     </div>
                   </div>
                   
-                  {isQuiz && quizData ? (
+                  {quizData ? (
                     // Quiz Review comparison list
                     <div className="space-y-4 pt-1">
                       <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Quiz Questions & Explanations</h4>
@@ -837,17 +1050,19 @@ export function StudentAssignmentsModule({ myStudent, schoolId }: { myStudent: a
                               })}
                             </div>
 
-                            <div className="bg-blue-50/40 p-3 rounded-xl border border-blue-100/60 text-[10px] flex gap-2">
-                              <Info className="h-4 w-4 text-blue-600 shrink-0 mt-0.5" />
-                              <div className="space-y-0.5">
-                                <span className="text-blue-800 font-bold uppercase tracking-wider block">
-                                  Explanation:
-                                </span>
-                                <p className="text-slate-705 leading-relaxed font-medium">
-                                  {q.explanation}
-                                </p>
+                            {q.explanation && (
+                              <div className="bg-blue-50/40 p-3 rounded-xl border border-blue-100/60 text-[10px] flex gap-2">
+                                <Info className="h-4 w-4 text-blue-600 shrink-0 mt-0.5" />
+                                <div className="space-y-0.5">
+                                  <span className="text-blue-800 font-bold uppercase tracking-wider block">
+                                    Explanation:
+                                  </span>
+                                  <p className="text-slate-705 leading-relaxed font-medium">
+                                    {q.explanation}
+                                  </p>
+                                </div>
                               </div>
-                            </div>
+                            )}
                           </div>
                         );
                       })}
@@ -862,7 +1077,7 @@ export function StudentAssignmentsModule({ myStudent, schoolId }: { myStudent: a
                         </div>
                       )}
                       
-                      {viewSubmission.content && (
+                      {viewSubmission.content && !viewSubmission.content.startsWith("[ALTRIX_QUIZ_SUBMISSION]:") && (
                         <div>
                           <p className="text-sm font-medium mb-1">Your Submission</p>
                           <div className="rounded-lg border p-3 text-sm whitespace-pre-wrap max-h-40 overflow-auto">
@@ -894,18 +1109,18 @@ export function StudentAssignmentsModule({ myStudent, schoolId }: { myStudent: a
         <DialogContent className="max-w-xl max-h-[85vh] overflow-y-auto">
           {viewingAssignment && (() => {
             const sub = submissions.get(viewingAssignment.id);
-            const isQuiz = viewingAssignment.description?.startsWith("[ALTRIX_QUIZ_JSON]:");
+            const quizData = getQuizData(viewingAssignment.description);
+            const isQuiz = !!quizData;
+            const { type, label, cleanDescription } = getAssignmentType(viewingAssignment.description, viewingAssignment.title);
             const overdue = isOverdue(viewingAssignment.due_date) && !sub;
 
             return (
               <>
                 <DialogHeader>
                   <div className="flex flex-wrap items-center gap-2 mb-1">
-                    {isQuiz && (
-                      <Badge className="bg-blue-600 text-white text-[10px] font-semibold rounded-full px-2">
-                        MCQ Quiz
-                      </Badge>
-                    )}
+                    <Badge variant="outline" className={`text-[10px] font-semibold rounded-full uppercase tracking-wider ${getBadgeStyle(type)}`}>
+                      {label}
+                    </Badge>
                     <Badge variant="outline" className="text-[10px] font-semibold rounded-full uppercase tracking-wider">
                       {sub ? (sub.status === "graded" ? `Graded: ${sub.marks}/${viewingAssignment.max_marks}` : "Submitted") : (overdue ? "Overdue" : "Not Submitted")}
                     </Badge>
@@ -958,17 +1173,7 @@ export function StudentAssignmentsModule({ myStudent, schoolId }: { myStudent: a
                   <div className="space-y-2">
                     <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Description / Instructions</h4>
                     <div className="text-slate-700 bg-white border border-slate-200 rounded-xl p-4 text-xs whitespace-pre-wrap leading-relaxed shadow-sm">
-                      {(() => {
-                        if (isQuiz && viewingAssignment.description) {
-                          try {
-                            const quizData = JSON.parse(viewingAssignment.description.substring(19));
-                            return quizData.instructions || "Please complete the MCQ Quiz questions.";
-                          } catch (e) {
-                            return viewingAssignment.description;
-                          }
-                        }
-                        return viewingAssignment.description || "No instructions provided.";
-                      })()}
+                      {isQuiz ? (quizData?.instructions || "Please complete the MCQ Quiz questions.") : (cleanDescription || "No instructions provided.")}
                     </div>
                   </div>
 
@@ -996,26 +1201,25 @@ export function StudentAssignmentsModule({ myStudent, schoolId }: { myStudent: a
                   </Button>
                   {!isOffline && (
                     <div className="flex gap-2">
-                      {sub?.status === "graded" && (
+                      {sub ? (
                         <Button 
-                          className="bg-blue-700 hover:bg-blue-600 font-semibold"
+                          className="bg-blue-750 hover:bg-blue-700 font-semibold text-white"
                           onClick={() => {
                             setDetailOpen(false);
                             openViewDialog(viewingAssignment);
                           }}
                         >
-                          <Eye className="h-4 w-4 mr-1.5" /> View Results
+                          <Eye className="h-4 w-4 mr-1.5" /> {sub.status === "graded" ? "View Results" : "View Submission"}
                         </Button>
-                      )}
-                      {sub?.status !== "graded" && (
+                      ) : (
                         <Button 
-                          className="bg-blue-700 hover:bg-blue-600 font-semibold"
+                          className="bg-blue-750 hover:bg-blue-700 font-semibold text-white"
                           onClick={() => {
                             setDetailOpen(false);
                             openSubmitDialog(viewingAssignment);
                           }}
                         >
-                          <Send className="h-4 w-4 mr-1.5" /> {sub ? "Update Submission" : (isQuiz ? "Start Quiz" : "Submit Assignment")}
+                          <Send className="h-4 w-4 mr-1.5" /> {isQuiz ? "Start Quiz" : "Submit Assignment"}
                         </Button>
                       )}
                     </div>
@@ -1029,3 +1233,4 @@ export function StudentAssignmentsModule({ myStudent, schoolId }: { myStudent: a
     </div>
   );
 }
+

@@ -60,6 +60,174 @@ interface StudentResult {
   remarks: string | null;
 }
 
+export function parseRawQuizToJSON(text: string): { questions: any[]; instructions: string } | null {
+  if (!text) return null;
+  if (text.startsWith("[ALTRIX_QUIZ_JSON]:")) return null;
+
+  const questions: any[] = [];
+  const lines = text.split("\n");
+  
+  let currentQuestion: any = null;
+  let instructionsLines: string[] = [];
+  let isParsingQuestions = false;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (!line) continue;
+
+    const qMatch = line.match(/^(?:\*\*|)?(?:Q(?:uestion)?\s*[-.:\d\s]+|\d+\.)/i);
+    
+    if (qMatch) {
+      isParsingQuestions = true;
+      if (currentQuestion) {
+        questions.push(currentQuestion);
+      }
+      
+      const cleanQuestion = line.replace(/^\**/, "").replace(/\*\*$/, "").replace(/^[Q|q](?:uestion)?\s*[-.:\d\s]+/, "").replace(/^\d+\.\s*/, "").trim();
+      currentQuestion = {
+        questionNumber: questions.length + 1,
+        question: cleanQuestion,
+        options: {},
+        correctAnswer: "",
+        explanation: ""
+      };
+      continue;
+    }
+
+    if (!isParsingQuestions) {
+      instructionsLines.push(line);
+      continue;
+    }
+
+    const optMatch = line.match(/^(?:\*\*|)?([A-D])[-.)\s]+(.*)/i);
+    if (optMatch && currentQuestion) {
+      const letter = optMatch[1].toUpperCase();
+      const optionText = optMatch[2].replace(/\*\*$/, "").trim();
+      currentQuestion.options[letter] = optionText;
+      continue;
+    }
+
+    const ansMatch = line.match(/(?:Correct\s+)?Answer\s*[-.:\s*]+([A-D])/i);
+    if (ansMatch && currentQuestion) {
+      currentQuestion.correctAnswer = ansMatch[1].toUpperCase();
+      continue;
+    }
+
+    const expMatch = line.match(/(?:Explanation|Exp)\s*[-.:\s*]+(.*)/i);
+    if (expMatch && currentQuestion) {
+      currentQuestion.explanation = expMatch[1].replace(/\*+$/, "").trim();
+      continue;
+    }
+
+    if (currentQuestion) {
+      if (currentQuestion.explanation) {
+        currentQuestion.explanation += " " + line;
+      } else if (Object.keys(currentQuestion.options).length === 0) {
+        currentQuestion.question += " " + line;
+      }
+    }
+  }
+
+  if (currentQuestion) {
+    questions.push(currentQuestion);
+  }
+
+  if (questions.length > 0) {
+    questions.forEach((q) => {
+      if (!q.correctAnswer) q.correctAnswer = "A";
+      const optionList: string[] = [];
+      ["A", "B", "C", "D"].forEach((letter) => {
+        if (q.options[letter]) {
+          optionList.push(q.options[letter]);
+        }
+      });
+      if (optionList.length === 0) {
+        optionList.push("Option A", "Option B", "Option C", "Option D");
+      }
+      q.options = optionList;
+    });
+
+    return {
+      questions,
+      instructions: instructionsLines.join("\n") || "Please complete the following quiz questions generated for our topic."
+    };
+  }
+
+  return null;
+}
+
+export function getAssignmentType(description: string | null, title: string | null): {
+  type: "mcq" | "written_test" | "paragraph" | "test" | "other";
+  label: string;
+  cleanDescription: string;
+} {
+  const desc = description || "";
+  const t = title || "";
+
+  if (desc.startsWith("[ALTRIX_QUIZ_JSON]:")) {
+    return { type: "mcq", label: "MCQ Quiz", cleanDescription: desc.substring(19) };
+  }
+  
+  if (desc.startsWith("[ALTRIX_TYPE:written_test]:")) {
+    return { type: "written_test", label: "Written Test", cleanDescription: desc.substring(27) };
+  }
+  if (desc.startsWith("[ALTRIX_TYPE:paragraph]:")) {
+    return { type: "paragraph", label: "Paragraph Assignment", cleanDescription: desc.substring(24) };
+  }
+  if (desc.startsWith("[ALTRIX_TYPE:test]:")) {
+    return { type: "test", label: "Test Assignment", cleanDescription: desc.substring(19) };
+  }
+  if (desc.startsWith("[ALTRIX_TYPE:other]:")) {
+    return { type: "other", label: "General Assignment", cleanDescription: desc.substring(20) };
+  }
+
+  const hasOptions = desc.match(/[A-D]\s*[-.)]\s*\w+/i);
+  const isQuizTitle = t.toLowerCase().includes("quiz") || t.toLowerCase().includes("mcq");
+  
+  if (isQuizTitle || (hasOptions && desc.toLowerCase().includes("correct answer"))) {
+    return { type: "mcq", label: "MCQ Quiz", cleanDescription: desc };
+  }
+  if (t.toLowerCase().includes("written test") || t.toLowerCase().includes("written-test")) {
+    return { type: "written_test", label: "Written Test", cleanDescription: desc };
+  }
+  if (t.toLowerCase().includes("paragraph")) {
+    return { type: "paragraph", label: "Paragraph Assignment", cleanDescription: desc };
+  }
+  if (t.toLowerCase().includes("test")) {
+    return { type: "test", label: "Test Assignment", cleanDescription: desc };
+  }
+
+  return { type: "other", label: "General Assignment", cleanDescription: desc };
+}
+
+export function getQuizData(description: string | null): { questions: any[]; instructions: string } | null {
+  if (!description) return null;
+  if (description.startsWith("[ALTRIX_QUIZ_JSON]:")) {
+    try {
+      return JSON.parse(description.substring(19));
+    } catch (e) {
+      console.error(e);
+      return null;
+    }
+  }
+  return parseRawQuizToJSON(description);
+}
+
+export function getBadgeStyle(type: string): string {
+  switch (type) {
+    case "mcq":
+      return "bg-blue-50 text-blue-700 border-blue-200";
+    case "written_test":
+      return "bg-violet-50 text-violet-700 border-violet-200";
+    case "paragraph":
+      return "bg-amber-50 text-amber-700 border-amber-200";
+    case "test":
+      return "bg-emerald-50 text-emerald-700 border-emerald-200";
+    default:
+      return "bg-slate-50 text-slate-700 border-slate-200";
+  }
+}
+
 export function TeacherAssignmentsModule() {
   const { schoolSlug } = useParams();
   const tenant = useTenant(schoolSlug);
@@ -77,6 +245,7 @@ export function TeacherAssignmentsModule() {
     max_marks: "100",
     due_date: "",
     class_section_id: "",
+    type: "other",
   });
 
   // View submissions dialog
@@ -194,13 +363,33 @@ export function TeacherAssignmentsModule() {
       return;
     }
 
+    let descriptionValue = newAssignment.description.trim() || null;
+    let finalMaxMarks = parseFloat(newAssignment.max_marks) || 100;
+
+    if (newAssignment.type === "mcq") {
+      if (!descriptionValue) {
+        toast.error("Description / raw quiz text is required for MCQ Quiz");
+        return;
+      }
+      const quizData = parseRawQuizToJSON(descriptionValue);
+      if (!quizData) {
+        toast.error("Could not parse MCQ Quiz questions. Please check the required format (e.g. Q1:, options A., B., C., D. and Correct Answer:)");
+        return;
+      }
+      descriptionValue = `[ALTRIX_QUIZ_JSON]:${JSON.stringify(quizData)}`;
+      finalMaxMarks = quizData.questions.length;
+      toast.info(`Parsed ${finalMaxMarks} questions successfully. Setting Max Marks to ${finalMaxMarks}.`);
+    } else if (newAssignment.type && newAssignment.type !== "other") {
+      descriptionValue = `[ALTRIX_TYPE:${newAssignment.type}]:${descriptionValue || ""}`;
+    }
+
     const { error } = await supabase.from("assignments").insert({
       school_id: tenant.schoolId,
       class_section_id: newAssignment.class_section_id,
       teacher_user_id: user?.id,
       title: newAssignment.title.trim(),
-      description: newAssignment.description.trim() || null,
-      max_marks: parseFloat(newAssignment.max_marks) || 100,
+      description: descriptionValue,
+      max_marks: finalMaxMarks,
       due_date: newAssignment.due_date || null,
     });
 
@@ -217,6 +406,7 @@ export function TeacherAssignmentsModule() {
       max_marks: "100",
       due_date: "",
       class_section_id: "",
+      type: "other",
     });
     fetchData();
   };
@@ -519,10 +709,8 @@ export function TeacherAssignmentsModule() {
       const descMatches = a.description?.toLowerCase().includes(searchTerm.toLowerCase()) || false;
       const matchesSearch = !searchTerm || titleMatches || descMatches;
       
-      const isQuiz = a.description?.startsWith("[ALTRIX_QUIZ_JSON]:");
-      const matchesType = filterType === "all" 
-        || (filterType === "quiz" && isQuiz) 
-        || (filterType === "standard" && !isQuiz);
+      const { type } = getAssignmentType(a.description, a.title);
+      const matchesType = filterType === "all" || type === filterType;
 
       const isPastDue = a.due_date && new Date(a.due_date) < new Date();
       const matchesStatus = filterStatus === "all"
@@ -634,13 +822,16 @@ export function TeacherAssignmentsModule() {
             </Select>
 
             <Select value={filterType} onValueChange={setFilterType}>
-              <SelectTrigger className="w-[140px]">
+              <SelectTrigger className="w-[150px]">
                 <SelectValue placeholder="All Types" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Types</SelectItem>
-                <SelectItem value="quiz">MCQ Quizzes</SelectItem>
-                <SelectItem value="standard">Standard</SelectItem>
+                <SelectItem value="mcq">MCQ Quiz</SelectItem>
+                <SelectItem value="written_test">Written Test</SelectItem>
+                <SelectItem value="paragraph">Paragraph</SelectItem>
+                <SelectItem value="test">Test Assignment</SelectItem>
+                <SelectItem value="other">General</SelectItem>
               </SelectContent>
             </Select>
 
@@ -661,11 +852,11 @@ export function TeacherAssignmentsModule() {
                   <Plus className="mr-1.5 h-4 w-4" /> Create
                 </Button>
               </DialogTrigger>
-              <DialogContent>
+              <DialogContent className="max-w-md">
                 <DialogHeader>
                   <DialogTitle>Create Assignment</DialogTitle>
                 </DialogHeader>
-                <div className="space-y-4 pt-4">
+                <div className="space-y-4 pt-4 max-h-[70vh] overflow-y-auto pr-2">
                   <div>
                     <Label>Section *</Label>
                     <Select
@@ -686,18 +877,57 @@ export function TeacherAssignmentsModule() {
                   </div>
                   
                   <div>
+                    <Label>Assignment Type</Label>
+                    <Select
+                      value={newAssignment.type}
+                      onValueChange={(v) => setNewAssignment((p) => ({ ...p, type: v }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="other">General Assignment</SelectItem>
+                        <SelectItem value="mcq">MCQ Quiz (Interactive)</SelectItem>
+                        <SelectItem value="written_test">Written Test</SelectItem>
+                        <SelectItem value="paragraph">Paragraph Assignment</SelectItem>
+                        <SelectItem value="test">Test Assignment</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div>
                     <Label>Title *</Label>
                     <Input
                       value={newAssignment.title}
                       onChange={(e) => setNewAssignment((p) => ({ ...p, title: e.target.value }))}
                     />
                   </div>
+
+                  {newAssignment.type === "mcq" && (
+                    <div className="bg-blue-50/50 p-3 rounded-lg border border-blue-100 text-[11px] text-blue-750">
+                      <p className="font-bold mb-1 flex items-center gap-1">
+                        <Info className="h-3.5 w-3.5 text-blue-600" /> MCQ Quiz Raw Format Instructions:
+                      </p>
+                      <p className="mb-1">Type or paste questions in standard format. Max marks will be auto-set to the total number of questions.</p>
+                      <pre className="mt-1 bg-white p-1.5 rounded border text-[9px] font-mono whitespace-pre-wrap leading-tight text-slate-700">
+{`Q1: What is the capital of France?
+A. London
+B. Paris
+C. Berlin
+D. Madrid
+Correct Answer: B
+Explanation: Paris is the capital and most populous city of France.`}
+                      </pre>
+                    </div>
+                  )}
+
                   <div>
-                    <Label>Description</Label>
+                    <Label>{newAssignment.type === "mcq" ? "MCQ Questions Text *" : "Description"}</Label>
                     <Textarea
                       value={newAssignment.description}
                       onChange={(e) => setNewAssignment((p) => ({ ...p, description: e.target.value }))}
-                      rows={3}
+                      placeholder={newAssignment.type === "mcq" ? "Paste raw quiz questions here..." : "Enter assignment description and instructions..."}
+                      rows={newAssignment.type === "mcq" ? 8 : 4}
                     />
                   </div>
                   <div className="grid grid-cols-2 gap-4">
@@ -743,8 +973,8 @@ export function TeacherAssignmentsModule() {
           ) : (
             <div className="space-y-4">
               {filteredAssignments.map((a) => {
-                const isQuiz = a.description?.startsWith("[ALTRIX_QUIZ_JSON]:");
                 const isPastDue = a.due_date && new Date(a.due_date) < new Date();
+                const { type, label, cleanDescription } = getAssignmentType(a.description, a.title);
                 
                 return (
                   <div 
@@ -755,11 +985,9 @@ export function TeacherAssignmentsModule() {
                     <div className="flex-1 space-y-1.5">
                       <div className="flex flex-wrap items-center gap-2">
                         <h3 className="font-semibold text-slate-800 text-base">{a.title}</h3>
-                        {isQuiz && (
-                          <Badge className="bg-blue-600 text-white text-[10px] hover:bg-blue-500 font-semibold px-2 py-0.5 rounded-full">
-                            MCQ Quiz
-                          </Badge>
-                        )}
+                        <Badge variant="outline" className={`text-[10px] font-semibold px-2 py-0.5 rounded-full uppercase tracking-wider ${getBadgeStyle(type)}`}>
+                          {label}
+                        </Badge>
                         <Badge 
                           variant="outline" 
                           className={`text-[10px] font-semibold px-2 py-0.5 rounded-full uppercase tracking-wider ${
@@ -773,20 +1001,15 @@ export function TeacherAssignmentsModule() {
                       </div>
                       <p className="text-xs font-semibold text-slate-500">{a.section_name}</p>
                       
-                      {a.description && (
+                      {cleanDescription && (
                         <div className="text-xs text-slate-600 line-clamp-2 max-w-2xl pt-1">
-                          {isQuiz ? (
-                            (() => {
-                              try {
-                                const quizData = JSON.parse(a.description.substring(19));
-                                return quizData.instructions || "Please complete the MCQ Quiz.";
-                              } catch (e) {
-                                return a.description;
-                              }
-                            })()
-                          ) : (
-                            a.description
-                          )}
+                          {(() => {
+                            if (type === "mcq") {
+                              const quizData = getQuizData(a.description);
+                              return quizData?.instructions || "Please complete the MCQ Quiz.";
+                            }
+                            return cleanDescription;
+                          })()}
                         </div>
                       )}
                       
@@ -919,15 +1142,8 @@ export function TeacherAssignmentsModule() {
             )}
             
            {(() => {
-              const isQuiz = selectedAssignment?.description?.startsWith("[ALTRIX_QUIZ_JSON]:");
-              let quizData: any = null;
-              if (isQuiz && selectedAssignment?.description) {
-                try {
-                  quizData = JSON.parse(selectedAssignment.description.substring(19));
-                } catch (e) {
-                  console.error(e);
-                }
-              }
+              const quizData = selectedAssignment ? getQuizData(selectedAssignment.description) : null;
+              const isQuiz = !!quizData;
 
               const studentAnswers = (() => {
                 if (selectedSubmission?.submission_text?.startsWith("[ALTRIX_QUIZ_SUBMISSION]:")) {
@@ -1150,189 +1366,165 @@ export function TeacherAssignmentsModule() {
             )}
           </div>
         </DialogContent>
-      </Dialog>
-
-      {/* Assignment Detail Modal */}
+      </Dialo      {/* Assignment Detail Modal */}
       <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
         <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
-          {viewingAssignment && (
-            <>
-              <DialogHeader>
-                <div className="flex flex-wrap items-center gap-2 mb-1">
-                  {viewingAssignment.description?.startsWith("[ALTRIX_QUIZ_JSON]:") && (
-                    <Badge className="bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-semibold rounded-full px-2">
-                      MCQ Quiz
+          {viewingAssignment && (() => {
+            const quizData = getQuizData(viewingAssignment.description);
+            const isQuiz = !!quizData;
+            const { type, label, cleanDescription } = getAssignmentType(viewingAssignment.description, viewingAssignment.title);
+
+            return (
+              <>
+                <DialogHeader>
+                  <div className="flex flex-wrap items-center gap-2 mb-1">
+                    <Badge variant="outline" className={`text-[10px] font-semibold rounded-full uppercase tracking-wider ${getBadgeStyle(type)}`}>
+                      {label}
                     </Badge>
-                  )}
-                  <Badge variant="outline" className="text-[10px] font-semibold rounded-full uppercase tracking-wider">
-                    {viewingAssignment.status || "active"}
-                  </Badge>
-                </div>
-                <DialogTitle className="text-xl font-bold text-slate-850">{viewingAssignment.title}</DialogTitle>
-                <DialogDescription className="text-xs text-slate-550">
-                  Section: {viewingAssignment.section_name}
-                </DialogDescription>
-              </DialogHeader>
-
-              <div className="space-y-6 py-4">
-                {/* Score and Due Date Widget */}
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200 text-xs">
-                  <div>
-                    <span className="text-slate-500 font-bold uppercase tracking-wider block">Max Marks</span>
-                    <span className="text-sm font-bold text-slate-850">{viewingAssignment.max_marks} marks</span>
+                    <Badge variant="outline" className="text-[10px] font-semibold rounded-full uppercase tracking-wider">
+                      {viewingAssignment.status || "active"}
+                    </Badge>
                   </div>
-                  <div>
-                    <span className="text-slate-500 font-bold uppercase tracking-wider block">Due Date</span>
-                    <span className="text-sm font-bold text-slate-850">
-                      {viewingAssignment.due_date ? new Date(viewingAssignment.due_date).toLocaleDateString() : "No due date"}
-                    </span>
+                  <DialogTitle className="text-xl font-bold text-slate-850">{viewingAssignment.title}</DialogTitle>
+                  <DialogDescription className="text-xs text-slate-550">
+                    Section: {viewingAssignment.section_name}
+                  </DialogDescription>
+                </DialogHeader>
+
+                <div className="space-y-6 py-4">
+                  {/* Score and Due Date Widget */}
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200 text-xs">
+                    <div>
+                      <span className="text-slate-500 font-bold uppercase tracking-wider block">Max Marks</span>
+                      <span className="text-sm font-bold text-slate-850">{viewingAssignment.max_marks} marks</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 font-bold uppercase tracking-wider block">Due Date</span>
+                      <span className="text-sm font-bold text-slate-850">
+                        {viewingAssignment.due_date ? new Date(viewingAssignment.due_date).toLocaleDateString() : "No due date"}
+                      </span>
+                    </div>
+                    <div className="col-span-2 sm:col-span-1">
+                      <span className="text-slate-500 font-bold uppercase tracking-wider block">Completion</span>
+                      <span className="text-sm font-bold text-slate-850">
+                        {(() => {
+                          const total = allSubmissions.filter(s => s.assignment_id === viewingAssignment.id).length;
+                          const graded = allSubmissions.filter(s => s.assignment_id === viewingAssignment.id && s.status === 'graded').length;
+                          return `${graded} graded / ${total} submitted`;
+                        })()}
+                      </span>
+                    </div>
                   </div>
-                  <div className="col-span-2 sm:col-span-1">
-                    <span className="text-slate-500 font-bold uppercase tracking-wider block">Completion</span>
-                    <span className="text-sm font-bold text-slate-850">
-                      {(() => {
-                        const total = allSubmissions.filter(s => s.assignment_id === viewingAssignment.id).length;
-                        const graded = allSubmissions.filter(s => s.assignment_id === viewingAssignment.id && s.status === 'graded').length;
-                        return `${graded} graded / ${total} submitted`;
-                      })()}
-                    </span>
+
+                  {/* Description */}
+                  <div className="space-y-2">
+                    <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Description / Instructions</h4>
+                    <div className="text-slate-700 bg-white border border-slate-200 rounded-xl p-4 text-xs whitespace-pre-wrap leading-relaxed shadow-sm">
+                      {isQuiz ? (quizData?.instructions || "Please complete the MCQ Quiz.") : (cleanDescription || "No description provided.")}
+                    </div>
                   </div>
-                </div>
 
-                {/* Description */}
-                <div className="space-y-2">
-                  <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Description / Instructions</h4>
-                  <div className="text-slate-700 bg-white border border-slate-200 rounded-xl p-4 text-xs whitespace-pre-wrap leading-relaxed shadow-sm">
-                    {(() => {
-                      const isQuiz = viewingAssignment.description?.startsWith("[ALTRIX_QUIZ_JSON]:");
-                      if (isQuiz && viewingAssignment.description) {
-                        try {
-                          const quizData = JSON.parse(viewingAssignment.description.substring(19));
-                          return quizData.instructions || "Please complete the MCQ Quiz.";
-                        } catch (e) {
-                          return viewingAssignment.description;
-                        }
-                      }
-                      return viewingAssignment.description || "No description provided.";
-                    })()}
-                  </div>
-                </div>
-
-                {/* Quiz Questions List if MCQ Quiz */}
-                {(() => {
-                  const isQuiz = viewingAssignment.description?.startsWith("[ALTRIX_QUIZ_JSON]:");
-                  let quizData: any = null;
-                  if (isQuiz && viewingAssignment.description) {
-                    try {
-                      quizData = JSON.parse(viewingAssignment.description.substring(19));
-                    } catch (e) {
-                      console.error(e);
-                    }
-                  }
-
-                  if (isQuiz && quizData) {
-                    return (
-                      <div className="space-y-4">
-                        <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Quiz Questions ({quizData.questions?.length})</h4>
-                        <div className="space-y-3">
-                          {quizData.questions.map((q: any) => (
-                            <div key={q.questionNumber} className="p-4 rounded-xl border border-slate-200 bg-slate-50/40 space-y-3">
-                              <div className="flex items-start gap-2">
-                                <span className="text-white font-mono text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-600 shrink-0">
-                                  Q{q.questionNumber}
-                                </span>
-                                <p className="text-xs font-semibold text-slate-800 leading-normal">{q.question}</p>
-                              </div>
-
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                                {q.options.map((opt: string, idx: number) => {
-                                  const optionLetter = String.fromCharCode(65 + idx);
-                                  const isOptionCorrect = q.correctAnswer === optionLetter;
-
-                                  let optionStyle = "bg-white border-slate-200 text-slate-650";
-                                  let icon = null;
-
-                                  if (isOptionCorrect) {
-                                    optionStyle = "bg-emerald-50 border-emerald-350 text-emerald-950 font-semibold shadow-[0_1px_5px_rgba(16,185,129,0.06)]";
-                                    icon = <Check className="h-4 w-4 text-emerald-600" />;
-                                  }
-
-                                  return (
-                                    <div
-                                      key={idx}
-                                      className={`p-2 rounded-xl border text-[11px] flex items-center justify-between gap-2 ${optionStyle}`}
-                                    >
-                                      <div className="flex items-center gap-2">
-                                        <span className={`h-5 w-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${
-                                          isOptionCorrect
-                                            ? "bg-emerald-100 border border-emerald-300 text-emerald-700"
-                                            : "bg-slate-100 border border-slate-200 text-slate-400"
-                                        }`}>
-                                          {optionLetter}
-                                        </span>
-                                        <span className="leading-snug">{opt}</span>
-                                      </div>
-                                      {icon}
-                                    </div>
-                                  );
-                                })}
-                              </div>
-
-                              {q.explanation && (
-                                <div className="bg-blue-50/40 p-3 rounded-xl border border-blue-100/60 text-[10px] flex gap-2">
-                                  <Info className="h-4 w-4 text-blue-600 shrink-0 mt-0.5" />
-                                  <div className="space-y-0.5">
-                                    <span className="text-blue-800 font-bold uppercase tracking-wider block">
-                                      Explanation:
-                                    </span>
-                                    <p className="text-slate-700 leading-relaxed font-medium">
-                                      {q.explanation}
-                                    </p>
-                                  </div>
-                                </div>
-                              )}
+                  {/* Quiz Questions List if MCQ Quiz */}
+                  {isQuiz && quizData && (
+                    <div className="space-y-4">
+                      <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Quiz Questions ({quizData.questions?.length})</h4>
+                      <div className="space-y-3">
+                        {quizData.questions.map((q: any) => (
+                          <div key={q.questionNumber} className="p-4 rounded-xl border border-slate-200 bg-slate-50/40 space-y-3">
+                            <div className="flex items-start gap-2">
+                              <span className="text-white font-mono text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-600 shrink-0">
+                                Q{q.questionNumber}
+                              </span>
+                              <p className="text-xs font-semibold text-slate-800 leading-normal">{q.question}</p>
                             </div>
-                          ))}
-                        </div>
-                      </div>
-                    );
-                  }
-                  return null;
-                })()}
-              </div>
 
-              <DialogFooter className="border-t border-slate-100 pt-4 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
-                <Button 
-                  variant="ghost" 
-                  className="text-rose-600 hover:text-rose-700 hover:bg-rose-50 font-semibold"
-                  onClick={(e) => triggerDeleteConfirm(viewingAssignment, e)}
-                >
-                  <Trash2 className="h-4 w-4 mr-1.5" /> Delete Assignment
-                </Button>
-                <div className="flex flex-col sm:flex-row gap-2">
-                  <Button 
-                    variant="outline"
-                    className="border-slate-200 font-semibold text-slate-700" 
-                    onClick={() => {
-                      setDetailOpen(false);
-                      openResultsDialog(viewingAssignment);
-                    }}
-                  >
-                    <Users className="h-4 w-4 mr-1.5 text-emerald-600" /> Quick Grade
-                  </Button>
-                  <Button 
-                    className="bg-blue-700 hover:bg-blue-600 font-semibold"
-                    onClick={() => {
-                      setDetailOpen(false);
-                      openSubmissionsDialog(viewingAssignment);
-                    }}
-                  >
-                    <FileCheck className="h-4 w-4 mr-1.5" /> Submissions
-                  </Button>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                              {q.options.map((opt: string, idx: number) => {
+                                const optionLetter = String.fromCharCode(65 + idx);
+                                const isOptionCorrect = q.correctAnswer === optionLetter;
+
+                                let optionStyle = "bg-white border-slate-200 text-slate-650";
+                                let icon = null;
+
+                                if (isOptionCorrect) {
+                                  optionStyle = "bg-emerald-50 border-emerald-350 text-emerald-955 font-semibold shadow-[0_1px_5px_rgba(16,185,129,0.06)]";
+                                  icon = <Check className="h-4 w-4 text-emerald-600" />;
+                                }
+
+                                return (
+                                  <div
+                                    key={idx}
+                                    className={`p-2 rounded-xl border text-[11px] flex items-center justify-between gap-2 ${optionStyle}`}
+                                  >
+                                    <div className="flex items-center gap-2">
+                                      <span className={`h-5 w-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${
+                                        isOptionCorrect
+                                          ? "bg-emerald-100 border border-emerald-300 text-emerald-700"
+                                          : "bg-slate-100 border border-slate-200 text-slate-400"
+                                      }`}>
+                                        {optionLetter}
+                                      </span>
+                                      <span className="leading-snug">{opt}</span>
+                                    </div>
+                                    {icon}
+                                  </div>
+                                );
+                              })}
+                            </div>
+
+                            {q.explanation && (
+                              <div className="bg-blue-50/40 p-3 rounded-xl border border-blue-100/60 text-[10px] flex gap-2">
+                                <Info className="h-4 w-4 text-blue-600 shrink-0 mt-0.5" />
+                                <div className="space-y-0.5">
+                                  <span className="text-blue-800 font-bold uppercase tracking-wider block">
+                                    Explanation:
+                                  </span>
+                                  <p className="text-slate-700 leading-relaxed font-medium">
+                                    {q.explanation}
+                                  </p>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
-              </DialogFooter>
-            </>
-          )}
+
+                <DialogFooter className="border-t border-slate-100 pt-4 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
+                  <Button 
+                    variant="ghost" 
+                    className="text-rose-600 hover:text-rose-700 hover:bg-rose-50 font-semibold"
+                    onClick={(e) => triggerDeleteConfirm(viewingAssignment, e)}
+                  >
+                    <Trash2 className="h-4 w-4 mr-1.5" /> Delete Assignment
+                  </Button>
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <Button 
+                      variant="outline"
+                      className="border-slate-200 font-semibold text-slate-700" 
+                      onClick={() => {
+                        setDetailOpen(false);
+                        openResultsDialog(viewingAssignment);
+                      }}
+                    >
+                      <Users className="h-4 w-4 mr-1.5 text-emerald-600" /> Quick Grade
+                    </Button>
+                    <Button 
+                      className="bg-blue-700 hover:bg-blue-600 font-semibold text-white"
+                      onClick={() => {
+                        setDetailOpen(false);
+                        openSubmissionsDialog(viewingAssignment);
+                      }}
+                    >
+                      <FileCheck className="h-4 w-4 mr-1.5" /> Submissions
+                    </Button>
+                  </div>
+                </DialogFooter>
+              </>
+            );
+          })()}
         </DialogContent>
       </Dialog>
 
