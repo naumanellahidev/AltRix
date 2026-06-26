@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
-import { Plus, Users, CheckCircle, Clock, FileCheck, MessageSquare, Paperclip, AlertTriangle } from "lucide-react";
+import { Plus, Users, CheckCircle, Clock, FileCheck, MessageSquare, Paperclip, AlertTriangle, Check, AlertCircle, Info } from "lucide-react";
 import { AttachmentsList } from "@/components/assignments/AttachmentsList";
 import { supabase } from "@/integrations/supabase/client";
 import { useTenant } from "@/hooks/useTenant";
@@ -527,12 +527,39 @@ export function TeacherAssignmentsModule() {
                     <div className="flex-1">
                       <div className="flex items-center gap-2">
                         <p className="font-medium">{a.title}</p>
+                        {a.description?.startsWith("[ALTRIX_QUIZ_JSON]:") && (
+                          <Badge className="bg-blue-600 hover:bg-blue-500 text-white text-xs">
+                            MCQ Quiz
+                          </Badge>
+                        )}
                         <Badge variant="outline" className="text-xs capitalize">
                           {a.status || "active"}
                         </Badge>
                       </div>
                       <p className="text-sm text-muted-foreground">{a.section_name}</p>
-                      {a.description && <p className="mt-2 text-sm">{a.description}</p>}
+                      {a.description && (
+                        <div className="mt-2 text-sm text-slate-700">
+                          {a.description.startsWith("[ALTRIX_QUIZ_JSON]:") ? (
+                            (() => {
+                              try {
+                                const quizData = JSON.parse(a.description.substring(19));
+                                return (
+                                  <span className="flex flex-col gap-1 mt-1">
+                                    <span className="text-[10px] font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded w-max">
+                                      AI Generated MCQ Quiz • {quizData.questions?.length} Questions
+                                    </span>
+                                    <span className="text-slate-650 text-xs font-medium">{quizData.instructions}</span>
+                                  </span>
+                                );
+                              } catch (e) {
+                                return a.description;
+                              }
+                            })()
+                          ) : (
+                            a.description
+                          )}
+                        </div>
+                      )}
                       <p className="mt-2 text-xs text-muted-foreground">
                         Max: {a.max_marks} marks {a.due_date && `• Due: ${a.due_date}`}
                       </p>
@@ -651,18 +678,113 @@ export function TeacherAssignmentsModule() {
               </div>
             )}
             
-            {selectedSubmission?.submission_text && (
-              <div>
-                <Label className="text-muted-foreground">Student's Answer</Label>
-                <div className="mt-2 rounded-lg border p-3 text-sm max-h-40 overflow-y-auto bg-muted/50">
-                  {selectedSubmission.submission_text}
-                </div>
-              </div>
-            )}
-            
-            {selectedSubmission?.attachment_urls && selectedSubmission.attachment_urls.length > 0 && (
-              <AttachmentsList attachmentUrls={selectedSubmission.attachment_urls} />
-            )}
+           {(() => {
+              const isQuiz = selectedAssignment?.description?.startsWith("[ALTRIX_QUIZ_JSON]:");
+              let quizData: any = null;
+              if (isQuiz && selectedAssignment?.description) {
+                try {
+                  quizData = JSON.parse(selectedAssignment.description.substring(19));
+                } catch (e) {
+                  console.error(e);
+                }
+              }
+
+              const studentAnswers = (() => {
+                if (selectedSubmission?.submission_text?.startsWith("[ALTRIX_QUIZ_SUBMISSION]:")) {
+                  try {
+                    return JSON.parse(selectedSubmission.submission_text.substring(25));
+                  } catch (e) {
+                    console.error(e);
+                  }
+                }
+                return null;
+              })();
+
+              if (isQuiz && quizData && studentAnswers) {
+                return (
+                  <div className="space-y-4 max-h-[50vh] overflow-y-auto pr-2">
+                    <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Student MCQ Responses</Label>
+                    {quizData.questions.map((q: any) => {
+                      const studentChoice = studentAnswers[q.questionNumber] || "";
+                      const correctChoice = q.correctAnswer;
+                      const isStudentCorrect = studentChoice === correctChoice;
+
+                      return (
+                        <div key={q.questionNumber} className={`p-4 rounded-xl border space-y-3 ${
+                          isStudentCorrect ? "bg-emerald-50/20 border-emerald-250" : "bg-rose-50/20 border-rose-250"
+                        }`}>
+                          <div className="flex items-start gap-2">
+                            <span className={`text-white font-mono text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0 ${
+                              isStudentCorrect ? "bg-emerald-600" : "bg-rose-600"
+                            }`}>
+                              Q{q.questionNumber}
+                            </span>
+                            <p className="text-xs font-semibold text-slate-800 leading-normal">{q.question}</p>
+                          </div>
+
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                            {q.options.map((opt: string, idx: number) => {
+                              const optionLetter = String.fromCharCode(65 + idx);
+                              const isSelectedByStudent = studentChoice === optionLetter;
+                              const isOptionCorrect = correctChoice === optionLetter;
+
+                              let optionStyle = "bg-white border-slate-200 text-slate-650";
+                              let icon = null;
+
+                              if (isOptionCorrect) {
+                                optionStyle = "bg-emerald-50 border-emerald-350 text-emerald-900 font-semibold shadow-[0_1px_5px_rgba(16,185,129,0.08)]";
+                                icon = <Check className="h-4 w-4 text-emerald-600" />;
+                              } else if (isSelectedByStudent) {
+                                optionStyle = "bg-rose-50 border-rose-350 text-rose-900 font-semibold";
+                                icon = <AlertCircle className="h-4 w-4 text-rose-650" />;
+                              }
+
+                              return (
+                                <div
+                                  key={idx}
+                                  className={`p-2 rounded-xl border text-[11px] flex items-center justify-between gap-2.5 ${optionStyle}`}
+                                >
+                                  <div className="flex items-center gap-2 w-full">
+                                    <span className={`h-5 w-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${
+                                      isOptionCorrect
+                                        ? "bg-emerald-100 border border-emerald-300 text-emerald-700"
+                                        : isSelectedByStudent
+                                        ? "bg-rose-100 border border-rose-300 text-rose-700"
+                                        : "bg-slate-100 border border-slate-200 text-slate-400"
+                                    }`}>
+                                      {optionLetter}
+                                    </span>
+                                    <span className="leading-snug">{opt}</span>
+                                  </div>
+                                  {icon}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              }
+
+              return (
+                <>
+                  {selectedSubmission?.submission_text && (
+                    <div>
+                      <Label className="text-muted-foreground">Student's Answer</Label>
+                      <div className="mt-2 rounded-lg border p-3 text-sm max-h-40 overflow-y-auto bg-muted/50">
+                        {selectedSubmission.submission_text}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {selectedSubmission?.attachment_urls && selectedSubmission.attachment_urls.length > 0 && (
+                    <AttachmentsList attachmentUrls={selectedSubmission.attachment_urls} />
+                  )}
+                </>
+              );
+            })()}
             
             <div className="grid grid-cols-2 gap-4">
               <div>

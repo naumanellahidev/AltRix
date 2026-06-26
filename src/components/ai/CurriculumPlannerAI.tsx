@@ -272,21 +272,15 @@ export function CurriculumPlannerAI({
 
     setAssigningQuiz(true);
     try {
-      const quizMarkdown = aiData.quiz
-        .map((q: any) => {
-          const optionsList = (q.options || [])
-            .map((opt: string, k: number) => `   ${String.fromCharCode(65 + k)}. ${opt}`)
-            .join("\n");
-          return `**Q${q.questionNumber}: ${q.question}**\n${optionsList}\n\n*Correct Answer: ${q.correctAnswer}*\n*Explanation: ${q.explanation}*\n`;
-        })
-        .join("\n---\n\n");
-
       const payload = {
         class_section_id: sectionId,
         title: `Quiz: ${aiData.lessonPlan?.title || topic}`,
-        description: `Please complete the following quiz questions generated for our topic:\n\n${quizMarkdown}`,
+        description: `[ALTRIX_QUIZ_JSON]:${JSON.stringify({
+          questions: aiData.quiz,
+          instructions: `Please complete the following quiz questions generated for our topic.`
+        })}`,
         due_date: planDate,
-        max_marks: 5.0,
+        max_marks: aiData.quiz.length,
       };
 
       const response = await apiClient.post("/assignments", payload);

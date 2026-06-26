@@ -339,21 +339,15 @@ export function TeacherLessonPlannerModule() {
 
     setAssigningQuiz(true);
     try {
-      const quizMarkdown = formAiQuizData
-        .map((q: any) => {
-          const optionsList = (q.options || [])
-            .map((opt: string, k: number) => `   ${String.fromCharCode(65 + k)}. ${opt}`)
-            .join("\n");
-          return `**Q${q.questionNumber}: ${q.question}**\n${optionsList}\n\n*Correct Answer: ${q.correctAnswer}*\n*Explanation: ${q.explanation}*\n`;
-        })
-        .join("\n---\n\n");
-
       const payload = {
         class_section_id: selectedSection,
         title: `Quiz: ${formAiPlanData?.title || formTopic}`,
-        description: `Please complete the following quiz questions generated for our topic:\n\n${quizMarkdown}`,
+        description: `[ALTRIX_QUIZ_JSON]:${JSON.stringify({
+          questions: formAiQuizData,
+          instructions: `Please complete the following quiz questions generated for our topic.`
+        })}`,
         due_date: formDate,
-        max_marks: 5.0,
+        max_marks: formAiQuizData.length,
       };
 
       const response = await apiClient.post("/assignments", payload);

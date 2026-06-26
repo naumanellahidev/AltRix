@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { CheckCircle, Clock, Send, Eye, Paperclip, WifiOff } from "lucide-react";
+import { CheckCircle, Clock, Send, Eye, Paperclip, WifiOff, Check, AlertCircle, Info } from "lucide-react";
 import { FileUploadArea } from "@/components/assignments/FileUploadArea";
 import { AttachmentsList } from "@/components/assignments/AttachmentsList";
 import { useOfflineAssignments, useOfflineHomework, useOfflineEnrollments } from "@/hooks/useOfflineData";
@@ -101,26 +101,31 @@ export function StudentAssignmentsModule({ myStudent, schoolId }: { myStudent: a
   const [uploadedFiles, setUploadedFiles] = useState<{ name: string; path: string }[]>([]);
   const [uploading, setUploading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+
+  // Quiz states
+  const [quizAnswers, setQuizAnswers] = useState<Record<string, string>>({});
   
   // View result dialog
   const [viewOpen, setViewOpen] = useState(false);
   const [viewSubmission, setViewSubmission] = useState<Submission | null>(null);
 
-  // Fetch submissions (only when online)
-  useEffect(() => {
+  const refreshSubmissions = async () => {
     if (myStudent.status !== "ready" || isOffline) return;
     
-    (async () => {
-      const { data: subs } = await supabase
-        .from("assignment_submissions")
-        .select("id,assignment_id,content,attachment_urls,submitted_at,status,marks,feedback")
-        .eq("school_id", schoolId)
-        .eq("student_id", myStudent.studentId);
-      
-      const subMap = new Map<string, Submission>();
-      (subs ?? []).forEach((s: any) => subMap.set(s.assignment_id, s as Submission));
-      setSubmissions(subMap);
-    })();
+    const { data: subs } = await supabase
+      .from("assignment_submissions")
+      .select("id,assignment_id,content,attachment_urls,submitted_at,status,marks,feedback")
+      .eq("school_id", schoolId)
+      .eq("student_id", myStudent.studentId);
+    
+    const subMap = new Map<string, Submission>();
+    (subs ?? []).forEach((s: any) => subMap.set(s.assignment_id, s as Submission));
+    setSubmissions(subMap);
+  };
+
+  // Fetch submissions (only when online)
+  useEffect(() => {
+    refreshSubmissions();
   }, [myStudent.status, myStudent.studentId, schoolId, isOffline]);
 
   const openSubmitDialog = (assignment: Assignment) => {
@@ -130,7 +135,21 @@ export function StudentAssignmentsModule({ myStudent, schoolId }: { myStudent: a
     }
     const existing = submissions.get(assignment.id);
     setSelectedAssignment(assignment);
-    setSubmissionText(existing?.content || "");
+    
+    if (assignment.description?.startsWith("[ALTRIX_QUIZ_JSON]:")) {
+      let parsedAnswers = {};
+      if (existing?.content?.startsWith("[ALTRIX_QUIZ_SUBMISSION]:")) {
+        try {
+          parsedAnswers = JSON.parse(existing.content.substring(25));
+        } catch (e) {
+          console.error(e);
+        }
+      }
+      setQuizAnswers(parsedAnswers);
+    } else {
+      setSubmissionText(existing?.content || "");
+    }
+
     const existingFiles = (existing?.attachment_urls || []).map((path) => ({
       name: path.split("/").pop() || path,
       path,
@@ -164,9 +183,40 @@ export function StudentAssignmentsModule({ myStudent, schoolId }: { myStudent: a
   const handleSubmit = async () => {
     if (!selectedAssignment || myStudent.status !== "ready") return;
     
-    if (!submissionText.trim() && uploadedFiles.length === 0) {
-      toast.error("Please add text or attach files");
-      return;
+    const isQuiz = selectedAssignment.description?.startsWith("[ALTRIX_QUIZ_JSON]:");
+    let contentValue = submissionText;
+    let quizMarks: number | null = null;
+
+    if (isQuiz) {
+      let quizData: any = null;
+      try {
+        quizData = JSON.parse(selectedAssignment.description.substring(19));
+      } catch (e) {
+        console.error(e);
+      }
+      
+      const totalQuestions = quizData?.questions?.length || 0;
+      const answeredCount = Object.keys(quizAnswers).length;
+      if (answeredCount < totalQuestions) {
+        toast.error(`Please answer all ${totalQuestions} questions before submitting.`);
+        return;
+      }
+
+      contentValue = `[ALTRIX_QUIZ_SUBMISSION]:${JSON.stringify(quizAnswers)}`;
+      
+      // Calculate score for auto-grading!
+      let correctCount = 0;
+      (quizData?.questions || []).forEach((q: any) => {
+        if (quizAnswers[q.questionNumber] === q.correctAnswer) {
+          correctCount++;
+        }
+      });
+      quizMarks = correctCount;
+    } else {
+      if (!submissionText.trim() && uploadedFiles.length === 0) {
+        toast.error("Please add text or attach files");
+        return;
+      }
     }
     
     const isLate = selectedAssignment.due_date && new Date(selectedAssignment.due_date) < new Date();
@@ -175,22 +225,30 @@ export function StudentAssignmentsModule({ myStudent, schoolId }: { myStudent: a
     const existing = submissions.get(selectedAssignment.id);
     const attachmentUrls = uploadedFiles.map((f) => f.path);
     
+    const savePayload = {
+      content: contentValue,
+      attachment_urls: attachmentUrls.length > 0 ? attachmentUrls : null,
+      status: isQuiz ? (isLate ? "late" : "graded") : (isLate ? "late" : "submitted"),
+      submitted_at: new Date().toISOString(),
+      ...(isQuiz ? {
+        marks: quizMarks,
+        marks_obtained: quizMarks,
+        feedback: "Auto-graded by AI Quiz Engine."
+      } : {})
+    };
+
     if (existing) {
       const { error } = await supabase
         .from("assignment_submissions")
-        .update({
-          content: submissionText,
-          attachment_urls: attachmentUrls.length > 0 ? attachmentUrls : null,
-          status: isLate ? "late" : "submitted",
-          submitted_at: new Date().toISOString(),
-        })
+        .update(savePayload)
         .eq("id", existing.id);
       
       if (error) {
         toast.error(error.message);
       } else {
-        toast.success("Submission updated!");
+        toast.success(isQuiz ? "Quiz submitted & auto-graded successfully!" : "Submission updated!");
         setSubmitOpen(false);
+        refreshSubmissions();
       }
     } else {
       const { error } = await supabase
@@ -199,16 +257,15 @@ export function StudentAssignmentsModule({ myStudent, schoolId }: { myStudent: a
           school_id: schoolId,
           assignment_id: selectedAssignment.id,
           student_id: myStudent.studentId,
-          content: submissionText,
-          attachment_urls: attachmentUrls.length > 0 ? attachmentUrls : null,
-          status: isLate ? "late" : "submitted",
+          ...savePayload
         });
       
       if (error) {
         toast.error(error.message);
       } else {
-        toast.success("Assignment submitted!");
+        toast.success(isQuiz ? "Quiz submitted & auto-graded successfully!" : "Assignment submitted!");
         setSubmitOpen(false);
+        refreshSubmissions();
       }
     }
     setSubmitting(false);
@@ -286,6 +343,16 @@ export function StudentAssignmentsModule({ myStudent, schoolId }: { myStudent: a
               const sub = submissions.get(a.id);
               const overdue = isOverdue(a.due_date) && !sub;
               
+              const isQuiz = a.description?.startsWith("[ALTRIX_QUIZ_JSON]:");
+              let quizData: any = null;
+              if (isQuiz && a.description) {
+                try {
+                  quizData = JSON.parse(a.description.substring(19));
+                } catch (e) {
+                  console.error(e);
+                }
+              }
+
               return (
                 <Card key={a.id} className={overdue ? "border-destructive/50" : ""}>
                   <CardHeader className="pb-2">
@@ -294,14 +361,25 @@ export function StudentAssignmentsModule({ myStudent, schoolId }: { myStudent: a
                         <div className="flex items-center gap-2">
                           <CardTitle className="text-base">{a.title}</CardTitle>
                           <Badge variant="outline" className="text-xs capitalize">
-                            assignment
+                            {isQuiz ? "MCQ Quiz" : "assignment"}
                           </Badge>
                           {hasAttachments(a) && (
                             <Paperclip className="h-4 w-4 text-muted-foreground" />
                           )}
                         </div>
                         {a.description && (
-                          <CardDescription className="mt-1">{a.description}</CardDescription>
+                          <CardDescription className="mt-1">
+                            {isQuiz && quizData ? (
+                              <span className="flex flex-col gap-1 mt-1">
+                                <span className="text-[10px] font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded w-max">
+                                  AI Quiz • {quizData.questions?.length} Questions
+                                </span>
+                                <span className="text-slate-650 text-xs font-medium">{quizData.instructions}</span>
+                              </span>
+                            ) : (
+                              a.description
+                            )}
+                          </CardDescription>
                         )}
                       </div>
                       <Badge variant={status.variant} className="flex items-center gap-1">
@@ -374,9 +452,11 @@ export function StudentAssignmentsModule({ myStudent, schoolId }: { myStudent: a
 
       {/* Submit Assignment Dialog */}
       <Dialog open={submitOpen} onOpenChange={setSubmitOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-xl">
           <DialogHeader>
-            <DialogTitle>Submit Assignment</DialogTitle>
+            <DialogTitle>
+              {selectedAssignment?.description?.startsWith("[ALTRIX_QUIZ_JSON]:") ? "Solve MCQ Quiz" : "Submit Assignment"}
+            </DialogTitle>
             <DialogDescription>
               {selectedAssignment?.title}
               {selectedAssignment?.due_date && (
@@ -386,46 +466,118 @@ export function StudentAssignmentsModule({ myStudent, schoolId }: { myStudent: a
               )}
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-4">
-            {selectedAssignment?.due_date && new Date(selectedAssignment.due_date) < new Date() && (
-              <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-950">
-                <Clock className="h-5 w-5 text-amber-600 dark:text-amber-400 mt-0.5" />
-                <div className="text-sm">
-                  <p className="font-medium text-amber-800 dark:text-amber-200">
-                    This assignment is past due
-                  </p>
-                </div>
+          
+          {(() => {
+            const isQuiz = selectedAssignment?.description?.startsWith("[ALTRIX_QUIZ_JSON]:");
+            let quizData: any = null;
+            if (isQuiz && selectedAssignment?.description) {
+              try {
+                quizData = JSON.parse(selectedAssignment.description.substring(19));
+              } catch (e) {
+                console.error(e);
+              }
+            }
+
+            return (
+              <div className="space-y-4 py-4">
+                {selectedAssignment?.due_date && new Date(selectedAssignment.due_date) < new Date() && (
+                  <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-950">
+                    <Clock className="h-5 w-5 text-amber-600 dark:text-amber-400 mt-0.5" />
+                    <div className="text-sm">
+                      <p className="font-medium text-amber-800 dark:text-amber-200">
+                        This assignment is past due
+                      </p>
+                    </div>
+                  </div>
+                )}
+                
+                {isQuiz && quizData ? (
+                  // Quiz Solve View
+                  <div className="space-y-5 max-h-[55vh] overflow-y-auto pr-2">
+                    {quizData.questions.map((q: any) => {
+                      const selectedOption = quizAnswers[q.questionNumber] || "";
+                      return (
+                        <div key={q.questionNumber} className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
+                          <div className="flex items-start gap-2">
+                            <span className="bg-blue-600 text-white font-mono text-[10px] font-bold px-2 py-0.5 rounded shrink-0">
+                              Q{q.questionNumber}
+                            </span>
+                            <p className="text-sm font-semibold text-slate-800 leading-normal">{q.question}</p>
+                          </div>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                            {q.options.map((opt: string, idx: number) => {
+                              const optionLetter = String.fromCharCode(65 + idx);
+                              const isOptionSelected = selectedOption === optionLetter;
+                              return (
+                                <button
+                                  key={idx}
+                                  type="button"
+                                  onClick={() => {
+                                    setQuizAnswers((prev) => ({
+                                      ...prev,
+                                      [q.questionNumber]: optionLetter,
+                                    }));
+                                  }}
+                                  className={`p-2.5 rounded-xl border text-xs text-left transition-all flex items-center gap-2.5 ${
+                                    isOptionSelected
+                                      ? "bg-blue-600 border-blue-500 text-white font-semibold shadow-[0_2px_8px_rgba(59,130,246,0.15)]"
+                                      : "bg-white border-slate-200 text-slate-650 hover:border-slate-300"
+                                  }`}
+                                >
+                                  <span
+                                    className={`h-5.5 w-5.5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${
+                                      isOptionSelected
+                                        ? "bg-white/20 text-white"
+                                        : "bg-slate-100 border border-slate-200 text-slate-400"
+                                    }`}
+                                  >
+                                    {optionLetter}
+                                  </span>
+                                  <span className="leading-snug">{opt}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  // Standard Submit View
+                  <>
+                    <div>
+                      <label className="text-sm font-medium">Your Answer / Work</label>
+                      <Textarea
+                        value={submissionText}
+                        onChange={(e) => setSubmissionText(e.target.value)}
+                        placeholder="Enter your answer or paste your work here..."
+                        rows={6}
+                        className="mt-2"
+                      />
+                    </div>
+                    
+                    <div>
+                      <label className="text-sm font-medium mb-2 block">Attachments</label>
+                      <FileUploadArea
+                        files={uploadedFiles}
+                        onFilesChange={setUploadedFiles}
+                        onUpload={handleUploadFile}
+                        uploading={uploading}
+                        disabled={submitting}
+                        maxFiles={5}
+                      />
+                    </div>
+                  </>
+                )}
               </div>
-            )}
-            
-            <div>
-              <label className="text-sm font-medium">Your Answer / Work</label>
-              <Textarea
-                value={submissionText}
-                onChange={(e) => setSubmissionText(e.target.value)}
-                placeholder="Enter your answer or paste your work here..."
-                rows={6}
-                className="mt-2"
-              />
-            </div>
-            
-            <div>
-              <label className="text-sm font-medium mb-2 block">Attachments</label>
-              <FileUploadArea
-                files={uploadedFiles}
-                onFilesChange={setUploadedFiles}
-                onUpload={handleUploadFile}
-                uploading={uploading}
-                disabled={submitting}
-                maxFiles={5}
-              />
-            </div>
-          </div>
+            );
+          })()}
+          
           <DialogFooter>
             <Button variant="outline" onClick={() => setSubmitOpen(false)}>Cancel</Button>
             <Button 
               onClick={handleSubmit} 
-              disabled={submitting || uploading || (!submissionText.trim() && uploadedFiles.length === 0)}
+              disabled={submitting || uploading}
             >
               {submitting ? "Submitting..." : "Submit"}
             </Button>
@@ -435,50 +587,162 @@ export function StudentAssignmentsModule({ myStudent, schoolId }: { myStudent: a
 
       {/* View Result Dialog */}
       <Dialog open={viewOpen} onOpenChange={setViewOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-xl">
           <DialogHeader>
-            <DialogTitle>Assignment Result</DialogTitle>
+            <DialogTitle>
+              {selectedAssignment?.description?.startsWith("[ALTRIX_QUIZ_JSON]:") ? "Quiz Performance Review" : "Assignment Result"}
+            </DialogTitle>
             <DialogDescription>{selectedAssignment?.title}</DialogDescription>
           </DialogHeader>
-          {viewSubmission && (
-            <div className="space-y-4 py-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm text-muted-foreground">Your Mark</p>
-                  <p className="text-2xl font-bold">
-                    {viewSubmission.marks ?? "—"} / {selectedAssignment?.max_marks}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Submitted</p>
-                  <p className="font-medium">{new Date(viewSubmission.submitted_at).toLocaleString()}</p>
-                </div>
-              </div>
-              
-              {viewSubmission.feedback && (
-                <div>
-                  <p className="text-sm font-medium mb-1">Teacher Feedback</p>
-                  <div className="rounded-lg bg-muted p-3 text-sm">{viewSubmission.feedback}</div>
-                </div>
-              )}
-              
-              {viewSubmission.content && (
-                <div>
-                  <p className="text-sm font-medium mb-1">Your Submission</p>
-                  <div className="rounded-lg border p-3 text-sm whitespace-pre-wrap max-h-40 overflow-auto">
-                    {viewSubmission.content}
+          
+          {(() => {
+            const isQuiz = selectedAssignment?.description?.startsWith("[ALTRIX_QUIZ_JSON]:");
+            let quizData: any = null;
+            if (isQuiz && selectedAssignment?.description) {
+              try {
+                quizData = JSON.parse(selectedAssignment.description.substring(19));
+              } catch (e) {
+                console.error(e);
+              }
+            }
+
+            const studentQuizAnswers = (() => {
+              if (viewSubmission?.content?.startsWith("[ALTRIX_QUIZ_SUBMISSION]:")) {
+                try {
+                  return JSON.parse(viewSubmission.content.substring(25));
+                } catch (e) {
+                  console.error(e);
+                }
+              }
+              return {};
+            })();
+
+            return (
+              viewSubmission && (
+                <div className="space-y-4 py-4 max-h-[70vh] overflow-y-auto pr-2">
+                  <div className="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
+                    <div>
+                      <p className="text-xs text-slate-500 font-bold uppercase">Your Score</p>
+                      <p className="text-2xl font-bold bg-gradient-to-r from-blue-700 to-indigo-600 bg-clip-text text-transparent">
+                        {viewSubmission.marks ?? "—"} / {selectedAssignment?.max_marks}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-slate-500 font-bold uppercase">Submitted At</p>
+                      <p className="text-sm font-semibold text-slate-800">
+                        {viewSubmission.submitted_at ? new Date(viewSubmission.submitted_at).toLocaleString() : "—"}
+                      </p>
+                    </div>
                   </div>
+                  
+                  {isQuiz && quizData ? (
+                    // Quiz Review comparison list
+                    <div className="space-y-4 pt-1">
+                      <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Quiz Questions & Explanations</h4>
+                      {quizData.questions.map((q: any) => {
+                        const studentChoice = studentQuizAnswers[q.questionNumber] || "";
+                        const correctChoice = q.correctAnswer;
+                        const isStudentCorrect = studentChoice === correctChoice;
+
+                        return (
+                          <div key={q.questionNumber} className={`p-4 rounded-xl border space-y-3 ${
+                            isStudentCorrect ? "bg-emerald-50/20 border-emerald-250" : "bg-rose-50/20 border-rose-250"
+                          }`}>
+                            <div className="flex items-start gap-2">
+                              <span className={`text-white font-mono text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0 ${
+                                isStudentCorrect ? "bg-emerald-600" : "bg-rose-600"
+                              }`}>
+                                Q{q.questionNumber}
+                              </span>
+                              <p className="text-xs font-semibold text-slate-800 leading-normal">{q.question}</p>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                              {q.options.map((opt: string, idx: number) => {
+                                const optionLetter = String.fromCharCode(65 + idx);
+                                const isSelectedByStudent = studentChoice === optionLetter;
+                                const isOptionCorrect = correctChoice === optionLetter;
+
+                                let optionStyle = "bg-white border-slate-200 text-slate-650";
+                                let icon = null;
+
+                                if (isOptionCorrect) {
+                                  optionStyle = "bg-emerald-50 border-emerald-350 text-emerald-900 font-semibold shadow-[0_1px_5px_rgba(16,185,129,0.08)]";
+                                  icon = <Check className="h-4 w-4 text-emerald-600" />;
+                                } else if (isSelectedByStudent) {
+                                  optionStyle = "bg-rose-50 border-rose-350 text-rose-900 font-semibold";
+                                  icon = <AlertCircle className="h-4 w-4 text-rose-650" />;
+                                }
+
+                                return (
+                                  <div
+                                    key={idx}
+                                    className={`p-2.5 rounded-xl border text-[11px] flex items-center justify-between gap-2.5 ${optionStyle}`}
+                                  >
+                                    <div className="flex items-center gap-2 w-full">
+                                      <span className={`h-5.5 w-5.5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${
+                                        isOptionCorrect
+                                          ? "bg-emerald-100 border border-emerald-300 text-emerald-700"
+                                          : isSelectedByStudent
+                                          ? "bg-rose-100 border border-rose-300 text-rose-700"
+                                          : "bg-slate-100 border border-slate-200 text-slate-400"
+                                      }`}>
+                                        {optionLetter}
+                                      </span>
+                                      <span className="leading-snug">{opt}</span>
+                                    </div>
+                                    {icon}
+                                  </div>
+                                );
+                              })}
+                            </div>
+
+                            <div className="bg-blue-50/40 p-3 rounded-xl border border-blue-100/60 text-[10px] flex gap-2">
+                              <Info className="h-4 w-4 text-blue-600 shrink-0 mt-0.5" />
+                              <div className="space-y-0.5">
+                                <span className="text-blue-800 font-bold uppercase tracking-wider block">
+                                  Explanation:
+                                </span>
+                                <p className="text-slate-705 leading-relaxed font-medium">
+                                  {q.explanation}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    // Standard Result view
+                    <>
+                      {viewSubmission.feedback && (
+                        <div>
+                          <p className="text-sm font-medium mb-1">Teacher Feedback</p>
+                          <div className="rounded-lg bg-muted p-3 text-sm">{viewSubmission.feedback}</div>
+                        </div>
+                      )}
+                      
+                      {viewSubmission.content && (
+                        <div>
+                          <p className="text-sm font-medium mb-1">Your Submission</p>
+                          <div className="rounded-lg border p-3 text-sm whitespace-pre-wrap max-h-40 overflow-auto">
+                            {viewSubmission.content}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {viewSubmission.attachment_urls && viewSubmission.attachment_urls.length > 0 && (
+                        <div>
+                          <p className="text-sm font-medium mb-1">Attachments</p>
+                          <AttachmentsList attachmentUrls={viewSubmission.attachment_urls} />
+                        </div>
+                      )}
+                    </>
+                  )}
                 </div>
-              )}
-              
-              {viewSubmission.attachment_urls && viewSubmission.attachment_urls.length > 0 && (
-                <div>
-                  <p className="text-sm font-medium mb-1">Attachments</p>
-                  <AttachmentsList attachmentUrls={viewSubmission.attachment_urls} />
-                </div>
-              )}
-            </div>
-          )}
+              )
+            );
+          })()}
           <DialogFooter>
             <Button onClick={() => setViewOpen(false)}>Close</Button>
           </DialogFooter>
