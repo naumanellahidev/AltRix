@@ -353,12 +353,14 @@ export function TeacherShell({ title, subtitle, schoolSlug, children }: Props) {
             storageInfo={offline.storageInfo}
             onSync={offline.syncPendingItems}
             variant="compact"
+            className="hidden sm:inline-flex"
           />
           <NotificationsBell schoolId={schoolId} schoolSlug={schoolSlug} role="teacher" />
           <Button
             variant="ghost"
             size="icon"
             onClick={() => window.dispatchEvent(new Event("eduverse:open-search"))}
+            className="hidden sm:inline-flex"
           >
             <Sparkles className="h-5 w-5" />
           </Button>
@@ -366,7 +368,7 @@ export function TeacherShell({ title, subtitle, schoolSlug, children }: Props) {
           <Button
             variant="ghost"
             size="icon"
-            className="text-muted-foreground hover:text-destructive"
+            className="text-muted-foreground hover:text-destructive hidden sm:inline-flex"
             onClick={handleLogout}
             aria-label="Logout"
           >
