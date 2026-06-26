@@ -249,7 +249,7 @@ export function TeacherLessonPlannerModule() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6 w-full min-w-0 overflow-hidden">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
@@ -289,7 +289,7 @@ export function TeacherLessonPlannerModule() {
       </div>
 
       {/* Week Grid */}
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
         {weekDays.map((day) => {
           const dayPlans = getPlansForDay(day);
           const isToday = isSameDay(day, new Date());
