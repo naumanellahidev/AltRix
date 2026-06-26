@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
-import { Plus, Users, CheckCircle, Clock, FileCheck, MessageSquare, Paperclip, AlertTriangle, Check, AlertCircle, Info } from "lucide-react";
+import { Plus, Users, CheckCircle, Clock, FileCheck, MessageSquare, Paperclip, AlertTriangle, Check, AlertCircle, Info, Trash2, Search, Filter, Calendar, TrendingUp, Award, FileText, BookOpen } from "lucide-react";
 import { AttachmentsList } from "@/components/assignments/AttachmentsList";
 import { supabase } from "@/integrations/supabase/client";
 import { useTenant } from "@/hooks/useTenant";
@@ -66,6 +66,7 @@ export function TeacherAssignmentsModule() {
   const { user } = useSession();
   const [sections, setSections] = useState<Section[]>([]);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
+  const [allSubmissions, setAllSubmissions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Add assignment dialog
@@ -94,7 +95,18 @@ export function TeacherAssignmentsModule() {
   const [results, setResults] = useState<StudentResult[]>([]);
   const [savingResults, setSavingResults] = useState(false);
 
+  // Search, Filters & Modals
   const [filterSection, setFilterSection] = useState<string>("all");
+  const [searchTerm, setSearchTerm] = useState<string>("");
+  const [filterType, setFilterType] = useState<string>("all");
+  const [filterStatus, setFilterStatus] = useState<string>("all");
+
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState<boolean>(false);
+  const [assignmentToDelete, setAssignmentToDelete] = useState<Assignment | null>(null);
+  const [deletingAssignment, setDeletingAssignment] = useState<boolean>(false);
+
+  const [detailOpen, setDetailOpen] = useState<boolean>(false);
+  const [viewingAssignment, setViewingAssignment] = useState<Assignment | null>(null);
 
   useEffect(() => {
     if (tenant.status !== "ready") return;
@@ -160,6 +172,19 @@ export function TeacherAssignmentsModule() {
     }));
 
     setAssignments(enrichedAssignments as any);
+
+    // Fetch all submissions for these assignments to compute stats
+    const assignmentIds = (assignmentData || []).map((a) => a.id);
+    if (assignmentIds.length > 0) {
+      const { data: subData } = await supabase
+        .from("assignment_submissions")
+        .select("id, assignment_id, status, marks_obtained")
+        .in("assignment_id", assignmentIds);
+      setAllSubmissions(subData || []);
+    } else {
+      setAllSubmissions([]);
+    }
+
     setLoading(false);
   };
 
@@ -194,6 +219,70 @@ export function TeacherAssignmentsModule() {
       class_section_id: "",
     });
     fetchData();
+  };
+
+  const handleDeleteAssignment = async (assignmentId: string) => {
+    setDeletingAssignment(true);
+    try {
+      // 1. Delete student results first (prevent FK issues)
+      const { error: resultsError } = await supabase
+        .from("student_results")
+        .delete()
+        .eq("assignment_id", assignmentId);
+
+      if (resultsError) {
+        toast.error(`Error deleting results: ${resultsError.message}`);
+        setDeletingAssignment(false);
+        return;
+      }
+
+      // 2. Delete submissions
+      const { error: subsError } = await supabase
+        .from("assignment_submissions")
+        .delete()
+        .eq("assignment_id", assignmentId);
+
+      if (subsError) {
+        toast.error(`Error deleting submissions: ${subsError.message}`);
+        setDeletingAssignment(false);
+        return;
+      }
+
+      // 3. Delete assignment
+      const { error: assignmentError } = await supabase
+        .from("assignments")
+        .delete()
+        .eq("id", assignmentId);
+
+      if (assignmentError) {
+        toast.error(`Error deleting assignment: ${assignmentError.message}`);
+        setDeletingAssignment(false);
+        return;
+      }
+
+      toast.success("Assignment deleted successfully");
+      setDeleteConfirmOpen(false);
+      setAssignmentToDelete(null);
+      if (detailOpen && viewingAssignment?.id === assignmentId) {
+        setDetailOpen(false);
+      }
+      fetchData();
+    } catch (e: any) {
+      toast.error(e.message || "An error occurred during deletion");
+    } finally {
+      setDeletingAssignment(false);
+    }
+  };
+
+  const openDetailModal = (assignment: Assignment) => {
+    setViewingAssignment(assignment);
+    setDetailOpen(true);
+  };
+
+  const triggerDeleteConfirm = (assignment: Assignment, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setAssignmentToDelete(assignment);
+    setDeleteConfirmOpen(true);
   };
 
   const openResultsDialog = async (assignment: Assignment) => {
@@ -402,155 +491,295 @@ export function TeacherAssignmentsModule() {
     return { submitted: subs.length, graded: graded.length, total: submissions.length };
   };
 
-  const filteredAssignments = filterSection === "all"
-    ? assignments
-    : assignments.filter((a) => a.class_section_id === filterSection);
+  const stats = useMemo(() => {
+    const total = assignments.length;
+    const toGrade = allSubmissions.filter(s => s.status === 'submitted' || s.status === 'late').length;
+    
+    let totalPct = 0;
+    let gradedCount = 0;
+    allSubmissions.filter(s => s.status === 'graded' && s.marks_obtained !== null).forEach(s => {
+      const assignment = assignments.find(a => a.id === s.assignment_id);
+      if (assignment && assignment.max_marks > 0) {
+        totalPct += (s.marks_obtained / assignment.max_marks) * 100;
+        gradedCount++;
+      }
+    });
+    const classAvg = gradedCount > 0 ? `${(totalPct / gradedCount).toFixed(0)}%` : "—";
+    
+    const active = assignments.filter(a => !a.due_date || new Date(a.due_date) >= new Date()).length;
+    
+    return { total, toGrade, classAvg, active };
+  }, [assignments, allSubmissions]);
+
+  const filteredAssignments = useMemo(() => {
+    return assignments.filter((a) => {
+      const matchesSection = filterSection === "all" || a.class_section_id === filterSection;
+      
+      const titleMatches = a.title?.toLowerCase().includes(searchTerm.toLowerCase());
+      const descMatches = a.description?.toLowerCase().includes(searchTerm.toLowerCase()) || false;
+      const matchesSearch = !searchTerm || titleMatches || descMatches;
+      
+      const isQuiz = a.description?.startsWith("[ALTRIX_QUIZ_JSON]:");
+      const matchesType = filterType === "all" 
+        || (filterType === "quiz" && isQuiz) 
+        || (filterType === "standard" && !isQuiz);
+
+      const isPastDue = a.due_date && new Date(a.due_date) < new Date();
+      const matchesStatus = filterStatus === "all"
+        || (filterStatus === "active" && !isPastDue)
+        || (filterStatus === "past_due" && isPastDue);
+
+      return matchesSection && matchesSearch && matchesType && matchesStatus;
+    });
+  }, [assignments, filterSection, searchTerm, filterType, filterStatus]);
 
   if (loading) {
-    return <p className="text-sm text-muted-foreground">Loading...</p>;
+    return (
+      <div className="flex items-center justify-center py-12">
+        <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+      </div>
+    );
   }
 
   if (sections.length === 0) {
     return (
-      <Card>
-        <CardContent className="py-8 text-center">
-          <p className="text-muted-foreground">No classes assigned to you yet.</p>
+      <Card className="border-slate-200">
+        <CardContent className="py-12 text-center">
+          <BookOpen className="h-10 w-10 text-slate-300 mx-auto mb-3" />
+          <p className="text-slate-500 font-medium">No classes assigned to you yet.</p>
         </CardContent>
       </Card>
     );
   }
 
   return (
-    <div className="space-y-4">
-      {/* Controls */}
-      <div className="flex flex-wrap items-center gap-3">
-        <Select value={filterSection} onValueChange={setFilterSection}>
-          <SelectTrigger className="w-[200px]">
-            <SelectValue placeholder="Filter by section" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Sections</SelectItem>
-            {sections.map((s) => (
-              <SelectItem key={s.id} value={s.id}>
-                {s.class_name} - {s.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <Dialog open={addOpen} onOpenChange={setAddOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="mr-2 h-4 w-4" /> Create Assignment
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Create Assignment</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4 pt-4">
-              <div>
-                <Label>Section *</Label>
-                <Select
-                  value={newAssignment.class_section_id}
-                  onValueChange={(v) => setNewAssignment((p) => ({ ...p, class_section_id: v }))}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select section" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {sections.map((s) => (
-                      <SelectItem key={s.id} value={s.id}>
-                        {s.class_name} - {s.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              
-              <div>
-                <Label>Title *</Label>
-                <Input
-                  value={newAssignment.title}
-                  onChange={(e) => setNewAssignment((p) => ({ ...p, title: e.target.value }))}
-                />
-              </div>
-              <div>
-                <Label>Description</Label>
-                <Textarea
-                  value={newAssignment.description}
-                  onChange={(e) => setNewAssignment((p) => ({ ...p, description: e.target.value }))}
-                  rows={3}
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label>Max Marks</Label>
-                  <Input
-                    type="number"
-                    value={newAssignment.max_marks}
-                    onChange={(e) => setNewAssignment((p) => ({ ...p, max_marks: e.target.value }))}
-                  />
-                </div>
-                <div>
-                  <Label>Due Date</Label>
-                  <Input
-                    type="date"
-                    value={newAssignment.due_date}
-                    onChange={(e) => setNewAssignment((p) => ({ ...p, due_date: e.target.value }))}
-                  />
-                </div>
-              </div>
-              
-              
-              <Button onClick={handleAddAssignment} className="w-full">
-                Create Assignment
-              </Button>
+    <div className="space-y-6">
+      {/* Dashboard KPI cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+        <Card className="bg-gradient-to-br from-blue-50/40 to-indigo-50/10 border-slate-200/80 shadow-sm relative overflow-hidden transition-all duration-200 hover:shadow-md">
+          <CardContent className="p-5 flex items-center justify-between">
+            <div className="space-y-1">
+              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Total Assignments</span>
+              <p className="text-3xl font-extrabold text-slate-800">{stats.total}</p>
             </div>
-          </DialogContent>
-        </Dialog>
+            <div className="h-12 w-12 rounded-xl bg-blue-100/80 flex items-center justify-center text-blue-700">
+              <BookOpen className="h-5 w-5" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-gradient-to-br from-amber-50/40 to-orange-50/10 border-slate-200/80 shadow-sm relative overflow-hidden transition-all duration-200 hover:shadow-md">
+          <CardContent className="p-5 flex items-center justify-between">
+            <div className="space-y-1">
+              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block">To Grade</span>
+              <p className="text-3xl font-extrabold text-slate-800">{stats.toGrade}</p>
+            </div>
+            <div className="h-12 w-12 rounded-xl bg-amber-100/80 flex items-center justify-center text-amber-700">
+              <Clock className="h-5 w-5" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-gradient-to-br from-emerald-50/40 to-teal-50/10 border-slate-200/80 shadow-sm relative overflow-hidden transition-all duration-200 hover:shadow-md">
+          <CardContent className="p-5 flex items-center justify-between">
+            <div className="space-y-1">
+              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Class Avg Score</span>
+              <p className="text-3xl font-extrabold text-slate-800">{stats.classAvg}</p>
+            </div>
+            <div className="h-12 w-12 rounded-xl bg-emerald-100/80 flex items-center justify-center text-emerald-700">
+              <TrendingUp className="h-5 w-5" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-gradient-to-br from-indigo-50/40 to-violet-50/10 border-slate-200/80 shadow-sm relative overflow-hidden transition-all duration-200 hover:shadow-md">
+          <CardContent className="p-5 flex items-center justify-between">
+            <div className="space-y-1">
+              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Active Tasks</span>
+              <p className="text-3xl font-extrabold text-slate-800">{stats.active}</p>
+            </div>
+            <div className="h-12 w-12 rounded-xl bg-indigo-100/80 flex items-center justify-center text-indigo-700">
+              <Calendar className="h-5 w-5" />
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
+      {/* Filters Toolbar */}
+      <Card className="bg-white border-slate-200 shadow-sm">
+        <CardContent className="p-4 flex flex-col lg:flex-row lg:items-center gap-3">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+            <Input
+              placeholder="Search assignments by title or description..."
+              className="pl-9"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <Select value={filterSection} onValueChange={setFilterSection}>
+              <SelectTrigger className="w-[160px]">
+                <SelectValue placeholder="All Sections" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Sections</SelectItem>
+                {sections.map((s) => (
+                  <SelectItem key={s.id} value={s.id}>
+                    {s.class_name} - {s.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select value={filterType} onValueChange={setFilterType}>
+              <SelectTrigger className="w-[140px]">
+                <SelectValue placeholder="All Types" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Types</SelectItem>
+                <SelectItem value="quiz">MCQ Quizzes</SelectItem>
+                <SelectItem value="standard">Standard</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Select value={filterStatus} onValueChange={setFilterStatus}>
+              <SelectTrigger className="w-[140px]">
+                <SelectValue placeholder="All Statuses" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Statuses</SelectItem>
+                <SelectItem value="active">Active</SelectItem>
+                <SelectItem value="past_due">Past Due</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Dialog open={addOpen} onOpenChange={setAddOpen}>
+              <DialogTrigger asChild>
+                <Button className="bg-blue-700 hover:bg-blue-600">
+                  <Plus className="mr-1.5 h-4 w-4" /> Create
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Create Assignment</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4 pt-4">
+                  <div>
+                    <Label>Section *</Label>
+                    <Select
+                      value={newAssignment.class_section_id}
+                      onValueChange={(v) => setNewAssignment((p) => ({ ...p, class_section_id: v }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select section" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {sections.map((s) => (
+                          <SelectItem key={s.id} value={s.id}>
+                            {s.class_name} - {s.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  <div>
+                    <Label>Title *</Label>
+                    <Input
+                      value={newAssignment.title}
+                      onChange={(e) => setNewAssignment((p) => ({ ...p, title: e.target.value }))}
+                    />
+                  </div>
+                  <div>
+                    <Label>Description</Label>
+                    <Textarea
+                      value={newAssignment.description}
+                      onChange={(e) => setNewAssignment((p) => ({ ...p, description: e.target.value }))}
+                      rows={3}
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label>Max Marks</Label>
+                      <Input
+                        type="number"
+                        value={newAssignment.max_marks}
+                        onChange={(e) => setNewAssignment((p) => ({ ...p, max_marks: e.target.value }))}
+                      />
+                    </div>
+                    <div>
+                      <Label>Due Date</Label>
+                      <Input
+                        type="date"
+                        value={newAssignment.due_date}
+                        onChange={(e) => setNewAssignment((p) => ({ ...p, due_date: e.target.value }))}
+                      />
+                    </div>
+                  </div>
+                  
+                  <Button onClick={handleAddAssignment} className="w-full bg-blue-700 hover:bg-blue-600">
+                    Create Assignment
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Assignments List */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Assignments ({filteredAssignments.length})</CardTitle>
+      <Card className="border-slate-200 shadow-sm bg-white">
+        <CardHeader className="pb-3 border-b border-slate-100">
+          <CardTitle className="text-lg font-bold text-slate-800">Assignments ({filteredAssignments.length})</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="pt-4">
           {filteredAssignments.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No assignments found.</p>
+            <div className="text-center py-12 text-slate-400">
+              <FileText className="h-10 w-10 mx-auto text-slate-300 mb-3" />
+              <p className="text-sm font-medium">No assignments found matching the search/filters.</p>
+            </div>
           ) : (
-            <div className="space-y-3">
-              {filteredAssignments.map((a) => (
-                <div key={a.id} className="rounded-lg border p-4">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <p className="font-medium">{a.title}</p>
-                        {a.description?.startsWith("[ALTRIX_QUIZ_JSON]:") && (
-                          <Badge className="bg-blue-600 hover:bg-blue-500 text-white text-xs">
+            <div className="space-y-4">
+              {filteredAssignments.map((a) => {
+                const isQuiz = a.description?.startsWith("[ALTRIX_QUIZ_JSON]:");
+                const isPastDue = a.due_date && new Date(a.due_date) < new Date();
+                
+                return (
+                  <div 
+                    key={a.id} 
+                    onClick={() => openDetailModal(a)}
+                    className="rounded-xl border border-slate-200 p-5 bg-white hover:-translate-y-0.5 hover:shadow-md transition-all duration-200 cursor-pointer flex flex-col md:flex-row md:items-center justify-between gap-4"
+                  >
+                    <div className="flex-1 space-y-1.5">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="font-semibold text-slate-800 text-base">{a.title}</h3>
+                        {isQuiz && (
+                          <Badge className="bg-blue-600 text-white text-[10px] hover:bg-blue-500 font-semibold px-2 py-0.5 rounded-full">
                             MCQ Quiz
                           </Badge>
                         )}
-                        <Badge variant="outline" className="text-xs capitalize">
-                          {a.status || "active"}
+                        <Badge 
+                          variant="outline" 
+                          className={`text-[10px] font-semibold px-2 py-0.5 rounded-full uppercase tracking-wider ${
+                            isPastDue 
+                              ? "border-rose-200 text-rose-700 bg-rose-50/50" 
+                              : "border-emerald-250 text-emerald-700 bg-emerald-50/50"
+                          }`}
+                        >
+                          {isPastDue ? "Past Due" : "Active"}
                         </Badge>
                       </div>
-                      <p className="text-sm text-muted-foreground">{a.section_name}</p>
+                      <p className="text-xs font-semibold text-slate-500">{a.section_name}</p>
+                      
                       {a.description && (
-                        <div className="mt-2 text-sm text-slate-700">
-                          {a.description.startsWith("[ALTRIX_QUIZ_JSON]:") ? (
+                        <div className="text-xs text-slate-600 line-clamp-2 max-w-2xl pt-1">
+                          {isQuiz ? (
                             (() => {
                               try {
                                 const quizData = JSON.parse(a.description.substring(19));
-                                return (
-                                  <span className="flex flex-col gap-1 mt-1">
-                                    <span className="text-[10px] font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded w-max">
-                                      AI Generated MCQ Quiz • {quizData.questions?.length} Questions
-                                    </span>
-                                    <span className="text-slate-650 text-xs font-medium">{quizData.instructions}</span>
-                                  </span>
-                                );
+                                return quizData.instructions || "Please complete the MCQ Quiz.";
                               } catch (e) {
                                 return a.description;
                               }
@@ -560,21 +789,32 @@ export function TeacherAssignmentsModule() {
                           )}
                         </div>
                       )}
-                      <p className="mt-2 text-xs text-muted-foreground">
-                        Max: {a.max_marks} marks {a.due_date && `• Due: ${a.due_date}`}
-                      </p>
+                      
+                      <div className="flex items-center gap-4 text-xs text-slate-400 font-medium pt-2">
+                        <span className="flex items-center gap-1">
+                          <Award className="h-3.5 w-3.5 text-slate-400" /> Max {a.max_marks} marks
+                        </span>
+                        {a.due_date && (
+                          <span className={`flex items-center gap-1 ${isPastDue ? "text-rose-600 font-semibold" : ""}`}>
+                            <Calendar className="h-3.5 w-3.5" /> Due {new Date(a.due_date).toLocaleDateString()}
+                          </span>
+                        )}
+                      </div>
                     </div>
-                    <div className="flex flex-col gap-2">
-                      <Button size="sm" variant="outline" onClick={() => openSubmissionsDialog(a)}>
-                        <FileCheck className="mr-1 h-4 w-4" /> Submissions
+                    <div className="flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
+                      <Button size="sm" variant="outline" className="border-slate-200 text-slate-650 hover:bg-slate-50 font-semibold" onClick={() => openSubmissionsDialog(a)}>
+                        <FileCheck className="mr-1 h-3.5 w-3.5 text-blue-600" /> Submissions
                       </Button>
-                      <Button size="sm" variant="ghost" onClick={() => openResultsDialog(a)}>
-                        <Users className="mr-1 h-4 w-4" /> Quick Grade
+                      <Button size="sm" variant="outline" className="border-slate-200 text-slate-650 hover:bg-slate-50 font-semibold" onClick={() => openResultsDialog(a)}>
+                        <Users className="mr-1 h-3.5 w-3.5 text-emerald-600" /> Quick Grade
+                      </Button>
+                      <Button size="icon" variant="ghost" className="text-slate-400 hover:text-rose-600 hover:bg-rose-50" onClick={(e) => triggerDeleteConfirm(a, e)}>
+                        <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </CardContent>
@@ -909,6 +1149,224 @@ export function TeacherAssignmentsModule() {
               </>
             )}
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Assignment Detail Modal */}
+      <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
+        <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
+          {viewingAssignment && (
+            <>
+              <DialogHeader>
+                <div className="flex flex-wrap items-center gap-2 mb-1">
+                  {viewingAssignment.description?.startsWith("[ALTRIX_QUIZ_JSON]:") && (
+                    <Badge className="bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-semibold rounded-full px-2">
+                      MCQ Quiz
+                    </Badge>
+                  )}
+                  <Badge variant="outline" className="text-[10px] font-semibold rounded-full uppercase tracking-wider">
+                    {viewingAssignment.status || "active"}
+                  </Badge>
+                </div>
+                <DialogTitle className="text-xl font-bold text-slate-850">{viewingAssignment.title}</DialogTitle>
+                <DialogDescription className="text-xs text-slate-550">
+                  Section: {viewingAssignment.section_name}
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="space-y-6 py-4">
+                {/* Score and Due Date Widget */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200 text-xs">
+                  <div>
+                    <span className="text-slate-500 font-bold uppercase tracking-wider block">Max Marks</span>
+                    <span className="text-sm font-bold text-slate-850">{viewingAssignment.max_marks} marks</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 font-bold uppercase tracking-wider block">Due Date</span>
+                    <span className="text-sm font-bold text-slate-850">
+                      {viewingAssignment.due_date ? new Date(viewingAssignment.due_date).toLocaleDateString() : "No due date"}
+                    </span>
+                  </div>
+                  <div className="col-span-2 sm:col-span-1">
+                    <span className="text-slate-500 font-bold uppercase tracking-wider block">Completion</span>
+                    <span className="text-sm font-bold text-slate-850">
+                      {(() => {
+                        const total = allSubmissions.filter(s => s.assignment_id === viewingAssignment.id).length;
+                        const graded = allSubmissions.filter(s => s.assignment_id === viewingAssignment.id && s.status === 'graded').length;
+                        return `${graded} graded / ${total} submitted`;
+                      })()}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Description */}
+                <div className="space-y-2">
+                  <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Description / Instructions</h4>
+                  <div className="text-slate-700 bg-white border border-slate-200 rounded-xl p-4 text-xs whitespace-pre-wrap leading-relaxed shadow-sm">
+                    {(() => {
+                      const isQuiz = viewingAssignment.description?.startsWith("[ALTRIX_QUIZ_JSON]:");
+                      if (isQuiz && viewingAssignment.description) {
+                        try {
+                          const quizData = JSON.parse(viewingAssignment.description.substring(19));
+                          return quizData.instructions || "Please complete the MCQ Quiz.";
+                        } catch (e) {
+                          return viewingAssignment.description;
+                        }
+                      }
+                      return viewingAssignment.description || "No description provided.";
+                    })()}
+                  </div>
+                </div>
+
+                {/* Quiz Questions List if MCQ Quiz */}
+                {(() => {
+                  const isQuiz = viewingAssignment.description?.startsWith("[ALTRIX_QUIZ_JSON]:");
+                  let quizData: any = null;
+                  if (isQuiz && viewingAssignment.description) {
+                    try {
+                      quizData = JSON.parse(viewingAssignment.description.substring(19));
+                    } catch (e) {
+                      console.error(e);
+                    }
+                  }
+
+                  if (isQuiz && quizData) {
+                    return (
+                      <div className="space-y-4">
+                        <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Quiz Questions ({quizData.questions?.length})</h4>
+                        <div className="space-y-3">
+                          {quizData.questions.map((q: any) => (
+                            <div key={q.questionNumber} className="p-4 rounded-xl border border-slate-200 bg-slate-50/40 space-y-3">
+                              <div className="flex items-start gap-2">
+                                <span className="text-white font-mono text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-600 shrink-0">
+                                  Q{q.questionNumber}
+                                </span>
+                                <p className="text-xs font-semibold text-slate-800 leading-normal">{q.question}</p>
+                              </div>
+
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                {q.options.map((opt: string, idx: number) => {
+                                  const optionLetter = String.fromCharCode(65 + idx);
+                                  const isOptionCorrect = q.correctAnswer === optionLetter;
+
+                                  let optionStyle = "bg-white border-slate-200 text-slate-650";
+                                  let icon = null;
+
+                                  if (isOptionCorrect) {
+                                    optionStyle = "bg-emerald-50 border-emerald-350 text-emerald-950 font-semibold shadow-[0_1px_5px_rgba(16,185,129,0.06)]";
+                                    icon = <Check className="h-4 w-4 text-emerald-600" />;
+                                  }
+
+                                  return (
+                                    <div
+                                      key={idx}
+                                      className={`p-2 rounded-xl border text-[11px] flex items-center justify-between gap-2 ${optionStyle}`}
+                                    >
+                                      <div className="flex items-center gap-2">
+                                        <span className={`h-5 w-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${
+                                          isOptionCorrect
+                                            ? "bg-emerald-100 border border-emerald-300 text-emerald-700"
+                                            : "bg-slate-100 border border-slate-200 text-slate-400"
+                                        }`}>
+                                          {optionLetter}
+                                        </span>
+                                        <span className="leading-snug">{opt}</span>
+                                      </div>
+                                      {icon}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+
+                              {q.explanation && (
+                                <div className="bg-blue-50/40 p-3 rounded-xl border border-blue-100/60 text-[10px] flex gap-2">
+                                  <Info className="h-4 w-4 text-blue-600 shrink-0 mt-0.5" />
+                                  <div className="space-y-0.5">
+                                    <span className="text-blue-800 font-bold uppercase tracking-wider block">
+                                      Explanation:
+                                    </span>
+                                    <p className="text-slate-700 leading-relaxed font-medium">
+                                      {q.explanation}
+                                    </p>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
+              </div>
+
+              <DialogFooter className="border-t border-slate-100 pt-4 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
+                <Button 
+                  variant="ghost" 
+                  className="text-rose-600 hover:text-rose-700 hover:bg-rose-50 font-semibold"
+                  onClick={(e) => triggerDeleteConfirm(viewingAssignment, e)}
+                >
+                  <Trash2 className="h-4 w-4 mr-1.5" /> Delete Assignment
+                </Button>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <Button 
+                    variant="outline"
+                    className="border-slate-200 font-semibold text-slate-700" 
+                    onClick={() => {
+                      setDetailOpen(false);
+                      openResultsDialog(viewingAssignment);
+                    }}
+                  >
+                    <Users className="h-4 w-4 mr-1.5 text-emerald-600" /> Quick Grade
+                  </Button>
+                  <Button 
+                    className="bg-blue-700 hover:bg-blue-600 font-semibold"
+                    onClick={() => {
+                      setDetailOpen(false);
+                      openSubmissionsDialog(viewingAssignment);
+                    }}
+                  >
+                    <FileCheck className="h-4 w-4 mr-1.5" /> Submissions
+                  </Button>
+                </div>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Modal */}
+      <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-rose-600 flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5" /> Delete Assignment?
+            </DialogTitle>
+            <DialogDescription className="pt-2 text-xs leading-relaxed text-slate-600">
+              Are you sure you want to delete <span className="font-semibold text-slate-800">"{assignmentToDelete?.title}"</span>? 
+              <br/><br/>
+              This action is permanent and will cascade to delete <strong className="text-rose-600 font-semibold">all student submissions and results</strong> associated with this assignment.
+            </DialogDescription>
+          </DialogHeader>
+
+          <DialogFooter className="mt-4 gap-2 sm:gap-0">
+            <Button 
+              variant="outline" 
+              className="border-slate-200 font-semibold text-slate-700" 
+              onClick={() => setDeleteConfirmOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button 
+              variant="destructive"
+              className="bg-rose-600 hover:bg-rose-700 font-semibold"
+              disabled={deletingAssignment}
+              onClick={() => assignmentToDelete && handleDeleteAssignment(assignmentToDelete.id)}
+            >
+              {deletingAssignment ? "Deleting..." : "Permanently Delete"}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

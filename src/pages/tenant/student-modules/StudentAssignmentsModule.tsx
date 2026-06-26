@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { CheckCircle, Clock, Send, Eye, Paperclip, WifiOff, Check, AlertCircle, Info } from "lucide-react";
+import { CheckCircle, Clock, Send, Eye, Paperclip, WifiOff, Check, AlertCircle, Info, Search, Calendar, TrendingUp, Award, FileText, BookOpen } from "lucide-react";
 import { FileUploadArea } from "@/components/assignments/FileUploadArea";
 import { AttachmentsList } from "@/components/assignments/AttachmentsList";
 import { useOfflineAssignments, useOfflineHomework, useOfflineEnrollments } from "@/hooks/useOfflineData";
@@ -108,6 +108,12 @@ export function StudentAssignmentsModule({ myStudent, schoolId }: { myStudent: a
   // View result dialog
   const [viewOpen, setViewOpen] = useState(false);
   const [viewSubmission, setViewSubmission] = useState<Submission | null>(null);
+
+  // Search, Filters & Modals
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filterStatus, setFilterStatus] = useState("all");
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [viewingAssignment, setViewingAssignment] = useState<Assignment | null>(null);
 
   const refreshSubmissions = async () => {
     if (myStudent.status !== "ready" || isOffline) return;
@@ -280,6 +286,11 @@ export function StudentAssignmentsModule({ myStudent, schoolId }: { myStudent: a
     }
   };
 
+  const openDetailModal = (assignment: Assignment) => {
+    setViewingAssignment(assignment);
+    setDetailOpen(true);
+  };
+
   const getSubmissionStatus = (assignment: Assignment) => {
     const sub = submissions.get(assignment.id);
     if (!sub) return { label: "Not Submitted", variant: "outline" as const, icon: Clock };
@@ -298,6 +309,52 @@ export function StudentAssignmentsModule({ myStudent, schoolId }: { myStudent: a
     return sub?.attachment_urls && sub.attachment_urls.length > 0;
   };
 
+  const stats = useMemo(() => {
+    const total = assignments.length;
+    const todo = assignments.filter(a => !submissions.has(a.id)).length;
+    const gradedSubs = Array.from(submissions.values()).filter(s => s.status === 'graded' && s.marks !== null);
+    const completed = Array.from(submissions.values()).length;
+    
+    let totalPct = 0;
+    let gradedCount = 0;
+    gradedSubs.forEach(s => {
+      const assignment = assignments.find(a => a.id === s.assignment_id);
+      if (assignment && assignment.max_marks > 0) {
+        totalPct += (s.marks! / assignment.max_marks) * 100;
+        gradedCount++;
+      }
+    });
+    const avgScore = gradedCount > 0 ? `${(totalPct / gradedCount).toFixed(0)}%` : "—";
+    
+    const overdue = assignments.filter(a => !submissions.has(a.id) && a.due_date && new Date(a.due_date) < new Date()).length;
+    
+    return { total, todo, completed, avgScore, overdue };
+  }, [assignments, submissions]);
+
+  const filteredAssignments = useMemo(() => {
+    return assignments.filter((a) => {
+      const sub = submissions.get(a.id);
+      const titleMatches = a.title?.toLowerCase().includes(searchTerm.toLowerCase());
+      const descMatches = a.description?.toLowerCase().includes(searchTerm.toLowerCase()) || false;
+      const matchesSearch = !searchTerm || titleMatches || descMatches;
+      
+      const isOverdueVal = a.due_date && new Date(a.due_date) < new Date() && !sub;
+
+      let matchesStatus = true;
+      if (filterStatus === "todo") {
+        matchesStatus = !sub;
+      } else if (filterStatus === "submitted") {
+        matchesStatus = sub?.status === "submitted" || sub?.status === "late";
+      } else if (filterStatus === "graded") {
+        matchesStatus = sub?.status === "graded";
+      } else if (filterStatus === "overdue") {
+        matchesStatus = isOverdueVal;
+      }
+
+      return matchesSearch && matchesStatus;
+    });
+  }, [assignments, submissions, searchTerm, filterStatus]);
+
   const loading = assignmentsLoading || homeworkLoading;
   const isUsingCache = assignmentsFromCache || homeworkFromCache || enrollmentsFromCache;
 
@@ -310,114 +367,195 @@ export function StudentAssignmentsModule({ myStudent, schoolId }: { myStudent: a
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <OfflineDataBanner isOffline={isOffline} isUsingCache={isUsingCache} />
       
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">Assignments & homework</p>
+      {/* Student Analytics Summary Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+        <Card className="bg-gradient-to-br from-blue-50/40 to-indigo-50/10 border-slate-200/80 shadow-sm relative overflow-hidden transition-all duration-200 hover:shadow-md">
+          <CardContent className="p-5 flex items-center justify-between">
+            <div className="space-y-1">
+              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Assigned Tasks</span>
+              <p className="text-3xl font-extrabold text-slate-800">{stats.total}</p>
+            </div>
+            <div className="h-12 w-12 rounded-xl bg-blue-100/80 flex items-center justify-center text-blue-700">
+              <BookOpen className="h-5 w-5" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-gradient-to-br from-amber-50/40 to-orange-50/10 border-slate-200/80 shadow-sm relative overflow-hidden transition-all duration-200 hover:shadow-md">
+          <CardContent className="p-5 flex items-center justify-between">
+            <div className="space-y-1">
+              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block">To Do / Pending</span>
+              <p className="text-3xl font-extrabold text-slate-800">{stats.todo}</p>
+            </div>
+            <div className="h-12 w-12 rounded-xl bg-amber-100/80 flex items-center justify-center text-amber-700">
+              <Clock className="h-5 w-5" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-gradient-to-br from-emerald-50/40 to-teal-50/10 border-slate-200/80 shadow-sm relative overflow-hidden transition-all duration-200 hover:shadow-md">
+          <CardContent className="p-5 flex items-center justify-between">
+            <div className="space-y-1">
+              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Average Grade</span>
+              <p className="text-3xl font-extrabold text-slate-800">{stats.avgScore}</p>
+            </div>
+            <div className="h-12 w-12 rounded-xl bg-emerald-100/80 flex items-center justify-center text-emerald-700">
+              <TrendingUp className="h-5 w-5" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-gradient-to-br from-rose-50/40 to-red-50/10 border-slate-200/80 shadow-sm relative overflow-hidden transition-all duration-200 hover:shadow-md">
+          <CardContent className="p-5 flex items-center justify-between">
+            <div className="space-y-1">
+              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Overdue Tasks</span>
+              <p className="text-3xl font-extrabold text-slate-800 text-rose-700">{stats.overdue}</p>
+            </div>
+            <div className="h-12 w-12 rounded-xl bg-rose-100/80 flex items-center justify-center text-rose-700">
+              <AlertCircle className="h-5 w-5" />
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
-      <Tabs defaultValue="assignments">
-        <TabsList>
-          <TabsTrigger value="assignments">Assignments</TabsTrigger>
-          <TabsTrigger value="homework">Homework</TabsTrigger>
-        </TabsList>
+      <Tabs defaultValue="assignments" className="w-full">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-3">
+          <TabsList className="bg-slate-100/80">
+            <TabsTrigger value="assignments" className="data-[state=active]:bg-white">Assignments</TabsTrigger>
+            <TabsTrigger value="homework" className="data-[state=active]:bg-white">Homework</TabsTrigger>
+          </TabsList>
+
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:w-[480px]">
+            <div className="relative flex-1">
+              <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
+              <Input
+                placeholder="Search by title..."
+                className="pl-8 h-9 text-xs"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
+            <Select value={filterStatus} onValueChange={setFilterStatus}>
+              <SelectTrigger className="w-full sm:w-[150px] h-9 text-xs">
+                <SelectValue placeholder="All Statuses" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Statuses</SelectItem>
+                <SelectItem value="todo">Pending / To Do</SelectItem>
+                <SelectItem value="submitted">Submitted</SelectItem>
+                <SelectItem value="graded">Graded</SelectItem>
+                <SelectItem value="overdue">Overdue</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
         
-        <TabsContent value="assignments" className="mt-4 space-y-3">
-          {assignments.length === 0 ? (
-            <Card>
-              <CardContent className="py-8 text-center text-muted-foreground">
+        <TabsContent value="assignments" className="mt-4 space-y-4">
+          {filteredAssignments.length === 0 ? (
+            <Card className="border-slate-200 shadow-sm bg-white">
+              <CardContent className="py-12 text-center text-slate-400">
                 {isOffline ? (
                   <div className="flex flex-col items-center gap-2">
                     <WifiOff className="h-8 w-8" />
-                    <p>No cached assignments available</p>
+                    <p className="text-sm font-medium">No cached assignments available</p>
                   </div>
                 ) : (
-                  "No assignments found."
+                  <div className="space-y-2">
+                    <FileText className="h-10 w-10 mx-auto text-slate-300 mb-2" />
+                    <p className="text-sm font-medium">No assignments found.</p>
+                  </div>
                 )}
               </CardContent>
             </Card>
           ) : (
-            assignments.map((a) => {
-              const status = getSubmissionStatus(a);
-              const sub = submissions.get(a.id);
-              const overdue = isOverdue(a.due_date) && !sub;
-              
-              const isQuiz = a.description?.startsWith("[ALTRIX_QUIZ_JSON]:");
-              let quizData: any = null;
-              if (isQuiz && a.description) {
-                try {
-                  quizData = JSON.parse(a.description.substring(19));
-                } catch (e) {
-                  console.error(e);
+            <div className="space-y-4">
+              {filteredAssignments.map((a) => {
+                const status = getSubmissionStatus(a);
+                const sub = submissions.get(a.id);
+                const overdue = isOverdue(a.due_date) && !sub;
+                
+                const isQuiz = a.description?.startsWith("[ALTRIX_QUIZ_JSON]:");
+                let quizData: any = null;
+                if (isQuiz && a.description) {
+                  try {
+                    quizData = JSON.parse(a.description.substring(19));
+                  } catch (e) {
+                    console.error(e);
+                  }
                 }
-              }
 
-              return (
-                <Card key={a.id} className={overdue ? "border-destructive/50" : ""}>
-                  <CardHeader className="pb-2">
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <CardTitle className="text-base">{a.title}</CardTitle>
-                          <Badge variant="outline" className="text-xs capitalize">
-                            {isQuiz ? "MCQ Quiz" : "assignment"}
-                          </Badge>
-                          {hasAttachments(a) && (
-                            <Paperclip className="h-4 w-4 text-muted-foreground" />
-                          )}
-                        </div>
-                        {a.description && (
-                          <CardDescription className="mt-1">
-                            {isQuiz && quizData ? (
-                              <span className="flex flex-col gap-1 mt-1">
-                                <span className="text-[10px] font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded w-max">
-                                  AI Quiz • {quizData.questions?.length} Questions
-                                </span>
-                                <span className="text-slate-650 text-xs font-medium">{quizData.instructions}</span>
-                              </span>
-                            ) : (
-                              a.description
+                return (
+                  <Card 
+                    key={a.id} 
+                    onClick={() => openDetailModal(a)}
+                    className={`rounded-xl border border-slate-200 bg-white p-1 hover:-translate-y-0.5 hover:shadow-md transition-all duration-200 cursor-pointer ${
+                      overdue ? "border-rose-200 shadow-[0_1px_4px_rgba(244,63,94,0.04)]" : ""
+                    }`}
+                  >
+                    <CardHeader className="pb-2">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="space-y-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <CardTitle className="text-base font-bold text-slate-800">{a.title}</CardTitle>
+                            <Badge variant="outline" className="text-[10px] font-semibold rounded-full uppercase tracking-wider">
+                              {isQuiz ? "MCQ Quiz" : "Assignment"}
+                            </Badge>
+                            {hasAttachments(a) && (
+                              <Paperclip className="h-3.5 w-3.5 text-slate-400" />
                             )}
-                          </CardDescription>
-                        )}
-                      </div>
-                      <Badge variant={status.variant} className="flex items-center gap-1">
-                        <status.icon className="h-3 w-3" />
-                        {status.label}
-                      </Badge>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex items-center justify-between">
-                      <div className="text-sm text-muted-foreground">
-                        <span>Max: {a.max_marks} marks</span>
-                        {a.due_date && (
-                          <span className={overdue ? "text-destructive ml-3" : "ml-3"}>
-                            Due: {new Date(a.due_date).toLocaleDateString()}
-                            {overdue && " (Overdue)"}
-                          </span>
-                        )}
-                      </div>
-                      {!isOffline && (
-                        <div className="flex gap-2">
-                          {sub?.status === "graded" && (
-                            <Button size="sm" variant="outline" onClick={() => openViewDialog(a)}>
-                              <Eye className="h-4 w-4 mr-1" /> View Result
-                            </Button>
-                          )}
-                          {sub?.status !== "graded" && (
-                            <Button size="sm" onClick={() => openSubmitDialog(a)}>
-                              <Send className="h-4 w-4 mr-1" /> {sub ? "Update" : "Submit"}
-                            </Button>
+                          </div>
+                          {a.description && (
+                            <CardDescription className="text-xs text-slate-650 pt-1 line-clamp-2 max-w-2xl">
+                              {isQuiz && quizData ? (
+                                quizData.instructions || "Please complete the MCQ Quiz."
+                              ) : (
+                                a.description
+                              )}
+                            </CardDescription>
                           )}
                         </div>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })
+                        <Badge variant={status.variant} className="flex items-center gap-1 shrink-0 text-[10px] font-bold rounded-full px-2">
+                          <status.icon className="h-3 w-3" />
+                          {status.label}
+                        </Badge>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="pt-2">
+                      <div className="flex items-center justify-between">
+                        <div className="text-xs text-slate-450 font-semibold flex items-center gap-3">
+                          <span className="flex items-center gap-1">
+                            <Award className="h-3.5 w-3.5" /> Max {a.max_marks} marks
+                          </span>
+                          {a.due_date && (
+                            <span className={`flex items-center gap-1 ${overdue ? "text-rose-600" : ""}`}>
+                              <Calendar className="h-3.5 w-3.5" /> Due {new Date(a.due_date).toLocaleDateString()}
+                              {overdue && " (Overdue)"}
+                            </span>
+                          )}
+                        </div>
+                        {!isOffline && (
+                          <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
+                            {sub?.status === "graded" && (
+                              <Button size="sm" variant="outline" className="border-slate-200 text-slate-650 font-semibold h-8 text-xs" onClick={() => openViewDialog(a)}>
+                                <Eye className="h-3.5 w-3.5 mr-1 text-blue-600" /> View Result
+                              </Button>
+                            )}
+                            {sub?.status !== "graded" && (
+                              <Button size="sm" className="bg-blue-750 hover:bg-blue-700 font-semibold h-8 text-xs" onClick={() => openSubmitDialog(a)}>
+                                <Send className="h-3.5 w-3.5 mr-1" /> {sub ? "Update" : "Submit"}
+                              </Button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
           )}
         </TabsContent>
         
@@ -746,6 +884,144 @@ export function StudentAssignmentsModule({ myStudent, schoolId }: { myStudent: a
           <DialogFooter>
             <Button onClick={() => setViewOpen(false)}>Close</Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Student Assignment Detail Dialog */}
+      <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
+        <DialogContent className="max-w-xl max-h-[85vh] overflow-y-auto">
+          {viewingAssignment && (() => {
+            const sub = submissions.get(viewingAssignment.id);
+            const isQuiz = viewingAssignment.description?.startsWith("[ALTRIX_QUIZ_JSON]:");
+            const overdue = isOverdue(viewingAssignment.due_date) && !sub;
+
+            return (
+              <>
+                <DialogHeader>
+                  <div className="flex flex-wrap items-center gap-2 mb-1">
+                    {isQuiz && (
+                      <Badge className="bg-blue-600 text-white text-[10px] font-semibold rounded-full px-2">
+                        MCQ Quiz
+                      </Badge>
+                    )}
+                    <Badge variant="outline" className="text-[10px] font-semibold rounded-full uppercase tracking-wider">
+                      {sub ? (sub.status === "graded" ? `Graded: ${sub.marks}/${viewingAssignment.max_marks}` : "Submitted") : (overdue ? "Overdue" : "Not Submitted")}
+                    </Badge>
+                  </div>
+                  <DialogTitle className="text-lg font-bold text-slate-800">{viewingAssignment.title}</DialogTitle>
+                </DialogHeader>
+
+                <div className="space-y-5 py-3 text-xs">
+                  {/* Summary Block */}
+                  <div className="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
+                    <div>
+                      <span className="text-slate-500 font-bold uppercase tracking-wider block">Max Marks</span>
+                      <span className="text-sm font-bold text-slate-800">{viewingAssignment.max_marks} marks</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 font-bold uppercase tracking-wider block">Due Date</span>
+                      <span className={`text-sm font-bold block ${overdue ? "text-rose-600" : "text-slate-800"}`}>
+                        {viewingAssignment.due_date ? new Date(viewingAssignment.due_date).toLocaleDateString() : "No due date"}
+                        {overdue && " (Overdue)"}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Submission Status Summary if submitted or graded */}
+                  {sub && (
+                    <div className="space-y-2.5 rounded-xl border border-slate-200 p-4 bg-white shadow-sm">
+                      <h4 className="text-xs font-bold text-slate-550 uppercase tracking-wider flex items-center gap-1.5">
+                        <CheckCircle className="h-4 w-4 text-emerald-600" /> Your Submission Summary
+                      </h4>
+                      <div className="grid grid-cols-2 gap-2 text-slate-700">
+                        <div>
+                          <span className="text-slate-500 block">Submitted At:</span>
+                          <span className="font-semibold">{new Date(sub.submitted_at).toLocaleString()}</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-500 block">Marks Obtained:</span>
+                          <span className="font-bold text-blue-700">{sub.marks !== null ? `${sub.marks} / ${viewingAssignment.max_marks}` : "Not Graded yet"}</span>
+                        </div>
+                      </div>
+                      {sub.feedback && (
+                        <div className="bg-slate-50 p-3 rounded-lg border border-slate-100 text-slate-655 mt-1">
+                          <span className="font-bold text-slate-700 block mb-0.5">Teacher Feedback:</span>
+                          {sub.feedback}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Assignment Description */}
+                  <div className="space-y-2">
+                    <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Description / Instructions</h4>
+                    <div className="text-slate-700 bg-white border border-slate-200 rounded-xl p-4 text-xs whitespace-pre-wrap leading-relaxed shadow-sm">
+                      {(() => {
+                        if (isQuiz && viewingAssignment.description) {
+                          try {
+                            const quizData = JSON.parse(viewingAssignment.description.substring(19));
+                            return quizData.instructions || "Please complete the MCQ Quiz questions.";
+                          } catch (e) {
+                            return viewingAssignment.description;
+                          }
+                        }
+                        return viewingAssignment.description || "No instructions provided.";
+                      })()}
+                    </div>
+                  </div>
+
+                  {/* Inform student it's an MCQ Quiz */}
+                  {isQuiz && !sub && (
+                    <div className="bg-blue-50/40 p-4 rounded-xl border border-blue-100 flex items-start gap-2.5">
+                      <Info className="h-4 w-4 text-blue-600 shrink-0 mt-0.5" />
+                      <div className="space-y-1">
+                        <h4 className="text-blue-800 font-bold uppercase tracking-wider">Interactive MCQ Quiz</h4>
+                        <p className="text-slate-600 leading-relaxed font-medium">
+                          This is an interactive MCQ Quiz. Clicking "Start Quiz" below will allow you to select A/B/C/D choices sequentially, and your score will be automatically calculated and graded instantly.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <DialogFooter className="border-t border-slate-100 pt-4 flex flex-row items-center justify-end gap-2">
+                  <Button 
+                    variant="outline" 
+                    className="border-slate-200 font-semibold text-slate-700"
+                    onClick={() => setDetailOpen(false)}
+                  >
+                    Close
+                  </Button>
+                  {!isOffline && (
+                    <div className="flex gap-2">
+                      {sub?.status === "graded" && (
+                        <Button 
+                          className="bg-blue-700 hover:bg-blue-600 font-semibold"
+                          onClick={() => {
+                            setDetailOpen(false);
+                            openViewDialog(viewingAssignment);
+                          }}
+                        >
+                          <Eye className="h-4 w-4 mr-1.5" /> View Results
+                        </Button>
+                      )}
+                      {sub?.status !== "graded" && (
+                        <Button 
+                          className="bg-blue-700 hover:bg-blue-600 font-semibold"
+                          onClick={() => {
+                            setDetailOpen(false);
+                            openSubmitDialog(viewingAssignment);
+                          }}
+                        >
+                          <Send className="h-4 w-4 mr-1.5" /> {sub ? "Update Submission" : (isQuiz ? "Start Quiz" : "Submit Assignment")}
+                        </Button>
+                      )}
+                    </div>
+                  )}
+                </DialogFooter>
+              </>
+            );
+          })()}
         </DialogContent>
       </Dialog>
     </div>
