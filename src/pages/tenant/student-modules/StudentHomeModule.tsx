@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
+import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchStudentLabelMap } from "@/lib/student-display";
 import { StudentDigitalTwinCard } from "@/components/ai/StudentDigitalTwinCard";
@@ -8,14 +9,6 @@ import {
   useOfflineEnrollments,
   useOfflineStaffMembers,
 } from "@/hooks/useOfflineData";
-import {
-  DashboardHeader,
-  QuickActionGrid,
-  StatTile,
-  ProgressRing,
-  SmartCard,
-  SectionTitle,
-} from "@/components/ui/dashboard-kit";
 import {
   CalendarDays,
   BookOpen,
@@ -33,6 +26,8 @@ import {
   MapPin,
   Pin,
   Calendar,
+  ChevronRight,
+  TrendingDown,
 } from "lucide-react";
 
 interface StudentStats {
@@ -117,7 +112,7 @@ export function StudentHomeModule({ myStudent }: { myStudent: any }) {
         const totalAssignments = assignments?.length || 0;
         const pendingAssignments =
           assignments?.filter(
-             (a) => a.status === "active" && a.due_date && new Date(a.due_date) >= new Date(),
+            (a) => a.status === "active" && a.due_date && new Date(a.due_date) >= new Date(),
           ).length || 0;
 
         const { data: marks } = await supabase
@@ -178,11 +173,13 @@ export function StudentHomeModule({ myStudent }: { myStudent: any }) {
   }, [cachedStaff]);
 
   const todayEntries = useMemo(() => {
-    const days = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
-    const todayDayName = days[new Date().getDay()];
+    const todayDayNum = new Date().getDay();
 
     return studentEntries
-      .filter((e) => e.dayOfWeek?.toLowerCase() === todayDayName)
+      .filter((e) => {
+        if (e.dayOfWeek === null || e.dayOfWeek === undefined) return false;
+        return Number(e.dayOfWeek) === todayDayNum;
+      })
       .map((e) => {
         const period = cachedPeriods.find((p) => p.id === e.periodId);
         return {
@@ -205,15 +202,20 @@ export function StudentHomeModule({ myStudent }: { myStudent: any }) {
 
   if (myStudent.status === "error") {
     return (
-      <SmartCard
-        title="Account Not Linked"
-        subtitle={myStudent.error}
-        icon={AlertTriangle}
-      >
-        <p className="text-xs text-muted-foreground">
+      <div className="rounded-2xl border border-rose-100 bg-white p-6 shadow-sm">
+        <div className="flex items-center gap-3">
+          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-rose-50 text-rose-600">
+            <AlertTriangle className="h-5 w-5" />
+          </span>
+          <div>
+            <h3 className="font-display text-base font-bold text-slate-800">Account Not Linked</h3>
+            <p className="text-xs text-slate-500 mt-1">{myStudent.error}</p>
+          </div>
+        </div>
+        <p className="text-xs text-slate-400 mt-4 leading-relaxed">
           Contact your school administration to link your student profile to this login.
         </p>
-      </SmartCard>
+      </div>
     );
   }
 
@@ -226,14 +228,14 @@ export function StudentHomeModule({ myStudent }: { myStudent: any }) {
   })();
 
   const quickActions = [
-    { label: "Attendance", icon: CalendarDays, to: "attendance", tone: "success" as const },
-    { label: "Grades", icon: GraduationCap, to: "grades", tone: "info" as const },
-    { label: "Timetable", icon: Clock, to: "timetable" },
-    { label: "Assignments", icon: ScrollText, to: "assignments", badge: stats?.pendingAssignments },
-    { label: "Messages", icon: MessageSquare, to: "messages" },
-    { label: "Report Card", icon: Award, to: "report-card", tone: "warning" as const },
-    { label: "Diary", icon: BookOpen, to: "diary" },
-    { label: "Support", icon: HeartHandshake, to: "support" },
+    { label: "Attendance", icon: CalendarDays, to: "attendance", bg: "bg-blue-50/50 hover:bg-blue-50 text-blue-600" },
+    { label: "Grades", icon: GraduationCap, to: "grades", bg: "bg-blue-50/50 hover:bg-blue-50 text-blue-600" },
+    { label: "Timetable", icon: Clock, to: "timetable", bg: "bg-blue-50/50 hover:bg-blue-50 text-blue-600" },
+    { label: "Assignments", icon: ScrollText, to: "assignments", bg: "bg-blue-50/50 hover:bg-blue-50 text-blue-600", badge: stats?.pendingAssignments },
+    { label: "Messages", icon: MessageSquare, to: "messages", bg: "bg-blue-50/50 hover:bg-blue-50 text-blue-600" },
+    { label: "Report Card", icon: Award, to: "report-card", bg: "bg-blue-50/50 hover:bg-blue-50 text-blue-600" },
+    { label: "Diary", icon: BookOpen, to: "diary", bg: "bg-blue-50/50 hover:bg-blue-50 text-blue-600" },
+    { label: "Support", icon: HeartHandshake, to: "support", bg: "bg-blue-50/50 hover:bg-blue-50 text-blue-600" },
   ];
 
   const initials = (label || "")
@@ -251,56 +253,94 @@ export function StudentHomeModule({ myStudent }: { myStudent: any }) {
 
   return (
     <div className="space-y-6">
-      {/* Top Header Row */}
-      <DashboardHeader
-        name={label || "Student"}
-        role="Student Portal"
-        subtitle={`${greeting}, ${firstName}`}
-        initials={initials}
-        right={
-          <div className="hidden sm:flex items-center gap-1.5 bg-blue-50 px-3 py-1.5 rounded-xl border border-blue-100 text-xs font-bold text-blue-700">
+      {/* 1. Profile Header Row */}
+      <div className="rounded-2xl border border-blue-100 bg-white/95 backdrop-blur-md p-4 sm:p-6 shadow-[0_8px_30px_rgb(219,234,254,0.25)] flex items-center justify-between gap-4">
+        <div className="flex min-w-0 items-center gap-4">
+          <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-xl bg-gradient-to-tr from-blue-600 to-blue-400 ring-2 ring-blue-50 shadow-md">
+            <div className="flex h-full w-full items-center justify-center font-display text-lg font-bold text-white">
+              {initials || "S"}
+            </div>
+          </div>
+          <div className="min-w-0">
+            <p className="font-display text-lg font-bold tracking-tight text-slate-800 truncate">
+              {label || "Student"}
+            </p>
+            <div className="flex items-center gap-2 mt-0.5">
+              <span className="inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-blue-700 uppercase tracking-wider">
+                Student Portal
+              </span>
+              <p className="text-xs font-semibold text-slate-400 truncate hidden sm:block">
+                • {greeting}, {firstName}
+              </p>
+            </div>
+          </div>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <div className="flex items-center gap-1.5 bg-blue-50 px-3 py-1.5 rounded-xl border border-blue-100/60 text-xs font-bold text-blue-700">
             <Calendar className="h-3.5 w-3.5" />
             {formattedDate}
           </div>
-        }
-      />
+        </div>
+      </div>
 
-      {/* Main Luxury Responsive Grid (Left 2/3 and Right 1/3) */}
+      {/* 2. Responsive 2-Column Grid (Main Workspace & Sidebar) */}
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-6 items-start">
-        {/* Left Column: Main Contents */}
+        {/* Left Column: Core Dashboard panels */}
         <div className="space-y-6">
-          {/* Welcome Greeting Banner (White & Blue) */}
-          <div className="relative overflow-hidden rounded-2xl border border-blue-100 bg-gradient-to-r from-white to-blue-50/30 p-6 shadow-[0_4px_25px_rgba(219,234,254,0.2)]">
-            <div className="absolute right-4 bottom-0 opacity-10 pointer-events-none">
-              <GraduationCap className="h-40 w-40 text-blue-700" />
+          {/* Welcome Dashboard Banner */}
+          <div className="relative overflow-hidden rounded-2xl border border-blue-100 bg-gradient-to-r from-white via-white to-blue-50/20 p-6 shadow-[0_4px_25px_rgba(219,234,254,0.18)]">
+            <div className="absolute right-6 bottom-0 opacity-10 pointer-events-none">
+              <GraduationCap className="h-36 w-36 text-blue-700" />
             </div>
             <div className="max-w-xl space-y-2">
-              <span className="inline-flex items-center rounded-full bg-blue-50 px-2.5 py-0.5 text-[10px] font-bold text-blue-700 uppercase tracking-widest">
-                Academic Dashboard
+              <span className="inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-extrabold text-blue-700 uppercase tracking-widest">
+                Overview Workspace
               </span>
-              <h2 className="font-display text-2xl font-black tracking-tight text-slate-800">
+              <h2 className="font-display text-2xl font-black tracking-tight text-slate-850">
                 Welcome back, {firstName}!
               </h2>
-              <p className="text-xs font-semibold text-slate-650 leading-relaxed">
+              <p className="text-xs font-semibold text-slate-655 leading-relaxed">
                 Stay updated with your daily schedule, check homework tasks, and monitor your overall attendance rating. Keep striving for excellence!
               </p>
             </div>
           </div>
 
-          {/* Academic Summary and Performance Metrics Panel */}
+          {/* Academic Stats Panel */}
           <div className="rounded-2xl border border-blue-50 bg-white p-5 shadow-[0_4px_20px_rgba(219,234,254,0.15)] space-y-4">
-            <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-450">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-450">
               Academic Summary
-            </h4>
+            </h3>
             <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 items-center">
-              {/* Attendance Ring block */}
+              {/* Circular Attendance Ring */}
               <div className="flex items-center gap-4 bg-slate-50/50 p-4 rounded-xl border border-slate-100/70 sm:col-span-2">
-                <ProgressRing
-                  value={stats?.attendanceRate ?? 0}
-                  size={80}
-                  stroke={8}
-                  sublabel="30 Days"
-                />
+                <div className="relative inline-flex flex-col items-center justify-center shrink-0">
+                  <svg width={80} height={80} className="-rotate-90">
+                    <circle
+                      cx={40}
+                      cy={40}
+                      r={36}
+                      fill="none"
+                      stroke="rgba(219, 234, 254, 0.4)"
+                      strokeWidth={8}
+                    />
+                    <circle
+                      cx={40}
+                      cy={40}
+                      r={36}
+                      fill="none"
+                      stroke="rgb(37, 99, 235)"
+                      strokeWidth={8}
+                      strokeLinecap="round"
+                      strokeDasharray={`${2 * Math.PI * 36 * ((stats?.attendanceRate ?? 0) / 100)} ${2 * Math.PI * 36 * (1 - (stats?.attendanceRate ?? 0) / 100)}`}
+                    />
+                  </svg>
+                  <div className="absolute inset-0 flex flex-col items-center justify-center">
+                    <span className="font-display text-xs font-extrabold text-slate-800">
+                      {stats?.attendanceRate ?? 0}%
+                    </span>
+                    <span className="text-[8px] font-bold text-slate-400 uppercase tracking-wider">Present</span>
+                  </div>
+                </div>
                 <div className="min-w-0">
                   <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
                     Attendance
@@ -308,36 +348,46 @@ export function StudentHomeModule({ myStudent }: { myStudent: any }) {
                   <p className="font-display text-lg font-extrabold text-slate-800 mt-0.5">
                     {loading ? "—" : `${stats?.attendanceRate ?? 0}%`}
                   </p>
-                  <p className="text-[10px] text-slate-450 mt-1 font-medium">
-                    {(stats?.attendanceRate ?? 0) >= 90 ? "Excellent standing" : "Improve attendance rate"}
+                  <p className="text-[10px] text-slate-450 mt-1 font-bold">
+                    {(stats?.attendanceRate ?? 0) >= 90 ? "Excellent standing" : "Needs attention"}
                   </p>
                 </div>
               </div>
 
-              {/* Standard Stats */}
+              {/* Standard Stats Grid */}
               <div className="sm:col-span-2 grid grid-cols-2 gap-3">
-                <StatTile
-                  label="Avg Grade"
-                  value={loading ? "—" : stats?.averageGrade != null ? `${stats.averageGrade}%` : "—"}
-                  icon={TrendingUp}
-                  className="shadow-none border border-slate-100 bg-slate-50/30"
-                />
-                <StatTile
-                  label="Tasks Due"
-                  value={loading ? "—" : stats?.pendingAssignments ?? 0}
-                  icon={ScrollText}
-                  className="shadow-none border border-slate-100 bg-slate-50/30"
-                />
+                <div className="relative overflow-hidden rounded-xl border border-slate-100 bg-slate-50/20 p-4 shadow-sm">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Avg Grade</span>
+                    <TrendingUp className="h-4 w-4 text-blue-600" />
+                  </div>
+                  <p className="font-display text-2xl font-black text-slate-800 mt-2">
+                    {loading ? "—" : stats?.averageGrade != null ? `${stats.averageGrade}%` : "—"}
+                  </p>
+                </div>
+                <div className="relative overflow-hidden rounded-xl border border-slate-100 bg-slate-50/20 p-4 shadow-sm">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Tasks Due</span>
+                    <ScrollText className="h-4 w-4 text-blue-600" />
+                  </div>
+                  <p className="font-display text-2xl font-black text-slate-800 mt-2">
+                    {loading ? "—" : stats?.pendingAssignments ?? 0}
+                  </p>
+                </div>
               </div>
             </div>
           </div>
 
-          {/* Today's Classes Schedule Widget */}
-          <SmartCard
-            title="Today's Timetable"
-            subtitle="Scheduled classes for today"
-            icon={Clock}
-          >
+          {/* Today's Timetable agenda panel */}
+          <div className="rounded-2xl border border-blue-50 bg-white p-5 sm:p-6 shadow-[0_4px_25px_rgb(219,234,254,0.15)] space-y-5 animate-rise">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="font-display text-sm font-bold tracking-tight text-slate-805">Today's Classes</h3>
+                <p className="text-xs text-slate-400 mt-0.5">Daily agenda schedule</p>
+              </div>
+              <Clock className="h-5 w-5 text-blue-600" />
+            </div>
+
             {todayEntries.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-8 text-center bg-slate-50/50 border border-dashed rounded-xl p-4">
                 <CalendarDays className="h-8 w-8 text-blue-300 mb-2 animate-pulse" />
@@ -352,7 +402,6 @@ export function StudentHomeModule({ myStudent }: { myStudent: any }) {
                     : "No Teacher Assigned";
                   return (
                     <div key={idx} className="relative group">
-                      {/* Interactive dot highlight on timeline */}
                       <span className="absolute -left-[21px] top-1.5 h-2 w-2 rounded-full bg-blue-600 ring-4 ring-white transition-all group-hover:scale-125" />
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50/30 border border-slate-100 rounded-xl p-3.5 transition-all hover:border-blue-100 hover:bg-blue-50/10">
                         <div className="space-y-1">
@@ -370,7 +419,6 @@ export function StudentHomeModule({ myStudent }: { myStudent: any }) {
                             )}
                           </div>
                         </div>
-                        {/* Time label slot */}
                         {entry.startTime && (
                           <div className="inline-flex items-center shrink-0 self-start sm:self-center bg-blue-50 text-blue-700 text-[10px] font-bold uppercase tracking-wider rounded-lg px-2.5 py-1 border border-blue-100/50">
                             {entry.startTime} - {entry.endTime}
@@ -382,15 +430,20 @@ export function StudentHomeModule({ myStudent }: { myStudent: any }) {
                 })}
               </div>
             )}
-          </SmartCard>
+          </div>
 
-          {/* School Broadcast notices feed */}
-          <SmartCard
-            title="School Broadcasts"
-            subtitle="Important announcements and notices"
-            icon={Megaphone}
-            action={{ label: "View all", to: "notices" }}
-          >
+          {/* School broadcasts announcements feed */}
+          <div className="rounded-2xl border border-blue-50 bg-white p-5 sm:p-6 shadow-[0_4px_25px_rgb(219,234,254,0.15)] space-y-5 animate-rise">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="font-display text-sm font-bold tracking-tight text-slate-800">School Broadcasts</h3>
+                <p className="text-xs text-slate-400 mt-0.5">Announcements and notices</p>
+              </div>
+              <Link to="notices" className="text-xs font-bold text-blue-600 hover:underline flex items-center gap-0.5">
+                View all <ChevronRight className="h-3.5 w-3.5" />
+              </Link>
+            </div>
+
             {notices.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-6 text-center text-slate-450">
                 <p className="text-xs font-bold">No announcements posted recently</p>
@@ -413,7 +466,7 @@ export function StudentHomeModule({ myStudent }: { myStudent: any }) {
                         </span>
                       </div>
                       {notice.body && (
-                        <p className="text-[10px] font-semibold text-slate-650 leading-relaxed line-clamp-2">
+                        <p className="text-[10px] font-semibold text-slate-655 leading-relaxed line-clamp-2">
                           {notice.body}
                         </p>
                       )}
@@ -427,26 +480,49 @@ export function StudentHomeModule({ myStudent }: { myStudent: any }) {
                 ))}
               </div>
             )}
-          </SmartCard>
+          </div>
         </div>
 
-        {/* Right Column: Quick Actions & AI Twin Sidebar */}
+        {/* Right Column: Actions Sidebar & AI profiles */}
         <div className="space-y-6">
-          {/* Quick Actions Board */}
+          {/* Quick Actions Panel */}
           <div className="rounded-2xl border border-blue-50 bg-white p-5 shadow-[0_4px_25px_rgba(219,234,254,0.15)] space-y-4">
-            <SectionTitle title="Quick Actions" />
-            <QuickActionGrid actions={quickActions} columns={{ base: 2, sm: 2, md: 4, lg: 2 }} />
+            <h3 className="font-display text-xs font-bold tracking-wider text-slate-400 uppercase">Quick Actions</h3>
+            <div className="grid grid-cols-2 gap-3">
+              {quickActions.map((action, idx) => (
+                <Link
+                  key={idx}
+                  to={action.to}
+                  className="group relative flex flex-col items-center justify-center gap-2 rounded-xl border border-slate-100 bg-white p-3 text-center transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_8px_30px_rgba(191,219,254,0.3)] hover:border-blue-200"
+                >
+                  <span className="h-10 w-10 inline-flex items-center justify-center rounded-xl bg-blue-50 text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-all group-hover:scale-110">
+                    <action.icon className="h-5 w-5" />
+                  </span>
+                  <span className="text-[11px] font-bold text-slate-600 group-hover:text-blue-700">{action.label}</span>
+                  {action.badge !== undefined && action.badge !== 0 && (
+                    <span className="absolute right-2 top-2 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-blue-600 px-1 text-[8px] font-bold text-white shadow-sm ring-2 ring-white">
+                      {action.badge}
+                    </span>
+                  )}
+                </Link>
+              ))}
+            </div>
           </div>
 
-          {/* AI Digital Learning Twin Card */}
+          {/* AI Twin Learning Profile */}
           {schoolId && myStudent.status === "ready" && (
-            <SmartCard
-              title="AI Learning Profile"
-              subtitle="Personalized insights powered by AI"
-              icon={Brain}
-            >
+            <div className="rounded-2xl border border-blue-50 bg-white p-5 shadow-[0_4px_25px_rgb(219,234,254,0.15)] space-y-4">
+              <div className="flex items-center gap-2.5">
+                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+                  <Brain className="h-5 w-5" />
+                </span>
+                <div>
+                  <h4 className="font-display text-sm font-bold tracking-tight text-slate-800">AI Learning Profile</h4>
+                  <p className="text-[10px] font-semibold text-slate-400">Personalized Insights</p>
+                </div>
+              </div>
               <StudentDigitalTwinCard studentId={myStudent.studentId} schoolId={schoolId} />
-            </SmartCard>
+            </div>
           )}
         </div>
       </div>
