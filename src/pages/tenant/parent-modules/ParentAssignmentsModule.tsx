@@ -7,8 +7,12 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { CheckCircle, Clock, Eye, Paperclip, WifiOff, AlertCircle, Search, Calendar, TrendingUp, Award, FileText, BookOpen, User } from "lucide-react";
+import { CheckCircle, Clock, Eye, Paperclip, WifiOff, AlertCircle, Search, Calendar, TrendingUp, Award, FileText, BookOpen, User, Send, Check, Info } from "lucide-react";
+import { FileUploadArea } from "@/components/assignments/FileUploadArea";
+import { AttachmentsList } from "@/components/assignments/AttachmentsList";
+import { toast } from "sonner";
 import { ChildInfo } from "@/hooks/useMyChildren";
 import { useOfflineAssignments, useOfflineHomework, useOfflineEnrollments } from "@/hooks/useOfflineData";
 import { OfflineDataBanner } from "@/components/offline/OfflineDataBanner";
@@ -220,6 +224,14 @@ export default function ParentAssignmentsModule({ child, schoolId }: ParentAssig
   const [detailOpen, setDetailOpen] = useState(false);
   const [viewingAssignment, setViewingAssignment] = useState<Assignment | null>(null);
 
+  // Submit dialog state
+  const [submitOpen, setSubmitOpen] = useState(false);
+  const [submissionText, setSubmissionText] = useState("");
+  const [uploadedFiles, setUploadedFiles] = useState<{ name: string; path: string }[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [quizAnswers, setQuizAnswers] = useState<Record<string, string>>({});
+
   // Fetch offline-first data hooks
   const { 
     data: cachedAssignments, 
@@ -305,6 +317,142 @@ export default function ParentAssignmentsModule({ child, schoolId }: ParentAssig
   const openDetailModal = (assignment: Assignment) => {
     setViewingAssignment(assignment);
     setDetailOpen(true);
+  };
+
+  const openSubmitDialog = (assignment: Assignment) => {
+    if (isOffline) {
+      toast.error("Cannot submit assignments while offline");
+      return;
+    }
+    const existing = submissions.get(assignment.id);
+    setSelectedAssignment(assignment);
+    
+    const quizData = getQuizData(assignment.description);
+    if (quizData) {
+      let parsedAnswers = {};
+      if (existing?.content?.startsWith("[ALTRIX_QUIZ_SUBMISSION]:")) {
+        try {
+          parsedAnswers = JSON.parse(existing.content.substring(25));
+        } catch (e) {
+          console.error(e);
+        }
+      }
+      setQuizAnswers(parsedAnswers);
+    } else {
+      setSubmissionText(existing?.content || "");
+    }
+
+    const existingFiles = (existing?.attachment_urls || []).map((path) => ({
+      name: path.split("/").pop() || path,
+      path,
+    }));
+    setUploadedFiles(existingFiles);
+    setSubmitOpen(true);
+  };
+
+  const handleUploadFile = async (file: File): Promise<string | null> => {
+    if (!selectedAssignment || !child || !schoolId) return null;
+
+    const ext = file.name.split(".").pop();
+    const fileName = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+    const filePath = `${child.student_id}/${selectedAssignment.id}/${fileName}`;
+
+    setUploading(true);
+    const { error } = await supabase.storage
+      .from("assignment-submissions")
+      .upload(filePath, file, { upsert: false });
+
+    setUploading(false);
+
+    if (error) {
+      toast.error(`Upload failed: ${error.message}`);
+      return null;
+    }
+
+    return filePath;
+  };
+
+  const handleSubmit = async () => {
+    if (!selectedAssignment || !child || !schoolId) return;
+    
+    const quizData = getQuizData(selectedAssignment.description);
+    let contentValue = submissionText;
+    let quizMarks: number | null = null;
+
+    if (quizData) {
+      const totalQuestions = quizData.questions?.length || 0;
+      const answeredCount = Object.keys(quizAnswers).length;
+      if (answeredCount < totalQuestions) {
+        toast.error(`Please answer all ${totalQuestions} questions before submitting.`);
+        return;
+      }
+
+      contentValue = `[ALTRIX_QUIZ_SUBMISSION]:${JSON.stringify(quizAnswers)}`;
+      
+      let correctCount = 0;
+      (quizData.questions || []).forEach((q: any) => {
+        if (quizAnswers[q.questionNumber] === q.correctAnswer) {
+          correctCount++;
+        }
+      });
+      quizMarks = correctCount;
+    } else {
+      if (!submissionText.trim() && uploadedFiles.length === 0) {
+        toast.error("Please add text or attach files");
+        return;
+      }
+    }
+    
+    const isLate = selectedAssignment.due_date && new Date(selectedAssignment.due_date) < new Date();
+    
+    setSubmitting(true);
+    const existing = submissions.get(selectedAssignment.id);
+    const attachmentUrls = uploadedFiles.map((f) => f.path);
+    
+    const savePayload = {
+      content: contentValue,
+      attachment_urls: attachmentUrls.length > 0 ? attachmentUrls : null,
+      status: quizData ? (isLate ? "late" : "graded") : (isLate ? "late" : "submitted"),
+      submitted_at: new Date().toISOString(),
+      ...(quizData ? {
+        marks: quizMarks,
+        marks_obtained: quizMarks,
+        feedback: "Auto-graded by AI Quiz Engine."
+      } : {})
+    };
+
+    if (existing) {
+      const { error } = await supabase
+        .from("assignment_submissions")
+        .update(savePayload)
+        .eq("id", existing.id);
+      
+      if (error) {
+        toast.error(error.message);
+      } else {
+        toast.success(quizData ? "Quiz submitted & auto-graded successfully!" : "Submission updated!");
+        setSubmitOpen(false);
+        refreshSubmissions();
+      }
+    } else {
+      const { error } = await supabase
+        .from("assignment_submissions")
+        .insert({
+          school_id: schoolId,
+          assignment_id: selectedAssignment.id,
+          student_id: child.student_id,
+          ...savePayload
+        });
+      
+      if (error) {
+        toast.error(error.message);
+      } else {
+        toast.success(quizData ? "Quiz submitted & auto-graded successfully!" : "Assignment submitted!");
+        setSubmitOpen(false);
+        refreshSubmissions();
+      }
+    }
+    setSubmitting(false);
   };
 
   const getSubmissionStatus = (assignment: Assignment) => {
@@ -569,11 +717,17 @@ export default function ParentAssignmentsModule({ child, schoolId }: ParentAssig
                             </span>
                           )}
                         </div>
-                        {!isOffline && sub && (
+                        {!isOffline && (
                           <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
-                            <Button size="sm" variant="outline" className="border-slate-200 text-slate-650 font-semibold h-8 text-xs" onClick={() => openViewDialog(a)}>
-                              <Eye className="h-3.5 w-3.5 mr-1 text-blue-600" /> {sub.status === "graded" ? "View Result" : "View Submission"}
-                            </Button>
+                            {sub ? (
+                              <Button size="sm" variant="outline" className="border-slate-200 text-slate-650 font-semibold h-8 text-xs" onClick={() => openViewDialog(a)}>
+                                <Eye className="h-3.5 w-3.5 mr-1 text-blue-600" /> {sub.status === "graded" ? "View Result" : "View Submission"}
+                              </Button>
+                            ) : (
+                              <Button size="sm" className="bg-blue-700 hover:bg-blue-600 font-semibold h-8 text-xs" onClick={() => openSubmitDialog(a)}>
+                                <Send className="h-3.5 w-3.5 mr-1" /> {type === "mcq" ? "Solve Quiz" : "Submit"}
+                              </Button>
+                            )}
                           </div>
                         )}
                       </div>
@@ -614,6 +768,213 @@ export default function ParentAssignmentsModule({ child, schoolId }: ParentAssig
           </Table>
         </TabsContent>
       </Tabs>
+
+      {/* Submit Assignment Dialog */}
+      <Dialog open={submitOpen} onOpenChange={setSubmitOpen}>
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle>
+              {(() => {
+                const quizData = selectedAssignment ? getQuizData(selectedAssignment.description) : null;
+                return quizData ? "Solve MCQ Quiz" : "Submit Assignment";
+              })()}
+            </DialogTitle>
+            <DialogDescription>
+              {selectedAssignment?.title}
+              {selectedAssignment?.due_date && (
+                <span className="block mt-1">
+                  Due: {new Date(selectedAssignment.due_date).toLocaleDateString()}
+                </span>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          
+          {(() => {
+            const quizData = selectedAssignment ? getQuizData(selectedAssignment.description) : null;
+            const { type } = selectedAssignment 
+              ? getAssignmentType(selectedAssignment.description, selectedAssignment.title)
+              : { type: "other" as const };
+
+            return (
+              <div className="space-y-4 py-4">
+                {selectedAssignment?.due_date && new Date(selectedAssignment.due_date) < new Date() && (
+                  <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-955">
+                    <Clock className="h-5 w-5 text-amber-600 dark:text-amber-400 mt-0.5" />
+                    <div className="text-sm">
+                      <p className="font-medium text-amber-800 dark:text-amber-200">
+                        This assignment is past due
+                      </p>
+                    </div>
+                  </div>
+                )}
+                
+                {quizData ? (
+                  // Quiz Solve View
+                  <div className="space-y-5 max-h-[55vh] overflow-y-auto pr-2">
+                    {quizData.questions.map((q: any) => {
+                      const selectedOption = quizAnswers[q.questionNumber] || "";
+                      return (
+                        <div key={q.questionNumber} className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
+                          <div className="flex items-start gap-2">
+                            <span className="bg-blue-600 text-white font-mono text-[10px] font-bold px-2 py-0.5 rounded shrink-0">
+                              Q{q.questionNumber}
+                            </span>
+                            <p className="text-sm font-semibold text-slate-800 leading-normal">{q.question}</p>
+                          </div>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                            {q.options.map((opt: string, idx: number) => {
+                              const optionLetter = String.fromCharCode(65 + idx);
+                              const isOptionSelected = selectedOption === optionLetter;
+                              return (
+                                <button
+                                  key={idx}
+                                  type="button"
+                                  onClick={() => {
+                                    setQuizAnswers((prev) => ({
+                                      ...prev,
+                                      [q.questionNumber]: optionLetter,
+                                    }));
+                                  }}
+                                  className={`p-2.5 rounded-xl border text-xs text-left transition-all flex items-center gap-2.5 ${
+                                    isOptionSelected
+                                      ? "bg-blue-600 border-blue-500 text-white font-semibold shadow-[0_2px_8px_rgba(59,130,246,0.15)]"
+                                      : "bg-white border-slate-200 text-slate-650 hover:border-slate-300"
+                                  }`}
+                                >
+                                  <span
+                                    className={`h-5.5 w-5.5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${
+                                      isOptionSelected
+                                        ? "bg-white/20 text-white"
+                                        : "bg-slate-100 border border-slate-200 text-slate-400"
+                                    }`}
+                                  >
+                                    {optionLetter}
+                                  </span>
+                                  <span className="leading-snug">{opt}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : type === "paragraph" ? (
+                  // Paragraph Assignment View
+                  <div>
+                    <label className="text-sm font-medium">Your Paragraph Assignment Answer</label>
+                    <Textarea
+                      value={submissionText}
+                      onChange={(e) => setSubmissionText(e.target.value)}
+                      placeholder="Type your paragraph answer here..."
+                      rows={8}
+                      className="mt-2"
+                    />
+                    <div className="mt-1 flex items-center justify-between text-xs text-slate-500 font-medium">
+                      <span>Words: {submissionText.trim().split(/\s+/).filter(Boolean).length}</span>
+                      <span>Characters: {submissionText.length}</span>
+                    </div>
+                  </div>
+                ) : type === "written_test" ? (
+                  // Written Test View
+                  <div>
+                    <div className="flex items-start gap-2 rounded-lg border border-violet-200 bg-violet-50 p-3 mb-3">
+                      <FileText className="h-5 w-5 text-violet-600 mt-0.5" />
+                      <div className="text-sm">
+                        <p className="font-semibold text-violet-850">Written Test Mode</p>
+                        <p className="text-xs text-violet-700">Please write your answers below and/or upload your scanned hand-written answer sheet images or documents.</p>
+                      </div>
+                    </div>
+                    <label className="text-sm font-medium">Written Answers (Text)</label>
+                    <Textarea
+                      value={submissionText}
+                      onChange={(e) => setSubmissionText(e.target.value)}
+                      placeholder="Write your test answers here..."
+                      rows={6}
+                      className="mt-2 mb-4"
+                    />
+                    <label className="text-sm font-medium mb-2 block">Upload Answer Sheet / Scanned Documents</label>
+                    <FileUploadArea
+                      files={uploadedFiles}
+                      onFilesChange={setUploadedFiles}
+                      onUpload={handleUploadFile}
+                      uploading={uploading}
+                      disabled={submitting}
+                      maxFiles={5}
+                    />
+                  </div>
+                ) : type === "test" ? (
+                  // Test Assignment View
+                  <div>
+                    <div className="flex items-start gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-3 mb-3">
+                      <AlertCircle className="h-5 w-5 text-emerald-600 mt-0.5" />
+                      <div className="text-sm">
+                        <p className="font-semibold text-emerald-850">Test Assignment - Document Upload Required</p>
+                        <p className="text-xs text-emerald-700">Please upload your primary solution document/file. Use the remarks section below for any supporting notes.</p>
+                      </div>
+                    </div>
+                    <label className="text-sm font-medium mb-2 block">Upload Solution File (PDF, Word, or Image)</label>
+                    <FileUploadArea
+                      files={uploadedFiles}
+                      onFilesChange={setUploadedFiles}
+                      onUpload={handleUploadFile}
+                      uploading={uploading}
+                      disabled={submitting}
+                      maxFiles={5}
+                    />
+                    <div className="mt-4">
+                      <label className="text-sm font-medium">Remarks / Additional Notes (Optional)</label>
+                      <Textarea
+                        value={submissionText}
+                        onChange={(e) => setSubmissionText(e.target.value)}
+                        placeholder="Add any details, notes or explanations for your files..."
+                        rows={3}
+                        className="mt-2"
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  // Standard Submit View
+                  <>
+                    <div>
+                      <label className="text-sm font-medium">Your Answer / Work</label>
+                      <Textarea
+                        value={submissionText}
+                        onChange={(e) => setSubmissionText(e.target.value)}
+                        placeholder="Enter your answer or paste your work here..."
+                        rows={6}
+                        className="mt-2"
+                      />
+                    </div>
+                    
+                    <div>
+                      <label className="text-sm font-medium mb-2 block">Attachments</label>
+                      <FileUploadArea
+                        files={uploadedFiles}
+                        onFilesChange={setUploadedFiles}
+                        onUpload={handleUploadFile}
+                        uploading={uploading}
+                        disabled={submitting}
+                        maxFiles={5}
+                      />
+                    </div>
+                  </>
+                )}
+              </div>
+            );
+          })()}
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSubmitOpen(false)}>Cancel</Button>
+            <Button 
+              onClick={handleSubmit} 
+              disabled={submitting || uploading}
+            >
+              {submitting ? "Submitting..." : "Submit"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* View Submission detail Dialog */}
       <Dialog open={viewOpen} onOpenChange={setViewOpen}>
@@ -748,110 +1109,128 @@ export default function ParentAssignmentsModule({ child, schoolId }: ParentAssig
 
       {/* Assignment Detail Modal */}
       <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
-        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogContent className="max-w-xl max-h-[85vh] overflow-y-auto">
           {viewingAssignment && (() => {
             const sub = submissions.get(viewingAssignment.id);
             const quizData = getQuizData(viewingAssignment.description);
             const isQuiz = !!quizData;
             const { type, label, cleanDescription } = getAssignmentType(viewingAssignment.description, viewingAssignment.title);
+            const overdue = isOverdue(viewingAssignment.due_date) && !sub;
 
             return (
               <>
                 <DialogHeader>
-                  <div className="flex items-center gap-2">
-                    <DialogTitle className="text-lg font-bold text-slate-800">
-                      {viewingAssignment?.title}
-                    </DialogTitle>
-                    <Badge variant="outline" className={`text-[10px] font-semibold uppercase tracking-wider ${getBadgeStyle(type)}`}>
+                  <div className="flex flex-wrap items-center gap-2 mb-1">
+                    <Badge variant="outline" className={`text-[10px] font-semibold rounded-full uppercase tracking-wider ${getBadgeStyle(type)}`}>
                       {label}
                     </Badge>
+                    <Badge variant="outline" className="text-[10px] font-semibold rounded-full uppercase tracking-wider">
+                      {sub ? (sub.status === "graded" ? `Graded: ${sub.marks}/${viewingAssignment.max_marks}` : "Submitted") : (overdue ? "Overdue" : "Not Submitted")}
+                    </Badge>
                   </div>
-                  <DialogDescription className="text-xs">
-                    Review assignment details and instructions.
-                  </DialogDescription>
+                  <DialogTitle className="text-lg font-bold text-slate-800">{viewingAssignment.title}</DialogTitle>
                 </DialogHeader>
 
-                <div className="space-y-4 py-3">
-                  {/* Due Date & Marks Info */}
-                  <div className="bg-slate-50 p-3 rounded-lg border border-slate-100 flex items-center justify-between text-xs font-semibold text-slate-600">
-                    <span>Max Marks: {viewingAssignment.max_marks}</span>
-                    {viewingAssignment.due_date && (
-                      <span className={isOverdue(viewingAssignment.due_date) ? "text-rose-600" : ""}>
-                        Due: {new Date(viewingAssignment.due_date).toLocaleDateString()} {isOverdue(viewingAssignment.due_date) && "(Overdue)"}
+                <div className="space-y-5 py-3 text-xs">
+                  {/* Summary Block */}
+                  <div className="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
+                    <div>
+                      <span className="text-slate-500 font-bold uppercase tracking-wider block">Max Marks</span>
+                      <span className="text-sm font-bold text-slate-800">{viewingAssignment.max_marks} marks</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 font-bold uppercase tracking-wider block">Due Date</span>
+                      <span className={`text-sm font-bold block ${overdue ? "text-rose-600" : "text-slate-800"}`}>
+                        {viewingAssignment.due_date ? new Date(viewingAssignment.due_date).toLocaleDateString() : "No due date"}
+                        {overdue && " (Overdue)"}
                       </span>
-                    )}
+                    </div>
                   </div>
 
-                  {/* Instructions / Quiz Questions */}
-                  {quizData ? (
-                    <div className="space-y-2">
-                      <span className="text-xs font-bold text-slate-500 block">Quiz Instructions & Questions</span>
-                      <div className="space-y-3">
-                        <p className="text-xs text-slate-600 italic">
-                          {quizData.instructions || "Review the multiple-choice questions below:"}
-                        </p>
-                        <div className="space-y-3 max-h-[350px] overflow-y-auto border border-slate-100 rounded-lg p-3 bg-slate-50/30">
-                          {quizData.questions.map((q: any) => (
-                            <div key={q.questionNumber} className="space-y-1 pb-3 border-b border-slate-100 last:border-b-0 last:pb-0">
-                              <p className="text-xs font-bold text-slate-700">Q{q.questionNumber}: {q.question}</p>
-                              <div className="grid grid-cols-2 gap-2 pt-1 text-xs">
-                                {q.options.map((val: string, idx: number) => {
-                                  const optionLetter = String.fromCharCode(65 + idx);
-                                  const isCorrectOption = q.correctAnswer === optionLetter;
-                                  return (
-                                    <div 
-                                      key={optionLetter} 
-                                      className={`p-2 rounded border bg-white border-slate-150 ${isCorrectOption ? "bg-emerald-50/40 border-emerald-200/80 text-emerald-800 font-semibold" : ""}`}
-                                    >
-                                      <span className="font-bold mr-1">{optionLetter}.</span> {val}
-                                      {isCorrectOption && " (Correct)"}
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          ))}
+                  {/* Submission Status Summary if submitted or graded */}
+                  {sub && (
+                    <div className="space-y-2.5 rounded-xl border border-slate-200 p-4 bg-white shadow-sm">
+                      <h4 className="text-xs font-bold text-slate-550 uppercase tracking-wider flex items-center gap-1.5">
+                        <CheckCircle className="h-4 w-4 text-emerald-600" /> Child's Submission Summary
+                      </h4>
+                      <div className="grid grid-cols-2 gap-2 text-slate-700">
+                        <div>
+                          <span className="text-slate-500 block">Submitted At:</span>
+                          <span className="font-semibold">{new Date(sub.submitted_at).toLocaleString()}</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-500 block">Marks Obtained:</span>
+                          <span className="font-bold text-blue-700">{sub.marks !== null ? `${sub.marks} / ${viewingAssignment.max_marks}` : "Not Graded yet"}</span>
                         </div>
                       </div>
-                    </div>
-                  ) : (
-                    <div className="space-y-1.5">
-                      <span className="text-xs font-bold text-slate-500 block">Description & Instructions</span>
-                      <div className="text-xs bg-slate-50/30 p-3 rounded-lg border border-slate-200/60 max-h-[250px] overflow-y-auto whitespace-pre-wrap text-slate-700 leading-relaxed">
-                        {cleanDescription || "No instructions provided."}
-                      </div>
+                      {sub.feedback && (
+                        <div className="bg-slate-50 p-3 rounded-lg border border-slate-100 text-slate-655 mt-1">
+                          <span className="font-bold text-slate-700 block mb-0.5">Teacher Feedback:</span>
+                          {sub.feedback}
+                        </div>
+                      )}
                     </div>
                   )}
 
-                  {/* Status details */}
-                  {sub ? (
-                    <div className="bg-emerald-50/40 p-3 rounded-lg border border-emerald-100 flex items-center justify-between">
-                      <span className="text-xs font-semibold text-emerald-800">Child has submitted this assignment.</span>
-                      <Button 
-                        size="sm" 
-                        className="bg-emerald-700 hover:bg-emerald-800 h-8 text-xs font-semibold"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setDetailOpen(false);
-                          openViewDialog(viewingAssignment);
-                        }}
-                      >
-                        View Submission & Grades
-                      </Button>
+                  {/* Assignment Description */}
+                  <div className="space-y-2">
+                    <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Description / Instructions</h4>
+                    <div className="text-slate-700 bg-white border border-slate-200 rounded-xl p-4 text-xs whitespace-pre-wrap leading-relaxed shadow-sm">
+                      {isQuiz ? (quizData?.instructions || "Please complete the MCQ Quiz questions.") : (cleanDescription || "No instructions provided.")}
                     </div>
-                  ) : (
-                    <div className="bg-amber-50/40 p-3 rounded-lg border border-amber-100 text-xs font-semibold text-amber-800">
-                      Child has not submitted this assignment yet.
+                  </div>
+
+                  {/* Inform parent it's an MCQ Quiz */}
+                  {isQuiz && !sub && (
+                    <div className="bg-blue-50/40 p-4 rounded-xl border border-blue-100 flex items-start gap-2.5">
+                      <Info className="h-4 w-4 text-blue-600 shrink-0 mt-0.5" />
+                      <div className="space-y-1">
+                        <h4 className="text-blue-800 font-bold uppercase tracking-wider">Interactive MCQ Quiz</h4>
+                        <p className="text-slate-600 leading-relaxed font-medium">
+                          This is an interactive MCQ Quiz. Clicking "Start Quiz" below will allow you to select A/B/C/D choices sequentially on behalf of your child, and their score will be automatically calculated and graded instantly.
+                        </p>
+                      </div>
                     </div>
                   )}
                 </div>
+
+                <DialogFooter className="border-t border-slate-100 pt-4 flex flex-row items-center justify-end gap-2">
+                  <Button 
+                    variant="outline" 
+                    className="border-slate-200 font-semibold text-slate-700"
+                    onClick={() => setDetailOpen(false)}
+                  >
+                    Close
+                  </Button>
+                  {!isOffline && (
+                    <div className="flex gap-2">
+                      {sub ? (
+                        <Button 
+                          className="bg-blue-700 hover:bg-blue-600 font-semibold text-white"
+                          onClick={() => {
+                            setDetailOpen(false);
+                            openViewDialog(viewingAssignment);
+                          }}
+                        >
+                          <Eye className="h-4 w-4 mr-1.5" /> {sub.status === "graded" ? "View Results" : "View Submission"}
+                        </Button>
+                      ) : (
+                        <Button 
+                          className="bg-blue-700 hover:bg-blue-600 font-semibold text-white"
+                          onClick={() => {
+                            setDetailOpen(false);
+                            openSubmitDialog(viewingAssignment);
+                          }}
+                        >
+                          <Send className="h-4 w-4 mr-1.5" /> {isQuiz ? "Start Quiz" : "Submit Assignment"}
+                        </Button>
+                      )}
+                    </div>
+                  )}
+                </DialogFooter>
               </>
             );
           })()}
-
-          <DialogFooter>
-            <Button onClick={() => setDetailOpen(false)}>Close</Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
