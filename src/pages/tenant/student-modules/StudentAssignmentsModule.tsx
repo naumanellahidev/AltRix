@@ -695,7 +695,7 @@ export function StudentAssignmentsModule({ myStudent, schoolId }: { myStudent: a
                                 <Eye className="h-3.5 w-3.5 mr-1 text-blue-600" /> {sub.status === "graded" ? "View Result" : "View Submission"}
                               </Button>
                             ) : (
-                              <Button size="sm" className="bg-blue-750 hover:bg-blue-700 font-semibold h-8 text-xs" onClick={() => openSubmitDialog(a)}>
+                              <Button size="sm" className="bg-blue-700 hover:bg-blue-600 font-semibold h-8 text-xs" onClick={() => openSubmitDialog(a)}>
                                 <Send className="h-3.5 w-3.5 mr-1" /> {type === "mcq" ? "Solve Quiz" : "Submit"}
                               </Button>
                             )}
@@ -1203,7 +1203,7 @@ export function StudentAssignmentsModule({ myStudent, schoolId }: { myStudent: a
                     <div className="flex gap-2">
                       {sub ? (
                         <Button 
-                          className="bg-blue-750 hover:bg-blue-700 font-semibold text-white"
+                          className="bg-blue-700 hover:bg-blue-600 font-semibold text-white"
                           onClick={() => {
                             setDetailOpen(false);
                             openViewDialog(viewingAssignment);
@@ -1213,7 +1213,7 @@ export function StudentAssignmentsModule({ myStudent, schoolId }: { myStudent: a
                         </Button>
                       ) : (
                         <Button 
-                          className="bg-blue-750 hover:bg-blue-700 font-semibold text-white"
+                          className="bg-blue-700 hover:bg-blue-600 font-semibold text-white"
                           onClick={() => {
                             setDetailOpen(false);
                             openSubmitDialog(viewingAssignment);
