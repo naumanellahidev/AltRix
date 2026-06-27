@@ -111,7 +111,7 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
   // List view (parent/student)
   const [myCards, setMyCards] = useState<ReportCardRow[]>([]);
   const [viewingCardId, setViewingCardId] = useState<string | null>(null);
-  // Derived permission: a teacher (no admin role) is only allowed to manage report cards for students enrolled in sections assigned to them.
+  // Derived permission: a teacher (no admin role) is only allowed to view report cards, not edit them.
   const currentStudentSectionId = useMemo(
     () => enrollments.find((e) => e.student_id === studentId)?.class_section_id ?? null,
     [enrollments, studentId]
@@ -119,7 +119,8 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
   const allowedForCurrentStudent =
     teacherSectionIds === null ||
     (!!currentStudentSectionId && teacherSectionIds.includes(currentStudentSectionId));
-  const canManage = canManageProp && allowedForCurrentStudent;
+  const isTeacherOnly = teacherSectionIds !== null;
+  const canManage = canManageProp && allowedForCurrentStudent && !isTeacherOnly;
   const isReadOnlyForChild = !!studentIdLocked && !canManageProp;
 
   // Detect scope: if the current user has any admin-style role for this school we leave

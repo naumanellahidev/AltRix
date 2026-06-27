@@ -35,6 +35,7 @@ const ParentDashboard = lazy(() => import("./pages/tenant/ParentDashboard"));
 const TenantBootstrap = lazy(() => import("./pages/tenant/TenantBootstrap"));
 const OwnerDashboard = lazy(() => import("./pages/tenant/OwnerDashboard"));
 const PublicInquiryPage = lazy(() => import("./pages/tenant/PublicInquiryPage"));
+const PublicHallTicketVerification = lazy(() => import("./pages/tenant/PublicHallTicketVerification"));
 const UnifiedHub = lazy(() => import("./pages/tenant/UnifiedHub"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 
@@ -173,6 +174,7 @@ export default function App() {
               <Route path="/:schoolSlug/hub" element={<UnifiedHub />} />
               <Route path="/:schoolSlug/bootstrap" element={<TenantBootstrap />} />
               <Route path="/:schoolSlug/inquiry" element={<PublicInquiryPage />} />
+              <Route path="/:schoolSlug/verify-ticket/:examId/:studentId" element={<PublicHallTicketVerification />} />
               <Route path="/:schoolSlug/teacher/*" element={<TeacherDashboard />} />
               <Route path="/:schoolSlug/hr/*" element={<HrDashboard />} />
               <Route path="/:schoolSlug/accountant/*" element={<AccountantDashboard />} />
