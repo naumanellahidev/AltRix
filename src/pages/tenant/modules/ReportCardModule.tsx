@@ -587,7 +587,7 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
     return data?.id ?? null;
   };
 
-  const notifyPublish = async (studentIds: string[], published: boolean) => {
+  const notifyPublish = async (studentIds: string[], published: boolean, cardMap?: Map<string, string>) => {
     if (!schoolId || studentIds.length === 0) return;
     const title = published ? "New report card published" : "Report card unpublished";
     const body = `${periodTitle} — ${published ? "now available on your dashboard" : "temporarily withdrawn"}.`;
@@ -598,23 +598,27 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
       (supabase as any).from("student_guardians").select("student_id,user_id").in("student_id", studentIds),
     ]);
 
-    // Query card IDs to set as entity_id
-    let cardsQuery = (supabase as any)
-      .from("report_cards")
-      .select("id,student_id")
-      .eq("school_id", schoolId)
-      .eq("period_type", periodType)
-      .in("student_id", studentIds);
-    if (periodType === "exam") {
-      cardsQuery = cardsQuery.eq("exam_id", examId);
-    } else {
-      cardsQuery = cardsQuery.eq("period_label", currentPeriodLabel);
-    }
-    const { data: cards } = await cardsQuery;
     const studentCardMap = new Map<string, string>();
-    (cards || []).forEach((c: any) => {
-      studentCardMap.set(c.student_id, c.id);
-    });
+    if (cardMap) {
+      cardMap.forEach((val, key) => studentCardMap.set(key, val));
+    } else {
+      // Query card IDs as fallback
+      let cardsQuery = (supabase as any)
+        .from("report_cards")
+        .select("id,student_id")
+        .eq("school_id", schoolId)
+        .eq("period_type", periodType)
+        .in("student_id", studentIds);
+      if (periodType === "exam") {
+        cardsQuery = cardsQuery.eq("exam_id", examId);
+      } else {
+        cardsQuery = cardsQuery.eq("period_label", currentPeriodLabel);
+      }
+      const { data: cards } = await cardsQuery;
+      (cards || []).forEach((c: any) => {
+        studentCardMap.set(c.student_id, c.id);
+      });
+    }
 
     const notifRows: any[] = [];
     (studs || []).forEach((s: any) => {
@@ -656,7 +660,11 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
       .eq("id", id);
     if (error) return toast.error(error.message);
     setCard((c) => ({ ...c, is_published: publish, published_at: publish ? new Date().toISOString() : null }));
-    await notifyPublish([studentId], publish);
+    
+    const cardMap = new Map<string, string>();
+    if (id) cardMap.set(studentId, id);
+    await notifyPublish([studentId], publish, cardMap);
+    
     toast.success(publish ? "Published — sent to parent dashboard" : "Unpublished");
   };
 
@@ -686,14 +694,20 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
       } else {
         query = query.eq("period_type", periodType).eq("period_label", currentPeriodLabel);
       }
-      const { data, error } = await query.select("student_id");
+      const { data, error } = await query.select("id,student_id");
       if (error) return toast.error(error.message);
       const affected = (data || []).map((r: any) => r.student_id);
       if (affected.length === 0) {
         toast.error("No saved report cards found for this section — save students' cards first.");
         return;
       }
-      await notifyPublish(affected, publish);
+      
+      const cardMap = new Map<string, string>();
+      (data || []).forEach((r: any) => {
+        if (r.id && r.student_id) cardMap.set(r.student_id, r.id);
+      });
+      await notifyPublish(affected, publish, cardMap);
+      
       toast.success(`${publish ? "Published" : "Unpublished"} ${affected.length} report card${affected.length === 1 ? "" : "s"}`);
       setPublishDialogOpen(false);
     } finally {
