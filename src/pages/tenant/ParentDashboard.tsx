@@ -21,6 +21,7 @@ const ParentBehaviorModule = lazy(() => import("./parent-modules/ParentBehaviorM
 const ParentComplaintsModule = lazy(() => import("./parent-modules/ParentComplaintsModule"));
 const ParentCertificatesModule = lazy(() => import("./parent-modules/ParentCertificatesModule"));
 const ParentCounselingModule = lazy(() => import("./parent-modules/ParentCounselingModule"));
+const ParentKPIsModule = lazy(() => import("./parent-modules/ParentKPIsModule"));
 const NoticesModule = lazy(() => import("./modules/NoticesModule"));
 const HolidaysModule = lazy(() => import("./modules/HolidaysModule"));
 const DiaryModule = lazy(() => import("./modules/DiaryModule"));
@@ -308,7 +309,7 @@ const ParentDashboard = () => {
         <RouteGuard extraAllowedPaths={[
           "ai-insights","attendance","grades","assignments","fees","messages","timetable",
           "notifications","support","behavior","notices","holidays","diary",
-          "exams","report-card","complaints","certificates","counseling",
+          "exams","report-card","complaints","certificates","counseling","kpis",
         ]}>
         <Suspense fallback={<DashboardLoader />}>
           <Routes>
@@ -331,6 +332,7 @@ const ParentDashboard = () => {
             <Route path="complaints" element={<ParentComplaintsModule child={selectedChild} schoolId={schoolId} />} />
             <Route path="certificates" element={<ParentCertificatesModule child={selectedChild} schoolId={schoolId} />} />
             <Route path="counseling" element={<ParentCounselingModule child={selectedChild} schoolId={schoolId} />} />
+            <Route path="kpis" element={<ParentKPIsModule child={selectedChild} schoolId={schoolId} />} />
             <Route path="*" element={<Navigate to="" replace />} />
           </Routes>
         </Suspense>

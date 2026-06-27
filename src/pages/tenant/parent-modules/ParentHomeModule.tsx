@@ -32,6 +32,7 @@ import {
   ChevronRight,
   Award,
   Heart,
+  BarChart2,
 } from "lucide-react";
 
 interface ParentHomeModuleProps {
@@ -213,8 +214,12 @@ const ParentHomeModule = ({ child, schoolId }: ParentHomeModuleProps) => {
     .join("");
 
   const quickActions = [
+    { label: "Performance KPIs", icon: BarChart2, to: "kpis", bg: "bg-blue-50/50 hover:bg-blue-50 text-blue-600" },
     { label: "Attendance", icon: Calendar, to: "attendance", bg: "bg-blue-50/50 hover:bg-blue-50 text-blue-600" },
     { label: "Grades", icon: GraduationCap, to: "grades", bg: "bg-blue-50/50 hover:bg-blue-50 text-blue-600" },
+    { label: "Assignments", icon: ScrollText, to: "assignments", bg: "bg-blue-50/50 hover:bg-blue-50 text-blue-600" },
+    { label: "Certificates", icon: Award, to: "certificates", bg: "bg-blue-50/50 hover:bg-blue-50 text-blue-600" },
+    { label: "Counseling", icon: Heart, to: "counseling", bg: "bg-blue-50/50 hover:bg-blue-50 text-blue-600" },
     {
       label: "Fees",
       icon: Receipt,
@@ -233,8 +238,6 @@ const ParentHomeModule = ({ child, schoolId }: ParentHomeModuleProps) => {
     { label: "Diary", icon: BookOpen, to: "diary", bg: "bg-blue-50/50 hover:bg-blue-50 text-blue-600" },
     { label: "Timetable", icon: Calendar, to: "timetable", bg: "bg-blue-50/50 hover:bg-blue-50 text-blue-600" },
     { label: "Support", icon: HeartHandshake, to: "support", bg: "bg-blue-50/50 hover:bg-blue-50 text-blue-600" },
-    { label: "Certificates", icon: Award, to: "certificates", bg: "bg-blue-50/50 hover:bg-blue-50 text-blue-600" },
-    { label: "Counseling", icon: Heart, to: "counseling", bg: "bg-blue-50/50 hover:bg-blue-50 text-blue-600" },
   ];
 
   const formattedDate = new Date().toLocaleDateString("en-US", {
@@ -305,12 +308,17 @@ const ParentHomeModule = ({ child, schoolId }: ParentHomeModuleProps) => {
 
           {/* Child Metrics and Analytics summary panel */}
           <div className="rounded-2xl border border-blue-50 bg-white p-5 shadow-[0_4px_20px_rgba(219,234,254,0.15)] space-y-4">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-450">
-              Child's Metrics
-            </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 items-center">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                Child's Performance KPIs
+              </h3>
+              <Link to="kpis" className="text-xs font-bold text-blue-600 hover:underline flex items-center gap-0.5">
+                View Full Analytics <ChevronRight className="h-3.5 w-3.5" />
+              </Link>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-center">
               {/* Circular Attendance Ring */}
-              <div className="flex items-center gap-4 bg-slate-50/50 p-4 rounded-xl border border-slate-100/70 sm:col-span-2">
+              <div className="flex items-center gap-4 bg-slate-50/50 p-4 rounded-xl border border-slate-100/70 md:col-span-2">
                 <div className="relative inline-flex flex-col items-center justify-center shrink-0">
                   <svg width={80} height={80} className="-rotate-90">
                     <circle
@@ -353,23 +361,32 @@ const ParentHomeModule = ({ child, schoolId }: ParentHomeModuleProps) => {
               </div>
 
               {/* Standard Stats Grid */}
-              <div className="sm:col-span-2 grid grid-cols-2 gap-3">
-                <div className="relative overflow-hidden rounded-xl border border-slate-100 bg-slate-50/20 p-4 shadow-sm">
+              <div className="md:col-span-3 grid grid-cols-3 gap-3">
+                <div className="relative overflow-hidden rounded-xl border border-slate-105 bg-slate-50/20 p-3.5 shadow-sm">
                   <div className="flex items-center justify-between">
-                    <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Latest Grade</span>
-                    <GraduationCap className="h-4 w-4 text-blue-600" />
+                    <span className="text-[9px] font-bold uppercase tracking-wider text-slate-450">Latest Grade</span>
+                    <GraduationCap className="h-4 w-4 text-blue-605" />
                   </div>
-                  <p className="font-display text-2xl font-black text-slate-800 mt-2">
+                  <p className="font-display text-xl font-black text-slate-800 mt-2">
                     {loading ? "—" : stats.recentGrade != null ? `${stats.recentGrade}%` : "—"}
                   </p>
                 </div>
-                <div className="relative overflow-hidden rounded-xl border border-slate-100 bg-slate-50/20 p-4 shadow-sm">
+                <div className="relative overflow-hidden rounded-xl border border-slate-105 bg-slate-50/20 p-3.5 shadow-sm">
                   <div className="flex items-center justify-between">
-                    <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Open Tasks</span>
-                    <ScrollText className="h-4 w-4 text-blue-600" />
+                    <span className="text-[9px] font-bold uppercase tracking-wider text-slate-455">Open Tasks</span>
+                    <ScrollText className="h-4 w-4 text-blue-605" />
                   </div>
-                  <p className="font-display text-2xl font-black text-slate-800 mt-2">
+                  <p className="font-display text-xl font-black text-slate-800 mt-2">
                     {loading ? "—" : stats.pendingAssignments}
+                  </p>
+                </div>
+                <div className="relative overflow-hidden rounded-xl border border-slate-105 bg-slate-50/20 p-3.5 shadow-sm">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[9px] font-bold uppercase tracking-wider text-slate-455">Unpaid Fees</span>
+                    <Receipt className="h-4 w-4 text-blue-605" />
+                  </div>
+                  <p className="font-display text-xl font-black text-slate-800 mt-2">
+                    {loading ? "—" : stats.unpaidFees}
                   </p>
                 </div>
               </div>
@@ -484,21 +501,21 @@ const ParentHomeModule = ({ child, schoolId }: ParentHomeModuleProps) => {
         {/* Right Column: Actions Sidebar & AI profiles */}
         <div className="space-y-6">
           {/* Quick Actions Panel */}
-          <div className="rounded-2xl border border-blue-50 bg-white p-5 shadow-[0_4px_25px_rgba(219,234,254,0.15)] space-y-4">
+          <div className="rounded-2xl border border-blue-50 bg-white p-5 shadow-[0_4px_25px_rgba(219,234,254,0.15)] space-y-3.5">
             <h3 className="font-display text-xs font-bold tracking-wider text-slate-400 uppercase">Quick Actions</h3>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-2.5">
               {quickActions.map((action, idx) => (
                 <Link
                   key={idx}
                   to={action.to}
-                  className="group relative flex flex-col items-center justify-center gap-2 rounded-xl border border-slate-100 bg-white p-3 text-center transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_8px_30px_rgba(191,219,254,0.3)] hover:border-blue-200"
+                  className="group relative flex items-center gap-2.5 rounded-xl border border-slate-100/70 bg-slate-50/20 px-3 py-2 text-left transition-all duration-200 hover:bg-blue-50/40 hover:border-blue-100 hover:text-blue-705 hover:-translate-y-0.5 hover:shadow-soft"
                 >
-                  <span className="h-10 w-10 inline-flex items-center justify-center rounded-xl bg-blue-50 text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-all group-hover:scale-110">
-                    <action.icon className="h-5 w-5" />
+                  <span className="h-7 w-7 inline-flex items-center justify-center rounded-lg bg-blue-50 text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-all shrink-0">
+                    <action.icon className="h-3.5 w-3.5" />
                   </span>
-                  <span className="text-[11px] font-bold text-slate-600 group-hover:text-blue-700">{action.label}</span>
+                  <span className="text-[11px] font-bold text-slate-600 group-hover:text-blue-700 truncate flex-1">{action.label}</span>
                   {action.badge !== undefined && action.badge !== 0 && (
-                    <span className="absolute right-2 top-2 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-blue-600 px-1 text-[8px] font-bold text-white shadow-sm ring-2 ring-white">
+                    <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-blue-600 px-1 text-[8px] font-bold text-white shadow-sm ring-2 ring-white">
                       {action.badge}
                     </span>
                   )}

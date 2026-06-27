@@ -106,6 +106,7 @@ import {
   ScrollText,
   Award,
   Heart,
+  BarChart2,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -198,6 +199,7 @@ export function ParentShell({
   const navItems = [
     { to: basePath, icon: Home, label: "Home", end: true, badge: 0 },
     { to: `${basePath}/ai-insights`, icon: Brain, label: "AI Insights", badge: 0 },
+    { to: `${basePath}/kpis`, icon: BarChart2, label: "Performance KPIs", badge: 0 },
     { to: `${basePath}/attendance`, icon: Calendar, label: "Attendance", badge: 0 },
     { to: `${basePath}/grades`, icon: GraduationCap, label: "Grades", badge: 0 },
     { to: `${basePath}/assignments`, icon: ScrollText, label: "Assignments", badge: 0 },
