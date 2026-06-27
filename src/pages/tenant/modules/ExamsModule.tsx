@@ -12,7 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { 
   GraduationCap, Plus, Trash2, CalendarDays, Send, Calendar, 
   BookOpen, Heart, FileSpreadsheet, BarChart2, ShieldAlert, Users, 
-  Printer, Loader2, Award, HeartPulse, CheckCircle2, ChevronRight, Info
+  Printer, Loader2, Award, HeartPulse, CheckCircle2, ChevronRight, Info, MapPin
 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
