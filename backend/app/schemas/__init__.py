@@ -718,6 +718,8 @@ class NotificationOut(BaseModel):
     type: Optional[str] = None
     entity_id: Optional[UUID] = None
     entity_type: Optional[str] = None
+    category: Optional[str] = "general"
+    action_url: Optional[str] = None
     read_at: Optional[datetime] = None
     created_at: Optional[datetime] = None
 

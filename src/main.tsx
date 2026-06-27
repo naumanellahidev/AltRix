@@ -30,4 +30,13 @@ if (typeof window !== "undefined") {
   });
 }
 
+// Register PWA Service Worker on load
+if (typeof window !== "undefined" && 'serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js')
+      .then(reg => console.log('Service Worker registered successfully with scope:', reg.scope))
+      .catch(err => console.warn('Service Worker registration failed:', err));
+  });
+}
+
 createRoot(document.getElementById("root")!).render(<App />);

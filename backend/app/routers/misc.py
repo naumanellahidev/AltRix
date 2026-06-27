@@ -393,6 +393,130 @@ async def delete_notification(notification_id: UUID, current_user: CurrentUser, 
     return MessageResponse(message="Notification deleted")
 
 
+# ─── PWA WEB PUSH & PREFERENCES ───────────────────────────────────────────────
+import json
+from app.utils.webpush_service import get_vapid_keys
+from pydantic import BaseModel
+
+class WebPushSubscriptionIn(BaseModel):
+    endpoint: str
+    p256dh: str
+    auth: str
+    device_info: Optional[str] = None
+
+class WebPushUnsubscribeIn(BaseModel):
+    endpoint: str
+
+class NotificationPreferencesIn(BaseModel):
+    preferences: dict
+
+@notifications_router.get("/push/public-key")
+async def get_push_public_key():
+    """Return the VAPID public key for frontend push subscription."""
+    keys = get_vapid_keys()
+    return {"public_key": keys["public_key"]}
+
+@notifications_router.post("/push/subscribe", response_model=MessageResponse)
+async def subscribe_web_push(
+    sub: WebPushSubscriptionIn,
+    current_user: CurrentUser,
+    db: DbSession
+):
+    """Register a new web push subscription endpoint for the current user."""
+    # Delete if exists
+    await db.execute(
+        text("DELETE FROM user_web_push_subscriptions WHERE endpoint = :ep"),
+        {"ep": sub.endpoint}
+    )
+    # Insert new
+    await db.execute(
+        text("""
+            INSERT INTO user_web_push_subscriptions (user_id, endpoint, p256dh, auth, device_info)
+            VALUES (:uid, :ep, :p256, :auth, :device)
+        """),
+        {
+            "uid": current_user.id,
+            "ep": sub.endpoint,
+            "p256": sub.p256dh,
+            "auth": sub.auth,
+            "device": sub.device_info
+        }
+    )
+    return MessageResponse(message="Push subscription registered successfully")
+
+@notifications_router.post("/push/unsubscribe", response_model=MessageResponse)
+async def unsubscribe_web_push(
+    unsub: WebPushUnsubscribeIn,
+    current_user: CurrentUser,
+    db: DbSession
+):
+    """Unregister a web push subscription endpoint."""
+    await db.execute(
+        text("DELETE FROM user_web_push_subscriptions WHERE endpoint = :ep AND user_id = :uid"),
+        {"ep": unsub.endpoint, "uid": current_user.id}
+    )
+    return MessageResponse(message="Push subscription removed successfully")
+
+@notifications_router.get("/preferences")
+async def get_notification_preferences(current_user: CurrentUser, db: DbSession):
+    """Get the user's notification preferences."""
+    res = await db.execute(
+        text("SELECT preferences FROM user_notification_preferences WHERE user_id = :uid"),
+        {"uid": current_user.id}
+    )
+    row = res.fetchone()
+    if row and row[0]:
+        return {"preferences": row[0]}
+    
+    # Return default preferences if not configured yet
+    default_prefs = {
+        "exams": {"in_app": True, "push": True, "email": False},
+        "grades": {"in_app": True, "push": True, "email": False},
+        "attendance": {"in_app": True, "push": True, "email": False},
+        "billing": {"in_app": True, "push": True, "email": False},
+        "notices": {"in_app": True, "push": True, "email": False},
+        "messages": {"in_app": True, "push": True, "email": False},
+        "general": {"in_app": True, "push": True, "email": False}
+    }
+    return {"preferences": default_prefs}
+
+@notifications_router.put("/preferences", response_model=MessageResponse)
+async def update_notification_preferences(
+    payload: NotificationPreferencesIn,
+    current_user: CurrentUser,
+    db: DbSession
+):
+    """Update the user's notification preferences."""
+    school_id = current_user.school_id
+    
+    # Check if entry exists
+    res = await db.execute(
+        text("SELECT 1 FROM user_notification_preferences WHERE user_id = :uid"),
+        {"uid": current_user.id}
+    )
+    exists = res.fetchone() is not None
+    
+    if exists:
+        await db.execute(
+            text("""
+                UPDATE user_notification_preferences 
+                SET preferences = :prefs, updated_at = NOW() 
+                WHERE user_id = :uid
+            """),
+            {"prefs": json.dumps(payload.preferences), "uid": current_user.id}
+        )
+    else:
+        await db.execute(
+            text("""
+                INSERT INTO user_notification_preferences (user_id, school_id, preferences)
+                VALUES (:uid, :sid, :prefs)
+            """),
+            {"uid": current_user.id, "sid": school_id, "prefs": json.dumps(payload.preferences)}
+        )
+        
+    return MessageResponse(message="Notification preferences updated successfully")
+
+
 # ─── AUDIT LOGS ───────────────────────────────────────────────────────────────
 audit_router = APIRouter(prefix="/audit", tags=["Audit"])
 

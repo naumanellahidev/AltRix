@@ -41,26 +41,47 @@ def push_notification(
 
         async def _insert():
             from app.database import get_db_context
-            from app.models.misc import AppNotification
+            from app.utils.webpush_service import dispatch_notification
             import uuid
 
             async with get_db_context() as db:
-                notif = AppNotification(
+                category = "general"
+                action_url = None
+                
+                # Derive category and dynamic action URLs for parent/student views
+                if entity_type == "report_card":
+                    category = "grades"
+                    action_url = f"/parent/report-card?view_card={entity_id}" if entity_id else "/parent/report-card"
+                elif entity_type == "exam" or entity_type == "datesheet":
+                    category = "exams"
+                    action_url = "/parent/exams"
+                elif entity_type == "notice":
+                    category = "notices"
+                    action_url = "/parent/notices"
+                elif entity_type == "attendance":
+                    category = "attendance"
+                    action_url = "/parent/attendance"
+                elif entity_type == "fee_invoice" or notification_type == "fee_voucher":
+                    category = "billing"
+                    action_url = "/parent/fees"
+                elif notification_type == "message":
+                    category = "messages"
+
+                await dispatch_notification(
+                    db=db,
                     user_id=uuid.UUID(user_id),
                     school_id=uuid.UUID(school_id),
                     title=title,
                     body=body,
-                    type=notification_type,
-                    entity_type=entity_type,
-                    entity_id=uuid.UUID(entity_id) if entity_id else None,
+                    category=category,
+                    action_url=action_url
                 )
-                db.add(notif)
 
         loop = asyncio.new_event_loop()
         loop.run_until_complete(_insert())
         loop.close()
-        logger.info(f"Notification created for user {user_id}: {title}")
-        return {"status": "created", "user_id": user_id}
+        logger.info(f"Notification dispatched for user {user_id}: {title}")
+        return {"status": "dispatched", "user_id": user_id}
 
     except Exception as exc:
         logger.error(f"Notification task failed: {exc}")

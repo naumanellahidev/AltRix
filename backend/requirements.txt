@@ -25,4 +25,5 @@ gunicorn==23.0.0
 celery==5.4.0
 slowapi==0.1.9
 sentry-sdk[fastapi]==2.38.0
+pywebpush>=1.14.0
 
