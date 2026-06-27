@@ -51,6 +51,12 @@ function getNotificationTargetRoute(notification: any, schoolSlug: string, role:
   if (t.includes("homework") || t.includes("diary")) return `${base}/diary`;
   if (t.includes("assignment")) return `${base}/assignments`;
   if (t.includes("exam") || t.includes("assessment")) return `${base}/exams`;
+  if (t.includes("report_card") || t.includes("report-card") || t.includes("reportcard")) {
+    const suffix = notification.entity_id ? `?view_card=${notification.entity_id}` : "";
+    return role === "student" || role === "parent"
+      ? `${base}/report-card${suffix}`
+      : `${base}/report-cards${suffix}`;
+  }
   if (t.includes("grade") || t.includes("report")) {
     return rolePath === "student" || rolePath === "parent"
       ? `${base}/grades`

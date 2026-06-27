@@ -235,7 +235,7 @@ const StudentDashboard = () => {
           <Route path="notices" element={<NoticesModule schoolId={schoolId} canManage={false} />} />
           <Route path="holidays" element={<HolidaysModule schoolId={schoolId} canManage={false} />} />
           <Route path="diary" element={<DiaryModule schoolId={schoolId} canManage={false} />} />
-          <Route path="exams" element={<ExamsModule schoolId={schoolId} canManage={false} />} />
+          <Route path="exams" element={<ExamsModule schoolId={schoolId} canManage={false} studentId={myStudent.status === "ready" ? myStudent.studentId : null} />} />
           <Route path="report-card" element={<ReportCardModule schoolId={schoolId} canManage={false} studentIdLocked={myStudent.status === "ready" ? myStudent.studentId : null} />} />
           <Route path="complaints" element={<StudentComplaintsModule schoolId={schoolId} />} />
           <Route path="*" element={<Navigate to={`/${tenant.slug}/student`} replace />} />

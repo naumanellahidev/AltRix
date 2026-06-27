@@ -6,7 +6,7 @@ import { FileDown, FileText } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 
-interface Props { schoolId: string; }
+interface Props { schoolId: string; studentId?: string | null; }
 
 interface Item {
   id: string; exam_id: string; student_id: string; file_path: string; generated_at: string;
@@ -14,21 +14,67 @@ interface Item {
   students?: { first_name: string; last_name: string };
 }
 
-export default function ParentDatesheetsCard({ schoolId }: Props) {
+export default function ParentDatesheetsCard({ schoolId, studentId }: Props) {
   const [items, setItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!schoolId) return;
     (async () => {
-      const { data, error } = await (supabase as any)
+      setLoading(true);
+      let targetStudentId = studentId;
+
+      if (!targetStudentId) {
+        const { data: auth } = await supabase.auth.getUser();
+        const uid = auth?.user?.id;
+        if (!uid) {
+          setLoading(false);
+          return;
+        }
+
+        // Find student IDs linked to this user (either as student profile or parent/guardian)
+        const [studentProfile, guardianRelations] = await Promise.all([
+          supabase.from("students").select("id").eq("profile_id", uid).maybeSingle(),
+          supabase.from("student_guardians").select("student_id").eq("user_id", uid),
+        ]);
+
+        const ids: string[] = [];
+        if (studentProfile.data?.id) {
+          ids.push(studentProfile.data.id);
+        }
+        if (guardianRelations.data) {
+          guardianRelations.data.forEach((r: any) => {
+            if (r.student_id) ids.push(r.student_id);
+          });
+        }
+
+        if (ids.length === 0) {
+          setItems([]);
+          setLoading(false);
+          return;
+        }
+
+        const { data, error } = await supabase
+          .from("exam_datesheet_distributions")
+          .select("id,exam_id,student_id,file_path,generated_at,exams(name,term_label),students(first_name,last_name)")
+          .eq("school_id", schoolId)
+          .in("student_id", ids)
+          .order("generated_at", { ascending: false });
+        if (!error) setItems(data || []);
+        setLoading(false);
+        return;
+      }
+
+      const { data, error } = await supabase
         .from("exam_datesheet_distributions")
         .select("id,exam_id,student_id,file_path,generated_at,exams(name,term_label),students(first_name,last_name)")
         .eq("school_id", schoolId)
+        .eq("student_id", targetStudentId)
         .order("generated_at", { ascending: false });
       if (!error) setItems(data || []);
       setLoading(false);
     })();
-  }, [schoolId]);
+  }, [schoolId, studentId]);
 
   const download = async (path: string, name: string) => {
     const { data, error } = await (supabase as any).storage.from("exam-datesheets").createSignedUrl(path, 300);

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -80,6 +81,9 @@ const academicYearLabel = () => {
 };
 
 export default function ReportCardModule({ schoolId, canManage: canManageProp = false, studentIdLocked }: Props) {
+  const [searchParams] = useSearchParams();
+  const viewCardParam = searchParams.get("view_card");
+
   const [exams, setExams] = useState<Exam[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
@@ -175,7 +179,18 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
     })();
   }, [schoolId]);
 
-  useEffect(() => { if (studentIdLocked) setStudentId(studentIdLocked); }, [studentIdLocked]);
+  useEffect(() => {
+    if (studentIdLocked) {
+      setStudentId(studentIdLocked);
+      setViewingCardId(null);
+    }
+  }, [studentIdLocked]);
+
+  useEffect(() => {
+    if (viewCardParam) {
+      setViewingCardId(viewCardParam);
+    }
+  }, [viewCardParam]);
 
   // Load list of published cards for parent/student
   useEffect(() => {
@@ -576,21 +591,56 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
     if (!schoolId || studentIds.length === 0) return;
     const title = published ? "New report card published" : "Report card unpublished";
     const body = `${periodTitle} — ${published ? "now available on your dashboard" : "temporarily withdrawn"}.`;
+    
     // Resolve recipients: student profile_id + guardians
     const [{ data: studs }, { data: guards }] = await Promise.all([
       (supabase as any).from("students").select("id,profile_id").in("id", studentIds),
       (supabase as any).from("student_guardians").select("student_id,user_id").in("student_id", studentIds),
     ]);
-    const recipients = new Set<string>();
-    (studs || []).forEach((s: any) => { if (s.profile_id) recipients.add(s.profile_id); });
-    (guards || []).forEach((g: any) => { if (g.user_id) recipients.add(g.user_id); });
-    if (recipients.size === 0) return;
-    const rows = Array.from(recipients).map((uid) => ({
-      school_id: schoolId, user_id: uid,
-      type: published ? "report_card_published" : "report_card_unpublished",
-      title, body, entity_type: "report_card", entity_id: null,
-    }));
-    await (supabase as any).from("app_notifications").insert(rows);
+
+    // Query card IDs to set as entity_id
+    let cardsQuery = (supabase as any)
+      .from("report_cards")
+      .select("id,student_id")
+      .eq("school_id", schoolId)
+      .eq("period_type", periodType)
+      .in("student_id", studentIds);
+    if (periodType === "exam") {
+      cardsQuery = cardsQuery.eq("exam_id", examId);
+    } else {
+      cardsQuery = cardsQuery.eq("period_label", currentPeriodLabel);
+    }
+    const { data: cards } = await cardsQuery;
+    const studentCardMap = new Map<string, string>();
+    (cards || []).forEach((c: any) => {
+      studentCardMap.set(c.student_id, c.id);
+    });
+
+    const notifRows: any[] = [];
+    (studs || []).forEach((s: any) => {
+      if (s.profile_id) {
+        const rcId = studentCardMap.get(s.id) || null;
+        notifRows.push({
+          school_id: schoolId, user_id: s.profile_id,
+          type: published ? "report_card_published" : "report_card_unpublished",
+          title, body, entity_type: "report_card", entity_id: rcId,
+        });
+      }
+    });
+    (guards || []).forEach((g: any) => {
+      if (g.user_id) {
+        const rcId = studentCardMap.get(g.student_id) || null;
+        notifRows.push({
+          school_id: schoolId, user_id: g.user_id,
+          type: published ? "report_card_published" : "report_card_unpublished",
+          title, body, entity_type: "report_card", entity_id: rcId,
+        });
+      }
+    });
+
+    if (notifRows.length > 0) {
+      await (supabase as any).from("app_notifications").insert(notifRows);
+    }
   };
 
   const publishIndividual = async (publish: boolean) => {

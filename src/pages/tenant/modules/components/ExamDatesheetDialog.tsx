@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/hooks/useSession";
 import { Button } from "@/components/ui/button";
@@ -41,6 +42,7 @@ interface Row {
 }
 
 export default function ExamDatesheetDialog({ open, onOpenChange, schoolId, examId, examName, canManage }: Props) {
+  const { schoolSlug } = useParams<{ schoolSlug: string }>();
   const { user } = useSession();
   const [rows, setRows] = useState<Row[]>([]);
   const [subjects, setSubjects] = useState<{ id: string; name: string }[]>([]);
@@ -201,7 +203,8 @@ export default function ExamDatesheetDialog({ open, onOpenChange, schoolId, exam
         if (studentRows.length === 0) continue;
         const secLabel = lookups.sections.get(en.class_section_id);
         const studentLabel = `${en.students.first_name} ${en.students.last_name}`;
-        const hallTicketUrl = `${window.location.origin}/student/exams/${examId}/hall-ticket/${en.student_id}`;
+        const slug = schoolSlug || schoolId;
+        const hallTicketUrl = `${window.location.origin}/${slug}/verify-ticket/${examId}/${en.student_id}`;
         try {
           const doc = await buildDatesheetPDF(studentRows, {
             schoolName, examName, sectionLabel: secLabel,
@@ -258,7 +261,7 @@ export default function ExamDatesheetDialog({ open, onOpenChange, schoolId, exam
   const loadSchedules = async () => {
     const { data } = await (supabase as any)
       .from("exam_datesheet_distributions")
-      .select("id,student_id,notify_at,notified_at,class_section_id")
+      .select("id,student_id,notify_at,notified_at,class_section_id,students(first_name,last_name)")
       .eq("exam_id", examId)
       .order("notify_at", { ascending: true });
     setSchedules(data || []);
@@ -442,7 +445,10 @@ export default function ExamDatesheetDialog({ open, onOpenChange, schoolId, exam
                       const sent = !!s.notified_at;
                       return (
                         <TableRow key={s.id}>
-                          <TableCell className="text-xs">{lookups.sections.get(s.class_section_id) || "—"}</TableCell>
+                          <TableCell className="text-xs">
+                            <span className="font-semibold text-slate-800">{lookups.sections.get(s.class_section_id) || "—"}</span>
+                            {s.students && <span className="block text-[10px] text-slate-400">{s.students.first_name} {s.students.last_name || ""}</span>}
+                          </TableCell>
                           <TableCell className="text-xs">
                             {sent ? `Sent ${format(new Date(s.notified_at), "PPp")}`
                               : pending ? `Scheduled ${format(new Date(s.notify_at), "PPp")}`

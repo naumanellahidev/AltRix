@@ -144,7 +144,11 @@ function createBuilderProxy(builder: any, table: string, context: any = {}) {
                   return onfulfilled(result);
                 }
                 
-                showSuccessToast(table, context.action);
+                if (typeof window !== "undefined" && 
+                    (window.location.pathname.startsWith('/super_admin') || 
+                     window.location.pathname.startsWith('/platform'))) {
+                  showSuccessToast(table, context.action);
+                }
                 return onfulfilled(result);
               },
               (err: any) => {

@@ -327,7 +327,7 @@ const ParentDashboard = () => {
             <Route path="notices" element={<NoticesModule schoolId={schoolId} canManage={false} />} />
             <Route path="holidays" element={<HolidaysModule schoolId={schoolId} canManage={false} />} />
             <Route path="diary" element={<DiaryModule schoolId={schoolId} canManage={false} />} />
-            <Route path="exams" element={<ExamsModule schoolId={schoolId} canManage={false} />} />
+            <Route path="exams" element={<ExamsModule schoolId={schoolId} canManage={false} studentId={selectedChild?.student_id ?? null} />} />
             <Route path="report-card" element={<ReportCardModule schoolId={schoolId} canManage={false} studentIdLocked={selectedChild?.student_id ?? null} />} />
             <Route path="complaints" element={<ParentComplaintsModule child={selectedChild} schoolId={schoolId} />} />
             <Route path="certificates" element={<ParentCertificatesModule child={selectedChild} schoolId={schoolId} />} />

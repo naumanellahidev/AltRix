@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
+import { useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
@@ -30,6 +31,7 @@ const DEFAULT_RULES = `1. Candidates must report to the examination room at leas
 export default function AdmitCardPrinter({
   open, onOpenChange, schoolId, examId, examName, sections, subjects
 }: Props) {
+  const { schoolSlug } = useParams<{ schoolSlug: string }>();
   const [secId, setSecId] = useState("");
   const [rulesText, setRulesText] = useState(DEFAULT_RULES);
   const [printing, setPrinting] = useState(false);
@@ -169,7 +171,8 @@ export default function AdmitCardPrinter({
 
         // Render QR Code pointing to public verification page
         try {
-          const verifyUrl = `${window.location.origin}/${schoolId}/verify-ticket/${examId}/${student.id}`;
+          const slug = schoolSlug || schoolId;
+          const verifyUrl = `${window.location.origin}/${slug}/verify-ticket/${examId}/${student.id}`;
           const qrDataUrl = await QRCode.toDataURL(verifyUrl, { width: 150, margin: 0 });
           doc.addImage(qrDataUrl, "PNG", pageW - 52, 50, 24, 24);
           doc.setFontSize(7);

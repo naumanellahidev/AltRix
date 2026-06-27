@@ -53,9 +53,10 @@ interface ExamSubject {
 interface Props { 
   schoolId: string | null; 
   canManage?: boolean; 
+  studentId?: string | null;
 }
 
-export default function ExamsModule({ schoolId, canManage: canManageProp = false }: Props) {
+export default function ExamsModule({ schoolId, canManage: canManageProp = false, studentId }: Props) {
   const { user } = useSession();
   const [items, setItems] = useState<Exam[]>([]);
   const [open, setOpen] = useState(false);
@@ -198,7 +199,7 @@ export default function ExamsModule({ schoolId, canManage: canManageProp = false
   return (
     <div className="space-y-6">
       {/* Non-manage/Parent View fallback */}
-      {!canManageProp && schoolId && <ParentDatesheetsCard schoolId={schoolId} />}
+      {!canManageProp && schoolId && <ParentDatesheetsCard schoolId={schoolId} studentId={studentId} />}
 
       {canManageProp && (
         <Tabs defaultValue={isAdmin ? "exams" : "invigilations"} className="space-y-4">
@@ -401,7 +402,6 @@ export default function ExamsModule({ schoolId, canManage: canManageProp = false
                     <Table>
                       <TableHeader className="bg-slate-50/40">
                         <TableRow>
-                          <TableRow className="border-slate-100" />
                           <TableHead className="text-xs font-semibold text-slate-700">Date</TableHead>
                           <TableHead className="text-xs font-semibold text-slate-700">Time</TableHead>
                           <TableHead className="text-xs font-semibold text-slate-700">Subject</TableHead>
@@ -424,11 +424,14 @@ export default function ExamsModule({ schoolId, canManage: canManageProp = false
                               <TableCell className="text-xs font-semibold text-slate-805">
                                 {row.subject_id ? subjectMap.get(row.subject_id) || "—" : "—"}
                               </TableCell>
-                              <TableCell className="text-xs font-medium text-slate-500">
+                              <TableCell className="text-xs font-medium text-slate-600">
                                 {row.class_section_id ? sectionMap.get(row.class_section_id) || "—" : "—"}
                               </TableCell>
-                              <TableCell className="text-xs font-bold text-blue-600 text-center">
-                                {row.room || "Main Exam Hall"}
+                              <TableCell className="text-xs text-center">
+                                <span className="inline-flex items-center gap-1.5 bg-blue-50 text-blue-700 px-3 py-1.5 rounded-xl border border-blue-100 font-bold">
+                                  <MapPin className="h-3.5 w-3.5 text-blue-500" />
+                                  {row.room || "Main Hall"}
+                                </span>
                               </TableCell>
                             </TableRow>
                           ))

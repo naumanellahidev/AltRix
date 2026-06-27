@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { ShieldCheck, Calendar, MapPin, User, FileText, Loader2, BookOpen } from "lucide-react";
+import { ShieldCheck, Calendar, MapPin, User, FileText, Loader2, BookOpen, AlertTriangle } from "lucide-react";
 import { format } from "date-fns";
 
 export default function PublicHallTicketVerification() {
@@ -14,69 +14,41 @@ export default function PublicHallTicketVerification() {
   const [school, setSchool] = useState<any>(null);
   const [exam, setExam] = useState<any>(null);
   const [papers, setPapers] = useState<any[]>([]);
-  const [subjects, setSubjects] = useState<any[]>([]);
-  const [sections, setSections] = useState<any[]>([]);
   const [rules, setRules] = useState<string[]>([]);
+  const [errorMsg, setErrorMsg] = useState<string>("");
 
   useEffect(() => {
     const fetchData = async () => {
-      if (!schoolSlug || !examId || !studentId) return;
+      if (!examId || !studentId) return;
       setLoading(true);
       try {
-        // 1. Resolve student info
-        const { data: stud } = await supabase
-          .from("students")
-          .select("*")
-          .eq("id", studentId)
-          .maybeSingle();
-        setStudent(stud);
+        // Query the public RPC verify function that bypasses RLS securely
+        const { data, error } = await supabase.rpc("verify_exam_hall_ticket", {
+          _exam_id: examId,
+          _student_id: studentId
+        });
 
-        // 2. Resolve school / tenant
-        const { data: sch } = await supabase
-          .from("schools")
-          .select("*")
-          .eq("id", schoolSlug) // The QR code puts schoolId here
-          .maybeSingle();
-        setSchool(sch);
-
-        // 3. Resolve exam cycle
-        const { data: ex } = await supabase
-          .from("exams")
-          .select("*")
-          .eq("id", examId)
-          .maybeSingle();
-        setExam(ex);
-
-        // 4. Resolve static subjects and sections
-        const [subs, secs, examPapers] = await Promise.all([
-          supabase.from("subjects").select("id, name"),
-          supabase.from("class_sections").select("id, name, academic_classes(name)"),
-          supabase.from("exam_subjects").select("*").eq("exam_id", examId)
-        ]);
-
-        setSubjects(subs.data || []);
-        setSections(secs.data || []);
-
-        // Filter papers specifically for the student's class section
-        if (stud) {
-          const { data: enroll } = await supabase
-            .from("student_enrollments")
-            .select("class_section_id")
-            .eq("student_id", studentId)
-            .is("end_date", null)
-            .maybeSingle();
-          
-          if (enroll) {
-            const studentPapers = (examPapers.data || []).filter(
-              p => p.class_section_id === enroll.class_section_id
-            );
-            setPapers(studentPapers.sort(
-              (a, b) => (a.exam_date || "").localeCompare(b.exam_date || "") || (a.start_time || "").localeCompare(b.start_time || "")
-            ));
-          }
+        if (error) {
+          console.error("Verification error:", error);
+          setErrorMsg(error.message);
+          return;
         }
 
-        // Load rules
+        if (!data || !data.success) {
+          setErrorMsg(data?.message || "Invalid or unverified record details.");
+          return;
+        }
+
+        setStudent(data.student);
+        setSchool(data.school);
+        setExam(data.exam);
+        
+        const sortedPapers = (data.papers || []).sort((a: any, b: any) => {
+          return (a.exam_date || "").localeCompare(b.exam_date || "") || (a.start_time || "").localeCompare(b.start_time || "");
+        });
+        setPapers(sortedPapers);
+
+        // Load custom saved rules from localStorage if they exist (key format matches what AdmitCardPrinter uses)
         const savedRules = localStorage.getItem(`exam_rules_${examId}`);
         if (savedRules) {
           setRules(savedRules.split("\n").map(r => r.trim()).filter(Boolean));
@@ -89,38 +61,42 @@ export default function PublicHallTicketVerification() {
             "5. Invigilator's instructions must be adhered to at all times."
           ]);
         }
-      } catch (e) {
+      } catch (e: any) {
         console.error(e);
+        setErrorMsg(e.message || "Failed to establish a database connection.");
       } finally {
         setLoading(false);
       }
     };
 
     fetchData();
-  }, [schoolSlug, examId, studentId]);
+  }, [examId, studentId]);
 
-  const subjectMap = useMemo(() => new Map(subjects.map(s => [s.id, s.name])), [subjects]);
-  const sectionMap = useMemo(() => new Map(sections.map(s => [s.id, `${s.academic_classes?.name || ""} • ${s.name}`])), [sections]);
+  const sectionLabel = useMemo(() => {
+    if (papers.length === 0) return "Enrolled Section";
+    const first = papers[0];
+    return first.class_name ? `${first.class_name} — ${first.section_name}` : first.section_name;
+  }, [papers]);
 
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center flex-col gap-2">
-        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+        <Loader2 className="h-8 w-8 animate-spin text-blue-655" />
         <p className="text-xs font-semibold text-slate-500">Verifying hall ticket credentials...</p>
       </div>
     );
   }
 
-  if (!student || !exam) {
+  if (errorMsg || !student || !exam) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
         <Card className="max-w-md w-full border-slate-100 shadow-elevated rounded-2xl bg-white text-center p-8">
           <div className="h-12 w-12 rounded-full bg-rose-50 text-rose-500 flex items-center justify-center mx-auto mb-4">
-            <ShieldCheck className="h-6 w-6" />
+            <AlertTriangle className="h-6 w-6" />
           </div>
           <h2 className="font-display text-lg font-black text-slate-800">Verification Failed</h2>
           <p className="text-xs text-slate-455 mt-2">
-            The scanned QR code is either invalid or refers to a student record that does not exist in our database.
+            {errorMsg || "The scanned QR code is either invalid or refers to a student record that does not exist in our database."}
           </p>
         </Card>
       </div>
@@ -137,9 +113,9 @@ export default function PublicHallTicketVerification() {
           </div>
           <div>
             <Badge className="bg-emerald-100 text-emerald-800 border border-emerald-200 text-[10px] uppercase font-black px-2 py-0.5 rounded-full">
-              Genuine Document
+              Verified Hall Ticket
             </Badge>
-            <h2 className="font-display text-base font-bold text-slate-800 mt-1">Verified Examination Admit Card</h2>
+            <h2 className="font-display text-base font-bold text-slate-805 mt-1">Verified Examination Admit Card</h2>
           </div>
         </div>
 
@@ -159,9 +135,7 @@ export default function PublicHallTicketVerification() {
               </h3>
               <div className="flex flex-wrap gap-2 justify-center sm:justify-start text-xs font-semibold text-slate-550">
                 <span className="bg-slate-100 px-2 py-0.5 rounded-md">Roll No: {student.student_code || "—"}</span>
-                <span className="bg-slate-100 px-2 py-0.5 rounded-md">
-                  {sectionMap.get(papers[0]?.class_section_id) || "Enrolled Section"}
-                </span>
+                <span className="bg-slate-100 px-2 py-0.5 rounded-md">{sectionLabel}</span>
               </div>
             </div>
           </div>
@@ -206,9 +180,9 @@ export default function PublicHallTicketVerification() {
                           {p.start_time ? p.start_time.slice(0, 5) : "—"} ({p.duration_minutes}m)
                         </TableCell>
                         <TableCell className="text-xs font-bold text-slate-805">
-                          {p.subject_id ? subjectMap.get(p.subject_id) || "—" : "—"}
+                          {p.subject_name || "—"}
                         </TableCell>
-                        <TableCell className="text-xs font-bold text-blue-600 text-center">
+                        <TableCell className="text-xs font-bold text-blue-655 text-center">
                           {p.room || "—"}
                         </TableCell>
                       </TableRow>
