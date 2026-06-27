@@ -104,6 +104,8 @@ import {
   HeartHandshake,
   ShieldAlert,
   ScrollText,
+  Award,
+  Heart,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -200,9 +202,11 @@ export function ParentShell({
     { to: `${basePath}/grades`, icon: GraduationCap, label: "Grades", badge: 0 },
     { to: `${basePath}/assignments`, icon: ScrollText, label: "Assignments", badge: 0 },
     { to: `${basePath}/report-card`, icon: FileText, label: "Report Card", badge: 0 },
+    { to: `${basePath}/certificates`, icon: Award, label: "Certificates", badge: 0 },
     { to: `${basePath}/exams`, icon: GraduationCap, label: "Exams", badge: 0 },
     { to: `${basePath}/diary`, icon: NotebookPen, label: "Diary", badge: 0 },
     { to: `${basePath}/behavior`, icon: HeartHandshake, label: "Behavior Notes", badge: 0 },
+    { to: `${basePath}/counseling`, icon: Heart, label: "Counseling", badge: 0 },
     { to: `${basePath}/notices`, icon: Megaphone, label: "Notices", badge: 0 },
     { to: `${basePath}/holidays`, icon: PartyPopper, label: "Holidays", badge: 0 },
     { to: `${basePath}/fees`, icon: Receipt, label: "Fees", badge: 0 },

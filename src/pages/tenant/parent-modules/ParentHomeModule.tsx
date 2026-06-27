@@ -30,6 +30,8 @@ import {
   Pin,
   Clock,
   ChevronRight,
+  Award,
+  Heart,
 } from "lucide-react";
 
 interface ParentHomeModuleProps {
@@ -231,6 +233,8 @@ const ParentHomeModule = ({ child, schoolId }: ParentHomeModuleProps) => {
     { label: "Diary", icon: BookOpen, to: "diary", bg: "bg-blue-50/50 hover:bg-blue-50 text-blue-600" },
     { label: "Timetable", icon: Calendar, to: "timetable", bg: "bg-blue-50/50 hover:bg-blue-50 text-blue-600" },
     { label: "Support", icon: HeartHandshake, to: "support", bg: "bg-blue-50/50 hover:bg-blue-50 text-blue-600" },
+    { label: "Certificates", icon: Award, to: "certificates", bg: "bg-blue-50/50 hover:bg-blue-50 text-blue-600" },
+    { label: "Counseling", icon: Heart, to: "counseling", bg: "bg-blue-50/50 hover:bg-blue-50 text-blue-600" },
   ];
 
   const formattedDate = new Date().toLocaleDateString("en-US", {
