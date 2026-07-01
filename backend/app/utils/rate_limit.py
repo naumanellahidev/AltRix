@@ -53,11 +53,13 @@ def rate_limit_password_reset(request: Request, response: Response):
 
 # ─── Custom Error Handler ──────────────────────────────────────────────────────
 
-async def rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded) -> Response:
+async def rate_limit_exceeded_handler(request: Request, exc: Exception) -> Response:
     """Return a structured 429 response with Retry-After header."""
     from fastapi.responses import JSONResponse
-    
-    retry_after = getattr(exc, "retry_after", 60)
+    from slowapi.errors import RateLimitExceeded as _RLE
+    _exc = exc if isinstance(exc, _RLE) else exc
+
+    retry_after = getattr(_exc, "retry_after", 60)
     
     logger.warning(
         f"Rate limit exceeded: {request.method} {request.url.path} "
@@ -74,6 +76,7 @@ async def rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded) 
         },
         headers={
             "Retry-After": str(retry_after),
-            "X-RateLimit-Limit": str(getattr(exc, "limit", "unknown")),
+            "X-RateLimit-Limit": str(getattr(_exc, "limit", "unknown")),
         },
     )
+

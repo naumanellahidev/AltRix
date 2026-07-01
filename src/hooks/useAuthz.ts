@@ -182,8 +182,8 @@ export function useAuthz({ schoolId, userId, role, requiredRoles }: AuthzOptions
           }
           return result;
         } catch (e: any) {
-          console.error("Authz check via FastAPI failed:", e);
-          return { state: "denied", message: e.message || "Failed to retrieve authorizations", isPlatformAdmin: false, isMember: false, hasRole: false };
+          console.warn("Authz check via FastAPI failed, falling back to Supabase:", e);
+          // Fall through to Supabase checks below
         }
       }
 

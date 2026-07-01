@@ -133,8 +133,7 @@ async def lifespan(app: FastAPI):
             """))
             logger.info("System settings database table initialized successfully")
     except Exception as e:
-        logger.critical(f"Database initialization: FAILED — {e}")
-        raise RuntimeError(f"Database connection/initialization failed: {e}") from e
+        logger.critical(f"Database initialization: FAILED (continuing startup for health endpoint) — {e}")
 
     # 2. Verify Database Schema (Migrations check)
     try:
@@ -156,7 +155,7 @@ async def lifespan(app: FastAPI):
     try:
         from app.cache import init_redis
         redis_conn = await init_redis()
-        if redis_conn:
+        if redis_conn is not None:
             await redis_conn.ping()
             logger.info("Redis connection ping: SUCCESS")
         else:
@@ -189,7 +188,11 @@ async def lifespan(app: FastAPI):
         await close_redis()
     except Exception:
         pass
-    await engine.dispose()
+    try:
+        from app.database import engine as _engine
+        await _engine.dispose()
+    except Exception:
+        pass
     logger.info("AltRix API shutdown complete")
 
 
@@ -248,7 +251,12 @@ app.state.limiter = limiter
 # 1. CORS (outermost)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_origins,
+    allow_origins=settings.cors_origins + [
+        "https://alt-rix.vercel.app",
+        "https://altrix.vercel.app",
+        "https://altrix.up.railway.app",
+    ],
+    allow_origin_regex=r"https://.*\.vercel\.app|https://.*\.railway\.app|http://localhost:.*|http://127\.0\.0\.1:.*",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
