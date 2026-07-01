@@ -280,7 +280,7 @@ const [voiceOpen, setVoiceOpen] = useState(false);
     <>
       <div className="flex items-center justify-between">
         <div className="min-w-0">
-          <p className="font-display text-lg font-semibold tracking-tight bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+          <p className="font-display text-lg font-semibold tracking-tight bg-gradient-to-r from-brand to-brand/60 bg-clip-text text-transparent">
             AltRix
           </p>
           <p className="text-[11px] text-muted-foreground truncate">
@@ -494,9 +494,9 @@ const [voiceOpen, setVoiceOpen] = useState(false);
             </SheetContent>
           </Sheet>
           <div className="min-w-0">
-            <p className="font-display text-base font-semibold tracking-tight truncate text-primary opacity-80">{title}</p>
+            <p className="font-display text-base font-semibold tracking-tight truncate text-brand opacity-80">{title}</p>
             {user?.email && (
-              <p className="text-[11px] text-primary opacity-80 truncate">
+              <p className="text-[11px] text-brand opacity-80 truncate">
                 You are signed in as {user.email}
               </p>
             )}
@@ -546,9 +546,9 @@ const [voiceOpen, setVoiceOpen] = useState(false);
           <header className="mb-4 hidden lg:mb-6 lg:block">
             <div className="flex items-center justify-between">
               <div className="min-w-0">
-                <h1 className="font-display text-2xl font-semibold tracking-tight text-primary opacity-80">{title}</h1>
+                <h1 className="font-display text-2xl font-semibold tracking-tight text-brand opacity-80">{title}</h1>
                 {user?.email && (
-                  <p className="mt-1 text-sm text-primary opacity-80">
+                  <p className="mt-1 text-sm text-brand opacity-80">
                     You are signed in as {user.email}
                   </p>
                 )}
