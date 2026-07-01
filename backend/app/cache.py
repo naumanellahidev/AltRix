@@ -23,7 +23,7 @@ TTL_CAMPUS_SWITCH = 600      # 10 minutes
 TTL_SCHOOL_INFO = 1800       # 30 minutes
 
 
-async def init_redis() -> aioredis.Redis:
+async def init_redis() -> Optional[aioredis.Redis]:
     """Initialize and return the Redis connection pool."""
     global _redis_pool
     if _redis_pool is None:
@@ -170,7 +170,8 @@ class CacheManager:
             await pipe.incr(key)
             await pipe.expire(key, ttl)
             results = await pipe.execute()
-            return results[0]
+            val = results[0] if results else 0
+            return int(val) if val is not None else 0
         except Exception as e:
             self.errors += 1
             logger.warning(f"Cache INCR error for '{key}': {e}")
@@ -234,4 +235,35 @@ class CacheManager:
 
 # ─── Cache Singleton ──────────────────────────────────────────────────────────
 cache = CacheManager()
+
+
+# ─── Cache Key Builders (Legacy / Compatibility layer) ───────────────────────
+
+def cache_key_permissions(user_id: str, school_id: str) -> str:
+    return cache.build_key(school_id=school_id, base_key="permissions", user_id=user_id)
+
+
+def cache_key_roles(user_id: str) -> str:
+    return cache.build_key(school_id="global", base_key=f"roles:{user_id}")
+
+
+def cache_key_dashboard(school_id: str) -> str:
+    return cache.build_key(school_id=school_id, base_key="dashboard")
+
+
+def cache_key_notifications(user_id: str, school_id: str) -> str:
+    return cache.build_key(school_id=school_id, base_key="notifications", user_id=user_id)
+
+
+def cache_key_parent_children(parent_user_id: str, school_id: str) -> str:
+    return cache.build_key(school_id=school_id, base_key="parent_children", user_id=parent_user_id)
+
+
+def cache_key_campus_switch(user_id: str) -> str:
+    return cache.build_key(school_id="global", base_key=f"campus_data:{user_id}")
+
+
+def cache_key_school_info(school_id: str) -> str:
+    return cache.build_key(school_id=school_id, base_key="school")
+
 

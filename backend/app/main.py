@@ -330,10 +330,10 @@ async def health_ready():
 )
 async def system_status():
     from app.utils.health import build_health_response, get_uptime_seconds
-    from app.cache import CacheService
+    from app.cache import cache
     result = await build_health_response(include_deps=True)
     result["uptime_seconds"] = round(get_uptime_seconds(), 1)
-    result["cache_health"] = await CacheService.health_check()
+    result["cache_health"] = await cache.health_check()
     return result
 
 

@@ -3,4 +3,4 @@ python_interpreter = ".venv/Scripts/python.exe"
 project_root = "."
 
 [pyrefly.ignore]
-missing_imports = ["sentry_sdk", "sentry_sdk.integrations.*", "slowapi", "slowapi.*", "celery", "celery.*", "pywebpush", "pywebpush.*"]
+missing_imports = ["sentry_sdk", "sentry_sdk.integrations.*", "slowapi", "slowapi.*", "celery", "celery.*", "pywebpush", "pywebpush.*", "jose", "jose.*", "reportlab", "reportlab.*"]

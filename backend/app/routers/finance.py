@@ -94,7 +94,7 @@ async def delete_structure(structure_id: UUID, current_user: CurrentUser, db: Db
     s = result.scalar_one_or_none()
     if not s:
         raise NotFoundError("Fee structure", str(structure_id))
-    s.is_active = False
+    s.is_active = False  # type: ignore[assignment]
     return MessageResponse(message="Fee structure deactivated")
 
 
@@ -122,9 +122,9 @@ async def list_vouchers(
     if status_filter:
         query = query.where(FeeVoucher.status == status_filter)
     if month:
-        query = query.where(FeeVoucher.month == month)
+        query = query.where(FeeVoucher.period_label == month)  # type: ignore[arg-type]
     if academic_year:
-        query = query.where(FeeVoucher.academic_year == academic_year)
+        query = query.where(FeeVoucher.period_label.like(f"%{academic_year}%"))  # type: ignore[union-attr]
 
     count_result = await db.execute(select(func.count()).select_from(query.subquery()))
     total = count_result.scalar() or 0
@@ -134,7 +134,7 @@ async def list_vouchers(
         query.order_by(FeeVoucher.created_at.desc()).offset(offset).limit(page_size)
     )
     vouchers = result.scalars().all()
-    return PaginatedResponse.create(vouchers, total, page, page_size)
+    return PaginatedResponse.create(list(vouchers), total, page, page_size)
 
 
 @router.post("/vouchers", response_model=FeeVoucherOut, status_code=status.HTTP_201_CREATED)
@@ -209,7 +209,7 @@ async def cancel_voucher(voucher_id: UUID, current_user: CurrentUser, db: DbSess
     voucher = result.scalar_one_or_none()
     if not voucher:
         raise NotFoundError("Voucher", str(voucher_id))
-    voucher.status = "cancelled"
+    voucher.status = "cancelled"  # type: ignore[assignment]
     await db.flush()
     await db.refresh(voucher)
     try:
@@ -242,9 +242,9 @@ async def list_payments(
     if student_id:
         query = query.where(FeePayment.student_id == student_id)
     if from_date:
-        query = query.where(FeePayment.payment_date >= from_date)
+        query = query.where(FeePayment.paid_at >= from_date)  # type: ignore[arg-type]
     if to_date:
-        query = query.where(FeePayment.payment_date <= to_date)
+        query = query.where(FeePayment.paid_at <= to_date)  # type: ignore[arg-type]
 
     count_result = await db.execute(select(func.count()).select_from(query.subquery()))
     total = count_result.scalar() or 0
@@ -254,7 +254,7 @@ async def list_payments(
         query.order_by(FeePayment.created_at.desc()).offset(offset).limit(page_size)
     )
     payments = result.scalars().all()
-    return PaginatedResponse.create(payments, total, page, page_size)
+    return PaginatedResponse.create(list(payments), total, page, page_size)
 
 
 @router.post("/payments", response_model=FeePaymentOut, status_code=status.HTTP_201_CREATED)
@@ -282,7 +282,7 @@ async def record_payment(body: FeePaymentCreate, current_user: CurrentUser, db: 
         v_result = await db.execute(select(FeeVoucher).where(FeeVoucher.id == body.voucher_id))
         voucher = v_result.scalar_one_or_none()
         if voucher:
-            voucher.status = "paid"
+            voucher.status = "paid"  # type: ignore[assignment]
 
     await db.flush()
     await db.refresh(payment)
@@ -327,6 +327,15 @@ async def finance_summary(
         params,
     )
     row = result.fetchone()
+    if not row:
+        return {
+            "total_vouchers": 0,
+            "collected": 0.0,
+            "pending": 0.0,
+            "overdue": 0.0,
+            "total_billed": 0.0,
+            "collection_rate": 0,
+        }
     return {
         "total_vouchers": row[0],
         "collected": float(row[1]),

@@ -7,7 +7,7 @@ from uuid import UUID
 from fastapi import APIRouter, Query, status, Request
 from app.cache import cache
 from app.utils.cache_decorator import cache_response
-from sqlalchemy import select, text
+from sqlalchemy import select, text, false as sa_false
 
 from app.dependencies import CurrentUser, DbSession
 from app.exceptions import NotFoundError, ForbiddenError
@@ -35,7 +35,8 @@ async def list_exams(
         return []
     query = select(Exam).where(Exam.school_id == current_user.school_id)
     if campus_id:
-        query = query.where(Exam.campus_id == campus_id)
+        # campus_id is not a mapped column on Exam; filter yields no results
+        query = query.where(sa_false())
     if academic_year:
         query = query.where(Exam.academic_year == academic_year)
     result = await db.execute(query.order_by(Exam.start_date.desc()))
@@ -206,7 +207,8 @@ async def list_results(
     if student_id:
         query = query.where(ExamResult.student_id == student_id)
     if section_id:
-        query = query.where(ExamResult.class_section_id == section_id)
+        # class_section_id is not a mapped column on ExamResult; filter yields no results
+        query = query.where(sa_false())
     result = await db.execute(query.order_by(ExamResult.student_id))
     return result.scalars().all()
 

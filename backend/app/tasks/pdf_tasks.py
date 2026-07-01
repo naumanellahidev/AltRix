@@ -5,7 +5,7 @@ Generates report cards, fee invoices, and ID cards.
 import logging
 import os
 import uuid
-from typing import Optional
+from typing import Any, Optional
 
 from app.celery_app import celery_app
 from app.cache import cache
@@ -89,7 +89,7 @@ def generate_report_card_pdf(
 
         styles = getSampleStyleSheet()
         doc = SimpleDocTemplate(filename, pagesize=A4)
-        elements = []
+        elements: list[Any] = []
 
         # Header
         elements.append(Paragraph("STUDENT REPORT CARD", styles["Title"]))
@@ -101,13 +101,13 @@ def generate_report_card_pdf(
         elements.append(Spacer(1, 12))
 
         # Results table
-        data = [["Subject", "Marks Obtained", "Max Marks", "Grade"]]
+        data: list[list[Any]] = [["Subject", "Marks Obtained", "Max Marks", "Grade"]]
         for r in results:
             data.append([
                 str(r.subject_id or "-"),
                 str(r.marks_obtained or 0),
                 str(r.max_marks or 100),
-                r.grade or "-",
+                str(r.grade or "-"),
             ])
 
         if len(data) > 1:
@@ -197,7 +197,7 @@ def generate_fee_invoice_pdf(
         filename = output_path or os.path.join(PDF_OUTPUT_DIR, f"invoice_{voucher_id}.pdf")
         styles = getSampleStyleSheet()
         doc = SimpleDocTemplate(filename, pagesize=A4)
-        elements = []
+        elements: list[Any] = []
 
         elements.append(Paragraph("FEE INVOICE", styles["Title"]))
         elements.append(Spacer(1, 12))
@@ -290,7 +290,7 @@ def generate_id_card_pdf(
         filename = output_path or os.path.join(PDF_OUTPUT_DIR, f"id_card_{student_id}.pdf")
         styles = getSampleStyleSheet()
         doc = SimpleDocTemplate(filename, pagesize=A6)
-        elements = []
+        elements: list[Any] = []
 
         school_name = school.name if school else "AltRix School"
         elements.append(Paragraph(school_name.upper(), styles["Title"]))

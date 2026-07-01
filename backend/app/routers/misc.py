@@ -60,7 +60,7 @@ async def list_complaints(
     total = count_result.scalar() or 0
     offset = (page - 1) * page_size
     result = await db.execute(query.order_by(Complaint.created_at.desc()).offset(offset).limit(page_size))
-    return PaginatedResponse.create(result.scalars().all(), total, page, page_size)
+    return PaginatedResponse.create(list(result.scalars().all()), total, page, page_size)
 
 
 @complaints_router.post("", response_model=ComplaintOut, status_code=status.HTTP_201_CREATED)
@@ -90,11 +90,11 @@ async def update_complaint_status(
     complaint = result.scalar_one_or_none()
     if not complaint:
         raise NotFoundError("Complaint", str(complaint_id))
-    complaint.status = body.status
-    complaint.resolution_note = body.resolution_note
+    complaint.status = body.status  # type: ignore[assignment]
+    complaint.resolution_note = body.resolution_note  # type: ignore[assignment]
     if body.status == "resolved":
-        complaint.resolved_by = current_user.id
-        complaint.resolved_at = datetime.now(timezone.utc)
+        complaint.resolved_by = current_user.id  # type: ignore[assignment]
+        complaint.resolved_at = datetime.now(timezone.utc)  # type: ignore[assignment]
     await db.flush()
     await db.refresh(complaint)
     return complaint
@@ -172,11 +172,11 @@ async def grade_submission(
     sub = result.scalar_one_or_none()
     if not sub:
         raise NotFoundError("Submission", str(submission_id))
-    sub.marks_obtained = marks
-    sub.feedback = feedback
-    sub.graded_by = current_user.id
-    sub.graded_at = datetime.now(timezone.utc)
-    sub.status = "graded"
+    sub.marks_obtained = marks  # type: ignore[assignment]
+    sub.feedback = feedback  # type: ignore[assignment]
+    sub.graded_by = current_user.id  # type: ignore[assignment]
+    sub.graded_at = datetime.now(timezone.utc)  # type: ignore[assignment]
+    sub.status = "graded"  # type: ignore[assignment]
     await db.flush()
     await db.refresh(sub)
     return sub
@@ -277,8 +277,8 @@ async def review_leave(
     leave = result.scalar_one_or_none()
     if not leave:
         raise NotFoundError("Leave request", str(request_id))
-    leave.status = "approved" if approved else "rejected"
-    leave.reviewed_by = current_user.id
+    leave.status = "approved" if approved else "rejected"  # type: ignore[assignment]
+    leave.reviewed_by = current_user.id  # type: ignore[assignment]
     leave.reviewed_at = datetime.now(timezone.utc)
     leave.notes = notes
     await db.flush()
@@ -358,7 +358,7 @@ async def mark_all_read(current_user: CurrentUser, db: DbSession):
     try:
         result = await db.execute(query)
         for n in result.scalars().all():
-            n.read_at = datetime.now(timezone.utc)
+            n.read_at = datetime.now(timezone.utc)  # type: ignore[assignment]
     except Exception as e:
         if any(err in str(e) for err in ["getaddrinfo failed", "CannotConnectNowError", "socket.gaierror", "Cannot connect", "OSError"]):
             pass
@@ -377,7 +377,7 @@ async def mark_notification_read(notification_id: UUID, current_user: CurrentUse
     )
     n = result.scalar_one_or_none()
     if n:
-        n.read_at = datetime.now(timezone.utc)
+        n.read_at = datetime.now(timezone.utc)  # type: ignore[assignment]
     return MessageResponse(message="Marked as read")
 
 
@@ -850,6 +850,21 @@ async def dashboard_kpis(current_user: CurrentUser, db: DbSession, request: Requ
             {"sid": school_id, "mtd_start": mtd_start, "mtd_date": mtd_start.date()},
         )
         row = results.fetchone()
+        if not row:
+            return {
+                "total_students": 0,
+                "total_teachers": 0,
+                "pending_admissions": 0,
+                "pending_payments": 0,
+                "collected_fees": 0.0,
+                "active_campuses": 0,
+                "total_classes": 0,
+                "total_sections": 0,
+                "total_staff": 0,
+                "total_leads": 0,
+                "open_leads": 0,
+                "mtd_expenses": 0.0,
+            }
         return {
             "total_students": row[0] or 0,
             "total_teachers": row[1] or 0,
@@ -893,7 +908,7 @@ async def finance_trend(current_user: CurrentUser, db: DbSession, request: Reque
 
     try:
         p_sql = "SELECT amount, paid_at FROM fee_payments WHERE school_id = :sid AND paid_at >= :fdate ORDER BY paid_at ASC"
-        p_res = await db.execute(text(p_sql), {"sid": str(school_id), "fdate": mtd_start})
+        p_res = await db.execute(text(p_sql), {"sid": school_id, "fdate": mtd_start})
         payments = [
             {"amount": float(r[0]) if r[0] is not None else 0.0, "paid_at": r[1].isoformat() if r[1] else ""}
             for r in p_res.fetchall()
@@ -904,7 +919,7 @@ async def finance_trend(current_user: CurrentUser, db: DbSession, request: Reque
 
     try:
         e_sql = "SELECT amount, expense_date FROM finance_expenses WHERE school_id = :sid AND expense_date >= :fdate ORDER BY expense_date ASC"
-        e_res = await db.execute(text(e_sql), {"sid": str(school_id), "fdate": mtd_start.date()})
+        e_res = await db.execute(text(e_sql), {"sid": school_id, "fdate": mtd_start.date()})
         expenses = [
             {"amount": float(r[0]) if r[0] is not None else 0.0, "expense_date": str(r[1])}
             for r in e_res.fetchall()
@@ -955,6 +970,14 @@ async def attendance_summary(
             params,
         )
         row = result.fetchone()
+        if not row:
+            return {
+                "present": 0,
+                "absent": 0,
+                "late": 0,
+                "total": 0,
+                "attendance_rate": 0,
+            }
         total = row[3] or 1
         return {
             "present": row[0] or 0,
@@ -2339,10 +2362,10 @@ __DB_CONTEXT__
         active_context_str = "**Active UI Context:**\n" + active_context_str + "\n"
 
     system_prompt = (
-        system_prompt.replace("__USER_ID__", str(current_user.id or ""))
-        .replace("__USER_EMAIL__", str(current_user.email or ""))
+        system_prompt.replace("__USER_ID__", current_user.id or "")
+        .replace("__USER_EMAIL__", current_user.email or "")
         .replace("__USER_ROLES__", roles_str)
-        .replace("__USER_SCHOOL_ID__", str(current_user.school_id or ""))
+        .replace("__USER_SCHOOL_ID__", current_user.school_id or "")
         .replace("__ACTIVE_CONTEXT__", active_context_str)
         .replace("__DB_CONTEXT__", str(db_context or ""))
     )

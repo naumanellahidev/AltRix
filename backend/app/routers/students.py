@@ -74,7 +74,7 @@ async def list_students(
     )
     students = result.scalars().all()
 
-    return PaginatedResponse.create(students, total, page, page_size)
+    return PaginatedResponse.create(list(students), total, page, page_size)
 
 
 @router.post("", response_model=StudentOut, status_code=status.HTTP_201_CREATED)
