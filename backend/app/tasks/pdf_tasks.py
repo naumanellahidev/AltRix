@@ -8,6 +8,7 @@ import uuid
 from typing import Optional
 
 from app.celery_app import celery_app
+from app.cache import cache
 
 logger = logging.getLogger("altrix.tasks.pdf")
 
@@ -63,7 +64,17 @@ def generate_report_card_pdf(
                 results = results_q.scalars().all()
                 return student, results
 
+        async def _check_cache():
+            cache_key = cache.build_key(school_id=school_id, base_key=f"pdf:report_card:{student_id}:{exam_id}")
+            return await cache.get(cache_key)
+
         loop = asyncio.new_event_loop()
+        cached_file = loop.run_until_complete(_check_cache())
+        if cached_file and os.path.exists(cached_file):
+            loop.close()
+            logger.info(f"Returning cached report card PDF for student {student_id}")
+            return {"status": "generated", "path": cached_file}
+
         student, results = loop.run_until_complete(_fetch_data())
         loop.close()
 
@@ -112,6 +123,15 @@ def generate_report_card_pdf(
             elements.append(table)
 
         doc.build(elements)
+        
+        async def _set_cache():
+            cache_key = cache.build_key(school_id=school_id, base_key=f"pdf:report_card:{student_id}:{exam_id}")
+            await cache.set(cache_key, filename, ttl=86400)
+
+        loop2 = asyncio.new_event_loop()
+        loop2.run_until_complete(_set_cache())
+        loop2.close()
+
         logger.info(f"Report card PDF generated: {filename}")
         return {"status": "generated", "path": filename}
 
@@ -156,7 +176,17 @@ def generate_fee_invoice_pdf(
                     student = s_res.scalar_one_or_none()
                 return voucher, student
 
+        async def _check_cache():
+            cache_key = cache.build_key(school_id=school_id, base_key=f"pdf:invoice:{voucher_id}")
+            return await cache.get(cache_key)
+
         loop = asyncio.new_event_loop()
+        cached_file = loop.run_until_complete(_check_cache())
+        if cached_file and os.path.exists(cached_file):
+            loop.close()
+            logger.info(f"Returning cached invoice PDF for voucher {voucher_id}")
+            return {"status": "generated", "path": cached_file}
+
         voucher, student = loop.run_until_complete(_fetch())
         loop.close()
 
@@ -189,6 +219,15 @@ def generate_fee_invoice_pdf(
         ]))
         elements.append(tbl)
         doc.build(elements)
+
+        async def _set_cache():
+            cache_key = cache.build_key(school_id=school_id, base_key=f"pdf:invoice:{voucher_id}")
+            await cache.set(cache_key, filename, ttl=86400)
+
+        loop2 = asyncio.new_event_loop()
+        loop2.run_until_complete(_set_cache())
+        loop2.close()
+
         logger.info(f"Invoice PDF generated: {filename}")
         return {"status": "generated", "path": filename}
 
@@ -230,7 +269,17 @@ def generate_id_card_pdf(
                 school = sch_res.scalar_one_or_none()
                 return student, school
 
+        async def _check_cache():
+            cache_key = cache.build_key(school_id=school_id, base_key=f"pdf:id_card:{student_id}")
+            return await cache.get(cache_key)
+
         loop = asyncio.new_event_loop()
+        cached_file = loop.run_until_complete(_check_cache())
+        if cached_file and os.path.exists(cached_file):
+            loop.close()
+            logger.info(f"Returning cached ID card PDF for student {student_id}")
+            return {"status": "generated", "path": cached_file}
+
         student, school = loop.run_until_complete(_fetch())
         loop.close()
 
@@ -262,6 +311,15 @@ def generate_id_card_pdf(
         ]))
         elements.append(tbl)
         doc.build(elements)
+
+        async def _set_cache():
+            cache_key = cache.build_key(school_id=school_id, base_key=f"pdf:id_card:{student_id}")
+            await cache.set(cache_key, filename, ttl=86400)
+
+        loop2 = asyncio.new_event_loop()
+        loop2.run_until_complete(_set_cache())
+        loop2.close()
+
         logger.info(f"ID card PDF generated: {filename}")
         return {"status": "generated", "path": filename}
 

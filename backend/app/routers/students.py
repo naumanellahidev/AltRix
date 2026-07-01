@@ -4,7 +4,9 @@ Students router: full CRUD + parent/guardian management.
 from typing import List, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Query, status, HTTPException
+from fastapi import APIRouter, Query, status, HTTPException, Request
+from app.cache import cache
+from app.utils.cache_decorator import cache_response
 from pydantic import BaseModel
 # pyrefly: ignore [missing-import]
 from sqlalchemy import func, or_, select, text
@@ -27,9 +29,11 @@ router = APIRouter(prefix="/students", tags=["Students"])
 
 
 @router.get("", response_model=PaginatedResponse[StudentOut])
+@cache_response(ttl=300, key_prefix="students:list")
 async def list_students(
     current_user: CurrentUser,
     db: DbSession,
+    request: Request,
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=10000),
     search: Optional[str] = Query(None),
@@ -110,11 +114,18 @@ async def create_student(body: StudentCreate, current_user: CurrentUser, db: DbS
             logging.getLogger("app.students").warning(f"Failed to auto-insert student_enrollments: {e}")
 
     await db.refresh(student)
+    try:
+        await cache.invalidate_pattern(f"*school_{current_user.school_id}_*students:list*")
+        await cache.invalidate_pattern(f"*school_{current_user.school_id}_*reports:dashboard*")
+        await cache.invalidate_pattern(f"*school_{current_user.school_id}_*pdf:*")
+    except Exception:
+        pass
     return student
 
 
 @router.get("/my-children")
-async def list_parent_children(current_user: CurrentUser, db: DbSession):
+@cache_response(ttl=600, key_prefix="students:my-children")
+async def list_parent_children(current_user: CurrentUser, db: DbSession, request: Request):
     """List students associated with the current user as a parent/guardian."""
     sql = """
         SELECT 
@@ -375,6 +386,13 @@ async def update_student(student_id: UUID, body: StudentUpdate, current_user: Cu
             logging.getLogger("app.students").warning(f"Failed to auto-update student_enrollments: {e}")
 
     await db.refresh(student)
+    try:
+        await cache.invalidate_pattern(f"*school_{current_user.school_id}_*students:list*")
+        await cache.invalidate_pattern(f"*school_{current_user.school_id}_*students:my-children*")
+        await cache.invalidate_pattern(f"*school_{current_user.school_id}_*reports:dashboard*")
+        await cache.invalidate_pattern(f"*school_{current_user.school_id}_*pdf:*")
+    except Exception:
+        pass
     return student
 
 
@@ -399,6 +417,13 @@ async def delete_student(student_id: UUID, current_user: CurrentUser, db: DbSess
         logging.getLogger("app.students").warning(f"Failed to delete student enrollment: {e}")
 
     await db.delete(student)
+    try:
+        await cache.invalidate_pattern(f"*school_{current_user.school_id}_*students:list*")
+        await cache.invalidate_pattern(f"*school_{current_user.school_id}_*students:my-children*")
+        await cache.invalidate_pattern(f"*school_{current_user.school_id}_*reports:dashboard*")
+        await cache.invalidate_pattern(f"*school_{current_user.school_id}_*pdf:*")
+    except Exception:
+        pass
     return MessageResponse(message="Student deleted")
 
 

@@ -4,7 +4,9 @@ Finance router: fee structures, vouchers, payments, financial reports.
 from typing import List, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Query, status, HTTPException
+from fastapi import APIRouter, Query, status, HTTPException, Request
+from app.cache import cache
+from app.utils.cache_decorator import cache_response
 from sqlalchemy import func, select, text
 
 from app.dependencies import CurrentUser, DbSession
@@ -25,7 +27,8 @@ router = APIRouter(prefix="/finance", tags=["Finance"])
 # ─── FEE STRUCTURES ──────────────────────────────────────────────────────────
 
 @router.get("/structures", response_model=List[FeeStructureOut])
-async def list_structures(current_user: CurrentUser, db: DbSession):
+@cache_response(ttl=300, key_prefix="finance:structures")
+async def list_structures(current_user: CurrentUser, db: DbSession, request: Request):
     if not current_user.school_id:
         return []
     result = await db.execute(
@@ -51,11 +54,16 @@ async def create_structure(body: FeeStructureCreate, current_user: CurrentUser, 
     db.add(structure)
     await db.flush()
     await db.refresh(structure)
+    try:
+        await cache.invalidate_pattern(f"*school_{current_user.school_id}_*finance:*")
+    except Exception:
+        pass
     return structure
 
 
 @router.get("/structures/{structure_id}", response_model=FeeStructureOut)
-async def get_structure(structure_id: UUID, current_user: CurrentUser, db: DbSession):
+@cache_response(ttl=300, key_prefix="finance:structure-detail")
+async def get_structure(structure_id: UUID, current_user: CurrentUser, db: DbSession, request: Request):
     result = await db.execute(select(FeeStructure).where(FeeStructure.id == structure_id))
     s = result.scalar_one_or_none()
     if not s:
@@ -73,6 +81,10 @@ async def update_structure(structure_id: UUID, body: FeeStructureCreate, current
         setattr(s, field, value)
     await db.flush()
     await db.refresh(s)
+    try:
+        await cache.invalidate_pattern(f"*school_{current_user.school_id}_*finance:*")
+    except Exception:
+        pass
     return s
 
 
@@ -89,9 +101,11 @@ async def delete_structure(structure_id: UUID, current_user: CurrentUser, db: Db
 # ─── FEE VOUCHERS ────────────────────────────────────────────────────────────
 
 @router.get("/vouchers", response_model=PaginatedResponse[FeeVoucherOut])
+@cache_response(ttl=120, key_prefix="finance:vouchers")
 async def list_vouchers(
     current_user: CurrentUser,
     db: DbSession,
+    request: Request,
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=200),
     student_id: Optional[UUID] = Query(None),
@@ -170,11 +184,18 @@ async def create_voucher(body: FeeVoucherCreate, current_user: CurrentUser, db: 
     db.add(voucher)
     await db.flush()
     await db.refresh(voucher)
+    try:
+        await cache.invalidate_pattern(f"*school_{current_user.school_id}_*finance:*")
+        await cache.invalidate_pattern(f"*school_{current_user.school_id}_*reports:dashboard*")
+        await cache.invalidate_pattern(f"*school_{current_user.school_id}_*reports:finance-trend*")
+    except Exception:
+        pass
     return voucher
 
 
 @router.get("/vouchers/{voucher_id}", response_model=FeeVoucherOut)
-async def get_voucher(voucher_id: UUID, current_user: CurrentUser, db: DbSession):
+@cache_response(ttl=120, key_prefix="finance:voucher-detail")
+async def get_voucher(voucher_id: UUID, current_user: CurrentUser, db: DbSession, request: Request):
     result = await db.execute(select(FeeVoucher).where(FeeVoucher.id == voucher_id))
     voucher = result.scalar_one_or_none()
     if not voucher:
@@ -191,15 +212,23 @@ async def cancel_voucher(voucher_id: UUID, current_user: CurrentUser, db: DbSess
     voucher.status = "cancelled"
     await db.flush()
     await db.refresh(voucher)
+    try:
+        await cache.invalidate_pattern(f"*school_{current_user.school_id}_*finance:*")
+        await cache.invalidate_pattern(f"*school_{current_user.school_id}_*reports:dashboard*")
+        await cache.invalidate_pattern(f"*school_{current_user.school_id}_*reports:finance-trend*")
+    except Exception:
+        pass
     return voucher
 
 
 # ─── PAYMENTS ─────────────────────────────────────────────────────────────────
 
 @router.get("/payments", response_model=PaginatedResponse[FeePaymentOut])
+@cache_response(ttl=120, key_prefix="finance:payments")
 async def list_payments(
     current_user: CurrentUser,
     db: DbSession,
+    request: Request,
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=200),
     student_id: Optional[UUID] = Query(None),
@@ -257,6 +286,12 @@ async def record_payment(body: FeePaymentCreate, current_user: CurrentUser, db: 
 
     await db.flush()
     await db.refresh(payment)
+    try:
+        await cache.invalidate_pattern(f"*school_{current_user.school_id}_*finance:*")
+        await cache.invalidate_pattern(f"*school_{current_user.school_id}_*reports:dashboard*")
+        await cache.invalidate_pattern(f"*school_{current_user.school_id}_*reports:finance-trend*")
+    except Exception:
+        pass
     return payment
 
 

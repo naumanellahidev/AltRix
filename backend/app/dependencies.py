@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.utils.jwt import decode_supabase_token
+from app.cache import cache, TTL_USER_ROLES
 
 
 @dataclass
@@ -91,18 +92,28 @@ async def get_current_user_with_roles(
     if x_school_id:
         # Load roles from user_roles table scoped to school
         try:
-            result = await db.execute(
-                text(
-                    """
-                    SELECT role FROM user_roles
-                    WHERE user_id = :uid AND school_id = :sid
-                    """
-                ),
-                {"uid": user.id, "sid": x_school_id},
+            cache_key = cache.build_key(
+                school_id=x_school_id,
+                base_key=f"auth:roles:{user.id}"
             )
-            roles = [row[0] for row in result.fetchall()]
-            user.roles = roles
-            user.school_id = x_school_id
+            cached_roles = await cache.get(cache_key)
+            if cached_roles is not None:
+                user.roles = cached_roles
+                user.school_id = x_school_id
+            else:
+                result = await db.execute(
+                    text(
+                        """
+                        SELECT role FROM user_roles
+                        WHERE user_id = :uid AND school_id = :sid
+                        """
+                    ),
+                    {"uid": user.id, "sid": x_school_id},
+                )
+                roles = [row[0] for row in result.fetchall()]
+                user.roles = roles
+                user.school_id = x_school_id
+                await cache.set(cache_key, roles, ttl=TTL_USER_ROLES)
         except Exception as e:
             import logging
             logging.getLogger("app.dependencies").warning(f"DB exception loading roles for school {x_school_id}: {e}")

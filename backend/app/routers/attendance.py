@@ -4,7 +4,9 @@ Attendance router: sessions, bulk entry, reports.
 from typing import List, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Query, status
+from fastapi import APIRouter, Query, status, Request
+from app.cache import cache
+from app.utils.cache_decorator import cache_response
 from sqlalchemy import func, select, text
 
 from app.dependencies import CurrentUser, DbSession
@@ -21,9 +23,11 @@ router = APIRouter(prefix="/attendance", tags=["Attendance"])
 
 
 @router.get("/recent-entries")
+@cache_response(ttl=60, key_prefix="attendance:recent-entries")
 async def get_recent_entries(
     current_user: CurrentUser,
     db: DbSession,
+    request: Request,
     from_date: Optional[str] = Query(None),
 ):
     if not current_user.school_id:
@@ -46,9 +50,11 @@ async def get_recent_entries(
 
 
 @router.get("/sessions", response_model=List[AttendanceSessionOut])
+@cache_response(ttl=120, key_prefix="attendance:sessions")
 async def list_sessions(
     current_user: CurrentUser,
     db: DbSession,
+    request: Request,
     section_id: Optional[UUID] = Query(None),
     from_date: Optional[str] = Query(None),
     to_date: Optional[str] = Query(None),
@@ -90,11 +96,18 @@ async def create_session(body: AttendanceSessionCreate, current_user: CurrentUse
     db.add(session)
     await db.flush()
     await db.refresh(session)
+    try:
+        await cache.invalidate_pattern(f"*school_{current_user.school_id}_*attendance:*")
+        await cache.invalidate_pattern(f"*school_{current_user.school_id}_*reports:dashboard*")
+        await cache.invalidate_pattern(f"*school_{current_user.school_id}_*reports:attendance-summary*")
+    except Exception:
+        pass
     return session
 
 
 @router.get("/sessions/{session_id}/entries", response_model=List[AttendanceEntryOut])
-async def get_session_entries(session_id: UUID, current_user: CurrentUser, db: DbSession):
+@cache_response(ttl=120, key_prefix="attendance:session-entries")
+async def get_session_entries(session_id: UUID, current_user: CurrentUser, db: DbSession, request: Request):
     result = await db.execute(
         select(AttendanceEntry).where(AttendanceEntry.session_id == session_id)
     )
@@ -135,13 +148,21 @@ async def bulk_mark_attendance(
     await db.flush()
     for entry in entries:
         await db.refresh(entry)
+    try:
+        await cache.invalidate_pattern(f"*school_{current_user.school_id}_*attendance:*")
+        await cache.invalidate_pattern(f"*school_{current_user.school_id}_*reports:dashboard*")
+        await cache.invalidate_pattern(f"*school_{current_user.school_id}_*reports:attendance-summary*")
+    except Exception:
+        pass
     return entries
 
 
 @router.get("/report")
+@cache_response(ttl=300, key_prefix="attendance:report")
 async def attendance_report(
     current_user: CurrentUser,
     db: DbSession,
+    request: Request,
     student_id: Optional[UUID] = Query(None),
     section_id: Optional[UUID] = Query(None),
     from_date: Optional[str] = Query(None),

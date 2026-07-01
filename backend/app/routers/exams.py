@@ -4,7 +4,9 @@ Exams and results router: exams, datesheets, results, report cards.
 from typing import List, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Query, status
+from fastapi import APIRouter, Query, status, Request
+from app.cache import cache
+from app.utils.cache_decorator import cache_response
 from sqlalchemy import select, text
 
 from app.dependencies import CurrentUser, DbSession
@@ -21,9 +23,11 @@ router = APIRouter(prefix="/exams", tags=["Exams"])
 
 
 @router.get("", response_model=List[ExamOut])
+@cache_response(ttl=300, key_prefix="exams:list")
 async def list_exams(
     current_user: CurrentUser,
     db: DbSession,
+    request: Request,
     campus_id: Optional[UUID] = Query(None),
     academic_year: Optional[str] = Query(None),
 ):
@@ -53,14 +57,21 @@ async def create_exam(body: ExamCreate, current_user: CurrentUser, db: DbSession
     db.add(exam)
     await db.flush()
     await db.refresh(exam)
+    try:
+        await cache.invalidate_pattern(f"*school_{current_user.school_id}_*exams:*")
+        await cache.invalidate_pattern(f"*school_{current_user.school_id}_*reports:dashboard*")
+    except Exception:
+        pass
     return exam
 
 
 @router.get("/report-card/{student_id}")
+@cache_response(ttl=600, key_prefix="exams:report-card")
 async def get_report_card(
     student_id: UUID,
     current_user: CurrentUser,
     db: DbSession,
+    request: Request,
     academic_year: Optional[str] = Query(None),
 ):
     """Generate a comprehensive report card for a student."""
@@ -138,6 +149,12 @@ async def update_exam(exam_id: UUID, body: ExamCreate, current_user: CurrentUser
         setattr(exam, field, value)
     await db.flush()
     await db.refresh(exam)
+    try:
+        await cache.invalidate_pattern(f"*school_{current_user.school_id}_*exams:*")
+        await cache.invalidate_pattern(f"*school_{current_user.school_id}_*reports:dashboard*")
+        await cache.invalidate_pattern(f"*school_{current_user.school_id}_*pdf:*")
+    except Exception:
+        pass
     return exam
 
 
@@ -150,6 +167,12 @@ async def publish_exam(exam_id: UUID, current_user: CurrentUser, db: DbSession):
     exam.is_published = True
     await db.flush()
     await db.refresh(exam)
+    try:
+        await cache.invalidate_pattern(f"*school_{current_user.school_id}_*exams:*")
+        await cache.invalidate_pattern(f"*school_{current_user.school_id}_*reports:dashboard*")
+        await cache.invalidate_pattern(f"*school_{current_user.school_id}_*pdf:*")
+    except Exception:
+        pass
     return exam
 
 
@@ -160,6 +183,12 @@ async def delete_exam(exam_id: UUID, current_user: CurrentUser, db: DbSession):
     if not exam:
         raise NotFoundError("Exam", str(exam_id))
     await db.delete(exam)
+    try:
+        await cache.invalidate_pattern(f"*school_{current_user.school_id}_*exams:*")
+        await cache.invalidate_pattern(f"*school_{current_user.school_id}_*reports:dashboard*")
+        await cache.invalidate_pattern(f"*school_{current_user.school_id}_*pdf:*")
+    except Exception:
+        pass
     return MessageResponse(message="Exam deleted")
 
 

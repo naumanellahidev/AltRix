@@ -1,7 +1,4 @@
-"""
-AltRix Redis Cache Service
-Provides a unified async caching layer backed by Redis.
-"""
+import asyncio
 import json
 import logging
 from typing import Any, Optional
@@ -63,30 +60,53 @@ async def get_redis() -> Optional[aioredis.Redis]:
     return _redis_pool
 
 
-class CacheService:
+class CacheManager:
     """
-    High-level async cache service with JSON serialization.
-    All operations degrade gracefully when Redis is unavailable.
+    Enterprise caching service with JSON serialization, trackable stats, and dynamic refreshing.
     """
+    def __init__(self):
+        self.hits = 0
+        self.misses = 0
+        self.errors = 0
 
     @staticmethod
-    async def get(key: str) -> Optional[Any]:
-        """Retrieve a cached value. Returns None on miss or error."""
+    def build_key(
+        school_id: str,
+        base_key: str,
+        tenant_id: Optional[str] = None,
+        campus_id: Optional[str] = None,
+        user_id: Optional[str] = None,
+        role: Optional[str] = None,
+    ) -> str:
+        tid = tenant_id or school_id
+        parts = [f"tenant_{tid}", f"school_{school_id}"]
+        if campus_id:
+            parts.append(f"campus_{campus_id}")
+        if user_id:
+            parts.append(f"user_{user_id}")
+        if role:
+            parts.append(f"role_{role}")
+        parts.append(base_key)
+        return "_".join(parts)
+
+    async def get(self, key: str) -> Optional[Any]:
         redis = await get_redis()
         if not redis:
+            self.misses += 1
             return None
         try:
             raw = await redis.get(key)
             if raw is None:
+                self.misses += 1
                 return None
+            self.hits += 1
             return json.loads(raw)
         except Exception as e:
+            self.errors += 1
             logger.warning(f"Cache GET error for '{key}': {e}")
             return None
 
-    @staticmethod
-    async def set(key: str, value: Any, ttl: int = 300) -> bool:
-        """Store a value in cache with TTL (seconds). Returns True on success."""
+    async def set(self, key: str, value: Any, ttl: int = 300) -> bool:
         redis = await get_redis()
         if not redis:
             return False
@@ -95,12 +115,11 @@ class CacheService:
             await redis.setex(key, ttl, serialized)
             return True
         except Exception as e:
+            self.errors += 1
             logger.warning(f"Cache SET error for '{key}': {e}")
             return False
 
-    @staticmethod
-    async def delete(key: str) -> bool:
-        """Delete a cache key."""
+    async def delete(self, key: str) -> bool:
         redis = await get_redis()
         if not redis:
             return False
@@ -108,12 +127,14 @@ class CacheService:
             await redis.delete(key)
             return True
         except Exception as e:
+            self.errors += 1
             logger.warning(f"Cache DELETE error for '{key}': {e}")
             return False
 
-    @staticmethod
-    async def invalidate_pattern(pattern: str) -> int:
-        """Delete all keys matching a pattern. Returns count of deleted keys."""
+    async def invalidate(self, key: str) -> bool:
+        return await self.delete(key)
+
+    async def invalidate_pattern(self, pattern: str) -> int:
         redis = await get_redis()
         if not redis:
             return 0
@@ -123,11 +144,11 @@ class CacheService:
                 return await redis.delete(*keys)
             return 0
         except Exception as e:
+            self.errors += 1
             logger.warning(f"Cache INVALIDATE error for pattern '{pattern}': {e}")
             return 0
 
-    @staticmethod
-    async def exists(key: str) -> bool:
+    async def exists(self, key: str) -> bool:
         """Check if a key exists in the cache."""
         redis = await get_redis()
         if not redis:
@@ -135,11 +156,11 @@ class CacheService:
         try:
             return bool(await redis.exists(key))
         except Exception as e:
+            self.errors += 1
             logger.warning(f"Cache EXISTS error for '{key}': {e}")
             return False
 
-    @staticmethod
-    async def increment(key: str, ttl: int = 60) -> int:
+    async def increment(self, key: str, ttl: int = 60) -> int:
         """Atomic increment (for rate limiting). Returns the new count."""
         redis = await get_redis()
         if not redis:
@@ -151,57 +172,66 @@ class CacheService:
             results = await pipe.execute()
             return results[0]
         except Exception as e:
+            self.errors += 1
             logger.warning(f"Cache INCR error for '{key}': {e}")
             return 0
 
-    @staticmethod
-    async def health_check() -> dict:
-        """Returns Redis health status for /health endpoints."""
+    async def clear(self) -> bool:
+        """Clear all cache keys under the altrix namespace."""
+        redis = await get_redis()
+        if not redis:
+            return False
+        try:
+            keys = await redis.keys("tenant_*") + await redis.keys("altrix:*")
+            if keys:
+                await redis.delete(*keys)
+            return True
+        except Exception as e:
+            self.errors += 1
+            logger.warning(f"Cache CLEAR error: {e}")
+            return False
+
+    async def refresh(self, key: str, builder_callable, ttl: int = 300) -> Optional[Any]:
+        """Runs the builder callable, caches it, and returns the fresh value."""
+        try:
+            if asyncio.iscoroutinefunction(builder_callable):
+                value = await builder_callable()
+            else:
+                value = builder_callable()
+            await self.set(key, value, ttl)
+            return value
+        except Exception as e:
+            self.errors += 1
+            logger.warning(f"Cache REFRESH error for '{key}': {e}")
+            return None
+
+    async def get_stats(self) -> dict:
+        redis_status = await self.health_check()
+        return {
+            "hits": self.hits,
+            "misses": self.misses,
+            "errors": self.errors,
+            "redis": redis_status
+        }
+
+    async def health_check(self) -> dict:
         redis = await get_redis()
         if not redis:
             return {"status": "unavailable", "url": settings.redis_url}
         try:
             await redis.ping()
             info = await redis.info("server")
+            mem = await redis.info("memory")
             return {
                 "status": "healthy",
                 "version": info.get("redis_version", "unknown"),
                 "connected_clients": info.get("connected_clients", 0),
-                "used_memory_human": info.get("used_memory_human", "?"),
+                "used_memory_human": mem.get("used_memory_human", "?"),
             }
         except Exception as e:
             return {"status": "error", "error": str(e)}
 
 
-# ─── Cache Key Builders ────────────────────────────────────────────────────────
-
-def cache_key_permissions(user_id: str, school_id: str) -> str:
-    return f"altrix:permissions:{user_id}:{school_id}"
-
-
-def cache_key_roles(user_id: str) -> str:
-    return f"altrix:roles:{user_id}"
-
-
-def cache_key_dashboard(school_id: str) -> str:
-    return f"altrix:dashboard:{school_id}"
-
-
-def cache_key_notifications(user_id: str, school_id: str) -> str:
-    return f"altrix:notifications:{user_id}:{school_id}"
-
-
-def cache_key_parent_children(parent_user_id: str, school_id: str) -> str:
-    return f"altrix:parent_children:{parent_user_id}:{school_id}"
-
-
-def cache_key_campus_switch(user_id: str) -> str:
-    return f"altrix:campus_data:{user_id}"
-
-
-def cache_key_school_info(school_id: str) -> str:
-    return f"altrix:school:{school_id}"
-
-
 # ─── Cache Singleton ──────────────────────────────────────────────────────────
-cache = CacheService()
+cache = CacheManager()
+

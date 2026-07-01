@@ -657,56 +657,26 @@ async function prefetchHrData(schoolId: string, cancelled: boolean, onProgress: 
 async function prefetchFinanceData(schoolId: string, cancelled: boolean, onProgress: (task: string) => void) {
   const tasks: Promise<void>[] = [];
 
-  // Invoices
+  // Invoices - Do not permanently cache sensitive private/financial logs locally
   tasks.push((async () => {
-    const { data } = await supabase
-      .from('fee_invoices')
-      .select('id, student_id, invoice_number, created_at, due_date, total_amount, subtotal, status, school_id')
-      .eq('school_id', schoolId)
-      .limit(BATCH_SIZE);
-    if (!cancelled && data) {
-      const cached: CachedInvoice[] = data.map(i => ({
-        id: i.id, schoolId: i.school_id, studentId: i.student_id,
-        invoiceNo: i.invoice_number, issueDate: i.created_at, dueDate: i.due_date,
-        total: Number(i.total_amount), subtotal: Number(i.subtotal), status: i.status, cachedAt: Date.now(),
-      }));
-      await cacheInvoices(cached);
+    if (!cancelled) {
+      await cacheInvoices([]);
       onProgress('Invoices');
     }
   })());
 
-  // Payments
+  // Payments - Do not permanently cache sensitive private/financial logs locally
   tasks.push((async () => {
-    const { data } = await supabase
-      .from('fee_payments')
-      .select('id, student_id, invoice_id, amount, paid_at, transaction_ref, school_id')
-      .eq('school_id', schoolId)
-      .limit(BATCH_SIZE);
-    if (!cancelled && data) {
-      const cached: CachedPayment[] = data.map(p => ({
-        id: p.id, schoolId: p.school_id, studentId: p.student_id,
-        invoiceId: p.invoice_id, amount: Number(p.amount), paidAt: p.paid_at,
-        reference: p.transaction_ref, cachedAt: Date.now(),
-      }));
-      await cachePayments(cached);
+    if (!cancelled) {
+      await cachePayments([]);
       onProgress('Payments');
     }
   })());
 
-  // Expenses
+  // Expenses - Do not permanently cache sensitive private/financial logs locally
   tasks.push((async () => {
-    const { data } = await supabase
-      .from('finance_expenses')
-      .select('id, description, amount, category, expense_date, vendor, school_id')
-      .eq('school_id', schoolId)
-      .limit(BATCH_SIZE);
-    if (!cancelled && data) {
-      const cached: CachedExpense[] = data.map(e => ({
-        id: e.id, schoolId: e.school_id, description: e.description,
-        amount: e.amount, category: e.category, expenseDate: e.expense_date,
-        vendor: e.vendor, cachedAt: Date.now(),
-      }));
-      await cacheExpenses(cached);
+    if (!cancelled) {
+      await cacheExpenses([]);
       onProgress('Expenses');
     }
   })());

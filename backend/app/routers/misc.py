@@ -10,6 +10,8 @@ from sqlalchemy import func, select, text
 
 from app.dependencies import CurrentUser, DbSession, AuthenticatedUser
 from app.exceptions import NotFoundError, ForbiddenError
+from app.cache import cache
+from app.utils.cache_decorator import cache_response
 from app.models.misc import (
     Complaint, ComplaintFeedback,
     Assignment, AssignmentSubmission,
@@ -819,7 +821,8 @@ reports_router = APIRouter(prefix="/reports", tags=["Reports"])
 
 
 @reports_router.get("/dashboard")
-async def dashboard_kpis(current_user: CurrentUser, db: DbSession):
+@cache_response(ttl=60, key_prefix="reports:dashboard")
+async def dashboard_kpis(current_user: CurrentUser, db: DbSession, request: Request):
     """Aggregate dashboard KPIs for a school."""
     if not current_user.school_id:
         return {}
@@ -880,7 +883,8 @@ async def dashboard_kpis(current_user: CurrentUser, db: DbSession):
 
 
 @reports_router.get("/finance-trend")
-async def finance_trend(current_user: CurrentUser, db: DbSession):
+@cache_response(ttl=120, key_prefix="reports:finance-trend")
+async def finance_trend(current_user: CurrentUser, db: DbSession, request: Request):
     if not current_user.school_id:
         return {"payments": [], "expenses": []}
 
@@ -913,8 +917,10 @@ async def finance_trend(current_user: CurrentUser, db: DbSession):
 
 
 @reports_router.get("/attendance-summary")
+@cache_response(ttl=120, key_prefix="reports:attendance-summary")
 async def attendance_summary(
     current_user: CurrentUser, db: DbSession,
+    request: Request,
     from_date: Optional[str] = Query(None),
     to_date: Optional[str] = Query(None),
     campus_id: Optional[UUID] = Query(None),
@@ -966,6 +972,23 @@ async def attendance_summary(
             "total": 100,
             "attendance_rate": 95.0,
         }
+
+
+@reports_router.get("/cache/stats")
+async def get_cache_stats(current_user: CurrentUser):
+    """Get cache health, memory usage, hit/miss stats (Super Admin only)."""
+    if not current_user.is_super_admin:
+        raise ForbiddenError("Only platform super administrators can view cache statistics.")
+    return await cache.get_stats()
+
+
+@reports_router.post("/cache/clear")
+async def clear_cache(current_user: CurrentUser):
+    """Clear all cache keys (Super Admin only)."""
+    if not current_user.is_super_admin:
+        raise ForbiddenError("Only platform super administrators can clear cache.")
+    success = await cache.clear()
+    return {"success": success}
 
 
 # ─── COPILOT SYSTEM ──────────────────────────────────────────────────────────
@@ -2139,10 +2162,12 @@ async def copilot_chat(
     body: CopilotChatRequest,
     current_user: CurrentUser,
     db: DbSession,
+    request: Request,
 ):
     from fastapi import HTTPException
     from fastapi.responses import StreamingResponse
     from app.utils.ai_service import OllamaAIService
+    import hashlib
     
     # 1. Enforce Per-School AI Enabled Setting (falls back to global check)
     if current_user.school_id:
@@ -2160,6 +2185,24 @@ async def copilot_chat(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Active school context is required to access the AI Copilot."
         )
+
+    # Calculate Cache Key for read-only AI answers
+    ai_param_str = f"msg:{body.message}|history:{str(body.history)}"
+    ai_param_hash = hashlib.md5(ai_param_str.encode("utf-8")).hexdigest()
+    roles_key = "_".join(sorted(current_user.roles)) if current_user.roles else "anon"
+    ai_cache_key = cache.build_key(
+        school_id=current_user.school_id,
+        base_key=f"ai:copilot:{ai_param_hash}",
+        user_id=current_user.id,
+        role=roles_key
+    )
+
+    # Return cached AI completion if exists to save tokens and time
+    cached_ai = await cache.get(ai_cache_key)
+    if cached_ai is not None:
+        async def cached_event_generator():
+            yield cached_ai
+        return StreamingResponse(cached_event_generator(), media_type="text/event-stream")
 
     # 2. Fetch scoped DB context based on role permissions
     db_context = await fetch_ai_context(db, current_user, current_user.school_id)
@@ -2306,12 +2349,21 @@ __DB_CONTEXT__
 
     # 5. Stream response from OllamaAIService
     async def event_generator():
+        full_response = []
         async for chunk in OllamaAIService.stream_completion(
             system_prompt=system_prompt,
             user_message=body.message,
             history=body.history,
         ):
+            full_response.append(chunk)
             yield chunk
+        
+        # Cache full text result
+        try:
+            complete_text = "".join(full_response)
+            await cache.set(ai_cache_key, complete_text, ttl=300)
+        except Exception:
+            pass
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
