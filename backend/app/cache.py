@@ -171,7 +171,7 @@ class CacheManager:
             await pipe.expire(key, ttl)
             results = await pipe.execute()
             val = results[0] if results else 0
-            return int(val) if val is not None else 0
+            return val if isinstance(val, int) else 0
         except Exception as e:
             self.errors += 1
             logger.warning(f"Cache INCR error for '{key}': {e}")
