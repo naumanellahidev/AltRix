@@ -494,7 +494,7 @@ const [voiceOpen, setVoiceOpen] = useState(false);
             </SheetContent>
           </Sheet>
           <div className="min-w-0">
-            <p className="font-display text-base font-semibold tracking-tight truncate text-primary">{title}</p>
+            <p className="font-display text-base font-semibold tracking-tight truncate text-primary opacity-80">{title}</p>
             {user?.email && (
               <p className="text-[11px] text-primary opacity-80 truncate">
                 You are signed in as {user.email}
@@ -546,13 +546,14 @@ const [voiceOpen, setVoiceOpen] = useState(false);
           <header className="mb-4 hidden lg:mb-6 lg:block">
             <div className="flex items-center justify-between">
               <div className="min-w-0">
-                <h1 className="font-display text-2xl font-semibold tracking-tight text-primary">{title}</h1>
+                <h1 className="font-display text-2xl font-semibold tracking-tight text-primary opacity-80">{title}</h1>
                 {user?.email && (
                   <p className="mt-1 text-sm text-primary opacity-80">
                     You are signed in as {user.email}
                   </p>
                 )}
               </div>
+
 
               <div className="flex items-center gap-3 shrink-0">
                 {schoolId && isStaff && <StaffAttendanceWidget schoolId={schoolId} />}
