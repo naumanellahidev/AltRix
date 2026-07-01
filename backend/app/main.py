@@ -212,6 +212,88 @@ async def lifespan(app: FastAPI):
                 logger.info("Security tables initialized successfully")
             except Exception as se_err:
                 logger.error(f"Failed to initialize security tables: {se_err}")
+
+            # ── AI Semantic Cache Tables ──────────────────────────────────────
+            try:
+                # Enable pg_trgm (built-in Postgres extension, no cost, no new infra)
+                await conn.execute(text("CREATE EXTENSION IF NOT EXISTS pg_trgm;"))
+
+                await conn.execute(text("""
+                    CREATE TABLE IF NOT EXISTS public.ai_semantic_cache (
+                        id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                        school_id        UUID NOT NULL REFERENCES public.schools(id) ON DELETE CASCADE,
+                        cache_type       VARCHAR(30)  NOT NULL DEFAULT 'live_erp',
+                        query_text       TEXT         NOT NULL,
+                        query_normalized TEXT         NOT NULL,
+                        query_embedding  JSONB,
+                        role_key         VARCHAR(200) NOT NULL,
+                        module_context   VARCHAR(100),
+                        screen_context   VARCHAR(200),
+                        campus_id        UUID,
+                        response_text    TEXT         NOT NULL,
+                        data_deps        TEXT[]       DEFAULT '{}',
+                        hit_count        INTEGER      DEFAULT 0,
+                        created_at       TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+                        expires_at       TIMESTAMPTZ  NOT NULL,
+                        last_used_at     TIMESTAMPTZ  DEFAULT NOW(),
+                        is_valid         BOOLEAN      DEFAULT TRUE
+                    );
+                """))
+                # Indexes for fast lookup and invalidation
+                await conn.execute(text(
+                    "CREATE INDEX IF NOT EXISTS idx_ai_sem_cache_school "
+                    "ON public.ai_semantic_cache (school_id, is_valid, expires_at);"
+                ))
+                await conn.execute(text(
+                    "CREATE INDEX IF NOT EXISTS idx_ai_sem_cache_type "
+                    "ON public.ai_semantic_cache (school_id, cache_type, is_valid);"
+                ))
+                # GIN index for trigram similarity search on normalized query
+                await conn.execute(text(
+                    "CREATE INDEX IF NOT EXISTS idx_ai_sem_cache_trgm "
+                    "ON public.ai_semantic_cache USING gin(query_normalized gin_trgm_ops);"
+                ))
+                # GIN index for array-based dependency invalidation
+                await conn.execute(text(
+                    "CREATE INDEX IF NOT EXISTS idx_ai_sem_cache_deps "
+                    "ON public.ai_semantic_cache USING gin(data_deps);"
+                ))
+
+                await conn.execute(text("""
+                    CREATE TABLE IF NOT EXISTS public.ai_cache_stats (
+                        id             UUID    PRIMARY KEY DEFAULT gen_random_uuid(),
+                        school_id      UUID    NOT NULL REFERENCES public.schools(id),
+                        stat_date      DATE    NOT NULL DEFAULT CURRENT_DATE,
+                        cache_hits     INTEGER DEFAULT 0,
+                        cache_misses   INTEGER DEFAULT 0,
+                        ai_calls_saved INTEGER DEFAULT 0,
+                        top_queries    JSONB   DEFAULT '[]',
+                        created_at     TIMESTAMPTZ DEFAULT NOW(),
+                        updated_at     TIMESTAMPTZ DEFAULT NOW(),
+                        UNIQUE (school_id, stat_date)
+                    );
+                """))
+                await conn.execute(text(
+                    "CREATE INDEX IF NOT EXISTS idx_ai_cache_stats_school "
+                    "ON public.ai_cache_stats (school_id, stat_date DESC);"
+                ))
+
+                # Cleanup function: purge expired and old invalid entries
+                await conn.execute(text("""
+                    CREATE OR REPLACE FUNCTION public.cleanup_ai_semantic_cache()
+                    RETURNS void AS $$
+                    BEGIN
+                        DELETE FROM public.ai_semantic_cache
+                        WHERE expires_at < NOW()
+                           OR (is_valid = FALSE AND created_at < NOW() - INTERVAL '7 days');
+                        DELETE FROM public.ai_cache_stats
+                        WHERE stat_date < CURRENT_DATE - INTERVAL '90 days';
+                    END;
+                    $$ LANGUAGE plpgsql;
+                """))
+                logger.info("AI Semantic Cache tables initialized successfully")
+            except Exception as ai_cache_err:
+                logger.error(f"Failed to initialize AI semantic cache tables: {ai_cache_err}")
     except Exception as e:
         logger.critical(f"Database initialization: FAILED (continuing startup for health endpoint) — {e}")
 

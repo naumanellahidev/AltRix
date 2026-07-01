@@ -439,3 +439,56 @@ class AiParentUpdate(Base):
     is_sent = Column(Boolean, default=False, nullable=True)
     sent_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=True)
+
+
+# ─── AI SEMANTIC CACHE ────────────────────────────────────────────────────────
+
+class AiSemanticCache(Base):
+    """
+    Stores AI Copilot responses indexed by semantic query representation.
+    Enables reuse of AI answers for semantically similar questions without
+    calling the AI model again. Scoped strictly by school_id and role_key.
+    """
+    __tablename__ = "ai_semantic_cache"
+
+    id               = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    school_id        = Column(UUID(as_uuid=True), ForeignKey("schools.id", ondelete="CASCADE"), nullable=False)
+    cache_type       = Column(String(30), nullable=False, default="live_erp")
+    # Query storage
+    query_text       = Column(Text, nullable=False)
+    query_normalized = Column(Text, nullable=False)
+    query_embedding  = Column(JSON, nullable=True)          # float[] as JSON for cosine similarity
+    # Security / tenant scoping
+    role_key         = Column(String(200), nullable=False)  # sorted joined role string
+    module_context   = Column(String(100), nullable=True)   # active UI module
+    screen_context   = Column(String(200), nullable=True)   # active UI screen/route
+    campus_id        = Column(UUID(as_uuid=True), nullable=True)
+    # Response
+    response_text    = Column(Text, nullable=False)
+    # Freshness / invalidation
+    data_deps        = Column(ARRAY(String), nullable=True)  # e.g. ['attendance','finance']
+    hit_count        = Column(Integer, default=0, nullable=True)
+    created_at       = Column(DateTime(timezone=True), server_default=func.now(), nullable=True)
+    expires_at       = Column(DateTime(timezone=True), nullable=False)
+    last_used_at     = Column(DateTime(timezone=True), server_default=func.now(), nullable=True)
+    is_valid         = Column(Boolean, default=True, nullable=True)  # soft-delete flag
+
+
+class AiCacheStats(Base):
+    """
+    Daily statistics for AI semantic cache performance monitoring.
+    Tracks hits, misses, and AI calls saved (Ollama compute-time savings).
+    One row per school per day — upserted on each cache access.
+    """
+    __tablename__ = "ai_cache_stats"
+
+    id             = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    school_id      = Column(UUID(as_uuid=True), ForeignKey("schools.id"), nullable=False)
+    stat_date      = Column(Date, nullable=False)
+    cache_hits     = Column(Integer, default=0, nullable=True)
+    cache_misses   = Column(Integer, default=0, nullable=True)
+    ai_calls_saved = Column(Integer, default=0, nullable=True)
+    top_queries    = Column(JSON, nullable=True, default=list)
+    created_at     = Column(DateTime(timezone=True), server_default=func.now(), nullable=True)
+    updated_at     = Column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
+

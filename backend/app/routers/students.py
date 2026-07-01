@@ -125,6 +125,9 @@ async def create_student(body: StudentCreate, current_user: CurrentUser, db: DbS
         await cache.invalidate_pattern(f"*school_{current_user.school_id}_*students:list*")
         await cache.invalidate_pattern(f"*school_{current_user.school_id}_*reports:dashboard*")
         await cache.invalidate_pattern(f"*school_{current_user.school_id}_*pdf:*")
+        # Semantic AI cache invalidation
+        from app.utils.ai_semantic_cache import semantic_cache as _sc
+        await _sc.invalidate_by_deps(db, current_user.school_id, ["students"])
     except Exception:
         pass
     return student
@@ -410,6 +413,9 @@ async def update_student(student_id: UUID, body: StudentUpdate, current_user: Cu
         await cache.invalidate_pattern(f"*school_{current_user.school_id}_*students:my-children*")
         await cache.invalidate_pattern(f"*school_{current_user.school_id}_*reports:dashboard*")
         await cache.invalidate_pattern(f"*school_{current_user.school_id}_*pdf:*")
+        # Semantic AI cache invalidation
+        from app.utils.ai_semantic_cache import semantic_cache as _sc
+        await _sc.invalidate_by_deps(db, current_user.school_id, ["students"])
     except Exception:
         pass
     return student
@@ -443,6 +449,9 @@ async def delete_student(student_id: UUID, current_user: CurrentUser, db: DbSess
         await cache.invalidate_pattern(f"*school_{current_user.school_id}_*students:my-children*")
         await cache.invalidate_pattern(f"*school_{current_user.school_id}_*reports:dashboard*")
         await cache.invalidate_pattern(f"*school_{current_user.school_id}_*pdf:*")
+        # Semantic AI cache invalidation
+        from app.utils.ai_semantic_cache import semantic_cache as _sc
+        await _sc.invalidate_by_deps(db, current_user.school_id, ["students"])
     except Exception:
         pass
     return MessageResponse(message="Student deleted")

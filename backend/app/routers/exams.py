@@ -61,6 +61,9 @@ async def create_exam(body: ExamCreate, current_user: CurrentUser, db: DbSession
     try:
         await cache.invalidate_pattern(f"*school_{current_user.school_id}_*exams:*")
         await cache.invalidate_pattern(f"*school_{current_user.school_id}_*reports:dashboard*")
+        # Semantic AI cache invalidation
+        from app.utils.ai_semantic_cache import semantic_cache as _sc
+        await _sc.invalidate_by_deps(db, current_user.school_id, ["exams"])
     except Exception:
         pass
     return exam
@@ -166,6 +169,9 @@ async def update_exam(exam_id: UUID, body: ExamCreate, current_user: CurrentUser
         await cache.invalidate_pattern(f"*school_{current_user.school_id}_*exams:*")
         await cache.invalidate_pattern(f"*school_{current_user.school_id}_*reports:dashboard*")
         await cache.invalidate_pattern(f"*school_{current_user.school_id}_*pdf:*")
+        # Semantic AI cache invalidation
+        from app.utils.ai_semantic_cache import semantic_cache as _sc
+        await _sc.invalidate_by_deps(db, current_user.school_id, ["exams"])
     except Exception:
         pass
     return exam
@@ -189,6 +195,9 @@ async def publish_exam(exam_id: UUID, current_user: CurrentUser, db: DbSession):
         await cache.invalidate_pattern(f"*school_{current_user.school_id}_*exams:*")
         await cache.invalidate_pattern(f"*school_{current_user.school_id}_*reports:dashboard*")
         await cache.invalidate_pattern(f"*school_{current_user.school_id}_*pdf:*")
+        # Semantic AI cache invalidation
+        from app.utils.ai_semantic_cache import semantic_cache as _sc
+        await _sc.invalidate_by_deps(db, current_user.school_id, ["exams"])
     except Exception:
         pass
     return exam
@@ -210,6 +219,9 @@ async def delete_exam(exam_id: UUID, current_user: CurrentUser, db: DbSession):
         await cache.invalidate_pattern(f"*school_{current_user.school_id}_*exams:*")
         await cache.invalidate_pattern(f"*school_{current_user.school_id}_*reports:dashboard*")
         await cache.invalidate_pattern(f"*school_{current_user.school_id}_*pdf:*")
+        # Semantic AI cache invalidation
+        from app.utils.ai_semantic_cache import semantic_cache as _sc
+        await _sc.invalidate_by_deps(db, current_user.school_id, ["exams"])
     except Exception:
         pass
     return MessageResponse(message="Exam deleted")

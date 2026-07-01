@@ -2192,7 +2192,9 @@ async def copilot_chat(
     from fastapi import HTTPException
     from fastapi.responses import StreamingResponse
     from app.utils.ai_service import OllamaAIService
-    import hashlib
+    from app.utils.ai_semantic_cache import (
+        semantic_cache, classify_cache_type, classify_data_deps,
+    )
     
     # 1. Enforce Per-School AI Enabled Setting (falls back to global check)
     if current_user.school_id:
@@ -2233,23 +2235,32 @@ async def copilot_chat(
         active_student_id=body.active_student_id,
     )
 
-    # Calculate Cache Key for read-only AI answers
-    ai_param_str = f"msg:{body.message}|history:{str(body.history)}"
-    ai_param_hash = hashlib.md5(ai_param_str.encode("utf-8")).hexdigest()
-    roles_key = "_".join(sorted(current_user.roles)) if current_user.roles else "anon"
-    ai_cache_key = cache.build_key(
+    # ── Semantic Cache Lookup ──────────────────────────────────────────────────
+    # Replaces MD5 exact-match with semantic similarity search.
+    # Security: school_id + role_key exact match enforced inside find_similar().
+    _sem_hit = await semantic_cache.find_similar(
+        db=db,
         school_id=current_user.school_id,
-        base_key=f"ai:copilot:{ai_param_hash}",
-        user_id=current_user.id,
-        role=roles_key
+        query=body.message,
+        roles=current_user.roles or [],
+        module=body.current_module,
+        campus_id=str(body.active_campus_id) if body.active_campus_id else None,
     )
+    if _sem_hit is not None:
+        # Fire-and-forget tracking (non-blocking)
+        import asyncio
+        async def _track():
+            try:
+                await semantic_cache.track_hit(db, _sem_hit.entry_id)
+                await semantic_cache.record_hit_stats(db, current_user.school_id)
+                await db.commit()
+            except Exception:
+                pass
+        asyncio.ensure_future(_track())
 
-    # Return cached AI completion if exists to save tokens and time
-    cached_ai = await cache.get(ai_cache_key)
-    if cached_ai is not None:
-        async def cached_event_generator():
-            yield cached_ai
-        return StreamingResponse(cached_event_generator(), media_type="text/event-stream")
+        async def _cached_event_generator():
+            yield _sem_hit.response_text
+        return StreamingResponse(_cached_event_generator(), media_type="text/event-stream")
 
     # 2. Fetch scoped DB context based on role permissions
     db_context = await fetch_ai_context(db, current_user, current_user.school_id)
@@ -2395,8 +2406,16 @@ __DB_CONTEXT__
     )
 
     # 5. Stream response from OllamaAIService
+    # Capture resolved context values for closure
+    _school_id  = current_user.school_id
+    _roles      = list(current_user.roles or [])
+    _module     = body.current_module
+    _screen     = body.current_screen
+    _campus_id  = str(body.active_campus_id) if body.active_campus_id else None
+    _query      = body.message
+
     async def event_generator():
-        full_response = []
+        full_response: list[str] = []
         async for chunk in OllamaAIService.stream_completion(
             system_prompt=system_prompt,
             user_message=body.message,
@@ -2404,13 +2423,133 @@ __DB_CONTEXT__
         ):
             full_response.append(chunk)
             yield chunk
-        
-        # Cache full text result
-        try:
-            complete_text = "".join(full_response)
-            await cache.set(ai_cache_key, complete_text, ttl=300)
-        except Exception:
-            pass
+
+        # ── Store in Semantic Cache (non-blocking, fail-safe) ─────────────
+        complete_text = "".join(full_response)
+        if complete_text and len(complete_text.strip()) >= 30:
+            try:
+                ct    = classify_cache_type(_query, _module)
+                deps  = classify_data_deps(_query, _module)
+                await semantic_cache.store(
+                    db=db,
+                    school_id=_school_id,
+                    query=_query,
+                    response=complete_text,
+                    roles=_roles,
+                    module=_module,
+                    screen=_screen,
+                    campus_id=_campus_id,
+                    cache_type=ct,
+                    data_deps=deps,
+                )
+                await semantic_cache.record_miss_stats(db, _school_id)
+                await db.commit()
+            except Exception:
+                pass  # Cache failure NEVER breaks the user response
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
+
+# ─── AI SEMANTIC CACHE ADMIN ENDPOINTS ───────────────────────────────────────
+
+@ai_router.get(
+    "/cache/stats",
+    summary="Semantic cache performance stats",
+    description=(
+        "Returns 30-day and 7-day breakdown of semantic cache hits, misses, "
+        "and Ollama AI calls saved. Restricted to school owners and admins."
+    ),
+)
+async def get_ai_cache_stats(
+    current_user: CurrentUser,
+    db: DbSession,
+):
+    """Get semantic cache performance statistics for the current school."""
+    from app.utils.ai_semantic_cache import semantic_cache as _sc
+    effective_roles = expand_roles(current_user.roles or [])
+    allowed = {"super_admin", "school_owner", "principal", "vice_principal", "school_admin"}
+    if not effective_roles.intersection(allowed):
+        raise ForbiddenError("Access denied. School administrator role required.")
+    if not current_user.school_id:
+        raise ForbiddenError("No school context.")
+    return await _sc.get_stats(db, current_user.school_id)
+
+
+@ai_router.post(
+    "/cache/invalidate",
+    summary="Invalidate semantic cache entries",
+    description=(
+        "Manually soft-invalidate AI cache entries for a school. "
+        "Pass specific dep_tags or set all=true to clear everything."
+    ),
+)
+async def invalidate_ai_cache(
+    body: dict,
+    current_user: CurrentUser,
+    db: DbSession,
+):
+    """
+    Manually trigger semantic cache invalidation.
+
+    Body options:
+      - {"dep_tags": ["attendance", "finance"]} — invalidate by dependency tags
+      - {"all": true} — invalidate all entries for this school
+    """
+    from app.utils.ai_semantic_cache import semantic_cache as _sc
+    effective_roles = expand_roles(current_user.roles or [])
+    allowed = {"super_admin", "school_owner", "principal"}
+    if not effective_roles.intersection(allowed):
+        raise ForbiddenError("Access denied. Principal or above required.")
+    if not current_user.school_id:
+        raise ForbiddenError("No school context.")
+
+    if body.get("all") is True:
+        count = await _sc.invalidate_all(db, current_user.school_id)
+        await db.commit()
+        return {"invalidated": count, "scope": "all", "school_id": current_user.school_id}
+
+    dep_tags: list = body.get("dep_tags", [])
+    if not dep_tags or not isinstance(dep_tags, list):
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail="Provide dep_tags list or set all=true.")
+    count = await _sc.invalidate_by_deps(db, current_user.school_id, dep_tags)
+    await db.commit()
+    return {
+        "invalidated": count,
+        "dep_tags": dep_tags,
+        "school_id": current_user.school_id,
+    }
+
+
+@ai_router.get(
+    "/cache/entries",
+    summary="List semantic cache entries",
+    description=(
+        "Paginated list of semantic cache entries for admin inspection. "
+        "Filter by cache_type. Restricted to school admins."
+    ),
+)
+async def list_ai_cache_entries(
+    current_user: CurrentUser,
+    db: DbSession,
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
+    cache_type: Optional[str] = Query(default=None),
+    valid_only: bool = Query(default=True),
+):
+    """List cached AI entries for the current school with pagination."""
+    from app.utils.ai_semantic_cache import semantic_cache as _sc
+    effective_roles = expand_roles(current_user.roles or [])
+    allowed = {"super_admin", "school_owner", "principal", "vice_principal", "school_admin"}
+    if not effective_roles.intersection(allowed):
+        raise ForbiddenError("Access denied. School administrator role required.")
+    if not current_user.school_id:
+        raise ForbiddenError("No school context.")
+    return await _sc.list_entries(
+        db=db,
+        school_id=current_user.school_id,
+        page=page,
+        page_size=page_size,
+        cache_type_filter=cache_type,
+        valid_only=valid_only,
+    )

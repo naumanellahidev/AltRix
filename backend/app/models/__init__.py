@@ -36,6 +36,7 @@ from app.models.misc import (
     AiAcademicPrediction, AiStudentProfile, AiEarlyWarning,
     AiTeacherPerformance, AiCounselingQueue, AiSchoolReputation,
     AiCareerSuggestion, AiParentUpdate,
+    AiSemanticCache, AiCacheStats,
 )
 
 __all__ = [
@@ -62,4 +63,5 @@ __all__ = [
     "AiAcademicPrediction", "AiStudentProfile", "AiEarlyWarning",
     "AiTeacherPerformance", "AiCounselingQueue", "AiSchoolReputation",
     "AiCareerSuggestion", "AiParentUpdate",
+    "AiSemanticCache", "AiCacheStats",
 ]

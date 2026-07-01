@@ -59,6 +59,8 @@ async def create_structure(body: FeeStructureCreate, current_user: CurrentUser, 
     await db.refresh(structure)
     try:
         await cache.invalidate_pattern(f"*school_{current_user.school_id}_*finance:*")
+        from app.utils.ai_semantic_cache import semantic_cache as _sc
+        await _sc.invalidate_by_deps(db, current_user.school_id, ["finance"])
     except Exception:
         pass
     return structure
@@ -96,6 +98,8 @@ async def update_structure(structure_id: UUID, body: FeeStructureCreate, current
     await db.refresh(s)
     try:
         await cache.invalidate_pattern(f"*school_{current_user.school_id}_*finance:*")
+        from app.utils.ai_semantic_cache import semantic_cache as _sc
+        await _sc.invalidate_by_deps(db, current_user.school_id, ["finance"])
     except Exception:
         pass
     return s
@@ -116,6 +120,8 @@ async def delete_structure(structure_id: UUID, current_user: CurrentUser, db: Db
     await db.flush()
     try:
         await cache.invalidate_pattern(f"*school_{current_user.school_id}_*finance:*")
+        from app.utils.ai_semantic_cache import semantic_cache as _sc
+        await _sc.invalidate_by_deps(db, current_user.school_id, ["finance"])
     except Exception:
         pass
     return MessageResponse(message="Fee structure deactivated")
@@ -226,6 +232,8 @@ async def create_voucher(body: FeeVoucherCreate, current_user: CurrentUser, db: 
         await cache.invalidate_pattern(f"*school_{current_user.school_id}_*finance:*")
         await cache.invalidate_pattern(f"*school_{current_user.school_id}_*reports:dashboard*")
         await cache.invalidate_pattern(f"*school_{current_user.school_id}_*reports:finance-trend*")
+        from app.utils.ai_semantic_cache import semantic_cache as _sc
+        await _sc.invalidate_by_deps(db, current_user.school_id, ["finance"])
     except Exception:
         pass
     return voucher
@@ -254,6 +262,8 @@ async def cancel_voucher(voucher_id: UUID, current_user: CurrentUser, db: DbSess
         await cache.invalidate_pattern(f"*school_{current_user.school_id}_*finance:*")
         await cache.invalidate_pattern(f"*school_{current_user.school_id}_*reports:dashboard*")
         await cache.invalidate_pattern(f"*school_{current_user.school_id}_*reports:finance-trend*")
+        from app.utils.ai_semantic_cache import semantic_cache as _sc
+        await _sc.invalidate_by_deps(db, current_user.school_id, ["finance"])
     except Exception:
         pass
     return voucher
@@ -328,6 +338,8 @@ async def record_payment(body: FeePaymentCreate, current_user: CurrentUser, db: 
         await cache.invalidate_pattern(f"*school_{current_user.school_id}_*finance:*")
         await cache.invalidate_pattern(f"*school_{current_user.school_id}_*reports:dashboard*")
         await cache.invalidate_pattern(f"*school_{current_user.school_id}_*reports:finance-trend*")
+        from app.utils.ai_semantic_cache import semantic_cache as _sc
+        await _sc.invalidate_by_deps(db, current_user.school_id, ["finance"])
     except Exception:
         pass
     return payment

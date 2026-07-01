@@ -112,6 +112,9 @@ async def create_session(body: AttendanceSessionCreate, current_user: CurrentUse
         await cache.invalidate_pattern(f"*school_{current_user.school_id}_*attendance:*")
         await cache.invalidate_pattern(f"*school_{current_user.school_id}_*reports:dashboard*")
         await cache.invalidate_pattern(f"*school_{current_user.school_id}_*reports:attendance-summary*")
+        # Semantic AI cache invalidation — invalidates AI responses that depended on attendance data
+        from app.utils.ai_semantic_cache import semantic_cache as _sc
+        await _sc.invalidate_by_deps(db, current_user.school_id, ["attendance"])
     except Exception:
         pass
     return session
@@ -183,6 +186,9 @@ async def bulk_mark_attendance(
         await cache.invalidate_pattern(f"*school_{current_user.school_id}_*attendance:*")
         await cache.invalidate_pattern(f"*school_{current_user.school_id}_*reports:dashboard*")
         await cache.invalidate_pattern(f"*school_{current_user.school_id}_*reports:attendance-summary*")
+        # Semantic AI cache invalidation
+        from app.utils.ai_semantic_cache import semantic_cache as _sc
+        await _sc.invalidate_by_deps(db, current_user.school_id, ["attendance"])
     except Exception:
         pass
     return entries
