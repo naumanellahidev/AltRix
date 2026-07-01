@@ -1,5 +1,5 @@
 import { useCallback, useMemo, lazy, Suspense } from "react";
-import { Navigate, Route, Routes, useNavigate, useParams } from "react-router-dom";
+import { Navigate, Route, Routes, useNavigate, useParams, useLocation } from "react-router-dom";
 import { BarChart3, LogOut, UserRound, Coins, UserPlus, ClipboardList, GraduationCap, FileText, Users } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
@@ -78,6 +78,7 @@ const DashboardLoader = () => (
 
 const TenantDashboard = () => {
   const { schoolSlug, role: roleParam } = useParams();
+  const location = useLocation();
   // Support route aliases that are nicer than DB enum values.
   const roleAlias = useMemo(() => {
     if (!roleParam) return null;
@@ -378,6 +379,13 @@ const TenantDashboard = () => {
   const displayAttendanceData = attendanceData || { 
     rate: cachedKPIs?.attendanceRate7d ?? 0 
   };
+  // Check if current route is the main dashboard index
+  const isIndexRoute = useMemo(() => {
+    if (!tenant.slug || !role) return false;
+    const basePath = `/${tenant.slug}/${role}`;
+    return location.pathname === basePath || location.pathname === `${basePath}/`;
+  }, [location.pathname, tenant.slug, role]);
+
   const displayStaffData = staffData || { 
     total: cachedKPIs?.totalStaff ?? 0, 
     teachers: cachedKPIs?.totalTeachers ?? 0 
@@ -393,83 +401,86 @@ const TenantDashboard = () => {
           </div>
         )}
 
-        {/* Primary KPIs */}
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-5">
-          {/* Revenue KPI */}
-          <div 
-            className="rounded-3xl bg-surface p-5 shadow-elevated border border-transparent hover:border-emerald-500/30 hover:shadow-emerald-500/5 cursor-pointer transition-all duration-300 group"
-            onClick={() => navigate(`/${tenant.slug}/${role}/fees`)}
-          >
-            <div className="flex items-center justify-between">
-              <p className="text-sm text-muted-foreground group-hover:text-emerald-600 transition-colors">Revenue (MTD)</p>
-              <Coins className="h-4 w-4 text-emerald-500 transition-transform group-hover:scale-110" />
+        {/* Primary KPIs - Only render on the main dashboard tab */}
+        {isIndexRoute && (
+          <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-5">
+            {/* Revenue KPI */}
+            <div 
+              className="rounded-3xl bg-surface p-5 shadow-elevated border border-transparent hover:border-emerald-500/30 hover:shadow-emerald-500/5 cursor-pointer transition-all duration-300 group"
+              onClick={() => navigate(`/${tenant.slug}/${role}/fees`)}
+            >
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-muted-foreground group-hover:text-emerald-600 transition-colors">Revenue (MTD)</p>
+                <Coins className="h-4 w-4 text-emerald-500 transition-transform group-hover:scale-110" />
+              </div>
+              <p className="mt-3 font-display text-2xl font-semibold tracking-tight text-emerald-600">
+                ${revenueMtd.toLocaleString()}
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">This month</p>
             </div>
-            <p className="mt-3 font-display text-2xl font-semibold tracking-tight text-emerald-600">
-              ${revenueMtd.toLocaleString()}
-            </p>
-            <p className="mt-1 text-xs text-muted-foreground">This month</p>
-          </div>
 
-          {/* Students KPI */}
-          <div 
-            className="rounded-3xl bg-surface p-5 shadow-elevated border border-transparent hover:border-primary/30 hover:shadow-primary/5 cursor-pointer transition-all duration-300 group"
-            onClick={() => navigate(`/${tenant.slug}/${role}/academic`)}
-          >
-            <div className="flex items-center justify-between">
-              <p className="text-sm text-muted-foreground group-hover:text-primary transition-colors">Students</p>
-              <GraduationCap className="h-4 w-4 text-primary transition-transform group-hover:scale-110" />
+            {/* Students KPI */}
+            <div 
+              className="rounded-3xl bg-surface p-5 shadow-elevated border border-transparent hover:border-primary/30 hover:shadow-primary/5 cursor-pointer transition-all duration-300 group"
+              onClick={() => navigate(`/${tenant.slug}/${role}/academic`)}
+            >
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-muted-foreground group-hover:text-primary transition-colors">Students</p>
+                <GraduationCap className="h-4 w-4 text-primary transition-transform group-hover:scale-110" />
+              </div>
+              <p className="mt-3 font-display text-2xl font-semibold tracking-tight">
+                {studentsCount.toLocaleString()}
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">Enrolled</p>
             </div>
-            <p className="mt-3 font-display text-2xl font-semibold tracking-tight">
-              {studentsCount.toLocaleString()}
-            </p>
-            <p className="mt-1 text-xs text-muted-foreground">Enrolled</p>
-          </div>
 
-          {/* Staff KPI */}
-          <div 
-            className="rounded-3xl bg-surface p-5 shadow-elevated border border-transparent hover:border-violet-500/30 hover:shadow-violet-500/5 cursor-pointer transition-all duration-300 group"
-            onClick={() => navigate(`/${tenant.slug}/${role}/users`)}
-          >
-            <div className="flex items-center justify-between">
-              <p className="text-sm text-muted-foreground group-hover:text-violet-600 transition-colors">Staff</p>
-              <Users className="h-4 w-4 text-violet-500 transition-transform group-hover:scale-110" />
+            {/* Staff KPI */}
+            <div 
+              className="rounded-3xl bg-surface p-5 shadow-elevated border border-transparent hover:border-violet-500/30 hover:shadow-violet-500/5 cursor-pointer transition-all duration-300 group"
+              onClick={() => navigate(`/${tenant.slug}/${role}/users`)}
+            >
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-muted-foreground group-hover:text-violet-600 transition-colors">Staff</p>
+                <Users className="h-4 w-4 text-violet-500 transition-transform group-hover:scale-110" />
+              </div>
+              <p className="mt-3 font-display text-2xl font-semibold tracking-tight">
+                {displayStaffData.total}
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">{displayStaffData.teachers} teachers</p>
             </div>
-            <p className="mt-3 font-display text-2xl font-semibold tracking-tight">
-              {displayStaffData.total}
-            </p>
-            <p className="mt-1 text-xs text-muted-foreground">{displayStaffData.teachers} teachers</p>
-          </div>
 
-          {/* Admissions KPI */}
-          <div 
-            className="rounded-3xl bg-surface p-5 shadow-elevated border border-transparent hover:border-blue-500/30 hover:shadow-blue-500/5 cursor-pointer transition-all duration-300 group"
-            onClick={() => navigate(`/${tenant.slug}/${role}/crm`)}
-          >
-            <div className="flex items-center justify-between">
-              <p className="text-sm text-muted-foreground group-hover:text-blue-600 transition-colors">Admissions</p>
-              <UserPlus className="h-4 w-4 text-blue-500 transition-transform group-hover:scale-110" />
+            {/* Admissions KPI */}
+            <div 
+              className="rounded-3xl bg-surface p-5 shadow-elevated border border-transparent hover:border-blue-500/30 hover:shadow-blue-500/5 cursor-pointer transition-all duration-300 group"
+              onClick={() => navigate(`/${tenant.slug}/${role}/crm`)}
+            >
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-muted-foreground group-hover:text-blue-600 transition-colors">Admissions</p>
+                <UserPlus className="h-4 w-4 text-blue-500 transition-transform group-hover:scale-110" />
+              </div>
+              <p className="mt-3 font-display text-2xl font-semibold tracking-tight">
+                {displayLeadsData.open}
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">{displayLeadsData.total} leads</p>
             </div>
-            <p className="mt-3 font-display text-2xl font-semibold tracking-tight">
-              {displayLeadsData.open}
-            </p>
-            <p className="mt-1 text-xs text-muted-foreground">{displayLeadsData.total} leads</p>
-          </div>
 
-          {/* Pending Invoices KPI */}
-          <div 
-            className="rounded-3xl bg-surface p-5 shadow-elevated border border-transparent hover:border-rose-500/30 hover:shadow-rose-500/5 cursor-pointer transition-all duration-300 group"
-            onClick={() => navigate(`/${tenant.slug}/${role}/fees`)}
-          >
-            <div className="flex items-center justify-between">
-              <p className="text-sm text-muted-foreground group-hover:text-rose-600 transition-colors">Pending</p>
-              <FileText className={`h-4 w-4 text-rose-500 transition-transform group-hover:scale-110 ${pendingInvoices > 0 ? "animate-pulse" : ""}`} />
+            {/* Pending Invoices KPI */}
+            <div 
+              className="rounded-3xl bg-surface p-5 shadow-elevated border border-transparent hover:border-rose-500/30 hover:shadow-rose-500/5 cursor-pointer transition-all duration-300 group"
+              onClick={() => navigate(`/${tenant.slug}/${role}/fees`)}
+            >
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-muted-foreground group-hover:text-rose-600 transition-colors">Pending</p>
+                <FileText className={`h-4 w-4 text-rose-500 transition-transform group-hover:scale-110 ${pendingInvoices > 0 ? "animate-pulse" : ""}`} />
+              </div>
+              <p className="mt-3 font-display text-2xl font-semibold tracking-tight text-rose-600">
+                {pendingInvoices}
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">Invoices</p>
             </div>
-            <p className="mt-3 font-display text-2xl font-semibold tracking-tight text-rose-600">
-              {pendingInvoices}
-            </p>
-            <p className="mt-1 text-xs text-muted-foreground">Invoices</p>
           </div>
-        </div>
+        )}
+
 
         {authzState === "denied" && (
           <div className="rounded-3xl bg-surface p-6 shadow-elevated">
