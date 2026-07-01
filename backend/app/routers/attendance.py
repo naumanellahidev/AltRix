@@ -32,9 +32,17 @@ async def get_recent_entries(
 ):
     if not current_user.school_id:
         return []
+    from app.utils.security import get_allowed_student_ids
+    allowed_student_ids = await get_allowed_student_ids(current_user, db)
+
     try:
         query = "SELECT student_id, status FROM attendance_entries WHERE school_id = :school_id"
         params = {"school_id": current_user.school_id}
+        if allowed_student_ids is not None:
+            if not allowed_student_ids:
+                return []
+            query += " AND student_id IN :student_ids"
+            params["student_ids"] = tuple(allowed_student_ids)
         if from_date:
             query += " AND created_at >= :from_date"
             params["from_date"] = from_date
@@ -88,6 +96,10 @@ async def list_sessions(
 async def create_session(body: AttendanceSessionCreate, current_user: CurrentUser, db: DbSession):
     if not current_user.school_id:
         raise ForbiddenError("No school context")
+    # Only teachers and above can mark attendance sessions
+    effective_roles = expand_roles(current_user.roles)
+    if not (current_user.is_super_admin or "teacher" in effective_roles or any(r in effective_roles for r in ACADEMIC_GOV)):
+        raise ForbiddenError("Only teachers and academic staff can create attendance sessions")
     session = AttendanceSession(
         school_id=current_user.school_id,
         created_by=current_user.id,
@@ -108,9 +120,28 @@ async def create_session(body: AttendanceSessionCreate, current_user: CurrentUse
 @router.get("/sessions/{session_id}/entries", response_model=List[AttendanceEntryOut])
 @cache_response(ttl=120, key_prefix="attendance:session-entries")
 async def get_session_entries(session_id: UUID, current_user: CurrentUser, db: DbSession, request: Request):
-    result = await db.execute(
-        select(AttendanceEntry).where(AttendanceEntry.session_id == session_id)
-    )
+    # Fetch session to check school matching (tenant isolation)
+    sess_res = await db.execute(select(AttendanceSession).where(AttendanceSession.id == session_id))
+    sess = sess_res.scalar_one_or_none()
+    if not sess:
+        raise NotFoundError("Attendance session", str(session_id))
+    from app.utils.security import require_school_match, get_allowed_student_ids
+    require_school_match(current_user, sess.school_id)
+
+    allowed_student_ids = await get_allowed_student_ids(current_user, db)
+    if allowed_student_ids is not None:
+        if not allowed_student_ids:
+            return []
+        result = await db.execute(
+            select(AttendanceEntry).where(
+                AttendanceEntry.session_id == session_id,
+                AttendanceEntry.student_id.in_(allowed_student_ids)
+            )
+        )
+    else:
+        result = await db.execute(
+            select(AttendanceEntry).where(AttendanceEntry.session_id == session_id)
+        )
     return result.scalars().all()
 
 

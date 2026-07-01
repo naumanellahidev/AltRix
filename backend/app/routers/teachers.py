@@ -524,6 +524,19 @@ async def get_teacher_presence(
     if not current_user.school_id:
         raise ForbiddenError("No school context")
 
+    # Verify target teacher belongs to same school
+    check_sql = "SELECT school_id FROM teacher_profiles WHERE user_id = :uid LIMIT 1"
+    check_res = await db.execute(text(check_sql), {"uid": str(teacher_user_id)})
+    teacher_school = check_res.scalar()
+    if teacher_school and str(teacher_school) != str(current_user.school_id):
+        raise ForbiddenError("Access denied: teacher belongs to a different school")
+
+    effective_roles = expand_roles(current_user.roles)
+    is_staff = current_user.is_super_admin or any(r in effective_roles for r in [*STAFF_GOV, *ACADEMIC_GOV])
+    is_self = str(current_user.id) == str(teacher_user_id)
+    if not (is_staff or is_self):
+        raise ForbiddenError("Permission denied: cannot access this teacher's presence")
+
     import datetime
     from fastapi import HTTPException
     try:
@@ -569,6 +582,19 @@ async def upsert_teacher_presence(
 ):
     if not current_user.school_id:
         raise ForbiddenError("No school context")
+
+    # Verify target teacher belongs to same school
+    check_sql = "SELECT school_id FROM teacher_profiles WHERE user_id = :uid LIMIT 1"
+    check_res = await db.execute(text(check_sql), {"uid": str(teacher_user_id)})
+    teacher_school = check_res.scalar()
+    if teacher_school and str(teacher_school) != str(current_user.school_id):
+        raise ForbiddenError("Access denied: teacher belongs to a different school")
+
+    effective_roles = expand_roles(current_user.roles)
+    is_staff = current_user.is_super_admin or any(r in effective_roles for r in [*STAFF_GOV, *ACADEMIC_GOV])
+    is_self = str(current_user.id) == str(teacher_user_id)
+    if not (is_staff or is_self):
+        raise ForbiddenError("Permission denied: cannot modify presence")
 
     import datetime
     from fastapi import HTTPException

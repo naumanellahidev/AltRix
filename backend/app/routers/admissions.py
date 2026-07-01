@@ -34,11 +34,17 @@ async def list_applications(
     if not current_user.school_id:
         return PaginatedResponse.create([], 0, page, page_size)
 
+    # Only admissions/academic staff may list all applications
+    effective_roles = expand_roles(current_user.roles)
+    if not (current_user.is_super_admin or any(r in effective_roles for r in ACADEMIC_GOV)):
+        raise ForbiddenError("Insufficient permissions to view admission applications")
+
     query = select(AdmissionApplication).where(
         AdmissionApplication.school_id == current_user.school_id
     )
 
     if search:
+        search = search[:100]  # Limit search input length
         like = f"%{search}%"
         query = query.where(
             or_(
@@ -85,6 +91,8 @@ async def get_application(application_id: UUID, current_user: CurrentUser, db: D
     app = result.scalar_one_or_none()
     if not app:
         raise NotFoundError("Application", str(application_id))
+    from app.utils.security import require_school_match
+    require_school_match(current_user, app.school_id)
     return app
 
 
@@ -105,7 +113,8 @@ async def update_status(
     app = result.scalar_one_or_none()
     if not app:
         raise NotFoundError("Application", str(application_id))
-
+    from app.utils.security import require_school_match
+    require_school_match(current_user, app.school_id)
     app.status = body.status
     app.decision_notes = body.decision_notes
     app.reviewed_by_user_id = current_user.id
@@ -128,6 +137,8 @@ async def convert_to_student(application_id: UUID, current_user: CurrentUser, db
     app = result.scalar_one_or_none()
     if not app:
         raise NotFoundError("Application", str(application_id))
+    from app.utils.security import require_school_match
+    require_school_match(current_user, app.school_id)
     if app.status != "approved":
         raise ForbiddenError("Only approved applications can be converted")
 
@@ -158,6 +169,15 @@ async def convert_to_student(application_id: UUID, current_user: CurrentUser, db
 
 @router.get("/{application_id}/documents")
 async def list_documents(application_id: UUID, current_user: CurrentUser, db: DbSession):
+    # Verify the application belongs to user's school first
+    app_res = await db.execute(
+        select(AdmissionApplication).where(AdmissionApplication.id == application_id)
+    )
+    app = app_res.scalar_one_or_none()
+    if not app:
+        raise NotFoundError("Application", str(application_id))
+    from app.utils.security import require_school_match
+    require_school_match(current_user, app.school_id)
     result = await db.execute(
         select(AdmissionApplicationDocument).where(
             AdmissionApplicationDocument.application_id == application_id

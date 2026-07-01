@@ -46,6 +46,13 @@ async def list_students(
 
     query = select(Student).where(Student.school_id == current_user.school_id)
 
+    from app.utils.security import get_allowed_student_ids
+    allowed_student_ids = await get_allowed_student_ids(current_user, db)
+    if allowed_student_ids is not None:
+        if not allowed_student_ids:
+            return PaginatedResponse.create([], 0, page, page_size)
+        query = query.where(Student.id.in_(allowed_student_ids))
+
     if search:
         like = f"%{search}%"
         query = query.where(
@@ -337,19 +344,31 @@ async def delete_school_guardian(guardian_id: UUID, current_user: CurrentUser, d
 
 @router.get("/{student_id}", response_model=StudentOut)
 async def get_student(student_id: UUID, current_user: CurrentUser, db: DbSession):
+    from app.utils.security import get_allowed_student_ids, require_school_match
+    allowed_student_ids = await get_allowed_student_ids(current_user, db)
+    if allowed_student_ids is not None and student_id not in allowed_student_ids:
+        raise ForbiddenError("Permission denied: cannot access this student's details")
+        
     result = await db.execute(select(Student).where(Student.id == student_id))
     student = result.scalar_one_or_none()
     if not student:
         raise NotFoundError("Student", str(student_id))
+    require_school_match(current_user, student.school_id)
     return student
 
 
 @router.patch("/{student_id}", response_model=StudentOut)
 async def update_student(student_id: UUID, body: StudentUpdate, current_user: CurrentUser, db: DbSession):
+    effective_roles = expand_roles(current_user.roles)
+    if not (current_user.is_super_admin or any(r in effective_roles for r in [*ACADEMIC_GOV, "teacher"])):
+        raise ForbiddenError()
+        
     result = await db.execute(select(Student).where(Student.id == student_id))
     student = result.scalar_one_or_none()
     if not student:
         raise NotFoundError("Student", str(student_id))
+    from app.utils.security import require_school_match
+    require_school_match(current_user, student.school_id)
     
     for field, value in body.model_dump(exclude_none=True).items():
         setattr(student, field, value)
@@ -405,6 +424,8 @@ async def delete_student(student_id: UUID, current_user: CurrentUser, db: DbSess
     student = result.scalar_one_or_none()
     if not student:
         raise NotFoundError("Student", str(student_id))
+    from app.utils.security import require_school_match
+    require_school_match(current_user, student.school_id)
         
     try:
         await db.execute(

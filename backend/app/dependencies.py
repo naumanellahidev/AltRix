@@ -52,13 +52,20 @@ async def get_current_user(
     except JWTError:
         raise credentials_exception
 
+    # Check token blacklist (by JTI or token hash)
+    import hashlib
+    from app.utils.security import is_token_blacklisted
+    jti = payload.get("jti") or hashlib.sha256(token.encode("utf-8")).hexdigest()
+    if await is_token_blacklisted(db, jti):
+        raise credentials_exception
+
     user_id: str = payload.get("sub", "")
     if not user_id:
         raise credentials_exception
 
     email: str = payload.get("email", "") or ""
 
-    # Check if super admin
+    # Check if super admin — FAIL CLOSED: never grant super_admin on DB error
     try:
         result = await db.execute(
             text("SELECT user_id FROM platform_super_admins WHERE user_id = :uid LIMIT 1"),
@@ -67,8 +74,8 @@ async def get_current_user(
         is_super = result.fetchone() is not None
     except Exception as e:
         import logging
-        logging.getLogger("app.dependencies").warning(f"DB exception checking super admin: {e}")
-        is_super = True
+        logging.getLogger("app.dependencies").warning(f"DB exception checking super admin for {user_id}: {e}")
+        is_super = False  # SECURITY: fail closed — DB error must NOT grant super admin
 
     return AuthenticatedUser(
         id=user_id,
@@ -117,8 +124,15 @@ async def get_current_user_with_roles(
         except Exception as e:
             import logging
             logging.getLogger("app.dependencies").warning(f"DB exception loading roles for school {x_school_id}: {e}")
-            user.roles = ["super_admin", "principal"]
+            user.roles = []
             user.school_id = x_school_id
+
+        # Enforce multi-tenant membership check
+        if not user.is_super_admin and not user.roles:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied: you are not a member of this school",
+            )
 
     if user.is_super_admin and "super_admin" not in user.roles:
         user.roles.insert(0, "super_admin")

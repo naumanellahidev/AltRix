@@ -148,7 +148,7 @@ def require_ownership_or_admin(user, resource_owner_id: Optional[_uuid.UUID]):
 # ─── Token Blacklist (DB-backed) ───────────────────────────────────────────────
 
 async def blacklist_token(db, jti: str, user_id: _uuid.UUID, expires_at: datetime):
-    """Add a JWT ID to the blacklist table."""
+    """Add a JWT ID to the blacklist table AND Redis cache."""
     try:
         from sqlalchemy import text
         await db.execute(text("""
@@ -161,18 +161,92 @@ async def blacklist_token(db, jti: str, user_id: _uuid.UUID, expires_at: datetim
             "expires_at": expires_at,
         })
     except Exception as e:
-        logger.warning(f"Failed to blacklist token {jti}: {e}")
+        logger.warning(f"Failed to blacklist token {jti[:8]}... in DB: {e}")
+
+    # Also write to Redis for fast L1 lookups
+    try:
+        from app.cache import cache
+        ttl = max(1, int((expires_at - datetime.now(timezone.utc)).total_seconds()))
+        await cache.set(f"blacklist:jti:{jti}", "1", ttl=min(ttl, 86400))
+    except Exception as e:
+        logger.warning(f"Failed to write token blacklist to Redis: {e}")
 
 
 async def is_token_blacklisted(db, jti: str) -> bool:
-    """Check if a token's JTI is in the blacklist."""
+    """Check if a token's JTI is in the blacklist.
+    
+    Uses Redis as L1 fast cache, falls back to DB.
+    On total failure: FAIL SAFE — returns False (allow through with log).
+    We accept a small security window on catastrophic failures rather than 
+    blocking all valid users during outages.
+    """
+    # Fast path: check Redis first
+    try:
+        from app.cache import cache
+        redis_key = f"blacklist:jti:{jti}"
+        cached = await cache.get(redis_key)
+        if cached is not None:
+            return True
+    except Exception:
+        pass  # Redis unavailable — fall through to DB
+
+    # Slow path: check database
     try:
         from sqlalchemy import text
         result = await db.execute(
             text("SELECT 1 FROM token_blacklist WHERE jti = :jti AND expires_at > NOW()"),
             {"jti": jti},
         )
-        return result.fetchone() is not None
+        is_blacklisted = result.fetchone() is not None
+        # Warm the Redis cache if blacklisted
+        if is_blacklisted:
+            try:
+                from app.cache import cache
+                await cache.set(f"blacklist:jti:{jti}", "1", ttl=300)
+            except Exception:
+                pass
+        return is_blacklisted
     except Exception as e:
-        logger.warning(f"Token blacklist check failed: {e}")
-        return False  # Fail open — don't block valid users on DB error
+        logger.warning(f"Token blacklist check failed for jti={jti[:8]}...: {e}")
+        return False  # Fail open on DB error — log the gap
+
+
+async def get_allowed_student_ids(user, db) -> Optional[list]:
+    """
+    Return a list of student UUIDs the current user is allowed to access.
+    Returns None if the user is staff/admin and can access all students in their school.
+    """
+    if user.is_super_admin:
+        return None
+
+    elevated = {"school_owner", "principal", "vice_principal", "school_admin", "academic_coordinator", "teacher", "accountant", "hr_manager", "counselor"}
+    user_roles = set(user.roles)
+    if any(r in user_roles for r in elevated):
+        return None  # Staff/admin can access any student in their school
+
+    from sqlalchemy import text
+    allowed_ids = []
+
+    # If student, allow access to own student record
+    if "student" in user_roles:
+        try:
+            res = await db.execute(
+                text("SELECT id FROM students WHERE profile_id = :uid"),
+                {"uid": str(user.id)}
+            )
+            allowed_ids.extend([r[0] for r in res.fetchall() if r[0]])
+        except Exception as e:
+            logger.warning(f"Error resolving student_id for user {user.id}: {e}")
+
+    # If parent, allow access to children's student records
+    if "parent" in user_roles:
+        try:
+            res = await db.execute(
+                text("SELECT student_id FROM student_guardians WHERE user_id = :uid"),
+                {"uid": str(user.id)}
+            )
+            allowed_ids.extend([r[0] for r in res.fetchall() if r[0]])
+        except Exception as e:
+            logger.warning(f"Error resolving children for parent user {user.id}: {e}")
+
+    return allowed_ids

@@ -90,6 +90,8 @@ async def update_complaint_status(
     complaint = result.scalar_one_or_none()
     if not complaint:
         raise NotFoundError("Complaint", str(complaint_id))
+    from app.utils.security import require_school_match
+    require_school_match(current_user, complaint.school_id)
     complaint.status = body.status  # type: ignore[assignment]
     complaint.resolution_note = body.resolution_note  # type: ignore[assignment]
     if body.status == "resolved":
@@ -2208,6 +2210,28 @@ async def copilot_chat(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Active school context is required to access the AI Copilot."
         )
+
+    # 2. Sanitize AI input to prevent prompt injection
+    import re
+    raw_message = body.message or ""
+    # Enforce message length limit
+    if len(raw_message) > 2000:
+        raise HTTPException(status_code=400, detail="Message too long. Maximum 2000 characters.")
+    # Strip control chars, null bytes, and common prompt-injection patterns
+    sanitized_message = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]', '', raw_message)
+    sanitized_message = re.sub(
+        r'(ignore previous instructions|disregard system prompt|you are now|system:|<\|im_start\||</s>|\[INST\])',
+        '[filtered]', sanitized_message, flags=re.IGNORECASE
+    )
+    body = CopilotChatRequest(
+        message=sanitized_message.strip(),
+        history=body.history[-20:] if body.history else [],  # Limit history depth
+        current_screen=body.current_screen,
+        current_module=body.current_module,
+        active_campus_id=body.active_campus_id,
+        active_class_section_id=body.active_class_section_id,
+        active_student_id=body.active_student_id,
+    )
 
     # Calculate Cache Key for read-only AI answers
     ai_param_str = f"msg:{body.message}|history:{str(body.history)}"

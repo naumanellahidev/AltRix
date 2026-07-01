@@ -48,6 +48,12 @@ async def login(request: Request, body: LoginRequest, db: DbSession):
     Login using email/password via Supabase Auth API.
     Rate limited: 5 attempts per minute per IP.
     """
+    from app.utils.brute_force import check_brute_force, record_failed_attempt, clear_failed_attempts, detect_suspicious_login
+    import hashlib
+
+    # 1. Brute-force check BEFORE attempting auth
+    await check_brute_force(request, body.email)
+
     async with httpx.AsyncClient() as client:
         resp = await client.post(
             f"{settings.supabase_url}/auth/v1/token?grant_type=password",
@@ -61,7 +67,28 @@ async def login(request: Request, body: LoginRequest, db: DbSession):
 
     if resp.status_code != 200:
         error_data = resp.json()
-        # Log failed login attempt
+        
+        # Record failed login attempt (brute force and persistent SQL table)
+        await record_failed_attempt(request, body.email, db=db)
+        
+        try:
+            await db.execute(
+                text("""
+                    INSERT INTO failed_login_attempts (email, ip_address, user_agent, failure_reason)
+                    VALUES (:email, :ip, :ua, :reason)
+                """),
+                {
+                    "email": body.email,
+                    "ip": request.client.host if request.client else "unknown",
+                    "ua": request.headers.get("User-Agent", "")[:500],
+                    "reason": error_data.get("error_description", "Invalid credentials"),
+                }
+            )
+            await db.commit()
+        except Exception as db_err:
+            logger.warning(f"Failed to record failed login attempt to DB: {db_err}")
+
+        # Log audit event
         await log_audit_event(
             db=db,
             action=AuditAction.LOGIN,
@@ -82,7 +109,14 @@ async def login(request: Request, body: LoginRequest, db: DbSession):
     user_id = user_data.get("id", "")
     email = user_data.get("email", "")
 
-    # Log successful login
+    # Clear brute-force counters on success
+    ip = request.client.host if request.client else None
+    await clear_failed_attempts(body.email, ip)
+
+    # Detect suspicious login patterns (new IP, etc.)
+    await detect_suspicious_login(request, user_id, email, db=db)
+
+    # Log audit event
     await log_audit_event(
         db=db,
         action=AuditAction.LOGIN,
@@ -92,6 +126,26 @@ async def login(request: Request, body: LoginRequest, db: DbSession):
         user_id=user_id,
         request=request,
     )
+
+    # Track active session in DB
+    try:
+        token_hash = hashlib.sha256(access_token.encode("utf-8")).hexdigest()
+        await db.execute(
+            text("""
+                INSERT INTO active_sessions (user_id, school_id, ip_address, user_agent, token_hash, is_active)
+                VALUES (:user_id, :school_id, :ip, :ua, :token_hash, TRUE)
+            """),
+            {
+                "user_id": user_id,
+                "school_id": request.headers.get("X-School-Id"),
+                "ip": request.client.host if request.client else "unknown",
+                "ua": request.headers.get("User-Agent", "")[:500],
+                "token_hash": token_hash,
+            }
+        )
+        await db.commit()
+    except Exception as session_err:
+        logger.warning(f"Failed to record active session: {session_err}")
 
     return LoginResponse(
         access_token=access_token,
@@ -109,7 +163,7 @@ async def login(request: Request, body: LoginRequest, db: DbSession):
     description="Invalidates the current Supabase session and logs the event.",
 )
 async def logout(request: Request, current_user: CurrentUser, db: DbSession):
-    """Logout: invalidate Supabase session + audit log."""
+    """Logout: invalidate Supabase session + blacklist token + audit log."""
     auth_header = request.headers.get("Authorization", "")
     token = auth_header.replace("Bearer ", "").strip()
 
@@ -123,6 +177,45 @@ async def logout(request: Request, current_user: CurrentUser, db: DbSession):
                 },
                 timeout=5.0,
             )
+
+        # Blacklist current token
+        import hashlib
+        from app.utils.jwt import decode_supabase_token
+        from app.utils.security import blacklist_token
+        from datetime import datetime, timezone, timedelta
+        
+        jti = None
+        expires_at = None
+        try:
+            payload = await decode_supabase_token(token)
+            jti = payload.get("jti")
+            exp = payload.get("exp")
+            if exp:
+                expires_at = datetime.fromtimestamp(exp, tz=timezone.utc)
+        except Exception:
+            pass
+
+        if not jti:
+            jti = hashlib.sha256(token.encode("utf-8")).hexdigest()
+        if not expires_at:
+            expires_at = datetime.now(timezone.utc) + timedelta(hours=24)
+
+        await blacklist_token(db, jti, current_user.id, expires_at)
+
+        # Mark active session as inactive in DB
+        try:
+            token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
+            await db.execute(
+                text("""
+                    UPDATE active_sessions
+                    SET is_active = FALSE, logged_out_at = NOW(), logout_reason = 'logout'
+                    WHERE (token_hash = :token_hash OR user_id = :user_id) AND is_active = TRUE
+                """),
+                {"token_hash": token_hash, "user_id": str(current_user.id)}
+            )
+            await db.commit()
+        except Exception as e:
+            logger.warning(f"Failed to invalidate active session: {e}")
 
         # Invalidate cached permissions/roles for this user
         await cache.delete(cache_key_permissions(str(current_user.id), str(current_user.school_id or "")))

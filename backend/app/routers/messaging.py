@@ -55,6 +55,21 @@ async def send_message(body: AdminMessageCreate, current_user: CurrentUser, db: 
     if not current_user.school_id:
         raise ForbiddenError("No school context")
 
+    # Validate all recipients belong to the same school (prevent cross-tenant messaging)
+    if body.recipient_user_ids:
+        recipient_ids_str = [str(rid) for rid in body.recipient_user_ids]
+        valid_res = await db.execute(
+            text("""
+                SELECT user_id FROM user_roles
+                WHERE school_id = :school_id AND user_id = ANY(:uids)
+            """),
+            {"school_id": str(current_user.school_id), "uids": recipient_ids_str}
+        )
+        valid_ids = {str(r[0]) for r in valid_res.fetchall()}
+        invalid = [str(rid) for rid in body.recipient_user_ids if str(rid) not in valid_ids]
+        if invalid:
+            raise ForbiddenError(f"Recipients not found in this school: {len(invalid)} invalid")
+
     msg = AdminMessage(
         school_id=current_user.school_id,
         sender_user_id=current_user.id,
@@ -114,6 +129,20 @@ async def get_message(message_id: UUID, current_user: CurrentUser, db: DbSession
     msg = result.scalar_one_or_none()
     if not msg:
         raise NotFoundError("Message", str(message_id))
+    # Tenant isolation: verify message belongs to user's school
+    from app.utils.security import require_school_match
+    require_school_match(current_user, msg.school_id)
+    # Access control: user must be sender or a recipient
+    is_sender = str(msg.sender_user_id) == str(current_user.id)
+    if not is_sender:
+        recip_res = await db.execute(
+            select(AdminMessageRecipient).where(
+                AdminMessageRecipient.message_id == message_id,
+                AdminMessageRecipient.recipient_user_id == current_user.id,
+            )
+        )
+        if not recip_res.scalar_one_or_none():
+            raise ForbiddenError("Access denied: you are not a recipient of this message")
     return msg
 
 
@@ -174,10 +203,15 @@ async def create_notice(body: NoticeCreate, current_user: CurrentUser, db: DbSes
 
 @notices_router.post("/{notice_id}/publish", response_model=NoticeOut)
 async def publish_notice(notice_id: UUID, current_user: CurrentUser, db: DbSession):
+    effective_roles = expand_roles(current_user.roles)
+    if not (current_user.is_super_admin or can_broadcast_notices(effective_roles)):
+        raise ForbiddenError()
     result = await db.execute(select(Notice).where(Notice.id == notice_id))
     notice = result.scalar_one_or_none()
     if not notice:
         raise NotFoundError("Notice", str(notice_id))
+    from app.utils.security import require_school_match
+    require_school_match(current_user, notice.school_id)
     notice.is_published = True
     notice.published_at = datetime.now(timezone.utc)
     await db.flush()
@@ -187,10 +221,15 @@ async def publish_notice(notice_id: UUID, current_user: CurrentUser, db: DbSessi
 
 @notices_router.delete("/{notice_id}", response_model=MessageResponse)
 async def delete_notice(notice_id: UUID, current_user: CurrentUser, db: DbSession):
+    effective_roles = expand_roles(current_user.roles)
+    if not (current_user.is_super_admin or can_broadcast_notices(effective_roles)):
+        raise ForbiddenError()
     result = await db.execute(select(Notice).where(Notice.id == notice_id))
     notice = result.scalar_one_or_none()
     if not notice:
         raise NotFoundError("Notice", str(notice_id))
+    from app.utils.security import require_school_match
+    require_school_match(current_user, notice.school_id)
     await db.delete(notice)
     return MessageResponse(message="Notice deleted")
 
@@ -227,6 +266,11 @@ async def list_diary(
 async def create_diary_entry(body: DiaryEntryCreate, current_user: CurrentUser, db: DbSession):
     if not current_user.school_id:
         raise ForbiddenError("No school context")
+    # Only teachers and academic staff can create diary entries
+    effective_roles = expand_roles(current_user.roles)
+    from app.utils.permissions import ACADEMIC_GOV
+    if not (current_user.is_super_admin or "teacher" in effective_roles or any(r in effective_roles for r in ACADEMIC_GOV)):
+        raise ForbiddenError("Only teachers can create diary entries")
     entry = DiaryEntry(
         school_id=current_user.school_id,
         teacher_user_id=current_user.id,
@@ -245,6 +289,9 @@ async def update_diary(entry_id: UUID, body: DiaryEntryCreate, current_user: Cur
     entry = result.scalar_one_or_none()
     if not entry:
         raise NotFoundError("Diary entry", str(entry_id))
+    from app.utils.security import require_school_match, require_ownership_or_admin
+    require_school_match(current_user, entry.school_id)
+    require_ownership_or_admin(current_user, entry.teacher_user_id)
     for field, value in body.model_dump(exclude_none=True).items():
         setattr(entry, field, value)
     await db.flush()
@@ -258,5 +305,8 @@ async def delete_diary(entry_id: UUID, current_user: CurrentUser, db: DbSession)
     entry = result.scalar_one_or_none()
     if not entry:
         raise NotFoundError("Diary entry", str(entry_id))
+    from app.utils.security import require_school_match, require_ownership_or_admin
+    require_school_match(current_user, entry.school_id)
+    require_ownership_or_admin(current_user, entry.teacher_user_id)
     await db.delete(entry)
     return MessageResponse(message="Diary entry deleted")

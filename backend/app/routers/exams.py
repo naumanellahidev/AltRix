@@ -79,6 +79,11 @@ async def get_report_card(
     if not current_user.school_id:
         raise ForbiddenError("No school context")
 
+    from app.utils.security import get_allowed_student_ids
+    allowed_student_ids = await get_allowed_student_ids(current_user, db)
+    if allowed_student_ids is not None and student_id not in allowed_student_ids:
+        raise ForbiddenError("Permission denied: cannot access this student's report card")
+
     params = {"school_id": current_user.school_id, "student_id": str(student_id)}
     conditions = "er.school_id = :school_id AND er.student_id = :student_id"
     if academic_year:
@@ -137,15 +142,22 @@ async def get_exam(exam_id: UUID, current_user: CurrentUser, db: DbSession):
     exam = result.scalar_one_or_none()
     if not exam:
         raise NotFoundError("Exam", str(exam_id))
+    from app.utils.security import require_school_match
+    require_school_match(current_user, exam.school_id)
     return exam
 
 
 @router.patch("/{exam_id}", response_model=ExamOut)
 async def update_exam(exam_id: UUID, body: ExamCreate, current_user: CurrentUser, db: DbSession):
+    effective_roles = expand_roles(current_user.roles)
+    if not (current_user.is_super_admin or any(r in effective_roles for r in ACADEMIC_GOV)):
+        raise ForbiddenError()
     result = await db.execute(select(Exam).where(Exam.id == exam_id))
     exam = result.scalar_one_or_none()
     if not exam:
         raise NotFoundError("Exam", str(exam_id))
+    from app.utils.security import require_school_match
+    require_school_match(current_user, exam.school_id)
     for field, value in body.model_dump(exclude_none=True).items():
         setattr(exam, field, value)
     await db.flush()
@@ -161,10 +173,15 @@ async def update_exam(exam_id: UUID, body: ExamCreate, current_user: CurrentUser
 
 @router.post("/{exam_id}/publish", response_model=ExamOut)
 async def publish_exam(exam_id: UUID, current_user: CurrentUser, db: DbSession):
+    effective_roles = expand_roles(current_user.roles)
+    if not (current_user.is_super_admin or any(r in effective_roles for r in ACADEMIC_GOV)):
+        raise ForbiddenError()
     result = await db.execute(select(Exam).where(Exam.id == exam_id))
     exam = result.scalar_one_or_none()
     if not exam:
         raise NotFoundError("Exam", str(exam_id))
+    from app.utils.security import require_school_match
+    require_school_match(current_user, exam.school_id)
     exam.is_published = True
     await db.flush()
     await db.refresh(exam)
@@ -179,10 +196,15 @@ async def publish_exam(exam_id: UUID, current_user: CurrentUser, db: DbSession):
 
 @router.delete("/{exam_id}", response_model=MessageResponse)
 async def delete_exam(exam_id: UUID, current_user: CurrentUser, db: DbSession):
+    effective_roles = expand_roles(current_user.roles)
+    if not (current_user.is_super_admin or any(r in effective_roles for r in ACADEMIC_GOV)):
+        raise ForbiddenError()
     result = await db.execute(select(Exam).where(Exam.id == exam_id))
     exam = result.scalar_one_or_none()
     if not exam:
         raise NotFoundError("Exam", str(exam_id))
+    from app.utils.security import require_school_match
+    require_school_match(current_user, exam.school_id)
     await db.delete(exam)
     try:
         await cache.invalidate_pattern(f"*school_{current_user.school_id}_*exams:*")
@@ -203,12 +225,33 @@ async def list_results(
     student_id: Optional[UUID] = Query(None),
     section_id: Optional[UUID] = Query(None),
 ):
+    # Verify exam belongs to school
+    exam_res = await db.execute(select(Exam).where(Exam.id == exam_id))
+    exam = exam_res.scalar_one_or_none()
+    if not exam:
+        raise NotFoundError("Exam", str(exam_id))
+    from app.utils.security import require_school_match, get_allowed_student_ids
+    require_school_match(current_user, exam.school_id)
+
+    # Scoping for parents/students
+    allowed_student_ids = await get_allowed_student_ids(current_user, db)
+    
     query = select(ExamResult).where(ExamResult.exam_id == exam_id)
-    if student_id:
+    if allowed_student_ids is not None:
+        if student_id:
+            if student_id not in allowed_student_ids:
+                raise ForbiddenError("Permission denied: cannot access this student's results")
+            query = query.where(ExamResult.student_id == student_id)
+        else:
+            if not allowed_student_ids:
+                return []
+            query = query.where(ExamResult.student_id.in_(allowed_student_ids))
+    elif student_id:
         query = query.where(ExamResult.student_id == student_id)
+
     if section_id:
-        # class_section_id is not a mapped column on ExamResult; filter yields no results
         query = query.where(sa_false())
+        
     result = await db.execute(query.order_by(ExamResult.student_id))
     return result.scalars().all()
 
@@ -217,7 +260,17 @@ async def list_results(
 async def create_result(exam_id: UUID, body: ExamResultCreate, current_user: CurrentUser, db: DbSession):
     if not current_user.school_id:
         raise ForbiddenError("No school context")
-    # Calculate percentage
+    effective_roles = expand_roles(current_user.roles)
+    if not (current_user.is_super_admin or any(r in effective_roles for r in [*ACADEMIC_GOV, "teacher"])):
+        raise ForbiddenError()
+    # Verify exam belongs to school
+    exam_res = await db.execute(select(Exam).where(Exam.id == exam_id))
+    exam = exam_res.scalar_one_or_none()
+    if not exam:
+        raise NotFoundError("Exam", str(exam_id))
+    from app.utils.security import require_school_match
+    require_school_match(current_user, exam.school_id)
+
     percentage = None
     if body.marks_obtained is not None and body.max_marks:
         percentage = round(body.marks_obtained / body.max_marks * 100, 2)
@@ -245,6 +298,17 @@ async def bulk_results(
     """Upload results for multiple students at once."""
     if not current_user.school_id:
         raise ForbiddenError("No school context")
+    effective_roles = expand_roles(current_user.roles)
+    if not (current_user.is_super_admin or any(r in effective_roles for r in [*ACADEMIC_GOV, "teacher"])):
+        raise ForbiddenError()
+    # Verify exam belongs to school
+    exam_res = await db.execute(select(Exam).where(Exam.id == exam_id))
+    exam = exam_res.scalar_one_or_none()
+    if not exam:
+        raise NotFoundError("Exam", str(exam_id))
+    from app.utils.security import require_school_match
+    require_school_match(current_user, exam.school_id)
+
     created = []
     for body in results:
         percentage = None

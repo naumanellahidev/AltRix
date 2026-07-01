@@ -31,6 +31,9 @@ router = APIRouter(prefix="/finance", tags=["Finance"])
 async def list_structures(current_user: CurrentUser, db: DbSession, request: Request):
     if not current_user.school_id:
         return []
+    effective_roles = expand_roles(current_user.roles)
+    if not (current_user.is_super_admin or any(r in effective_roles for r in FINANCE_GOV)):
+        raise ForbiddenError("Permission denied: cannot read finance data")
     result = await db.execute(
         select(FeeStructure)
         .where(FeeStructure.school_id == current_user.school_id, FeeStructure.is_active == True)
@@ -64,19 +67,29 @@ async def create_structure(body: FeeStructureCreate, current_user: CurrentUser, 
 @router.get("/structures/{structure_id}", response_model=FeeStructureOut)
 @cache_response(ttl=300, key_prefix="finance:structure-detail")
 async def get_structure(structure_id: UUID, current_user: CurrentUser, db: DbSession, request: Request):
+    effective_roles = expand_roles(current_user.roles)
+    if not (current_user.is_super_admin or any(r in effective_roles for r in FINANCE_GOV)):
+        raise ForbiddenError("Permission denied: cannot read finance data")
     result = await db.execute(select(FeeStructure).where(FeeStructure.id == structure_id))
     s = result.scalar_one_or_none()
     if not s:
         raise NotFoundError("Fee structure", str(structure_id))
+    from app.utils.security import require_school_match
+    require_school_match(current_user, s.school_id)
     return s
 
 
 @router.patch("/structures/{structure_id}", response_model=FeeStructureOut)
 async def update_structure(structure_id: UUID, body: FeeStructureCreate, current_user: CurrentUser, db: DbSession):
+    effective_roles = expand_roles(current_user.roles)
+    if not (current_user.is_super_admin or any(r in effective_roles for r in FINANCE_GOV)):
+        raise ForbiddenError("Permission denied: cannot write finance data")
     result = await db.execute(select(FeeStructure).where(FeeStructure.id == structure_id))
     s = result.scalar_one_or_none()
     if not s:
         raise NotFoundError("Fee structure", str(structure_id))
+    from app.utils.security import require_school_match
+    require_school_match(current_user, s.school_id)
     for field, value in body.model_dump(exclude_none=True).items():
         setattr(s, field, value)
     await db.flush()
@@ -90,11 +103,21 @@ async def update_structure(structure_id: UUID, body: FeeStructureCreate, current
 
 @router.delete("/structures/{structure_id}", response_model=MessageResponse)
 async def delete_structure(structure_id: UUID, current_user: CurrentUser, db: DbSession):
+    effective_roles = expand_roles(current_user.roles)
+    if not (current_user.is_super_admin or any(r in effective_roles for r in FINANCE_GOV)):
+        raise ForbiddenError("Permission denied: cannot delete finance data")
     result = await db.execute(select(FeeStructure).where(FeeStructure.id == structure_id))
     s = result.scalar_one_or_none()
     if not s:
         raise NotFoundError("Fee structure", str(structure_id))
+    from app.utils.security import require_school_match
+    require_school_match(current_user, s.school_id)
     s.is_active = False  # type: ignore[assignment]
+    await db.flush()
+    try:
+        await cache.invalidate_pattern(f"*school_{current_user.school_id}_*finance:*")
+    except Exception:
+        pass
     return MessageResponse(message="Fee structure deactivated")
 
 
@@ -116,9 +139,24 @@ async def list_vouchers(
     if not current_user.school_id:
         return PaginatedResponse.create([], 0, page, page_size)
 
+    from app.utils.security import get_allowed_student_ids
+    allowed_student_ids = await get_allowed_student_ids(current_user, db)
+    
+    if allowed_student_ids is not None:
+        if student_id:
+            if student_id not in allowed_student_ids:
+                raise ForbiddenError("Permission denied: cannot access this student's vouchers")
+            student_ids_filter = [student_id]
+        else:
+            if not allowed_student_ids:
+                return PaginatedResponse.create([], 0, page, page_size)
+            student_ids_filter = allowed_student_ids
+    else:
+        student_ids_filter = [student_id] if student_id else None
+
     query = select(FeeVoucher).where(FeeVoucher.school_id == current_user.school_id)
-    if student_id:
-        query = query.where(FeeVoucher.student_id == student_id)
+    if student_ids_filter is not None:
+        query = query.where(FeeVoucher.student_id.in_(student_ids_filter))
     if status_filter:
         query = query.where(FeeVoucher.status == status_filter)
     if month:
