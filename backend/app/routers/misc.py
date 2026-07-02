@@ -987,6 +987,23 @@ Constraints:
 
     try:
         parsed_json = json.loads(cleaned_response)
+
+        # Fire Event Bus trigger for ReportGenerated / AI Curriculum generation
+        try:
+            from app.services.event_bus import EnterpriseEventBus
+            from app.schemas import EventEnvelope
+            await EnterpriseEventBus.publish(EventEnvelope(
+                event_name="ReportGenerated",
+                category="general",
+                school_id=current_user.school_id,
+                user_id=current_user.id,
+                entity_type="curriculum_plan",
+                payload={"subject": body.subject, "grade_level": body.gradeLevel},
+                source="curriculum_planner_router",
+            ), db)
+        except Exception as eb_err:
+            logger.warning(f"Event bus publish failed (non-blocking): {eb_err}")
+
         return parsed_json
     except json.JSONDecodeError as e:
         logger.error(f"Failed to parse AI response as JSON: {cleaned_response}")

@@ -200,6 +200,45 @@ async def publish_exam(exam_id: UUID, current_user: CurrentUser, db: DbSession):
         await _sc.invalidate_by_deps(db, current_user.school_id, ["exams"])
     except Exception:
         pass
+
+    # Fire Event Bus triggers for published results
+    try:
+        from app.models.exams import ExamResult
+        from app.models.people import Guardian
+        from app.services.event_bus import EnterpriseEventBus
+        from app.schemas import EventEnvelope
+
+        res_query = select(ExamResult).where(ExamResult.exam_id == exam_id)
+        res_list = (await db.execute(res_query)).scalars().all()
+
+        for r in res_list:
+            g_query = select(Guardian).where(
+                Guardian.student_id == r.student_id
+            ).order_by(Guardian.is_primary.desc())
+            guardian = (await db.execute(g_query)).scalars().first()
+            
+            guardian_user_id = guardian.user_id if guardian else None
+
+            await EnterpriseEventBus.publish(EventEnvelope(
+                event_name="ResultPublished",
+                category="academic",
+                school_id=current_user.school_id,
+                user_id=current_user.id,
+                entity_type="exam_result",
+                entity_id=r.id,
+                payload={
+                    "exam_name": exam.name,
+                    "student_id": str(r.student_id),
+                    "guardian_user_id": str(guardian_user_id) if guardian_user_id else None,
+                    "marks_obtained": float(r.marks_obtained) if r.marks_obtained is not None else None,
+                    "max_marks": float(r.max_marks) if r.max_marks is not None else None,
+                },
+                source="exams_router",
+            ), db)
+    except Exception as eb_err:
+        import logging
+        logging.getLogger("app.event_bus").warning(f"Failed to publish ResultPublished events: {eb_err}")
+
     return exam
 
 
