@@ -33,6 +33,7 @@ from app.schemas import (
     AuditLogOut,
     AiPredictionOut, AiStudentProfileOut, AiEarlyWarningOut,
     MessageResponse,
+    EventEnvelope, ActivityTimelineOut, EventStoreOut, EventMonitoringStats,
 )
 from app.utils.pagination import PaginatedResponse
 from app.utils.permissions import expand_roles, STAFF_GOV, FINANCE_GOV, can_moderate_complaints
@@ -2730,3 +2731,124 @@ async def list_ai_cache_entries(
         cache_type_filter=cache_type,
         valid_only=valid_only,
     )
+
+
+# ─── EVENTS BUS ROUTER ────────────────────────────────────────────────────────
+from app.models.misc import ActivityTimeline, EventStore, EventSubscriberLog
+from app.services.event_bus import EnterpriseEventBus, EVENT_REGISTRY
+
+events_router = APIRouter(prefix="/events", tags=["Events"])
+
+
+@events_router.post("/publish", status_code=status.HTTP_201_CREATED)
+async def publish_event(body: EventEnvelope, current_user: CurrentUser, db: DbSession):
+    """
+    Publish an event to the Event Bus (admin or internal system only).
+    """
+    # Verify authorization
+    effective_roles = expand_roles(current_user.roles or [])
+    if not (current_user.is_super_admin or "school_owner" in effective_roles or "principal" in effective_roles):
+        raise ForbiddenError("Access denied. Admin authorization required.")
+    
+    # Set context if empty
+    if not body.school_id:
+        body.school_id = current_user.school_id
+    if not body.user_id:
+        body.user_id = current_user.id
+        
+    return await EnterpriseEventBus.publish(body, db)
+
+
+@events_router.get("/timeline", response_model=PaginatedResponse[ActivityTimelineOut])
+async def get_timeline(
+    current_user: CurrentUser,
+    db: DbSession,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    category: Optional[str] = Query(None),
+):
+    """
+    Get live activity timeline feed for the current school.
+    """
+    if not current_user.school_id:
+        return PaginatedResponse.create([], 0, page, page_size)
+        
+    query = select(ActivityTimeline).where(ActivityTimeline.school_id == current_user.school_id)
+    if category:
+        query = query.where(ActivityTimeline.category == category)
+        
+    # Scoping strictly to user's campus if not school-wide admin
+    effective_roles = expand_roles(current_user.roles or [])
+    admin_roles = {"super_admin", "school_owner", "principal", "vice_principal"}
+    if current_user.campus_id and not effective_roles.intersection(admin_roles):
+        query = query.where(ActivityTimeline.campus_id == current_user.campus_id)
+
+    count_result = await db.execute(select(func.count()).select_from(query.subquery()))
+    total = count_result.scalar() or 0
+    
+    offset = (page - 1) * page_size
+    result = await db.execute(
+        query.order_by(ActivityTimeline.created_at.desc()).offset(offset).limit(page_size)
+    )
+    return PaginatedResponse.create(list(result.scalars().all()), total, page, page_size)
+
+
+@events_router.get("/monitoring", response_model=EventMonitoringStats)
+async def get_monitoring_stats(current_user: CurrentUser, db: DbSession):
+    """
+    Get event monitoring metrics for system admin panel.
+    """
+    # Strict admin authorization
+    effective_roles = expand_roles(current_user.roles or [])
+    allowed = {"super_admin", "school_owner", "principal"}
+    if not (current_user.is_super_admin or effective_roles.intersection(allowed)):
+        raise ForbiddenError("Access denied. Admin authorization required.")
+        
+    # Published event count
+    pub_res = await db.execute(select(func.count(EventStore.id)).where(EventStore.school_id == current_user.school_id))
+    published_count = pub_res.scalar() or 0
+    
+    # Processed count (from subscriber logs)
+    proc_res = await db.execute(
+        select(func.count(EventSubscriberLog.id))
+        .join(EventStore)
+        .where(EventStore.school_id == current_user.school_id, EventSubscriberLog.status == "completed")
+    )
+    processed_count = proc_res.scalar() or 0
+    
+    # Failed count
+    fail_res = await db.execute(
+        select(func.count(EventSubscriberLog.id))
+        .join(EventStore)
+        .where(EventStore.school_id == current_user.school_id, EventSubscriberLog.status == "failed")
+    )
+    failed_count = fail_res.scalar() or 0
+    
+    # Pending count
+    pend_res = await db.execute(
+        select(func.count(EventSubscriberLog.id))
+        .join(EventStore)
+        .where(EventStore.school_id == current_user.school_id, EventSubscriberLog.status == "pending")
+    )
+    retry_queue_count = pend_res.scalar() or 0
+    
+    # Average Latency
+    lat_res = await db.execute(
+        select(func.avg(EventStore.execution_time_ms))
+        .where(EventStore.school_id == current_user.school_id, EventStore.execution_time_ms.isnot(None))
+    )
+    avg_processing_time_ms = float(lat_res.scalar() or 0.0)
+
+    # Subscribed worker mapping definitions
+    worker_map = {}
+    for ev_name, subs in EVENT_REGISTRY.items():
+        worker_map[ev_name] = f"Active ({len(subs)} worker tasks registered)"
+
+    return {
+        "published_count": published_count,
+        "processed_count": processed_count,
+        "failed_count": failed_count,
+        "retry_queue_count": retry_queue_count,
+        "avg_processing_time_ms": round(avg_processing_time_ms, 2),
+        "subscriber_statuses": worker_map
+    }

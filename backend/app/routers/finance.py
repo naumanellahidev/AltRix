@@ -342,6 +342,25 @@ async def record_payment(body: FeePaymentCreate, current_user: CurrentUser, db: 
         await _sc.invalidate_by_deps(db, current_user.school_id, ["finance"])
     except Exception:
         pass
+
+    # Fire Event Bus trigger
+    try:
+        from app.services.event_bus import EnterpriseEventBus
+        from app.schemas import EventEnvelope
+        await EnterpriseEventBus.publish(EventEnvelope(
+            event_name="FeePaid",
+            category="finance",
+            school_id=current_user.school_id,
+            user_id=current_user.id,
+            entity_type="fee_payment",
+            entity_id=payment.id,
+            payload={"amount": float(data.get("amount", 0)), "voucher_id": str(body.voucher_id) if body.voucher_id else None},
+            source="finance_router",
+        ), db)
+    except Exception as eb_err:
+        import logging
+        logging.getLogger("app.event_bus").warning(f"Event bus publish failed (non-blocking): {eb_err}")
+
     return payment
 
 

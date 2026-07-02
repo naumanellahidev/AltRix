@@ -501,3 +501,57 @@ class AiCacheStats(Base):
     created_at     = Column(DateTime(timezone=True), server_default=func.now(), nullable=True)
     updated_at     = Column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
 
+
+class EventStore(Base):
+    __tablename__ = "event_store"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    event_name = Column(String, nullable=False)
+    category = Column(String, nullable=False)
+    school_id = Column(UUID(as_uuid=True), ForeignKey("schools.id", ondelete="CASCADE"), nullable=True)
+    campus_id = Column(UUID(as_uuid=True), nullable=True)
+    user_id = Column(UUID(as_uuid=True), nullable=True)
+    entity_type = Column(String, nullable=True)
+    entity_id = Column(UUID(as_uuid=True), nullable=True)
+    payload = Column(JSON, nullable=False, default=dict)
+    metadata_json = Column("metadata", JSON, nullable=False, default=dict)  # mapped to avoid SQLAlchemy metadata conflict
+    correlation_id = Column(UUID(as_uuid=True), nullable=False, default=uuid.uuid4)
+    request_id = Column(String, nullable=True)
+    source = Column(String, default="system", nullable=True)
+    status = Column(String, nullable=False, default="published")
+    retry_count = Column(Integer, default=0, nullable=True)
+    execution_time_ms = Column(Integer, nullable=True)
+    version = Column(String, default="1.0.0", nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class EventSubscriberLog(Base):
+    __tablename__ = "event_subscribers_log"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    event_id = Column(UUID(as_uuid=True), ForeignKey("event_store.id", ondelete="CASCADE"), nullable=False)
+    subscriber_name = Column(String, nullable=False)
+    status = Column(String, nullable=False, default="pending")
+    error_message = Column(String, nullable=True)
+    retry_count = Column(Integer, default=0, nullable=True)
+    execution_time_ms = Column(Integer, nullable=True)
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class ActivityTimeline(Base):
+    __tablename__ = "activity_timeline"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    school_id = Column(UUID(as_uuid=True), ForeignKey("schools.id", ondelete="CASCADE"), nullable=True)
+    campus_id = Column(UUID(as_uuid=True), nullable=True)
+    user_id = Column(UUID(as_uuid=True), nullable=True)
+    event_name = Column(String, nullable=False)
+    title = Column(String, nullable=False)
+    description = Column(String, nullable=True)
+    category = Column(String, nullable=False)
+    entity_type = Column(String, nullable=True)
+    entity_id = Column(UUID(as_uuid=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+

@@ -46,6 +46,7 @@ import { LiveTeacherPresenceCard } from "@/components/principal/LiveTeacherPrese
 import { PrincipalStudentsTab } from "@/components/principal/PrincipalStudentsTab";
 import { SendMessageDialog } from "@/components/principal/SendMessageDialog";
 import { BrandingSettingsDialog } from "@/components/principal/BrandingSettingsDialog";
+import { ActivityTimelineWidget } from "@/components/dashboard/ActivityTimelineWidget";
 import {
   ResponsiveContainer,
   AreaChart,
@@ -849,6 +850,9 @@ export function PrincipalHome() {
             </Card>
           </div>
         </div>
+
+        {/* Activity Timeline — Real-time ERP event feed */}
+        <ActivityTimelineWidget />
 
         {/* Finance Overview (MTD) - Combined Metrics inside Chart Card Container */}
         <Card className="shadow-elevated border bg-surface overflow-hidden">

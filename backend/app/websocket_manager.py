@@ -156,6 +156,14 @@ class ConnectionManager:
                                     "event": "notification",
                                     "data": data
                                 })
+                            elif payload.get("event_name"):
+                                # Broadcast Event Bus event to the entire school room
+                                school_id = payload.get("school_id")
+                                if school_id:
+                                    await self.broadcast_to_room(f"school:{school_id}", {
+                                        "event": "event_bus_event",
+                                        "data": payload
+                                    })
                         except Exception as parse_err:
                             logger.error(f"Error parsing Redis pub/sub message payload: {parse_err}")
             except Exception as e:

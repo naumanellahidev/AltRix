@@ -23,6 +23,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DashboardAlertsPanel, AlertsSummaryBadge } from "@/components/dashboard/DashboardAlertsPanel";
 import { AlertSettingsDialog } from "@/components/dashboard/AlertSettingsDialog";
+import { ActivityTimelineWidget } from "@/components/dashboard/ActivityTimelineWidget";
 
 import {
   ResponsiveContainer,
@@ -257,6 +258,9 @@ export function VicePrincipalHome() {
           onNavigate={handleAlertNavigate}
         />
       )}
+
+      {/* Activity Timeline — Real-time ERP event feed */}
+      <ActivityTimelineWidget />
 
       {/* Quick Actions - Top for better accessibility */}
       <Card className="shadow-elevated">

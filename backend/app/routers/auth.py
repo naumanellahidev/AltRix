@@ -147,6 +147,23 @@ async def login(request: Request, body: LoginRequest, db: DbSession):
     except Exception as session_err:
         logger.warning(f"Failed to record active session: {session_err}")
 
+    # Fire Event Bus trigger for login
+    try:
+        from app.services.event_bus import EnterpriseEventBus
+        from app.schemas import EventEnvelope
+        school_id_header = request.headers.get("X-School-Id")
+        await EnterpriseEventBus.publish(EventEnvelope(
+            event_name="UserLogin",
+            category="security",
+            school_id=school_id_header if school_id_header else None,
+            user_id=user_id if user_id else None,
+            entity_type="user",
+            payload={"email": email, "ip": request.client.host if request.client else "unknown"},
+            source="auth_router",
+        ), db)
+    except Exception as eb_err:
+        logger.warning(f"Event bus publish failed (non-blocking): {eb_err}")
+
     return LoginResponse(
         access_token=access_token,
         refresh_token=refresh_token,

@@ -83,7 +83,8 @@ async def main():
         "001_fix_schema_drift.sql",
         "002_add_indexes.sql",
         "003_create_legacy_tables.sql",
-        "005_extend_notification_tables.sql"
+        "005_extend_notification_tables.sql",
+        "006_create_event_bus_tables.sql"
     ]
     
     try:

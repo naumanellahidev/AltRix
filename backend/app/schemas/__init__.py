@@ -1101,3 +1101,71 @@ class UserProfileOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+# ─── EVENT BUS SCHEMAS ────────────────────────────────────────────────────────
+
+class EventEnvelope(BaseModel):
+    id: Optional[UUID] = None
+    event_name: str
+    category: str
+    school_id: Optional[UUID] = None
+    campus_id: Optional[UUID] = None
+    user_id: Optional[UUID] = None
+    entity_type: Optional[str] = None
+    entity_id: Optional[UUID] = None
+    payload: Dict[str, Any] = Field(default_factory=dict)
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+    correlation_id: Optional[UUID] = None
+    request_id: Optional[str] = None
+    source: Optional[str] = "system"
+    version: Optional[str] = "1.0.0"
+
+
+class ActivityTimelineOut(BaseModel):
+    id: UUID
+    school_id: Optional[UUID]
+    campus_id: Optional[UUID]
+    user_id: Optional[UUID]
+    event_name: str
+    title: str
+    description: Optional[str]
+    category: str
+    entity_type: Optional[str]
+    entity_id: Optional[UUID]
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class EventStoreOut(BaseModel):
+    id: UUID
+    event_name: str
+    category: str
+    school_id: Optional[UUID]
+    campus_id: Optional[UUID]
+    user_id: Optional[UUID]
+    entity_type: Optional[str]
+    entity_id: Optional[UUID]
+    payload: Dict[str, Any]
+    metadata: Dict[str, Any]
+    correlation_id: UUID
+    request_id: Optional[str]
+    source: str
+    status: str
+    retry_count: int
+    execution_time_ms: Optional[int]
+    version: str
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class EventMonitoringStats(BaseModel):
+    published_count: int
+    processed_count: int
+    failed_count: int
+    retry_queue_count: int
+    avg_processing_time_ms: float
+    subscriber_statuses: Dict[str, str]
+
+
+

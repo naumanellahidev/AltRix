@@ -191,6 +191,26 @@ async def bulk_mark_attendance(
         await _sc.invalidate_by_deps(db, current_user.school_id, ["attendance"])
     except Exception:
         pass
+
+    # Fire Event Bus trigger
+    try:
+        from app.services.event_bus import EnterpriseEventBus
+        from app.schemas import EventEnvelope
+        await EnterpriseEventBus.publish(EventEnvelope(
+            event_name="AttendanceMarked",
+            category="attendance",
+            school_id=current_user.school_id,
+            campus_id=session.campus_id,
+            user_id=current_user.id,
+            entity_type="attendance_session",
+            entity_id=session_id,
+            payload={"count": len(entries), "session_id": str(session_id)},
+            source="attendance_router",
+        ), db)
+    except Exception as eb_err:
+        import logging
+        logging.getLogger("app.event_bus").warning(f"Event bus publish failed (non-blocking): {eb_err}")
+
     return entries
 
 
@@ -368,6 +388,25 @@ async def save_attendance_entries(
         db.add(entry)
         
     await db.flush()
+
+    # Fire Event Bus trigger
+    try:
+        from app.services.event_bus import EnterpriseEventBus
+        from app.schemas import EventEnvelope
+        await EnterpriseEventBus.publish(EventEnvelope(
+            event_name="AttendanceMarked",
+            category="attendance",
+            school_id=current_user.school_id,
+            user_id=current_user.id,
+            entity_type="attendance_session",
+            entity_id=session_id,
+            payload={"count": len(body), "session_id": str(session_id)},
+            source="attendance_router",
+        ), db)
+    except Exception as eb_err:
+        import logging
+        logging.getLogger("app.event_bus").warning(f"Event bus publish failed (non-blocking): {eb_err}")
+
     return {"message": "Attendance saved successfully"}
 
 

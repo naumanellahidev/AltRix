@@ -42,6 +42,7 @@ from app.routers.misc import (
     audit_router,
     ai_router,
     reports_router,
+    events_router,
 )
 from app.routers.realtime import router as realtime_router
 from app.routers.collaboration import router as collaboration_router
@@ -316,6 +317,78 @@ async def lifespan(app: FastAPI):
     except Exception as notif_err:
         logger.error(f"Failed to extend notifications table at startup: {notif_err}")
 
+    # ── Event Bus Tables Initialization ──────────────────────────────────────────
+    try:
+        from sqlalchemy import text
+        from app.database import engine
+        async with engine.begin() as conn:
+            # 1. event_store table
+            await conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS public.event_store (
+                    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    event_name VARCHAR NOT NULL,
+                    category VARCHAR NOT NULL,
+                    school_id UUID REFERENCES schools(id) ON DELETE CASCADE,
+                    campus_id UUID,
+                    user_id UUID,
+                    entity_type VARCHAR,
+                    entity_id UUID,
+                    payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+                    metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+                    correlation_id UUID NOT NULL,
+                    request_id VARCHAR,
+                    source VARCHAR DEFAULT 'system',
+                    status VARCHAR NOT NULL DEFAULT 'published',
+                    retry_count INTEGER DEFAULT 0,
+                    execution_time_ms INTEGER,
+                    version VARCHAR DEFAULT '1.0.0',
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                );
+            """))
+            await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_event_store_school_created ON public.event_store(school_id, created_at DESC);"))
+            await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_event_store_correlation ON public.event_store(correlation_id);"))
+            await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_event_store_name ON public.event_store(event_name);"))
+            await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_event_store_category ON public.event_store(category);"))
+
+            # 2. event_subscribers_log table
+            await conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS public.event_subscribers_log (
+                    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    event_id UUID NOT NULL REFERENCES public.event_store(id) ON DELETE CASCADE,
+                    subscriber_name VARCHAR NOT NULL,
+                    status VARCHAR NOT NULL DEFAULT 'pending',
+                    error_message TEXT,
+                    retry_count INTEGER DEFAULT 0,
+                    execution_time_ms INTEGER,
+                    updated_at TIMESTAMPTZ DEFAULT NOW(),
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                );
+            """))
+            await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_event_subscribers_event ON public.event_subscribers_log(event_id);"))
+            await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_event_subscribers_status ON public.event_subscribers_log(status);"))
+
+            # 3. activity_timeline table
+            await conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS public.activity_timeline (
+                    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    school_id UUID REFERENCES schools(id) ON DELETE CASCADE,
+                    campus_id UUID,
+                    user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+                    event_name VARCHAR NOT NULL,
+                    title VARCHAR NOT NULL,
+                    description TEXT,
+                    category VARCHAR NOT NULL,
+                    entity_type VARCHAR,
+                    entity_id UUID,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                );
+            """))
+            await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_activity_timeline_school ON public.activity_timeline(school_id, created_at DESC);"))
+            await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_activity_timeline_user ON public.activity_timeline(user_id);"))
+            logger.info("Event Bus tables verified & created successfully")
+    except Exception as eb_err:
+        logger.error(f"Failed to initialize Event Bus tables at startup: {eb_err}")
+
     # 2. Verify Database Schema (Migrations check)
     try:
         from app.scripts.validate_schema import validate
@@ -547,5 +620,6 @@ app.include_router(notifications_router, prefix=_PREFIX)
 app.include_router(audit_router, prefix=_PREFIX)
 app.include_router(ai_router, prefix=_PREFIX)
 app.include_router(reports_router, prefix=_PREFIX)
+app.include_router(events_router, prefix=_PREFIX)
 app.include_router(realtime_router, prefix=_PREFIX)
 app.include_router(collaboration_router, prefix=_PREFIX)

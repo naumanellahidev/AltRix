@@ -15,6 +15,7 @@ celery_app = Celery(
         "app.tasks.notification_tasks",
         "app.tasks.pdf_tasks",
         "app.tasks.ai_tasks",
+        "app.tasks.event_tasks",
     ],
 )
 
@@ -56,5 +57,6 @@ celery_app.conf.update(
         "app.tasks.pdf_tasks.*": {"queue": "pdfs"},
         "app.tasks.ai_tasks.*": {"queue": "ai"},
         "app.tasks.notification_tasks.*": {"queue": "default"},
+        "app.tasks.event_tasks.*": {"queue": "default"},
     },
 )
