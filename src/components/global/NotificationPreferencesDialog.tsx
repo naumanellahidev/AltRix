@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { useWebPush } from "@/hooks/useWebPush";
 import { apiClient } from "@/lib/api-client";
+import { supabase, USE_FASTAPI } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { 
   Bell, 
@@ -15,7 +16,6 @@ import {
   CreditCard, 
   Megaphone, 
   MessageSquare, 
-  ShieldCheck,
   Loader2
 } from "lucide-react";
 
@@ -47,9 +47,28 @@ export default function NotificationPreferencesDialog({ open, onOpenChange }: No
     const loadPrefs = async () => {
       setLoading(true);
       try {
-        const res = await apiClient.get("/notifications/preferences");
-        if (res.data && res.data.preferences) {
-          setPreferences(res.data.preferences);
+        if (USE_FASTAPI) {
+          const res = await apiClient.get("/notifications/preferences");
+          if (res.data && res.data.preferences) {
+            setPreferences(res.data.preferences);
+          }
+        } else {
+          // Supabase Fallback
+          const { data, error } = await supabase
+            .from("user_notification_preferences")
+            .select("preferences")
+            .single();
+          
+          if (error) {
+            if (error.code === "PGRST116") {
+              // No row found: default to empty/default settings
+              setPreferences({});
+            } else {
+              throw error;
+            }
+          } else if (data && data.preferences) {
+            setPreferences(data.preferences as any);
+          }
         }
       } catch (e) {
         console.error("Failed to load preferences:", e);
@@ -75,7 +94,41 @@ export default function NotificationPreferencesDialog({ open, onOpenChange }: No
   const handleSave = async () => {
     setSaving(true);
     try {
-      await apiClient.put("/notifications/preferences", { preferences });
+      if (USE_FASTAPI) {
+        await apiClient.put("/notifications/preferences", { preferences });
+      } else {
+        // Supabase Fallback
+        const { data: sessionData } = await supabase.auth.getSession();
+        const user = sessionData?.session?.user;
+        if (!user) throw new Error("No authenticated user session");
+
+        // Resolve school_id from localStorage scan
+        let schoolId: string | null = null;
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && (key.startsWith("eduverse_tenant_basic_") || key.startsWith("eduverse_tenant_"))) {
+            const item = localStorage.getItem(key);
+            if (item) {
+              const parsed = JSON.parse(item);
+              if (parsed?.data?.id) {
+                schoolId = parsed.data.id;
+                break;
+              }
+            }
+          }
+        }
+
+        const { error } = await supabase
+          .from("user_notification_preferences")
+          .upsert({
+            user_id: user.id,
+            school_id: schoolId || undefined,
+            preferences,
+            updated_at: new Date().toISOString()
+          }, { onConflict: "user_id" });
+
+        if (error) throw error;
+      }
       toast.success("Notification preferences saved successfully!");
       onOpenChange(false);
     } catch (e) {
