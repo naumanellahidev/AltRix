@@ -144,8 +144,7 @@ export function useWebPush() {
             endpoint: rawSub.endpoint,
             p256dh: rawSub.keys.p256dh,
             auth: rawSub.keys.auth,
-            device_info: navigator.userAgent,
-            updated_at: new Date().toISOString()
+            device_info: navigator.userAgent
           }, { onConflict: "endpoint" });
         if (error) throw error;
       }
