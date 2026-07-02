@@ -121,6 +121,47 @@ class ConnectionManager:
         """Return the set of user IDs currently online in a school."""
         return self._rooms.get(f"school:{school_id}", set())
 
+    async def start_redis_listener(self) -> None:
+        """
+        Listens to Redis Pub/Sub channel 'altrix:realtime:events' and broadcasts
+        incoming notifications/events to local connected WebSocket clients.
+        Runs as an async background worker loop in the FastAPI server process.
+        """
+        from app.cache import get_redis
+        logger.info("Starting Redis Pub/Sub WebSocket broadcast listener...")
+        
+        while True:
+            try:
+                redis = await get_redis()
+                if not redis:
+                    # Redis is not available, wait and retry
+                    await asyncio.sleep(5)
+                    continue
+
+                pubsub = redis.pubsub()
+                await pubsub.subscribe("altrix:realtime:events")
+                
+                logger.info("Subscribed to Redis channel 'altrix:realtime:events' successfully")
+                
+                async for message in pubsub.listen():
+                    if message["type"] == "message":
+                        try:
+                            payload = json.loads(message["data"])
+                            event_type = payload.get("event")
+                            user_id = payload.get("user_id")
+                            data = payload.get("data")
+                            
+                            if event_type == "notification" and user_id and data:
+                                await self.send_to_user(user_id, {
+                                    "event": "notification",
+                                    "data": data
+                                })
+                        except Exception as parse_err:
+                            logger.error(f"Error parsing Redis pub/sub message payload: {parse_err}")
+            except Exception as e:
+                logger.error(f"Redis Pub/Sub listener encountered error: {e}. Reconnecting in 5s...")
+                await asyncio.sleep(5)
+
 
 # Singleton instance
 ws_manager = ConnectionManager()

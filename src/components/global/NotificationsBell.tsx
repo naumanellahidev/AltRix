@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils";
 import { useNotifications, AppNotification } from "@/hooks/useNotifications";
 import { formatDistanceToNow } from "date-fns";
 import NotificationPreferencesDialog from "./NotificationPreferencesDialog";
+import NotificationCenter from "./NotificationCenter";
 
 interface NotificationsBellProps {
   schoolId: string | null;
@@ -155,6 +156,7 @@ export function NotificationsBell({ schoolId, schoolSlug, role }: NotificationsB
   const { data, unreadCount, isLoading, markRead, markAllRead, clearNotification, error } = useNotifications(schoolId);
   const [open, setOpen] = useState(false);
   const [showPreferences, setShowPreferences] = useState(false);
+  const [showNotificationCenter, setShowNotificationCenter] = useState(false);
   const [activeTab, setActiveTab] = useState<string>("all");
 
   // Filter notifications by category
@@ -324,11 +326,11 @@ export function NotificationsBell({ schoolId, schoolSlug, role }: NotificationsB
             <div className="px-4 py-16 text-center">
               <Bell className="h-10 w-10 text-slate-300 mx-auto mb-3" />
               <p className="text-xs font-bold text-slate-700">You're all caught up!</p>
-              <p className="text-[10px] text-slate-400 mt-1">No notifications in this category</p>
+              <p className="text-[10px] text-slate-450 mt-1">No notifications in this category</p>
             </div>
           ) : (
             <ScrollArea className="max-h-[350px] overflow-y-auto">
-              <div className="py-1 divide-y divide-slate-50">
+              <div className="py-1 divide-y divide-slate-55">
                 {filteredNotifications.map((n) => (
                   <div
                     key={n.id}
@@ -410,25 +412,33 @@ export function NotificationsBell({ schoolId, schoolSlug, role }: NotificationsB
           )}
 
           {/* Footer */}
-          {filteredNotifications.length > 0 && (
-            <>
-              <DropdownMenuSeparator className="m-0" />
-              <div className="p-2 bg-slate-50/50">
-                <Button
-                  variant="ghost"
-                  className="w-full h-8 text-[10px] font-bold text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    void markAllRead();
-                    setOpen(false);
-                  }}
-                >
-                  Mark all read & close
-                </Button>
-              </div>
-            </>
-          )}
+          <DropdownMenuSeparator className="m-0" />
+          <div className="p-2 bg-slate-50/50 flex gap-2">
+            <Button
+              variant="ghost"
+              className="flex-1 h-8 text-[10px] font-bold text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                void markAllRead();
+                setOpen(false);
+              }}
+            >
+              Mark all read
+            </Button>
+            <Button
+              variant="soft"
+              className="flex-1 h-8 text-[10px] font-bold text-primary hover:bg-primary/10 rounded-lg"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setShowNotificationCenter(true);
+                setOpen(false);
+              }}
+            >
+              Open Center
+            </Button>
+          </div>
         </DropdownMenuContent>
       </DropdownMenu>
 
@@ -436,6 +446,13 @@ export function NotificationsBell({ schoolId, schoolSlug, role }: NotificationsB
       <NotificationPreferencesDialog
         open={showPreferences}
         onOpenChange={setShowPreferences}
+      />
+
+      {/* Notification Center Side Panel */}
+      <NotificationCenter
+        open={showNotificationCenter}
+        onOpenChange={setShowNotificationCenter}
+        schoolId={schoolId}
       />
     </>
   );

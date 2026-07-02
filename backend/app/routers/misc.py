@@ -327,25 +327,106 @@ async def create_payroll(body: PayrollCreate, current_user: CurrentUser, db: DbS
 notifications_router = APIRouter(prefix="/notifications", tags=["Notifications"])
 
 
+# Bulk Action schema
+class BulkNotificationAction(BaseModel):
+    action: str  # read, unread, delete, archive, restore
+    notification_ids: List[UUID]
+
 @notifications_router.get("", response_model=List[NotificationOut])
 async def list_notifications(
-    current_user: CurrentUser, db: DbSession,
+    current_user: CurrentUser,
+    db: DbSession,
+    page: int = Query(1, ge=1),
+    limit: int = Query(20, ge=1, le=100),
     unread_only: bool = Query(False),
+    archived_only: bool = Query(False),
+    category: Optional[str] = Query(None),
+    priority: Optional[str] = Query(None),
+    is_favorite: Optional[bool] = Query(None),
+    is_pinned: Optional[bool] = Query(None),
+    query: Optional[str] = Query(None),
 ):
-    """Return notifications for the current user, scoped to the active school if available."""
+    """
+    Paginated, searchable, and filterable retrieval of user notifications.
+    Tenant isolated by active school_id.
+    """
+    from sqlalchemy import or_
     try:
-        query = select(AppNotification).where(AppNotification.user_id == current_user.id)
-        # Scope to school when context is available
+        # Base query scoped strictly to active user
+        stmt = select(AppNotification).where(AppNotification.user_id == current_user.id)
+        
+        # Scoped strictly to school for multi-school isolation
         if current_user.school_id:
-            query = query.where(AppNotification.school_id == current_user.school_id)
+            stmt = stmt.where(AppNotification.school_id == current_user.school_id)
+            
+        # Archived filter: default is False (do not return archived items)
+        if archived_only:
+            stmt = stmt.where(AppNotification.archived_at.isnot(None))
+        else:
+            stmt = stmt.where(AppNotification.archived_at.is_(None))
+
+        # Unread filter
         if unread_only:
-            query = query.where(AppNotification.read_at.is_(None))
-        result = await db.execute(query.order_by(AppNotification.created_at.desc()).limit(100))
+            stmt = stmt.where(AppNotification.read_at.is_(None))
+
+        # Optional filters
+        if category:
+            stmt = stmt.where(AppNotification.category == category)
+        if priority:
+            stmt = stmt.where(AppNotification.priority == priority)
+        if is_favorite is not None:
+            stmt = stmt.where(AppNotification.is_favorite == is_favorite)
+        if is_pinned is not None:
+            stmt = stmt.where(AppNotification.is_pinned == is_pinned)
+
+        # Keyword search
+        if query:
+            search_str = f"%{query}%"
+            stmt = stmt.where(
+                or_(
+                    AppNotification.title.ilike(search_str),
+                    AppNotification.body.ilike(search_str)
+                )
+            )
+
+        # Order: Pinned first, then newest first
+        stmt = stmt.order_by(AppNotification.is_pinned.desc(), AppNotification.created_at.desc())
+        
+        # Pagination offsets
+        stmt = stmt.offset((page - 1) * limit).limit(limit)
+
+        result = await db.execute(stmt)
         return result.scalars().all()
     except Exception as e:
         import logging
-        logging.getLogger("app.notifications").warning(f"Error listing notifications: {e}")
+        logging.getLogger("app.notifications").error(f"Error listing notifications: {e}")
         return []
+
+
+@notifications_router.get("/counts")
+async def get_notification_counts(current_user: CurrentUser, db: DbSession):
+    """Return unread, read, and archived notification counts for the user."""
+    try:
+        stmt = select(AppNotification).where(AppNotification.user_id == current_user.id)
+        if current_user.school_id:
+            stmt = stmt.where(AppNotification.school_id == current_user.school_id)
+            
+        result = await db.execute(stmt)
+        all_notifs = result.scalars().all()
+        
+        unread = sum(1 for n in all_notifs if not n.read_at and not n.archived_at)
+        read = sum(1 for n in all_notifs if n.read_at and not n.archived_at)
+        archived = sum(1 for n in all_notifs if n.archived_at)
+        
+        return {
+            "unread": unread,
+            "read": read,
+            "archived": archived,
+            "total": len(all_notifs)
+        }
+    except Exception as e:
+        logger.error(f"Error getting counts: {e}")
+        return {"unread": 0, "read": 0, "archived": 0, "total": 0}
 
 
 # NOTE: /mark-all-read MUST be before /{notification_id}/read to avoid routing ambiguity
@@ -360,13 +441,52 @@ async def mark_all_read(current_user: CurrentUser, db: DbSession):
     try:
         result = await db.execute(query)
         for n in result.scalars().all():
-            n.read_at = datetime.now(timezone.utc)  # type: ignore[assignment]
+            n.read_at = datetime.now(timezone.utc)
     except Exception as e:
-        if any(err in str(e) for err in ["getaddrinfo failed", "CannotConnectNowError", "socket.gaierror", "Cannot connect", "OSError"]):
-            pass
-        else:
-            raise
+        logger.error(f"Error marking all read: {e}")
     return MessageResponse(message="All notifications marked as read")
+
+
+@notifications_router.post("/bulk-action", response_model=MessageResponse)
+async def bulk_action(payload: BulkNotificationAction, current_user: CurrentUser, db: DbSession):
+    """Perform bulk operations (mark read, delete, archive, etc.) on notifications."""
+    if not payload.notification_ids:
+        return MessageResponse(message="No notifications provided")
+
+    try:
+        stmt = select(AppNotification).where(
+            AppNotification.id.in_(payload.notification_ids),
+            AppNotification.user_id == current_user.id
+        )
+        result = await db.execute(stmt)
+        notifs = result.scalars().all()
+        
+        count = 0
+        for n in notifs:
+            if payload.action == "read":
+                if not n.read_at:
+                    n.read_at = datetime.now(timezone.utc)
+                    count += 1
+            elif payload.action == "unread":
+                if n.read_at:
+                    n.read_at = None
+                    count += 1
+            elif payload.action == "archive":
+                if not n.archived_at:
+                    n.archived_at = datetime.now(timezone.utc)
+                    count += 1
+            elif payload.action == "restore":
+                if n.archived_at:
+                    n.archived_at = None
+                    count += 1
+            elif payload.action == "delete":
+                await db.delete(n)
+                count += 1
+                
+        return MessageResponse(message=f"Bulk action '{payload.action}' applied to {count} notifications")
+    except Exception as e:
+        logger.error(f"Bulk action failed: {e}")
+        return MessageResponse(message=f"Error applying bulk action: {str(e)}")
 
 
 @notifications_router.post("/{notification_id}/read", response_model=MessageResponse)
@@ -379,8 +499,64 @@ async def mark_notification_read(notification_id: UUID, current_user: CurrentUse
     )
     n = result.scalar_one_or_none()
     if n:
-        n.read_at = datetime.now(timezone.utc)  # type: ignore[assignment]
+        n.read_at = datetime.now(timezone.utc)
     return MessageResponse(message="Marked as read")
+
+
+@notifications_router.post("/{notification_id}/archive", response_model=MessageResponse)
+async def archive_notification(notification_id: UUID, current_user: CurrentUser, db: DbSession):
+    result = await db.execute(
+        select(AppNotification).where(
+            AppNotification.id == notification_id,
+            AppNotification.user_id == current_user.id,
+        )
+    )
+    n = result.scalar_one_or_none()
+    if n:
+        n.archived_at = datetime.now(timezone.utc)
+    return MessageResponse(message="Notification archived")
+
+
+@notifications_router.post("/{notification_id}/restore", response_model=MessageResponse)
+async def restore_notification(notification_id: UUID, current_user: CurrentUser, db: DbSession):
+    result = await db.execute(
+        select(AppNotification).where(
+            AppNotification.id == notification_id,
+            AppNotification.user_id == current_user.id,
+        )
+    )
+    n = result.scalar_one_or_none()
+    if n:
+        n.archived_at = None
+    return MessageResponse(message="Notification restored")
+
+
+@notifications_router.post("/{notification_id}/favorite", response_model=MessageResponse)
+async def toggle_favorite_notification(notification_id: UUID, current_user: CurrentUser, db: DbSession):
+    result = await db.execute(
+        select(AppNotification).where(
+            AppNotification.id == notification_id,
+            AppNotification.user_id == current_user.id,
+        )
+    )
+    n = result.scalar_one_or_none()
+    if n:
+        n.is_favorite = not n.is_favorite
+    return MessageResponse(message="Favorite status updated")
+
+
+@notifications_router.post("/{notification_id}/pin", response_model=MessageResponse)
+async def toggle_pin_notification(notification_id: UUID, current_user: CurrentUser, db: DbSession):
+    result = await db.execute(
+        select(AppNotification).where(
+            AppNotification.id == notification_id,
+            AppNotification.user_id == current_user.id,
+        )
+    )
+    n = result.scalar_one_or_none()
+    if n:
+        n.is_pinned = not n.is_pinned
+    return MessageResponse(message="Pinned status updated")
 
 
 @notifications_router.delete("/{notification_id}", response_model=MessageResponse)

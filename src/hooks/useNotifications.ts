@@ -17,7 +17,28 @@ export type AppNotification = {
   entity_id: string | null;
   read_at: string | null;
   created_at: string;
+  category: string;
+  action_url: string | null;
+  priority: string;
+  icon: string | null;
+  color: string | null;
+  metadata: Record<string, any> | null;
+  archived_at: string | null;
+  is_favorite: boolean;
+  is_pinned: boolean;
 };
+
+export interface NotificationFilters {
+  page?: number;
+  limit?: number;
+  unread_only?: boolean;
+  archived_only?: boolean;
+  category?: string;
+  priority?: string;
+  is_favorite?: boolean;
+  is_pinned?: boolean;
+  query?: string;
+}
 
 function playNotificationSound() {
   try {
@@ -54,36 +75,103 @@ function playNotificationSound() {
   }
 }
 
-export function useNotifications(schoolId: string | null) {
+export function useNotifications(schoolId: string | null, filters?: NotificationFilters) {
   const { user, loading } = useSession();
   const qc = useQueryClient();
 
   const enabled = !loading && !!user?.id && !!schoolId;
 
-  const queryKey = useMemo(() => ["app_notifications", schoolId, user?.id], [schoolId, user?.id]);
+  const queryKey = useMemo(
+    () => ["app_notifications", schoolId, user?.id, JSON.stringify(filters || {})],
+    [schoolId, user?.id, JSON.stringify(filters || {})]
+  );
 
   const query = useQuery({
     queryKey,
     enabled,
     queryFn: async () => {
       if (USE_FASTAPI) {
-        const response = await apiClient.get("/notifications");
+        const response = await apiClient.get("/notifications", { params: filters });
         return response.data as AppNotification[];
       }
-      const { data, error } = await supabase
+      
+      // Supabase Fallback
+      let q = supabase
         .from("app_notifications")
-        .select("id,school_id,user_id,type,title,body,entity_type,entity_id,read_at,created_at")
+        .select("*")
         .eq("school_id", schoolId!)
-        // Scope strictly to the signed-in recipient. Without this, roles like
-        // principal/owner can read other users' notifications via RLS, which
-        // makes the bell/banner keep resurfacing rows that `markAllRead`
-        // (correctly scoped to the current user) can never clear.
-        .eq("user_id", user!.id)
+        .eq("user_id", user!.id);
+      
+      if (filters?.archived_only) {
+        q = q.not("archived_at", "is", null);
+      } else {
+        q = q.is("archived_at", null);
+      }
+      
+      if (filters?.unread_only) {
+        q = q.is("read_at", null);
+      }
+      
+      if (filters?.category) {
+        q = q.eq("category", filters.category);
+      }
+      if (filters?.priority) {
+        q = q.eq("priority", filters.priority);
+      }
+      if (filters?.is_favorite !== undefined) {
+        q = q.eq("is_favorite", filters.is_favorite);
+      }
+      if (filters?.is_pinned !== undefined) {
+        q = q.eq("is_pinned", filters.is_pinned);
+      }
+      if (filters?.query) {
+        q = q.or(`title.ilike.%${filters.query}%,body.ilike.%${filters.query}%`);
+      }
+      
+      const page = filters?.page || 1;
+      const limit = filters?.limit || 20;
+      const offset = (page - 1) * limit;
+      
+      const { data, error } = await q
+        .order("is_pinned", { ascending: false })
         .order("created_at", { ascending: false })
-        .limit(50);
+        .range(offset, offset + limit - 1);
+        
       if (error) throw error;
       return (data ?? []) as AppNotification[];
     },
+  });
+
+  // Query for counts
+  const countsQuery = useQuery({
+    queryKey: ["app_notifications_counts", schoolId, user?.id],
+    enabled,
+    queryFn: async () => {
+      if (USE_FASTAPI) {
+        const response = await apiClient.get("/notifications/counts");
+        return response.data as { unread: number; read: number; archived: number; total: number };
+      }
+      
+      // Supabase count fallback
+      const { data: allNotifs, error } = await supabase
+        .from("app_notifications")
+        .select("read_at, archived_at")
+        .eq("school_id", schoolId!)
+        .eq("user_id", user!.id);
+        
+      if (error) throw error;
+      const raw = allNotifs ?? [];
+      const unread = raw.filter(n => !n.read_at && !n.archived_at).length;
+      const read = raw.filter(n => n.read_at && !n.archived_at).length;
+      const archived = raw.filter(n => n.archived_at).length;
+      
+      return {
+        unread,
+        read,
+        archived,
+        total: raw.length
+      };
+    }
   });
 
   useRealtimeTable({
@@ -92,7 +180,8 @@ export function useNotifications(schoolId: string | null) {
     filter: user?.id ? `user_id=eq.${user.id}` : undefined,
     enabled,
     onChange: (payload: any) => {
-      void qc.invalidateQueries({ queryKey });
+      void qc.invalidateQueries({ queryKey: ["app_notifications"] });
+      void qc.invalidateQueries({ queryKey: ["app_notifications_counts"] });
       
       // If it's a new notification, play premium chime and show toast alert
       if (payload && payload.eventType === "INSERT") {
@@ -118,19 +207,12 @@ export function useNotifications(schoolId: string | null) {
   });
 
   const unreadCount = useMemo(() => {
-    return (query.data ?? []).filter((n) => !n.read_at).length;
-  }, [query.data]);
+    return countsQuery.data?.unread ?? 0;
+  }, [countsQuery.data]);
 
   const markRead = useCallback(
     async (id: string) => {
       try {
-        // Optimistic update
-        qc.setQueryData<AppNotification[]>(queryKey, (old) =>
-          (old ?? []).map((n) =>
-            n.id === id ? { ...n, read_at: new Date().toISOString() } : n
-          )
-        );
-
         if (USE_FASTAPI) {
           await apiClient.post(`/notifications/${id}/read`);
         } else {
@@ -140,26 +222,103 @@ export function useNotifications(schoolId: string | null) {
             .eq("id", id);
           if (error) throw error;
         }
+        await qc.invalidateQueries({ queryKey: ["app_notifications"] });
+        await qc.invalidateQueries({ queryKey: ["app_notifications_counts"] });
       } catch (e: any) {
-        // Rollback on error
-        await qc.invalidateQueries({ queryKey });
         toast.error(e?.message ?? "Failed to mark as read");
       }
     },
-    [qc, queryKey]
+    [qc]
+  );
+
+  const archiveNotification = useCallback(
+    async (id: string) => {
+      try {
+        if (USE_FASTAPI) {
+          await apiClient.post(`/notifications/${id}/archive`);
+        } else {
+          const { error } = await supabase
+            .from("app_notifications")
+            .update({ archived_at: new Date().toISOString() })
+            .eq("id", id);
+          if (error) throw error;
+        }
+        await qc.invalidateQueries({ queryKey: ["app_notifications"] });
+        await qc.invalidateQueries({ queryKey: ["app_notifications_counts"] });
+        toast.success("Notification archived");
+      } catch (e: any) {
+        toast.error(e?.message ?? "Failed to archive notification");
+      }
+    },
+    [qc]
+  );
+
+  const restoreNotification = useCallback(
+    async (id: string) => {
+      try {
+        if (USE_FASTAPI) {
+          await apiClient.post(`/notifications/${id}/restore`);
+        } else {
+          const { error } = await supabase
+            .from("app_notifications")
+            .update({ archived_at: null })
+            .eq("id", id);
+          if (error) throw error;
+        }
+        await qc.invalidateQueries({ queryKey: ["app_notifications"] });
+        await qc.invalidateQueries({ queryKey: ["app_notifications_counts"] });
+        toast.success("Notification restored to inbox");
+      } catch (e: any) {
+        toast.error(e?.message ?? "Failed to restore notification");
+      }
+    },
+    [qc]
+  );
+
+  const toggleFavorite = useCallback(
+    async (id: string, currentVal: boolean) => {
+      try {
+        if (USE_FASTAPI) {
+          await apiClient.post(`/notifications/${id}/favorite`);
+        } else {
+          const { error } = await supabase
+            .from("app_notifications")
+            .update({ is_favorite: !currentVal })
+            .eq("id", id);
+          if (error) throw error;
+        }
+        await qc.invalidateQueries({ queryKey: ["app_notifications"] });
+      } catch (e: any) {
+        toast.error(e?.message ?? "Failed to update favorite status");
+      }
+    },
+    [qc]
+  );
+
+  const togglePin = useCallback(
+    async (id: string, currentVal: boolean) => {
+      try {
+        if (USE_FASTAPI) {
+          await apiClient.post(`/notifications/${id}/pin`);
+        } else {
+          const { error } = await supabase
+            .from("app_notifications")
+            .update({ is_pinned: !currentVal })
+            .eq("id", id);
+          if (error) throw error;
+        }
+        await qc.invalidateQueries({ queryKey: ["app_notifications"] });
+      } catch (e: any) {
+        toast.error(e?.message ?? "Failed to update pinned status");
+      }
+    },
+    [qc]
   );
 
   const markAllRead = useCallback(async () => {
     if (!user?.id || !schoolId) return;
 
     try {
-      // Optimistic update
-      qc.setQueryData<AppNotification[]>(queryKey, (old) =>
-        (old ?? []).map((n) =>
-          !n.read_at ? { ...n, read_at: new Date().toISOString() } : n
-        )
-      );
-
       if (USE_FASTAPI) {
         await apiClient.post("/notifications/mark-all-read");
       } else {
@@ -172,21 +331,17 @@ export function useNotifications(schoolId: string | null) {
 
         if (error) throw error;
       }
+      await qc.invalidateQueries({ queryKey: ["app_notifications"] });
+      await qc.invalidateQueries({ queryKey: ["app_notifications_counts"] });
       toast.success("All notifications marked as read");
     } catch (e: any) {
-      await qc.invalidateQueries({ queryKey });
       toast.error(e?.message ?? "Failed to mark all as read");
     }
-  }, [qc, queryKey, user?.id, schoolId]);
+  }, [qc, user?.id, schoolId]);
 
   const clearNotification = useCallback(
     async (id: string) => {
       try {
-        // Optimistic update - remove from list
-        qc.setQueryData<AppNotification[]>(queryKey, (old) =>
-          (old ?? []).filter((n) => n.id !== id)
-        );
-
         if (USE_FASTAPI) {
           await apiClient.delete(`/notifications/${id}`);
         } else {
@@ -197,19 +352,61 @@ export function useNotifications(schoolId: string | null) {
 
           if (error) throw error;
         }
+        await qc.invalidateQueries({ queryKey: ["app_notifications"] });
+        await qc.invalidateQueries({ queryKey: ["app_notifications_counts"] });
       } catch (e: any) {
-        await qc.invalidateQueries({ queryKey });
         toast.error(e?.message ?? "Failed to remove notification");
       }
     },
-    [qc, queryKey]
+    [qc]
+  );
+
+  const bulkAction = useCallback(
+    async (action: "read" | "unread" | "archive" | "restore" | "delete", ids: string[]) => {
+      if (ids.length === 0) return;
+      try {
+        if (USE_FASTAPI) {
+          await apiClient.post("/notifications/bulk-action", {
+            action,
+            notification_ids: ids
+          });
+        } else {
+          let q = supabase.from("app_notifications");
+          if (action === "delete") {
+            const { error } = await q.delete().in("id", ids);
+            if (error) throw error;
+          } else {
+            const updateFields: any = {};
+            if (action === "read") updateFields.read_at = new Date().toISOString();
+            if (action === "unread") updateFields.read_at = null;
+            if (action === "archive") updateFields.archived_at = new Date().toISOString();
+            if (action === "restore") updateFields.archived_at = null;
+            
+            const { error } = await q.update(updateFields).in("id", ids);
+            if (error) throw error;
+          }
+        }
+        await qc.invalidateQueries({ queryKey: ["app_notifications"] });
+        await qc.invalidateQueries({ queryKey: ["app_notifications_counts"] });
+        toast.success(`Bulk action '${action}' completed successfully`);
+      } catch (e: any) {
+        toast.error(e?.message ?? "Bulk action failed");
+      }
+    },
+    [qc]
   );
 
   return {
     ...query,
     unreadCount,
+    counts: countsQuery.data || { unread: 0, read: 0, archived: 0, total: 0 },
     markRead,
+    archiveNotification,
+    restoreNotification,
+    toggleFavorite,
+    togglePin,
     markAllRead,
     clearNotification,
+    bulkAction,
   };
 }

@@ -297,6 +297,25 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.critical(f"Database initialization: FAILED (continuing startup for health endpoint) — {e}")
 
+    # 1.1 Extend notifications table with missing columns if needed
+    try:
+        async with engine.begin() as conn:
+            await conn.execute(text("""
+                ALTER TABLE public.app_notifications
+                    ADD COLUMN IF NOT EXISTS icon VARCHAR,
+                    ADD COLUMN IF NOT EXISTS color VARCHAR,
+                    ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}'::jsonb,
+                    ADD COLUMN IF NOT EXISTS archived_at TIMESTAMPTZ,
+                    ADD COLUMN IF NOT EXISTS is_favorite BOOLEAN DEFAULT FALSE,
+                    ADD COLUMN IF NOT EXISTS is_pinned BOOLEAN DEFAULT FALSE;
+            """))
+            await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_notifications_archived_at ON public.app_notifications(user_id, archived_at);"))
+            await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_notifications_is_favorite ON public.app_notifications(user_id, is_favorite);"))
+            await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_notifications_is_pinned ON public.app_notifications(user_id, is_pinned);"))
+            logger.info("Notifications tables verified & extended successfully")
+    except Exception as notif_err:
+        logger.error(f"Failed to extend notifications table at startup: {notif_err}")
+
     # 2. Verify Database Schema (Migrations check)
     try:
         from app.scripts.validate_schema import validate
@@ -338,8 +357,13 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"Celery workers connection: FAILED to query — {e}")
 
-    # Log startup complete
-    logger.info("AltRix API startup complete — ready to serve requests")
+    # Start Redis Pub/Sub WebSocket listener
+    try:
+        from app.websocket_manager import ws_manager
+        asyncio.create_task(ws_manager.start_redis_listener())
+        logger.info("Background Redis Pub/Sub WebSocket listener task created")
+    except Exception as ws_err:
+        logger.error(f"Failed to start Redis Pub/Sub WebSocket listener: {ws_err}")
 
     yield
 

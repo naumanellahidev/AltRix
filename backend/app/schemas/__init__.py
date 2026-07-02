@@ -5,7 +5,7 @@ from datetime import datetime, date
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, model_validator
 
 
 # ─── COMMON ───────────────────────────────────────────────────────────────────
@@ -720,10 +720,49 @@ class NotificationOut(BaseModel):
     entity_type: Optional[str] = None
     category: Optional[str] = "general"
     action_url: Optional[str] = None
+    priority: Optional[str] = "normal"
+    icon: Optional[str] = None
+    color: Optional[str] = None
+    metadata: Optional[dict] = None
+    archived_at: Optional[datetime] = None
+    is_favorite: Optional[bool] = False
+    is_pinned: Optional[bool] = False
     read_at: Optional[datetime] = None
     created_at: Optional[datetime] = None
 
     model_config = {"from_attributes": True}
+
+    @model_validator(mode="before")
+    @classmethod
+    def map_metadata(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            if "metadata_json" in data and "metadata" not in data:
+                data["metadata"] = data["metadata_json"]
+            return data
+        
+        # Handle SQLAlchemy ORM instance
+        if hasattr(data, "id"):
+            return {
+                "id": data.id,
+                "user_id": data.user_id,
+                "title": data.title,
+                "body": data.body,
+                "type": data.type,
+                "entity_id": data.entity_id,
+                "entity_type": data.entity_type,
+                "category": data.category,
+                "action_url": data.action_url,
+                "priority": getattr(data, "priority", "normal"),
+                "icon": getattr(data, "icon", None),
+                "color": getattr(data, "color", None),
+                "metadata": getattr(data, "metadata_json", {}),
+                "archived_at": getattr(data, "archived_at", None),
+                "is_favorite": getattr(data, "is_favorite", False),
+                "is_pinned": getattr(data, "is_pinned", False),
+                "read_at": data.read_at,
+                "created_at": data.created_at,
+            }
+        return data
 
 
 # ─── COMPLAINTS ───────────────────────────────────────────────────────────────

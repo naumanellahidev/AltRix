@@ -82,7 +82,8 @@ async def main():
     migration_files = [
         "001_fix_schema_drift.sql",
         "002_add_indexes.sql",
-        "003_create_legacy_tables.sql"
+        "003_create_legacy_tables.sql",
+        "005_extend_notification_tables.sql"
     ]
     
     try:
