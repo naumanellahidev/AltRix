@@ -224,6 +224,55 @@ All colors MUST be HSL.
     scrollbar-width: thin;
     scrollbar-color: hsl(var(--primary) / 0.15) transparent;
   }
+
+  /* Automatically prevent CardContent from merging with bordered header lines */
+  .card-header.border-b + .card-content {
+    padding-top: 1.5rem !important;
+  }
+
+  /* Automatically suppress double padding when CardContent follows CardHeader (without dividing line) */
+  .card-header:not(.border-b) + .card-content {
+    padding-top: 0 !important;
+  }
+
+  /* Prevent absolute background overlays and vertical border indicator strips from bleeding through rounded card edges */
+  .card-premium .absolute,
+  .card-premium > .absolute,
+  .card-premium *[class*="absolute inset-0"] {
+    border-radius: 1rem; /* Matches rounded-2xl */
+  }
+
+  [class*="rounded-lg"] > .absolute,
+  [class*="rounded-lg"] .absolute.inset-0 {
+    border-radius: 0.5rem; /* Matches rounded-lg */
+  }
+
+  [class*="rounded-xl"] > .absolute,
+  [class*="rounded-xl"] .absolute.inset-0 {
+    border-radius: 0.75rem; /* Matches rounded-xl */
+  }
+
+  [class*="rounded-2xl"] > .absolute,
+  [class*="rounded-2xl"] .absolute.inset-0 {
+    border-radius: 1rem; /* Matches rounded-2xl */
+  }
+
+  /* Round left edges of vertical left-side border indicator strips inside cards */
+  .card-premium > .absolute.left-0,
+  [class*="rounded-2xl"] > .absolute.left-0 {
+    border-top-left-radius: 1rem;
+    border-bottom-left-radius: 1rem;
+  }
+
+  [class*="rounded-xl"] > .absolute.left-0 {
+    border-top-left-radius: 0.75rem;
+    border-bottom-left-radius: 0.75rem;
+  }
+
+  [class*="rounded-lg"] > .absolute.left-0 {
+    border-top-left-radius: 0.5rem;
+    border-bottom-left-radius: 0.5rem;
+  }
 }
 
 /* ============================================================
