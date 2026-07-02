@@ -575,7 +575,7 @@ async def delete_notification(notification_id: UUID, current_user: CurrentUser, 
 
 # ─── PWA WEB PUSH & PREFERENCES ───────────────────────────────────────────────
 import json
-from app.utils.webpush_service import get_vapid_keys
+from app.utils.webpush_service import get_vapid_keys, get_vapid_keys_async
 from pydantic import BaseModel
 
 class WebPushSubscriptionIn(BaseModel):
@@ -591,9 +591,9 @@ class NotificationPreferencesIn(BaseModel):
     preferences: dict
 
 @notifications_router.get("/push/public-key")
-async def get_push_public_key():
+async def get_push_public_key(db: DbSession):
     """Return the VAPID public key for frontend push subscription."""
-    keys = get_vapid_keys()
+    keys = await get_vapid_keys_async(db)
     return {"public_key": keys["public_key"]}
 
 @notifications_router.post("/push/subscribe", response_model=MessageResponse)

@@ -77,6 +77,23 @@ export function useWebPush() {
       }
 
       if (!publicKey) {
+        try {
+          // Supabase Fallback: query from system_settings table
+          const { data, error } = await supabase
+            .from("system_settings")
+            .select("value")
+            .eq("key", "vapid_public_key")
+            .single();
+          
+          if (!error && data) {
+            publicKey = data.value;
+          }
+        } catch (dbErr) {
+          console.warn("Failed to query VAPID public key from Supabase DB:", dbErr);
+        }
+      }
+
+      if (!publicKey) {
         publicKey = (import.meta.env.VITE_VAPID_PUBLIC_KEY as string) || "";
       }
 

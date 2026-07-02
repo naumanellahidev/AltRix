@@ -34,10 +34,8 @@ def generate_vapid_keys() -> Dict[str, str]:
     }
 
 def get_vapid_keys() -> Dict[str, str]:
-    """Retrieve VAPID keys from cache file or generate them on first run."""
-    # Try reading from config first
+    """Retrieve VAPID keys from cache file or generate them on first run (synchronous fallback)."""
     from app.config import settings
-    # If settings have them, use them
     vapid_private = getattr(settings, "vapid_private_key", None)
     vapid_public = getattr(settings, "vapid_public_key", None)
     if vapid_private and vapid_public:
@@ -64,9 +62,67 @@ def get_vapid_keys() -> Dict[str, str]:
 
     return keys
 
-async def send_web_push(subscription_info: Dict[str, Any], payload: Dict[str, Any]) -> bool:
+async def get_vapid_keys_async(db=None) -> Dict[str, str]:
+    """Retrieve VAPID keys from system_settings table, falling back to files/config."""
+    from app.config import settings
+    # 1. Try config first
+    vapid_private = getattr(settings, "vapid_private_key", None)
+    vapid_public = getattr(settings, "vapid_public_key", None)
+    if vapid_private and vapid_public:
+        return {"private_key": vapid_private, "public_key": vapid_public}
+
+    # 2. Try database next
+    from sqlalchemy import text
+    try:
+        if db:
+            res_pub = await db.execute(text("SELECT value FROM system_settings WHERE key = 'vapid_public_key'"))
+            row_pub = res_pub.fetchone()
+            res_priv = await db.execute(text("SELECT value FROM system_settings WHERE key = 'vapid_private_key'"))
+            row_priv = res_priv.fetchone()
+            
+            if row_pub and row_priv:
+                return {"public_key": row_pub[0], "private_key": row_priv[0]}
+    except Exception as db_err:
+        logger.warning(f"Failed to query VAPID keys from DB: {db_err}")
+
+    # 3. Try local cache file next
+    keys = None
+    if os.path.exists(VAPID_KEYS_FILE):
+        try:
+            with open(VAPID_KEYS_FILE, "r") as f:
+                keys = json.load(f)
+        except Exception as e:
+            logger.error(f"Failed to read VAPID keys file: {e}")
+
+    # 4. Generate new keys if none found
+    if not keys or "private_key" not in keys or "public_key" not in keys:
+        logger.info("Generating new VAPID keys...")
+        keys = generate_vapid_keys()
+        try:
+            with open(VAPID_KEYS_FILE, "w") as f:
+                json.dump(keys, f)
+        except Exception as e:
+            logger.error(f"Failed to cache VAPID keys: {e}")
+
+    # Save to DB for frontend/worker sharing
+    if db:
+        try:
+            await db.execute(
+                text("INSERT INTO system_settings (key, value) VALUES ('vapid_public_key', :pub) ON CONFLICT (key) DO NOTHING"),
+                {"pub": keys["public_key"]}
+            )
+            await db.execute(
+                text("INSERT INTO system_settings (key, value) VALUES ('vapid_private_key', :priv) ON CONFLICT (key) DO NOTHING"),
+                {"priv": keys["private_key"]}
+            )
+        except Exception as sync_err:
+            logger.error(f"Failed to save VAPID keys to DB: {sync_err}")
+            
+    return keys
+
+async def send_web_push(subscription_info: Dict[str, Any], payload: Dict[str, Any], db=None) -> bool:
     """Send a web push notification using pywebpush."""
-    keys = get_vapid_keys()
+    keys = await get_vapid_keys_async(db)
     try:
         # Send web push
         webpush(
