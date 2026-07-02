@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from typing import List, Optional
 from uuid import UUID
 
+import json
 from fastapi import APIRouter, Query, status, Request
 from pydantic import BaseModel
 from sqlalchemy import func, select, text
