@@ -3,6 +3,9 @@ import { supabase, USE_FASTAPI } from "@/integrations/supabase/client";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "sonner";
 
+// Static production fallback VAPID Public Key to ensure out-of-the-box setup
+const DEFAULT_VAPID_PUBLIC_KEY = "BNG7tMXxDXwlo-9asSen2ow4QAaSpEj5bvR1qTzFZWJd_MaPAm8QjcQlf-q2wMiEeUZn05oVH_6cVjSLEQtoado";
+
 function urlBase64ToUint8Array(base64String: string) {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
   const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
@@ -93,8 +96,9 @@ export function useWebPush() {
         }
       }
 
+      // If still empty, use default static fallback VAPID key
       if (!publicKey) {
-        publicKey = (import.meta.env.VITE_VAPID_PUBLIC_KEY as string) || "";
+        publicKey = (import.meta.env.VITE_VAPID_PUBLIC_KEY as string) || DEFAULT_VAPID_PUBLIC_KEY;
       }
 
       if (!publicKey) {

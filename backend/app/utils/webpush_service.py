@@ -13,6 +13,10 @@ logger = logging.getLogger("altrix.webpush")
 # Path to cache VAPID keys locally
 VAPID_KEYS_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "vapid_keys.json")
 
+# Default production fallback VAPID key pair
+DEFAULT_VAPID_PUBLIC_KEY = "BNG7tMXxDXwlo-9asSen2ow4QAaSpEj5bvR1qTzFZWJd_MaPAm8QjcQlf-q2wMiEeUZn05oVH_6cVjSLEQtoado"
+DEFAULT_VAPID_PRIVATE_KEY = "MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgJsaMUCWtJKeXt2qTFSokxXS7AseLXtYIMsmBcSwdpPChRANCAATRu7TF8Q18JaPvWrEnp9qMOEAGkqRI-W70dak8xWViXfzGjwJvEI3EJX_qtsDIhHlGZ9OaFR_-nFY0ixELaGna"
+
 def generate_vapid_keys() -> Dict[str, str]:
     """Generate a standard Elliptic Curve SECP256R1 key pair for Web Push VAPID."""
     private_key = ec.generate_private_key(ec.SECP256R1())
@@ -52,7 +56,10 @@ def get_vapid_keys() -> Dict[str, str]:
 
     # Generate new keys
     logger.info("Generating new VAPID keys...")
-    keys = generate_vapid_keys()
+    keys = {
+        "public_key": DEFAULT_VAPID_PUBLIC_KEY,
+        "private_key": DEFAULT_VAPID_PRIVATE_KEY
+    }
     try:
         with open(VAPID_KEYS_FILE, "w") as f:
             json.dump(keys, f)
@@ -97,7 +104,10 @@ async def get_vapid_keys_async(db=None) -> Dict[str, str]:
     # 4. Generate new keys if none found
     if not keys or "private_key" not in keys or "public_key" not in keys:
         logger.info("Generating new VAPID keys...")
-        keys = generate_vapid_keys()
+        keys = {
+            "public_key": DEFAULT_VAPID_PUBLIC_KEY,
+            "private_key": DEFAULT_VAPID_PRIVATE_KEY
+        }
         try:
             with open(VAPID_KEYS_FILE, "w") as f:
                 json.dump(keys, f)
