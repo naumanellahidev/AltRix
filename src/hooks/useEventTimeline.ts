@@ -70,7 +70,7 @@ export function useEventTimeline(category?: string, page = 1, limit = 20) {
       }
 
       // Scope to campus if user is not a school-wide admin
-      const isSchoolAdmin = profile.roles?.some((r: any) =>
+      const isSchoolAdmin = profile.roles?.some((r: { role: string }) =>
         ["super_admin", "school_owner", "principal", "vice_principal"].includes(r.role)
       );
 
