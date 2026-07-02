@@ -217,7 +217,7 @@ async def logout(request: Request, current_user: CurrentUser, db: DbSession):
         if not expires_at:
             expires_at = datetime.now(timezone.utc) + timedelta(hours=24)
 
-        await blacklist_token(db, jti, current_user.id, expires_at)
+        await blacklist_token(db, jti, UUID(current_user.id), expires_at)
 
         # Mark active session as inactive in DB
         try:
@@ -228,21 +228,21 @@ async def logout(request: Request, current_user: CurrentUser, db: DbSession):
                     SET is_active = FALSE, logged_out_at = NOW(), logout_reason = 'logout'
                     WHERE (token_hash = :token_hash OR user_id = :user_id) AND is_active = TRUE
                 """),
-                {"token_hash": token_hash, "user_id": str(current_user.id)}
+                {"token_hash": token_hash, "user_id": current_user.id}
             )
             await db.commit()
         except Exception as e:
             logger.warning(f"Failed to invalidate active session: {e}")
 
         # Invalidate cached permissions/roles for this user
-        await cache.delete(cache_key_permissions(str(current_user.id), str(current_user.school_id or "")))
-        await cache.delete(cache_key_roles(str(current_user.id)))
+        await cache.delete(cache_key_permissions(current_user.id, current_user.school_id or ""))
+        await cache.delete(cache_key_roles(current_user.id))
 
     await log_audit_event(
         db=db,
         action=AuditAction.LOGOUT,
         resource_type="auth",
-        resource_id=str(current_user.id),
+        resource_id=current_user.id,
         user_id=current_user.id,
         school_id=current_user.school_id,
         request=request,
@@ -355,7 +355,7 @@ async def request_password_reset(request: Request, email: str, db: DbSession):
 )
 async def get_user_roles(current_user: CurrentUser, db: DbSession):
     """Return all roles for the current user across all schools. Cached."""
-    cache_key = cache_key_roles(str(current_user.id))
+    cache_key = cache_key_roles(current_user.id)
     cached = await cache.get(cache_key)
     if cached:
         return cached
@@ -404,8 +404,8 @@ async def get_user_roles(current_user: CurrentUser, db: DbSession):
 )
 async def get_permissions(current_user: CurrentUser):
     """Return permissions for the current user in the active school context. Cached."""
-    school_id_str = str(current_user.school_id or "")
-    cache_key = cache_key_permissions(str(current_user.id), school_id_str)
+    school_id_str = current_user.school_id or ""
+    cache_key = cache_key_permissions(current_user.id, school_id_str)
 
     cached = await cache.get(cache_key)
     if cached:
@@ -482,14 +482,7 @@ async def get_user_profile(user_id: UUID, current_user: CurrentUser, db: DbSessi
         if not profile:
             raise HTTPException(status_code=404, detail=f"Profile {user_id} not found")
 
-        return UserProfileOut(
-            id=profile.id,
-            email=profile.email,
-            full_name=profile.full_name,
-            display_name=profile.full_name,
-            avatar_url=profile.avatar_url,
-            phone=profile.phone,
-        )
+        return UserProfileOut.model_validate(profile)
     except HTTPException:
         raise
     except Exception as e:
