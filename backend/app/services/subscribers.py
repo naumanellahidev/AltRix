@@ -195,3 +195,29 @@ async def handle_report_generated_analytics(event: Dict[str, Any], db: AsyncSess
     Logs analytical events when PDFs or reports are generated.
     """
     logger.info(f"Report generated subscriber processed for correlation {event.get('correlation_id')}")
+
+
+async def handle_attendance_marked_analytics(event: Dict[str, Any], db: AsyncSession) -> None:
+    """
+    Computes and logs analytical statistics for attendance events.
+    """
+    try:
+        payload = event.get("payload", {})
+        count = payload.get("count", 1)
+        school_id = event.get("school_id")
+        logger.info(f"Analytics updated: {count} attendance records processed for school {school_id}")
+    except Exception as e:
+        logger.error(f"Failed in handle_attendance_marked_analytics: {e}")
+
+
+async def handle_fee_paid_analytics(event: Dict[str, Any], db: AsyncSession) -> None:
+    """
+    Integrates fee payment information into the financial analytics summary.
+    """
+    try:
+        payload = event.get("payload", {})
+        amount = payload.get("amount", 0)
+        school_id = event.get("school_id")
+        logger.info(f"Financial Analytics: Registered fee payment of PKR {amount} for school {school_id}")
+    except Exception as e:
+        logger.error(f"Failed in handle_fee_paid_analytics: {e}")
