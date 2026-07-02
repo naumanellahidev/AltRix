@@ -6,6 +6,7 @@ from typing import List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Query, status, Request
+from pydantic import BaseModel
 from sqlalchemy import func, select, text
 
 from app.dependencies import CurrentUser, DbSession, AuthenticatedUser
