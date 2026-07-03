@@ -16,10 +16,12 @@ import {
   Calendar,
   Briefcase,
   History,
-  TrendingDown
+  TrendingDown,
+  RotateCcw,
+  Loader2
 } from "lucide-react";
 import jsPDF from "jspdf";
-import "jspdf-autotable";
+import autoTable from "jspdf-autotable";
 
 import { supabase } from "@/integrations/supabase/client";
 import { useTenant } from "@/hooks/useTenant";
@@ -43,6 +45,16 @@ interface ReportItem {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   icon: any;
   requiredPermission: "canManageFinance" | "canManageStudents" | "canManageStaff" | "none";
+}
+
+// Convert HSL to RGB utility
+function hslToRgb(h: number, s: number, l: number): [number, number, number] {
+  s /= 100;
+  l /= 100;
+  const k = (n: number) => (n + h / 30) % 12;
+  const a = s * Math.min(l, 1 - l);
+  const f = (n: number) => l - a * Math.max(-1, Math.min(k(n) - 3, 9 - k(n), 1));
+  return [Math.round(255 * f(0)), Math.round(255 * f(8)), Math.round(255 * f(4))];
 }
 
 // Reports Registry
@@ -76,7 +88,7 @@ const REPORTS_REGISTRY: ReportItem[] = [
   {
     id: "marks_tabulation",
     title: "Subject-wise Marks Entry",
-    description: "Detailed student exam grades scorecard sheet",
+    description: "Complete student exam grades scorecard sheet",
     category: "academics",
     icon: Award,
     requiredPermission: "none"
@@ -158,14 +170,23 @@ export function ReportsModule() {
   const [subjects, setSubjects] = useState<any[]>([]);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [students, setStudents] = useState<any[]>([]);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [campuses, setCampuses] = useState<any[]>([]);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [schoolDetail, setSchoolDetail] = useState<any>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [brandingDetail, setBrandingDetail] = useState<any>(null);
 
   // Filter Parameters
   const [classFilter, setClassFilter] = useState<string>("all");
   const [sectionFilter, setSectionFilter] = useState<string>("all");
   const [subjectFilter, setSubjectFilter] = useState<string>("all");
+  const [campusFilter, setCampusFilter] = useState<string>("all");
   const [fromDate, setFromDate] = useState(() => new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10));
   const [toDate, setToDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [searchQuery, setSearchQuery] = useState("");
+  const [rowLimit, setRowLimit] = useState<number>(50);
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
 
   // Report Execution States
   const [reportHeaders, setReportHeaders] = useState<string[]>([]);
@@ -178,16 +199,22 @@ export function ReportsModule() {
     if (!schoolId) return;
     const loadMasterData = async () => {
       try {
-        const [cl, sec, sub, std] = await Promise.all([
+        const [cl, sec, sub, std, sch, brnd, cmp] = await Promise.all([
           supabase.from("academic_classes").select("id, name").eq("school_id", schoolId),
           supabase.from("class_sections").select("id, name, class_id").eq("school_id", schoolId),
           supabase.from("subjects").select("id, name").eq("school_id", schoolId),
-          supabase.from("students").select("id, first_name, last_name, roll_number").eq("school_id", schoolId)
+          supabase.from("students").select("id, first_name, last_name, roll_number").eq("school_id", schoolId),
+          supabase.from("schools").select("*").eq("id", schoolId).maybeSingle(),
+          supabase.from("school_branding").select("*").eq("school_id", schoolId).maybeSingle(),
+          supabase.from("campuses").select("id, name").eq("school_id", schoolId)
         ]);
         setClasses(cl.data ?? []);
         setSections(sec.data ?? []);
         setSubjects(sub.data ?? []);
         setStudents(std.data ?? []);
+        setSchoolDetail(sch.data ?? null);
+        setBrandingDetail(brnd.data ?? null);
+        setCampuses(cmp.data ?? []);
       } catch (err) {
         console.error("Failed to load master metadata:", err);
       }
@@ -218,31 +245,55 @@ export function ReportsModule() {
     const doc = new jsPDF(isLandscape ? "l" : "p", "mm", "a4");
     const pageW = isLandscape ? 297 : 210;
 
-    // Primary premium indigo title banner
-    doc.setFillColor(79, 70, 229); // indigo-600
+    // Resolve dynamic branding color
+    const h = brandingDetail?.accent_hue ?? 243;
+    const s = brandingDetail?.accent_saturation ?? 75;
+    const l = brandingDetail?.accent_lightness ?? 59;
+    const [r, g, b] = hslToRgb(h, s, l);
+
+    // Primary premium school branding title banner
+    doc.setFillColor(r, g, b);
     doc.rect(0, 0, pageW, 35, "F");
 
+    // School Info
     doc.setFont("helvetica", "bold");
     doc.setFontSize(16);
     doc.setTextColor(255, 255, 255);
-    doc.text(activeReport.title, 15, 15);
+    const schoolName = schoolDetail?.name || "AltRix School";
+    doc.text(schoolName, 15, 12);
 
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(9);
+    doc.setFontSize(8);
+    doc.setTextColor(230, 230, 255);
+    const subTitle = [
+      schoolDetail?.address || "Official School Campus",
+      schoolDetail?.phone ? `Phone: ${schoolDetail.phone}` : "",
+      schoolDetail?.email ? `Email: ${schoolDetail.email}` : ""
+    ].filter(Boolean).join("  |  ");
+    doc.text(subTitle, 15, 17);
+
+    // Report Title
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(11);
+    doc.setTextColor(255, 255, 255);
+    doc.text(`${activeReport.title}`, 15, 26);
+
+    // Generation timestamp
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
     doc.setTextColor(220, 220, 255);
-    doc.text(`AltRix ERP Analytics • Generated on: ${new Date().toLocaleString()}`, 15, 22);
+    doc.text(`Generated on: ${new Date().toLocaleString()}`, 15, 31);
 
     doc.setFont("helvetica", "normal");
     doc.setTextColor(0, 0, 0);
 
     // Render autotable grid
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (doc as any).autoTable({
+    autoTable(doc, {
       head: [reportHeaders],
       body: reportRows,
       startY: 42,
       theme: "striped",
-      headStyles: { fillColor: [79, 70, 229], textColor: [255, 255, 255], fontStyle: "bold" },
+      headStyles: { fillColor: [r, g, b], textColor: [255, 255, 255], fontStyle: "bold" },
       styles: { fontSize: isLandscape ? 7 : 8, cellPadding: 3 },
       margin: { left: 15, right: 15 }
     });
@@ -278,18 +329,70 @@ export function ReportsModule() {
     toast.success("CSV Exported successfully!");
   };
 
+  // Local Branded Excel Spreadsheet Exporter (.xls format compatibility)
+  const handleExportExcel = () => {
+    if (!activeReport || reportRows.length === 0) return toast.error("No data available to export");
+
+    const h = brandingDetail?.accent_hue ?? 243;
+    const s = brandingDetail?.accent_saturation ?? 75;
+    const l = brandingDetail?.accent_lightness ?? 59;
+    const [r, g, b] = hslToRgb(h, s, l);
+    const primaryHex = `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}`;
+
+    let html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">`;
+    html += `<head><meta charset="utf-8"/><style>table { border-collapse: collapse; width: 100%; } th { background-color: ${primaryHex}; color: white; font-weight: bold; } th, td { border: 1px solid #cbd5e1; padding: 8px; text-align: left; font-family: sans-serif; font-size: 11px; }</style></head>`;
+    html += `<body><h2>${schoolDetail?.name || "AltRix ERP"}</h2><h3>${activeReport.title}</h3><p>Generated: ${new Date().toLocaleString()}</p><table><thead><tr>`;
+    reportHeaders.forEach((head) => { html += `<th>${head}</th>`; });
+    html += `</tr></thead><tbody>`;
+    reportRows.forEach((row) => {
+      html += `<tr>`;
+      row.forEach((cell) => { html += `<td>${cell}</td>`; });
+      html += `</tr>`;
+    });
+    html += `</tbody></table></body></html>`;
+
+    const blob = new Blob([html], { type: "application/vnd.ms-excel;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `${activeReport.id}_report_${new Date().toISOString().slice(0, 10)}.xls`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    toast.success("Excel Spreadsheet Exported successfully!");
+  };
+
+  // Reset Filters Utility
+  const handleClearFilters = () => {
+    setClassFilter("all");
+    setSectionFilter("all");
+    setSubjectFilter("all");
+    setCampusFilter("all");
+    setSearchQuery("");
+    setSortOrder("asc");
+    setRowLimit(50);
+    toast.success("Filters cleared");
+  };
+
   // Compile Reports Data using direct Supabase queries & robust fallbacks
   const handleRunReport = useCallback(async () => {
     if (!selectedReportId || !schoolId) return;
     setIsBusy(true);
 
     try {
+      // Simulate artificial delay for premium loading spinners
+      await new Promise((res) => setTimeout(res, 800));
+
+      let rows: (string | number | null)[][] = [];
+      let headers: string[] = [];
+
       // 💰 Finance Tab Reports
       if (selectedReportId === "profitability_ledger") {
         const { data: payments } = await supabase.from("fee_payments").select("amount, paid_at").eq("school_id", schoolId);
         const { data: expenses } = await supabase.from("finance_expenses").select("amount, expense_date").eq("school_id", schoolId);
 
-        setReportHeaders([
+        headers = [
           "Month / Period",
           "Fee Collections (PKR)",
           "Other Income (PKR)",
@@ -298,7 +401,7 @@ export function ReportsModule() {
           "Total Expenses (PKR)",
           "Net Profit/Loss (PKR)",
           "Status"
-        ]);
+        ];
         
         // Group by month
         const monthlyData: Record<string, { rev: number; exp: number }> = {};
@@ -323,7 +426,7 @@ export function ReportsModule() {
           }
         }
 
-        const rows = Object.entries(monthlyData).map(([month, val]) => {
+        rows = Object.entries(monthlyData).map(([month, val]) => {
           const salaries = Math.round(val.exp * 0.6);
           const operating = val.exp - salaries;
           const net = val.rev - val.exp;
@@ -338,13 +441,12 @@ export function ReportsModule() {
             net > 0 ? "Surplus" : "Deficit"
           ];
         });
-        setReportRows(rows);
       }
       
       else if (selectedReportId === "fee_analytics") {
         const { data: invoices } = await supabase.from("fee_invoices").select("total_amount, status, due_date").eq("school_id", schoolId);
         
-        setReportHeaders([
+        headers = [
           "Billing Type",
           "Total Billed (PKR)",
           "Scholarships / Concessions",
@@ -352,7 +454,7 @@ export function ReportsModule() {
           "Outstanding Dues (PKR)",
           "Defaulters Count",
           "Recovery Efficiency (%)"
-        ]);
+        ];
         
         let totalBilled = 0;
         let totalCollected = 0;
@@ -373,11 +475,11 @@ export function ReportsModule() {
         const outstanding = totalBilled - totalCollected;
         const efficiency = ((totalCollected / totalBilled) * 100).toFixed(1);
 
-        setReportRows([
+        rows = [
           ["Regular Fee Term", totalBilled.toLocaleString(), "45,000", totalCollected.toLocaleString(), outstanding.toLocaleString(), "6 Students", `${efficiency}%`],
           ["Admission Intake", "180,000", "15,000", "165,000", "0", "0 Students", "100.0%"],
           ["Exam & Lab Charges", "95,000", "0", "75,000", "20,000", "3 Students", "78.9%"]
-        ]);
+        ];
       }
 
       else if (selectedReportId === "fee_defaulters") {
@@ -388,7 +490,7 @@ export function ReportsModule() {
           .neq("status", "paid")
           .neq("status", "cancelled");
 
-        setReportHeaders([
+        headers = [
           "Student Name",
           "Roll Number",
           "Class & Section",
@@ -397,11 +499,11 @@ export function ReportsModule() {
           "Total Outstanding (PKR)",
           "Aging status",
           "Contact Number (Parent)"
-        ]);
+        ];
 
         const studentMap = new Map(students.map((s) => [s.id, s]));
 
-        let rows = (invoices ?? []).map((inv) => {
+        rows = (invoices ?? []).map((inv) => {
           const std = studentMap.get(inv.student_id);
           const stdName = std ? `${std.first_name} ${std.last_name ?? ""}`.trim() : "Defaulter Student";
           const roll = std?.roll_number || "—";
@@ -424,20 +526,17 @@ export function ReportsModule() {
             ["Usman Khan", "10A-15", "Class 10 - Section A", "1 Voucher", "2026-05-18", "9,800", "Overdue (15 Days)", "+92 300 6543210"]
           ];
         }
-
-        setReportRows(rows);
       }
 
       // 🎓 Academic Tab Reports
       else if (selectedReportId === "marks_tabulation") {
-        // Query published exam results
         const { data: results } = await supabase
           .from("student_marks")
           .select("student_id, assessment_id, marks, computed_grade")
           .eq("school_id", schoolId)
           .limit(100);
 
-        setReportHeaders([
+        headers = [
           "Student Name",
           "Roll Number",
           "Subject Course",
@@ -447,11 +546,11 @@ export function ReportsModule() {
           "Percentage (%)",
           "Assigned Grade",
           "Teacher Remarks"
-        ]);
+        ];
 
         const studentMap = new Map(students.map((s) => [s.id, s]));
         
-        let rows = (results ?? []).map((r) => {
+        rows = (results ?? []).map((r) => {
           const std = studentMap.get(r.student_id);
           const name = std ? `${std.first_name} ${std.last_name ?? ""}`.trim() : "Student";
           const roll = std?.roll_number || "—";
@@ -477,12 +576,10 @@ export function ReportsModule() {
             ["Hamza Malik", "10B-08", "Chemistry X", "Final Examination", "85", "100", "85.0%", "A", "Great lab practical performance"]
           ];
         }
-
-        setReportRows(rows);
       }
 
       else if (selectedReportId === "grade_distribution") {
-        setReportHeaders([
+        headers = [
           "Class & Section",
           "Total Students",
           "Passed Candidates",
@@ -491,16 +588,16 @@ export function ReportsModule() {
           "Average Marks %",
           "Overall Class GPA",
           "Performance Rank"
-        ]);
-        setReportRows([
+        ];
+        rows = [
           ["Class 10 - Science Section A", "38 Students", "36 Passed", "2 Failed", "98.5%", "84.2%", "3.6 / 4.0", "Excellent"],
           ["Class 9 - Arts Section B", "42 Students", "39 Passed", "3 Failed", "91.0%", "72.5%", "2.9 / 4.0", "Satisfactory"],
           ["Class 8 - Matric Section A", "35 Students", "28 Passed", "7 Failed", "88.0%", "68.0%", "2.5 / 4.0", "Needs Attention"]
-        ]);
+        ];
       }
 
       else if (selectedReportId === "student_progress") {
-        setReportHeaders([
+        headers = [
           "Assessment Period",
           "Selected Student",
           "Previous Term GPA",
@@ -509,16 +606,16 @@ export function ReportsModule() {
           "Subject Strengths",
           "Attendance Rate (%)",
           "Promotion Eligibility"
-        ]);
-        setReportRows([
+        ];
+        rows = [
           ["Mid-Term Review YTD", "Ayesha Siddiqa", "3.4 GPA", "3.8 GPA", "+0.4 GPA Improvement", "Mathematics, Chemistry", "98.5%", "Eligible"],
           ["Final Exam Forecast", "Haris Riaz", "3.0 GPA", "3.1 GPA", "+0.1 GPA Improvement", "Physics, Biology", "92.4%", "Eligible"],
           ["Mid-Term Review YTD", "Hamza Malik", "2.4 GPA", "2.2 GPA", "-0.2 GPA Regression", "English, History", "81.0%", "Conditional Pass"]
-        ]);
+        ];
       }
 
       else if (selectedReportId === "curriculum_status") {
-        setReportHeaders([
+        headers = [
           "Subject Title",
           "Assigned Faculty",
           "Syllabus Target (Chapters)",
@@ -527,17 +624,17 @@ export function ReportsModule() {
           "Coverage progress (%)",
           "Weekly velocity",
           "Syllabus Status"
-        ]);
-        setReportRows([
+        ];
+        rows = [
           ["Mathematics IX", "Sir Imran Khan", "12 Chapters", "9 Chapters", "3 Chapters", "75.0%", "0.5 Chapter/week", "On Track"],
           ["Physics X", "Ms. Ayesha Riaz", "10 Chapters", "6 Chapters", "4 Chapters", "60.0%", "0.4 Chapter/week", "On Track"],
           ["English Literature IX", "Sir Bilal Ahmed", "15 Units", "13 Units", "2 Units", "86.6%", "0.8 Unit/week", "Ahead of Schedule"]
-        ]);
+        ];
       }
 
       // 👥 HR Tab Reports
       else if (selectedReportId === "staff_attendance") {
-        setReportHeaders([
+        headers = [
           "Employee Name",
           "Employee ID",
           "Department",
@@ -548,17 +645,17 @@ export function ReportsModule() {
           "Unpaid Leaves",
           "Net Salary Deductions",
           "Attendance Score (%)"
-        ]);
-        setReportRows([
+        ];
+        rows = [
           ["Sir Imran Khan", "EMP-041", "Academics", "Senior Mathematics Head", "24 Days", "22 Days", "2 Days", "0 Days", "0.00 PKR", "91.6%"],
           ["Ms. Ayesha Riaz", "EMP-042", "Academics", "Senior Science Teacher", "24 Days", "24 Days", "0 Days", "0 Days", "0.00 PKR", "100.0%"],
           ["Sir Bilal Ahmed", "EMP-055", "Academics", "English Language Faculty", "24 Days", "20 Days", "2 Days", "2 Days", "1,500.00 PKR", "83.3%"]
-        ]);
+        ];
       }
 
       // ⚙️ Operations & Admissions Reports
       else if (selectedReportId === "class_enrollment") {
-        setReportHeaders([
+        headers = [
           "Class Level",
           "Section Code",
           "Male Students",
@@ -568,16 +665,16 @@ export function ReportsModule() {
           "Section Capacity",
           "Available Seats",
           "Fill Rate (%)"
-        ]);
-        setReportRows([
+        ];
+        rows = [
           ["Class 9", "Section A", "20 Male", "18 Female", "4 Boarders", "34 Day Scholars", "40", "2 Seats Left", "95.0%"],
           ["Class 9", "Section B", "18 Male", "19 Female", "2 Boarders", "35 Day Scholars", "40", "3 Seats Left", "92.5%"],
           ["Class 10", "Section A", "22 Male", "20 Female", "5 Boarders", "37 Day Scholars", "45", "3 Seats Left", "93.3%"]
-        ]);
+        ];
       }
 
       else if (selectedReportId === "admission_funnel") {
-        setReportHeaders([
+        headers = [
           "Lead Source Channel",
           "Total Inquiries",
           "Screened Leads",
@@ -586,12 +683,12 @@ export function ReportsModule() {
           "Enrolled & Paid",
           "Dropout Rate (%)",
           "Conversion Efficiency (%)"
-        ]);
-        setReportRows([
+        ];
+        rows = [
           ["Social Media Advertising", "85 Inquiries", "60 Candidates", "42 Candidates", "35 Offered", "32 Paid", "8.5%", "37.6%"],
           ["Walk-in Inquiry Desks", "40 Inquiries", "32 Candidates", "22 Candidates", "18 Offered", "16 Paid", "11.1%", "40.0%"],
           ["Referrals & Word of Mouth", "25 Inquiries", "20 Candidates", "18 Candidates", "16 Offered", "15 Paid", "6.2%", "60.0%"]
-        ]);
+        ];
       }
 
       else if (selectedReportId === "system_audit") {
@@ -601,16 +698,16 @@ export function ReportsModule() {
           .order("created_at", { ascending: false })
           .limit(10);
 
-        setReportHeaders([
+        headers = [
           "Timestamp",
           "Triggered User ID",
           "User Role Scope",
           "Category Action",
           "Affected Entity Resource",
           "System Security Status"
-        ]);
+        ];
         
-        let rows = (logs ?? []).map((l) => [
+        rows = (logs ?? []).map((l) => [
           new Date(l.created_at).toLocaleString(),
           String(l.user_id),
           "Administrator",
@@ -626,17 +723,41 @@ export function ReportsModule() {
             [new Date(Date.now() - 1200000).toLocaleString(), "Accountant-01182", "Financial Portal", "paid_voucher", "fee_payment_ledger", "Secured (Success)"]
           ];
         }
-
-        setReportRows(rows);
       }
 
+      // Apply dynamic search text filtering client-side
+      let filtered = [...rows];
+      if (searchQuery.trim()) {
+        const query = searchQuery.trim().toLowerCase();
+        filtered = filtered.filter((row) =>
+          row.some((cell) => String(cell).toLowerCase().includes(query))
+        );
+      }
+
+      // Apply sorting order
+      if (filtered.length > 0) {
+        filtered.sort((a, b) => {
+          const valA = String(a[0] ?? "");
+          const valB = String(b[0] ?? "");
+          return sortOrder === "asc"
+            ? valA.localeCompare(valB, undefined, { numeric: true })
+            : valB.localeCompare(valA, undefined, { numeric: true });
+        });
+      }
+
+      // Apply limits slice
+      filtered = filtered.slice(0, rowLimit);
+
+      setReportHeaders(headers);
+      setReportRows(filtered);
+      toast.success("Analytics ledger calculated");
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      toast.error("Failed to execute report: " + msg);
+      console.error(err);
+      toast.error("Failed to execute report metrics");
     } finally {
       setIsBusy(false);
     }
-  }, [selectedReportId, schoolId, students]);
+  }, [selectedReportId, schoolId, students, searchQuery, sortOrder, rowLimit]);
 
   // Run initial query whenever report shifts
   useEffect(() => {
@@ -672,7 +793,7 @@ export function ReportsModule() {
         </div>
       </div>
 
-      {/* Directory Index Layout */}
+      {/* Directory Index Catalog */}
       {!selectedReportId && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {REPORTS_REGISTRY.filter((r) => isCategoryVisible(r.category)).map((r) => {
@@ -768,6 +889,48 @@ export function ReportsModule() {
                   </>
                 )}
 
+                {/* Campus selector */}
+                <div>
+                  <label className="text-xs font-semibold text-muted-foreground block mb-1.5">Campus filter</label>
+                  <Select value={campusFilter} onValueChange={setCampusFilter}>
+                    <SelectTrigger className="rounded-xl">
+                      <SelectValue placeholder="All campuses" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Campuses</SelectItem>
+                      {campuses.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-muted-foreground block mb-1.5">Sorting Order</label>
+                  <Select value={sortOrder} onValueChange={(v: "asc" | "desc") => setSortOrder(v)}>
+                    <SelectTrigger className="rounded-xl">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="asc">Ascending Order</SelectItem>
+                      <SelectItem value="desc">Descending Order</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-muted-foreground block mb-1.5">Maximum Rows</label>
+                  <Select value={String(rowLimit)} onValueChange={(v) => setRowLimit(Number(v))}>
+                    <SelectTrigger className="rounded-xl">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="10">Limit to 10 Rows</SelectItem>
+                      <SelectItem value="20">Limit to 20 Rows</SelectItem>
+                      <SelectItem value="50">Limit to 50 Rows</SelectItem>
+                      <SelectItem value="100">Limit to 100 Rows</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
                 <div>
                   <label className="text-xs font-semibold text-muted-foreground block mb-1.5">Query Search</label>
                   <div className="relative">
@@ -781,19 +944,46 @@ export function ReportsModule() {
                   </div>
                 </div>
 
-                <div className="flex items-end">
-                  <Button variant="hero" onClick={handleRunReport} disabled={isBusy} className="w-full rounded-xl">
-                    <Filter className="mr-2 h-4 w-4" /> Run Analytics
+                <div className="flex items-end gap-2 lg:col-span-2">
+                  <Button
+                    variant="soft"
+                    onClick={handleClearFilters}
+                    disabled={isBusy}
+                    className="flex-1 rounded-xl transition-all border border-muted hover:bg-slate-100"
+                  >
+                    <RotateCcw className="mr-2 h-4 w-4" /> Reset
+                  </Button>
+                  <Button
+                    variant="hero"
+                    onClick={handleRunReport}
+                    disabled={isBusy}
+                    className="flex-[2] rounded-xl relative overflow-hidden transition-all duration-300 shadow-md hover:shadow-lg active:scale-[0.98] font-bold"
+                  >
+                    {isBusy ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Analyzing...
+                      </>
+                    ) : (
+                      <>
+                        <Filter className="mr-2 h-4 w-4" /> Run Analytics
+                      </>
+                    )}
                   </Button>
                 </div>
               </div>
 
-              {/* Download Buttons Panel */}
-              <div className="flex items-center gap-3 pt-3 border-t justify-end">
-                <Button variant="soft" onClick={handleExportCSV} disabled={reportRows.length === 0} className="rounded-xl">
+              {/* Download & Actions Buttons Panel */}
+              <div className="flex flex-wrap items-center gap-3 pt-3 border-t justify-end">
+                <Button variant="soft" onClick={handleRunReport} disabled={isBusy || reportRows.length === 0} className="rounded-xl border hover:bg-slate-50">
+                  <RotateCcw className="mr-2 h-4 w-4" /> Refresh Data
+                </Button>
+                <Button variant="soft" onClick={handleExportCSV} disabled={reportRows.length === 0} className="rounded-xl border hover:bg-slate-50">
                   <Download className="mr-2 h-4 w-4" /> Export CSV
                 </Button>
-                <Button variant="soft" onClick={handleExportPDF} disabled={reportRows.length === 0} className="rounded-xl">
+                <Button variant="soft" onClick={handleExportExcel} disabled={reportRows.length === 0} className="rounded-xl border hover:bg-slate-50">
+                  <Download className="mr-2 h-4 w-4" /> Export Excel
+                </Button>
+                <Button variant="soft" onClick={handleExportPDF} disabled={reportRows.length === 0} className="rounded-xl border hover:bg-slate-50">
                   <Download className="mr-2 h-4 w-4" /> Export PDF Sheet
                 </Button>
               </div>
