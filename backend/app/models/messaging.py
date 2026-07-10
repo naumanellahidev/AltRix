@@ -8,6 +8,7 @@ from sqlalchemy.ext.hybrid import hybrid_property
 
 from sqlalchemy import Boolean, Column, DateTime, ForeignKey, String, Text
 from sqlalchemy.dialects.postgresql import UUID, ARRAY
+from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
 
 from app.database import Base
@@ -16,67 +17,67 @@ from app.database import Base
 class AdminMessage(Base):
     __tablename__ = "admin_messages"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    school_id = Column(UUID(as_uuid=True), ForeignKey("schools.id"), nullable=False)
-    campus_id = Column(UUID(as_uuid=True), ForeignKey("campuses.id"), nullable=True)
-    sender_user_id = Column(UUID(as_uuid=True), nullable=False)
-    subject = Column(String, nullable=False)
-    content = Column(Text, nullable=True)
-    priority = Column(String, nullable=True, default="normal")  # low, normal, high, urgent
-    status = Column(String, nullable=True, default="sent")
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    school_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("schools.id"), nullable=False)
+    campus_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("campuses.id"), nullable=True)
+    sender_user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    subject: Mapped[str] = mapped_column(String, nullable=False)
+    content: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    priority: Mapped[Optional[str]] = mapped_column(String, nullable=True, default="normal")  # low, normal, high, urgent
+    status: Mapped[Optional[str]] = mapped_column(String, nullable=True, default="sent")
     attachment_urls = Column(ARRAY(String), nullable=True)
-    reply_to_id = Column(UUID(as_uuid=True), ForeignKey("admin_messages.id"), nullable=True)
-    created_by = Column(UUID(as_uuid=True), nullable=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=True)
+    reply_to_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("admin_messages.id"), nullable=True)
+    created_by: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), nullable=True)
+    created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=True)
 
 
 class AdminMessageRecipient(Base):
     __tablename__ = "admin_message_recipients"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    message_id = Column(UUID(as_uuid=True), ForeignKey("admin_messages.id"), nullable=False)
-    recipient_user_id = Column(UUID(as_uuid=True), nullable=False)
-    is_read = Column(Boolean, default=False, nullable=True)
-    read_at = Column(DateTime(timezone=True), nullable=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=True)
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    message_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("admin_messages.id"), nullable=False)
+    recipient_user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    is_read: Mapped[Optional[bool]] = mapped_column(Boolean, default=False, nullable=True)
+    read_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=True)
 
 
 class AdminMessageReaction(Base):
     __tablename__ = "admin_message_reactions"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    school_id = Column(UUID(as_uuid=True), ForeignKey("schools.id"), nullable=False)
-    message_id = Column(UUID(as_uuid=True), ForeignKey("admin_messages.id"), nullable=False)
-    user_id = Column(UUID(as_uuid=True), nullable=False)
-    emoji = Column(String, nullable=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=True)
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    school_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("schools.id"), nullable=False)
+    message_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("admin_messages.id"), nullable=False)
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    emoji: Mapped[str] = mapped_column(String, nullable=False)
+    created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=True)
 
 
 class AdminMessagePin(Base):
     __tablename__ = "admin_message_pins"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    school_id = Column(UUID(as_uuid=True), ForeignKey("schools.id"), nullable=False)
-    message_id = Column(UUID(as_uuid=True), ForeignKey("admin_messages.id"), nullable=False)
-    user_id = Column(UUID(as_uuid=True), nullable=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=True)
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    school_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("schools.id"), nullable=False)
+    message_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("admin_messages.id"), nullable=False)
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=True)
 
 
 class Notice(Base):
     __tablename__ = "notices"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    school_id = Column(UUID(as_uuid=True), ForeignKey("schools.id"), nullable=False)
-    title = Column(String, nullable=False)
-    body = Column(Text, nullable=True)
-    audience = Column(String, nullable=False, default="all")
-    priority = Column(String, nullable=False, default="normal")
-    pinned = Column(Boolean, nullable=False, default=False)
-    publish_at = Column(DateTime(timezone=True), nullable=True)
-    expires_at = Column(DateTime(timezone=True), nullable=True)
-    created_by = Column(UUID(as_uuid=True), nullable=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=True)
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    school_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("schools.id"), nullable=False)
+    title: Mapped[str] = mapped_column(String, nullable=False)
+    body: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    audience: Mapped[str] = mapped_column(String, nullable=False, default="all")
+    priority: Mapped[str] = mapped_column(String, nullable=False, default="normal")
+    pinned: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    publish_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_by: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), nullable=True)
+    created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=True)
+    updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
 
     # Property wrappers for backward compatibility
     @property
@@ -137,4 +138,3 @@ class Notice(Base):
     @published_at.setter
     def published_at(self, val: Optional[datetime]):
         self.publish_at = val
-

@@ -2,13 +2,14 @@
 Academic models: classes, sections, subjects, timetable, assessments.
 """
 import uuid
+from datetime import datetime, time
 from typing import Optional
 
 from sqlalchemy import (
     Boolean, Column, DateTime, Float, ForeignKey, Integer, String, Text, Time
 )
 from sqlalchemy.dialects.postgresql import UUID, ARRAY
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
 from app.database import Base
@@ -17,12 +18,12 @@ from app.database import Base
 class AcademicClass(Base):
     __tablename__ = "academic_classes"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    school_id = Column(UUID(as_uuid=True), ForeignKey("schools.id"), nullable=False)
-    name = Column(String, nullable=False)
-    grade_level = Column(Integer, nullable=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=True)
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    school_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("schools.id"), nullable=False)
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    grade_level: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=True)
+    updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
 
     # Relationships
     sections = relationship("ClassSection", back_populates="academic_class")
@@ -31,14 +32,14 @@ class AcademicClass(Base):
 class ClassSection(Base):
     __tablename__ = "class_sections"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    school_id = Column(UUID(as_uuid=True), ForeignKey("schools.id"), nullable=False)
-    class_id = Column(UUID(as_uuid=True), ForeignKey("academic_classes.id"), nullable=False)
-    campus_id = Column(UUID(as_uuid=True), ForeignKey("campuses.id"), nullable=True)
-    name = Column(String, nullable=False)
-    room = Column(String, nullable=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=True)
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    school_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("schools.id"), nullable=False)
+    class_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("academic_classes.id"), nullable=False)
+    campus_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("campuses.id"), nullable=True)
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    room: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=True)
+    updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
 
     # Relationships
     academic_class = relationship("AcademicClass", back_populates="sections")
@@ -48,11 +49,11 @@ class ClassSection(Base):
 class Subject(Base):
     __tablename__ = "subjects"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    school_id = Column(UUID(as_uuid=True), ForeignKey("schools.id"), nullable=False)
-    name = Column(String, nullable=False)
-    code = Column(String, nullable=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=True)
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    school_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("schools.id"), nullable=False)
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    code: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=True)
 
     # Property wrappers for backward compatibility with schema fields not in DB
     @property
@@ -69,43 +70,43 @@ class Subject(Base):
 class ClassSectionSubject(Base):
     __tablename__ = "class_section_subjects"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    school_id = Column(UUID(as_uuid=True), ForeignKey("schools.id"), nullable=False)
-    class_section_id = Column(UUID(as_uuid=True), ForeignKey("class_sections.id"), nullable=False)
-    subject_id = Column(UUID(as_uuid=True), ForeignKey("subjects.id"), nullable=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=True)
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    school_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("schools.id"), nullable=False)
+    class_section_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("class_sections.id"), nullable=False)
+    subject_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("subjects.id"), nullable=False)
+    created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=True)
 
 
 class TimetablePeriod(Base):
     __tablename__ = "timetable_periods"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    school_id = Column(UUID(as_uuid=True), ForeignKey("schools.id"), nullable=False)
-    label = Column(String, nullable=False)
-    sort_order = Column(Integer, nullable=True)
-    start_time = Column(Time, nullable=True)
-    end_time = Column(Time, nullable=True)
-    is_break = Column(Boolean, default=False, nullable=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=True)
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    school_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("schools.id"), nullable=False)
+    label: Mapped[str] = mapped_column(String, nullable=False)
+    sort_order: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    start_time: Mapped[Optional[time]] = mapped_column(Time, nullable=True)
+    end_time: Mapped[Optional[time]] = mapped_column(Time, nullable=True)
+    is_break: Mapped[Optional[bool]] = mapped_column(Boolean, default=False, nullable=True)
+    created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=True)
 
 
 class TimetableSlot(Base):
     __tablename__ = "timetable_entries"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    school_id = Column(UUID(as_uuid=True), ForeignKey("schools.id"), nullable=False)
-    class_section_id = Column(UUID(as_uuid=True), ForeignKey("class_sections.id"), nullable=False)
-    period_id = Column(UUID(as_uuid=True), ForeignKey("timetable_periods.id"), nullable=True)
-    day_of_week = Column(Integer, nullable=False)  # 0=Mon ... 6=Sun
-    subject_name = Column(String, nullable=True)
-    teacher_user_id = Column(UUID(as_uuid=True), nullable=True)
-    room = Column(String, nullable=True)
-    start_time = Column(Time, nullable=True)
-    end_time = Column(Time, nullable=True)
-    is_published = Column(Boolean, default=True, nullable=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=True)
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
-    published_at = Column(DateTime(timezone=True), nullable=True)
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    school_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("schools.id"), nullable=False)
+    class_section_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("class_sections.id"), nullable=False)
+    period_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("timetable_periods.id"), nullable=True)
+    day_of_week: Mapped[int] = mapped_column(Integer, nullable=False)  # 0=Mon ... 6=Sun
+    subject_name: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    teacher_user_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), nullable=True)
+    room: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    start_time: Mapped[Optional[time]] = mapped_column(Time, nullable=True)
+    end_time: Mapped[Optional[time]] = mapped_column(Time, nullable=True)
+    is_published: Mapped[Optional[bool]] = mapped_column(Boolean, default=True, nullable=True)
+    created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=True)
+    updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
+    published_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
     # Relationships
     class_section = relationship("ClassSection")
@@ -148,37 +149,37 @@ class TimetableSlot(Base):
 class AcademicAssessment(Base):
     __tablename__ = "academic_assessments"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    school_id = Column(UUID(as_uuid=True), ForeignKey("schools.id"), nullable=False)
-    campus_id = Column(UUID(as_uuid=True), ForeignKey("campuses.id"), nullable=True)
-    class_section_id = Column(UUID(as_uuid=True), ForeignKey("class_sections.id"), nullable=False)
-    subject_id = Column(UUID(as_uuid=True), ForeignKey("subjects.id"), nullable=True)
-    title = Column(String, nullable=False)
-    assessment_type = Column(String, nullable=False, default="exam")
-    assessment_date = Column(String, nullable=True)
-    max_marks = Column(Float, nullable=True)
-    passing_marks = Column(Float, nullable=True)
-    weightage_percent = Column(Float, nullable=True)
-    term_label = Column(String, nullable=True)
-    instructions = Column(Text, nullable=True)
-    is_published = Column(Boolean, default=False, nullable=True)
-    published_at = Column(DateTime(timezone=True), nullable=True)
-    created_by = Column(UUID(as_uuid=True), nullable=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=True)
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    school_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("schools.id"), nullable=False)
+    campus_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("campuses.id"), nullable=True)
+    class_section_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("class_sections.id"), nullable=False)
+    subject_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("subjects.id"), nullable=True)
+    title: Mapped[str] = mapped_column(String, nullable=False)
+    assessment_type: Mapped[str] = mapped_column(String, nullable=False, default="exam")
+    assessment_date: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    max_marks: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    passing_marks: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    weightage_percent: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    term_label: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    instructions: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    is_published: Mapped[Optional[bool]] = mapped_column(Boolean, default=False, nullable=True)
+    published_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_by: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), nullable=True)
+    created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=True)
 
 
 class Holiday(Base):
     __tablename__ = "holidays"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    school_id = Column(UUID(as_uuid=True), ForeignKey("schools.id"), nullable=False)
-    title = Column(String, nullable=False)
-    description = Column(Text, nullable=True)
-    start_date = Column(String, nullable=False)
-    end_date = Column(String, nullable=True)
-    holiday_type = Column(String, nullable=True, default="public")
-    created_by = Column(UUID(as_uuid=True), nullable=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=True)
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    school_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("schools.id"), nullable=False)
+    title: Mapped[str] = mapped_column(String, nullable=False)
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    start_date: Mapped[str] = mapped_column(String, nullable=False)
+    end_date: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    holiday_type: Mapped[Optional[str]] = mapped_column(String, nullable=True, default="public")
+    created_by: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), nullable=True)
+    created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=True)
 
     @property
     def campus_id(self) -> Optional[uuid.UUID]:
