@@ -3,10 +3,11 @@ Finance models: fee structures, allocations, invoices, payments.
 """
 import uuid
 from typing import Optional, List
-from datetime import datetime
+from datetime import date, datetime
 
 from sqlalchemy import Boolean, Column, Date, DateTime, Float, ForeignKey, Integer, String, Text, JSON
 from sqlalchemy.dialects.postgresql import UUID, ARRAY, ENUM
+from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
 
 from app.database import Base
@@ -15,18 +16,18 @@ from app.database import Base
 class FeeStructure(Base):
     __tablename__ = "fee_plans"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    school_id = Column(UUID(as_uuid=True), ForeignKey("schools.id"), nullable=False)
-    name = Column(String, nullable=False)
-    currency = Column(String, nullable=True)
-    is_active = Column(Boolean, default=True, nullable=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=True)
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
-    class_id = Column(UUID(as_uuid=True), nullable=True)
-    description = Column(Text, nullable=True)
-    billing_frequency = Column(String, nullable=False, default="monthly")
-    school_year = Column(String, nullable=True)
-    notes = Column(Text, nullable=True)
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    school_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("schools.id"), nullable=False)
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    currency: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    is_active: Mapped[Optional[bool]] = mapped_column(Boolean, default=True, nullable=True)
+    created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=True)
+    updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
+    class_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), nullable=True)
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    billing_frequency: Mapped[str] = mapped_column(String, nullable=False, default="monthly")
+    school_year: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     # Property wrappers for backward compatibility
     @property
@@ -64,15 +65,15 @@ class FeeStructure(Base):
 class FeeComponent(Base):
     __tablename__ = "fee_plan_items"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    school_id = Column(UUID(as_uuid=True), ForeignKey("schools.id"), nullable=False)
-    fee_plan_id = Column(UUID(as_uuid=True), ForeignKey("fee_plans.id"), nullable=False)
-    label = Column(String, nullable=False)
-    category = Column(String, nullable=False, default="tuition")
-    amount = Column(Float, nullable=False)
-    is_recurring = Column(Boolean, default=True, nullable=False)
-    sort_order = Column(Integer, default=0, nullable=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=True)
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    school_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("schools.id"), nullable=False)
+    fee_plan_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("fee_plans.id"), nullable=False)
+    label: Mapped[str] = mapped_column(String, nullable=False)
+    category: Mapped[str] = mapped_column(String, nullable=False, default="tuition")
+    amount: Mapped[float] = mapped_column(Float, nullable=False)
+    is_recurring: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    sort_order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=True)
 
     # Property wrappers for backward compatibility
     @property
@@ -101,16 +102,16 @@ class FeeComponent(Base):
 class FeeAllocation(Base):
     __tablename__ = "student_fee_assignments"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    school_id = Column(UUID(as_uuid=True), ForeignKey("schools.id"), nullable=False)
-    student_id = Column(UUID(as_uuid=True), ForeignKey("students.id"), nullable=False)
-    fee_plan_id = Column(UUID(as_uuid=True), ForeignKey("fee_plans.id"), nullable=False)
-    discount_pct = Column(Float, default=0, nullable=False)
-    scholarship_amount = Column(Float, default=0, nullable=False)
-    notes = Column(Text, nullable=True)
-    is_active = Column(Boolean, default=True, nullable=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=True)
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    school_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("schools.id"), nullable=False)
+    student_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("students.id"), nullable=False)
+    fee_plan_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("fee_plans.id"), nullable=False)
+    discount_pct: Mapped[float] = mapped_column(Float, default=0, nullable=False)
+    scholarship_amount: Mapped[float] = mapped_column(Float, default=0, nullable=False)
+    notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=True)
+    updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
 
     # Property wrappers for backward compatibility
     @property
@@ -152,28 +153,28 @@ class FeeAllocation(Base):
 class FeeVoucher(Base):
     __tablename__ = "fee_invoices"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    school_id = Column(UUID(as_uuid=True), ForeignKey("schools.id"), nullable=False)
-    student_id = Column(UUID(as_uuid=True), ForeignKey("students.id"), nullable=False)
-    fee_plan_id = Column(UUID(as_uuid=True), ForeignKey("fee_plans.id"), nullable=True)
-    invoice_number = Column(String, nullable=False, unique=True)
-    period_label = Column(String, nullable=True)
-    period_start = Column(Date, nullable=True)
-    period_end = Column(Date, nullable=True)
-    due_date = Column(Date, nullable=False)
-    subtotal = Column(Float, nullable=False)
-    discount_amount = Column(Float, default=0, nullable=False)
-    sibling_discount_amount = Column(Float, default=0, nullable=False)
-    late_fee = Column(Float, default=0, nullable=False)
-    total_amount = Column(Float, nullable=False)
-    paid_amount = Column(Float, default=0, nullable=False)
-    status = Column(ENUM("pending", "paid", "partial", "overdue", "cancelled", "draft", name="fee_invoice_status", create_type=False), nullable=False, default="pending")
-    notes = Column(Text, nullable=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=True)
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=True)
-    campus_id = Column(UUID(as_uuid=True), ForeignKey("campuses.id"), nullable=True)
-    merit_discount_amount = Column(Float, default=0, nullable=False)
-    merit_discount_reason = Column(Text, nullable=True)
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    school_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("schools.id"), nullable=False)
+    student_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("students.id"), nullable=False)
+    fee_plan_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("fee_plans.id"), nullable=True)
+    invoice_number: Mapped[str] = mapped_column(String, nullable=False, unique=True)
+    period_label: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    period_start: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    period_end: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    due_date: Mapped[date] = mapped_column(Date, nullable=False)
+    subtotal: Mapped[float] = mapped_column(Float, nullable=False)
+    discount_amount: Mapped[float] = mapped_column(Float, default=0, nullable=False)
+    sibling_discount_amount: Mapped[float] = mapped_column(Float, default=0, nullable=False)
+    late_fee: Mapped[float] = mapped_column(Float, default=0, nullable=False)
+    total_amount: Mapped[float] = mapped_column(Float, nullable=False)
+    paid_amount: Mapped[float] = mapped_column(Float, default=0, nullable=False)
+    status: Mapped[str] = mapped_column(ENUM("pending", "paid", "partial", "overdue", "cancelled", "draft", name="fee_invoice_status", create_type=False), nullable=False, default="pending")
+    notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=True)
+    updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=True)
+    campus_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("campuses.id"), nullable=True)
+    merit_discount_amount: Mapped[float] = mapped_column(Float, default=0, nullable=False)
+    merit_discount_reason: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     # Property wrappers for backward compatibility
     @property
@@ -223,19 +224,19 @@ class FeeVoucher(Base):
 class FeePayment(Base):
     __tablename__ = "fee_payments"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    school_id = Column(UUID(as_uuid=True), ForeignKey("schools.id"), nullable=False)
-    student_id = Column(UUID(as_uuid=True), ForeignKey("students.id"), nullable=False)
-    invoice_id = Column(UUID(as_uuid=True), ForeignKey("fee_invoices.id"), nullable=False)
-    amount = Column(Float, nullable=False)
-    method = Column(String, nullable=False, default="cash")  # cash, bank, jazzcash, easypaisa, cheque
-    status = Column(String, nullable=False, default="success")  # success, pending, failed, refunded
-    transaction_ref = Column(String, nullable=True)
-    paid_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
-    recorded_by_user_id = Column(UUID(as_uuid=True), nullable=True)
-    notes = Column(Text, nullable=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=True)
-    campus_id = Column(UUID(as_uuid=True), ForeignKey("campuses.id"), nullable=True)
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    school_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("schools.id"), nullable=False)
+    student_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("students.id"), nullable=False)
+    invoice_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("fee_invoices.id"), nullable=False)
+    amount: Mapped[float] = mapped_column(Float, nullable=False)
+    method: Mapped[str] = mapped_column(String, nullable=False, default="cash")  # cash, bank, jazzcash, easypaisa, cheque
+    status: Mapped[str] = mapped_column(String, nullable=False, default="success")  # success, pending, failed, refunded
+    transaction_ref: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    paid_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    recorded_by_user_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), nullable=True)
+    notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=True)
+    campus_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("campuses.id"), nullable=True)
 
     # Property wrappers for backward compatibility
     @property
@@ -279,20 +280,20 @@ class FeePayment(Base):
 class PaymentTransaction(Base):
     __tablename__ = "jazzcash_transactions"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    school_id = Column(UUID(as_uuid=True), ForeignKey("schools.id"), nullable=False)
-    student_id = Column(UUID(as_uuid=True), ForeignKey("students.id"), nullable=False)
-    invoice_id = Column(UUID(as_uuid=True), ForeignKey("fee_invoices.id"), nullable=False)
-    initiator_user_id = Column(UUID(as_uuid=True), nullable=True)
-    txn_ref_no = Column(String, nullable=False)
-    amount = Column(Float, nullable=False)
-    status = Column(String, nullable=False, default="pending")
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    school_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("schools.id"), nullable=False)
+    student_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("students.id"), nullable=False)
+    invoice_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("fee_invoices.id"), nullable=False)
+    initiator_user_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), nullable=True)
+    txn_ref_no: Mapped[str] = mapped_column(String, nullable=False)
+    amount: Mapped[float] = mapped_column(Float, nullable=False)
+    status: Mapped[str] = mapped_column(String, nullable=False, default="pending")
     raw_request = Column(JSON, nullable=True)
     raw_response = Column(JSON, nullable=True)
-    jc_response_code = Column(String, nullable=True)
-    jc_response_message = Column(String, nullable=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now(), nullable=False)
+    jc_response_code: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    jc_response_message: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), onupdate=func.now(), nullable=False)
 
     # Property wrappers for backward compatibility
     @property

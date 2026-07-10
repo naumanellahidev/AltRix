@@ -3,13 +3,13 @@ People models: students, teachers, guardians (parents).
 """
 import uuid
 from typing import Optional
-from datetime import datetime
+from datetime import date, datetime
 
 from sqlalchemy import (
     Boolean, Column, DateTime, Date, ForeignKey, Integer, String, Text, JSON
 )
 from sqlalchemy.dialects.postgresql import UUID, ARRAY
-from sqlalchemy.orm import relationship as orm_relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship as orm_relationship
 from sqlalchemy.sql import func
 
 from app.database import Base
@@ -18,27 +18,27 @@ from app.database import Base
 class Student(Base):
     __tablename__ = "students"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    school_id = Column(UUID(as_uuid=True), ForeignKey("schools.id"), nullable=False)
-    campus_id = Column(UUID(as_uuid=True), ForeignKey("campuses.id"), nullable=True)
-    user_id = Column("profile_id", UUID(as_uuid=True), nullable=True)  # auth.users link (profile_id in DB)
-    first_name = Column(String, nullable=False)
-    last_name = Column(String, nullable=True)
-    registration_number = Column(String, nullable=True)
-    roll_number = Column(String, nullable=True)
-    date_of_birth = Column(String, nullable=True)
-    gender = Column(String, nullable=True)
-    photo_url = Column("profile_image_url", String, nullable=True)  # profile_image_url in DB
-    address = Column(Text, nullable=True)
-    phone = Column(String, nullable=True)
-    emergency_contact = Column(String, nullable=True)
-    status = Column(String, nullable=True, default="active")  # active, inactive, graduated, transferred
-    admission_date = Column(String, nullable=True)
-    notes = Column(Text, nullable=True)
-    blood_group = Column(String, nullable=True)
-    card_valid_until = Column(String, nullable=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=True)
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    school_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("schools.id"), nullable=False)
+    campus_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("campuses.id"), nullable=True)
+    user_id: Mapped[Optional[uuid.UUID]] = mapped_column("profile_id", UUID(as_uuid=True), nullable=True)  # auth.users link (profile_id in DB)
+    first_name: Mapped[str] = mapped_column(String, nullable=False)
+    last_name: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    registration_number: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    roll_number: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    date_of_birth: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    gender: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    photo_url: Mapped[Optional[str]] = mapped_column("profile_image_url", String, nullable=True)  # profile_image_url in DB
+    address: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    phone: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    emergency_contact: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    status: Mapped[Optional[str]] = mapped_column(String, nullable=True, default="active")  # active, inactive, graduated, transferred
+    admission_date: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    blood_group: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    card_valid_until: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=True)
+    updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
 
     # Relationships
     enrollments = orm_relationship("StudentEnrollment", back_populates="student", cascade="all, delete-orphan")
@@ -75,13 +75,13 @@ class Student(Base):
 class StudentEnrollment(Base):
     __tablename__ = "student_enrollments"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    school_id = Column(UUID(as_uuid=True), ForeignKey("schools.id"), nullable=False)
-    student_id = Column(UUID(as_uuid=True), ForeignKey("students.id"), nullable=False)
-    class_section_id = Column(UUID(as_uuid=True), ForeignKey("class_sections.id"), nullable=False)
-    start_date = Column(Date, nullable=True)
-    end_date = Column(Date, nullable=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=True)
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    school_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("schools.id"), nullable=False)
+    student_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("students.id"), nullable=False)
+    class_section_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("class_sections.id"), nullable=False)
+    start_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    end_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=True)
 
     # Relationships
     student = orm_relationship("Student", back_populates="enrollments")
@@ -90,17 +90,17 @@ class StudentEnrollment(Base):
 class Guardian(Base):
     __tablename__ = "student_guardians"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    school_id = Column(UUID(as_uuid=True), ForeignKey("schools.id"), nullable=True)
-    student_id = Column(UUID(as_uuid=True), ForeignKey("students.id"), nullable=False)
-    user_id = Column(UUID(as_uuid=True), nullable=True)  # parent's auth.users link
-    full_name = Column(String, nullable=True)
-    relationship = Column(String, nullable=True, default="parent")  # father, mother, guardian
-    phone = Column(String, nullable=True)
-    email = Column(String, nullable=True)
-    is_primary = Column(Boolean, default=False, nullable=True)
-    is_emergency_contact = Column(Boolean, default=False, nullable=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=True)
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    school_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("schools.id"), nullable=True)
+    student_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("students.id"), nullable=False)
+    user_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), nullable=True)  # parent's auth.users link
+    full_name: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    relationship: Mapped[Optional[str]] = mapped_column(String, nullable=True, default="parent")  # father, mother, guardian
+    phone: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    email: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    is_primary: Mapped[Optional[bool]] = mapped_column(Boolean, default=False, nullable=True)
+    is_emergency_contact: Mapped[Optional[bool]] = mapped_column(Boolean, default=False, nullable=True)
+    created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=True)
 
     # Relationships
     student = orm_relationship("Student", back_populates="guardians")
@@ -165,28 +165,28 @@ class Guardian(Base):
 class TeacherProfile(Base):
     __tablename__ = "hr_staff_directory"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    school_id = Column(UUID(as_uuid=True), ForeignKey("schools.id"), nullable=False)
-    campus_id = Column(UUID(as_uuid=True), ForeignKey("campuses.id"), nullable=True)
-    full_name = Column(String, nullable=False)
-    email = Column(String, nullable=True)
-    phone = Column(String, nullable=True)
-    cnic = Column(String, nullable=True)
-    address = Column(Text, nullable=True)
-    position = Column(String, nullable=True)
-    department = Column(String, nullable=True)
-    employment_type = Column(String, nullable=True)
-    joining_date = Column(Date, nullable=True)
-    date_of_birth = Column(Date, nullable=True)
-    gender = Column(String, nullable=True)
-    emergency_contact = Column(String, nullable=True)
-    notes = Column(Text, nullable=True)
-    is_active = Column(Boolean, default=True, nullable=False)
-    linked_user_id = Column(UUID(as_uuid=True), nullable=True)
-    linked_at = Column(DateTime(timezone=True), nullable=True)
-    created_by = Column(UUID(as_uuid=True), nullable=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now(), nullable=False)
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    school_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("schools.id"), nullable=False)
+    campus_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("campuses.id"), nullable=True)
+    full_name: Mapped[str] = mapped_column(String, nullable=False)
+    email: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    phone: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    cnic: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    address: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    position: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    department: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    employment_type: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    joining_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    date_of_birth: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    gender: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    emergency_contact: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    linked_user_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), nullable=True)
+    linked_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_by: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), onupdate=func.now(), nullable=False)
 
     # Property wrappers for backward compatibility with schema fields not in DB
     @property
@@ -266,43 +266,43 @@ class TeacherProfile(Base):
 class TeacherAssignment(Base):
     __tablename__ = "teacher_assignments"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    school_id = Column(UUID(as_uuid=True), ForeignKey("schools.id"), nullable=False)
-    teacher_user_id = Column(UUID(as_uuid=True), nullable=False)
-    class_section_id = Column(UUID(as_uuid=True), ForeignKey("class_sections.id"), nullable=False)
-    subject_id = Column(UUID(as_uuid=True), ForeignKey("subjects.id"), nullable=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=True)
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    school_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("schools.id"), nullable=False)
+    teacher_user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    class_section_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("class_sections.id"), nullable=False)
+    subject_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("subjects.id"), nullable=True)
+    created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=True)
 
 
 class TeacherSubjectAssignment(Base):
     __tablename__ = "teacher_subject_assignments"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    school_id = Column(UUID(as_uuid=True), ForeignKey("schools.id"), nullable=False)
-    class_section_id = Column(UUID(as_uuid=True), ForeignKey("class_sections.id"), nullable=False)
-    subject_id = Column(UUID(as_uuid=True), ForeignKey("subjects.id"), nullable=False)
-    teacher_user_id = Column(UUID(as_uuid=True), nullable=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=True)
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    school_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("schools.id"), nullable=False)
+    class_section_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("class_sections.id"), nullable=False)
+    subject_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("subjects.id"), nullable=False)
+    teacher_user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=True)
 
 
 class SchoolIdCardSettings(Base):
     __tablename__ = "school_id_card_settings"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    school_id = Column(UUID(as_uuid=True), ForeignKey("schools.id"), nullable=False, unique=True)
-    card_layout = Column(String, nullable=False, default="vertical")
-    primary_color = Column(String, nullable=False, default="#1e40af")
-    text_color = Column(String, nullable=False, default="#ffffff")
-    card_title = Column(String, nullable=False, default="STUDENT IDENTIFICATION")
-    show_logo = Column(Boolean, nullable=False, default=True)
-    show_qr_code = Column(Boolean, nullable=False, default=True)
-    show_roll_number = Column(Boolean, nullable=False, default=True)
-    show_class = Column(Boolean, nullable=False, default=True)
-    show_dob = Column(Boolean, nullable=False, default=True)
-    show_blood_group = Column(Boolean, nullable=False, default=True)
-    show_emergency_contact = Column(Boolean, nullable=False, default=True)
-    show_signature = Column(Boolean, nullable=False, default=False)
-    signature_text = Column(String, nullable=False, default="Authorized Signature")
-    design_style = Column(String, nullable=False, default="modern")
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=True)
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    school_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("schools.id"), nullable=False, unique=True)
+    card_layout: Mapped[str] = mapped_column(String, nullable=False, default="vertical")
+    primary_color: Mapped[str] = mapped_column(String, nullable=False, default="#1e40af")
+    text_color: Mapped[str] = mapped_column(String, nullable=False, default="#ffffff")
+    card_title: Mapped[str] = mapped_column(String, nullable=False, default="STUDENT IDENTIFICATION")
+    show_logo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    show_qr_code: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    show_roll_number: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    show_class: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    show_dob: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    show_blood_group: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    show_emergency_contact: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    show_signature: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    signature_text: Mapped[str] = mapped_column(String, nullable=False, default="Authorized Signature")
+    design_style: Mapped[str] = mapped_column(String, nullable=False, default="modern")
+    created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=True)
+    updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
