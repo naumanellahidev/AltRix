@@ -2,7 +2,7 @@
 Pydantic schemas for all API request/response models.
 """
 from datetime import datetime, date
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 from uuid import UUID
 
 from pydantic import BaseModel, EmailStr, Field, model_validator
@@ -1104,20 +1104,21 @@ class UserProfileOut(BaseModel):
 # ─── EVENT BUS SCHEMAS ────────────────────────────────────────────────────────
 
 class EventEnvelope(BaseModel):
-    id: Optional[UUID] = None
+    id: Optional[Union[str, UUID]] = None
     event_name: str
     category: str
-    school_id: Optional[UUID] = None
-    campus_id: Optional[UUID] = None
-    user_id: Optional[UUID] = None
+    school_id: Optional[Union[str, UUID]] = None
+    campus_id: Optional[Union[str, UUID]] = None
+    user_id: Optional[Union[str, UUID]] = None
     entity_type: Optional[str] = None
-    entity_id: Optional[UUID] = None
+    entity_id: Optional[Union[str, UUID]] = None
     payload: Dict[str, Any] = Field(default_factory=dict)
     metadata: Dict[str, Any] = Field(default_factory=dict)
-    correlation_id: Optional[UUID] = None
+    correlation_id: Optional[Union[str, UUID]] = None
     request_id: Optional[str] = None
     source: Optional[str] = "system"
     version: Optional[str] = "1.0.0"
+
 
 
 class ActivityTimelineOut(BaseModel):

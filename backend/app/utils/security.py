@@ -3,7 +3,7 @@ Security utilities: campus isolation, ownership checks, security headers.
 """
 import logging
 import uuid as _uuid
-from typing import Optional, Set
+from typing import Any, Optional, Set
 from datetime import datetime, timezone
 
 from fastapi import HTTPException, Request, status
@@ -96,7 +96,7 @@ async def validate_campus_access(
     return True
 
 
-def require_campus_match(user, resource_campus_id: Optional[_uuid.UUID]):
+def require_campus_match(user, resource_campus_id: Any):
     """
     Lightweight campus check. Call this inline in router functions.
     Raises 403 if user's campus doesn't match and they're not elevated.
@@ -115,7 +115,7 @@ def require_campus_match(user, resource_campus_id: Optional[_uuid.UUID]):
         )
 
 
-def require_school_match(user, resource_school_id: _uuid.UUID):
+def require_school_match(user, resource_school_id: Any):
     """
     Ensure the resource belongs to the user's active school.
     Raises 403 if mismatch.
@@ -130,7 +130,7 @@ def require_school_match(user, resource_school_id: _uuid.UUID):
         )
 
 
-def require_ownership_or_admin(user, resource_owner_id: Optional[_uuid.UUID]):
+def require_ownership_or_admin(user, resource_owner_id: Any):
     """
     Ensure the user owns the resource OR has admin privileges.
     """
