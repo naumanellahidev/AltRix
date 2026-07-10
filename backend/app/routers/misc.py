@@ -2,7 +2,7 @@
 Remaining routers: complaints, assignments, behavior, HR, notifications, audit, AI, reports.
 """
 from datetime import datetime, timezone
-from typing import List, Optional
+from typing import List, Optional, cast
 from uuid import UUID
 
 import json
@@ -94,7 +94,7 @@ async def update_complaint_status(
     if not complaint:
         raise NotFoundError("Complaint", str(complaint_id))
     from app.utils.security import require_school_match
-    require_school_match(current_user, complaint.school_id)
+    require_school_match(current_user, cast(UUID, complaint.school_id))
     complaint.status = body.status  # type: ignore[assignment]
     complaint.resolution_note = body.resolution_note  # type: ignore[assignment]
     if body.status == "resolved":
@@ -999,7 +999,7 @@ Constraints:
                 school_id=current_user.school_id,
                 user_id=current_user.id,
                 entity_type="curriculum_plan",
-                payload={"subject": body.subject, "grade_level": body.gradeLevel},
+                payload={"subject": body.subjectName, "grade_level": body.gradeLevel},
                 source="curriculum_planner_router",
             ), db)
         except Exception as eb_err:
@@ -2440,7 +2440,7 @@ async def copilot_chat(
         query=body.message,
         roles=current_user.roles or [],
         module=body.current_module,
-        campus_id=str(body.active_campus_id) if body.active_campus_id else None,
+        campus_id=body.active_campus_id if body.active_campus_id else None,
     )
     if _sem_hit is not None:
         # Fire-and-forget tracking (non-blocking)
@@ -2598,7 +2598,7 @@ __DB_CONTEXT__
         .replace("__USER_ROLES__", roles_str)
         .replace("__USER_SCHOOL_ID__", current_user.school_id or "")
         .replace("__ACTIVE_CONTEXT__", active_context_str)
-        .replace("__DB_CONTEXT__", str(db_context or ""))
+        .replace("__DB_CONTEXT__", db_context or "")
     )
 
     # 5. Stream response from OllamaAIService
@@ -2607,7 +2607,7 @@ __DB_CONTEXT__
     _roles      = list(current_user.roles or [])
     _module     = body.current_module
     _screen     = body.current_screen
-    _campus_id  = str(body.active_campus_id) if body.active_campus_id else None
+    _campus_id  = body.active_campus_id if body.active_campus_id else None
     _query      = body.message
 
     async def event_generator():
@@ -2769,10 +2769,10 @@ async def publish_event(body: EventEnvelope, current_user: CurrentUser, db: DbSe
         raise ForbiddenError("Access denied. Admin authorization required.")
     
     # Set context if empty
-    if not body.school_id:
-        body.school_id = current_user.school_id
+    if not body.school_id and current_user.school_id:
+        body.school_id = UUID(current_user.school_id)
     if not body.user_id:
-        body.user_id = current_user.id
+        body.user_id = UUID(current_user.id)
         
     return await EnterpriseEventBus.publish(body, db)
 

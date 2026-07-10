@@ -8,6 +8,7 @@ from typing import Optional, List
 
 from sqlalchemy import Boolean, Column, Date, DateTime, Float, ForeignKey, Integer, String, Text, JSON
 from sqlalchemy.dialects.postgresql import UUID, ARRAY
+from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
 
 from app.database import Base
@@ -18,28 +19,29 @@ from app.database import Base
 class AppNotification(Base):
     __tablename__ = "app_notifications"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    school_id = Column(UUID(as_uuid=True), ForeignKey("schools.id"), nullable=False)
-    campus_id = Column(UUID(as_uuid=True), ForeignKey("campuses.id"), nullable=True)
-    user_id = Column(UUID(as_uuid=True), nullable=False)
-    title = Column(String, nullable=False)
-    body = Column(Text, nullable=True)
-    type = Column(String, nullable=True, default="info")
-    entity_id = Column(UUID(as_uuid=True), nullable=True)
-    entity_type = Column(String, nullable=True)
-    category = Column(String, nullable=True, default="general")
-    action_url = Column(String, nullable=True)
-    is_pushed = Column(Boolean, default=False, nullable=True)
-    pushed_at = Column(DateTime(timezone=True), nullable=True)
-    priority = Column(String, default="normal", nullable=True)
-    icon = Column(String, nullable=True)
-    color = Column(String, nullable=True)
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    school_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("schools.id"), nullable=False)
+    campus_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("campuses.id"), nullable=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    title: Mapped[str] = mapped_column(String, nullable=False)
+    body: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    type: Mapped[Optional[str]] = mapped_column(String, nullable=True, default="info")
+    entity_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), nullable=True)
+    entity_type: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    category: Mapped[Optional[str]] = mapped_column(String, nullable=True, default="general")
+    action_url: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    is_pushed: Mapped[Optional[bool]] = mapped_column(Boolean, default=False, nullable=True)
+    pushed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    priority: Mapped[Optional[str]] = mapped_column(String, default="normal", nullable=True)
+    icon: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    color: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     metadata_json = Column("metadata", JSON, default=dict, nullable=True)
-    archived_at = Column(DateTime(timezone=True), nullable=True)
-    is_favorite = Column(Boolean, default=False, nullable=True)
-    is_pinned = Column(Boolean, default=False, nullable=True)
-    read_at = Column(DateTime(timezone=True), nullable=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=True)
+    archived_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    is_favorite: Mapped[Optional[bool]] = mapped_column(Boolean, default=False, nullable=True)
+    is_pinned: Mapped[Optional[bool]] = mapped_column(Boolean, default=False, nullable=True)
+    read_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=True)
+
 
 
 # ─── DIARY ────────────────────────────────────────────────────────────────────

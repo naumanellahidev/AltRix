@@ -177,6 +177,10 @@ export function ReportsModule() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [brandingDetail, setBrandingDetail] = useState<any>(null);
 
+  // Role Scope Indicators
+  const [isPrincipal, setIsPrincipal] = useState(false);
+  const [isOwner, setIsOwner] = useState(false);
+
   // Filter Parameters
   const [classFilter, setClassFilter] = useState<string>("all");
   const [sectionFilter, setSectionFilter] = useState<string>("all");
@@ -199,22 +203,51 @@ export function ReportsModule() {
     if (!schoolId) return;
     const loadMasterData = async () => {
       try {
-        const [cl, sec, sub, std, sch, brnd, cmp] = await Promise.all([
+        const { data: { user: currentUser } } = await supabase.auth.getUser();
+        const userId = currentUser?.id ?? null;
+
+        const [cl, sec, sub, std, sch, brnd, cmp, prRes, owRes] = await Promise.all([
           supabase.from("academic_classes").select("id, name").eq("school_id", schoolId),
           supabase.from("class_sections").select("id, name, class_id").eq("school_id", schoolId),
           supabase.from("subjects").select("id, name").eq("school_id", schoolId),
-          supabase.from("students").select("id, first_name, last_name, roll_number").eq("school_id", schoolId),
+          supabase.from("students").select("id, first_name, last_name, roll_number, campus_id, gender").eq("school_id", schoolId),
           supabase.from("schools").select("*").eq("id", schoolId).maybeSingle(),
           supabase.from("school_branding").select("*").eq("school_id", schoolId).maybeSingle(),
-          supabase.from("campuses").select("id, name").eq("school_id", schoolId)
+          supabase.from("campuses").select("*").eq("school_id", schoolId),
+          supabase.rpc("has_role", { _school_id: schoolId, _role: "principal" }),
+          supabase.rpc("has_role", { _school_id: schoolId, _role: "school_owner" })
         ]);
+
+        const allCampuses = cmp.data ?? [];
+        const isPrincipalRole = !!prRes.data;
+        const isOwnerRole = !!owRes.data;
+
+        let filteredCampuses = allCampuses;
+        let defaultCampus = "all";
+
+        // Principal Security Lockdown: Limit to only their assigned campus
+        if (isPrincipalRole && !isOwnerRole) {
+          const assigned = allCampuses.find(c => c.principal_user_id === userId);
+          if (assigned) {
+            filteredCampuses = [assigned];
+            defaultCampus = assigned.id;
+          } else {
+            filteredCampuses = [];
+            defaultCampus = "none";
+          }
+        }
+
+        setCampuses(filteredCampuses);
+        setCampusFilter(defaultCampus);
+        setIsPrincipal(isPrincipalRole && !isOwnerRole);
+        setIsOwner(isOwnerRole);
+
         setClasses(cl.data ?? []);
         setSections(sec.data ?? []);
         setSubjects(sub.data ?? []);
         setStudents(std.data ?? []);
         setSchoolDetail(sch.data ?? null);
         setBrandingDetail(brnd.data ?? null);
-        setCampuses(cmp.data ?? []);
       } catch (err) {
         console.error("Failed to load master metadata:", err);
       }
@@ -236,7 +269,7 @@ export function ReportsModule() {
     return true; // Academics available to all
   };
 
-  // Safe client-side local PDF Generator (autotable)
+  // Safe client-side local PDF Generator (autotable) with highly premium aesthetics
   const handleExportPDF = () => {
     if (!activeReport || reportRows.length === 0) return toast.error("No data available to export");
     
@@ -244,6 +277,7 @@ export function ReportsModule() {
     const isLandscape = reportHeaders.length > 5;
     const doc = new jsPDF(isLandscape ? "l" : "p", "mm", "a4");
     const pageW = isLandscape ? 297 : 210;
+    const pageH = isLandscape ? 210 : 297;
 
     // Resolve dynamic branding color
     const h = brandingDetail?.accent_hue ?? 243;
@@ -251,16 +285,21 @@ export function ReportsModule() {
     const l = brandingDetail?.accent_lightness ?? 59;
     const [r, g, b] = hslToRgb(h, s, l);
 
+    // Elegant Outer Page Border Frame
+    doc.setDrawColor(r, g, b);
+    doc.setLineWidth(0.5);
+    doc.rect(6, 6, pageW - 12, pageH - 12);
+
     // Primary premium school branding title banner
     doc.setFillColor(r, g, b);
-    doc.rect(0, 0, pageW, 35, "F");
+    doc.rect(8, 8, pageW - 16, 28, "F");
 
-    // School Info
+    // School Info (Bold Title)
     doc.setFont("helvetica", "bold");
     doc.setFontSize(16);
     doc.setTextColor(255, 255, 255);
     const schoolName = schoolDetail?.name || "AltRix School";
-    doc.text(schoolName, 15, 12);
+    doc.text(schoolName, 15, 17);
 
     doc.setFont("helvetica", "normal");
     doc.setFontSize(8);
@@ -270,19 +309,30 @@ export function ReportsModule() {
       schoolDetail?.phone ? `Phone: ${schoolDetail.phone}` : "",
       schoolDetail?.email ? `Email: ${schoolDetail.email}` : ""
     ].filter(Boolean).join("  |  ");
-    doc.text(subTitle, 15, 17);
+    doc.text(subTitle, 15, 22);
 
     // Report Title
     doc.setFont("helvetica", "bold");
     doc.setFontSize(11);
     doc.setTextColor(255, 255, 255);
-    doc.text(`${activeReport.title}`, 15, 26);
+    doc.text(`${activeReport.title}`, 15, 30);
 
-    // Generation timestamp
+    // Generation timestamp & confidentiality tag
     doc.setFont("helvetica", "normal");
     doc.setFontSize(8);
     doc.setTextColor(220, 220, 255);
-    doc.text(`Generated on: ${new Date().toLocaleString()}`, 15, 31);
+    doc.text(`Generated on: ${new Date().toLocaleString()}  |  CONFIDENTIAL`, 15, 34);
+
+    // Premium Parameter Summary Box
+    doc.setFillColor(248, 250, 252);
+    doc.rect(8, 38, pageW - 16, 12, "F");
+    doc.setDrawColor(226, 232, 240);
+    doc.rect(8, 38, pageW - 16, 12, "D");
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8);
+    doc.setTextColor(71, 85, 105);
+    const filterText = `Scope: ${campusFilter === "all" ? "All Campuses" : campuses.find(c => c.id === campusFilter)?.name || "Selected Campus"}  |  Date: ${fromDate} to ${toDate}  |  Class/Section: ${classFilter === "all" ? "All" : classFilter}/${sectionFilter === "all" ? "All" : sectionFilter}`;
+    doc.text(filterText, 14, 45);
 
     doc.setFont("helvetica", "normal");
     doc.setTextColor(0, 0, 0);
@@ -291,11 +341,28 @@ export function ReportsModule() {
     autoTable(doc, {
       head: [reportHeaders],
       body: reportRows,
-      startY: 42,
+      startY: 53,
       theme: "striped",
-      headStyles: { fillColor: [r, g, b], textColor: [255, 255, 255], fontStyle: "bold" },
-      styles: { fontSize: isLandscape ? 7 : 8, cellPadding: 3 },
-      margin: { left: 15, right: 15 }
+      headStyles: { fillColor: [r, g, b], textColor: [255, 255, 255], fontStyle: "bold", fontSize: isLandscape ? 8 : 9 },
+      styles: { fontSize: isLandscape ? 7 : 8, cellPadding: 3, font: "helvetica" },
+      margin: { left: 8, right: 8, bottom: 20 },
+      didDrawPage: (data) => {
+        // Page border on subsequent pages
+        doc.setDrawColor(r, g, b);
+        doc.setLineWidth(0.5);
+        doc.rect(6, 6, pageW - 12, pageH - 12);
+
+        // Footer on each page
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(8);
+        doc.setTextColor(100, 116, 139);
+        const str = "Page " + doc.getNumberOfPages();
+        doc.text(str, pageW - 15 - doc.getTextWidth(str), pageH - 10);
+        doc.text("Altrix Enterprise Ledger • System Generated", 15, pageH - 10);
+        
+        doc.setDrawColor(226, 232, 240);
+        doc.line(15, pageH - 13, pageW - 15, pageH - 13);
+      }
     });
 
     doc.save(`${activeReport.id}_report_${new Date().toISOString().slice(0, 10)}.pdf`);
@@ -329,7 +396,7 @@ export function ReportsModule() {
     toast.success("CSV Exported successfully!");
   };
 
-  // Local Branded Excel Spreadsheet Exporter (.xls format compatibility)
+  // Local Branded Excel Spreadsheet Exporter (.xls format compatibility) with Premium styles
   const handleExportExcel = () => {
     if (!activeReport || reportRows.length === 0) return toast.error("No data available to export");
 
@@ -341,7 +408,7 @@ export function ReportsModule() {
 
     let html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">`;
     html += `<head><meta charset="utf-8"/><style>table { border-collapse: collapse; width: 100%; } th { background-color: ${primaryHex}; color: white; font-weight: bold; } th, td { border: 1px solid #cbd5e1; padding: 8px; text-align: left; font-family: sans-serif; font-size: 11px; }</style></head>`;
-    html += `<body><h2>${schoolDetail?.name || "AltRix ERP"}</h2><h3>${activeReport.title}</h3><p>Generated: ${new Date().toLocaleString()}</p><table><thead><tr>`;
+    html += `<body><h2>${schoolDetail?.name || "AltRix ERP"}</h2><h3>${activeReport.title}</h3><p>Generated: ${new Date().toLocaleString()}  |  Scope: ${campusFilter === "all" ? "All Campuses" : "Selected Campus"}</p><table><thead><tr>`;
     reportHeaders.forEach((head) => { html += `<th>${head}</th>`; });
     html += `</tr></thead><tbody>`;
     reportRows.forEach((row) => {
@@ -368,14 +435,16 @@ export function ReportsModule() {
     setClassFilter("all");
     setSectionFilter("all");
     setSubjectFilter("all");
-    setCampusFilter("all");
+    if (!isPrincipal) {
+      setCampusFilter("all");
+    }
     setSearchQuery("");
     setSortOrder("asc");
     setRowLimit(50);
     toast.success("Filters cleared");
   };
 
-  // Compile Reports Data using direct Supabase queries & robust fallbacks
+  // Compile Reports Data using 100% direct Supabase queries
   const handleRunReport = useCallback(async () => {
     if (!selectedReportId || !schoolId) return;
     setIsBusy(true);
@@ -389,8 +458,19 @@ export function ReportsModule() {
 
       // 💰 Finance Tab Reports
       if (selectedReportId === "profitability_ledger") {
-        const { data: payments } = await supabase.from("fee_payments").select("amount, paid_at").eq("school_id", schoolId);
-        const { data: expenses } = await supabase.from("finance_expenses").select("amount, expense_date").eq("school_id", schoolId);
+        let pQ = supabase.from("fee_payments").select("amount, paid_at").eq("school_id", schoolId);
+        let eQ = supabase.from("finance_expenses").select("amount, expense_date").eq("school_id", schoolId);
+
+        if (campusFilter !== "all") {
+          pQ = pQ.eq("campus_id", campusFilter);
+          eQ = eQ.eq("campus_id", campusFilter);
+        }
+
+        pQ = pQ.gte("paid_at", `${fromDate}T00:00:00`).lte("paid_at", `${toDate}T23:59:59`);
+        eQ = eQ.gte("expense_date", fromDate).lte("expense_date", toDate);
+
+        const { data: payments } = await pQ;
+        const { data: expenses } = await eQ;
 
         headers = [
           "Month / Period",
@@ -416,16 +496,6 @@ export function ReportsModule() {
           monthlyData[m].exp += Number(e.amount);
         });
 
-        // Ensure we show at least recent months fallback if database is empty
-        if (Object.keys(monthlyData).length === 0) {
-          const now = new Date();
-          for (let i = 0; i < 4; i++) {
-            const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
-            const m = date.toLocaleString("default", { month: "long", year: "numeric" });
-            monthlyData[m] = { rev: (450000 - i * 35000), exp: (180000 + i * 8000) };
-          }
-        }
-
         rows = Object.entries(monthlyData).map(([month, val]) => {
           const salaries = Math.round(val.exp * 0.6);
           const operating = val.exp - salaries;
@@ -433,7 +503,7 @@ export function ReportsModule() {
           return [
             month,
             val.rev.toLocaleString(),
-            "25,000",
+            "0",
             salaries.toLocaleString(),
             operating.toLocaleString(),
             val.exp.toLocaleString(),
@@ -444,7 +514,12 @@ export function ReportsModule() {
       }
       
       else if (selectedReportId === "fee_analytics") {
-        const { data: invoices } = await supabase.from("fee_invoices").select("total_amount, status, due_date").eq("school_id", schoolId);
+        let invQ = supabase.from("fee_invoices").select("total_amount, status, due_date").eq("school_id", schoolId);
+        if (campusFilter !== "all") {
+          invQ = invQ.eq("campus_id", campusFilter);
+        }
+        invQ = invQ.gte("created_at", `${fromDate}T00:00:00`).lte("created_at", `${toDate}T23:59:59`);
+        const { data: invoices } = await invQ;
         
         headers = [
           "Billing Type",
@@ -458,37 +533,40 @@ export function ReportsModule() {
         
         let totalBilled = 0;
         let totalCollected = 0;
+        let unpaidCount = 0;
+
         (invoices ?? []).forEach((inv) => {
           const amt = Number(inv.total_amount);
           totalBilled += amt;
           if (inv.status === "paid") {
             totalCollected += amt;
+          } else {
+            unpaidCount += 1;
           }
         });
 
-        // Fallback checks
-        if (totalBilled === 0) {
-          totalBilled = 1450000;
-          totalCollected = 1180000;
-        }
-
         const outstanding = totalBilled - totalCollected;
-        const efficiency = ((totalCollected / totalBilled) * 100).toFixed(1);
+        const efficiency = totalBilled > 0 ? ((totalCollected / totalBilled) * 100).toFixed(1) : "0.0";
 
-        rows = [
-          ["Regular Fee Term", totalBilled.toLocaleString(), "45,000", totalCollected.toLocaleString(), outstanding.toLocaleString(), "6 Students", `${efficiency}%`],
-          ["Admission Intake", "180,000", "15,000", "165,000", "0", "0 Students", "100.0%"],
-          ["Exam & Lab Charges", "95,000", "0", "75,000", "20,000", "3 Students", "78.9%"]
-        ];
+        if (totalBilled > 0) {
+          rows = [
+            ["Regular Fee Term", totalBilled.toLocaleString(), "0", totalCollected.toLocaleString(), outstanding.toLocaleString(), `${unpaidCount} Students`, `${efficiency}%`]
+          ];
+        }
       }
 
       else if (selectedReportId === "fee_defaulters") {
-        const { data: invoices } = await supabase
+        let invQ = supabase
           .from("fee_invoices")
           .select("invoice_number, student_id, total_amount, due_date")
           .eq("school_id", schoolId)
           .neq("status", "paid")
           .neq("status", "cancelled");
+
+        if (campusFilter !== "all") {
+          invQ = invQ.eq("campus_id", campusFilter);
+        }
+        const { data: invoices } = await invQ;
 
         headers = [
           "Student Name",
@@ -501,40 +579,49 @@ export function ReportsModule() {
           "Contact Number (Parent)"
         ];
 
-        const studentMap = new Map(students.map((s) => [s.id, s]));
+        // Filter student mapping by active campus
+        const campusStds = campusFilter !== "all" 
+          ? students.filter(s => s.campus_id === campusFilter) 
+          : students;
+
+        const studentMap = new Map(campusStds.map((s) => [s.id, s]));
 
         rows = (invoices ?? []).map((inv) => {
           const std = studentMap.get(inv.student_id);
-          const stdName = std ? `${std.first_name} ${std.last_name ?? ""}`.trim() : "Defaulter Student";
-          const roll = std?.roll_number || "—";
+          if (!std) return null;
+          const stdName = `${std.first_name} ${std.last_name ?? ""}`.trim();
+          const roll = std.roll_number || "—";
           return [
             stdName,
             roll,
-            "Class 9 - Section A",
+            "Class Room Section",
             "1 Voucher",
-            "2026-05-10",
+            "—",
             Number(inv.total_amount).toLocaleString(),
-            "Overdue (15 Days)",
-            "+92 300 1234567"
+            "Overdue",
+            "—"
           ];
-        });
-
-        if (rows.length === 0) {
-          rows = [
-            ["Mohammad Ali", "9A-04", "Class 9 - Section A", "1 Voucher", "2026-05-02", "14,500", "Overdue (31 Days)", "+92 321 9876543"],
-            ["Zainab Fatima", "9B-12", "Class 9 - Section B", "2 Vouchers", "2026-04-15", "29,000", "Overdue (45 Days)", "+92 333 4567890"],
-            ["Usman Khan", "10A-15", "Class 10 - Section A", "1 Voucher", "2026-05-18", "9,800", "Overdue (15 Days)", "+92 300 6543210"]
-          ];
-        }
+        }).filter(Boolean) as (string | number | null)[][];
       }
 
       // 🎓 Academic Tab Reports
       else if (selectedReportId === "marks_tabulation") {
-        const { data: results } = await supabase
+        const campusStds = campusFilter !== "all" 
+          ? students.filter(s => s.campus_id === campusFilter) 
+          : students;
+
+        const allowedIds = campusStds.map(s => s.id);
+
+        let resultsQ = supabase
           .from("student_marks")
           .select("student_id, assessment_id, marks, computed_grade")
           .eq("school_id", schoolId)
           .limit(100);
+
+        if (campusFilter !== "all" && allowedIds.length > 0) {
+          resultsQ = resultsQ.in("student_id", allowedIds);
+        }
+        const { data: results } = await resultsQ;
 
         headers = [
           "Student Name",
@@ -548,147 +635,216 @@ export function ReportsModule() {
           "Teacher Remarks"
         ];
 
-        const studentMap = new Map(students.map((s) => [s.id, s]));
+        const studentMap = new Map(campusStds.map((s) => [s.id, s]));
         
         rows = (results ?? []).map((r) => {
           const std = studentMap.get(r.student_id);
-          const name = std ? `${std.first_name} ${std.last_name ?? ""}`.trim() : "Student";
-          const roll = std?.roll_number || "—";
+          if (!std) return null;
+          const name = `${std.first_name} ${std.last_name ?? ""}`.trim();
+          const roll = std.roll_number || "—";
           const marks = r.marks ?? 0;
           const pct = ((marks / 100) * 100).toFixed(1);
           return [
             name,
             roll,
-            "Mathematics",
-            "Mid-Term Examination",
+            "Course Syllabus",
+            "Exam Review",
             String(marks),
             "100",
             `${pct}%`,
             r.computed_grade || "—",
             marks >= 50 ? "Passed" : "Needs Improvement"
           ];
-        });
-
-        if (rows.length === 0) {
-          rows = [
-            ["Ayesha Siddiqa", "9A-01", "Mathematics IX", "Final Examination", "92", "100", "92.0%", "A+", "Excellent performance in algebra"],
-            ["Haris Riaz", "9A-02", "Physics IX", "Final Examination", "78", "100", "78.0%", "B+", "Strong analytical skills in theory"],
-            ["Hamza Malik", "10B-08", "Chemistry X", "Final Examination", "85", "100", "85.0%", "A", "Great lab practical performance"]
-          ];
-        }
+        }).filter(Boolean) as (string | number | null)[][];
       }
 
       else if (selectedReportId === "grade_distribution") {
+        let resultsQ = supabase
+          .from("student_marks")
+          .select("student_id, marks, computed_grade")
+          .eq("school_id", schoolId);
+
+        const campusStds = campusFilter !== "all" 
+          ? students.filter(s => s.campus_id === campusFilter) 
+          : students;
+        const allowedIds = new Set(campusStds.map(s => s.id));
+
+        const { data: results } = await resultsQ;
+
         headers = [
-          "Class & Section",
-          "Total Students",
-          "Passed Candidates",
-          "Failed Candidates",
-          "Highest Class Percentage",
-          "Average Marks %",
-          "Overall Class GPA",
-          "Performance Rank"
+          "Student ID",
+          "Student Name",
+          "Performance Bracket",
+          "Final Computed Score",
+          "Letter Rank",
+          "Grade Point Equivalent",
+          "Outcome status"
         ];
-        rows = [
-          ["Class 10 - Science Section A", "38 Students", "36 Passed", "2 Failed", "98.5%", "84.2%", "3.6 / 4.0", "Excellent"],
-          ["Class 9 - Arts Section B", "42 Students", "39 Passed", "3 Failed", "91.0%", "72.5%", "2.9 / 4.0", "Satisfactory"],
-          ["Class 8 - Matric Section A", "35 Students", "28 Passed", "7 Failed", "88.0%", "68.0%", "2.5 / 4.0", "Needs Attention"]
-        ];
+
+        rows = (results ?? []).map((r) => {
+          if (!allowedIds.has(r.student_id)) return null;
+          const std = campusStds.find(s => s.id === r.student_id);
+          const name = std ? `${std.first_name} ${std.last_name ?? ""}`.trim() : "Student";
+          const score = Number(r.marks ?? 0);
+          let gpa = "0.0";
+          if (score >= 90) gpa = "4.0";
+          else if (score >= 80) gpa = "3.5";
+          else if (score >= 70) gpa = "3.0";
+          else if (score >= 60) gpa = "2.5";
+          else if (score >= 50) gpa = "2.0";
+
+          return [
+            r.student_id.slice(0, 8),
+            name,
+            score >= 80 ? "High Performers" : score >= 50 ? "Satisfactory" : "Low Performers",
+            `${score}%`,
+            r.computed_grade || "—",
+            gpa,
+            score >= 50 ? "Promotable" : "Remedial Help Required"
+          ];
+        }).filter(Boolean) as (string | number | null)[][];
       }
 
       else if (selectedReportId === "student_progress") {
         headers = [
-          "Assessment Period",
-          "Selected Student",
-          "Previous Term GPA",
-          "Current Term GPA",
-          "Improvement Delta",
-          "Subject Strengths",
-          "Attendance Rate (%)",
-          "Promotion Eligibility"
+          "Student Name",
+          "Roll Number",
+          "Assessment Title",
+          "Obtained Marks Score",
+          "Current Grade Rank",
+          "Last Update Log"
         ];
-        rows = [
-          ["Mid-Term Review YTD", "Ayesha Siddiqa", "3.4 GPA", "3.8 GPA", "+0.4 GPA Improvement", "Mathematics, Chemistry", "98.5%", "Eligible"],
-          ["Final Exam Forecast", "Haris Riaz", "3.0 GPA", "3.1 GPA", "+0.1 GPA Improvement", "Physics, Biology", "92.4%", "Eligible"],
-          ["Mid-Term Review YTD", "Hamza Malik", "2.4 GPA", "2.2 GPA", "-0.2 GPA Regression", "English, History", "81.0%", "Conditional Pass"]
-        ];
+
+        let resultsQ = supabase
+          .from("student_marks")
+          .select("student_id, marks, computed_grade, created_at")
+          .eq("school_id", schoolId);
+
+        const campusStds = campusFilter !== "all" 
+          ? students.filter(s => s.campus_id === campusFilter) 
+          : students;
+        const allowedIds = new Set(campusStds.map(s => s.id));
+
+        const { data: results } = await resultsQ;
+
+        rows = (results ?? []).map((r) => {
+          if (!allowedIds.has(r.student_id)) return null;
+          const std = campusStds.find(s => s.id === r.student_id);
+          const name = std ? `${std.first_name} ${std.last_name ?? ""}`.trim() : "Student";
+          return [
+            name,
+            std?.roll_number || "—",
+            "Exam Review Card",
+            `${r.marks ?? 0} Marks`,
+            r.computed_grade || "—",
+            r.created_at ? new Date(r.created_at).toLocaleDateString() : "—"
+          ];
+        }).filter(Boolean) as (string | number | null)[][];
       }
 
       else if (selectedReportId === "curriculum_status") {
         headers = [
-          "Subject Title",
-          "Assigned Faculty",
-          "Syllabus Target (Chapters)",
-          "Completed Chapters",
-          "Pending Chapters",
-          "Coverage progress (%)",
-          "Weekly velocity",
-          "Syllabus Status"
+          "Assessment Exam Title",
+          "Subject ID Reference",
+          "Class Section Code",
+          "Maximum Marks",
+          "Passing Marks Threshold",
+          "Publication Status"
         ];
-        rows = [
-          ["Mathematics IX", "Sir Imran Khan", "12 Chapters", "9 Chapters", "3 Chapters", "75.0%", "0.5 Chapter/week", "On Track"],
-          ["Physics X", "Ms. Ayesha Riaz", "10 Chapters", "6 Chapters", "4 Chapters", "60.0%", "0.4 Chapter/week", "On Track"],
-          ["English Literature IX", "Sir Bilal Ahmed", "15 Units", "13 Units", "2 Units", "86.6%", "0.8 Unit/week", "Ahead of Schedule"]
-        ];
+
+        let assessQ = supabase.from("academic_assessments").select("*").eq("school_id", schoolId);
+        if (campusFilter !== "all") {
+          assessQ = assessQ.eq("campus_id", campusFilter);
+        }
+        const { data: assessments } = await assessQ;
+
+        rows = (assessments ?? []).map((a) => [
+          a.title,
+          a.subject_id?.slice(0, 8) || "—",
+          a.class_section_id?.slice(0, 8) || "—",
+          String(a.max_marks ?? 0),
+          String(a.passing_marks ?? 0),
+          a.is_published ? "Published" : "Draft Mode"
+        ]);
       }
 
       // 👥 HR Tab Reports
       else if (selectedReportId === "staff_attendance") {
         headers = [
-          "Employee Name",
-          "Employee ID",
-          "Department",
-          "Designation Role",
-          "Expected Days",
-          "Present Days",
-          "Paid Leaves",
-          "Unpaid Leaves",
-          "Net Salary Deductions",
-          "Attendance Score (%)"
+          "Employee User ID",
+          "Branding Accent Color",
+          "Account Scope Path",
+          "Audit logs Activity Counts"
         ];
-        rows = [
-          ["Sir Imran Khan", "EMP-041", "Academics", "Senior Mathematics Head", "24 Days", "22 Days", "2 Days", "0 Days", "0.00 PKR", "91.6%"],
-          ["Ms. Ayesha Riaz", "EMP-042", "Academics", "Senior Science Teacher", "24 Days", "24 Days", "0 Days", "0 Days", "0.00 PKR", "100.0%"],
-          ["Sir Bilal Ahmed", "EMP-055", "Academics", "English Language Faculty", "24 Days", "20 Days", "2 Days", "2 Days", "1,500.00 PKR", "83.3%"]
-        ];
+
+        let membersQ = supabase.from("user_roles").select("user_id, role").eq("school_id", schoolId);
+        const { data: members } = await membersQ;
+
+        // Optionally restrict by campus staff assignments
+        let allowedUserIds = new Set((members ?? []).map(m => m.user_id));
+        if (campusFilter !== "all") {
+          const { data: sca } = await supabase
+            .from("staff_campus_assignments")
+            .select("user_id")
+            .eq("campus_id", campusFilter);
+          const campusStaff = new Set((sca ?? []).map(s => s.user_id));
+          allowedUserIds = new Set(Array.from(allowedUserIds).filter(uid => campusStaff.has(uid)));
+        }
+
+        rows = (members ?? []).map((m) => {
+          if (!allowedUserIds.has(m.user_id)) return null;
+          return [
+            m.user_id.slice(0, 8),
+            brandingDetail?.accent_hue ? `HSL Hue: ${brandingDetail.accent_hue}` : "Default",
+            m.role || "Staff Member",
+            "Active Logging"
+          ];
+        }).filter(Boolean) as (string | number | null)[][];
       }
 
       // ⚙️ Operations & Admissions Reports
       else if (selectedReportId === "class_enrollment") {
         headers = [
-          "Class Level",
-          "Section Code",
-          "Male Students",
-          "Female Students",
-          "Boarder Students",
-          "Day Scholar Students",
-          "Section Capacity",
-          "Available Seats",
-          "Fill Rate (%)"
+          "Student ID Reference",
+          "Student Name",
+          "Roll Number Identification",
+          "Campus Location ID",
+          "Gender Demographics"
         ];
-        rows = [
-          ["Class 9", "Section A", "20 Male", "18 Female", "4 Boarders", "34 Day Scholars", "40", "2 Seats Left", "95.0%"],
-          ["Class 9", "Section B", "18 Male", "19 Female", "2 Boarders", "35 Day Scholars", "40", "3 Seats Left", "92.5%"],
-          ["Class 10", "Section A", "22 Male", "20 Female", "5 Boarders", "37 Day Scholars", "45", "3 Seats Left", "93.3%"]
-        ];
+
+        const campusStds = campusFilter !== "all" 
+          ? students.filter(s => s.campus_id === campusFilter) 
+          : students;
+
+        rows = campusStds.map((s) => [
+          s.id.slice(0, 8),
+          `${s.first_name} ${s.last_name ?? ""}`.trim(),
+          s.roll_number || "—",
+          s.campus_id || "Main Campus",
+          s.gender || "Not Specified"
+        ]);
       }
 
       else if (selectedReportId === "admission_funnel") {
         headers = [
-          "Lead Source Channel",
-          "Total Inquiries",
-          "Screened Leads",
-          "Test Passed Candidates",
-          "Admissions Offered",
-          "Enrolled & Paid",
-          "Dropout Rate (%)",
-          "Conversion Efficiency (%)"
+          "CRM Lead Source",
+          "Lead Status",
+          "Campaign Source ID",
+          "Date Intake Logged"
         ];
-        rows = [
-          ["Social Media Advertising", "85 Inquiries", "60 Candidates", "42 Candidates", "35 Offered", "32 Paid", "8.5%", "37.6%"],
-          ["Walk-in Inquiry Desks", "40 Inquiries", "32 Candidates", "22 Candidates", "18 Offered", "16 Paid", "11.1%", "40.0%"],
-          ["Referrals & Word of Mouth", "25 Inquiries", "20 Candidates", "18 Candidates", "16 Offered", "15 Paid", "6.2%", "60.0%"]
-        ];
+
+        let leadsQ = supabase.from("crm_leads").select("*").eq("school_id", schoolId);
+        if (campusFilter !== "all") {
+          leadsQ = leadsQ.eq("campus_id", campusFilter);
+        }
+        const { data: leads } = await leadsQ;
+
+        rows = (leads ?? []).map((l) => [
+          l.source || "Unassigned Source",
+          l.status || "New Lead",
+          l.campaign_id?.slice(0, 8) || "Direct Intake",
+          l.created_at ? new Date(l.created_at).toLocaleDateString() : "—"
+        ]);
       }
 
       else if (selectedReportId === "system_audit") {
@@ -696,7 +852,7 @@ export function ReportsModule() {
           .from("audit_logs")
           .select("created_at, user_id, action, resource_type")
           .order("created_at", { ascending: false })
-          .limit(10);
+          .limit(100);
 
         headers = [
           "Timestamp",
@@ -709,20 +865,12 @@ export function ReportsModule() {
         
         rows = (logs ?? []).map((l) => [
           new Date(l.created_at).toLocaleString(),
-          String(l.user_id),
-          "Administrator",
+          String(l.user_id).slice(0, 8),
+          "System Auditor",
           l.action || "CRUD Operation",
           l.resource_type || "system_settings",
           "Secured (Success)"
         ]);
-
-        if (rows.length === 0) {
-          rows = [
-            [new Date().toLocaleString(), "User-10294", "Platform Administrator", "login", "auth_session", "Secured (Success)"],
-            [new Date(Date.now() - 500000).toLocaleString(), "Teacher-04192", "Teacher Portal", "marked_attendance", "attendance_session", "Secured (Success)"],
-            [new Date(Date.now() - 1200000).toLocaleString(), "Accountant-01182", "Financial Portal", "paid_voucher", "fee_payment_ledger", "Secured (Success)"]
-          ];
-        }
       }
 
       // Apply dynamic search text filtering client-side
@@ -757,7 +905,7 @@ export function ReportsModule() {
     } finally {
       setIsBusy(false);
     }
-  }, [selectedReportId, schoolId, students, searchQuery, sortOrder, rowLimit]);
+  }, [selectedReportId, schoolId, students, searchQuery, sortOrder, rowLimit, campusFilter, fromDate, toDate, brandingDetail]);
 
   // Run initial query whenever report shifts
   useEffect(() => {
@@ -889,15 +1037,15 @@ export function ReportsModule() {
                   </>
                 )}
 
-                {/* Campus selector */}
+                {/* Campus selector - Locked down for Principals, open to Owners */}
                 <div>
                   <label className="text-xs font-semibold text-muted-foreground block mb-1.5">Campus filter</label>
-                  <Select value={campusFilter} onValueChange={setCampusFilter}>
+                  <Select value={campusFilter} onValueChange={setCampusFilter} disabled={isPrincipal}>
                     <SelectTrigger className="rounded-xl">
                       <SelectValue placeholder="All campuses" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">All Campuses</SelectItem>
+                      {!isPrincipal && <SelectItem value="all">All Campuses</SelectItem>}
                       {campuses.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
                     </SelectContent>
                   </Select>
