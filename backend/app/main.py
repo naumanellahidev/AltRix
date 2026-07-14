@@ -46,6 +46,8 @@ from app.routers.misc import (
 )
 from app.routers.realtime import router as realtime_router
 from app.routers.collaboration import router as collaboration_router
+from app.routers.transport import router as transport_router
+from app.routers.events import router as school_events_router
 
 # ─── Structured Logging ───────────────────────────────────────────────────────
 logging.basicConfig(
@@ -623,3 +625,5 @@ app.include_router(reports_router, prefix=_PREFIX)
 app.include_router(events_router, prefix=_PREFIX)
 app.include_router(realtime_router, prefix=_PREFIX)
 app.include_router(collaboration_router, prefix=_PREFIX)
+app.include_router(transport_router, prefix=_PREFIX)
+app.include_router(school_events_router, prefix=_PREFIX)

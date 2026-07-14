@@ -113,6 +113,9 @@ import {
   Award,
   Heart,
   BarChart2,
+  Map,
+  Camera,
+  Phone,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -128,6 +131,7 @@ import { useTenantOptimized } from "@/hooks/useTenantOptimized";
 import { useSession } from "@/hooks/useSession";
 import { useOfflineUniversal } from "@/hooks/useOfflineUniversal";
 import { OfflineStatusIndicator } from "@/components/offline/OfflineStatusIndicator";
+import { PWAInstallPrompt } from "@/components/parent/PWAInstallPrompt";
 
 interface ParentShellProps {
   children: ReactNode;
@@ -215,6 +219,10 @@ export function ParentShell({
     { to: `${basePath}/diary`, icon: NotebookPen, label: "Diary", badge: 0 },
     { to: `${basePath}/behavior`, icon: HeartHandshake, label: "Behavior Notes", badge: 0 },
     { to: `${basePath}/counseling`, icon: Heart, label: "Counseling", badge: 0 },
+    { to: `${basePath}/transport`, icon: Map, label: "Bus Tracking", badge: 0 },
+    { to: `${basePath}/gallery`, icon: Camera, label: "Photo Gallery", badge: 0 },
+    { to: `${basePath}/ptm`, icon: HeartHandshake, label: "PTM Booking", badge: 0 },
+    { to: `${basePath}/quick-contact`, icon: Phone, label: "Teacher Contacts", badge: 0 },
     { to: `${basePath}/notices`, icon: Megaphone, label: "Notices", badge: 0 },
     { to: `${basePath}/holidays`, icon: PartyPopper, label: "Holidays", badge: 0 },
     { to: `${basePath}/fees`, icon: Receipt, label: "Fees", badge: 0 },
@@ -227,9 +235,9 @@ export function ParentShell({
 
   const bottomNavItems = [
     { to: basePath, icon: Home, label: "Home", end: true },
+    { to: `${basePath}/transport`, icon: Map, label: "Bus Map" },
+    { to: `${basePath}/fees`, icon: Receipt, label: "Fees" },
     { to: `${basePath}/messages`, icon: MessageSquare, label: "Messages", badge: unreadParentCount },
-    { to: `${basePath}/grades`, icon: GraduationCap, label: "Grades" },
-    { to: `${basePath}/attendance`, icon: Calendar, label: "Attendance" },
   ];
 
   const NavContent = () => (
@@ -500,6 +508,7 @@ export function ParentShell({
           variant="floating"
         />
       </div>
+      <PWAInstallPrompt />
     </div>
   );
 }

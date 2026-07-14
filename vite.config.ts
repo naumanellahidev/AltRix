@@ -91,14 +91,16 @@ export default defineConfig(({ mode }) => ({
         ],
       },
       manifest: {
-        name: "EDUVERSE",
-        short_name: "EDUVERSE",
-        description: "EDUVERSE — All-in-One School Operating System",
-        theme_color: "#0b1020",
-        background_color: "#0b1020",
+        name: "AltRix Parent Portal",
+        short_name: "AltRix",
+        description: "AltRix — The AI-Powered School Operating System",
+        theme_color: "#2563eb",
+        background_color: "#f8fafc",
         display: "standalone",
         scope: "/",
         start_url: "/",
+        orientation: "portrait",
+        categories: ["education", "productivity"],
         icons: [
           {
             src: "/pwa-512.png",

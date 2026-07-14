@@ -22,6 +22,10 @@ const ParentComplaintsModule = lazy(() => import("./parent-modules/ParentComplai
 const ParentCertificatesModule = lazy(() => import("./parent-modules/ParentCertificatesModule"));
 const ParentCounselingModule = lazy(() => import("./parent-modules/ParentCounselingModule"));
 const ParentKPIsModule = lazy(() => import("./parent-modules/ParentKPIsModule"));
+const ParentBusTrackingModule = lazy(() => import("./parent-modules/ParentBusTrackingModule"));
+const ParentGalleryModule = lazy(() => import("./parent-modules/ParentGalleryModule"));
+const ParentPTMModule = lazy(() => import("./parent-modules/ParentPTMModule"));
+const ParentQuickContactModule = lazy(() => import("./parent-modules/ParentQuickContactModule"));
 const NoticesModule = lazy(() => import("./modules/NoticesModule"));
 const HolidaysModule = lazy(() => import("./modules/HolidaysModule"));
 const DiaryModule = lazy(() => import("./modules/DiaryModule"));
@@ -310,6 +314,7 @@ const ParentDashboard = () => {
           "ai-insights","attendance","grades","assignments","fees","messages","timetable",
           "notifications","support","behavior","notices","holidays","diary",
           "exams","report-card","complaints","certificates","counseling","kpis",
+          "transport","gallery","ptm","quick-contact",
         ]}>
         <Suspense fallback={<DashboardLoader />}>
           <Routes>
@@ -333,6 +338,10 @@ const ParentDashboard = () => {
             <Route path="certificates" element={<ParentCertificatesModule child={selectedChild} schoolId={schoolId} />} />
             <Route path="counseling" element={<ParentCounselingModule child={selectedChild} schoolId={schoolId} />} />
             <Route path="kpis" element={<ParentKPIsModule child={selectedChild} schoolId={schoolId} />} />
+            <Route path="transport" element={<ParentBusTrackingModule />} />
+            <Route path="gallery" element={<ParentGalleryModule />} />
+            <Route path="ptm" element={<ParentPTMModule child={selectedChild} schoolId={schoolId} />} />
+            <Route path="quick-contact" element={<ParentQuickContactModule child={selectedChild} schoolId={schoolId} />} />
             <Route path="*" element={<Navigate to="" replace />} />
           </Routes>
         </Suspense>

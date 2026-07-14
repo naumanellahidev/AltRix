@@ -33,6 +33,9 @@ import {
   Award,
   Heart,
   BarChart2,
+  Map,
+  Camera,
+  Phone,
 } from "lucide-react";
 
 interface ParentHomeModuleProps {
@@ -218,6 +221,10 @@ const ParentHomeModule = ({ child, schoolId }: ParentHomeModuleProps) => {
     { label: "Attendance", icon: Calendar, to: "attendance", bg: "bg-blue-50/50 hover:bg-blue-50 text-blue-600" },
     { label: "Grades", icon: GraduationCap, to: "grades", bg: "bg-blue-50/50 hover:bg-blue-50 text-blue-600" },
     { label: "Assignments", icon: ScrollText, to: "assignments", bg: "bg-blue-50/50 hover:bg-blue-50 text-blue-600" },
+    { label: "Bus Tracking", icon: Map, to: "transport", bg: "bg-blue-50/50 hover:bg-blue-50 text-blue-600" },
+    { label: "Photo Gallery", icon: Camera, to: "gallery", bg: "bg-blue-50/50 hover:bg-blue-50 text-blue-600" },
+    { label: "PTM Booking", icon: HeartHandshake, to: "ptm", bg: "bg-blue-50/50 hover:bg-blue-50 text-blue-600" },
+    { label: "Teacher Contacts", icon: Phone, to: "quick-contact", bg: "bg-blue-50/50 hover:bg-blue-50 text-blue-600" },
     { label: "Certificates", icon: Award, to: "certificates", bg: "bg-blue-50/50 hover:bg-blue-50 text-blue-600" },
     { label: "Counseling", icon: Heart, to: "counseling", bg: "bg-blue-50/50 hover:bg-blue-50 text-blue-600" },
     {

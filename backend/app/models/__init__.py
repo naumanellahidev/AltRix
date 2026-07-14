@@ -39,6 +39,12 @@ from app.models.misc import (
     AiSemanticCache, AiCacheStats,
     EventStore, EventSubscriberLog, ActivityTimeline,
 )
+from app.models.transport import (
+    BusRoute, BusStop, Bus, BusStudentAssignment, BusLiveLocation,
+)
+from app.models.events import (
+    SchoolEvent, EventPhoto, PTMSlot, PTMBooking,
+)
 
 __all__ = [
     "School", "Profile", "UserRole", "SchoolMembership", "SchoolBranding",
@@ -66,4 +72,6 @@ __all__ = [
     "AiCareerSuggestion", "AiParentUpdate",
     "AiSemanticCache", "AiCacheStats",
     "EventStore", "EventSubscriberLog", "ActivityTimeline",
+    "BusRoute", "BusStop", "Bus", "BusStudentAssignment", "BusLiveLocation",
+    "SchoolEvent", "EventPhoto", "PTMSlot", "PTMBooking",
 ]
