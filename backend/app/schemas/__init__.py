@@ -1887,6 +1887,211 @@ class ExamSeatingPlanOut(BaseModel):
     assignments: List[ExamSeatAssignmentOut] = []
     created_at: Optional[datetime] = None
 
+    created_at: Optional[datetime] = None
+
     model_config = {"from_attributes": True}
+
+
+# ─── STAFF APPRAISALS & KPIS ──────────────────────────────────────────────────
+
+class StaffKpiOut(BaseModel):
+    id: UUID
+    school_id: UUID
+    staff_user_id: UUID
+    punctuality_score: float
+    results_score: float
+    parent_feedback_score: float
+    co_curricular_score: float
+    average_score: float
+    evaluation_period: str
+    created_at: Optional[datetime] = None
+
+    model_config = {"from_attributes": True}
+
+
+class StaffAppraisalCreate(BaseModel):
+    self_appraisal_text: str
+
+
+class StaffAppraisalOut(BaseModel):
+    id: UUID
+    school_id: UUID
+    staff_user_id: UUID
+    self_appraisal_text: str
+    reviewer_user_id: Optional[UUID] = None
+    review_comments: Optional[str] = None
+    status: str
+    salary_increment_pct: float
+    created_at: Optional[datetime] = None
+
+    model_config = {"from_attributes": True}
+
+
+class Feedback360Create(BaseModel):
+    staff_user_id: UUID
+    rating: int
+    comments: Optional[str] = None
+
+
+class Feedback360Out(BaseModel):
+    id: UUID
+    school_id: UUID
+    staff_user_id: UUID
+    rating: int
+    comments: Optional[str] = None
+    created_at: Optional[datetime] = None
+
+    model_config = {"from_attributes": True}
+
+
+class PerformanceImprovementPlanCreate(BaseModel):
+    staff_user_id: UUID
+    issues_identified: str
+    action_steps: str
+    deadline_date: str
+
+
+class PerformanceImprovementPlanOut(BaseModel):
+    id: UUID
+    school_id: UUID
+    staff_user_id: UUID
+    issues_identified: str
+    action_steps: str
+    deadline_date: date
+    status: str
+    created_at: Optional[datetime] = None
+
+    model_config = {"from_attributes": True}
+
+
+# ─── STUDENT WELLBEING & MEDICAL ──────────────────────────────────────────────
+
+class StudentMedicalRecordCreate(BaseModel):
+    student_id: UUID
+    allergies: Optional[str] = None
+    conditions: Optional[str] = None
+    medications: Optional[str] = None
+    health_insurance_info: Optional[str] = None
+    emergency_contact_name: Optional[str] = None
+    emergency_contact_phone: Optional[str] = None
+
+
+class StudentMedicalRecordOut(BaseModel):
+    id: UUID
+    school_id: UUID
+    student_id: UUID
+    allergies: Optional[str] = None
+    conditions: Optional[str] = None
+    medications: Optional[str] = None
+    health_insurance_info: Optional[str] = None
+    emergency_contact_name: Optional[str] = None
+    emergency_contact_phone: Optional[str] = None
+    created_at: Optional[datetime] = None
+
+    model_config = {"from_attributes": True}
+
+
+class InfirmaryVisitLogCreate(BaseModel):
+    student_id: UUID
+    reason: str
+    treatment_given: Optional[str] = None
+    doctor_notes: Optional[str] = None
+    status: str = "treated"
+
+
+class InfirmaryVisitLogOut(BaseModel):
+    id: UUID
+    school_id: UUID
+    student_id: UUID
+    visit_date: date
+    reason: str
+    treatment_given: Optional[str] = None
+    doctor_notes: Optional[str] = None
+    status: str
+    created_at: Optional[datetime] = None
+
+    model_config = {"from_attributes": True}
+
+
+class VaccinationRecordCreate(BaseModel):
+    student_id: UUID
+    vaccine_name: str
+    dose_number: int = 1
+    administered_date: str
+    next_due_date: Optional[str] = None
+
+
+class VaccinationRecordOut(BaseModel):
+    id: UUID
+    school_id: UUID
+    student_id: UUID
+    vaccine_name: str
+    dose_number: int
+    administered_date: date
+    next_due_date: Optional[date] = None
+    created_at: Optional[datetime] = None
+
+    model_config = {"from_attributes": True}
+
+
+class FirstAidIncidentCreate(BaseModel):
+    student_id: UUID
+    incident_description: str
+    first_aid_given: str
+    incident_date: str
+
+
+class FirstAidIncidentOut(BaseModel):
+    id: UUID
+    school_id: UUID
+    student_id: UUID
+    incident_description: str
+    first_aid_given: str
+    reporter_user_id: UUID
+    incident_date: date
+    created_at: Optional[datetime] = None
+
+    model_config = {"from_attributes": True}
+
+
+class WellbeingSurveyCreate(BaseModel):
+    student_id: UUID
+    mood_score: int
+    stress_level: int
+    notes: Optional[str] = None
+
+
+class WellbeingSurveyOut(BaseModel):
+    id: UUID
+    school_id: UUID
+    student_id: UUID
+    mood_score: int
+    stress_level: int
+    notes: Optional[str] = None
+    created_at: Optional[datetime] = None
+
+    model_config = {"from_attributes": True}
+
+
+class MedicalDirectoryCreate(BaseModel):
+    contact_name: str
+    specialty: Optional[str] = None
+    phone: str
+    hospital_name: Optional[str] = None
+    address: Optional[str] = None
+
+
+class MedicalDirectoryOut(BaseModel):
+    id: UUID
+    school_id: UUID
+    contact_name: str
+    specialty: Optional[str] = None
+    phone: str
+    hospital_name: Optional[str] = None
+    address: Optional[str] = None
+    created_at: Optional[datetime] = None
+
+    model_config = {"from_attributes": True}
+
 
 

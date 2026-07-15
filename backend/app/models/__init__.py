@@ -103,3 +103,17 @@ __all__ = [
     "SchoolDocument", "DocumentTemplate", "IssuedCertificate",
     "ExamRoom", "ExamSeatingPlan", "ExamSeatAssignment", "ExamInvigilator",
 ]
+
+from app.models.appraisals import (
+    StaffKpi, StaffAppraisal, Feedback360, PerformanceImprovementPlan,
+)
+from app.models.wellbeing import (
+    StudentMedicalRecord, InfirmaryVisitLog, VaccinationRecord,
+    FirstAidIncident, WellbeingSurvey, MedicalDirectory,
+)
+
+__all__.extend([
+    "StaffKpi", "StaffAppraisal", "Feedback360", "PerformanceImprovementPlan",
+    "StudentMedicalRecord", "InfirmaryVisitLog", "VaccinationRecord",
+    "FirstAidIncident", "WellbeingSurvey", "MedicalDirectory",
+])

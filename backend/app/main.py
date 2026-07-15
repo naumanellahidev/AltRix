@@ -53,6 +53,8 @@ from app.routers.curriculum import router as curriculum_router
 from app.routers.visitors import router as visitors_router
 from app.routers.owner_insights import router as owner_insights_router
 from app.routers.documents import router as documents_router
+from app.routers.appraisals import router as appraisals_router
+from app.routers.wellbeing import router as wellbeing_router
 
 # ─── Structured Logging ───────────────────────────────────────────────────────
 logging.basicConfig(
@@ -637,3 +639,5 @@ app.include_router(curriculum_router, prefix=_PREFIX)
 app.include_router(visitors_router, prefix=_PREFIX)
 app.include_router(owner_insights_router, prefix=_PREFIX)
 app.include_router(documents_router, prefix=_PREFIX)
+app.include_router(appraisals_router, prefix=_PREFIX)
+app.include_router(wellbeing_router, prefix=_PREFIX)

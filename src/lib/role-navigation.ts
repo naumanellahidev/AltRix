@@ -3,7 +3,7 @@ import {
   KanbanSquare, LayoutGrid, Megaphone, MessageSquare, NotebookPen,
   ShieldAlert, ShieldCheck, Shield, Users, FileText, PartyPopper, UserPlus,
   Briefcase, Wallet, Receipt, FileSignature, ClipboardList, Heart, PhoneCall, Target,
-  AlertTriangle, Sparkles, Smile, Brain, FolderOpen, Grid3X3,
+  AlertTriangle, Sparkles, Smile, Brain, FolderOpen, Grid3X3, HeartPulse,
 } from "lucide-react";
 import type { EduverseRole } from "@/lib/eduverse-roles";
 
@@ -125,6 +125,10 @@ export const NAV_CATALOG: NavItem[] = [
     roles: ["super_admin","school_owner","principal","vice_principal"] },
   { key: "doc-management", label: "DMS Vault", icon: FolderOpen, group: "operations", path: "doc-management",
     roles: ["super_admin","school_owner","principal","vice_principal","school_admin","academic_coordinator","teacher","hr_manager"] },
+  { key: "staff-appraisals", label: "Staff Appraisals", icon: ShieldCheck, group: "operations", path: "staff-appraisals",
+    roles: ["super_admin","school_owner","principal","vice_principal","school_admin","academic_coordinator","teacher","student"] },
+  { key: "student-wellbeing", label: "Student Wellbeing", icon: HeartPulse, group: "operations", path: "student-wellbeing",
+    roles: ["super_admin","school_owner","principal","vice_principal","school_admin","academic_coordinator","teacher","student","parent"] },
   { key: "gate-visitor", label: "Gate Console", icon: Shield, group: "operations", path: "gate-visitor",
     roles: ["super_admin","school_owner","principal","vice_principal","school_admin"] },
   { key: "at-risk", label: "At-Risk Students", icon: AlertTriangle, group: "operations", path: "at-risk",
