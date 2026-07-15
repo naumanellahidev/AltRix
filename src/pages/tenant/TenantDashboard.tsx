@@ -64,6 +64,8 @@ const AdmissionsModule = lazy(() => import("@/pages/tenant/modules/AdmissionsMod
 const FeeVouchersModule = lazy(() => import("@/pages/tenant/modules/FeeVouchersModule"));
 const AdminFeePortalModule = lazy(() => import("@/pages/tenant/modules/AdminFeePortalModule"));
 const CurriculumModule = lazy(() => import("@/pages/tenant/modules/CurriculumModule"));
+const GateVisitorModule = lazy(() => import("@/pages/tenant/modules/GateVisitorModule"));
+const EventsModule = lazy(() => import("@/pages/tenant/modules/EventsModule"));
 import { RouteGuard } from "@/components/tenant/RouteGuard";
 import { createCatalogRouteElements } from "@/components/tenant/AutoCatalogRoutes";
 const AICounselorMode = lazy(() => import("@/components/ai/AICounselorMode").then(m => ({ default: m.AICounselorMode })));
@@ -560,6 +562,8 @@ const TenantDashboard = () => {
                 <Route path="support" element={<SupportModule schoolId={tenant.schoolId} />} />
                 <Route path="admin-fees" element={<AdminFeePortalModule />} />
                 <Route path="curriculum" element={<CurriculumModule />} />
+                <Route path="gate-visitor" element={<GateVisitorModule />} />
+                <Route path="events" element={<EventsModule />} />
                 <Route path="complaints" element={<PrincipalComplaintsModule />} />
                 <Route path="parent-notes" element={<PrincipalParentNotesModule />} />
                 <Route path="counseling" element={<CounselingModule schoolId={tenant.schoolId} />} />

@@ -97,3 +97,58 @@ class PTMBooking(Base):
 
     # Relationships
     slot = orm_relationship("PTMSlot", back_populates="bookings")
+
+
+class EventRSVP(Base):
+    __tablename__ = "event_rsvps"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    school_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("schools.id"), nullable=False)
+    event_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("school_events.id", ondelete="CASCADE"), nullable=False)
+    parent_user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    student_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("students.id"), nullable=False)
+    
+    status: Mapped[str] = mapped_column(String, nullable=False, default="going")  # going, maybe, not_going
+    notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=True)
+
+    # Relationships
+    event = orm_relationship("SchoolEvent")
+    student = orm_relationship("Student")
+
+
+class SportsScorecard(Base):
+    __tablename__ = "sports_scorecards"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    school_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("schools.id"), nullable=False)
+    event_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("school_events.id", ondelete="CASCADE"), nullable=False)
+    
+    title: Mapped[str] = mapped_column(String, nullable=False)  # e.g. "100m Sprint"
+    house_name: Mapped[str] = mapped_column(String, nullable=False)  # e.g. "Red House"
+    points: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    position: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)  # 1, 2, 3, etc.
+    details: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # student details, score values
+    created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=True)
+
+    # Relationships
+    event = orm_relationship("SchoolEvent")
+
+
+class AnnualFunctionPlan(Base):
+    __tablename__ = "annual_function_tasks"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    school_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("schools.id"), nullable=False)
+    event_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("school_events.id", ondelete="CASCADE"), nullable=False)
+    
+    task_name: Mapped[str] = mapped_column(String, nullable=False)
+    assigned_to: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), nullable=True)  # staff user id
+    due_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    status: Mapped[str] = mapped_column(String, nullable=False, default="pending")  # pending, in_progress, completed
+    priority: Mapped[str] = mapped_column(String, nullable=False, default="medium")  # low, medium, high
+    created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=True)
+
+    # Relationships
+    event = orm_relationship("SchoolEvent")
+

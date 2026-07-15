@@ -32,6 +32,8 @@ const DiaryModule = lazy(() => import("./modules/DiaryModule"));
 const ExamsModule = lazy(() => import("./modules/ExamsModule"));
 const ReportCardModule = lazy(() => import("./modules/ReportCardModule"));
 const ParentReportCardModule = lazy(() => import("./parent-modules/ParentReportCardModule"));
+const ParentVisitorModule = lazy(() => import("./parent-modules/ParentVisitorModule"));
+const EventsModule = lazy(() => import("./modules/EventsModule"));
 import { RouteGuard } from "@/components/tenant/RouteGuard";
 
 const DashboardLoader = () => (
@@ -315,7 +317,7 @@ const ParentDashboard = () => {
           "ai-insights","attendance","grades","assignments","fees","messages","timetable",
           "notifications","support","behavior","notices","holidays","diary",
           "exams","report-card","parent-report-card","complaints","certificates","counseling","kpis",
-          "transport","gallery","ptm","quick-contact",
+          "transport","gallery","ptm","quick-contact","parent-visitor","events",
         ]}>
         <Suspense fallback={<DashboardLoader />}>
           <Routes>
@@ -344,6 +346,8 @@ const ParentDashboard = () => {
             <Route path="gallery" element={<ParentGalleryModule />} />
             <Route path="ptm" element={<ParentPTMModule child={selectedChild} schoolId={schoolId} />} />
             <Route path="quick-contact" element={<ParentQuickContactModule child={selectedChild} schoolId={schoolId} />} />
+            <Route path="parent-visitor" element={<ParentVisitorModule child={selectedChild} schoolId={schoolId} />} />
+            <Route path="events" element={<EventsModule />} />
             <Route path="*" element={<Navigate to="" replace />} />
           </Routes>
         </Suspense>

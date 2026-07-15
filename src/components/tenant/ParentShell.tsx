@@ -109,6 +109,7 @@ import {
   PartyPopper,
   HeartHandshake,
   ShieldAlert,
+  Shield,
   ScrollText,
   Award,
   Heart,
@@ -229,6 +230,8 @@ export function ParentShell({
     { to: `${basePath}/messages`, icon: MessageSquare, label: "Messages", badge: unreadParentCount },
     { to: `${basePath}/complaints`, icon: ShieldAlert, label: "Complaints", badge: 0 },
     { to: `${basePath}/timetable`, icon: Clock, label: "Timetable", badge: 0 },
+    { to: `${basePath}/parent-visitor`, icon: Shield, label: "Visitor Passes", badge: 0 },
+    { to: `${basePath}/events`, icon: Calendar, label: "Events Calendar", badge: 0 },
     { to: `${basePath}/notifications`, icon: Bell, label: "Notifications", badge: 0 },
     { to: `${basePath}/support`, icon: LifeBuoy, label: "Support", badge: 0 },
   ];

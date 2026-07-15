@@ -1,7 +1,7 @@
 import {
   BarChart3, BookOpen, CalendarDays, Coins, CreditCard, DollarSign, GraduationCap, Headphones,
   KanbanSquare, LayoutGrid, Megaphone, MessageSquare, NotebookPen,
-  ShieldAlert, ShieldCheck, Users, FileText, PartyPopper, UserPlus,
+  ShieldAlert, ShieldCheck, Shield, Users, FileText, PartyPopper, UserPlus,
   Briefcase, Wallet, Receipt, FileSignature, ClipboardList, Heart, PhoneCall, Target,
   AlertTriangle, Sparkles, Smile,
 } from "lucide-react";
@@ -43,6 +43,8 @@ export const NAV_CATALOG: NavItem[] = [
     roles: ["super_admin","school_owner","principal","vice_principal","school_admin","academic_coordinator","teacher","student","parent"] },
   { key: "curriculum", label: "Curriculum Standards", icon: BookOpen, group: "academics", path: "curriculum",
     roles: ["super_admin","school_owner","principal","vice_principal","school_admin","academic_coordinator","teacher"] },
+  { key: "events", label: "Events Calendar", icon: CalendarDays, group: "academics", path: "events",
+    roles: ["super_admin","school_owner","principal","vice_principal","school_admin","academic_coordinator","teacher","student","parent"] },
   { key: "diary", label: "Diary", icon: BookOpen, group: "academics", path: "diary",
     roles: ["super_admin","school_owner","principal","vice_principal","school_admin","academic_coordinator","teacher","student","parent"] },
 
@@ -116,6 +118,8 @@ export const NAV_CATALOG: NavItem[] = [
 
   // Operations
   { key: "complaints", label: "Complaints", icon: ShieldAlert, group: "operations", path: "complaints",
+    roles: ["super_admin","school_owner","principal","vice_principal","school_admin"] },
+  { key: "gate-visitor", label: "Gate Console", icon: Shield, group: "operations", path: "gate-visitor",
     roles: ["super_admin","school_owner","principal","vice_principal","school_admin"] },
   { key: "at-risk", label: "At-Risk Students", icon: AlertTriangle, group: "operations", path: "at-risk",
     roles: ["super_admin","school_owner","principal","vice_principal","school_admin","academic_coordinator","counselor"] },

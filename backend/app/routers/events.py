@@ -11,8 +11,17 @@ from sqlalchemy import select, func, and_, or_, text
 from sqlalchemy.orm import selectinload
 
 from app.dependencies import CurrentUser, DbSession
-from app.models.events import SchoolEvent, EventPhoto, PTMSlot, PTMBooking
+from app.models.events import (
+    SchoolEvent, EventPhoto, PTMSlot, PTMBooking,
+    EventRSVP, SportsScorecard, AnnualFunctionPlan,
+)
 from app.models.academic import TimetableSlot, TimetablePeriod
+from app.schemas import (
+    EventRSVPCreate, EventRSVPOut,
+    SportsScorecardCreate, SportsScorecardOut,
+    AnnualFunctionPlanCreate, AnnualFunctionPlanOut,
+    MessageResponse,
+)
 
 router = APIRouter(prefix="/school-events", tags=["Events & PTM"])
 
@@ -271,6 +280,192 @@ async def add_event_photo(event_id: UUID, body: PhotoCreate, current_user: Curre
         sort_order=photo.sort_order,
         created_at=photo.created_at.isoformat() if photo.created_at else None,
     )
+
+
+    )
+
+
+# ── Event RSVPs ──────────────────────────────────────────────────────────────
+
+@router.post("/{event_id}/rsvp", response_model=EventRSVPOut, status_code=status.HTTP_201_CREATED)
+async def submit_event_rsvp(
+    event_id: UUID,
+    body: EventRSVPCreate,
+    current_user: CurrentUser,
+    db: DbSession,
+):
+    """Parent records event RSVP going/maybe/not_going response for their child."""
+    if not current_user.school_id:
+        raise HTTPException(status_code=400, detail="No school context")
+
+    # Upsert RSVP
+    existing_query = select(EventRSVP).where(
+        EventRSVP.event_id == event_id,
+        EventRSVP.parent_user_id == current_user.id,
+        EventRSVP.student_id == body.student_id,
+    )
+    res = await db.execute(existing_query)
+    rsvp = res.scalar_one_or_none()
+
+    if rsvp:
+        rsvp.status = body.status
+        rsvp.notes = body.notes
+    else:
+        rsvp = EventRSVP(
+            school_id=current_user.school_id,
+            event_id=event_id,
+            parent_user_id=current_user.id,
+            student_id=body.student_id,
+            status=body.status,
+            notes=body.notes,
+        )
+        db.add(rsvp)
+
+    # Increment event RSVP count
+    event_res = await db.execute(select(SchoolEvent).where(SchoolEvent.id == event_id))
+    event = event_res.scalar_one_or_none()
+    if event and body.status == "going":
+        event.rsvp_count = (event.rsvp_count or 0) + 1
+
+    await db.commit()
+    await db.refresh(rsvp)
+    return rsvp
+
+
+@router.get("/{event_id}/rsvps", response_model=List[EventRSVPOut])
+async def get_event_rsvps(event_id: UUID, current_user: CurrentUser, db: DbSession):
+    """Get RSVP list for an event (organizer/staff view)."""
+    res = await db.execute(
+        select(EventRSVP)
+        .where(EventRSVP.event_id == event_id)
+        .order_by(EventRSVP.created_at.desc())
+    )
+    return res.scalars().all()
+
+
+# ── Sports Scorecard ──────────────────────────────────────────────────────────
+
+@router.get("/{event_id}/scorecard", response_model=List[SportsScorecardOut])
+async def get_sports_scorecard(event_id: UUID, current_user: CurrentUser, db: DbSession):
+    """Fetch house scores / positions for a sports day event."""
+    res = await db.execute(
+        select(SportsScorecard)
+        .where(SportsScorecard.event_id == event_id)
+        .order_by(SportsScorecard.points.desc(), SportsScorecard.position)
+    )
+    return res.scalars().all()
+
+
+@router.post("/{event_id}/scorecard", response_model=SportsScorecardOut, status_code=status.HTTP_201_CREATED)
+async def update_sports_scorecard(
+    event_id: UUID,
+    body: SportsScorecardCreate,
+    current_user: CurrentUser,
+    db: DbSession,
+):
+    """Record / update a score entry for a sports day activity."""
+    if not current_user.school_id:
+        raise HTTPException(status_code=400, detail="No school context")
+    effective_roles = expand_roles(current_user.roles)
+    if not (current_user.is_super_admin or any(r in effective_roles for r in ACADEMIC_GOV)):
+        raise HTTPException(status_code=403, detail="Principal/coordinator permissions required")
+
+    # Upsert score card entry for this house and activity
+    existing_query = select(SportsScorecard).where(
+        SportsScorecard.event_id == event_id,
+        SportsScorecard.title == body.title,
+        SportsScorecard.house_name == body.house_name,
+    )
+    res = await db.execute(existing_query)
+    scorecard = res.scalar_one_or_none()
+
+    if scorecard:
+        scorecard.points = body.points
+        scorecard.position = body.position
+        scorecard.details = body.details
+    else:
+        scorecard = SportsScorecard(
+            school_id=current_user.school_id,
+            event_id=event_id,
+            title=body.title,
+            house_name=body.house_name,
+            points=body.points,
+            position=body.position,
+            details=body.details,
+        )
+        db.add(scorecard)
+
+    await db.commit()
+    await db.refresh(scorecard)
+    return scorecard
+
+
+# ── Annual Function Planning ──────────────────────────────────────────────────
+
+@router.get("/{event_id}/tasks", response_model=List[AnnualFunctionPlanOut])
+async def get_annual_function_tasks(event_id: UUID, current_user: CurrentUser, db: DbSession):
+    """Get organizers task checklist for annual function planning."""
+    res = await db.execute(
+        select(AnnualFunctionPlan)
+        .where(AnnualFunctionPlan.event_id == event_id)
+        .order_by(AnnualFunctionPlan.due_date, AnnualFunctionPlan.created_at)
+    )
+    return res.scalars().all()
+
+
+@router.post("/{event_id}/tasks", response_model=AnnualFunctionPlanOut, status_code=status.HTTP_201_CREATED)
+async def create_annual_function_task(
+    event_id: UUID,
+    body: AnnualFunctionPlanCreate,
+    current_user: CurrentUser,
+    db: DbSession,
+):
+    """Create a task item for event planners."""
+    if not current_user.school_id:
+        raise HTTPException(status_code=400, detail="No school context")
+    
+    due = None
+    if body.due_date:
+        due = datetime.strptime(body.due_date, "%Y-%m-%d").date()
+
+    task = AnnualFunctionPlan(
+        school_id=current_user.school_id,
+        event_id=event_id,
+        task_name=body.task_name,
+        assigned_to=body.assigned_to,
+        due_date=due,
+        status=body.status,
+        priority=body.priority,
+    )
+    db.add(task)
+    await db.commit()
+    await db.refresh(task)
+    return task
+
+
+@router.patch("/tasks/{task_id}", response_model=AnnualFunctionPlanOut)
+async def toggle_planning_task(
+    task_id: UUID,
+    body: dict,
+    current_user: CurrentUser,
+    db: DbSession,
+):
+    """Update task priority, status, or assignee."""
+    res = await db.execute(select(AnnualFunctionPlan).where(AnnualFunctionPlan.id == task_id))
+    task = res.scalar_one_or_none()
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    if "status" in body:
+        task.status = body["status"]
+    if "priority" in body:
+        task.priority = body["priority"]
+    if "assigned_to" in body:
+        task.assigned_to = UUID(body["assigned_to"]) if body["assigned_to"] else None
+
+    await db.commit()
+    await db.refresh(task)
+    return task
 
 
 # ── PTM Endpoints ────────────────────────────────────────────────────────────

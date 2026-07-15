@@ -50,6 +50,7 @@ from app.routers.transport import router as transport_router
 from app.routers.events import router as school_events_router
 from app.routers.report_cards import router as report_cards_router
 from app.routers.curriculum import router as curriculum_router
+from app.routers.visitors import router as visitors_router
 
 # ─── Structured Logging ───────────────────────────────────────────────────────
 logging.basicConfig(
@@ -631,3 +632,4 @@ app.include_router(transport_router, prefix=_PREFIX)
 app.include_router(school_events_router, prefix=_PREFIX)
 app.include_router(report_cards_router, prefix=_PREFIX)
 app.include_router(curriculum_router, prefix=_PREFIX)
+app.include_router(visitors_router, prefix=_PREFIX)

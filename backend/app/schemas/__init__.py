@@ -1646,3 +1646,125 @@ class PaymentGatewayConfigOut(BaseModel):
     created_at: Optional[datetime] = None
 
     model_config = {"from_attributes": True}
+
+
+# ─── VISITOR MANAGEMENT ───────────────────────────────────────────────────────
+
+class VisitorPassCreate(BaseModel):
+    visitor_name: str
+    phone: str
+    email: Optional[str] = None
+    cnic: Optional[str] = None
+    purpose: str = "meeting"
+    details: Optional[str] = None
+    scheduled_date: str
+    student_id: Optional[UUID] = None
+
+
+class VisitorPassOut(BaseModel):
+    id: UUID
+    school_id: UUID
+    parent_user_id: Optional[UUID] = None
+    student_id: Optional[UUID] = None
+    visitor_name: str
+    phone: str
+    email: Optional[str] = None
+    cnic: Optional[str] = None
+    photo_url: Optional[str] = None
+    purpose: str
+    details: Optional[str] = None
+    qr_code_token: str
+    pass_type: str
+    checkin_status: str
+    scheduled_date: date
+    checkin_at: Optional[datetime] = None
+    checkout_at: Optional[datetime] = None
+    created_at: Optional[datetime] = None
+
+    model_config = {"from_attributes": True}
+
+
+class VisitorBlacklistCreate(BaseModel):
+    name: str
+    cnic: Optional[str] = None
+    phone: Optional[str] = None
+    reason: str
+
+
+class VisitorBlacklistOut(BaseModel):
+    id: UUID
+    school_id: UUID
+    name: str
+    cnic: Optional[str] = None
+    phone: Optional[str] = None
+    reason: str
+    is_active: bool
+    created_at: Optional[datetime] = None
+
+    model_config = {"from_attributes": True}
+
+
+# ─── EVENT EXTENSIONS ─────────────────────────────────────────────────────────
+
+class EventRSVPCreate(BaseModel):
+    student_id: UUID
+    status: str  # going, maybe, not_going
+    notes: Optional[str] = None
+
+
+class EventRSVPOut(BaseModel):
+    id: UUID
+    school_id: UUID
+    event_id: UUID
+    parent_user_id: UUID
+    student_id: UUID
+    status: str
+    notes: Optional[str] = None
+    created_at: Optional[datetime] = None
+
+    model_config = {"from_attributes": True}
+
+
+class SportsScorecardCreate(BaseModel):
+    title: str
+    house_name: str
+    points: int
+    position: Optional[int] = None
+    details: Optional[str] = None
+
+
+class SportsScorecardOut(BaseModel):
+    id: UUID
+    school_id: UUID
+    event_id: UUID
+    title: str
+    house_name: str
+    points: int
+    position: Optional[int] = None
+    details: Optional[str] = None
+    created_at: Optional[datetime] = None
+
+    model_config = {"from_attributes": True}
+
+
+class AnnualFunctionPlanCreate(BaseModel):
+    task_name: str
+    assigned_to: Optional[UUID] = None
+    due_date: Optional[str] = None
+    status: str = "pending"
+    priority: str = "medium"
+
+
+class AnnualFunctionPlanOut(BaseModel):
+    id: UUID
+    school_id: UUID
+    event_id: UUID
+    task_name: str
+    assigned_to: Optional[UUID] = None
+    due_date: Optional[date] = None
+    status: str
+    priority: str
+    created_at: Optional[datetime] = None
+
+    model_config = {"from_attributes": True}
+
