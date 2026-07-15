@@ -356,6 +356,13 @@ const TenantDashboard = () => {
     staleTime: 5 * 60 * 1000,
   });
 
+  // Check if current route is the main dashboard index
+  const isIndexRoute = useMemo(() => {
+    if (!tenant.slug || !role) return false;
+    const basePath = `/${tenant.slug}/${role}`;
+    return location.pathname === basePath || location.pathname === `${basePath}/`;
+  }, [location.pathname, tenant.slug, role]);
+
   if (!role) return <Navigate to={`/${tenant.slug || ""}/auth`} replace />;
 
   // Don't show loading if we have cached user
@@ -381,12 +388,6 @@ const TenantDashboard = () => {
   const displayAttendanceData = attendanceData || { 
     rate: cachedKPIs?.attendanceRate7d ?? 0 
   };
-  // Check if current route is the main dashboard index
-  const isIndexRoute = useMemo(() => {
-    if (!tenant.slug || !role) return false;
-    const basePath = `/${tenant.slug}/${role}`;
-    return location.pathname === basePath || location.pathname === `${basePath}/`;
-  }, [location.pathname, tenant.slug, role]);
 
   const displayStaffData = staffData || { 
     total: cachedKPIs?.totalStaff ?? 0, 

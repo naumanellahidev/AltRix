@@ -27,6 +27,7 @@ interface CurriculumPreset {
   code: string;
   description: string | null;
   is_global: boolean;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   strand_definitions: any;
 }
 
@@ -71,6 +72,7 @@ export default function CurriculumModule() {
   const [newGbMax, setNewGbMax] = useState(100);
   const [newGbGpa, setNewGbGpa] = useState(4.0);
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const loadData = async () => {
     setLoading(true);
     try {
@@ -94,6 +96,7 @@ export default function CurriculumModule() {
 
   useEffect(() => {
     loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Fetch LOs when preset/view updates

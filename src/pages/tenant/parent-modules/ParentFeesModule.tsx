@@ -121,7 +121,7 @@ export default function ParentFeesModule({ child, schoolId }: ParentFeesModulePr
   const [gatewaySelectedInvoice, setGatewaySelectedInvoice] = useState<InvoiceRecord | null>(null);
   const [gateways, setGateways] = useState<any[]>([]);
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     if (!child || !schoolId) return;
     setLoading(true);
     try {
@@ -154,6 +154,7 @@ export default function ParentFeesModule({ child, schoolId }: ParentFeesModulePr
 
       // Load active payment gateway configurations
       const gatewayRes = await apiClient.get("/finance/gateway-configs");
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       setGateways(gatewayRes.data.filter((g: any) => g.is_active));
 
       // Load tax certificates
@@ -164,11 +165,11 @@ export default function ParentFeesModule({ child, schoolId }: ParentFeesModulePr
     } finally {
       setLoading(false);
     }
-  };
+  }, [child, schoolId]);
 
   useEffect(() => {
     loadData();
-  }, [child?.student_id, schoolId]);
+  }, [loadData]);
 
   const viewInstallmentPlan = async (inv: InvoiceRecord) => {
     setViewPlanInvoice(inv);
