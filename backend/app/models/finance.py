@@ -320,3 +320,115 @@ class PaymentTransaction(Base):
     def gateway_response(self) -> Optional[dict]: return self.raw_response
     @gateway_response.setter
     def gateway_response(self, val: Optional[dict]): self.raw_response = val
+
+
+class InstallmentPlan(Base):
+    """Fee installment plan for splitting an invoice into multiple payments."""
+    __tablename__ = "installment_plans"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    school_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("schools.id"), nullable=False)
+    invoice_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("fee_invoices.id"), nullable=False)
+    student_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("students.id"), nullable=False)
+    total_amount: Mapped[float] = mapped_column(Float, nullable=False)
+    total_installments: Mapped[int] = mapped_column(Integer, nullable=False)
+    installment_amount: Mapped[float] = mapped_column(Float, nullable=False)
+    frequency: Mapped[str] = mapped_column(String, nullable=False, default="monthly")  # weekly, monthly, quarterly
+    start_date: Mapped[date] = mapped_column(Date, nullable=False)
+    status: Mapped[str] = mapped_column(String, nullable=False, default="active")  # active, completed, cancelled, defaulted
+    notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_by: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), nullable=True)
+    created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=True)
+    updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
+
+
+class InstallmentPayment(Base):
+    """Individual installment within a plan."""
+    __tablename__ = "installment_payments"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    plan_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("installment_plans.id", ondelete="CASCADE"), nullable=False)
+    school_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("schools.id"), nullable=False)
+    installment_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    due_date: Mapped[date] = mapped_column(Date, nullable=False)
+    amount: Mapped[float] = mapped_column(Float, nullable=False)
+    paid_amount: Mapped[float] = mapped_column(Float, default=0, nullable=False)
+    status: Mapped[str] = mapped_column(String, nullable=False, default="pending")  # pending, paid, overdue, partial
+    payment_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("fee_payments.id"), nullable=True)
+    paid_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=True)
+
+
+class SiblingDiscount(Base):
+    """Automated sibling discount rules per school."""
+    __tablename__ = "sibling_discounts"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    school_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("schools.id"), nullable=False)
+    name: Mapped[str] = mapped_column(String, nullable=False)  # "2nd Child Discount", "3rd+ Child Discount"
+    sibling_number: Mapped[int] = mapped_column(Integer, nullable=False)  # 2 = 2nd child, 3 = 3rd child, etc.
+    discount_type: Mapped[str] = mapped_column(String, nullable=False, default="percent")  # percent | fixed
+    discount_value: Mapped[float] = mapped_column(Float, nullable=False)  # 10 (10%) or 5000 (PKR 5000)
+    applies_to: Mapped[Optional[str]] = mapped_column(String, nullable=True, default="tuition")  # tuition | all | specific
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=True)
+    updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
+
+
+class TaxCertificate(Base):
+    """Annual tax certificate for fee payments."""
+    __tablename__ = "tax_certificates"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    school_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("schools.id"), nullable=False)
+    student_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("students.id"), nullable=False)
+    parent_user_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), nullable=True)
+    fiscal_year: Mapped[str] = mapped_column(String, nullable=False)  # "2025-2026"
+    certificate_number: Mapped[str] = mapped_column(String, nullable=False, unique=True)
+    total_fees_paid: Mapped[float] = mapped_column(Float, nullable=False)
+    total_tuition: Mapped[float] = mapped_column(Float, default=0, nullable=False)
+    total_other_charges: Mapped[float] = mapped_column(Float, default=0, nullable=False)
+    school_ntn: Mapped[Optional[str]] = mapped_column(String, nullable=True)  # School's National Tax Number
+    payment_details = Column(JSON, nullable=True)  # [{date, amount, method, ref}]
+    generated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=True)
+
+
+class FeeEscalation(Base):
+    """Overdue fee escalation workflow."""
+    __tablename__ = "fee_escalations"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    school_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("schools.id"), nullable=False)
+    invoice_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("fee_invoices.id"), nullable=False)
+    student_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("students.id"), nullable=False)
+    escalation_level: Mapped[int] = mapped_column(Integer, nullable=False, default=1)  # 1=reminder, 2=warning, 3=final notice, 4=admin action
+    escalation_type: Mapped[str] = mapped_column(String, nullable=False, default="reminder")  # reminder, warning, final_notice, suspension_warning
+    overdue_days: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    overdue_amount: Mapped[float] = mapped_column(Float, nullable=False)
+    action_taken: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    notification_sent: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    resolved: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    resolved_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    escalated_by: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), nullable=True)
+    created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=True)
+
+
+class PaymentGatewayConfig(Base):
+    """Multi-gateway payment configuration per school."""
+    __tablename__ = "payment_gateway_configs"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    school_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("schools.id"), nullable=False)
+    gateway_name: Mapped[str] = mapped_column(String, nullable=False)  # jazzcash, easypaisa, payoneer, stripe, bank_transfer
+    display_name: Mapped[Optional[str]] = mapped_column(String, nullable=True)  # "JazzCash Mobile", "Bank Transfer"
+    is_active: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    is_default: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    config = Column(JSON, nullable=True)  # Encrypted gateway-specific config
+    supported_methods: Mapped[Optional[str]] = mapped_column(String, nullable=True)  # "mobile_wallet,card,bank"
+    min_amount: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    max_amount: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    processing_fee_type: Mapped[Optional[str]] = mapped_column(String, nullable=True)  # percent | fixed | none
+    processing_fee_value: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=True)
+    updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), onupdate=func.now(), nullable=True)

@@ -21,6 +21,8 @@ from app.models.exams import Exam, ExamDatesheet, ExamResult, AssessmentResult
 from app.models.finance import (
     FeeStructure, FeeComponent, FeeAllocation,
     FeeVoucher, FeePayment, PaymentTransaction,
+    InstallmentPlan, InstallmentPayment, SiblingDiscount,
+    TaxCertificate, FeeEscalation, PaymentGatewayConfig,
 )
 from app.models.messaging import (
     AdminMessage, AdminMessageRecipient, AdminMessageReaction,
@@ -45,6 +47,14 @@ from app.models.transport import (
 from app.models.events import (
     SchoolEvent, EventPhoto, PTMSlot, PTMBooking,
 )
+from app.models.report_cards import (
+    ReportCardTemplate, ReportCard, ReportCardSubjectEntry,
+    CoCurricularGrade, GradeScale,
+)
+from app.models.curriculum import (
+    CurriculumPreset, LearningOutcome, AssessmentLOMapping,
+    AssessmentCriteria, CriteriaScore, StrandAssessment, GradeBoundary,
+)
 
 __all__ = [
     "School", "Profile", "UserRole", "SchoolMembership", "SchoolBranding",
@@ -59,6 +69,8 @@ __all__ = [
     "Exam", "ExamDatesheet", "ExamResult", "AssessmentResult",
     "FeeStructure", "FeeComponent", "FeeAllocation",
     "FeeVoucher", "FeePayment", "PaymentTransaction",
+    "InstallmentPlan", "InstallmentPayment", "SiblingDiscount",
+    "TaxCertificate", "FeeEscalation", "PaymentGatewayConfig",
     "AdminMessage", "AdminMessageRecipient", "AdminMessageReaction",
     "AdminMessagePin", "Notice",
     "AppNotification", "DiaryEntry",
@@ -74,4 +86,8 @@ __all__ = [
     "EventStore", "EventSubscriberLog", "ActivityTimeline",
     "BusRoute", "BusStop", "Bus", "BusStudentAssignment", "BusLiveLocation",
     "SchoolEvent", "EventPhoto", "PTMSlot", "PTMBooking",
+    "ReportCardTemplate", "ReportCard", "ReportCardSubjectEntry",
+    "CoCurricularGrade", "GradeScale",
+    "CurriculumPreset", "LearningOutcome", "AssessmentLOMapping",
+    "AssessmentCriteria", "CriteriaScore", "StrandAssessment", "GradeBoundary",
 ]

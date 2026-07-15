@@ -41,6 +41,8 @@ export const NAV_CATALOG: NavItem[] = [
     roles: ["super_admin","school_owner","principal","vice_principal","school_admin","academic_coordinator","teacher","student","parent"] },
   { key: "report-cards", label: "Report Cards", icon: FileText, group: "academics", path: "report-cards",
     roles: ["super_admin","school_owner","principal","vice_principal","school_admin","academic_coordinator","teacher","student","parent"] },
+  { key: "curriculum", label: "Curriculum Standards", icon: BookOpen, group: "academics", path: "curriculum",
+    roles: ["super_admin","school_owner","principal","vice_principal","school_admin","academic_coordinator","teacher"] },
   { key: "diary", label: "Diary", icon: BookOpen, group: "academics", path: "diary",
     roles: ["super_admin","school_owner","principal","vice_principal","school_admin","academic_coordinator","teacher","student","parent"] },
 
@@ -93,6 +95,8 @@ export const NAV_CATALOG: NavItem[] = [
     roles: ["super_admin","school_owner","principal","vice_principal","accountant"] },
   { key: "fees", label: "Fees Center", icon: DollarSign, group: "finance", path: "fees",
     roles: ["super_admin","school_owner","principal","vice_principal","school_admin","accountant"] },
+  { key: "admin-fees", label: "Fee Configurations", icon: Settings, group: "finance", path: "admin-fees",
+    roles: ["super_admin","school_owner","principal","vice_principal","accountant"] },
   { key: "invoices", label: "Invoices", icon: FileText, group: "finance", path: "invoices",
     roles: ["super_admin","school_owner","principal","vice_principal","accountant"] },
   { key: "payments", label: "Payments", icon: CreditCard, group: "finance", path: "payments",

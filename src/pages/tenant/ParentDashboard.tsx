@@ -31,6 +31,7 @@ const HolidaysModule = lazy(() => import("./modules/HolidaysModule"));
 const DiaryModule = lazy(() => import("./modules/DiaryModule"));
 const ExamsModule = lazy(() => import("./modules/ExamsModule"));
 const ReportCardModule = lazy(() => import("./modules/ReportCardModule"));
+const ParentReportCardModule = lazy(() => import("./parent-modules/ParentReportCardModule"));
 import { RouteGuard } from "@/components/tenant/RouteGuard";
 
 const DashboardLoader = () => (
@@ -313,7 +314,7 @@ const ParentDashboard = () => {
         <RouteGuard extraAllowedPaths={[
           "ai-insights","attendance","grades","assignments","fees","messages","timetable",
           "notifications","support","behavior","notices","holidays","diary",
-          "exams","report-card","complaints","certificates","counseling","kpis",
+          "exams","report-card","parent-report-card","complaints","certificates","counseling","kpis",
           "transport","gallery","ptm","quick-contact",
         ]}>
         <Suspense fallback={<DashboardLoader />}>
@@ -334,6 +335,7 @@ const ParentDashboard = () => {
             <Route path="diary" element={<DiaryModule schoolId={schoolId} canManage={false} />} />
             <Route path="exams" element={<ExamsModule schoolId={schoolId} canManage={false} studentId={selectedChild?.student_id ?? null} />} />
             <Route path="report-card" element={<ReportCardModule schoolId={schoolId} canManage={false} studentIdLocked={selectedChild?.student_id ?? null} />} />
+            <Route path="parent-report-card" element={<ParentReportCardModule child={selectedChild} schoolId={schoolId} />} />
             <Route path="complaints" element={<ParentComplaintsModule child={selectedChild} schoolId={schoolId} />} />
             <Route path="certificates" element={<ParentCertificatesModule child={selectedChild} schoolId={schoolId} />} />
             <Route path="counseling" element={<ParentCounselingModule child={selectedChild} schoolId={schoolId} />} />

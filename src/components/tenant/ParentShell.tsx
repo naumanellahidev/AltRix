@@ -213,7 +213,7 @@ export function ParentShell({
     { to: `${basePath}/attendance`, icon: Calendar, label: "Attendance", badge: 0 },
     { to: `${basePath}/grades`, icon: GraduationCap, label: "Grades", badge: 0 },
     { to: `${basePath}/assignments`, icon: ScrollText, label: "Assignments", badge: 0 },
-    { to: `${basePath}/report-card`, icon: FileText, label: "Report Card", badge: 0 },
+    { to: `${basePath}/parent-report-card`, icon: FileText, label: "Report Card", badge: 0 },
     { to: `${basePath}/certificates`, icon: Award, label: "Certificates", badge: 0 },
     { to: `${basePath}/exams`, icon: GraduationCap, label: "Exams", badge: 0 },
     { to: `${basePath}/diary`, icon: NotebookPen, label: "Diary", badge: 0 },

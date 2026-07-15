@@ -11,12 +11,21 @@ from sqlalchemy import func, select, text
 
 from app.dependencies import CurrentUser, DbSession
 from app.exceptions import NotFoundError, ForbiddenError
-from app.models.finance import FeeStructure, FeeComponent, FeeAllocation, FeeVoucher, FeePayment
+from app.models.finance import (
+    FeeStructure, FeeComponent, FeeAllocation, FeeVoucher, FeePayment,
+    InstallmentPlan, InstallmentPayment, SiblingDiscount,
+    TaxCertificate, FeeEscalation, PaymentGatewayConfig,
+)
 from app.schemas import (
     FeeStructureCreate, FeeStructureOut,
     FeeVoucherCreate, FeeVoucherOut,
     FeePaymentCreate, FeePaymentOut,
     MessageResponse,
+    InstallmentPlanCreate, InstallmentPlanOut, InstallmentPaymentOut,
+    SiblingDiscountCreate, SiblingDiscountOut,
+    TaxCertificateGenerateRequest, TaxCertificateOut,
+    FeeEscalationOut,
+    PaymentGatewayConfigCreate, PaymentGatewayConfigOut,
 )
 from app.utils.pagination import PaginatedResponse
 from app.utils.permissions import expand_roles, FINANCE_GOV
@@ -605,3 +614,520 @@ async def get_staff_roles(school_id: UUID, current_user: CurrentUser, db: DbSess
             {"user_id": "c3701267-3759-4fcf-bc08-bdf73c91fb67", "role": "accountant"}
         ]
 
+
+# ─── INSTALLMENT PLANS ───────────────────────────────────────────────────────
+
+@router.post("/installment-plans", status_code=status.HTTP_201_CREATED)
+async def create_installment_plan(body: InstallmentPlanCreate, current_user: CurrentUser, db: DbSession):
+    """Create an installment plan for an invoice."""
+    if not current_user.school_id:
+        raise ForbiddenError("No school context")
+    effective_roles = expand_roles(current_user.roles)
+    if not (current_user.is_super_admin or any(r in effective_roles for r in FINANCE_GOV)):
+        raise ForbiddenError()
+
+    from datetime import datetime, timedelta
+    from dateutil.relativedelta import relativedelta
+
+    start = datetime.strptime(body.start_date, "%Y-%m-%d").date()
+    inst_amount = round(body.total_amount / body.total_installments, 2)
+
+    plan = InstallmentPlan(
+        school_id=current_user.school_id,
+        invoice_id=body.invoice_id,
+        student_id=body.student_id,
+        total_amount=body.total_amount,
+        total_installments=body.total_installments,
+        installment_amount=inst_amount,
+        frequency=body.frequency or "monthly",
+        start_date=start,
+        notes=body.notes,
+        created_by=current_user.id,
+    )
+    db.add(plan)
+    await db.flush()
+
+    # Create individual installments
+    for i in range(body.total_installments):
+        if body.frequency == "weekly":
+            due = start + timedelta(weeks=i)
+        elif body.frequency == "quarterly":
+            due = start + relativedelta(months=3 * i)
+        else:
+            due = start + relativedelta(months=i)
+
+        amt = inst_amount
+        # Last installment adjusts for rounding
+        if i == body.total_installments - 1:
+            amt = round(body.total_amount - inst_amount * (body.total_installments - 1), 2)
+
+        inst = InstallmentPayment(
+            plan_id=plan.id,
+            school_id=current_user.school_id,
+            installment_number=i + 1,
+            due_date=due,
+            amount=amt,
+        )
+        db.add(inst)
+
+    await db.flush()
+    await db.refresh(plan)
+
+    return InstallmentPlanOut.model_validate(plan).model_dump()
+
+
+@router.get("/installment-plans/{invoice_id}")
+async def get_installment_plan(invoice_id: UUID, current_user: CurrentUser, db: DbSession):
+    """Get installment plan with all payments for an invoice."""
+    if not current_user.school_id:
+        raise ForbiddenError("No school context")
+
+    plan_result = await db.execute(
+        select(InstallmentPlan).where(
+            InstallmentPlan.invoice_id == invoice_id,
+            InstallmentPlan.school_id == current_user.school_id,
+        )
+    )
+    plan = plan_result.scalar_one_or_none()
+    if not plan:
+        return None
+
+    payments_result = await db.execute(
+        select(InstallmentPayment)
+        .where(InstallmentPayment.plan_id == plan.id)
+        .order_by(InstallmentPayment.installment_number)
+    )
+    payments = payments_result.scalars().all()
+
+    return {
+        "plan": InstallmentPlanOut.model_validate(plan).model_dump(),
+        "installments": [InstallmentPaymentOut.model_validate(p).model_dump() for p in payments],
+    }
+
+
+@router.post("/installment-plans/{plan_id}/pay-installment")
+async def pay_installment(
+    plan_id: UUID,
+    installment_number: int,
+    current_user: CurrentUser,
+    db: DbSession,
+):
+    """Mark an installment as paid."""
+    if not current_user.school_id:
+        raise ForbiddenError("No school context")
+
+    from datetime import datetime as dt, timezone as tz
+
+    inst_result = await db.execute(
+        select(InstallmentPayment).where(
+            InstallmentPayment.plan_id == plan_id,
+            InstallmentPayment.installment_number == installment_number,
+        )
+    )
+    inst = inst_result.scalar_one_or_none()
+    if not inst:
+        raise NotFoundError("Installment", f"{plan_id}#{installment_number}")
+
+    inst.paid_amount = inst.amount
+    inst.status = "paid"
+    inst.paid_at = dt.now(tz.utc)
+
+    # Check if all installments are paid
+    all_result = await db.execute(
+        select(InstallmentPayment).where(InstallmentPayment.plan_id == plan_id)
+    )
+    all_inst = all_result.scalars().all()
+    if all(i.status == "paid" for i in all_inst):
+        plan_result = await db.execute(select(InstallmentPlan).where(InstallmentPlan.id == plan_id))
+        plan = plan_result.scalar_one_or_none()
+        if plan:
+            plan.status = "completed"
+
+    await db.flush()
+    return MessageResponse(message="Installment payment recorded")
+
+
+# ─── SIBLING DISCOUNTS ───────────────────────────────────────────────────────
+
+@router.get("/sibling-discounts", response_model=List[SiblingDiscountOut])
+async def list_sibling_discounts(current_user: CurrentUser, db: DbSession):
+    if not current_user.school_id:
+        return []
+    result = await db.execute(
+        select(SiblingDiscount)
+        .where(SiblingDiscount.school_id == current_user.school_id)
+        .order_by(SiblingDiscount.sibling_number)
+    )
+    return result.scalars().all()
+
+
+@router.post("/sibling-discounts", response_model=SiblingDiscountOut, status_code=status.HTTP_201_CREATED)
+async def create_sibling_discount(body: SiblingDiscountCreate, current_user: CurrentUser, db: DbSession):
+    if not current_user.school_id:
+        raise ForbiddenError("No school context")
+    effective_roles = expand_roles(current_user.roles)
+    if not (current_user.is_super_admin or any(r in effective_roles for r in FINANCE_GOV)):
+        raise ForbiddenError()
+
+    discount = SiblingDiscount(
+        school_id=current_user.school_id,
+        **body.model_dump(exclude_none=True),
+    )
+    db.add(discount)
+    await db.flush()
+    await db.refresh(discount)
+    return discount
+
+
+@router.patch("/sibling-discounts/{discount_id}", response_model=SiblingDiscountOut)
+async def update_sibling_discount(discount_id: UUID, body: SiblingDiscountCreate, current_user: CurrentUser, db: DbSession):
+    effective_roles = expand_roles(current_user.roles)
+    if not (current_user.is_super_admin or any(r in effective_roles for r in FINANCE_GOV)):
+        raise ForbiddenError()
+    result = await db.execute(select(SiblingDiscount).where(SiblingDiscount.id == discount_id))
+    d = result.scalar_one_or_none()
+    if not d:
+        raise NotFoundError("SiblingDiscount", str(discount_id))
+    for field, value in body.model_dump(exclude_none=True).items():
+        setattr(d, field, value)
+    await db.flush()
+    await db.refresh(d)
+    return d
+
+
+@router.delete("/sibling-discounts/{discount_id}", response_model=MessageResponse)
+async def delete_sibling_discount(discount_id: UUID, current_user: CurrentUser, db: DbSession):
+    effective_roles = expand_roles(current_user.roles)
+    if not (current_user.is_super_admin or any(r in effective_roles for r in FINANCE_GOV)):
+        raise ForbiddenError()
+    result = await db.execute(select(SiblingDiscount).where(SiblingDiscount.id == discount_id))
+    d = result.scalar_one_or_none()
+    if not d:
+        raise NotFoundError("SiblingDiscount", str(discount_id))
+    await db.delete(d)
+    await db.flush()
+    return MessageResponse(message="Discount deleted")
+
+
+# ─── TAX CERTIFICATES ────────────────────────────────────────────────────────
+
+@router.post("/tax-certificates/generate", response_model=TaxCertificateOut, status_code=status.HTTP_201_CREATED)
+async def generate_tax_certificate(body: TaxCertificateGenerateRequest, current_user: CurrentUser, db: DbSession):
+    """Generate annual tax certificate for a student's fee payments."""
+    if not current_user.school_id:
+        raise ForbiddenError("No school context")
+
+    import secrets
+    from datetime import datetime as dt
+
+    # Get all payments for the fiscal year
+    year_parts = body.fiscal_year.split("-")
+    start_year = int(year_parts[0])
+    end_year = int(year_parts[1]) if len(year_parts) > 1 else start_year + 1
+
+    payments_result = await db.execute(
+        select(FeePayment).where(
+            FeePayment.school_id == current_user.school_id,
+            FeePayment.student_id == body.student_id,
+            FeePayment.status == "completed",
+        )
+    )
+    payments = payments_result.scalars().all()
+
+    # Filter by fiscal year
+    fy_payments = []
+    total_paid = 0
+    for p in payments:
+        try:
+            pdate = dt.strptime(p.payment_date, "%Y-%m-%d") if isinstance(p.payment_date, str) else p.payment_date
+            if pdate and start_year <= pdate.year <= end_year:
+                fy_payments.append({
+                    "date": p.payment_date,
+                    "amount": p.amount,
+                    "method": p.payment_method,
+                    "ref": p.transaction_id,
+                })
+                total_paid += p.amount or 0
+        except (ValueError, AttributeError):
+            continue
+
+    cert_number = f"TC-{current_user.school_id!s:.8}-{body.fiscal_year}-{secrets.token_hex(3).upper()}"
+
+    cert = TaxCertificate(
+        school_id=current_user.school_id,
+        student_id=body.student_id,
+        parent_user_id=current_user.id,
+        fiscal_year=body.fiscal_year,
+        certificate_number=cert_number,
+        total_fees_paid=total_paid,
+        total_tuition=total_paid,  # simplified
+        total_other_charges=0,
+        school_ntn=body.school_ntn,
+        payment_details=fy_payments,
+    )
+    db.add(cert)
+    await db.flush()
+    await db.refresh(cert)
+    return cert
+
+
+@router.get("/tax-certificates/{student_id}", response_model=List[TaxCertificateOut])
+async def get_tax_certificates(student_id: UUID, current_user: CurrentUser, db: DbSession):
+    if not current_user.school_id:
+        return []
+    result = await db.execute(
+        select(TaxCertificate).where(
+            TaxCertificate.school_id == current_user.school_id,
+            TaxCertificate.student_id == student_id,
+        ).order_by(TaxCertificate.fiscal_year.desc())
+    )
+    return result.scalars().all()
+
+
+# ─── FEE ESCALATION ──────────────────────────────────────────────────────────
+
+@router.post("/escalations/check", response_model=MessageResponse)
+async def check_escalations(current_user: CurrentUser, db: DbSession):
+    """Run escalation check on all overdue invoices."""
+    if not current_user.school_id:
+        raise ForbiddenError("No school context")
+    effective_roles = expand_roles(current_user.roles)
+    if not (current_user.is_super_admin or any(r in effective_roles for r in FINANCE_GOV)):
+        raise ForbiddenError()
+
+    from datetime import datetime as dt, timezone as tz
+
+    # Get unpaid vouchers past due
+    vouchers_result = await db.execute(
+        select(FeeVoucher).where(
+            FeeVoucher.school_id == current_user.school_id,
+            FeeVoucher.status.in_(["unpaid", "partial"]),
+        )
+    )
+    count = 0
+    now = dt.now(tz.utc).date()
+    for v in vouchers_result.scalars().all():
+        try:
+            due = dt.strptime(v.due_date, "%Y-%m-%d").date() if isinstance(v.due_date, str) else v.due_date
+        except (ValueError, TypeError):
+            continue
+
+        if not due or due >= now:
+            continue
+
+        overdue_days = (now - due).days
+        amount = v.amount or 0
+
+        # Determine escalation level
+        if overdue_days > 90:
+            level, etype = 4, "suspension_warning"
+        elif overdue_days > 60:
+            level, etype = 3, "final_notice"
+        elif overdue_days > 30:
+            level, etype = 2, "warning"
+        else:
+            level, etype = 1, "reminder"
+
+        # Check if already escalated at this level
+        existing = await db.execute(
+            select(FeeEscalation).where(
+                FeeEscalation.invoice_id == v.id,
+                FeeEscalation.escalation_level == level,
+                FeeEscalation.resolved == False,
+            )
+        )
+        if existing.scalar_one_or_none():
+            continue
+
+        esc = FeeEscalation(
+            school_id=current_user.school_id,
+            invoice_id=v.id,
+            student_id=v.student_id,
+            escalation_level=level,
+            escalation_type=etype,
+            overdue_days=overdue_days,
+            overdue_amount=amount,
+            escalated_by=current_user.id,
+        )
+        db.add(esc)
+        count += 1
+
+    await db.flush()
+    return MessageResponse(message=f"Created {count} new escalations")
+
+
+@router.get("/escalations", response_model=List[FeeEscalationOut])
+async def list_escalations(
+    current_user: CurrentUser,
+    db: DbSession,
+    resolved: Optional[bool] = Query(False),
+):
+    if not current_user.school_id:
+        return []
+    query = select(FeeEscalation).where(FeeEscalation.school_id == current_user.school_id)
+    if resolved is not None:
+        query = query.where(FeeEscalation.resolved == resolved)
+    result = await db.execute(query.order_by(FeeEscalation.escalation_level.desc(), FeeEscalation.created_at.desc()))
+    return result.scalars().all()
+
+
+@router.patch("/escalations/{escalation_id}/resolve", response_model=MessageResponse)
+async def resolve_escalation(escalation_id: UUID, current_user: CurrentUser, db: DbSession):
+    from datetime import datetime as dt, timezone as tz
+    result = await db.execute(select(FeeEscalation).where(FeeEscalation.id == escalation_id))
+    esc = result.scalar_one_or_none()
+    if not esc:
+        raise NotFoundError("Escalation", str(escalation_id))
+    esc.resolved = True
+    esc.resolved_at = dt.now(tz.utc)
+    esc.action_taken = f"Resolved by {current_user.id}"
+    await db.flush()
+    return MessageResponse(message="Escalation resolved")
+
+
+# ─── PAYMENT GATEWAY CONFIG ──────────────────────────────────────────────────
+
+@router.get("/gateway-configs", response_model=List[PaymentGatewayConfigOut])
+async def list_gateway_configs(current_user: CurrentUser, db: DbSession):
+    if not current_user.school_id:
+        return []
+    result = await db.execute(
+        select(PaymentGatewayConfig)
+        .where(PaymentGatewayConfig.school_id == current_user.school_id)
+        .order_by(PaymentGatewayConfig.is_default.desc(), PaymentGatewayConfig.gateway_name)
+    )
+    return result.scalars().all()
+
+
+@router.post("/gateway-configs", response_model=PaymentGatewayConfigOut, status_code=status.HTTP_201_CREATED)
+async def upsert_gateway_config(body: PaymentGatewayConfigCreate, current_user: CurrentUser, db: DbSession):
+    if not current_user.school_id:
+        raise ForbiddenError("No school context")
+    effective_roles = expand_roles(current_user.roles)
+    if not (current_user.is_super_admin or any(r in effective_roles for r in FINANCE_GOV)):
+        raise ForbiddenError()
+
+    # Check if gateway already exists for this school
+    existing_result = await db.execute(
+        select(PaymentGatewayConfig).where(
+            PaymentGatewayConfig.school_id == current_user.school_id,
+            PaymentGatewayConfig.gateway_name == body.gateway_name,
+        )
+    )
+    existing = existing_result.scalar_one_or_none()
+
+    if existing:
+        for field, value in body.model_dump(exclude_none=True).items():
+            setattr(existing, field, value)
+        await db.flush()
+        await db.refresh(existing)
+        return existing
+
+    # If setting as default, unset others
+    if body.is_default:
+        await db.execute(
+            text("UPDATE payment_gateway_configs SET is_default = FALSE WHERE school_id = :sid"),
+            {"sid": current_user.school_id}
+        )
+
+    config = PaymentGatewayConfig(
+        school_id=current_user.school_id,
+        **body.model_dump(exclude_none=True),
+    )
+    db.add(config)
+    await db.flush()
+    await db.refresh(config)
+    return config
+
+
+# ─── PARENT BALANCE DASHBOARD ────────────────────────────────────────────────
+
+@router.get("/balance-dashboard/{student_id}")
+async def balance_dashboard(student_id: UUID, current_user: CurrentUser, db: DbSession):
+    """Parent-facing balance overview for a student."""
+    if not current_user.school_id:
+        raise ForbiddenError("No school context")
+
+    from datetime import datetime as dt, timezone as tz
+
+    # Total due (unpaid/partial vouchers)
+    due_result = await db.execute(
+        select(func.sum(FeeVoucher.amount)).where(
+            FeeVoucher.school_id == current_user.school_id,
+            FeeVoucher.student_id == student_id,
+            FeeVoucher.status.in_(["unpaid", "partial"]),
+        )
+    )
+    total_due = due_result.scalar() or 0
+
+    # Total paid
+    paid_result = await db.execute(
+        select(func.sum(FeePayment.amount)).where(
+            FeePayment.school_id == current_user.school_id,
+            FeePayment.student_id == student_id,
+            FeePayment.status == "completed",
+        )
+    )
+    total_paid = paid_result.scalar() or 0
+
+    # Overdue amount
+    now_str = dt.now(tz.utc).strftime("%Y-%m-%d")
+    overdue_result = await db.execute(
+        select(func.sum(FeeVoucher.amount)).where(
+            FeeVoucher.school_id == current_user.school_id,
+            FeeVoucher.student_id == student_id,
+            FeeVoucher.status.in_(["unpaid", "partial"]),
+            FeeVoucher.due_date < now_str,
+        )
+    )
+    overdue = overdue_result.scalar() or 0
+
+    # Active installment plans
+    plans_result = await db.execute(
+        select(InstallmentPlan).where(
+            InstallmentPlan.school_id == current_user.school_id,
+            InstallmentPlan.student_id == student_id,
+            InstallmentPlan.status == "active",
+        )
+    )
+    active_plans = plans_result.scalars().all()
+
+    # Recent payments
+    recent_result = await db.execute(
+        select(FeePayment).where(
+            FeePayment.school_id == current_user.school_id,
+            FeePayment.student_id == student_id,
+        ).order_by(FeePayment.created_at.desc()).limit(10)
+    )
+    recent = recent_result.scalars().all()
+
+    # Upcoming vouchers
+    upcoming_result = await db.execute(
+        select(FeeVoucher).where(
+            FeeVoucher.school_id == current_user.school_id,
+            FeeVoucher.student_id == student_id,
+            FeeVoucher.status == "unpaid",
+        ).order_by(FeeVoucher.due_date).limit(5)
+    )
+    upcoming = upcoming_result.scalars().all()
+
+    # Active escalations
+    esc_result = await db.execute(
+        select(FeeEscalation).where(
+            FeeEscalation.school_id == current_user.school_id,
+            FeeEscalation.student_id == student_id,
+            FeeEscalation.resolved == False,
+        )
+    )
+    escalations = esc_result.scalars().all()
+
+    return {
+        "total_due": total_due,
+        "total_paid": total_paid,
+        "overdue_amount": overdue,
+        "active_installment_plans": len(active_plans),
+        "active_escalations": len(escalations),
+        "recent_payments": [FeePaymentOut.model_validate(p).model_dump() for p in recent],
+        "upcoming_vouchers": [FeeVoucherOut.model_validate(v).model_dump() for v in upcoming],
+        "escalation_details": [FeeEscalationOut.model_validate(e).model_dump() for e in escalations],
+    }

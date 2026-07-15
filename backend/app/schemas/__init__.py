@@ -1169,4 +1169,480 @@ class EventMonitoringStats(BaseModel):
     subscriber_statuses: Dict[str, str]
 
 
+# ─── REPORT CARD TEMPLATES ────────────────────────────────────────────────────
 
+class ReportCardTemplateCreate(BaseModel):
+    name: str
+    description: Optional[str] = None
+    is_default: Optional[bool] = False
+    layout_config: Optional[Dict[str, Any]] = None
+    grading_system: Optional[str] = "percentage"
+    show_position: Optional[bool] = True
+    show_class_average: Optional[bool] = True
+    show_highest_marks: Optional[bool] = False
+    show_attendance: Optional[bool] = True
+    show_co_curricular: Optional[bool] = True
+    show_teacher_remarks: Optional[bool] = True
+    show_principal_remarks: Optional[bool] = True
+    show_trend_graph: Optional[bool] = True
+    show_digital_signature: Optional[bool] = True
+    principal_signature_name: Optional[str] = None
+    principal_signature_title: Optional[str] = "Principal"
+    enable_qr_verification: Optional[bool] = True
+    language: Optional[str] = "en"
+    co_curricular_categories: Optional[List[str]] = None
+
+
+class ReportCardTemplateOut(BaseModel):
+    id: UUID
+    school_id: UUID
+    name: str
+    description: Optional[str] = None
+    is_default: Optional[bool] = None
+    is_active: Optional[bool] = None
+    layout_config: Optional[Dict[str, Any]] = None
+    grading_system: Optional[str] = None
+    show_position: Optional[bool] = None
+    show_class_average: Optional[bool] = None
+    show_highest_marks: Optional[bool] = None
+    show_attendance: Optional[bool] = None
+    show_co_curricular: Optional[bool] = None
+    show_teacher_remarks: Optional[bool] = None
+    show_principal_remarks: Optional[bool] = None
+    show_trend_graph: Optional[bool] = None
+    show_digital_signature: Optional[bool] = None
+    principal_signature_name: Optional[str] = None
+    principal_signature_title: Optional[str] = None
+    enable_qr_verification: Optional[bool] = None
+    language: Optional[str] = None
+    co_curricular_categories: Optional[List[str]] = None
+    created_at: Optional[datetime] = None
+
+    model_config = {"from_attributes": True}
+
+
+# ─── REPORT CARDS ─────────────────────────────────────────────────────────────
+
+class ReportCardGenerateRequest(BaseModel):
+    template_id: Optional[UUID] = None
+    exam_id: Optional[UUID] = None
+    class_section_id: UUID
+    period_type: Optional[str] = "term"
+    period_label: Optional[str] = None
+    academic_year: Optional[str] = None
+
+
+class ReportCardSubjectEntryOut(BaseModel):
+    id: UUID
+    subject_id: Optional[UUID] = None
+    subject_name: str
+    marks_obtained: Optional[float] = None
+    max_marks: Optional[float] = None
+    percentage: Optional[float] = None
+    grade: Optional[str] = None
+    gpa_points: Optional[float] = None
+    position_in_subject: Optional[int] = None
+    class_average: Optional[float] = None
+    highest_in_class: Optional[float] = None
+    teacher_comment: Optional[str] = None
+    sort_order: Optional[int] = 0
+
+    model_config = {"from_attributes": True}
+
+
+class CoCurricularGradeCreate(BaseModel):
+    activity_name: str
+    category: Optional[str] = None
+    grade: Optional[str] = None
+    score: Optional[float] = None
+    max_score: Optional[float] = None
+    remarks: Optional[str] = None
+
+
+class CoCurricularGradeOut(BaseModel):
+    id: UUID
+    report_card_id: UUID
+    activity_name: str
+    category: Optional[str] = None
+    grade: Optional[str] = None
+    score: Optional[float] = None
+    max_score: Optional[float] = None
+    remarks: Optional[str] = None
+    sort_order: Optional[int] = 0
+
+    model_config = {"from_attributes": True}
+
+
+class ReportCardOut(BaseModel):
+    id: UUID
+    school_id: UUID
+    student_id: UUID
+    template_id: Optional[UUID] = None
+    exam_id: Optional[UUID] = None
+    period_type: str
+    period_label: Optional[str] = None
+    academic_year: Optional[str] = None
+    total_marks: Optional[float] = None
+    max_total_marks: Optional[float] = None
+    percentage: Optional[float] = None
+    gpa: Optional[float] = None
+    overall_grade: Optional[str] = None
+    position_in_class: Optional[int] = None
+    total_students_in_class: Optional[int] = None
+    attendance_percentage: Optional[float] = None
+    total_present_days: Optional[int] = None
+    total_school_days: Optional[int] = None
+    teacher_remarks: Optional[str] = None
+    principal_remarks: Optional[str] = None
+    is_published: Optional[bool] = None
+    published_at: Optional[datetime] = None
+    qr_verification_token: Optional[str] = None
+    signed_by_name: Optional[str] = None
+    signed_by_title: Optional[str] = None
+    signed_at: Optional[datetime] = None
+    trend_data: Optional[List[Dict[str, Any]]] = None
+    created_at: Optional[datetime] = None
+
+    model_config = {"from_attributes": True}
+
+
+class ReportCardUpdateRemarks(BaseModel):
+    teacher_remarks: Optional[str] = None
+    principal_remarks: Optional[str] = None
+
+
+# ─── GRADE SCALES ─────────────────────────────────────────────────────────────
+
+class GradeScaleCreate(BaseModel):
+    label: str
+    min_percentage: float
+    max_percentage: float = 100
+    gpa_points: Optional[float] = None
+    description: Optional[str] = None
+    color: Optional[str] = None
+    sort_order: Optional[int] = 0
+
+
+class GradeScaleOut(BaseModel):
+    id: UUID
+    school_id: UUID
+    label: str
+    min_percentage: float
+    max_percentage: float
+    gpa_points: Optional[float] = None
+    description: Optional[str] = None
+    color: Optional[str] = None
+    sort_order: Optional[int] = 0
+    is_active: Optional[bool] = None
+    created_at: Optional[datetime] = None
+
+    model_config = {"from_attributes": True}
+
+
+# ─── CURRICULUM FRAMEWORK ─────────────────────────────────────────────────────
+
+class CurriculumPresetOut(BaseModel):
+    id: UUID
+    school_id: Optional[UUID] = None
+    name: str
+    code: str
+    description: Optional[str] = None
+    is_global: Optional[bool] = None
+    is_active: Optional[bool] = None
+    grade_structure: Optional[Dict[str, Any]] = None
+    strand_definitions: Optional[List[Dict[str, Any]]] = None
+    created_at: Optional[datetime] = None
+
+    model_config = {"from_attributes": True}
+
+
+class LearningOutcomeCreate(BaseModel):
+    preset_id: Optional[UUID] = None
+    subject_id: Optional[UUID] = None
+    code: str
+    title: str
+    description: Optional[str] = None
+    strand: Optional[str] = None
+    sub_strand: Optional[str] = None
+    grade_level: Optional[int] = None
+    bloom_level: Optional[str] = None
+
+
+class LearningOutcomeOut(BaseModel):
+    id: UUID
+    school_id: UUID
+    preset_id: Optional[UUID] = None
+    subject_id: Optional[UUID] = None
+    code: str
+    title: str
+    description: Optional[str] = None
+    strand: Optional[str] = None
+    sub_strand: Optional[str] = None
+    grade_level: Optional[int] = None
+    bloom_level: Optional[str] = None
+    is_active: Optional[bool] = None
+    sort_order: Optional[int] = 0
+    created_at: Optional[datetime] = None
+
+    model_config = {"from_attributes": True}
+
+
+class AssessmentCriteriaCreate(BaseModel):
+    assessment_id: Optional[UUID] = None
+    learning_outcome_id: Optional[UUID] = None
+    criteria_name: str
+    description: Optional[str] = None
+    max_score: Optional[float] = 4
+    rubric_levels: Optional[List[Dict[str, Any]]] = None
+
+
+class AssessmentCriteriaOut(BaseModel):
+    id: UUID
+    school_id: UUID
+    assessment_id: Optional[UUID] = None
+    learning_outcome_id: Optional[UUID] = None
+    criteria_name: str
+    description: Optional[str] = None
+    max_score: Optional[float] = None
+    rubric_levels: Optional[List[Dict[str, Any]]] = None
+    sort_order: Optional[int] = 0
+    created_at: Optional[datetime] = None
+
+    model_config = {"from_attributes": True}
+
+
+class CriteriaScoreCreate(BaseModel):
+    criteria_id: UUID
+    student_id: UUID
+    score: Optional[float] = None
+    level_achieved: Optional[str] = None
+    teacher_feedback: Optional[str] = None
+
+
+class CriteriaScoreOut(BaseModel):
+    id: UUID
+    school_id: UUID
+    criteria_id: UUID
+    student_id: UUID
+    score: Optional[float] = None
+    level_achieved: Optional[str] = None
+    teacher_feedback: Optional[str] = None
+    scored_by: Optional[UUID] = None
+    created_at: Optional[datetime] = None
+
+    model_config = {"from_attributes": True}
+
+
+class StrandAssessmentCreate(BaseModel):
+    student_id: UUID
+    subject_id: Optional[UUID] = None
+    strand_name: str
+    sub_strand_name: Optional[str] = None
+    academic_year: Optional[str] = None
+    term_label: Optional[str] = None
+    score: Optional[float] = None
+    max_score: Optional[float] = None
+    level: Optional[str] = None
+
+
+class StrandAssessmentOut(BaseModel):
+    id: UUID
+    school_id: UUID
+    student_id: UUID
+    subject_id: Optional[UUID] = None
+    strand_name: str
+    sub_strand_name: Optional[str] = None
+    academic_year: Optional[str] = None
+    term_label: Optional[str] = None
+    score: Optional[float] = None
+    max_score: Optional[float] = None
+    percentage: Optional[float] = None
+    level: Optional[str] = None
+    grade: Optional[str] = None
+    created_at: Optional[datetime] = None
+
+    model_config = {"from_attributes": True}
+
+
+class GradeBoundaryCreate(BaseModel):
+    subject_id: Optional[UUID] = None
+    preset_id: Optional[UUID] = None
+    label: str
+    min_percentage: float
+    max_percentage: float = 100
+    gpa_equivalent: Optional[float] = None
+    description: Optional[str] = None
+    is_passing: Optional[bool] = True
+
+
+class GradeBoundaryOut(BaseModel):
+    id: UUID
+    school_id: UUID
+    subject_id: Optional[UUID] = None
+    preset_id: Optional[UUID] = None
+    label: str
+    min_percentage: float
+    max_percentage: float
+    gpa_equivalent: Optional[float] = None
+    description: Optional[str] = None
+    is_passing: Optional[bool] = None
+    sort_order: Optional[int] = 0
+    created_at: Optional[datetime] = None
+
+    model_config = {"from_attributes": True}
+
+
+class AssessmentLOMappingCreate(BaseModel):
+    assessment_id: UUID
+    learning_outcome_id: UUID
+    weightage: Optional[float] = None
+
+
+class AssessmentLOMappingOut(BaseModel):
+    id: UUID
+    school_id: UUID
+    assessment_id: UUID
+    learning_outcome_id: UUID
+    weightage: Optional[float] = None
+    created_at: Optional[datetime] = None
+
+    model_config = {"from_attributes": True}
+
+
+# ─── ENHANCED FEE PORTAL ─────────────────────────────────────────────────────
+
+class InstallmentPlanCreate(BaseModel):
+    invoice_id: UUID
+    student_id: UUID
+    total_amount: float
+    total_installments: int
+    frequency: Optional[str] = "monthly"
+    start_date: str
+    notes: Optional[str] = None
+
+
+class InstallmentPlanOut(BaseModel):
+    id: UUID
+    school_id: UUID
+    invoice_id: UUID
+    student_id: UUID
+    total_amount: float
+    total_installments: int
+    installment_amount: float
+    frequency: Optional[str] = None
+    start_date: Optional[date] = None
+    status: Optional[str] = None
+    notes: Optional[str] = None
+    created_at: Optional[datetime] = None
+
+    model_config = {"from_attributes": True}
+
+
+class InstallmentPaymentOut(BaseModel):
+    id: UUID
+    plan_id: UUID
+    installment_number: int
+    due_date: Optional[date] = None
+    amount: float
+    paid_amount: float
+    status: str
+    payment_id: Optional[UUID] = None
+    paid_at: Optional[datetime] = None
+    created_at: Optional[datetime] = None
+
+    model_config = {"from_attributes": True}
+
+
+class SiblingDiscountCreate(BaseModel):
+    name: str
+    sibling_number: int
+    discount_type: Optional[str] = "percent"
+    discount_value: float
+    applies_to: Optional[str] = "tuition"
+    is_active: Optional[bool] = True
+
+
+class SiblingDiscountOut(BaseModel):
+    id: UUID
+    school_id: UUID
+    name: str
+    sibling_number: int
+    discount_type: str
+    discount_value: float
+    applies_to: Optional[str] = None
+    is_active: Optional[bool] = None
+    created_at: Optional[datetime] = None
+
+    model_config = {"from_attributes": True}
+
+
+class TaxCertificateGenerateRequest(BaseModel):
+    student_id: UUID
+    fiscal_year: str
+    school_ntn: Optional[str] = None
+
+
+class TaxCertificateOut(BaseModel):
+    id: UUID
+    school_id: UUID
+    student_id: UUID
+    parent_user_id: Optional[UUID] = None
+    fiscal_year: str
+    certificate_number: str
+    total_fees_paid: float
+    total_tuition: float
+    total_other_charges: float
+    school_ntn: Optional[str] = None
+    payment_details: Optional[List[Dict[str, Any]]] = None
+    generated_at: Optional[datetime] = None
+    created_at: Optional[datetime] = None
+
+    model_config = {"from_attributes": True}
+
+
+class FeeEscalationOut(BaseModel):
+    id: UUID
+    school_id: UUID
+    invoice_id: UUID
+    student_id: UUID
+    escalation_level: int
+    escalation_type: str
+    overdue_days: int
+    overdue_amount: float
+    action_taken: Optional[str] = None
+    notification_sent: Optional[bool] = None
+    resolved: Optional[bool] = None
+    resolved_at: Optional[datetime] = None
+    created_at: Optional[datetime] = None
+
+    model_config = {"from_attributes": True}
+
+
+class PaymentGatewayConfigCreate(BaseModel):
+    gateway_name: str
+    display_name: Optional[str] = None
+    is_active: Optional[bool] = False
+    is_default: Optional[bool] = False
+    config: Optional[Dict[str, Any]] = None
+    supported_methods: Optional[str] = None
+    min_amount: Optional[float] = None
+    max_amount: Optional[float] = None
+    processing_fee_type: Optional[str] = None
+    processing_fee_value: Optional[float] = None
+
+
+class PaymentGatewayConfigOut(BaseModel):
+    id: UUID
+    school_id: UUID
+    gateway_name: str
+    display_name: Optional[str] = None
+    is_active: Optional[bool] = None
+    is_default: Optional[bool] = None
+    supported_methods: Optional[str] = None
+    min_amount: Optional[float] = None
+    max_amount: Optional[float] = None
+    processing_fee_type: Optional[str] = None
+    processing_fee_value: Optional[float] = None
+    created_at: Optional[datetime] = None
+
+    model_config = {"from_attributes": True}
