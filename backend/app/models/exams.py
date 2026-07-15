@@ -165,3 +165,70 @@ class AssessmentResult(Base):
     is_absent: Mapped[Optional[bool]] = mapped_column(Boolean, default=False, nullable=True)
     graded_by: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), nullable=True)
     created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=True)
+
+
+class ExamRoom(Base):
+    __tablename__ = "exam_rooms"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    school_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("schools.id"), nullable=False)
+    
+    room_name: Mapped[str] = mapped_column(String, nullable=False)  # e.g. "Main Auditorium"
+    capacity_rows: Mapped[int] = mapped_column(Integer, nullable=False, default=10)
+    capacity_cols: Mapped[int] = mapped_column(Integer, nullable=False, default=10)
+    total_capacity: Mapped[int] = mapped_column(Integer, nullable=False, default=100)
+    
+    created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=True)
+
+    # Relationships
+    school = relationship = orm_relationship("School")
+
+
+class ExamSeatingPlan(Base):
+    __tablename__ = "exam_seating_plans"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    school_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("schools.id"), nullable=False)
+    
+    exam_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("exams.id", ondelete="CASCADE"), nullable=False)
+    datesheet_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("exam_datesheets.id", ondelete="CASCADE"), nullable=False)
+    room_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("exam_rooms.id", ondelete="CASCADE"), nullable=False)
+    
+    created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=True)
+
+    # Relationships
+    exam = orm_relationship("Exam")
+    datesheet = orm_relationship("ExamDatesheet")
+    room = orm_relationship("ExamRoom")
+
+
+class ExamSeatAssignment(Base):
+    __tablename__ = "exam_seat_assignments"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    seating_plan_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("exam_seating_plans.id", ondelete="CASCADE"), nullable=False)
+    student_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("students.id", ondelete="CASCADE"), nullable=False)
+    
+    row_num: Mapped[int] = mapped_column(Integer, nullable=False)  # 0-indexed row
+    col_num: Mapped[int] = mapped_column(Integer, nullable=False)  # 0-indexed column
+    
+    created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=True)
+
+    # Relationships
+    seating_plan = orm_relationship("ExamSeatingPlan")
+    student = orm_relationship("Student")
+
+
+class ExamInvigilator(Base):
+    __tablename__ = "exam_invigilators"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    seating_plan_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("exam_seating_plans.id", ondelete="CASCADE"), nullable=False)
+    staff_user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)  # profile or user id
+    role: Mapped[str] = mapped_column(String, nullable=False, default="primary")  # primary, secondary, helper
+    
+    created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=True)
+
+    # Relationships
+    seating_plan = orm_relationship("ExamSeatingPlan")
+

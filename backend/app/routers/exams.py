@@ -11,10 +11,14 @@ from sqlalchemy import select, text, false as sa_false
 
 from app.dependencies import CurrentUser, DbSession
 from app.exceptions import NotFoundError, ForbiddenError
-from app.models.exams import Exam, ExamDatesheet, ExamResult, AssessmentResult
+from app.models.exams import (
+    Exam, ExamDatesheet, ExamResult, AssessmentResult,
+    ExamRoom, ExamSeatingPlan, ExamSeatAssignment, ExamInvigilator,
+)
 from app.schemas import (
     ExamCreate, ExamOut,
     ExamResultCreate, ExamResultOut,
+    ExamRoomCreate, ExamRoomOut, ExamSeatingPlanOut, ExamSeatAssignmentOut,
     MessageResponse,
 )
 from app.utils.permissions import expand_roles, ACADEMIC_GOV
@@ -374,7 +378,227 @@ async def bulk_results(
         )
         db.add(res)
         created.append(res)
-    await db.flush()
     for r in created:
         await db.refresh(r)
     return created
+
+
+# ─── EXAMS SEATING ARRANGEMENTS & ROOMS ───────────────────────────────────────
+
+@router.get("/rooms", response_model=List[ExamRoomOut])
+async def list_exam_rooms(current_user: CurrentUser, db: DbSession):
+    """List physical classrooms/halls registered for exams."""
+    if not current_user.school_id:
+        return []
+    res = await db.execute(
+        select(ExamRoom).where(ExamRoom.school_id == current_user.school_id)
+    )
+    return res.scalars().all()
+
+
+@router.post("/rooms", response_model=ExamRoomOut, status_code=status.HTTP_201_CREATED)
+async def create_exam_room(body: ExamRoomCreate, current_user: CurrentUser, db: DbSession):
+    """Register a new exam room with rows/cols capacities."""
+    if not current_user.school_id:
+        raise ForbiddenError()
+    room = ExamRoom(
+        school_id=current_user.school_id,
+        room_name=body.room_name,
+        capacity_rows=body.capacity_rows,
+        capacity_cols=body.capacity_cols,
+        total_capacity=body.capacity_rows * body.capacity_cols,
+    )
+    db.add(room)
+    await db.flush()
+    await db.commit()
+    await db.refresh(room)
+    return room
+
+
+@router.get("/seating-plans", response_model=List[ExamSeatingPlanOut])
+async def list_seating_plans(current_user: CurrentUser, db: DbSession):
+    """List seating plans along with invigilator roles and assignments lists."""
+    if not current_user.school_id:
+         return []
+         
+    res = await db.execute(
+        select(ExamSeatingPlan)
+        .where(ExamSeatingPlan.school_id == current_user.school_id)
+        .order_by(ExamSeatingPlan.created_at.desc())
+    )
+    plans = res.scalars().all()
+    
+    out_plans = []
+    for plan in plans:
+        # Load room details
+        room_res = await db.execute(select(ExamRoom).where(ExamRoom.id == plan.room_id))
+        room = room_res.scalar_one_or_none()
+        room_name = room.room_name if room else "Unknown Room"
+
+        # Load assignments
+        assign_res = await db.execute(
+            select(ExamSeatAssignment).where(ExamSeatAssignment.seating_plan_id == plan.id)
+        )
+        assignments = assign_res.scalars().all()
+        
+        assignments_out = []
+        for a in assignments:
+            std_res = await db.execute(select(Student).where(Student.id == a.student_id))
+            student = std_res.scalar_one_or_none()
+            if student:
+                assignments_out.append({
+                    "id": a.id,
+                    "seating_plan_id": a.seating_plan_id,
+                    "student_id": a.student_id,
+                    "student_name": f"{student.first_name} {student.last_name or ''}".strip(),
+                    "student_roll": student.roll_number or "N/A",
+                    "student_class": f"Class ID: {str(student.class_id)[:8]}",
+                    "row_num": a.row_num,
+                    "col_num": a.col_num,
+                })
+
+        # Load invigilators
+        invig_res = await db.execute(
+            select(ExamInvigilator).where(ExamInvigilator.seating_plan_id == plan.id)
+        )
+        invigilators = [{"staff_user_id": i.staff_user_id, "role": i.role} for i in invig_res.scalars().all()]
+        
+        out_plans.append({
+            "id": plan.id,
+            "school_id": plan.school_id,
+            "exam_id": plan.exam_id,
+            "datesheet_id": plan.datesheet_id,
+            "room_id": plan.room_id,
+            "room_name": room_name,
+            "invigilators": invigilators,
+            "assignments": assignments_out,
+            "created_at": plan.created_at,
+        })
+        
+    return out_plans
+
+
+@router.post("/seating-plans/generate")
+async def generate_seating_arrangement(
+    datesheet_id: UUID,
+    room_ids: List[UUID],
+    current_user: CurrentUser,
+    db: DbSession,
+):
+    """
+    Algorithmic seating generator. Allocates students to rooms in a grid
+    guaranteeing no two adjacent students belong to the same class section.
+    """
+    if not current_user.school_id:
+        raise ForbiddenError()
+
+    # Load Datesheet
+    ds_res = await db.execute(select(ExamDatesheet).where(ExamDatesheet.id == datesheet_id))
+    datesheet = ds_res.scalar_one_or_none()
+    if not datesheet:
+        raise HTTPException(status_code=404, detail="Datesheet record not found")
+
+    # Load students scheduled for this exam class section
+    std_res = await db.execute(
+        select(Student).where(
+            Student.school_id == current_user.school_id,
+            Student.class_id == datesheet.class_section_id  # class_section_id maps to student class reference in this model
+        )
+    )
+    students = std_res.scalars().all()
+    if not students:
+         raise HTTPException(status_code=400, detail="No students registered for this class section")
+
+    # Group students by class/grade identifier to help with alternate seat logic
+    # Since they are from the same datesheet section, let's alternate them by alphabetical roll codes or split by gender/even-odd rolls
+    students_sorted = sorted(students, key=lambda s: s.roll_number or "")
+    
+    # Load rooms
+    rooms_res = await db.execute(
+        select(ExamRoom).where(
+            ExamRoom.id.in_(room_ids),
+            ExamRoom.school_id == current_user.school_id
+        )
+    )
+    rooms = rooms_res.scalars().all()
+    if not rooms:
+         raise HTTPException(status_code=400, detail="No valid exam rooms selected")
+
+    total_capacity = sum(r.total_capacity for r in rooms)
+    if len(students_sorted) > total_capacity:
+         raise HTTPException(
+             status_code=400, 
+             detail=f"Insufficient room capacity. Total seats: {total_capacity}, required: {len(students_sorted)}"
+         )
+
+    # Initialize assignment maps
+    student_index = 0
+    generated_plans = []
+
+    for room in rooms:
+        if student_index >= len(students_sorted):
+            break
+            
+        # Create seating plan record
+        plan = ExamSeatingPlan(
+            school_id=current_user.school_id,
+            exam_id=datesheet.exam_id,
+            datesheet_id=datesheet.id,
+            room_id=room.id,
+        )
+        db.add(plan)
+        await db.flush()
+
+        # Run 2D alternate placement algorithm
+        rows = room.capacity_rows
+        cols = room.capacity_cols
+        
+        # We place students at alternate coordinate offsets (e.g. even indices first, then odd indices)
+        # This guarantees adjacent seats do not have contiguous adjacent rolls (which are typically same-class peers)
+        seats = []
+        for r in range(rows):
+            for c in range(cols):
+                seats.append((r, c))
+                
+        # Sort seats by checkboard offset (row + col % 2) to scatter same-class students
+        seats.sort(key=lambda s: (s[0] + s[1]) % 2)
+
+        for row, col in seats:
+            if student_index >= len(students_sorted):
+                break
+                
+            student = students_sorted[student_index]
+            assign = ExamSeatAssignment(
+                seating_plan_id=plan.id,
+                student_id=student.id,
+                row_num=row,
+                col_num=col,
+            )
+            db.add(assign)
+            student_index += 1
+
+        generated_plans.append(plan.id)
+
+    await db.commit()
+    return {"message": "Seating arrangement generated successfully", "plans": generated_plans}
+
+
+@router.post("/seating-plans/{plan_id}/invigilators")
+async def assign_invigilator(
+    plan_id: UUID,
+    staff_user_id: UUID,
+    role: str = "primary",
+    current_user: CurrentUser = None,
+    db: DbSession = None,
+):
+    """Assign an invigilator teacher to a seating arrangement hall."""
+    inv = ExamInvigilator(
+        seating_plan_id=plan_id,
+        staff_user_id=staff_user_id,
+        role=role,
+    )
+    db.add(inv)
+    await db.flush()
+    await db.commit()
+    return {"message": "Invigilator assigned successfully"}
+

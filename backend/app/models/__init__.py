@@ -59,6 +59,9 @@ from app.models.curriculum import (
 from app.models.visitors import (
     VisitorPass, VisitorBlacklist,
 )
+from app.models.owner_insights import OwnerAiInsight
+from app.models.documents import SchoolDocument, DocumentTemplate, IssuedCertificate
+from app.models.exams import ExamRoom, ExamSeatingPlan, ExamSeatAssignment, ExamInvigilator
 
 __all__ = [
     "School", "Profile", "UserRole", "SchoolMembership", "SchoolBranding",
@@ -96,4 +99,7 @@ __all__ = [
     "CurriculumPreset", "LearningOutcome", "AssessmentLOMapping",
     "AssessmentCriteria", "CriteriaScore", "StrandAssessment", "GradeBoundary",
     "VisitorPass", "VisitorBlacklist",
+    "OwnerAiInsight",
+    "SchoolDocument", "DocumentTemplate", "IssuedCertificate",
+    "ExamRoom", "ExamSeatingPlan", "ExamSeatAssignment", "ExamInvigilator",
 ]

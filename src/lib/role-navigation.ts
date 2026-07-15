@@ -3,7 +3,7 @@ import {
   KanbanSquare, LayoutGrid, Megaphone, MessageSquare, NotebookPen,
   ShieldAlert, ShieldCheck, Shield, Users, FileText, PartyPopper, UserPlus,
   Briefcase, Wallet, Receipt, FileSignature, ClipboardList, Heart, PhoneCall, Target,
-  AlertTriangle, Sparkles, Smile,
+  AlertTriangle, Sparkles, Smile, Brain, FolderOpen, Grid3X3,
 } from "lucide-react";
 import type { EduverseRole } from "@/lib/eduverse-roles";
 
@@ -39,6 +39,8 @@ export const NAV_CATALOG: NavItem[] = [
     roles: ["super_admin","school_owner","principal","vice_principal","school_admin","academic_coordinator","teacher","student","parent","counselor"] },
   { key: "exams", label: "Exams", icon: FileSignature, group: "academics", path: "exams",
     roles: ["super_admin","school_owner","principal","vice_principal","school_admin","academic_coordinator","teacher","student","parent"] },
+  { key: "seating-plan", label: "Seating Planner", icon: Grid3X3, group: "academics", path: "seating-plan",
+    roles: ["super_admin","school_owner","principal","vice_principal","school_admin","academic_coordinator","teacher"] },
   { key: "report-cards", label: "Report Cards", icon: FileText, group: "academics", path: "report-cards",
     roles: ["super_admin","school_owner","principal","vice_principal","school_admin","academic_coordinator","teacher","student","parent"] },
   { key: "curriculum", label: "Curriculum Standards", icon: BookOpen, group: "academics", path: "curriculum",
@@ -119,6 +121,10 @@ export const NAV_CATALOG: NavItem[] = [
   // Operations
   { key: "complaints", label: "Complaints", icon: ShieldAlert, group: "operations", path: "complaints",
     roles: ["super_admin","school_owner","principal","vice_principal","school_admin"] },
+  { key: "owner-insights", label: "AI Board Insights", icon: Brain, group: "operations", path: "owner-insights",
+    roles: ["super_admin","school_owner","principal","vice_principal"] },
+  { key: "doc-management", label: "DMS Vault", icon: FolderOpen, group: "operations", path: "doc-management",
+    roles: ["super_admin","school_owner","principal","vice_principal","school_admin","academic_coordinator","teacher","hr_manager"] },
   { key: "gate-visitor", label: "Gate Console", icon: Shield, group: "operations", path: "gate-visitor",
     roles: ["super_admin","school_owner","principal","vice_principal","school_admin"] },
   { key: "at-risk", label: "At-Risk Students", icon: AlertTriangle, group: "operations", path: "at-risk",

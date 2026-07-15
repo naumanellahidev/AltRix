@@ -1768,3 +1768,125 @@ class AnnualFunctionPlanOut(BaseModel):
 
     model_config = {"from_attributes": True}
 
+
+# ─── OWNER AI INSIGHTS ────────────────────────────────────────────────────────
+
+class OwnerAiInsightOut(BaseModel):
+    id: UUID
+    school_id: UUID
+    revenue_forecast: Optional[dict] = None
+    enrollment_forecast: Optional[dict] = None
+    teacher_risk_scores: Optional[dict] = None
+    parent_sentiments: Optional[dict] = None
+    benchmark_scores: Optional[dict] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+    model_config = {"from_attributes": True}
+
+
+# ─── DOCUMENT MANAGEMENT SYSTEM (DMS) ─────────────────────────────────────────
+
+class SchoolDocumentCreate(BaseModel):
+    owner_type: str  # student, staff
+    owner_id: UUID
+    document_type: str
+    file_name: str
+    file_url: str
+    expiry_date: Optional[str] = None  # YYYY-MM-DD
+
+
+class SchoolDocumentOut(BaseModel):
+    id: UUID
+    school_id: UUID
+    owner_type: str
+    owner_id: UUID
+    document_type: str
+    file_name: str
+    file_url: str
+    expiry_date: Optional[date] = None
+    created_at: Optional[datetime] = None
+
+    model_config = {"from_attributes": True}
+
+
+class DocumentTemplateOut(BaseModel):
+    id: UUID
+    school_id: UUID
+    template_name: str
+    body_content: str
+    created_at: Optional[datetime] = None
+
+    model_config = {"from_attributes": True}
+
+
+class IssuedCertificateCreate(BaseModel):
+    student_id: UUID
+    template_name: str
+    content: str
+    digital_signature_name: Optional[str] = None
+    digital_signature_title: Optional[str] = None
+
+
+class IssuedCertificateOut(BaseModel):
+    id: UUID
+    school_id: UUID
+    student_id: UUID
+    template_name: str
+    content: str
+    digital_signature_name: Optional[str] = None
+    digital_signature_title: Optional[str] = None
+    signed_at: Optional[datetime] = None
+    created_at: Optional[datetime] = None
+
+    model_config = {"from_attributes": True}
+
+
+# ─── EXAMS SEATING ARRANGEMENTS & ROOMS ───────────────────────────────────────
+
+class ExamRoomCreate(BaseModel):
+    room_name: str
+    capacity_rows: int
+    capacity_cols: int
+
+
+class ExamRoomOut(BaseModel):
+    id: UUID
+    school_id: UUID
+    room_name: str
+    capacity_rows: int
+    capacity_cols: int
+    total_capacity: int
+    created_at: Optional[datetime] = None
+
+    model_config = {"from_attributes": True}
+
+
+class ExamSeatAssignmentOut(BaseModel):
+    id: UUID
+    seating_plan_id: UUID
+    student_id: UUID
+    student_name: str
+    student_roll: str
+    student_class: str
+    row_num: int
+    col_num: int
+    created_at: Optional[datetime] = None
+
+    model_config = {"from_attributes": True}
+
+
+class ExamSeatingPlanOut(BaseModel):
+    id: UUID
+    school_id: UUID
+    exam_id: UUID
+    datesheet_id: UUID
+    room_id: UUID
+    room_name: str
+    invigilators: List[dict] = []
+    assignments: List[ExamSeatAssignmentOut] = []
+    created_at: Optional[datetime] = None
+
+    model_config = {"from_attributes": True}
+
+
