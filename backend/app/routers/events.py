@@ -282,9 +282,6 @@ async def add_event_photo(event_id: UUID, body: PhotoCreate, current_user: Curre
     )
 
 
-    )
-
-
 # ── Event RSVPs ──────────────────────────────────────────────────────────────
 
 @router.post("/{event_id}/rsvp", response_model=EventRSVPOut, status_code=status.HTTP_201_CREATED)
