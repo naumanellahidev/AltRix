@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     app_name: str = "AltRix School ERP API"
     app_version: str = "1.0.0"
     secret_key: str = "change-this-in-production"
-    port: int = 8000
+    port: int = 10000
     debug: bool = False
 
     # Database
