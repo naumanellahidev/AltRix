@@ -6,7 +6,7 @@ from datetime import date, datetime
 from typing import Optional
 from sqlalchemy import Boolean, Date, DateTime, Float, ForeignKey, Integer, String, Text, JSON
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship as orm_relationship
 from sqlalchemy.sql import func
 from sqlalchemy.ext.hybrid import hybrid_property
 
@@ -181,7 +181,7 @@ class ExamRoom(Base):
     created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=True)
 
     # Relationships
-    school = relationship = orm_relationship("School")
+    school = orm_relationship("School")
 
 
 class ExamSeatingPlan(Base):
