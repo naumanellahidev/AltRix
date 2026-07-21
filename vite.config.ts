@@ -14,7 +14,7 @@ export default defineConfig(({ mode }) => ({
     },
     proxy: {
       "/api": {
-        target: "http://127.0.0.1:8000",
+        target: "http://127.0.0.1:10000",
         changeOrigin: true,
         ws: true,
         configure: (proxy) => {
@@ -27,7 +27,7 @@ export default defineConfig(({ mode }) => ({
               res.end(
                 JSON.stringify({
                   error: "Bad Gateway",
-                  message: "FastAPI Backend is not reachable. Ensure the backend server is running on port 8000.",
+                  message: "FastAPI Backend is not reachable. Ensure the backend server is running on port 10000.",
                 })
               );
             }
@@ -41,7 +41,7 @@ export default defineConfig(({ mode }) => ({
     port: 4173,
     proxy: {
       "/api": {
-        target: "http://127.0.0.1:8000",
+        target: "http://127.0.0.1:10000",
         changeOrigin: true,
         ws: true,
         configure: (proxy) => {
@@ -54,7 +54,7 @@ export default defineConfig(({ mode }) => ({
               res.end(
                 JSON.stringify({
                   error: "Bad Gateway",
-                  message: "FastAPI Backend is not reachable. Ensure the backend server is running on port 8000.",
+                  message: "FastAPI Backend is not reachable. Ensure the backend server is running on port 10000.",
                 })
               );
             }
