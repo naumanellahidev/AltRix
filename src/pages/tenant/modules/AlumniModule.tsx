@@ -240,9 +240,9 @@ export function AlumniModule() {
           <Card className="bg-zinc-950 border-zinc-800/50">
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle className="text-lg font-bold text-white flex items-center gap-2">
-                <Calendar className="h-5 w-5 text-emerald-400" /> Reunions & Mentorship Guest Lectures
+                <Calendar className="h-5 w-5 text-cyan-400" /> Reunions & Mentorship Guest Lectures
               </CardTitle>
-              <Button onClick={() => setShowEventModal(true)} className="bg-gradient-to-r from-emerald-500 to-emerald-600 text-zinc-950 font-bold">
+              <Button onClick={() => setShowEventModal(true)} className="bg-gradient-to-r from-cyan-500 to-blue-600 text-zinc-950 font-bold">
                 <Plus className="h-4 w-4 mr-2" /> Schedule Reunion Event
               </Button>
             </CardHeader>

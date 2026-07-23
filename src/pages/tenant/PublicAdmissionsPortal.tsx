@@ -155,7 +155,7 @@ export function PublicAdmissionsPortal() {
                   <div className="flex gap-2 mt-1">
                     <Input value={lookupCode} onChange={e => setLookupCode(e.target.value)}
                       className="bg-zinc-950 border-zinc-800 text-white font-mono uppercase" placeholder="ADM-2026-X9A7" />
-                    <Button onClick={handleCheckStatus} disabled={loading} className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold">
+                    <Button onClick={handleCheckStatus} disabled={loading} className="bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-zinc-950 font-bold">
                       Track
                     </Button>
                   </div>
