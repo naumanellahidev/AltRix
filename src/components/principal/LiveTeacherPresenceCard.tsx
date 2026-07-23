@@ -34,7 +34,6 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useLiveTeacherPresence, LiveTeacherStatus } from "@/hooks/useLiveTeacherPresence";
 import { exportToCSV } from "@/lib/csv";
-import { cn } from "@/lib/utils";
 
 interface Props {
   schoolId: string | null;
