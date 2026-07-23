@@ -69,12 +69,13 @@ apiClient.interceptors.request.use(
         if (!schoolId) {
           const pathParts = window.location.pathname.split("/").filter(Boolean);
           const possibleSlug = pathParts[0];
-        if (possibleSlug && possibleSlug !== "platform" && possibleSlug !== "auth") {
-          const item = localStorage.getItem(`eduverse_tenant_${possibleSlug}`);
-          if (item) {
-            const parsed = JSON.parse(item);
-            if (parsed?.data?.id) {
-              schoolId = parsed.data.id;
+          if (possibleSlug && possibleSlug !== "platform" && possibleSlug !== "auth") {
+            const item = localStorage.getItem(`eduverse_tenant_${possibleSlug}`);
+            if (item) {
+              const parsed = JSON.parse(item);
+              if (parsed?.data?.id) {
+                schoolId = parsed.data.id;
+              }
             }
           }
         }
