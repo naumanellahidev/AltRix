@@ -51,6 +51,10 @@ import DocManagementModule from "@/pages/tenant/modules/DocManagementModule";
 import { InventoryModule } from "@/pages/tenant/modules/InventoryModule";
 import { AlumniModule } from "@/pages/tenant/modules/AlumniModule";
 import { PublicAdmissionsPortal } from "@/pages/tenant/PublicAdmissionsPortal";
+import CurriculumModule from "@/pages/tenant/modules/CurriculumModule";
+import EventsModule from "@/pages/tenant/modules/EventsModule";
+import GateVisitorModule from "@/pages/tenant/modules/GateVisitorModule";
+import StaffAppraisalModule from "@/pages/tenant/modules/StaffAppraisalModule";
 
 import { HrLeavesModule } from "@/pages/tenant/hr-modules/HrLeavesModule";
 import { HrSalariesModule } from "@/pages/tenant/hr-modules/HrSalariesModule";
@@ -160,6 +164,10 @@ export const MODULE_REGISTRY: Record<string, ModuleEntry> = {
   alumni:           { Component: AlumniModule },
   "public-admissions": { Component: PublicAdmissionsPortal },
   "doc-management": { Component: DocManagementModule },
+  curriculum:       { Component: CurriculumModule },
+  events:           { Component: EventsModule },
+  "gate-visitor":   { Component: GateVisitorModule },
+  "staff-appraisals": { Component: StaffAppraisalModule },
   notices:          { Component: NoticesModule,  propsFor: (c) => ({ schoolId: c.schoolId, canManage: true }) },
   holidays:   { Component: HolidaysModule, propsFor: (c) => ({ schoolId: c.schoolId, canManage: isGov(c.roles) }) },
   reports:    { Component: ReportsModule },
