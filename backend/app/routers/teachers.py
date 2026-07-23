@@ -29,7 +29,7 @@ async def list_teachers(
     current_user: CurrentUser,
     db: DbSession,
     page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1, le=200),
+    page_size: int = Query(20, ge=1, le=10000),
     search: Optional[str] = Query(None),
     campus_id: Optional[UUID] = Query(None),
 ):
