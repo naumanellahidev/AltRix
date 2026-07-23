@@ -211,22 +211,35 @@ async def list_reservations(current_user: CurrentUser, db: DbSession):
     except Exception:
         return []
 
-@router.post("/reserve", response_model=ReservationOutSchema)
-async def reserve_book(payload: ReservationCreateSchema, current_user: CurrentUser, db: DbSession):
+@router.put("/books/{book_id}", response_model=BookOutSchema)
+async def update_book(book_id: UUID, payload: BookCreateSchema, current_user: CurrentUser, db: DbSession):
     if not current_user.school_id:
         raise HTTPException(status_code=400, detail="User has no associated school")
-    student_uuid = _parse_or_generate_uuid(payload.student_id)
-    reservation = BookReservation(
-        school_id=current_user.school_id,
-        book_id=payload.book_id,
-        student_id=student_uuid,
-        status="pending"
-    )
-    db.add(reservation)
+    stmt = select(LibraryBook).where(LibraryBook.id == book_id, LibraryBook.school_id == current_user.school_id)
+    res = await db.execute(stmt)
+    book = res.scalar_one_or_none()
+    if not book:
+        raise HTTPException(status_code=404, detail="Book not found")
+    
+    for key, value in payload.model_dump(exclude_unset=True).items():
+        setattr(book, key, value)
+    
     await db.commit()
-    await db.refresh(reservation)
-    return reservation
-    db.add(reservation)
+    await db.refresh(book)
+    return book
+
+
+@router.delete("/books/{book_id}")
+async def delete_book(book_id: UUID, current_user: CurrentUser, db: DbSession):
+    if not current_user.school_id:
+        raise HTTPException(status_code=400, detail="User has no associated school")
+    stmt = select(LibraryBook).where(LibraryBook.id == book_id, LibraryBook.school_id == current_user.school_id)
+    res = await db.execute(stmt)
+    book = res.scalar_one_or_none()
+    if not book:
+        raise HTTPException(status_code=404, detail="Book not found")
+    
+    await db.delete(book)
     await db.commit()
-    await db.refresh(reservation)
-    return reservation
+    return {"message": "Book deleted successfully"}
+

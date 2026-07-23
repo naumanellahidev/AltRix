@@ -193,12 +193,23 @@ export function LibraryModule() {
   const handleUpdateBook = async () => {
     if (!showEditBook) return;
     try {
-      await apiClient.post("/library/books", showEditBook);
+      await apiClient.put(`/library/books/${showEditBook.id}`, showEditBook);
       toast.success("Book details updated");
       setShowEditBook(null);
       loadBooks();
     } catch (err: any) {
       toast.error(getErrorMessage(err, "Failed to update book"));
+    }
+  };
+
+  const handleDeleteBook = async (bookId: string, title: string) => {
+    if (!confirm(`Are you sure you want to remove "${title}" from the catalog?`)) return;
+    try {
+      await apiClient.delete(`/library/books/${bookId}`);
+      toast.success(`"${title}" deleted successfully`);
+      loadBooks();
+    } catch (err: any) {
+      toast.error(getErrorMessage(err, "Failed to delete book"));
     }
   };
 
@@ -464,6 +475,9 @@ export function LibraryModule() {
                         <Button size="icon" variant="ghost" title="Reserve Queue" onClick={() => handleReserveBook(b.id)} className="h-8 w-8 text-slate-600 hover:text-emerald-600">
                           <BookmarkCheck className="h-4 w-4" />
                         </Button>
+                        <Button size="icon" variant="ghost" title="Delete Book" onClick={() => handleDeleteBook(b.id, b.title)} className="h-8 w-8 text-slate-600 hover:text-rose-600">
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
                       </div>
                       <Button
                         size="sm"
@@ -525,8 +539,11 @@ export function LibraryModule() {
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-1">
-                            <Button size="sm" variant="ghost" title="Edit" onClick={() => setShowEditBook(b)} className="h-8 text-slate-600">
+                            <Button size="sm" variant="ghost" title="Edit" onClick={() => setShowEditBook(b)} className="h-8 text-slate-600 hover:text-blue-600">
                               <Edit3 className="h-4 w-4" />
+                            </Button>
+                            <Button size="sm" variant="ghost" title="Delete" onClick={() => handleDeleteBook(b.id, b.title)} className="h-8 text-slate-600 hover:text-rose-600">
+                              <Trash2 className="h-4 w-4" />
                             </Button>
                             <Button size="sm" onClick={() => { setNewIssue({ ...newIssue, book_id: b.id }); setShowIssueModal(true); }} className="bg-blue-600 hover:bg-blue-700 text-white font-medium">
                               Issue

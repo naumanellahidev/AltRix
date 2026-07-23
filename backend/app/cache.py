@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import time
 from typing import Any, Optional
 
 import redis.asyncio as aioredis
@@ -9,8 +10,10 @@ from app.config import settings
 
 logger = logging.getLogger("app.cache")
 
-# Singleton Redis pool
+# Singleton Redis pool & connection attempt state
 _redis_pool: Optional[aioredis.Redis] = None
+_last_redis_attempt: float = 0.0
+_redis_retry_cooldown: float = 60.0  # Wait 60s before retrying failed Redis connection to prevent per-request latency
 
 
 # ─── TTL Constants (seconds) ──────────────────────────────────────────────────
@@ -24,22 +27,32 @@ TTL_SCHOOL_INFO = 1800       # 30 minutes
 
 
 async def init_redis() -> Optional[aioredis.Redis]:
-    """Initialize and return the Redis connection pool."""
-    global _redis_pool
+    """Initialize and return the Redis connection pool with cooldown on failure."""
+    global _redis_pool, _last_redis_attempt
+    now = time.time()
+
+    # If we tried recently and failed, return None immediately without blocking HTTP requests
+    if _redis_pool is None and (now - _last_redis_attempt) < _redis_retry_cooldown:
+        return None
+
+    _last_redis_attempt = now
+
     if _redis_pool is None:
-        _redis_pool = aioredis.from_url(
-            settings.redis_url,
-            encoding="utf-8",
-            decode_responses=True,
-            max_connections=settings.redis_pool_size,
-        )
-        # Verify connection
         try:
-            await _redis_pool.ping()
+            pool = aioredis.from_url(
+                settings.redis_url,
+                encoding="utf-8",
+                decode_responses=True,
+                max_connections=settings.redis_pool_size,
+                socket_connect_timeout=0.5,  # 500ms max timeout
+            )
+            await pool.ping()
+            _redis_pool = pool
             logger.info(f"Redis connected: {settings.redis_url}")
         except Exception as e:
-            logger.warning(f"Redis unavailable: {e} — cache disabled, running without cache")
+            logger.warning(f"Redis unavailable: {e} — cache disabled, running without cache (retry in 60s)")
             _redis_pool = None
+
     return _redis_pool
 
 
@@ -47,7 +60,10 @@ async def close_redis():
     """Close the Redis connection pool."""
     global _redis_pool
     if _redis_pool:
-        await _redis_pool.aclose()
+        try:
+            await _redis_pool.aclose()
+        except Exception:
+            pass
         _redis_pool = None
         logger.info("Redis connection closed")
 
@@ -265,5 +281,3 @@ def cache_key_campus_switch(user_id: str) -> str:
 
 def cache_key_school_info(school_id: str) -> str:
     return cache.build_key(school_id=school_id, base_key="school")
-
-
