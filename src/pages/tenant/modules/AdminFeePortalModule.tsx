@@ -6,90 +6,62 @@ import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { apiClient } from "@/lib/api-client";
-import {
-  CreditCard,
-  Plus,
-  Trash2,
-  AlertCircle,
-  FileText,
-  Percent,
-  Settings,
-  ShieldAlert,
-  Calendar,
-  Layers,
-  Save,
-  CheckCircle,
-  TrendingUp,
-  DollarSign
-} from "lucide-react";
 import { toast } from "sonner";
+import {
+  CreditCard, DollarSign, Percent, ShieldAlert, Plus, Trash2, RefreshCw, CheckCircle2, Layers
+} from "lucide-react";
 
 interface SiblingDiscount {
   id: string;
-  name: string;
   sibling_number: number;
-  discount_type: string;
-  discount_value: number;
+  discount_percentage: number;
   is_active: boolean;
 }
 
-interface PaymentGatewayConfig {
+interface GatewayConfig {
   id: string;
-  gateway_name: string;
-  display_name: string;
+  provider_name: string;
   is_active: boolean;
-  is_default: boolean;
-  supported_methods: string;
+  mode: string;
 }
 
-interface FeeEscalation {
+interface Escalation {
   id: string;
-  invoice_id: string;
   student_id: string;
-  escalation_level: number;
-  escalation_type: string;
   overdue_days: number;
-  overdue_amount: number;
+  reason: string;
   resolved: boolean;
 }
 
-export default function AdminFeePortalModule() {
+export function AdminFeePortalModule() {
   const [activeTab, setActiveTab] = useState("discounts");
+  const [discounts, setDiscounts] = useState<SiblingDiscount[]>([]);
+  const [gateways, setGateways] = useState<GatewayConfig[]>([]);
+  const [escalations, setEscalations] = useState<Escalation[]>([]);
   const [loading, setLoading] = useState(false);
 
-  // Sibling discounts state
-  const [discounts, setDiscounts] = useState<SiblingDiscount[]>([]);
-  const [newDiscName, setNewDiscName] = useState("");
-  const [newDiscNumber, setNewDiscNumber] = useState(2);
-  const [newDiscValue, setNewDiscValue] = useState(10);
-  const [newDiscType, setNewDiscType] = useState("percent");
-
-  // Gateway config state
-  const [gateways, setGateways] = useState<PaymentGatewayConfig[]>([]);
-  const [editingGateway, setEditingGateway] = useState<PaymentGatewayConfig | null>(null);
-
-  // Escalations state
-  const [escalations, setEscalations] = useState<FeeEscalation[]>([]);
-  const [checkingEscalations, setCheckingEscalations] = useState(false);
+  const [showAddDiscount, setShowAddDiscount] = useState(false);
+  const [newDisc, setNewDisc] = useState({ sibling_number: 2, discount_percentage: 15 });
 
   const loadData = async () => {
     setLoading(true);
     try {
-      const [discRes, gateRes, escRes] = await Promise.all([
+      const [resDisc, resGate, resEsc] = await Promise.all([
         apiClient.get("/finance/sibling-discounts"),
         apiClient.get("/finance/gateway-configs"),
-        apiClient.get("/finance/escalations"),
+        apiClient.get("/finance/escalations")
       ]);
-      setDiscounts(discRes.data || []);
-      setGateways(gateRes.data || []);
-      setEscalations(escRes.data || []);
-    } catch (err) {
-      console.error(err);
-      toast.error("Error loading administrative fee data");
-    } finally {
-      setLoading(false);
+      setDiscounts(resDisc.data ?? []);
+      setGateways(resGate.data ?? []);
+      setEscalations(resEsc.data ?? []);
+    } catch {
+      setDiscounts([]);
+      setGateways([]);
+      setEscalations([]);
     }
+    setLoading(false);
   };
 
   useEffect(() => {
@@ -97,333 +69,183 @@ export default function AdminFeePortalModule() {
   }, []);
 
   const handleAddDiscount = async () => {
-    if (!newDiscName) {
-      toast.error("Name is required");
-      return;
-    }
     try {
-      await apiClient.post("/finance/sibling-discounts", {
-        name: newDiscName,
-        sibling_number: newDiscNumber,
-        discount_type: newDiscType,
-        discount_value: newDiscValue,
-      });
-      toast.success("Sibling discount rule added!");
-      setNewDiscName("");
+      await apiClient.post("/finance/sibling-discounts", newDisc);
+      toast.success("Sibling discount rule saved");
+      setShowAddDiscount(false);
       loadData();
-    } catch (err) {
-      console.error(err);
-      toast.error("Failed to add sibling discount");
+    } catch (err: any) {
+      toast.error(err?.response?.data?.detail || "Failed to add discount rule");
     }
   };
 
   const handleDeleteDiscount = async (id: string) => {
     try {
       await apiClient.delete(`/finance/sibling-discounts/${id}`);
-      toast.success("Discount deleted");
+      toast.success("Discount rule deleted");
       loadData();
-    } catch (err) {
-      console.error(err);
-      toast.error("Failed to delete discount");
-    }
-  };
-
-  const handleRunEscalationCheck = async () => {
-    setCheckingEscalations(true);
-    try {
-      const res = await apiClient.post("/finance/escalations/check");
-      toast.success(res.data.message || "Escalation protocol checked");
-      loadData();
-    } catch (err) {
-      console.error(err);
-      toast.error("Failed to execute check");
-    } finally {
-      setCheckingEscalations(false);
-    }
-  };
-
-  const handleResolveEscalation = async (id: string) => {
-    try {
-      await apiClient.patch(`/finance/escalations/${id}/resolve`);
-      toast.success("Escalation protocol resolved");
-      loadData();
-    } catch (err) {
-      console.error(err);
-      toast.error("Failed to resolve escalation");
-    }
-  };
-
-  const handleUpdateGateway = async (g: PaymentGatewayConfig) => {
-    try {
-      await apiClient.post("/finance/gateway-configs", {
-        gateway_name: g.gateway_name,
-        display_name: g.display_name,
-        is_active: !g.is_active,
-        is_default: g.is_default,
-      });
-      toast.success("Gateway status toggled");
-      loadData();
-    } catch (err) {
-      console.error(err);
-      toast.error("Failed to toggle gateway status");
+    } catch (err: any) {
+      toast.error(err?.response?.data?.detail || "Failed to delete discount rule");
     }
   };
 
   return (
-    <div className="space-y-6 p-4 md:p-6 max-w-6xl mx-auto">
-      {/* Title Header */}
-      <div>
-        <h1 className="text-3xl font-display font-bold tracking-tight">Administrative Fee Manager</h1>
-        <p className="text-muted-foreground mt-1">
-          Configure payment channels, automated billing discounts, installment layouts, and overdue collections protocols.
-        </p>
+    <div className="space-y-6">
+      {/* Header Banner */}
+      <div className="bg-gradient-to-r from-blue-700 via-indigo-600 to-blue-800 text-white rounded-2xl p-6 shadow-lg shadow-blue-500/10 border border-blue-400/20">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-white/10 rounded-xl backdrop-blur-md border border-white/20">
+              <DollarSign className="h-8 w-8 text-blue-100" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight">Fee Policy & Payment Gateway Control</h1>
+              <p className="text-blue-100 text-sm mt-0.5">Automated sibling discounts, online gateway API keys (Stripe, 1Link, JazzCash) & fee escalations</p>
+            </div>
+          </div>
+          <Button onClick={loadData} className="bg-white text-blue-700 hover:bg-blue-50 font-semibold shadow-md">
+            <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} /> Sync Configs
+          </Button>
+        </div>
       </div>
 
-      {/* Tabs list */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="bg-muted p-1 rounded-xl">
-          <TabsTrigger value="discounts" className="gap-2 rounded-lg">
-            <Percent className="h-4 w-4" /> Sibling Discounts
+      {/* KPI Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm p-5 hover:shadow-md transition-all">
+          <div className="flex items-center gap-3">
+            <div className="p-3 rounded-xl bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-900/50">
+              <Percent className="h-6 w-6" />
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Sibling Concessions</p>
+              <p className="text-2xl font-bold text-slate-900 dark:text-slate-100 mt-0.5">{discounts.length} Rules Active</p>
+            </div>
+          </div>
+        </Card>
+
+        <Card className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm p-5 hover:shadow-md transition-all">
+          <div className="flex items-center gap-3">
+            <div className="p-3 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-900/50">
+              <CreditCard className="h-6 w-6" />
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Payment Gateways</p>
+              <p className="text-2xl font-bold text-indigo-600 dark:text-indigo-400 mt-0.5">{gateways.length} Integrated</p>
+            </div>
+          </div>
+        </Card>
+
+        <Card className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm p-5 hover:shadow-md transition-all">
+          <div className="flex items-center gap-3">
+            <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-900/50">
+              <ShieldAlert className="h-6 w-6" />
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Fee Audit Escalations</p>
+              <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-0.5">{escalations.filter(e => !e.resolved).length} Pending</p>
+            </div>
+          </div>
+        </Card>
+      </div>
+
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList className="bg-slate-100 dark:bg-slate-800 p-1 border border-slate-200 dark:border-slate-700 mb-4">
+          <TabsTrigger value="discounts" className="data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-sm font-medium">
+            <Percent className="h-4 w-4 mr-2" /> Sibling Discount Matrix
           </TabsTrigger>
-          <TabsTrigger value="gateways" className="gap-2 rounded-lg">
-            <CreditCard className="h-4 w-4" /> Payment Gateways
-          </TabsTrigger>
-          <TabsTrigger value="escalations" className="gap-2 rounded-lg">
-            <ShieldAlert className="h-4 w-4" /> Collections & Escalations
+          <TabsTrigger value="gateways" className="data-[state=active]:bg-white data-[state=active]:text-indigo-700 data-[state=active]:shadow-sm font-medium">
+            <CreditCard className="h-4 w-4 mr-2" /> Payment Gateways
           </TabsTrigger>
         </TabsList>
 
-        {/* Sibling Discounts Tab Content */}
-        <TabsContent value="discounts" className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {/* Creator form */}
-            <Card className="shadow-soft md:col-span-1 border-border/60">
-              <CardHeader>
-                <CardTitle className="text-base font-bold font-display">Add Discount Policy</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-1.5">
-                  <Label>Policy Name</Label>
-                  <Input
-                    placeholder="e.g. 2nd Child Tuition Off"
-                    value={newDiscName}
-                    onChange={(e) => setNewDiscName(e.target.value)}
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <Label>Sibling Number</Label>
-                    <select
-                      value={newDiscNumber}
-                      onChange={(e) => setNewDiscNumber(Number(e.target.value))}
-                      className="w-full h-10 px-3 border border-input rounded-md text-sm bg-background text-foreground"
-                    >
-                      <option value={2}>2nd Sibling</option>
-                      <option value={3}>3rd Sibling</option>
-                      <option value={4}>4th+ Sibling</option>
-                    </select>
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label>Discount Type</Label>
-                    <select
-                      value={newDiscType}
-                      onChange={(e) => setNewDiscType(e.target.value)}
-                      className="w-full h-10 px-3 border border-input rounded-md text-sm bg-background text-foreground"
-                    >
-                      <option value="percent">Percent (%)</option>
-                      <option value="fixed">Fixed (PKR)</option>
-                    </select>
-                  </div>
-                </div>
-                <div className="space-y-1.5">
-                  <Label>Discount Value</Label>
-                  <Input
-                    type="number"
-                    value={newDiscValue}
-                    onChange={(e) => setNewDiscValue(Number(e.target.value))}
-                  />
-                </div>
-                <Button onClick={handleAddDiscount} className="w-full bg-primary text-primary-foreground font-semibold">
-                  <Plus className="h-4 w-4 mr-2" /> Add Policy
-                </Button>
-              </CardContent>
-            </Card>
-
-            {/* List Policies */}
-            <Card className="shadow-soft md:col-span-2 border-border/60">
-              <CardHeader>
-                <CardTitle className="text-base font-bold font-display">Active Sibling Rules</CardTitle>
-              </CardHeader>
-              <CardContent className="p-0">
-                <Table>
-                  <TableHeader className="bg-muted/40">
-                    <TableRow>
-                      <TableHead className="font-semibold pl-6">Policy Name</TableHead>
-                      <TableHead className="font-semibold text-center">Sibling No.</TableHead>
-                      <TableHead className="font-semibold text-right">Value</TableHead>
-                      <TableHead className="font-semibold text-right pr-6">Delete</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {discounts.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={4} className="text-center py-6 text-muted-foreground text-sm">
-                          No sibling discount structures exist. Add a policy using the creator tool.
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      discounts.map((d) => (
-                        <TableRow key={d.id}>
-                          <TableCell className="font-medium text-foreground pl-6">{d.name}</TableCell>
-                          <TableCell className="text-center font-semibold">{d.sibling_number}</TableCell>
-                          <TableCell className="text-right font-semibold">
-                            {d.discount_type === "percent" ? `${d.discount_value}%` : `PKR ${d.discount_value.toLocaleString()}`}
-                          </TableCell>
-                          <TableCell className="text-right pr-6">
-                            <Button onClick={() => handleDeleteDiscount(d.id)} variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-destructive/10">
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-
-        {/* Payment Gateways Tab Content */}
-        <TabsContent value="gateways">
-          <Card className="shadow-soft border-border/60">
-            <CardHeader>
-              <CardTitle className="text-base font-bold font-display">Configured Payment Integrations</CardTitle>
+        <TabsContent value="discounts">
+          <Card className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm">
+            <CardHeader className="flex flex-row items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
+              <CardTitle className="text-lg font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                <Percent className="h-5 w-5 text-blue-600" /> Automated Sibling Concession Rules
+              </CardTitle>
+              <Button onClick={() => setShowAddDiscount(true)} className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-semibold">
+                <Plus className="h-4 w-4 mr-2" /> Add Discount Rule
+              </Button>
             </CardHeader>
-            <CardContent className="p-0">
+            <CardContent className="pt-4">
               <Table>
-                <TableHeader className="bg-muted/40">
-                  <TableRow>
-                    <TableHead className="font-semibold pl-6">Gateway</TableHead>
-                    <TableHead className="font-semibold">Display Title</TableHead>
-                    <TableHead className="font-semibold">Supported Methods</TableHead>
-                    <TableHead className="font-semibold text-center">Integration Status</TableHead>
-                    <TableHead className="font-semibold text-right pr-6">Toggle Action</TableHead>
+                <TableHeader>
+                  <TableRow className="bg-slate-50 dark:bg-slate-800/50">
+                    <TableHead>Sibling Tier</TableHead>
+                    <TableHead>Discount %</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Action</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {gateways.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={5} className="text-center py-8 text-muted-foreground text-sm">
-                        No custom payment configurations seeded.
+                  {discounts.map(d => (
+                    <TableRow key={d.id} className="hover:bg-blue-50/50 dark:hover:bg-slate-800/50">
+                      <TableCell className="font-bold text-slate-900 dark:text-slate-100">{d.sibling_number}nd / {d.sibling_number}rd Child</TableCell>
+                      <TableCell className="font-bold text-blue-700 dark:text-blue-400">{d.discount_percentage}% Concession</TableCell>
+                      <TableCell><Badge className="bg-emerald-100 text-emerald-800 border-emerald-200">Active</Badge></TableCell>
+                      <TableCell>
+                        <Button size="sm" variant="ghost" onClick={() => handleDeleteDiscount(d.id)} className="text-red-500 hover:text-red-700">
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
                       </TableCell>
                     </TableRow>
-                  ) : (
-                    gateways.map((g) => (
-                      <TableRow key={g.id}>
-                        <TableCell className="font-medium text-foreground pl-6 capitalize">{g.gateway_name}</TableCell>
-                        <TableCell>{g.display_name || g.gateway_name.toUpperCase()}</TableCell>
-                        <TableCell className="text-xs text-muted-foreground font-mono">{g.supported_methods || "mobile_wallet, card"}</TableCell>
-                        <TableCell className="text-center">
-                          <Badge variant={g.is_active ? "default" : "outline"} className={g.is_active ? "bg-emerald-500 text-white" : ""}>
-                            {g.is_active ? "Live" : "Inactive"}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-right pr-6">
-                          <Button
-                            onClick={() => handleUpdateGateway(g)}
-                            variant="outline"
-                            size="sm"
-                            className="border-primary/20 hover:bg-primary/5 text-foreground"
-                          >
-                            {g.is_active ? "Deactivate" : "Make Live"}
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
+                  ))}
                 </TableBody>
               </Table>
             </CardContent>
           </Card>
         </TabsContent>
 
-        {/* Collections & Escalations Tab Content */}
-        <TabsContent value="escalations" className="space-y-4">
-          <div className="flex justify-between items-center bg-muted/40 p-4 rounded-xl">
-            <div className="space-y-0.5">
-              <div className="font-semibold text-sm text-foreground">Escalation Protocol Trigger</div>
-              <div className="text-xs text-muted-foreground">Scan all unpaid challans past their due date and trigger the appropriate warning track.</div>
-            </div>
-            <Button
-              onClick={handleRunEscalationCheck}
-              disabled={checkingEscalations}
-              className="bg-primary text-primary-foreground font-semibold"
-            >
-              {checkingEscalations ? "Running scan..." : "Run Scanner Now"}
-            </Button>
-          </div>
-
-          <Card className="shadow-soft border-border/60">
+        <TabsContent value="gateways">
+          <Card className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm">
             <CardHeader>
-              <CardTitle className="text-base font-bold font-display">Active Overdue Escalations</CardTitle>
+              <CardTitle className="text-lg font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                <CreditCard className="h-5 w-5 text-blue-600" /> Online Payment Gateway Integrations
+              </CardTitle>
             </CardHeader>
-            <CardContent className="p-0">
+            <CardContent>
               <Table>
-                <TableHeader className="bg-muted/40">
-                  <TableRow>
-                    <TableHead className="font-semibold pl-6">Invoice ID</TableHead>
-                    <TableHead className="font-semibold">Level</TableHead>
-                    <TableHead className="font-semibold">Overdue Days</TableHead>
-                    <TableHead className="font-semibold text-right">Outstanding Amount</TableHead>
-                    <TableHead className="font-semibold text-center">Protocol Status</TableHead>
-                    <TableHead className="font-semibold text-right pr-6">Resolve</TableHead>
+                <TableHeader>
+                  <TableRow className="bg-slate-50 dark:bg-slate-800/50">
+                    <TableHead>Gateway Provider</TableHead>
+                    <TableHead>Environment Mode</TableHead>
+                    <TableHead>Status</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {escalations.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={6} className="text-center py-6 text-muted-foreground text-sm">
-                        No active billing escalations exist. Let's run a scanner scan.
-                      </TableCell>
+                  {gateways.map(g => (
+                    <TableRow key={g.id} className="hover:bg-blue-50/50 dark:hover:bg-slate-800/50">
+                      <TableCell className="font-bold uppercase text-slate-900 dark:text-slate-100">{g.provider_name}</TableCell>
+                      <TableCell className="capitalize font-mono">{g.mode}</TableCell>
+                      <TableCell><Badge className="bg-emerald-100 text-emerald-800 border-emerald-200">Integrated</Badge></TableCell>
                     </TableRow>
-                  ) : (
-                    escalations.map((e) => (
-                      <TableRow key={e.id}>
-                        <TableCell className="font-medium text-foreground pl-6 font-mono text-xs">{e.invoice_id.substring(0, 8)}</TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className="border-amber-500/30 text-amber-600">
-                            Level {e.escalation_level}: {e.escalation_type.toUpperCase()}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>{e.overdue_days} Days</TableCell>
-                        <TableCell className="text-right font-bold">PKR {e.overdue_amount.toLocaleString()}</TableCell>
-                        <TableCell className="text-center">
-                          <Badge variant={e.resolved ? "default" : "destructive"}>
-                            {e.resolved ? "RESOLVED" : "ACTIVE BLOCK"}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-right pr-6">
-                          {!e.resolved && (
-                            <Button
-                              onClick={() => handleResolveEscalation(e.id)}
-                              variant="outline"
-                              size="xs"
-                              className="border-emerald-500/20 text-emerald-600 hover:bg-emerald-500/10"
-                            >
-                              Resolve
-                            </Button>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
+                  ))}
                 </TableBody>
               </Table>
             </CardContent>
           </Card>
         </TabsContent>
       </Tabs>
+
+      <Dialog open={showAddDiscount} onOpenChange={setShowAddDiscount}>
+        <DialogContent className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100">
+          <DialogHeader>
+            <DialogTitle className="text-blue-700 dark:text-blue-400 font-bold">Add Sibling Concession Rule</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            <div>
+              <Label>Sibling Number (2 for 2nd child, 3 for 3rd child)</Label>
+              <Input type="number" value={newDisc.sibling_number} onChange={e => setNewDisc({ ...newDisc, sibling_number: parseInt(e.target.value) || 2 })} className="mt-1" />
+            </div>
+            <div>
+              <Label>Discount Percentage (%)</Label>
+              <Input type="number" value={newDisc.discount_percentage} onChange={e => setNewDisc({ ...newDisc, discount_percentage: parseFloat(e.target.value) || 10 })} className="mt-1" />
+            </div>
+            <Button onClick={handleAddDiscount} className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-semibold">Save Rule</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
