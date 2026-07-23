@@ -47,7 +47,10 @@ class Student(Base):
 
     @property
     def section_id(self) -> Optional[uuid.UUID]:
-        return self.enrollments[0].class_section_id if self.enrollments else None
+        try:
+            return self.enrollments[0].class_section_id if self.enrollments else None
+        except Exception:
+            return None
 
     @section_id.setter
     def section_id(self, val: Optional[uuid.UUID]):

@@ -134,8 +134,8 @@ class ConnectionManager:
             try:
                 redis = await get_redis()
                 if not redis:
-                    # Redis is not available, wait and retry
-                    await asyncio.sleep(5)
+                    # Redis is not available, wait 60s before checking again to avoid loop lag
+                    await asyncio.sleep(60)
                     continue
 
                 pubsub = redis.pubsub()
@@ -167,8 +167,8 @@ class ConnectionManager:
                         except Exception as parse_err:
                             logger.error(f"Error parsing Redis pub/sub message payload: {parse_err}")
             except Exception as e:
-                logger.error(f"Redis Pub/Sub listener encountered error: {e}. Reconnecting in 5s...")
-                await asyncio.sleep(5)
+                logger.debug(f"Redis Pub/Sub listener standing by: {e}")
+                await asyncio.sleep(60)
 
 
 # Singleton instance

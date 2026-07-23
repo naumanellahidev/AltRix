@@ -232,7 +232,7 @@ class StudentOut(BaseModel):
     last_name: str
     registration_number: Optional[str] = None
     roll_number: Optional[str] = None
-    date_of_birth: Optional[str] = None
+    date_of_birth: Optional[Union[str, date, datetime]] = None
     gender: Optional[str] = None
     photo_url: Optional[str] = None
     blood_group: Optional[str] = None
@@ -241,7 +241,7 @@ class StudentOut(BaseModel):
     phone: Optional[str] = None
     email: Optional[str] = None
     status: Optional[str] = None
-    admission_date: Optional[str] = None
+    admission_date: Optional[Union[str, date, datetime]] = None
     created_at: Optional[datetime] = None
 
     model_config = {"from_attributes": True}
