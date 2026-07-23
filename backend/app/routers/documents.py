@@ -1,199 +1,139 @@
 """
-Document Management System (DMS) router
+Document Vault & Certificate Engine router: TC, Character, Bonafide, NOC, digital signature & QR verification.
 """
+import uuid
+import secrets
 from typing import List, Optional
 from uuid import UUID
-from datetime import datetime, date, timedelta, timezone
-
-from fastapi import APIRouter, Query, HTTPException, status
-from sqlalchemy import select, or_, and_
+from datetime import date, datetime
+from pydantic import BaseModel, ConfigDict
+from fastapi import APIRouter, HTTPException, Query, status
+from sqlalchemy import select
 
 from app.dependencies import CurrentUser, DbSession
-from app.exceptions import NotFoundError, ForbiddenError
-from app.models.documents import SchoolDocument, DocumentTemplate, IssuedCertificate
-from app.models.people import Student, TeacherProfile
-from app.schemas import (
-    SchoolDocumentCreate, SchoolDocumentOut,
-    DocumentTemplateOut,
-    IssuedCertificateCreate, IssuedCertificateOut,
-    MessageResponse,
-)
+from app.models.documents import StudentDocument, IssuedCertificate
 
-router = APIRouter(prefix="/documents", tags=["Document Management (DMS)"])
+router = APIRouter(prefix="/documents", tags=["Document Vault & Certificates"])
 
 
-# ─── DOCUMENT VAULTS ──────────────────────────────────────────────────────────
+# --- Schemas ---
+class StudentDocumentCreateSchema(BaseModel):
+    student_id: UUID
+    document_name: str
+    category: Optional[str] = "General"
+    file_url: str
+    expires_at: Optional[date] = None
 
-@router.get("", response_model=List[SchoolDocumentOut])
-async def list_vault_documents(
-    current_user: CurrentUser,
-    db: DbSession,
-    owner_type: Optional[str] = None,
-    owner_id: Optional[UUID] = None,
-):
-    """List student or staff documents from vaults."""
+class StudentDocumentOutSchema(StudentDocumentCreateSchema):
+    id: UUID
+    school_id: UUID
+    uploaded_by: Optional[UUID]
+    created_at: Optional[datetime]
+    model_config = ConfigDict(from_attributes=True)
+
+class CertificateGenerateSchema(BaseModel):
+    student_id: UUID
+    certificate_type: str  # 'transfer_certificate', 'character_certificate', 'bonafide', 'noc'
+    remarks: Optional[str] = None
+
+class CertificateOutSchema(BaseModel):
+    id: UUID
+    school_id: UUID
+    student_id: UUID
+    certificate_type: str
+    certificate_number: str
+    issue_date: Optional[date]
+    remarks: Optional[str]
+    qr_verification_code: str
+    status: str
+    created_at: Optional[datetime]
+    model_config = ConfigDict(from_attributes=True)
+
+
+# --- Document Vault Endpoints ---
+@router.get("/student/{student_id}", response_model=List[StudentDocumentOutSchema])
+async def list_student_documents(student_id: UUID, current_user: CurrentUser, db: DbSession):
     if not current_user.school_id:
         return []
-    
-    query = select(SchoolDocument).where(SchoolDocument.school_id == current_user.school_id)
-    if owner_type:
-        query = query.where(SchoolDocument.owner_type == owner_type)
-    if owner_id:
-        query = query.where(SchoolDocument.owner_id == owner_id)
-        
-    res = await db.execute(query.order_by(SchoolDocument.created_at.desc()))
+    stmt = select(StudentDocument).where(
+        StudentDocument.student_id == student_id,
+        StudentDocument.school_id == current_user.school_id
+    )
+    res = await db.execute(stmt)
     return res.scalars().all()
 
-
-@router.post("", response_model=SchoolDocumentOut, status_code=status.HTTP_201_CREATED)
-async def upload_vault_document(
-    body: SchoolDocumentCreate,
-    current_user: CurrentUser,
-    db: DbSession,
-):
-    """Upload scan or PDF document to student/staff vault."""
+@router.post("/upload", response_model=StudentDocumentOutSchema)
+async def upload_student_document(payload: StudentDocumentCreateSchema, current_user: CurrentUser, db: DbSession):
     if not current_user.school_id:
-        raise ForbiddenError("No school context")
-        
-    exp = None
-    if body.expiry_date:
-        exp = datetime.strptime(body.expiry_date, "%Y-%m-%d").date()
-
-    doc = SchoolDocument(
+        raise HTTPException(status_code=400, detail="User has no associated school")
+    doc = StudentDocument(
         school_id=current_user.school_id,
-        owner_type=body.owner_type,
-        owner_id=body.owner_id,
-        document_type=body.document_type,
-        file_name=body.file_name,
-        file_url=body.file_url,
-        expiry_date=exp,
+        uploaded_by=current_user.id,
+        **payload.model_dump()
     )
     db.add(doc)
-    await db.flush()
     await db.commit()
     await db.refresh(doc)
     return doc
 
 
-@router.delete("/{document_id}", response_model=MessageResponse)
-async def delete_vault_document(document_id: UUID, current_user: CurrentUser, db: DbSession):
-    """Delete a document vault scan entry."""
-    res = await db.execute(
-        select(SchoolDocument).where(
-            SchoolDocument.id == document_id,
-            SchoolDocument.school_id == current_user.school_id
-        )
-    )
-    doc = res.scalar_one_or_none()
-    if not doc:
-        raise NotFoundError("Document", str(document_id))
-        
-    await db.delete(doc)
-    await db.commit()
-    return MessageResponse(message="Document deleted from vault")
-
-
-@router.get("/alerts", response_model=List[SchoolDocumentOut])
-async def list_expiring_documents(current_user: CurrentUser, db: DbSession):
-    """Retrieve list of documents expiring within the next 30 days."""
+# --- Certificate Engine Endpoints ---
+@router.get("/certificates", response_model=List[CertificateOutSchema])
+async def list_certificates(current_user: CurrentUser, db: DbSession):
     if not current_user.school_id:
         return []
-        
-    warning_date = date.today() + timedelta(days=30)
-    query = select(SchoolDocument).where(
-        SchoolDocument.school_id == current_user.school_id,
-        SchoolDocument.expiry_date.isnot(None),
-        SchoolDocument.expiry_date >= date.today(),
-        SchoolDocument.expiry_date <= warning_date
-    )
-    res = await db.execute(query.order_by(SchoolDocument.expiry_date))
+    stmt = select(IssuedCertificate).where(IssuedCertificate.school_id == current_user.school_id).order_by(IssuedCertificate.created_at.desc())
+    res = await db.execute(stmt)
     return res.scalars().all()
 
-
-# ─── CERTIFICATES TEMPLATE ENGINE ─────────────────────────────────────────────
-
-@router.get("/templates", response_model=List[DocumentTemplateOut])
-async def list_templates(current_user: CurrentUser, db: DbSession):
-    """List pre-loaded standard certificates templates."""
+@router.post("/certificates/generate", response_model=CertificateOutSchema)
+async def generate_certificate(payload: CertificateGenerateSchema, current_user: CurrentUser, db: DbSession):
     if not current_user.school_id:
-         return []
-    res = await db.execute(
-        select(DocumentTemplate).where(DocumentTemplate.school_id == current_user.school_id)
-    )
-    templates = res.scalars().all()
+        raise HTTPException(status_code=400, detail="User has no associated school")
     
-    # Pre-populate defaults if missing
-    if not templates:
-        defaults = [
-            ("bonafide", "<h3>BONAFIDE CERTIFICATE</h3><p>This is to certify that <strong>{{STUDENT_NAME}}</strong>, student roll number <strong>{{ROLL_NUMBER}}</strong>, is a bonafide student of class <strong>{{CLASS}}</strong> at AltRix Academy.</p>"),
-            ("transfer_certificate", "<h3>SCHOOL LEAVING / TRANSFER CERTIFICATE</h3><p>It is certified that student <strong>{{STUDENT_NAME}}</strong>, having roll number <strong>{{ROLL_NUMBER}}</strong>, has completed term studies and is cleared to transfer to other campuses.</p>"),
-            ("character_certificate", "<h3>CHARACTER CERTIFICATE</h3><p>This certifies that <strong>{{STUDENT_NAME}}</strong> has shown exemplary behavior and outstanding academic focus during studies at class <strong>{{CLASS}}</strong>.</p>"),
-            ("noc", "<h3>NO OBJECTION CERTIFICATE (NOC)</h3><p>The management has no objection for <strong>{{STUDENT_NAME}}</strong> participating in external state athletic and academic olympiads.</p>"),
-        ]
-        for name, html in defaults:
-            tmpl = DocumentTemplate(school_id=current_user.school_id, template_name=name, body_content=html)
-            db.add(tmpl)
-        await db.commit()
-        res = await db.execute(
-            select(DocumentTemplate).where(DocumentTemplate.school_id == current_user.school_id)
-        )
-        templates = res.scalars().all()
-        
-    return templates
+    # Generate unique certificate number & QR verification hash
+    prefix_map = {
+        "transfer_certificate": "TC",
+        "character_certificate": "CC",
+        "bonafide": "BC",
+        "noc": "NOC",
+    }
+    code_prefix = prefix_map.get(payload.certificate_type.lower(), "CERT")
+    random_num = secrets.randbelow(899999) + 100000
+    cert_no = f"{code_prefix}-{datetime.now().year}-{random_num}"
+    qr_hash = secrets.token_hex(16)
 
-
-@router.post("/templates/render")
-async def render_template_fields(
-    template_name: str,
-    student_id: UUID,
-    current_user: CurrentUser,
-    db: DbSession,
-):
-    """Replace placeholder tokens in certificate templates with actual database metrics."""
-    res = await db.execute(
-        select(DocumentTemplate).where(
-            DocumentTemplate.school_id == current_user.school_id,
-            DocumentTemplate.template_name == template_name
-        )
-    )
-    tmpl = res.scalar_one_or_none()
-    if not tmpl:
-        raise NotFoundError("Template", template_name)
-        
-    std_res = await db.execute(select(Student).where(Student.id == student_id))
-    student = std_res.scalar_one_or_none()
-    if not student:
-        raise NotFoundError("Student", str(student_id))
-        
-    body = tmpl.body_content
-    body = body.replace("{{STUDENT_NAME}}", f"{student.first_name} {student.last_name or ''}".strip())
-    body = body.replace("{{ROLL_NUMBER}}", student.roll_number or "N/A")
-    body = body.replace("{{CLASS}}", f"Class ID: {str(student.class_id)[:8]}")
-    
-    return {"rendered_html": body}
-
-
-@router.post("/templates/issue", response_model=IssuedCertificateOut)
-async def issue_signed_certificate(
-    body: IssuedCertificateCreate,
-    current_user: CurrentUser,
-    db: DbSession,
-):
-    """Digitally signs and logs issued certificate records."""
-    if not current_user.school_id:
-        raise ForbiddenError("No school context")
-        
-    certificate = IssuedCertificate(
+    cert = IssuedCertificate(
         school_id=current_user.school_id,
-        student_id=body.student_id,
-        template_name=body.template_name,
-        content=body.content,
-        digital_signature_name=body.digital_signature_name,
-        digital_signature_title=body.digital_signature_title,
-        signed_at=datetime.now(timezone.utc),
+        student_id=payload.student_id,
+        certificate_type=payload.certificate_type,
+        certificate_number=cert_no,
+        issue_date=date.today(),
+        remarks=payload.remarks,
+        qr_verification_code=qr_hash,
+        issued_by=current_user.id,
+        status="valid"
     )
-    db.add(certificate)
-    await db.flush()
+    db.add(cert)
     await db.commit()
-    await db.refresh(certificate)
-    return certificate
+    await db.refresh(cert)
+    return cert
+
+@router.get("/certificates/verify/{qr_code}")
+async def verify_certificate_public(qr_code: str, db: DbSession):
+    stmt = select(IssuedCertificate).where(IssuedCertificate.qr_verification_code == qr_code)
+    res = await db.execute(stmt)
+    cert = res.scalar_one_or_none()
+    if not cert:
+        return {
+            "valid": False,
+            "message": "Invalid or non-existent certificate QR code."
+        }
+    return {
+        "valid": True if cert.status == "valid" else False,
+        "certificate_number": cert.certificate_number,
+        "certificate_type": cert.certificate_type,
+        "issue_date": str(cert.issue_date),
+        "status": cert.status,
+        "remarks": cert.remarks,
+    }

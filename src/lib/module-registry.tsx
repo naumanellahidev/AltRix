@@ -45,6 +45,7 @@ import AdmissionsModule from "@/pages/tenant/modules/AdmissionsModule";
 import { SupportModule } from "@/pages/tenant/modules/SupportModule";
 import { StudentCardsModule } from "@/pages/tenant/modules/StudentCardsModule";
 import { InquiriesModule } from "@/pages/tenant/modules/InquiriesModule";
+import { TransportModule } from "@/pages/tenant/modules/TransportModule";
 
 import { HrLeavesModule } from "@/pages/tenant/hr-modules/HrLeavesModule";
 import { HrSalariesModule } from "@/pages/tenant/hr-modules/HrSalariesModule";
@@ -148,6 +149,7 @@ export const MODULE_REGISTRY: Record<string, ModuleEntry> = {
   inquiries: { Component: InquiriesModule },
 
   // Operations
+  transport:  { Component: TransportModule },
   notices:    { Component: NoticesModule,  propsFor: (c) => ({ schoolId: c.schoolId, canManage: true }) },
   holidays:   { Component: HolidaysModule, propsFor: (c) => ({ schoolId: c.schoolId, canManage: isGov(c.roles) }) },
   reports:    { Component: ReportsModule },

@@ -3,7 +3,7 @@ import {
   KanbanSquare, LayoutGrid, Megaphone, MessageSquare, NotebookPen,
   ShieldAlert, ShieldCheck, Shield, Users, FileText, PartyPopper, UserPlus,
   Briefcase, Wallet, Receipt, FileSignature, ClipboardList, Heart, PhoneCall, Target,
-  AlertTriangle, Sparkles, Smile, Brain, FolderOpen, Grid3X3, HeartPulse,
+  AlertTriangle, Sparkles, Smile, Brain, FolderOpen, Grid3X3, HeartPulse, Bus,
 } from "lucide-react";
 import type { EduverseRole } from "@/lib/eduverse-roles";
 
@@ -119,6 +119,8 @@ export const NAV_CATALOG: NavItem[] = [
     roles: ["super_admin","school_owner","principal","vice_principal","accountant"] },
 
   // Operations
+  { key: "transport", label: "Transport Management", icon: Bus, group: "operations", path: "transport",
+    roles: ["super_admin","school_owner","principal","vice_principal","school_admin"] },
   { key: "complaints", label: "Complaints", icon: ShieldAlert, group: "operations", path: "complaints",
     roles: ["super_admin","school_owner","principal","vice_principal","school_admin"] },
   { key: "owner-insights", label: "AI Board Insights", icon: Brain, group: "operations", path: "owner-insights",

@@ -42,7 +42,7 @@ from app.models.misc import (
     EventStore, EventSubscriberLog, ActivityTimeline,
 )
 from app.models.transport import (
-    BusRoute, BusStop, Bus, BusStudentAssignment, BusLiveLocation,
+    DriverProfile, Vehicle, BusRoute, BusStop, StudentTransportAssignment, TransportEventLog,
 )
 from app.models.events import (
     SchoolEvent, EventPhoto, PTMSlot, PTMBooking,
@@ -91,7 +91,7 @@ __all__ = [
     "AiCareerSuggestion", "AiParentUpdate",
     "AiSemanticCache", "AiCacheStats",
     "EventStore", "EventSubscriberLog", "ActivityTimeline",
-    "BusRoute", "BusStop", "Bus", "BusStudentAssignment", "BusLiveLocation",
+    "BusRoute", "BusStop", "Vehicle", "DriverProfile", "StudentTransportAssignment", "TransportEventLog",
     "SchoolEvent", "EventPhoto", "PTMSlot", "PTMBooking",
     "EventRSVP", "SportsScorecard", "AnnualFunctionPlan",
     "ReportCardTemplate", "ReportCard", "ReportCardSubjectEntry",
@@ -111,9 +111,16 @@ from app.models.wellbeing import (
     StudentMedicalRecord, InfirmaryVisitLog, VaccinationRecord,
     FirstAidIncident, WellbeingSurvey, MedicalDirectory,
 )
+from app.models.feature_flags import SchoolFeatureFlag
+from app.models.transport import DriverProfile, Vehicle, StudentTransportAssignment, TransportEventLog
+from app.models.library import LibraryBook, BookIssue, BookReservation
+from app.models.documents import StudentDocument
 
 __all__.extend([
     "StaffKpi", "StaffAppraisal", "Feedback360", "PerformanceImprovementPlan",
     "StudentMedicalRecord", "InfirmaryVisitLog", "VaccinationRecord",
     "FirstAidIncident", "WellbeingSurvey", "MedicalDirectory",
+    "SchoolFeatureFlag", "DriverProfile", "Vehicle", "StudentTransportAssignment",
+    "TransportEventLog", "LibraryBook", "BookIssue", "BookReservation", "StudentDocument",
 ])
+

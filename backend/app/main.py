@@ -55,6 +55,9 @@ from app.routers.owner_insights import router as owner_insights_router
 from app.routers.documents import router as documents_router
 from app.routers.appraisals import router as appraisals_router
 from app.routers.wellbeing import router as wellbeing_router
+from app.routers.feature_flags import router as feature_flags_router
+from app.routers.library import router as library_router
+from app.routers.parent_portal import router as parent_portal_router
 
 # ─── Structured Logging ───────────────────────────────────────────────────────
 logging.basicConfig(
@@ -641,3 +644,6 @@ app.include_router(owner_insights_router, prefix=_PREFIX)
 app.include_router(documents_router, prefix=_PREFIX)
 app.include_router(appraisals_router, prefix=_PREFIX)
 app.include_router(wellbeing_router, prefix=_PREFIX)
+app.include_router(feature_flags_router, prefix=_PREFIX)
+app.include_router(library_router, prefix=_PREFIX)
+app.include_router(parent_portal_router, prefix=_PREFIX)
