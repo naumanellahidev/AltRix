@@ -42,21 +42,28 @@ async def get_white_label_settings(
     db: DbSession,
     current_user: CurrentUser,
 ):
-    stmt = select(WhiteLabelSettings).where(WhiteLabelSettings.school_id == school_id)
-    res = await db.execute(stmt)
-    settings = res.scalar_one_or_none()
+    try:
+        stmt = select(WhiteLabelSettings).where(WhiteLabelSettings.school_id == school_id)
+        res = await db.execute(stmt)
+        settings = res.scalar_one_or_none()
 
-    if not settings:
-        settings = WhiteLabelSettings(
+        if not settings:
+            settings = WhiteLabelSettings(
+                school_id=school_id,
+                custom_primary_color="#0284c7",
+                hide_altrix_branding=True,
+            )
+            db.add(settings)
+            await db.commit()
+            await db.refresh(settings)
+
+        return settings
+    except Exception:
+        return WhiteLabelSettings(
             school_id=school_id,
             custom_primary_color="#0284c7",
             hide_altrix_branding=True,
         )
-        db.add(settings)
-        await db.commit()
-        await db.refresh(settings)
-
-    return settings
 
 
 @router.patch("/{school_id}", response_model=WhiteLabelSchema)

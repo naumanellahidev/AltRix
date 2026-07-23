@@ -139,6 +139,24 @@ async def lifespan(app: FastAPI):
             await conn.execute(text("SELECT 1"))
             await conn.run_sync(Base.metadata.create_all)
             logger.info("Database connection ping: SUCCESS (All ORM tables verified/created)")
+
+            # Auto-align report_cards table columns if missing
+            await conn.execute(text("""
+                ALTER TABLE public.report_cards
+                    ADD COLUMN IF NOT EXISTS template_id UUID,
+                    ADD COLUMN IF NOT EXISTS max_total_marks DOUBLE PRECISION,
+                    ADD COLUMN IF NOT EXISTS position_in_class INTEGER,
+                    ADD COLUMN IF NOT EXISTS total_students_in_class INTEGER,
+                    ADD COLUMN IF NOT EXISTS total_present_days INTEGER,
+                    ADD COLUMN IF NOT EXISTS total_school_days INTEGER,
+                    ADD COLUMN IF NOT EXISTS qr_verification_token VARCHAR,
+                    ADD COLUMN IF NOT EXISTS signed_by_name VARCHAR,
+                    ADD COLUMN IF NOT EXISTS signed_by_title VARCHAR,
+                    ADD COLUMN IF NOT EXISTS signed_at TIMESTAMPTZ,
+                    ADD COLUMN IF NOT EXISTS trend_data JSONB DEFAULT '{}'::jsonb,
+                    ADD COLUMN IF NOT EXISTS generated_by UUID;
+            """))
+            logger.info("Report cards schema columns aligned successfully")
             
             # Create system_settings table if it doesn't exist
             await conn.execute(text("""

@@ -57,13 +57,36 @@ async def get_school_feature_flags(
     db: DbSession,
     current_user: CurrentUser,
 ):
-    stmt = select(SchoolFeatureFlag).where(SchoolFeatureFlag.school_id == school_id)
-    res = await db.execute(stmt)
-    flags = res.scalar_one_or_none()
+    try:
+        stmt = select(SchoolFeatureFlag).where(SchoolFeatureFlag.school_id == school_id)
+        res = await db.execute(stmt)
+        flags = res.scalar_one_or_none()
 
-    if not flags:
-        # Create default flags if none exist
-        flags = SchoolFeatureFlag(
+        if not flags:
+            flags = SchoolFeatureFlag(
+                school_id=school_id,
+                transport_enabled=True,
+                library_enabled=True,
+                parent_app_enabled=True,
+                document_cert_enabled=True,
+                ai_features_enabled=True,
+                wellbeing_enabled=True,
+                inventory_enabled=True,
+                alumni_enabled=True,
+                public_admissions_enabled=True,
+                hostel_enabled=True,
+                appraisals_enabled=True,
+                seating_plan_enabled=True,
+                white_label_enabled=True,
+                multilang_enabled=True,
+            )
+            db.add(flags)
+            await db.commit()
+            await db.refresh(flags)
+
+        return flags
+    except Exception:
+        return SchoolFeatureFlag(
             school_id=school_id,
             transport_enabled=True,
             library_enabled=True,
@@ -80,11 +103,6 @@ async def get_school_feature_flags(
             white_label_enabled=True,
             multilang_enabled=True,
         )
-        db.add(flags)
-        await db.commit()
-        await db.refresh(flags)
-
-    return flags
 
 
 @router.patch("/{school_id}", response_model=FeatureFlagsSchema)

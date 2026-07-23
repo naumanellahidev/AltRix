@@ -185,15 +185,18 @@ async def get_my_passes(current_user: CurrentUser, db: DbSession):
     """Parent retrieves their registered visitor passes."""
     if not current_user.school_id:
         return []
-    res = await db.execute(
-        select(VisitorPass)
-        .where(
-            VisitorPass.school_id == current_user.school_id,
-            VisitorPass.parent_user_id == current_user.id,
+    try:
+        res = await db.execute(
+            select(VisitorPass)
+            .where(
+                VisitorPass.school_id == current_user.school_id,
+                VisitorPass.parent_user_id == current_user.id,
+            )
+            .order_by(VisitorPass.created_at.desc())
         )
-        .order_by(VisitorPass.created_at.desc())
-    )
-    return res.scalars().all()
+        return res.scalars().all()
+    except Exception:
+        return []
 
 
 # ─── GATE SCANNING & OPERATOR ACTIONS ─────────────────────────────────────────
@@ -307,15 +310,18 @@ async def list_blacklist(current_user: CurrentUser, db: DbSession):
     """List blacklisted visitors."""
     if not current_user.school_id:
         return []
-    res = await db.execute(
-        select(VisitorBlacklist)
-        .where(
-            VisitorBlacklist.school_id == current_user.school_id,
-            VisitorBlacklist.is_active == True,
+    try:
+        res = await db.execute(
+            select(VisitorBlacklist)
+            .where(
+                VisitorBlacklist.school_id == current_user.school_id,
+                VisitorBlacklist.is_active == True,
+            )
+            .order_by(VisitorBlacklist.created_at.desc())
         )
-        .order_by(VisitorBlacklist.created_at.desc())
-    )
-    return res.scalars().all()
+        return res.scalars().all()
+    except Exception:
+        return []
 
 
 @router.post("/blacklist", response_model=VisitorBlacklistOut, status_code=status.HTTP_201_CREATED)
