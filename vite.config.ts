@@ -78,6 +78,10 @@ export default defineConfig(({ mode }) => ({
         navigateFallbackDenylist: [/^\/api/, /supabase\.co/, /functions\.supabase\.co/],
         runtimeCaching: [
           {
+            urlPattern: ({ url }) => url.pathname.startsWith("/api"),
+            handler: "NetworkOnly",
+          },
+          {
             urlPattern: ({ url }) => url.hostname.endsWith("supabase.co"),
             handler: "NetworkOnly",
             method: "GET",
