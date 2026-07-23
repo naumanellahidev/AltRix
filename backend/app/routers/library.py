@@ -36,7 +36,7 @@ class BookOutSchema(BookCreateSchema):
 
 class IssueCreateSchema(BaseModel):
     book_id: UUID
-    borrower_id: UUID
+    borrower_id: str
     borrower_type: Optional[str] = "student"
     due_days: Optional[int] = 14
 
@@ -56,11 +56,13 @@ class IssueOutSchema(BaseModel):
 
 class ReservationCreateSchema(BaseModel):
     book_id: UUID
-    student_id: UUID
+    student_id: str
 
-class ReservationOutSchema(ReservationCreateSchema):
+class ReservationOutSchema(BaseModel):
     id: UUID
     school_id: UUID
+    book_id: UUID
+    student_id: UUID
     reserved_at: Optional[datetime]
     status: str
     model_config = ConfigDict(from_attributes=True)
@@ -121,6 +123,14 @@ async def list_issues(
     except Exception:
         return []
 
+def _parse_or_generate_uuid(val: str) -> UUID:
+    try:
+        return UUID(val)
+    except Exception:
+        import uuid
+        return uuid.uuid5(uuid.NAMESPACE_DNS, str(val))
+
+
 @router.post("/issue", response_model=IssueOutSchema)
 async def issue_book(payload: IssueCreateSchema, current_user: CurrentUser, db: DbSession):
     if not current_user.school_id:
@@ -131,7 +141,7 @@ async def issue_book(payload: IssueCreateSchema, current_user: CurrentUser, db: 
     res = await db.execute(stmt)
     book = res.scalar_one_or_none()
     if not book:
-        raise HTTPException(status_code=440, detail="Book not found")
+        raise HTTPException(status_code=404, detail="Book not found")
     if book.available_copies <= 0:
         raise HTTPException(status_code=400, detail="No copies currently available for issue")
 
@@ -140,11 +150,12 @@ async def issue_book(payload: IssueCreateSchema, current_user: CurrentUser, db: 
     
     today = date.today()
     due_date = today + timedelta(days=payload.due_days or 14)
+    borrower_uuid = _parse_or_generate_uuid(payload.borrower_id)
     
     issue = BookIssue(
         school_id=current_user.school_id,
         book_id=payload.book_id,
-        borrower_id=payload.borrower_id,
+        borrower_id=borrower_uuid,
         borrower_type=payload.borrower_type or "student",
         issue_date=today,
         due_date=due_date,
@@ -154,6 +165,7 @@ async def issue_book(payload: IssueCreateSchema, current_user: CurrentUser, db: 
     await db.commit()
     await db.refresh(issue)
     return issue
+
 
 @router.post("/return/{issue_id}", response_model=IssueOutSchema)
 async def return_book(issue_id: UUID, current_user: CurrentUser, db: DbSession):
@@ -172,12 +184,10 @@ async def return_book(issue_id: UUID, current_user: CurrentUser, db: DbSession):
     issue.return_date = today
     issue.status = "returned"
 
-    # Calculate fine if overdue ($10 per day default)
     if today > issue.due_date:
         days_overdue = (today - issue.due_date).days
         issue.fine_amount = days_overdue * 10.0
 
-    # Increment available copies back
     stmt_book = select(LibraryBook).where(LibraryBook.id == issue.book_id)
     res_book = await db.execute(stmt_book)
     book = res_book.scalar_one_or_none()
@@ -205,12 +215,17 @@ async def list_reservations(current_user: CurrentUser, db: DbSession):
 async def reserve_book(payload: ReservationCreateSchema, current_user: CurrentUser, db: DbSession):
     if not current_user.school_id:
         raise HTTPException(status_code=400, detail="User has no associated school")
+    student_uuid = _parse_or_generate_uuid(payload.student_id)
     reservation = BookReservation(
         school_id=current_user.school_id,
         book_id=payload.book_id,
-        student_id=payload.student_id,
+        student_id=student_uuid,
         status="pending"
     )
+    db.add(reservation)
+    await db.commit()
+    await db.refresh(reservation)
+    return reservation
     db.add(reservation)
     await db.commit()
     await db.refresh(reservation)

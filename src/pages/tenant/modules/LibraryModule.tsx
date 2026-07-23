@@ -107,6 +107,15 @@ export function LibraryModule() {
     loadReservations();
   }, []);
 
+  const getErrorMessage = (err: any, fallback: string): string => {
+    const detail = err?.response?.data?.detail;
+    if (typeof detail === "string") return detail;
+    if (Array.isArray(detail)) {
+      return detail.map((e: any) => e.msg || e.message || "Invalid input").join(", ");
+    }
+    return fallback;
+  };
+
   const handleAddBook = async () => {
     if (!newBook.title || !newBook.author) {
       toast.error("Please provide book title and author");
@@ -122,7 +131,7 @@ export function LibraryModule() {
       setNewBook({ title: "", author: "", isbn: "", barcode: "", category: "General", publisher: "", total_copies: 1, available_copies: 1, shelf_location: "Rack A-1" });
       loadBooks();
     } catch (err: any) {
-      toast.error(err?.response?.data?.detail || "Failed to add book");
+      toast.error(getErrorMessage(err, "Failed to add book"));
     }
   };
 
@@ -138,7 +147,7 @@ export function LibraryModule() {
       loadBooks();
       loadIssues();
     } catch (err: any) {
-      toast.error(err?.response?.data?.detail || "Failed to issue book");
+      toast.error(getErrorMessage(err, "Failed to issue book"));
     }
   };
 
@@ -151,7 +160,7 @@ export function LibraryModule() {
       loadBooks();
       loadIssues();
     } catch (err: any) {
-      toast.error(err?.response?.data?.detail || "Failed to return book");
+      toast.error(getErrorMessage(err, "Failed to return book"));
     }
   };
 
