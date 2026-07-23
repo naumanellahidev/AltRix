@@ -164,8 +164,8 @@ export default function EventsModule() {
       const res = await apiClient.get("/parents/children");
       setMyChildren(
         (res.data || []).map((c: any) => ({
-          student_id: c.student_id,
-          student_name: `${c.first_name} ${c.last_name || ""}`.trim(),
+          student_id: c.student_id || c.id,
+          student_name: c.full_name || `${c.first_name || ""} ${c.last_name || ""}`.trim() || "Student",
         }))
       );
       if (res.data && res.data.length > 0) {

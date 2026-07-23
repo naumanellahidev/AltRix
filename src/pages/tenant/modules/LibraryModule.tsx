@@ -158,6 +158,13 @@ export function LibraryModule() {
     loadBorrowers();
   }, []);
 
+  useEffect(() => {
+    if (showIssueModal) {
+      loadBorrowers();
+      loadBooks();
+    }
+  }, [showIssueModal]);
+
   const getErrorMessage = (err: any, fallback: string): string => {
     const detail = err?.response?.data?.detail;
     if (typeof detail === "string") return detail;

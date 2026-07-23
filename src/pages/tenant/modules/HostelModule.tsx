@@ -86,6 +86,12 @@ export function HostelModule() {
     loadHostelData();
   }, []);
 
+  useEffect(() => {
+    if (showAllocateModal || showAttendanceModal) {
+      loadHostelData();
+    }
+  }, [showAllocateModal, showAttendanceModal]);
+
   const handleAddRoom = async () => {
     if (!newRoom.room_number) {
       toast.error("Provide room number");
@@ -411,9 +417,9 @@ export function HostelModule() {
               <Label className="mb-1.5 block">Select Enrolled Student</Label>
               <SearchableSelect
                 placeholder="Type student name, roll number, or class..."
-                options={students.map(s => ({
+                options={students.map((s: any) => ({
                   id: s.id,
-                  label: s.full_name,
+                  label: s.full_name || `${s.first_name || ''} ${s.last_name || ''}`.trim() || "Enrolled Student",
                   sublabel: s.roll_number ? `Roll: ${s.roll_number}` : s.class_name ? `Class: ${s.class_name}` : "Student"
                 }))}
                 value={allocData.student_id}
@@ -435,9 +441,9 @@ export function HostelModule() {
               <Label className="mb-1.5 block">Select Boarding Student</Label>
               <SearchableSelect
                 placeholder="Type student name, roll number, or class..."
-                options={students.map(s => ({
+                options={students.map((s: any) => ({
                   id: s.id,
-                  label: s.full_name,
+                  label: s.full_name || `${s.first_name || ''} ${s.last_name || ''}`.trim() || "Boarding Student",
                   sublabel: s.roll_number ? `Roll: ${s.roll_number}` : s.class_name ? `Class: ${s.class_name}` : "Student"
                 }))}
                 value={attData.student_id}

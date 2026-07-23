@@ -78,6 +78,12 @@ export function AlumniModule() {
     loadData();
   }, []);
 
+  useEffect(() => {
+    if (showDonationModal || showAddModal) {
+      loadData();
+    }
+  }, [showDonationModal, showAddModal]);
+
   const handleRegisterAlumni = async () => {
     if (!newAlumni.full_name) {
       toast.error("Provide alumni full name");

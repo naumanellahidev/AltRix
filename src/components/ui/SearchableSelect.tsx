@@ -39,10 +39,14 @@ export function SearchableSelect({
   }, []);
 
   const selectedOption = options.find(o => o.id === value);
-  const filteredOptions = options.filter(o =>
-    o.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (o.sublabel && o.sublabel.toLowerCase().includes(searchQuery.toLowerCase()))
-  );
+  const filteredOptions = options.filter(o => {
+    if (!searchQuery || !searchQuery.trim()) return true;
+    const q = searchQuery.toLowerCase().trim();
+    const labelMatch = o.label ? o.label.toLowerCase().includes(q) : false;
+    const subMatch = o.sublabel ? o.sublabel.toLowerCase().includes(q) : false;
+    const idMatch = o.id ? o.id.toLowerCase().includes(q) : false;
+    return labelMatch || subMatch || idMatch;
+  });
 
   return (
     <div className={`relative ${className}`} ref={containerRef}>

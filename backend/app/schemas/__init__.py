@@ -5,7 +5,7 @@ from datetime import datetime, date
 from typing import Any, Dict, List, Optional, Union
 from uuid import UUID
 
-from pydantic import BaseModel, EmailStr, Field, model_validator
+from pydantic import BaseModel, EmailStr, Field, model_validator, computed_field
 
 
 # ─── COMMON ───────────────────────────────────────────────────────────────────
@@ -244,6 +244,10 @@ class StudentOut(BaseModel):
     admission_date: Optional[Union[str, date, datetime]] = None
     created_at: Optional[datetime] = None
 
+    @computed_field
+    def full_name(self) -> str:
+        return f"{self.first_name or ''} {self.last_name or ''}".strip() or "Student"
+
     model_config = {"from_attributes": True}
 
 
@@ -405,6 +409,11 @@ class TeacherOut(BaseModel):
     is_active: Optional[bool] = None
     date_of_joining: Optional[str] = None
     created_at: Optional[datetime] = None
+
+    @computed_field
+    def full_name(self) -> str:
+        name = f"{self.first_name or ''} {self.last_name or ''}".strip()
+        return name if name else (self.designation or "Faculty Staff")
 
     model_config = {"from_attributes": True}
 
