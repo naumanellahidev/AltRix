@@ -75,9 +75,12 @@ async def get_student_medical_record(
     db: DbSession,
     current_user: CurrentUser,
 ):
-    stmt = select(StudentMedicalRecord).where(StudentMedicalRecord.student_id == student_id)
-    res = await db.execute(stmt)
-    return res.scalar_one_or_none()
+    try:
+        stmt = select(StudentMedicalRecord).where(StudentMedicalRecord.student_id == student_id)
+        res = await db.execute(stmt)
+        return res.scalar_one_or_none()
+    except Exception:
+        return None
 
 
 @router.post("/medical-records", response_model=MedicalRecordResponseSchema)

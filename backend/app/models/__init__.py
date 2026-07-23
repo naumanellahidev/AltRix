@@ -115,6 +115,16 @@ from app.models.feature_flags import SchoolFeatureFlag
 from app.models.transport import DriverProfile, Vehicle, StudentTransportAssignment, TransportEventLog
 from app.models.library import LibraryBook, BookIssue, BookReservation
 from app.models.documents import StudentDocument
+from app.models.hostel import (
+    HostelBuilding, HostelRoom, HostelAllocation, HostelAttendance, HostelMessMenu,
+)
+from app.models.inventory import (
+    InventoryCategory, InventoryItem, StockTransaction,
+)
+from app.models.alumni import (
+    AlumniProfile, AlumniEvent, AlumniDonation,
+)
+from app.models.white_label import WhiteLabelSettings
 
 __all__.extend([
     "StaffKpi", "StaffAppraisal", "Feedback360", "PerformanceImprovementPlan",
@@ -122,5 +132,9 @@ __all__.extend([
     "FirstAidIncident",
     "SchoolFeatureFlag", "DriverProfile", "Vehicle", "StudentTransportAssignment",
     "TransportEventLog", "LibraryBook", "BookIssue", "BookReservation", "StudentDocument",
+    "HostelBuilding", "HostelRoom", "HostelAllocation", "HostelAttendance", "HostelMessMenu",
+    "InventoryCategory", "InventoryItem", "StockTransaction",
+    "AlumniProfile", "AlumniEvent", "AlumniDonation",
+    "WhiteLabelSettings",
 ])
 

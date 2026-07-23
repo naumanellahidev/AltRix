@@ -72,6 +72,7 @@ async def list_alumni_directory(
 ):
     school_id = current_user.school_id or UUID("00000000-0000-0000-0000-000000000000")
     try:
+        stmt = select(AlumniProfile).where(AlumniProfile.school_id == school_id)
         res = await db.execute(stmt)
         return list(res.scalars().all())
     except Exception:

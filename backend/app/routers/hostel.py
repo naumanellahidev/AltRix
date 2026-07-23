@@ -73,10 +73,13 @@ async def list_hostel_rooms(
     db: DbSession,
     current_user: CurrentUser,
 ):
-    school_id = current_user.school_id or UUID("00000000-0000-0000-0000-000000000000")
-    stmt = select(HostelRoom).where(HostelRoom.school_id == school_id).order_by(HostelRoom.room_number)
-    res = await db.execute(stmt)
-    return list(res.scalars().all())
+    try:
+        school_id = current_user.school_id or UUID("00000000-0000-0000-0000-000000000000")
+        stmt = select(HostelRoom).where(HostelRoom.school_id == school_id).order_by(HostelRoom.room_number)
+        res = await db.execute(stmt)
+        return list(res.scalars().all())
+    except Exception:
+        return []
 
 
 @router.post("/rooms", response_model=HostelRoomResponseSchema)
@@ -156,10 +159,13 @@ async def get_hostel_mess_menu(
     db: DbSession,
     current_user: CurrentUser,
 ):
-    school_id = current_user.school_id or UUID("00000000-0000-0000-0000-000000000000")
-    stmt = select(HostelMessMenu).where(HostelMessMenu.school_id == school_id)
-    res = await db.execute(stmt)
-    return list(res.scalars().all())
+    try:
+        school_id = current_user.school_id or UUID("00000000-0000-0000-0000-000000000000")
+        stmt = select(HostelMessMenu).where(HostelMessMenu.school_id == school_id)
+        res = await db.execute(stmt)
+        return list(res.scalars().all())
+    except Exception:
+        return []
 
 
 @router.post("/mess-menu", response_model=MessMenuResponseSchema)

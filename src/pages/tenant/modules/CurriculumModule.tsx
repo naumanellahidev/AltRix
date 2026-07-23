@@ -191,3 +191,5 @@ export function CurriculumModule() {
     </div>
   );
 }
+
+export default CurriculumModule;

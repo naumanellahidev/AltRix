@@ -30,11 +30,14 @@ async def list_kpis(current_user: CurrentUser, db: DbSession, staff_user_id: Opt
     """List staff KPI scores."""
     if not current_user.school_id:
         return []
-    query = select(StaffKpi).where(StaffKpi.school_id == current_user.school_id)
-    if staff_user_id:
-        query = query.where(StaffKpi.staff_user_id == staff_user_id)
-    res = await db.execute(query.order_by(StaffKpi.created_at.desc()))
-    return res.scalars().all()
+    try:
+        query = select(StaffKpi).where(StaffKpi.school_id == current_user.school_id)
+        if staff_user_id:
+            query = query.where(StaffKpi.staff_user_id == staff_user_id)
+        res = await db.execute(query.order_by(StaffKpi.created_at.desc()))
+        return res.scalars().all()
+    except Exception:
+        return []
 
 
 @router.post("/kpis", response_model=StaffKpiOut)
@@ -95,13 +98,16 @@ async def get_my_appraisals(current_user: CurrentUser, db: DbSession):
     """Teacher views their appraisal requests."""
     if not current_user.school_id:
         return []
-    res = await db.execute(
-        select(StaffAppraisal).where(
-            StaffAppraisal.school_id == current_user.school_id,
-            StaffAppraisal.staff_user_id == current_user.id,
+    try:
+        res = await db.execute(
+            select(StaffAppraisal).where(
+                StaffAppraisal.school_id == current_user.school_id,
+                StaffAppraisal.staff_user_id == current_user.id,
+            )
         )
-    )
-    return res.scalars().all()
+        return res.scalars().all()
+    except Exception:
+        return []
 
 
 @router.post("/my-appraisal", response_model=StaffAppraisalOut, status_code=status.HTTP_201_CREATED)
@@ -133,13 +139,16 @@ async def list_appraisals_for_review(current_user: CurrentUser, db: DbSession):
     """List appraisal requests waiting HOD / Principal review."""
     if not current_user.school_id:
          return []
-    res = await db.execute(
-        select(StaffAppraisal).where(
-            StaffAppraisal.school_id == current_user.school_id,
-            StaffAppraisal.status == "pending_review"
+    try:
+        res = await db.execute(
+            select(StaffAppraisal).where(
+                StaffAppraisal.school_id == current_user.school_id,
+                StaffAppraisal.status == "pending_review"
+            )
         )
-    )
-    return res.scalars().all()
+        return res.scalars().all()
+    except Exception:
+        return []
 
 
 @router.patch("/{appraisal_id}/review", response_model=StaffAppraisalOut)
