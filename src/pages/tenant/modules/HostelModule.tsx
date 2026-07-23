@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { SearchableSelect } from "@/components/ui/SearchableSelect";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "sonner";
 import {
@@ -407,23 +408,17 @@ export function HostelModule() {
               </Select>
             </div>
             <div>
-              <Label>Select Enrolled Student</Label>
-              {students.length > 0 ? (
-                <Select value={allocData.student_id} onValueChange={val => setAllocData({ ...allocData, student_id: val })}>
-                  <SelectTrigger className="mt-1">
-                    <SelectValue placeholder="Search / Choose Student..." />
-                  </SelectTrigger>
-                  <SelectContent className="max-h-60">
-                    {students.map(s => (
-                      <SelectItem key={s.id} value={s.id}>
-                        {s.full_name} {s.roll_number ? `(Roll: ${s.roll_number})` : s.class_name ? `(${s.class_name})` : ''}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              ) : (
-                <Input placeholder="Enter Student ID" value={allocData.student_id} onChange={e => setAllocData({ ...allocData, student_id: e.target.value })} className="mt-1" />
-              )}
+              <Label className="mb-1.5 block">Select Enrolled Student</Label>
+              <SearchableSelect
+                placeholder="Type student name, roll number, or class..."
+                options={students.map(s => ({
+                  id: s.id,
+                  label: s.full_name,
+                  sublabel: s.roll_number ? `Roll: ${s.roll_number}` : s.class_name ? `Class: ${s.class_name}` : "Student"
+                }))}
+                value={allocData.student_id}
+                onChange={val => setAllocData({ ...allocData, student_id: val })}
+              />
             </div>
             <Button onClick={handleAllocate} className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-semibold">Confirm Allocation</Button>
           </div>
@@ -437,23 +432,17 @@ export function HostelModule() {
           </DialogHeader>
           <div className="space-y-4 pt-2">
             <div>
-              <Label>Select Boarding Student</Label>
-              {students.length > 0 ? (
-                <Select value={attData.student_id} onValueChange={val => setAttData({ ...attData, student_id: val })}>
-                  <SelectTrigger className="mt-1">
-                    <SelectValue placeholder="Choose Boarder Student..." />
-                  </SelectTrigger>
-                  <SelectContent className="max-h-60">
-                    {students.map(s => (
-                      <SelectItem key={s.id} value={s.id}>
-                        {s.full_name} {s.roll_number ? `(Roll: ${s.roll_number})` : ''}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              ) : (
-                <Input placeholder="Enter Student ID" value={attData.student_id} onChange={e => setAttData({ ...attData, student_id: e.target.value })} className="mt-1" />
-              )}
+              <Label className="mb-1.5 block">Select Boarding Student</Label>
+              <SearchableSelect
+                placeholder="Type student name, roll number, or class..."
+                options={students.map(s => ({
+                  id: s.id,
+                  label: s.full_name,
+                  sublabel: s.roll_number ? `Roll: ${s.roll_number}` : s.class_name ? `Class: ${s.class_name}` : "Student"
+                }))}
+                value={attData.student_id}
+                onChange={val => setAttData({ ...attData, student_id: val })}
+              />
             </div>
             <div>
               <Label>Status</Label>

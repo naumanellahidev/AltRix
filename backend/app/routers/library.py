@@ -28,6 +28,19 @@ class BookCreateSchema(BaseModel):
     shelf_location: Optional[str] = None
     cover_image_url: Optional[str] = None
 
+class BookUpdateSchema(BaseModel):
+    title: Optional[str] = None
+    author: Optional[str] = None
+    isbn: Optional[str] = None
+    barcode: Optional[str] = None
+    category: Optional[str] = None
+    publisher: Optional[str] = None
+    publication_year: Optional[int] = None
+    total_copies: Optional[int] = None
+    available_copies: Optional[int] = None
+    shelf_location: Optional[str] = None
+    cover_image_url: Optional[str] = None
+
 class BookOutSchema(BookCreateSchema):
     id: UUID
     school_id: UUID
@@ -212,7 +225,7 @@ async def list_reservations(current_user: CurrentUser, db: DbSession):
         return []
 
 @router.put("/books/{book_id}", response_model=BookOutSchema)
-async def update_book(book_id: UUID, payload: BookCreateSchema, current_user: CurrentUser, db: DbSession):
+async def update_book(book_id: UUID, payload: BookUpdateSchema, current_user: CurrentUser, db: DbSession):
     if not current_user.school_id:
         raise HTTPException(status_code=400, detail="User has no associated school")
     stmt = select(LibraryBook).where(LibraryBook.id == book_id, LibraryBook.school_id == current_user.school_id)
@@ -239,6 +252,10 @@ async def delete_book(book_id: UUID, current_user: CurrentUser, db: DbSession):
     if not book:
         raise HTTPException(status_code=404, detail="Book not found")
     
+    from sqlalchemy import delete as sql_delete
+    # Clean up dependent circulation issues & reservations first
+    await db.execute(sql_delete(BookIssue).where(BookIssue.book_id == book_id))
+    await db.execute(sql_delete(BookReservation).where(BookReservation.book_id == book_id))
     await db.delete(book)
     await db.commit()
     return {"message": "Book deleted successfully"}

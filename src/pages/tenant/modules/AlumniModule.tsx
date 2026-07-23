@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { SearchableSelect } from "@/components/ui/SearchableSelect";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "sonner";
 import {
@@ -350,23 +351,17 @@ export function AlumniModule() {
           </DialogHeader>
           <div className="space-y-4 pt-2">
             <div>
-              <Label>Select Alumni Graduate</Label>
-              {alumni.length > 0 ? (
-                <Select value={donationData.alumni_id} onValueChange={val => setDonationData({ ...donationData, alumni_id: val })}>
-                  <SelectTrigger className="mt-1">
-                    <SelectValue placeholder="Choose Alumni Donor..." />
-                  </SelectTrigger>
-                  <SelectContent className="max-h-60">
-                    {alumni.map(a => (
-                      <SelectItem key={a.id} value={a.id}>
-                        {a.full_name} (Class of {a.graduation_year})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              ) : (
-                <Input placeholder="Enter Alumni UUID" value={donationData.alumni_id} onChange={e => setDonationData({ ...donationData, alumni_id: e.target.value })} className="mt-1" />
-              )}
+              <Label className="mb-1.5 block">Select Alumni Graduate</Label>
+              <SearchableSelect
+                placeholder="Type alumni name, class year, or university..."
+                options={alumni.map(a => ({
+                  id: a.id,
+                  label: a.full_name,
+                  sublabel: `Class of ${a.graduation_year} ${a.higher_education_uni ? '• ' + a.higher_education_uni : ''}`
+                }))}
+                value={donationData.alumni_id}
+                onChange={val => setDonationData({ ...donationData, alumni_id: val })}
+              />
             </div>
             <div>
               <Label>Contribution Amount (PKR)</Label>

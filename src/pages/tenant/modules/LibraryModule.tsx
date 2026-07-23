@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { SearchableSelect } from "@/components/ui/SearchableSelect";
 import { Progress } from "@/components/ui/progress";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "sonner";
@@ -735,39 +736,33 @@ export function LibraryModule() {
           </DialogHeader>
           <div className="space-y-4 pt-2">
             <div>
-              <Label>Select Book Title</Label>
-              <Select value={newIssue.book_id} onValueChange={val => setNewIssue({ ...newIssue, book_id: val })}>
-                <SelectTrigger className="mt-1">
-                  <SelectValue placeholder="Choose Book..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {books.map(b => (
-                    <SelectItem key={b.id} value={b.id}>{b.title} (Available: {b.available_copies})</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label className="mb-1.5 block">Select Book Title</Label>
+              <SearchableSelect
+                placeholder="Type title, author or barcode..."
+                options={books.map(b => ({
+                  id: b.id,
+                  label: b.title,
+                  sublabel: `by ${b.author} • Stock: ${b.available_copies}/${b.total_copies}`
+                }))}
+                value={newIssue.book_id}
+                onChange={val => setNewIssue({ ...newIssue, book_id: val })}
+              />
             </div>
             <div>
-              <Label>Select Student / Staff Borrower</Label>
-              {borrowers.length > 0 ? (
-                <Select value={newIssue.borrower_id} onValueChange={val => {
+              <Label className="mb-1.5 block">Select Student / Staff Borrower</Label>
+              <SearchableSelect
+                placeholder="Type name, roll number, or code..."
+                options={borrowers.map(b => ({
+                  id: b.id,
+                  label: b.name,
+                  sublabel: `${b.type.toUpperCase()} • ${b.code}`
+                }))}
+                value={newIssue.borrower_id}
+                onChange={val => {
                   const b = borrowers.find(item => item.id === val);
                   setNewIssue({ ...newIssue, borrower_id: val, borrower_type: b?.type || "student" });
-                }}>
-                  <SelectTrigger className="mt-1">
-                    <SelectValue placeholder="Choose Borrower..." />
-                  </SelectTrigger>
-                  <SelectContent className="max-h-60">
-                    {borrowers.map(b => (
-                      <SelectItem key={b.id} value={b.id}>
-                        {b.name} ({b.type.toUpperCase()} - {b.code})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              ) : (
-                <Input placeholder="Enter Student ID or Staff ID" value={newIssue.borrower_id} onChange={e => setNewIssue({ ...newIssue, borrower_id: e.target.value })} className="mt-1" />
-              )}
+                }}
+              />
             </div>
             <Button onClick={handleIssueBook} className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-semibold">
               Confirm Issue Book
