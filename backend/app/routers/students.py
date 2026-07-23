@@ -29,7 +29,6 @@ router = APIRouter(prefix="/students", tags=["Students"])
 
 
 @router.get("", response_model=PaginatedResponse[StudentOut])
-@cache_response(ttl=300, key_prefix="students:list")
 async def list_students(
     current_user: CurrentUser,
     db: DbSession,
