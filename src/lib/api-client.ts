@@ -63,9 +63,12 @@ apiClient.interceptors.request.use(
     if (!config.headers["X-School-Id"]) {
       let schoolId: string | null = null;
       try {
+        schoolId = localStorage.getItem("eduverse_active_school_id");
+        
         // First check current URL pathname for slug
-        const pathParts = window.location.pathname.split("/").filter(Boolean);
-        const possibleSlug = pathParts[0];
+        if (!schoolId) {
+          const pathParts = window.location.pathname.split("/").filter(Boolean);
+          const possibleSlug = pathParts[0];
         if (possibleSlug && possibleSlug !== "platform" && possibleSlug !== "auth") {
           const item = localStorage.getItem(`eduverse_tenant_${possibleSlug}`);
           if (item) {

@@ -131,6 +131,9 @@ export function useTenantOptimized(schoolSlug: string | undefined): TenantResult
         };
 
         cacheTenant(normalizedSlug, tenantData);
+        try {
+          localStorage.setItem("eduverse_active_school_id", schoolData.id);
+        } catch {}
         return tenantData;
       }
 
