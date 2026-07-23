@@ -121,6 +121,8 @@ export const NAV_CATALOG: NavItem[] = [
   // Operations
   { key: "transport", label: "Transport Management", icon: Bus, group: "operations", path: "transport",
     roles: ["super_admin","school_owner","principal","vice_principal","school_admin"] },
+  { key: "library", label: "Library Center", icon: BookOpen, group: "operations", path: "library",
+    roles: ["super_admin","school_owner","principal","vice_principal","school_admin","teacher","student"] },
   { key: "complaints", label: "Complaints", icon: ShieldAlert, group: "operations", path: "complaints",
     roles: ["super_admin","school_owner","principal","vice_principal","school_admin"] },
   { key: "owner-insights", label: "AI Board Insights", icon: Brain, group: "operations", path: "owner-insights",
