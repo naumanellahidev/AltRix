@@ -237,20 +237,47 @@ const [voiceOpen, setVoiceOpen] = useState(false);
     return Array.from(new Set<EduverseRole>([...assignedRoles, role]));
   }, [assignedRoles, role]);
 
+  // Fetch feature flags to enforce Super Master Admin module controls per school tenant
+  const [featureFlags, setFeatureFlags] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    if (!schoolId) return;
+    apiClient.get(`/feature-flags/${schoolId}`).then((res) => {
+      if (res.data) setFeatureFlags(res.data);
+    }).catch(() => {});
+  }, [schoolId]);
+
   // Build sidebar from the centralized permission resolver so visibility
   // stays in lockstep with route-guard access checks.
   const { grouped } = useMemo(() => {
     const perms = resolvePermissions(effectiveRoles);
-    // buildMergedNav already groups; rebuild from filtered modules so we
-    // honour exactly the same set the resolver allows.
-    const items = perms.visibleModules;
+
+    const flagPathMap: Record<string, string> = {
+      transport: "transport_enabled",
+      library: "library_enabled",
+      "student-wellbeing": "wellbeing_enabled",
+      inventory: "inventory_enabled",
+      alumni: "alumni_enabled",
+      hostel: "hostel_enabled",
+      "doc-management": "document_cert_enabled",
+      "public-admissions": "public_admissions_enabled",
+    };
+
+    const items = perms.visibleModules.filter((item) => {
+      const flagKey = flagPathMap[item.path];
+      if (flagKey && featureFlags[flagKey] === false) {
+        return false;
+      }
+      return true;
+    });
+
     const g: Record<string, typeof items> = {
       overview: [], academics: [], people: [], finance: [],
       operations: [], communication: [], admin: [],
     };
     for (const it of items) g[it.group].push(it);
     return { grouped: g as ReturnType<typeof buildMergedNav>["grouped"] };
-  }, [effectiveRoles]);
+  }, [effectiveRoles, featureFlags]);
 
   // Mobile bottom bar ΓÇö role-aware. Keep to 5 items + "More" so nothing overflows.
   const bottomNavItems = useMemo<Array<{ to: string; icon: typeof LayoutGrid; label: string; badge?: number }>>(() => {
