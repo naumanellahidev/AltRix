@@ -6,7 +6,11 @@ from typing import Dict, Any, Optional
 from uuid import UUID
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives import serialization
-from pywebpush import webpush, WebPushException
+try:
+    from pywebpush import webpush, WebPushException
+except ImportError:
+    webpush = None
+    WebPushException = Exception
 
 logger = logging.getLogger("altrix.webpush")
 

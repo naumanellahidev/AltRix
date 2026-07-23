@@ -60,7 +60,7 @@ from app.models.visitors import (
     VisitorPass, VisitorBlacklist,
 )
 from app.models.owner_insights import OwnerAiInsight
-from app.models.documents import SchoolDocument, DocumentTemplate, IssuedCertificate
+from app.models.documents import StudentDocument, IssuedCertificate
 from app.models.exams import ExamRoom, ExamSeatingPlan, ExamSeatAssignment, ExamInvigilator
 
 __all__ = [
@@ -109,7 +109,7 @@ from app.models.appraisals import (
 )
 from app.models.wellbeing import (
     StudentMedicalRecord, InfirmaryVisitLog, VaccinationRecord,
-    FirstAidIncident, WellbeingSurvey, MedicalDirectory,
+    FirstAidIncident,
 )
 from app.models.feature_flags import SchoolFeatureFlag
 from app.models.transport import DriverProfile, Vehicle, StudentTransportAssignment, TransportEventLog
@@ -119,7 +119,7 @@ from app.models.documents import StudentDocument
 __all__.extend([
     "StaffKpi", "StaffAppraisal", "Feedback360", "PerformanceImprovementPlan",
     "StudentMedicalRecord", "InfirmaryVisitLog", "VaccinationRecord",
-    "FirstAidIncident", "WellbeingSurvey", "MedicalDirectory",
+    "FirstAidIncident",
     "SchoolFeatureFlag", "DriverProfile", "Vehicle", "StudentTransportAssignment",
     "TransportEventLog", "LibraryBook", "BookIssue", "BookReservation", "StudentDocument",
 ])

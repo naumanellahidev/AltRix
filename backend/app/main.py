@@ -11,8 +11,12 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
-from slowapi import _rate_limit_exceeded_handler
-from slowapi.errors import RateLimitExceeded
+try:
+    from slowapi import _rate_limit_exceeded_handler
+    from slowapi.errors import RateLimitExceeded
+except ImportError:
+    RateLimitExceeded = Exception
+    _rate_limit_exceeded_handler = None
 
 from app.config import settings
 from app.database import engine

@@ -1,7 +1,7 @@
 """
 Router for Public Online Admissions Portal & Public Tracking Status.
 """
-import uuid
+from uuid import UUID
 import random
 import string
 from typing import Optional

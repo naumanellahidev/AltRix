@@ -13,7 +13,10 @@ from fastapi.responses import JSONResponse
 from jose import JWTError
 from pydantic import ValidationError
 from sqlalchemy.exc import SQLAlchemyError
-from slowapi.errors import RateLimitExceeded
+try:
+    from slowapi.errors import RateLimitExceeded
+except ImportError:
+    RateLimitExceeded = Exception
 
 logger = logging.getLogger("app.error_handlers")
 
