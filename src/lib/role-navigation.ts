@@ -3,7 +3,7 @@ import {
   KanbanSquare, LayoutGrid, Megaphone, MessageSquare, NotebookPen,
   ShieldAlert, ShieldCheck, Shield, Users, FileText, PartyPopper, UserPlus,
   Briefcase, Wallet, Receipt, FileSignature, ClipboardList, Heart, PhoneCall, Target,
-  AlertTriangle, Sparkles, Smile, Brain, FolderOpen, Grid3X3, HeartPulse, Bus, PackageCheck
+  AlertTriangle, Sparkles, Smile, Brain, FolderOpen, Grid3X3, HeartPulse, Bus, PackageCheck, Settings
 } from "lucide-react";
 import type { EduverseRole } from "@/lib/eduverse-roles";
 
