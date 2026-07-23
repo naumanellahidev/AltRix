@@ -24,6 +24,10 @@ class SchoolFeatureFlag(Base):
     parent_app_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     document_cert_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     ai_features_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    wellbeing_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    inventory_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    alumni_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    public_admissions_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
     created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=True)
     updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), onupdate=func.now(), nullable=True)

@@ -8,11 +8,20 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
-import { Cpu, Save, ShieldAlert, Sparkles, Bus, BookOpen, Smartphone, FileText, RefreshCw } from "lucide-react";
+import { Cpu, Save, ShieldAlert, Sparkles, Bus, BookOpen, Smartphone, FileText, RefreshCw, HeartPulse, PackageCheck, GraduationCap, Globe } from "lucide-react";
 
 type SchoolRow = { id: string; slug: string; name: string };
 
-type AddonKey = "transport_enabled" | "library_enabled" | "parent_app_enabled" | "document_cert_enabled" | "ai_features_enabled";
+type AddonKey =
+  | "transport_enabled"
+  | "library_enabled"
+  | "parent_app_enabled"
+  | "document_cert_enabled"
+  | "ai_features_enabled"
+  | "wellbeing_enabled"
+  | "inventory_enabled"
+  | "alumni_enabled"
+  | "public_admissions_enabled";
 
 type Addon = {
   key: AddonKey;
@@ -28,6 +37,10 @@ const ADDONS: Addon[] = [
   { key: "parent_app_enabled", name: "Enhanced Parent Mobile App", desc: "Mobile-optimized PWA feed with fee voucher checkout, PTM slot booking, and child updates.", icon: Smartphone, category: "Experience" },
   { key: "document_cert_enabled", name: "Document Vault & Certificate Engine", desc: "Document storage, Transfer/Character Certificate generator with public QR verification.", icon: FileText, category: "Governance" },
   { key: "ai_features_enabled", name: "AI Intelligence & Copilot Engine", desc: "Enables AI early warnings, student academic predictions, and intelligent assistance.", icon: Sparkles, category: "Intelligence" },
+  { key: "wellbeing_enabled", name: "Student Health & Infirmary Desk", desc: "Clinic visit tracking, vaccination records, allergy alerts, and emergency parent notifications.", icon: HeartPulse, category: "Operations" },
+  { key: "inventory_enabled", name: "Asset & School Inventory Management", desc: "IT hardware, lab gear, and furniture stock tracking with reorder alerts.", icon: PackageCheck, category: "Operations" },
+  { key: "alumni_enabled", name: "Alumni Network & Placement Portal", desc: "Searchable alumni directory, reunion event management, and scholarship contribution ledger.", icon: GraduationCap, category: "Community" },
+  { key: "public_admissions_enabled", name: "Public Online Admissions Portal", desc: "External applicant landing page, online document submission, and public status tracking.", icon: Globe, category: "Marketing" },
 ];
 
 export default function PlatformAddonsPage() {
@@ -43,6 +56,10 @@ export default function PlatformAddonsPage() {
     parent_app_enabled: true,
     document_cert_enabled: true,
     ai_features_enabled: true,
+    wellbeing_enabled: true,
+    inventory_enabled: true,
+    alumni_enabled: true,
+    public_admissions_enabled: true,
   });
 
   const loadSchools = async () => {
@@ -71,6 +88,10 @@ export default function PlatformAddonsPage() {
           parent_app_enabled: res.data.parent_app_enabled ?? true,
           document_cert_enabled: res.data.document_cert_enabled ?? true,
           ai_features_enabled: res.data.ai_features_enabled ?? true,
+          wellbeing_enabled: res.data.wellbeing_enabled ?? true,
+          inventory_enabled: res.data.inventory_enabled ?? true,
+          alumni_enabled: res.data.alumni_enabled ?? true,
+          public_admissions_enabled: res.data.public_admissions_enabled ?? true,
         });
       }
     } catch (e) {
@@ -81,6 +102,10 @@ export default function PlatformAddonsPage() {
         parent_app_enabled: true,
         document_cert_enabled: true,
         ai_features_enabled: true,
+        wellbeing_enabled: true,
+        inventory_enabled: true,
+        alumni_enabled: true,
+        public_admissions_enabled: true,
       });
     }
   };

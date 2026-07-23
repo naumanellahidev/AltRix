@@ -58,6 +58,9 @@ from app.routers.wellbeing import router as wellbeing_router
 from app.routers.feature_flags import router as feature_flags_router
 from app.routers.library import router as library_router
 from app.routers.parent_portal import router as parent_portal_router
+from app.routers.inventory import router as inventory_router
+from app.routers.alumni import router as alumni_router
+from app.routers.public_admissions import router as public_admissions_router
 
 # ─── Structured Logging ───────────────────────────────────────────────────────
 logging.basicConfig(
@@ -647,3 +650,6 @@ app.include_router(wellbeing_router, prefix=_PREFIX)
 app.include_router(feature_flags_router, prefix=_PREFIX)
 app.include_router(library_router, prefix=_PREFIX)
 app.include_router(parent_portal_router, prefix=_PREFIX)
+app.include_router(inventory_router, prefix=_PREFIX)
+app.include_router(alumni_router, prefix=_PREFIX)
+app.include_router(public_admissions_router, prefix=_PREFIX)

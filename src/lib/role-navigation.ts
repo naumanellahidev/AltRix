@@ -3,7 +3,7 @@ import {
   KanbanSquare, LayoutGrid, Megaphone, MessageSquare, NotebookPen,
   ShieldAlert, ShieldCheck, Shield, Users, FileText, PartyPopper, UserPlus,
   Briefcase, Wallet, Receipt, FileSignature, ClipboardList, Heart, PhoneCall, Target,
-  AlertTriangle, Sparkles, Smile, Brain, FolderOpen, Grid3X3, HeartPulse, Bus,
+  AlertTriangle, Sparkles, Smile, Brain, FolderOpen, Grid3X3, HeartPulse, Bus, PackageCheck
 } from "lucide-react";
 import type { EduverseRole } from "@/lib/eduverse-roles";
 
@@ -123,6 +123,10 @@ export const NAV_CATALOG: NavItem[] = [
     roles: ["super_admin","school_owner","principal","vice_principal","school_admin"] },
   { key: "library", label: "Library Center", icon: BookOpen, group: "operations", path: "library",
     roles: ["super_admin","school_owner","principal","vice_principal","school_admin","teacher","student"] },
+  { key: "inventory", label: "Asset & Inventory", icon: PackageCheck, group: "operations", path: "inventory",
+    roles: ["super_admin","school_owner","principal","vice_principal","school_admin"] },
+  { key: "alumni", label: "Alumni Network", icon: GraduationCap, group: "operations", path: "alumni",
+    roles: ["super_admin","school_owner","principal","vice_principal","school_admin","teacher"] },
   { key: "complaints", label: "Complaints", icon: ShieldAlert, group: "operations", path: "complaints",
     roles: ["super_admin","school_owner","principal","vice_principal","school_admin"] },
   { key: "owner-insights", label: "AI Board Insights", icon: Brain, group: "operations", path: "owner-insights",

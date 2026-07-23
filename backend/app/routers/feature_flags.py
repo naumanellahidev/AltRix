@@ -21,6 +21,10 @@ class FeatureFlagsSchema(BaseModel):
     parent_app_enabled: bool = True
     document_cert_enabled: bool = True
     ai_features_enabled: bool = True
+    wellbeing_enabled: bool = True
+    inventory_enabled: bool = True
+    alumni_enabled: bool = True
+    public_admissions_enabled: bool = True
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -31,6 +35,10 @@ class FeatureFlagsUpdateSchema(BaseModel):
     parent_app_enabled: Optional[bool] = None
     document_cert_enabled: Optional[bool] = None
     ai_features_enabled: Optional[bool] = None
+    wellbeing_enabled: Optional[bool] = None
+    inventory_enabled: Optional[bool] = None
+    alumni_enabled: Optional[bool] = None
+    public_admissions_enabled: Optional[bool] = None
 
 
 @router.get("/{school_id}", response_model=FeatureFlagsSchema)
@@ -52,6 +60,10 @@ async def get_school_feature_flags(
             parent_app_enabled=True,
             document_cert_enabled=True,
             ai_features_enabled=True,
+            wellbeing_enabled=True,
+            inventory_enabled=True,
+            alumni_enabled=True,
+            public_admissions_enabled=True,
         )
         db.add(flags)
         await db.commit()
@@ -85,6 +97,14 @@ async def update_school_feature_flags(
         flags.document_cert_enabled = payload.document_cert_enabled
     if payload.ai_features_enabled is not None:
         flags.ai_features_enabled = payload.ai_features_enabled
+    if payload.wellbeing_enabled is not None:
+        flags.wellbeing_enabled = payload.wellbeing_enabled
+    if payload.inventory_enabled is not None:
+        flags.inventory_enabled = payload.inventory_enabled
+    if payload.alumni_enabled is not None:
+        flags.alumni_enabled = payload.alumni_enabled
+    if payload.public_admissions_enabled is not None:
+        flags.public_admissions_enabled = payload.public_admissions_enabled
 
     await db.commit()
     await db.refresh(flags)
