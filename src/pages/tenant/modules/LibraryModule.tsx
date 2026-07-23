@@ -47,9 +47,17 @@ interface BookReservation {
   status: string;
 }
 
+interface BorrowerOption {
+  id: string;
+  name: string;
+  type: string;
+  code?: string;
+}
+
 export function LibraryModule() {
   const [books, setBooks] = useState<Book[]>([]);
   const [issues, setIssues] = useState<Issue[]>([]);
+  const [borrowers, setBorrowers] = useState<BorrowerOption[]>([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
   const [activeTab, setActiveTab] = useState("catalog");
@@ -93,10 +101,40 @@ export function LibraryModule() {
     setLoading(false);
   };
 
+  const loadBorrowers = async () => {
+    try {
+      const [resStu, resTeach] = await Promise.all([
+        apiClient.get("/students?page_size=1000").catch(() => ({ data: [] })),
+        apiClient.get("/teachers?page_size=1000").catch(() => ({ data: [] }))
+      ]);
+      const stuList = resStu.data?.items || resStu.data || [];
+      const teachList = resTeach.data?.items || resTeach.data || [];
+      
+      const bOptions: BorrowerOption[] = [
+        ...(Array.isArray(stuList) ? stuList.map((s: any) => ({
+          id: s.id,
+          name: s.full_name,
+          type: "student",
+          code: s.roll_number || s.admission_number || "Student"
+        })) : []),
+        ...(Array.isArray(teachList) ? teachList.map((t: any) => ({
+          id: t.id,
+          name: t.full_name,
+          type: "staff",
+          code: t.designation || "Faculty"
+        })) : [])
+      ];
+      setBorrowers(bOptions);
+    } catch {
+      setBorrowers([]);
+    }
+  };
+
   useEffect(() => {
     loadBooks();
     loadIssues();
     loadReservations();
+    loadBorrowers();
   }, []);
 
   const getErrorMessage = (err: any, fallback: string): string => {
@@ -129,7 +167,7 @@ export function LibraryModule() {
 
   const handleIssueBook = async () => {
     if (!newIssue.book_id || !newIssue.borrower_id) {
-      toast.error("Select a book and provide borrower ID");
+      toast.error("Select a book and borrower");
       return;
     }
     try {
@@ -413,8 +451,26 @@ export function LibraryModule() {
               </Select>
             </div>
             <div>
-              <Label>Borrower ID / Roll Number</Label>
-              <Input placeholder="Enter Student ID or Staff ID" value={newIssue.borrower_id} onChange={e => setNewIssue({ ...newIssue, borrower_id: e.target.value })} className="mt-1" />
+              <Label>Select Student / Staff Borrower</Label>
+              {borrowers.length > 0 ? (
+                <Select value={newIssue.borrower_id} onValueChange={val => {
+                  const b = borrowers.find(item => item.id === val);
+                  setNewIssue({ ...newIssue, borrower_id: val, borrower_type: b?.type || "student" });
+                }}>
+                  <SelectTrigger className="mt-1">
+                    <SelectValue placeholder="Choose Borrower..." />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-60">
+                    {borrowers.map(b => (
+                      <SelectItem key={b.id} value={b.id}>
+                        {b.name} ({b.type.toUpperCase()} - {b.code})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Input placeholder="Enter Student ID or Staff ID" value={newIssue.borrower_id} onChange={e => setNewIssue({ ...newIssue, borrower_id: e.target.value })} className="mt-1" />
+              )}
             </div>
             <Button onClick={handleIssueBook} className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-semibold">Confirm Issue</Button>
           </div>

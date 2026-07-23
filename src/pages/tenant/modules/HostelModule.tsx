@@ -12,7 +12,7 @@ import { apiClient } from "@/lib/api-client";
 import { toast } from "sonner";
 import {
   Home, Bed, Utensils, Moon, Plus, Search, RefreshCw,
-  CheckCircle2, AlertCircle, UserCheck, Shield, Clock, Building
+  CheckCircle2, AlertCircle, UserCheck, Shield, Clock, Building, User
 } from "lucide-react";
 
 interface HostelRoom {
@@ -34,10 +34,19 @@ interface MessMenu {
   special_notes?: string;
 }
 
+interface StudentOption {
+  id: string;
+  full_name: string;
+  roll_number?: string;
+  admission_number?: string;
+  class_name?: string;
+}
+
 export function HostelModule() {
   const [activeTab, setActiveTab] = useState("rooms");
   const [rooms, setRooms] = useState<HostelRoom[]>([]);
   const [messMenu, setMessMenu] = useState<MessMenu[]>([]);
+  const [students, setStudents] = useState<StudentOption[]>([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
 
@@ -55,15 +64,19 @@ export function HostelModule() {
   const loadHostelData = async () => {
     setLoading(true);
     try {
-      const [resRooms, resMess] = await Promise.all([
+      const [resRooms, resMess, resStudents] = await Promise.all([
         apiClient.get("/hostel/rooms"),
-        apiClient.get("/hostel/mess-menu")
+        apiClient.get("/hostel/mess-menu"),
+        apiClient.get("/students?page_size=1000").catch(() => ({ data: [] }))
       ]);
       setRooms(resRooms.data ?? []);
       setMessMenu(resMess.data ?? []);
+      const stuList = resStudents.data?.items || resStudents.data || [];
+      setStudents(Array.isArray(stuList) ? stuList : []);
     } catch {
       setRooms([]);
       setMessMenu([]);
+      setStudents([]);
     }
     setLoading(false);
   };
@@ -89,7 +102,7 @@ export function HostelModule() {
 
   const handleAllocate = async () => {
     if (!allocData.room_id || !allocData.student_id) {
-      toast.error("Select room and student ID");
+      toast.error("Select room and student");
       return;
     }
     try {
@@ -104,7 +117,7 @@ export function HostelModule() {
 
   const handleAttendance = async () => {
     if (!attData.student_id) {
-      toast.error("Provide student ID");
+      toast.error("Provide student");
       return;
     }
     try {
@@ -394,8 +407,23 @@ export function HostelModule() {
               </Select>
             </div>
             <div>
-              <Label>Student UUID / Roll Code</Label>
-              <Input placeholder="Enter Student ID" value={allocData.student_id} onChange={e => setAllocData({ ...allocData, student_id: e.target.value })} className="mt-1" />
+              <Label>Select Enrolled Student</Label>
+              {students.length > 0 ? (
+                <Select value={allocData.student_id} onValueChange={val => setAllocData({ ...allocData, student_id: val })}>
+                  <SelectTrigger className="mt-1">
+                    <SelectValue placeholder="Search / Choose Student..." />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-60">
+                    {students.map(s => (
+                      <SelectItem key={s.id} value={s.id}>
+                        {s.full_name} {s.roll_number ? `(Roll: ${s.roll_number})` : s.class_name ? `(${s.class_name})` : ''}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Input placeholder="Enter Student ID" value={allocData.student_id} onChange={e => setAllocData({ ...allocData, student_id: e.target.value })} className="mt-1" />
+              )}
             </div>
             <Button onClick={handleAllocate} className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-semibold">Confirm Allocation</Button>
           </div>
@@ -409,8 +437,23 @@ export function HostelModule() {
           </DialogHeader>
           <div className="space-y-4 pt-2">
             <div>
-              <Label>Student UUID / Roll Code</Label>
-              <Input placeholder="Enter Student ID" value={attData.student_id} onChange={e => setAttData({ ...attData, student_id: e.target.value })} className="mt-1" />
+              <Label>Select Boarding Student</Label>
+              {students.length > 0 ? (
+                <Select value={attData.student_id} onValueChange={val => setAttData({ ...attData, student_id: val })}>
+                  <SelectTrigger className="mt-1">
+                    <SelectValue placeholder="Choose Boarder Student..." />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-60">
+                    {students.map(s => (
+                      <SelectItem key={s.id} value={s.id}>
+                        {s.full_name} {s.roll_number ? `(Roll: ${s.roll_number})` : ''}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Input placeholder="Enter Student ID" value={attData.student_id} onChange={e => setAttData({ ...attData, student_id: e.target.value })} className="mt-1" />
+              )}
             </div>
             <div>
               <Label>Status</Label>
