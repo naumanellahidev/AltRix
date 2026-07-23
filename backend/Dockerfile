@@ -41,7 +41,7 @@ ENV PATH="/opt/venv/bin:$PATH"
 # Set Python environment variables
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PORT=10000
+    PORT=8000
 
 # Copy application source code
 COPY . .
@@ -50,10 +50,10 @@ COPY . .
 RUN chmod +x entrypoint.sh
 
 # Expose port (FastAPI default)
-EXPOSE 10000
+EXPOSE 8000
 
 # Set entrypoint script
 ENTRYPOINT ["./entrypoint.sh"]
 
-CMD ["sh", "-c", "gunicorn -w 4 -k uvicorn.workers.UvicornWorker -b 0.0.0.0:${PORT:-10000} --access-logfile - --error-logfile - app.main:app"]
+CMD ["sh", "-c", "gunicorn -w 4 -k uvicorn.workers.UvicornWorker -b 0.0.0.0:${PORT:-8000} --access-logfile - --error-logfile - app.main:app"]
 

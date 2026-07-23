@@ -27,7 +27,7 @@ export default defineConfig(({ mode }) => ({
               res.end(
                 JSON.stringify({
                   error: "Bad Gateway",
-                  message: "FastAPI Backend is not reachable. Ensure the backend server is running on port 10000.",
+                  message: "FastAPI Backend is not reachable. Ensure the backend server is running on port 8000.",
                 })
               );
             }
@@ -54,7 +54,7 @@ export default defineConfig(({ mode }) => ({
               res.end(
                 JSON.stringify({
                   error: "Bad Gateway",
-                  message: "FastAPI Backend is not reachable. Ensure the backend server is running on port 10000.",
+                  message: "FastAPI Backend is not reachable. Ensure the backend server is running on port 8000.",
                 })
               );
             }

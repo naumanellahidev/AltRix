@@ -5,10 +5,10 @@ echo        AltRix School ERP SaaS Launcher
 echo ==============================================
 echo.
 
-echo [1/4] Terminating any ghost processes on ports 10000 and 8080...
-:: Check port 10000
-for /f "tokens=5" %%a in ('netstat -aon ^| findstr :10000 ^| findstr LISTENING 2^>nul') do (
-    echo Killing process %%a on port 10000...
+echo [1/4] Terminating any ghost processes on ports 8000 and 8080...
+:: Check port 8000
+for /f "tokens=5" %%a in ('netstat -aon ^| findstr :8000 ^| findstr LISTENING 2^>nul') do (
+    echo Killing process %%a on port 8000...
     taskkill /F /PID %%a 2>nul
 )
 :: Check port 8080
@@ -65,7 +65,7 @@ echo.
 echo ==============================================
 echo Launch complete!
 echo - Frontend: http://127.0.0.1:8080/
-echo - Backend API Docs: http://127.0.0.1:10000/docs
+echo - Backend API Docs: http://127.0.0.1:8000/docs
 echo ==============================================
 echo.
 pause

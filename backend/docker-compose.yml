@@ -28,7 +28,7 @@ services:
     container_name: altrix-web
     restart: always
     ports:
-      - "8000:10000"
+      - "8000:8000"
     environment:
       - DATABASE_URL=${DATABASE_URL}
       # Point directly to the internal Redis container in the Docker network
