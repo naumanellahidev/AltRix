@@ -42,9 +42,9 @@ async def list_teachers(
         like = f"%{search}%"
         query = query.where(
             or_(
-                TeacherProfile.first_name.ilike(like),
-                TeacherProfile.last_name.ilike(like),
-                TeacherProfile.employee_id.ilike(like),
+                TeacherProfile.full_name.ilike(like),
+                TeacherProfile.email.ilike(like),
+                TeacherProfile.position.ilike(like),
             )
         )
     if campus_id:
@@ -55,7 +55,7 @@ async def list_teachers(
 
     offset = (page - 1) * page_size
     result = await db.execute(
-        query.order_by(TeacherProfile.last_name, TeacherProfile.first_name)
+        query.order_by(TeacherProfile.full_name)
         .offset(offset)
         .limit(page_size)
     )

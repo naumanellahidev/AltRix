@@ -44,9 +44,16 @@ export function createCatalogRouteElements({ roles, ctx, exclude }: Props) {
     seen.add(item.path);
 
     const fullCtx: ModuleCtx = { ...ctx, roles: expanded };
+    const RawComp = entry.Component as any;
+    const Component = RawComp?.default || RawComp;
+
+    if (!Component || (typeof Component !== "function" && typeof Component !== "object")) {
+      return [];
+    }
+
     const node = entry.render
       ? entry.render(fullCtx)
-      : createElement(entry.Component, entry.propsFor ? entry.propsFor(fullCtx) : {});
+      : createElement(Component, entry.propsFor ? entry.propsFor(fullCtx) : {});
 
     return [
       <Route

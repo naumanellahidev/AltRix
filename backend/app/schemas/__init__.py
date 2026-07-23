@@ -398,7 +398,7 @@ class TeacherOut(BaseModel):
     id: UUID
     school_id: UUID
     campus_id: Optional[UUID] = None
-    user_id: UUID
+    user_id: Optional[UUID] = None
     employee_id: Optional[str] = None
     first_name: Optional[str] = None
     last_name: Optional[str] = None
