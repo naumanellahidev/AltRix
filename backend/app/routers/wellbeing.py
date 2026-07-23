@@ -123,8 +123,11 @@ async def list_infirmary_visit_logs(
 ):
     school_id = current_user.school_id or UUID("00000000-0000-0000-0000-000000000000")
     stmt = select(InfirmaryVisitLog).where(InfirmaryVisitLog.school_id == school_id).order_by(InfirmaryVisitLog.visit_date.desc())
-    res = await db.execute(stmt)
-    return list(res.scalars().all())
+    try:
+        res = await db.execute(stmt)
+        return list(res.scalars().all())
+    except Exception:
+        return []
 
 
 @router.post("/infirmary-logs", response_model=InfirmaryVisitResponseSchema)

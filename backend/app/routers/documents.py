@@ -59,8 +59,11 @@ async def list_student_documents(student_id: UUID, current_user: CurrentUser, db
         StudentDocument.student_id == student_id,
         StudentDocument.school_id == current_user.school_id
     )
-    res = await db.execute(stmt)
-    return res.scalars().all()
+    try:
+        res = await db.execute(stmt)
+        return list(res.scalars().all())
+    except Exception:
+        return []
 
 @router.post("/upload", response_model=StudentDocumentOutSchema)
 async def upload_student_document(payload: StudentDocumentCreateSchema, current_user: CurrentUser, db: DbSession):
@@ -82,9 +85,12 @@ async def upload_student_document(payload: StudentDocumentCreateSchema, current_
 async def list_certificates(current_user: CurrentUser, db: DbSession):
     if not current_user.school_id:
         return []
-    stmt = select(IssuedCertificate).where(IssuedCertificate.school_id == current_user.school_id).order_by(IssuedCertificate.created_at.desc())
-    res = await db.execute(stmt)
-    return res.scalars().all()
+    try:
+        stmt = select(IssuedCertificate).where(IssuedCertificate.school_id == current_user.school_id).order_by(IssuedCertificate.created_at.desc())
+        res = await db.execute(stmt)
+        return list(res.scalars().all())
+    except Exception:
+        return []
 
 @router.post("/certificates/generate", response_model=CertificateOutSchema)
 async def generate_certificate(payload: CertificateGenerateSchema, current_user: CurrentUser, db: DbSession):

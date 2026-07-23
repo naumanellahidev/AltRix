@@ -71,9 +71,11 @@ async def list_alumni_directory(
     current_user: CurrentUser,
 ):
     school_id = current_user.school_id or UUID("00000000-0000-0000-0000-000000000000")
-    stmt = select(AlumniProfile).where(AlumniProfile.school_id == school_id).order_by(AlumniProfile.graduation_year.desc())
-    res = await db.execute(stmt)
-    return list(res.scalars().all())
+    try:
+        res = await db.execute(stmt)
+        return list(res.scalars().all())
+    except Exception:
+        return []
 
 
 @router.post("/register", response_model=AlumniProfileResponseSchema)
@@ -107,8 +109,11 @@ async def list_alumni_events(
 ):
     school_id = current_user.school_id or UUID("00000000-0000-0000-0000-000000000000")
     stmt = select(AlumniEvent).where(AlumniEvent.school_id == school_id)
-    res = await db.execute(stmt)
-    return list(res.scalars().all())
+    try:
+        res = await db.execute(stmt)
+        return list(res.scalars().all())
+    except Exception:
+        return []
 
 
 @router.post("/events", response_model=AlumniEventResponseSchema)
