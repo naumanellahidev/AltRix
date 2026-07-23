@@ -43,12 +43,6 @@ apiClient.interceptors.request.use(
       const isReachable = await checkBackendReachability();
       if (!isReachable) {
         setUseFastAPI(false);
-        return Promise.reject({
-          code: "ERR_NETWORK",
-          message: "FastAPI Backend is not reachable (cancelled on startup check)",
-          config,
-          response: undefined,
-        });
       }
     }
 

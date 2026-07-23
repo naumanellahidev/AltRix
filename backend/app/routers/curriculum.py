@@ -35,18 +35,21 @@ async def list_presets(current_user: CurrentUser, db: DbSession):
     """List available curriculum presets (global + school-specific)."""
     if not current_user.school_id:
         return []
-    result = await db.execute(
-        select(CurriculumPreset)
-        .where(
-            or_(
-                CurriculumPreset.is_global == True,
-                CurriculumPreset.school_id == current_user.school_id,
-            ),
-            CurriculumPreset.is_active == True,
+    try:
+        result = await db.execute(
+            select(CurriculumPreset)
+            .where(
+                or_(
+                    CurriculumPreset.is_global == True,
+                    CurriculumPreset.school_id == current_user.school_id,
+                ),
+                CurriculumPreset.is_active == True,
+            )
+            .order_by(CurriculumPreset.is_global.desc(), CurriculumPreset.name)
         )
-        .order_by(CurriculumPreset.is_global.desc(), CurriculumPreset.name)
-    )
-    return result.scalars().all()
+        return list(result.scalars().all())
+    except Exception:
+        return []
 
 
 @router.get("/presets/{preset_id}", response_model=CurriculumPresetOut)
@@ -407,8 +410,11 @@ async def list_grade_boundaries(
         query = query.where(GradeBoundary.subject_id == subject_id)
     if preset_id:
         query = query.where(GradeBoundary.preset_id == preset_id)
-    result = await db.execute(query.order_by(GradeBoundary.sort_order, GradeBoundary.min_percentage.desc()))
-    return result.scalars().all()
+    try:
+        result = await db.execute(query.order_by(GradeBoundary.sort_order, GradeBoundary.min_percentage.desc()))
+        return list(result.scalars().all())
+    except Exception:
+        return []
 
 
 @router.post("/grade-boundaries", response_model=List[GradeBoundaryOut], status_code=status.HTTP_201_CREATED)

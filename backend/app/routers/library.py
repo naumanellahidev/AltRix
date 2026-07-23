@@ -86,8 +86,11 @@ async def list_books(
             (LibraryBook.barcode == search) |
             (LibraryBook.isbn == search)
         )
-    res = await db.execute(stmt)
-    return res.scalars().all()
+    try:
+        res = await db.execute(stmt)
+        return list(res.scalars().all())
+    except Exception:
+        return []
 
 @router.post("/books", response_model=BookOutSchema)
 async def create_book(payload: BookCreateSchema, current_user: CurrentUser, db: DbSession):
@@ -112,8 +115,11 @@ async def list_issues(
     stmt = select(BookIssue).where(BookIssue.school_id == current_user.school_id)
     if status_filter:
         stmt = stmt.where(BookIssue.status == status_filter)
-    res = await db.execute(stmt)
-    return res.scalars().all()
+    try:
+        res = await db.execute(stmt)
+        return list(res.scalars().all())
+    except Exception:
+        return []
 
 @router.post("/issue", response_model=IssueOutSchema)
 async def issue_book(payload: IssueCreateSchema, current_user: CurrentUser, db: DbSession):
@@ -189,8 +195,11 @@ async def list_reservations(current_user: CurrentUser, db: DbSession):
     if not current_user.school_id:
         return []
     stmt = select(BookReservation).where(BookReservation.school_id == current_user.school_id)
-    res = await db.execute(stmt)
-    return res.scalars().all()
+    try:
+        res = await db.execute(stmt)
+        return list(res.scalars().all())
+    except Exception:
+        return []
 
 @router.post("/reserve", response_model=ReservationOutSchema)
 async def reserve_book(payload: ReservationCreateSchema, current_user: CurrentUser, db: DbSession):

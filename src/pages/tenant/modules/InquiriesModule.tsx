@@ -154,15 +154,14 @@ export function InquiriesModule() {
       // 3. Load active counselors / staff members
       const { data: counselorData } = await supabase
         .from("user_roles")
-        .select("user_id, profiles(display_name)")
+        .select("user_id, profiles(full_name)")
         .eq("school_id", schoolId)
         .in("role", ["counselor", "principal", "vice_principal", "school_admin"]);
 
       const mappedCounselors: Counselor[] = (counselorData || [])
-        .filter(c => c.profiles && (c.profiles as any).display_name)
         .map(c => ({
           id: c.user_id,
-          display_name: (c.profiles as any).display_name,
+          display_name: (c.profiles as any)?.full_name || "Staff Member",
         }));
       setCounselors(mappedCounselors);
 

@@ -133,10 +133,12 @@ async def lifespan(app: FastAPI):
     # 1. Verify Database Connection & Initialize Settings
     try:
         from sqlalchemy import text
-        from app.database import engine
+        from app.database import engine, Base
+        import app.models  # Register all ORM models
         async with engine.begin() as conn:
             await conn.execute(text("SELECT 1"))
-            logger.info("Database connection ping: SUCCESS")
+            await conn.run_sync(Base.metadata.create_all)
+            logger.info("Database connection ping: SUCCESS (All ORM tables verified/created)")
             
             # Create system_settings table if it doesn't exist
             await conn.execute(text("""
@@ -656,6 +658,8 @@ app.include_router(wellbeing_router, prefix=_PREFIX)
 app.include_router(feature_flags_router, prefix=_PREFIX)
 app.include_router(library_router, prefix=_PREFIX)
 app.include_router(parent_portal_router, prefix=_PREFIX)
+app.include_router(parent_portal_router, prefix=f"{_PREFIX}/parents")
+app.include_router(auth_router, prefix=f"{_PREFIX}/users")
 app.include_router(inventory_router, prefix=_PREFIX)
 app.include_router(alumni_router, prefix=_PREFIX)
 app.include_router(public_admissions_router, prefix=_PREFIX)

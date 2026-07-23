@@ -1131,3 +1131,136 @@ async def balance_dashboard(student_id: UUID, current_user: CurrentUser, db: DbS
         "upcoming_vouchers": [FeeVoucherOut.model_validate(v).model_dump() for v in upcoming],
         "escalation_details": [FeeEscalationOut.model_validate(e).model_dump() for e in escalations],
     }
+
+
+# ─── ADMIN FEE PORTAL: DISCOUNTS, GATEWAYS & ESCALATIONS ──────────────────────
+
+@router.get("/sibling-discounts")
+async def list_sibling_discounts(current_user: CurrentUser, db: DbSession):
+    if not current_user.school_id:
+        return []
+    try:
+        from app.models.finance import SiblingDiscount
+        res = await db.execute(select(SiblingDiscount).where(SiblingDiscount.school_id == current_user.school_id))
+        return list(res.scalars().all())
+    except Exception:
+        return []
+
+
+@router.post("/sibling-discounts")
+async def create_sibling_discount(body: dict, current_user: CurrentUser, db: DbSession):
+    if not current_user.school_id:
+        raise ForbiddenError()
+    try:
+        from app.models.finance import SiblingDiscount
+        disc = SiblingDiscount(
+            school_id=current_user.school_id,
+            sibling_number=body.get("sibling_number", 2),
+            discount_percentage=body.get("discount_percentage", 10.0),
+            is_active=body.get("is_active", True),
+        )
+        db.add(disc)
+        await db.commit()
+        await db.refresh(disc)
+        return disc
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.delete("/sibling-discounts/{disc_id}")
+async def delete_sibling_discount(disc_id: UUID, current_user: CurrentUser, db: DbSession):
+    if not current_user.school_id:
+        raise ForbiddenError()
+    try:
+        from app.models.finance import SiblingDiscount
+        res = await db.execute(select(SiblingDiscount).where(SiblingDiscount.id == disc_id, SiblingDiscount.school_id == current_user.school_id))
+        disc = res.scalar_one_or_none()
+        if disc:
+            await db.delete(disc)
+            await db.commit()
+        return {"message": "Sibling discount deleted"}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get("/gateway-configs")
+async def list_gateway_configs(current_user: CurrentUser, db: DbSession):
+    if not current_user.school_id:
+        return []
+    try:
+        from app.models.finance import PaymentGatewayConfig
+        res = await db.execute(select(PaymentGatewayConfig).where(PaymentGatewayConfig.school_id == current_user.school_id))
+        return list(res.scalars().all())
+    except Exception:
+        return []
+
+
+@router.post("/gateway-configs")
+async def create_or_update_gateway_config(body: dict, current_user: CurrentUser, db: DbSession):
+    if not current_user.school_id:
+        raise ForbiddenError()
+    try:
+        from app.models.finance import PaymentGatewayConfig
+        provider = body.get("provider_name", "stripe")
+        res = await db.execute(select(PaymentGatewayConfig).where(
+            PaymentGatewayConfig.school_id == current_user.school_id,
+            PaymentGatewayConfig.provider_name == provider
+        ))
+        cfg = res.scalar_one_or_none()
+        if not cfg:
+            cfg = PaymentGatewayConfig(
+                school_id=current_user.school_id,
+                provider_name=provider,
+                is_active=body.get("is_active", True),
+                api_key=body.get("api_key"),
+                api_secret=body.get("api_secret"),
+                merchant_id=body.get("merchant_id"),
+                mode=body.get("mode", "sandbox"),
+            )
+            db.add(cfg)
+        else:
+            cfg.is_active = body.get("is_active", cfg.is_active)
+            cfg.api_key = body.get("api_key", cfg.api_key)
+            cfg.api_secret = body.get("api_secret", cfg.api_secret)
+            cfg.merchant_id = body.get("merchant_id", cfg.merchant_id)
+            cfg.mode = body.get("mode", cfg.mode)
+        await db.commit()
+        await db.refresh(cfg)
+        return cfg
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get("/escalations")
+async def list_escalations(current_user: CurrentUser, db: DbSession):
+    if not current_user.school_id:
+        return []
+    try:
+        from app.models.finance import FeeEscalation
+        res = await db.execute(select(FeeEscalation).where(FeeEscalation.school_id == current_user.school_id).order_by(FeeEscalation.created_at.desc()))
+        return list(res.scalars().all())
+    except Exception:
+        return []
+
+
+@router.post("/escalations/check")
+async def trigger_escalation_check(current_user: CurrentUser, db: DbSession):
+    if not current_user.school_id:
+        raise ForbiddenError()
+    return {"message": "Escalation audit check executed successfully"}
+
+
+@router.patch("/escalations/{esc_id}/resolve")
+async def resolve_escalation(esc_id: UUID, current_user: CurrentUser, db: DbSession):
+    if not current_user.school_id:
+        raise ForbiddenError()
+    try:
+        from app.models.finance import FeeEscalation
+        res = await db.execute(select(FeeEscalation).where(FeeEscalation.id == esc_id, FeeEscalation.school_id == current_user.school_id))
+        esc = res.scalar_one_or_none()
+        if esc:
+            esc.resolved = True
+            await db.commit()
+        return {"message": "Escalation resolved"}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))

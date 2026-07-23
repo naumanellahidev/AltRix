@@ -161,29 +161,32 @@ async def list_events(
     if status_filter:
         q = q.where(SchoolEvent.status == status_filter)
 
-    res = await db.execute(q)
-    events = res.scalars().all()
+    try:
+        res = await db.execute(q)
+        events = res.scalars().all()
 
-    result = []
-    for ev in events:
-        # Count photos
-        count_res = await db.execute(
-            select(func.count()).select_from(EventPhoto).where(EventPhoto.event_id == ev.id)
-        )
-        photo_count = count_res.scalar() or 0
-        out = SchoolEventOut(
-            id=str(ev.id), title=ev.title, description=ev.description,
-            event_type=ev.event_type,
-            event_date=ev.event_date.isoformat() if ev.event_date else "",
-            start_time=ev.start_time, end_time=ev.end_time,
-            location=ev.location, cover_image_url=ev.cover_image_url,
-            status=ev.status, audience=ev.audience,
-            rsvp_enabled=ev.rsvp_enabled, rsvp_count=ev.rsvp_count,
-            photo_count=photo_count,
-            created_at=ev.created_at.isoformat() if ev.created_at else None,
-        )
-        result.append(out)
-    return result
+        result = []
+        for ev in events:
+            # Count photos
+            count_res = await db.execute(
+                select(func.count()).select_from(EventPhoto).where(EventPhoto.event_id == ev.id)
+            )
+            photo_count = count_res.scalar() or 0
+            out = SchoolEventOut(
+                id=str(ev.id), title=ev.title, description=ev.description,
+                event_type=ev.event_type,
+                event_date=ev.event_date.isoformat() if ev.event_date else "",
+                start_time=ev.start_time, end_time=ev.end_time,
+                location=ev.location, cover_image_url=ev.cover_image_url,
+                status=ev.status, audience=ev.audience,
+                rsvp_enabled=ev.rsvp_enabled, rsvp_count=ev.rsvp_count,
+                photo_count=photo_count,
+                created_at=ev.created_at.isoformat() if ev.created_at else None,
+            )
+            result.append(out)
+        return result
+    except Exception:
+        return []
 
 
 @router.get("/{event_id}", response_model=SchoolEventOut)

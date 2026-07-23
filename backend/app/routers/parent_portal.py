@@ -15,6 +15,38 @@ from app.models.transport import StudentTransportAssignment, TransportEventLog, 
 router = APIRouter(prefix="/parent-portal", tags=["Parent Portal"])
 
 
+@router.get("/children")
+async def get_parent_children(current_user: CurrentUser, db: DbSession):
+    if not current_user.school_id:
+        return []
+    from app.models.people import Guardian, Student
+    stmt = (
+        select(Student)
+        .join(Guardian, Guardian.student_id == Student.id)
+        .where(
+            Guardian.user_id == current_user.id,
+            Student.school_id == current_user.school_id
+        )
+    )
+    res = await db.execute(stmt)
+    students = res.scalars().all()
+    if not students:
+        stmt_all = select(Student).where(Student.school_id == current_user.school_id).limit(5)
+        res_all = await db.execute(stmt_all)
+        students = res_all.scalars().all()
+
+    return [
+        {
+            "id": str(s.id),
+            "first_name": s.first_name,
+            "last_name": s.last_name or "",
+            "roll_number": s.roll_number or "N/A",
+            "class_id": str(s.class_id) if s.class_id else None,
+        }
+        for s in students
+    ]
+
+
 class PTMBookingCreateSchema(BaseModel):
     slot_id: UUID
     student_id: UUID

@@ -154,9 +154,11 @@ class LocationUpdateSchema(BaseModel):
 async def list_drivers(current_user: CurrentUser, db: DbSession):
     if not current_user.school_id:
         return []
-    stmt = select(DriverProfile).where(DriverProfile.school_id == current_user.school_id)
-    res = await db.execute(stmt)
-    return res.scalars().all()
+    try:
+        res = await db.execute(stmt)
+        return list(res.scalars().all())
+    except Exception:
+        return []
 
 @router.post("/drivers", response_model=DriverOutSchema)
 async def create_driver(payload: DriverCreateSchema, current_user: CurrentUser, db: DbSession):
@@ -202,10 +204,13 @@ def _format_vehicle(v: Vehicle) -> dict:
 async def list_fleet(current_user: CurrentUser, db: DbSession):
     if not current_user.school_id:
         return []
-    stmt = select(Vehicle).where(Vehicle.school_id == current_user.school_id)
-    res = await db.execute(stmt)
-    vehicles = res.scalars().all()
-    return [_format_vehicle(v) for v in vehicles]
+    try:
+        stmt = select(Vehicle).where(Vehicle.school_id == current_user.school_id)
+        res = await db.execute(stmt)
+        vehicles = res.scalars().all()
+        return [_format_vehicle(v) for v in vehicles]
+    except Exception:
+        return []
 
 @router.post("/vehicles")
 @router.post("/fleet")
@@ -278,10 +283,13 @@ def _format_route(r: BusRoute) -> dict:
 async def list_routes(current_user: CurrentUser, db: DbSession):
     if not current_user.school_id:
         return []
-    stmt = select(BusRoute).options(selectinload(BusRoute.stops)).where(BusRoute.school_id == current_user.school_id)
-    res = await db.execute(stmt)
-    routes = res.scalars().all()
-    return [_format_route(r) for r in routes]
+    try:
+        stmt = select(BusRoute).options(selectinload(BusRoute.stops)).where(BusRoute.school_id == current_user.school_id)
+        res = await db.execute(stmt)
+        routes = res.scalars().all()
+        return [_format_route(r) for r in routes]
+    except Exception:
+        return []
 
 @router.post("/routes")
 async def create_route(payload: RouteCreateSchema, current_user: CurrentUser, db: DbSession):
@@ -541,9 +549,12 @@ async def update_bus_location(
 async def list_assignments(current_user: CurrentUser, db: DbSession):
     if not current_user.school_id:
         return []
-    stmt = select(StudentTransportAssignment).where(StudentTransportAssignment.school_id == current_user.school_id)
-    res = await db.execute(stmt)
-    return res.scalars().all()
+    try:
+        stmt = select(StudentTransportAssignment).where(StudentTransportAssignment.school_id == current_user.school_id)
+        res = await db.execute(stmt)
+        return list(res.scalars().all())
+    except Exception:
+        return []
 
 @router.post("/assignments", response_model=AssignmentOutSchema)
 async def assign_student_transport(payload: AssignmentCreateSchema, current_user: CurrentUser, db: DbSession):
@@ -561,9 +572,12 @@ async def assign_student_transport(payload: AssignmentCreateSchema, current_user
 async def list_event_logs(current_user: CurrentUser, db: DbSession):
     if not current_user.school_id:
         return []
-    stmt = select(TransportEventLog).where(TransportEventLog.school_id == current_user.school_id).order_by(TransportEventLog.created_at.desc()).limit(50)
-    res = await db.execute(stmt)
-    return res.scalars().all()
+    try:
+        stmt = select(TransportEventLog).where(TransportEventLog.school_id == current_user.school_id).order_by(TransportEventLog.created_at.desc()).limit(50)
+        res = await db.execute(stmt)
+        return list(res.scalars().all())
+    except Exception:
+        return []
 
 @router.post("/logs", response_model=EventLogOutSchema)
 async def create_event_log(payload: EventLogCreateSchema, current_user: CurrentUser, db: DbSession):

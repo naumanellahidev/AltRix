@@ -487,11 +487,12 @@ async def get_user_profile(user_id: UUID, current_user: CurrentUser, db: DbSessi
         raise
     except Exception as e:
         logger.warning(f"DB exception querying profile {user_id}: {e}")
-        return UserProfileOut(
-            id=user_id,
-            email=current_user.email or "",
-            full_name=None,
-            display_name=None,
-            avatar_url=None,
-            phone=None,
-        )
+@router.get("/me")
+async def get_current_user_me(current_user: CurrentUser):
+    return {
+        "id": str(current_user.id),
+        "email": current_user.email,
+        "school_id": str(current_user.school_id) if current_user.school_id else None,
+        "roles": current_user.roles,
+        "is_super_admin": current_user.is_super_admin,
+    }
