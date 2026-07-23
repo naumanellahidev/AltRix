@@ -8,7 +8,7 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
-import { Cpu, Save, ShieldAlert, Sparkles, Bus, BookOpen, Smartphone, FileText, RefreshCw, HeartPulse, PackageCheck, GraduationCap, Globe } from "lucide-react";
+import { Cpu, Save, ShieldAlert, Sparkles, Bus, BookOpen, Smartphone, FileText, RefreshCw, HeartPulse, PackageCheck, GraduationCap, Globe, Home, Award, Grid, Shield, Languages } from "lucide-react";
 
 type SchoolRow = { id: string; slug: string; name: string };
 
@@ -21,7 +21,12 @@ type AddonKey =
   | "wellbeing_enabled"
   | "inventory_enabled"
   | "alumni_enabled"
-  | "public_admissions_enabled";
+  | "public_admissions_enabled"
+  | "hostel_enabled"
+  | "appraisals_enabled"
+  | "seating_plan_enabled"
+  | "white_label_enabled"
+  | "multilang_enabled";
 
 type Addon = {
   key: AddonKey;
@@ -41,6 +46,11 @@ const ADDONS: Addon[] = [
   { key: "inventory_enabled", name: "Asset & School Inventory Management", desc: "IT hardware, lab gear, and furniture stock tracking with reorder alerts.", icon: PackageCheck, category: "Operations" },
   { key: "alumni_enabled", name: "Alumni Network & Placement Portal", desc: "Searchable alumni directory, reunion event management, and scholarship contribution ledger.", icon: GraduationCap, category: "Community" },
   { key: "public_admissions_enabled", name: "Public Online Admissions Portal", desc: "External applicant landing page, online document submission, and public status tracking.", icon: Globe, category: "Marketing" },
+  { key: "hostel_enabled", name: "Hostel & Boarding Facility Management", desc: "Room allocation grid, nightly boarding attendance, mess meal menu scheduling.", icon: Home, category: "Operations" },
+  { key: "appraisals_enabled", name: "Staff Appraisal & 360° KPI System", desc: "Teacher self-appraisals, Principal reviews, 360 anonymous student ratings, increment calculator.", icon: Award, category: "Governance" },
+  { key: "seating_plan_enabled", name: "Exam Hall Seating Plan Generator", desc: "Auto-generator ensuring non-adjacent seating per class, room capacity, invigilator duties.", icon: Grid, category: "Academics" },
+  { key: "white_label_enabled", name: "Full White-Label & Custom Domain Engine", desc: "Custom SMTP sending, white-label branding, custom splash screens, brand color theme.", icon: Shield, category: "Enterprise" },
+  { key: "multilang_enabled", name: "Multi-Language & RTL Layout Engine", desc: "Urdu (ur) + English (en) localization with automatic right-to-left layout switching.", icon: Languages, category: "Localization" },
 ];
 
 export default function PlatformAddonsPage() {
@@ -60,6 +70,11 @@ export default function PlatformAddonsPage() {
     inventory_enabled: true,
     alumni_enabled: true,
     public_admissions_enabled: true,
+    hostel_enabled: true,
+    appraisals_enabled: true,
+    seating_plan_enabled: true,
+    white_label_enabled: true,
+    multilang_enabled: true,
   });
 
   const loadSchools = async () => {
@@ -92,6 +107,11 @@ export default function PlatformAddonsPage() {
           inventory_enabled: res.data.inventory_enabled ?? true,
           alumni_enabled: res.data.alumni_enabled ?? true,
           public_admissions_enabled: res.data.public_admissions_enabled ?? true,
+          hostel_enabled: res.data.hostel_enabled ?? true,
+          appraisals_enabled: res.data.appraisals_enabled ?? true,
+          seating_plan_enabled: res.data.seating_plan_enabled ?? true,
+          white_label_enabled: res.data.white_label_enabled ?? true,
+          multilang_enabled: res.data.multilang_enabled ?? true,
         });
       }
     } catch (e) {
@@ -106,6 +126,11 @@ export default function PlatformAddonsPage() {
         inventory_enabled: true,
         alumni_enabled: true,
         public_admissions_enabled: true,
+        hostel_enabled: true,
+        appraisals_enabled: true,
+        seating_plan_enabled: true,
+        white_label_enabled: true,
+        multilang_enabled: true,
       });
     }
   };

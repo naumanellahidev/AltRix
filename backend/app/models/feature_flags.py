@@ -28,6 +28,11 @@ class SchoolFeatureFlag(Base):
     inventory_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     alumni_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     public_admissions_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    hostel_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    appraisals_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    seating_plan_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    white_label_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    multilang_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
     created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=True)
     updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), onupdate=func.now(), nullable=True)

@@ -51,6 +51,7 @@ import DocManagementModule from "@/pages/tenant/modules/DocManagementModule";
 import { InventoryModule } from "@/pages/tenant/modules/InventoryModule";
 import { AlumniModule } from "@/pages/tenant/modules/AlumniModule";
 import { PublicAdmissionsPortal } from "@/pages/tenant/PublicAdmissionsPortal";
+import { HostelModule } from "@/pages/tenant/modules/HostelModule";
 import CurriculumModule from "@/pages/tenant/modules/CurriculumModule";
 import EventsModule from "@/pages/tenant/modules/EventsModule";
 import GateVisitorModule from "@/pages/tenant/modules/GateVisitorModule";
@@ -162,6 +163,7 @@ export const MODULE_REGISTRY: Record<string, ModuleEntry> = {
   library:          { Component: LibraryModule },
   inventory:        { Component: InventoryModule },
   alumni:           { Component: AlumniModule },
+  hostel:           { Component: HostelModule },
   "public-admissions": { Component: PublicAdmissionsPortal },
   "doc-management": { Component: DocManagementModule },
   curriculum:       { Component: CurriculumModule },

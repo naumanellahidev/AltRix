@@ -61,6 +61,8 @@ from app.routers.parent_portal import router as parent_portal_router
 from app.routers.inventory import router as inventory_router
 from app.routers.alumni import router as alumni_router
 from app.routers.public_admissions import router as public_admissions_router
+from app.routers.hostel import router as hostel_router
+from app.routers.white_label import router as white_label_router
 
 # ─── Structured Logging ───────────────────────────────────────────────────────
 logging.basicConfig(
@@ -653,3 +655,5 @@ app.include_router(parent_portal_router, prefix=_PREFIX)
 app.include_router(inventory_router, prefix=_PREFIX)
 app.include_router(alumni_router, prefix=_PREFIX)
 app.include_router(public_admissions_router, prefix=_PREFIX)
+app.include_router(hostel_router, prefix=_PREFIX)
+app.include_router(white_label_router, prefix=_PREFIX)

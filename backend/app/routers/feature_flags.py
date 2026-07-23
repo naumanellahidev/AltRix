@@ -25,6 +25,11 @@ class FeatureFlagsSchema(BaseModel):
     inventory_enabled: bool = True
     alumni_enabled: bool = True
     public_admissions_enabled: bool = True
+    hostel_enabled: bool = True
+    appraisals_enabled: bool = True
+    seating_plan_enabled: bool = True
+    white_label_enabled: bool = True
+    multilang_enabled: bool = True
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -39,6 +44,11 @@ class FeatureFlagsUpdateSchema(BaseModel):
     inventory_enabled: Optional[bool] = None
     alumni_enabled: Optional[bool] = None
     public_admissions_enabled: Optional[bool] = None
+    hostel_enabled: Optional[bool] = None
+    appraisals_enabled: Optional[bool] = None
+    seating_plan_enabled: Optional[bool] = None
+    white_label_enabled: Optional[bool] = None
+    multilang_enabled: Optional[bool] = None
 
 
 @router.get("/{school_id}", response_model=FeatureFlagsSchema)
@@ -64,6 +74,11 @@ async def get_school_feature_flags(
             inventory_enabled=True,
             alumni_enabled=True,
             public_admissions_enabled=True,
+            hostel_enabled=True,
+            appraisals_enabled=True,
+            seating_plan_enabled=True,
+            white_label_enabled=True,
+            multilang_enabled=True,
         )
         db.add(flags)
         await db.commit()
@@ -105,6 +120,16 @@ async def update_school_feature_flags(
         flags.alumni_enabled = payload.alumni_enabled
     if payload.public_admissions_enabled is not None:
         flags.public_admissions_enabled = payload.public_admissions_enabled
+    if payload.hostel_enabled is not None:
+        flags.hostel_enabled = payload.hostel_enabled
+    if payload.appraisals_enabled is not None:
+        flags.appraisals_enabled = payload.appraisals_enabled
+    if payload.seating_plan_enabled is not None:
+        flags.seating_plan_enabled = payload.seating_plan_enabled
+    if payload.white_label_enabled is not None:
+        flags.white_label_enabled = payload.white_label_enabled
+    if payload.multilang_enabled is not None:
+        flags.multilang_enabled = payload.multilang_enabled
 
     await db.commit()
     await db.refresh(flags)
