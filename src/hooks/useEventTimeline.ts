@@ -54,11 +54,18 @@ export function useEventTimeline(category?: string, page = 1, limit = 20) {
       // 2. Fetch via Supabase direct fallback
       const { data: profile } = await supabase
         .from("profiles")
-        .select("school_id, campus_id, roles")
+        .select("school_id, campus_id")
         .eq("id", userId)
-        .single();
+        .maybeSingle();
 
       if (!profile || !profile.school_id) return { data: [], total: 0 };
+
+      const { data: userRoles } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", userId);
+
+      const roles = userRoles?.map((r) => r.role) || [];
 
       let query = supabase
         .from("activity_timeline")
@@ -70,8 +77,8 @@ export function useEventTimeline(category?: string, page = 1, limit = 20) {
       }
 
       // Scope to campus if user is not a school-wide admin
-      const isSchoolAdmin = profile.roles?.some((r: { role: string }) =>
-        ["super_admin", "school_owner", "principal", "vice_principal"].includes(r.role)
+      const isSchoolAdmin = roles.some((roleName) =>
+        ["super_admin", "school_owner", "principal", "vice_principal"].includes(roleName)
       );
 
       if (profile.campus_id && !isSchoolAdmin) {
