@@ -114,12 +114,13 @@ apiClient.interceptors.request.use(
 
 export function isNetworkOrProxyError(error: any): boolean {
   if (!error) return false;
+  const data = error.response?.data;
+  const hasDetail = data && typeof data === "object" && Object.prototype.hasOwnProperty.call(data, "detail");
   return (
     !error.response ||
     error.code === "ERR_NETWORK" ||
     error.message === "Network Error" ||
-    ([502, 503, 504].includes(error.response?.status) &&
-     (!error.response.data || typeof error.response.data !== "object" || !("detail" in error.response.data)))
+    ([502, 503, 504].includes(error.response?.status) && !hasDetail)
   );
 }
 
