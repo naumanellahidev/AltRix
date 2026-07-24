@@ -120,22 +120,39 @@ export function LibraryModule() {
         apiClient.get("/students?page_size=1000").catch(() => ({ data: [] })),
         apiClient.get("/teachers?page_size=1000").catch(() => ({ data: [] }))
       ]);
-      const stuList = resStu.data?.items || resStu.data || [];
-      const teachList = resTeach.data?.items || resTeach.data || [];
+
+      const rawStu = resStu.data;
+      const rawTeach = resTeach.data;
+
+      const stuList = Array.isArray(rawStu?.data)
+        ? rawStu.data
+        : Array.isArray(rawStu?.items)
+        ? rawStu.items
+        : Array.isArray(rawStu)
+        ? rawStu
+        : [];
+
+      const teachList = Array.isArray(rawTeach?.data)
+        ? rawTeach.data
+        : Array.isArray(rawTeach?.items)
+        ? rawTeach.items
+        : Array.isArray(rawTeach)
+        ? rawTeach
+        : [];
       
       const bOptions: BorrowerOption[] = [
-        ...(Array.isArray(stuList) ? stuList.map((s: any) => ({
+        ...stuList.map((s: any) => ({
           id: s.id,
           name: s.full_name || `${s.first_name || ''} ${s.last_name || ''}`.trim() || 'Student Borrower',
           type: "student",
-          code: s.roll_number || s.admission_number || "STU-1001"
-        })) : []),
-        ...(Array.isArray(teachList) ? teachList.map((t: any) => ({
+          code: s.roll_number || s.registration_number || s.admission_number || "STU"
+        })),
+        ...teachList.map((t: any) => ({
           id: t.id,
-          name: t.full_name || "Faculty Staff",
+          name: t.full_name || `${t.first_name || ''} ${t.last_name || ''}`.trim() || "Faculty Staff",
           type: "staff",
-          code: t.designation || "Faculty"
-        })) : [])
+          code: t.employee_id || t.designation || "Faculty"
+        }))
       ];
 
       const bMap: Record<string, { name: string; code: string; type: string }> = {};

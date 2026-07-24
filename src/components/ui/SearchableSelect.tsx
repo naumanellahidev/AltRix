@@ -41,11 +41,9 @@ export function SearchableSelect({
   const selectedOption = options.find(o => o.id === value);
   const filteredOptions = options.filter(o => {
     if (!searchQuery || !searchQuery.trim()) return true;
-    const q = searchQuery.toLowerCase().trim();
-    const labelMatch = o.label ? o.label.toLowerCase().includes(q) : false;
-    const subMatch = o.sublabel ? o.sublabel.toLowerCase().includes(q) : false;
-    const idMatch = o.id ? o.id.toLowerCase().includes(q) : false;
-    return labelMatch || subMatch || idMatch;
+    const searchTerms = searchQuery.toLowerCase().trim().split(/\s+/);
+    const searchableText = `${o.label || ""} ${o.sublabel || ""} ${o.id || ""}`.toLowerCase();
+    return searchTerms.every(term => searchableText.includes(term));
   });
 
   return (

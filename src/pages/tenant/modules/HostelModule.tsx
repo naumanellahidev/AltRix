@@ -72,8 +72,15 @@ export function HostelModule() {
       ]);
       setRooms(resRooms.data ?? []);
       setMessMenu(resMess.data ?? []);
-      const stuList = resStudents.data?.items || resStudents.data || [];
-      setStudents(Array.isArray(stuList) ? stuList : []);
+      const rawStudents = resStudents.data;
+      const stuList = Array.isArray(rawStudents?.data)
+        ? rawStudents.data
+        : Array.isArray(rawStudents?.items)
+        ? rawStudents.items
+        : Array.isArray(rawStudents)
+        ? rawStudents
+        : [];
+      setStudents(stuList);
     } catch {
       setRooms([]);
       setMessMenu([]);
