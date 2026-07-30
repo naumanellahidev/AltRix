@@ -1,8 +1,17 @@
 import axios from "axios";
 import { rawSupabase, setUseFastAPI, USE_FASTAPI } from "@/integrations/supabase/client";
 
+const getApiBaseUrl = (): string => {
+  let raw = (import.meta.env.VITE_API_URL || "/api").trim().replace(/\/+$/, "");
+  if (!raw) return "/api";
+  if (raw !== "/api" && !raw.endsWith("/api")) {
+    return `${raw}/api`;
+  }
+  return raw;
+};
+
 export const apiClient = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || "/api",
+  baseURL: getApiBaseUrl(),
   headers: {
     "Content-Type": "application/json",
   },
