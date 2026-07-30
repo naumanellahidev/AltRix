@@ -580,6 +580,7 @@ app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
 # ─── Health Endpoints ─────────────────────────────────────────────────────────
 
 @app.get("/", tags=["Health"], summary="API root", include_in_schema=False)
+@app.get("/api", tags=["Health"], summary="API root", include_in_schema=False)
 async def root():
     return {
         "app": settings.app_name,
@@ -592,16 +593,11 @@ async def root():
 
 
 @app.get("/health", tags=["Health"], summary="Railway/VPS health check", include_in_schema=False)
-async def railway_health():
-    from app.utils.health import build_health_response
-    return await build_health_response(include_deps=False)
-
-
 @app.get(
     "/api/health",
     tags=["Health"],
-    summary="Basic health check",
-    description="Returns API liveness status. Use for load balancer health probes.",
+    summary="Liveness check",
+    description="Returns HTTP 200 if the app is process-level healthy.",
 )
 async def health():
     from app.utils.health import build_health_response
