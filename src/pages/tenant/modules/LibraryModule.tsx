@@ -91,7 +91,7 @@ export function LibraryModule() {
     setLoading(true);
     try {
       const res = await apiClient.get("/library/books");
-      setBooks(res.data ?? []);
+      setBooks(Array.isArray(res.data) ? res.data : []);
     } catch { setBooks([]); }
     setLoading(false);
   };
@@ -100,7 +100,7 @@ export function LibraryModule() {
     setLoading(true);
     try {
       const res = await apiClient.get("/library/issues");
-      setIssues(res.data ?? []);
+      setIssues(Array.isArray(res.data) ? res.data : []);
     } catch { setIssues([]); }
     setLoading(false);
   };
@@ -109,7 +109,7 @@ export function LibraryModule() {
     setLoading(true);
     try {
       const res = await apiClient.get("/library/reservations");
-      setReservations(res.data ?? []);
+      setReservations(Array.isArray(res.data) ? res.data : []);
     } catch { setReservations([]); }
     setLoading(false);
   };
