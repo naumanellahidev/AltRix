@@ -4,6 +4,14 @@ import { rawSupabase, setUseFastAPI, USE_FASTAPI } from "@/integrations/supabase
 const getApiBaseUrl = (): string => {
   let raw = (import.meta.env.VITE_API_URL || "/api").trim().replace(/\/+$/, "");
   if (!raw) return "/api";
+
+  // Block any stale Render backend URLs — backend is now on Railway only
+  if (raw.includes("onrender.com")) {
+    console.warn("[api-client] Detected stale Render URL in VITE_API_URL, overriding to /api (Railway proxy)");
+    return "/api";
+  }
+
+  // Ensure the URL always ends with /api
   if (raw !== "/api" && !raw.endsWith("/api")) {
     return `${raw}/api`;
   }
