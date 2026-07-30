@@ -86,19 +86,20 @@ const TenantAuth = () => {
       if (psa?.user_id) { navigate("/super_admin"); return; }
     }
 
-    const { data: membership } = await supabase
-      .from("school_memberships").select("id")
-      .eq("school_id", schoolId).eq("user_id", userId).maybeSingle();
-    if (!membership) {
+    const [{ data: membership }, { data: rolesData }] = await Promise.all([
+      supabase.from("school_memberships").select("id").eq("school_id", schoolId).eq("user_id", userId).maybeSingle(),
+      supabase.from("user_roles").select("role").eq("school_id", schoolId).eq("user_id", userId)
+    ]);
+
+    const roles = (rolesData || []).map((r) => r.role as EduverseRole);
+    const isMember = !!membership || roles.length > 0;
+
+    if (!isMember) {
       setMessageType("error");
       setMessage("Your account is not a member of this school.");
       await supabase.auth.signOut();
       return;
     }
-
-    const { data: rolesData } = await supabase
-      .from("user_roles").select("role").eq("school_id", schoolId).eq("user_id", userId);
-    const roles = (rolesData || []).map((r) => r.role as EduverseRole);
     const destRole = resolveDestinationRole(roles);
     if (!destRole) {
       setMessageType("error");

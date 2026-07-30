@@ -555,6 +555,7 @@ app.add_middleware(
         "https://alt-rix.vercel.app",
         "https://altrix.vercel.app",
         "https://altrix.up.railway.app",
+        "https://altrix-2-production.up.railway.app",
     ],
     allow_origin_regex=r"https://.*\.vercel\.app|https://.*\.railway\.app|http://localhost:.*|http://127\.0\.0\.1:.*",
     allow_credentials=True,
