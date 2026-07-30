@@ -36,31 +36,84 @@ async def list_teachers(
     if not current_user.school_id:
         return PaginatedResponse.create([], 0, page, page_size)
 
+    # 1. Fetch DB TeacherProfiles from hr_staff_directory
     query = select(TeacherProfile).where(TeacherProfile.school_id == current_user.school_id)
-
-    if search:
-        like = f"%{search}%"
-        query = query.where(
-            or_(
-                TeacherProfile.full_name.ilike(like),
-                TeacherProfile.email.ilike(like),
-                TeacherProfile.position.ilike(like),
-            )
-        )
     if campus_id:
         query = query.where(TeacherProfile.campus_id == campus_id)
 
-    count_result = await db.execute(select(func.count()).select_from(query.subquery()))
-    total = count_result.scalar() or 0
+    result = await db.execute(query.order_by(TeacherProfile.full_name))
+    tp_list = list(result.scalars().all())
 
+    existing_user_ids = {tp.linked_user_id for tp in tp_list if tp.linked_user_id}
+    existing_emails = {tp.email.lower() for tp in tp_list if tp.email}
+
+    out_items: List[TeacherOut] = []
+    for tp in tp_list:
+        out_items.append(TeacherOut.model_validate(tp))
+
+    # 2. Augment with staff and teachers from user_roles and profiles
+    try:
+        sql = """
+            SELECT DISTINCT r.user_id, COALESCE(p.display_name, p.email, 'Staff Member') as display_name, p.email, r.role, p.phone
+            FROM public.user_roles r
+            LEFT JOIN public.profiles p ON p.id = r.user_id
+            WHERE r.school_id = :school_id
+              AND r.role IN (
+                'teacher', 'head_teacher', 'accountant', 'hr_manager',
+                'librarian', 'principal', 'vice_principal', 'academic_coordinator',
+                'counselor', 'school_admin', 'staff', 'hostel_warden', 'transport_manager'
+              )
+        """
+        dir_res = await db.execute(text(sql), {"school_id": str(current_user.school_id)})
+        for r in dir_res.fetchall():
+            u_id, d_name, u_email, u_role, u_phone = r[0], r[1], r[2], r[3], r[4]
+            u_id_uuid = UUID(str(u_id)) if u_id else None
+            if u_id_uuid and u_id_uuid in existing_user_ids:
+                continue
+            if u_email and u_email.lower() in existing_emails:
+                continue
+
+            name_parts = (d_name or "").strip().split(maxsplit=1)
+            fname = name_parts[0] if name_parts else "Staff"
+            lname = name_parts[1] if len(name_parts) > 1 else ""
+            desig = (u_role or "Staff").replace("_", " ").title()
+            emp_id = f"EMP-{str(u_id)[-6:].upper()}" if u_id else "EMP-001"
+
+            out_items.append(
+                TeacherOut(
+                    id=u_id_uuid or UUID("00000000-0000-0000-0000-000000000000"),
+                    school_id=current_user.school_id,
+                    campus_id=campus_id,
+                    user_id=u_id_uuid,
+                    employee_id=emp_id,
+                    first_name=fname,
+                    last_name=lname,
+                    designation=desig,
+                    department="General Staff",
+                    phone=u_phone,
+                    email=u_email,
+                    is_active=True,
+                )
+            )
+    except Exception as e:
+        import logging
+        logging.getLogger("app.teachers").warning(f"Error augmenting teacher list from user_roles: {e}")
+
+    # Filter search query if provided
+    if search and search.strip():
+        q = search.lower().strip()
+        out_items = [
+            t for t in out_items
+            if (t.full_name and q in t.full_name.lower())
+            or (t.email and q in t.email.lower())
+            or (t.designation and q in t.designation.lower())
+            or (t.employee_id and q in t.employee_id.lower())
+        ]
+
+    total = len(out_items)
     offset = (page - 1) * page_size
-    result = await db.execute(
-        query.order_by(TeacherProfile.full_name)
-        .offset(offset)
-        .limit(page_size)
-    )
-    teachers = result.scalars().all()
-    return PaginatedResponse.create(teachers, total, page, page_size)
+    paged = out_items[offset : offset + page_size]
+    return PaginatedResponse.create(paged, total, page, page_size)
 
 
 @router.get("/directory")
@@ -69,9 +122,9 @@ async def get_teachers_directory(current_user: CurrentUser, db: DbSession):
         return []
     try:
         sql = """
-            SELECT DISTINCT d.user_id, d.display_name, d.email, p.phone FROM public.school_user_directory d
-            JOIN public.user_roles r ON d.user_id = r.user_id AND d.school_id = r.school_id
-            LEFT JOIN public.profiles p ON p.user_id = d.user_id
+            SELECT DISTINCT r.user_id, COALESCE(p.display_name, p.email, 'Teacher') as display_name, p.email, p.phone
+            FROM public.user_roles r
+            LEFT JOIN public.profiles p ON p.id = r.user_id
             WHERE r.school_id = :school_id AND r.role = 'teacher'
         """
         res = await db.execute(text(sql), {"school_id": current_user.school_id})
@@ -405,8 +458,9 @@ async def get_live_teacher_presence(current_user: CurrentUser, db: DbSession):
 
         # 4. Fetch teachers directory
         teachers_sql = """
-            SELECT DISTINCT d.user_id, d.display_name FROM public.school_user_directory d
-            JOIN public.user_roles r ON d.user_id = r.user_id AND d.school_id = r.school_id
+            SELECT DISTINCT r.user_id, COALESCE(p.display_name, p.email, 'Teacher') as display_name
+            FROM public.user_roles r
+            LEFT JOIN public.profiles p ON p.id = r.user_id
             WHERE r.school_id = :school_id AND r.role = 'teacher'
         """
         teachers_res = await db.execute(text(teachers_sql), {"school_id": current_user.school_id})
