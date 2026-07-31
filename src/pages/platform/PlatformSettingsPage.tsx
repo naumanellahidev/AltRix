@@ -23,7 +23,10 @@ import { toast } from "sonner";
 import { apiClient } from "@/lib/api-client";
 
 export default function PlatformSettingsPage() {
-  const [aiEnabled, setAiEnabled] = useState(true);
+  const [aiEnabled, setAiEnabled] = useState(() => {
+    const saved = localStorage.getItem("altrix_global_ai_enabled");
+    return saved !== null ? saved === "true" : true;
+  });
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [platformConfig, setPlatformConfig] = useState({
     allowTenantRegistration: true,
@@ -39,7 +42,10 @@ export default function PlatformSettingsPage() {
     const fetchAiSettings = async () => {
       try {
         const res = await apiClient.get<{ enabled: boolean }>("/ai/settings");
-        setAiEnabled(res.data.enabled);
+        if (typeof res.data?.enabled === "boolean") {
+          setAiEnabled(res.data.enabled);
+          localStorage.setItem("altrix_global_ai_enabled", String(res.data.enabled));
+        }
       } catch (err) {
         console.error("Failed to load global AI status:", err);
       }
@@ -49,9 +55,10 @@ export default function PlatformSettingsPage() {
 
   const handleAiToggle = async (val: boolean) => {
     setIsAiLoading(true);
+    setAiEnabled(val);
+    localStorage.setItem("altrix_global_ai_enabled", String(val));
     try {
       await apiClient.post("/ai/settings", { enabled: val });
-      setAiEnabled(val);
       toast.success(val ? "Global AI Copilot has been enabled system-wide." : "Global AI Copilot has been disabled system-wide.");
     } catch (err: any) {
       console.error("Failed to save AI status:", err);

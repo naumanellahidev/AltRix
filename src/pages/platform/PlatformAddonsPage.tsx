@@ -166,6 +166,13 @@ export default function PlatformAddonsPage() {
         { enabled: flags.ai_features_enabled },
         { headers: token ? { Authorization: `Bearer ${token}` } : {} }
       ).catch(() => {});
+      if (school.slug) {
+        await apiClient.post(
+          `/ai/settings/school/${school.slug}`,
+          { enabled: flags.ai_features_enabled },
+          { headers: token ? { Authorization: `Bearer ${token}` } : {} }
+        ).catch(() => {});
+      }
 
       toast.success("Add-on configurations updated!", {
         description: `Successfully configured feature flags & AI Copilot module for tenant ${school.name} (/${school.slug}).`
