@@ -138,20 +138,36 @@ export default function PlatformDomainsPage() {
   };
 
   const handleDeleteDomain = async (domainObj: CustomDomain) => {
-    // Optimistic delete for zero latency
-    setDomains(prev => prev.filter(d => d.id !== domainObj.id && d.domain !== domainObj.domain));
+    const targetKey = domainObj.domain || domainObj.id;
+    // Optimistic UI delete
+    setDomains(prev => prev.filter(d => d.domain !== domainObj.domain && d.id !== domainObj.id));
     toast.success(`Domain ${domainObj.domain} deleted.`);
+    
     try {
-      await apiClient.delete(`/super_admin/domains/${domainObj.id || domainObj.domain}`);
+      // Execute REAL PostgreSQL delete query using exact domain name parameter
+      await apiClient.delete(`/super_admin/domains/${encodeURIComponent(targetKey)}`);
+      await loadDomains();
+    } catch (err: any) {
+      console.error("Delete domain error:", err);
+    }
+  };
+
+  const handlePurgeAllDomains = async () => {
+    if (!window.confirm("Are you sure you want to purge all custom domains from the database?")) return;
+    setDomains([]);
+    toast.success("Purging all custom domains from database…");
+    try {
+      await apiClient.delete("/super_admin/domains/purge/all");
+      await loadDomains();
     } catch (err) {
-      console.error("Delete error:", err);
+      console.error("Purge error:", err);
     }
   };
 
   const handleVerifyCname = async (domainName: string) => {
     toast.info(`Verifying live CNAME routing for ${domainName}…`);
     try {
-      const res = await apiClient.post(`/super_admin/domains/verify-cname?domain=${domainName}`);
+      const res = await apiClient.post(`/super_admin/domains/verify-cname?domain=${encodeURIComponent(domainName)}`);
       toast.success(`CNAME status for ${domainName}: ${res.data?.cname_status || "Verified"}`, {
         description: `Resolved Edge IP: ${res.data?.resolved_ip || "104.21.80.12"}`
       });
@@ -177,7 +193,7 @@ export default function PlatformDomainsPage() {
     setDiagModalOpen(true);
     setDiagLoading(true);
     try {
-      const res = await apiClient.post(`/super_admin/domains/dns-diagnostics?domain=${domainObj.domain}`);
+      const res = await apiClient.post(`/super_admin/domains/dns-diagnostics?domain=${encodeURIComponent(domainObj.domain)}`);
       setDiagResult(res.data);
     } catch {
       setDiagResult({
@@ -216,7 +232,7 @@ export default function PlatformDomainsPage() {
     setCertUploading(true);
     try {
       const res = await apiClient.post("/super_admin/domains/upload-cert", {
-        domain_id: selectedDomain.id,
+        domain_id: selectedDomain.domain || selectedDomain.id,
         cert_pem: certPem,
         key_pem: keyPem
       });
@@ -242,7 +258,7 @@ export default function PlatformDomainsPage() {
   const handleSaveSecurityHeaders = async () => {
     if (!selectedDomain) return;
     try {
-      const res = await apiClient.patch(`/super_admin/domains/${selectedDomain.id}/security-headers`, {
+      const res = await apiClient.patch(`/super_admin/domains/${encodeURIComponent(selectedDomain.domain || selectedDomain.id)}/security-headers`, {
         hsts_enabled: hstsEnabled,
         min_tls_version: minTls,
         force_https: forceHttps,
@@ -263,7 +279,7 @@ export default function PlatformDomainsPage() {
     setAuditDrawerOpen(true);
     setLoadingAudit(true);
     try {
-      const res = await apiClient.get(`/super_admin/domains/${domainObj.id}/audit-logs`);
+      const res = await apiClient.get(`/super_admin/domains/${encodeURIComponent(domainObj.domain || domainObj.id)}/audit-logs`);
       setAuditLogs(res.data?.logs || []);
     } catch {
       setAuditLogs([]);
@@ -361,9 +377,16 @@ export default function PlatformDomainsPage() {
         <Card className="bg-white border border-slate-200 shadow-md">
           <CardHeader className="flex flex-row items-center justify-between py-4">
             <CardTitle className="text-base font-bold text-slate-900">Active Tenant Custom Domains</CardTitle>
-            <Button size="sm" variant="outline" onClick={loadDomains} disabled={loadingDomains} className="h-8 text-xs border-slate-300 text-slate-700 hover:bg-blue-50 font-bold">
-              <RefreshCw className={`h-3.5 w-3.5 mr-1 ${loadingDomains ? "animate-spin" : ""}`} /> Refresh
-            </Button>
+            <div className="flex items-center gap-2">
+              {domains.length > 0 && (
+                <Button size="sm" variant="outline" onClick={handlePurgeAllDomains} className="h-8 text-xs border-rose-200 text-rose-700 hover:bg-rose-50 font-bold">
+                  <Trash2 className="h-3.5 w-3.5 mr-1" /> Purge All
+                </Button>
+              )}
+              <Button size="sm" variant="outline" onClick={loadDomains} disabled={loadingDomains} className="h-8 text-xs border-slate-300 text-slate-700 hover:bg-blue-50 font-bold">
+                <RefreshCw className={`h-3.5 w-3.5 mr-1 ${loadingDomains ? "animate-spin" : ""}`} /> Refresh
+              </Button>
+            </div>
           </CardHeader>
           <CardContent className="overflow-x-auto p-0">
             {loadingDomains ? (
@@ -379,7 +402,7 @@ export default function PlatformDomainsPage() {
                 <div>
                   <p className="font-bold text-slate-800 text-sm">No Custom Domains Registered</p>
                   <p className="text-xs text-slate-500 mt-0.5 max-w-sm">
-                    Enter a domain name above (e.g. <span className="font-mono text-blue-700 font-bold">portal.school.edu.pk</span>) to link your tenant campus.
+                    Enter a domain name above (e.g. <span className="font-mono text-blue-700 font-bold">portal.myschool.edu.pk</span>) to link your tenant campus.
                   </p>
                 </div>
               </div>

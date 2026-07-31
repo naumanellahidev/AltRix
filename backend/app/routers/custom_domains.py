@@ -219,18 +219,30 @@ async def add_custom_domain(req: AddDomainRequest, db: AsyncSession = Depends(ge
     }
 
 
+@router.delete("/purge/all")
+async def purge_all_custom_domains(db: AsyncSession = Depends(get_db)):
+    """Purge all custom domain records from public.custom_domains table."""
+    await _ensure_domains_table(db)
+    await db.execute(text("TRUNCATE TABLE public.custom_domains CASCADE"))
+    await db.commit()
+    return {"status": "success", "message": "All custom domains purged from PostgreSQL database."}
+
+
 @router.delete("/{domain_id}")
 async def delete_custom_domain(domain_id: str, db: AsyncSession = Depends(get_db)):
-    """Delete a custom domain mapping from PostgreSQL."""
+    """Delete a custom domain mapping from PostgreSQL with type-safe string matching."""
     await _ensure_domains_table(db)
-    res = await db.execute(text("SELECT domain FROM public.custom_domains WHERE id = :id OR domain = :id"), {"id": domain_id})
-    row = res.fetchone()
-    dname = row[0] if row else domain_id
+    clean_target = domain_id.strip()
 
-    await db.execute(text("DELETE FROM public.custom_domains WHERE id = :id OR domain = :id"), {"id": domain_id})
+    # Query using text comparison for id or exact domain match
+    res = await db.execute(text("SELECT domain, id FROM public.custom_domains WHERE id::text = :id OR domain = :id"), {"id": clean_target})
+    row = res.fetchone()
+    dname = row[0] if row else clean_target
+
+    await db.execute(text("DELETE FROM public.custom_domains WHERE id::text = :id OR domain = :id"), {"id": clean_target})
     await db.commit()
 
-    await _log_domain_action(db, domain_id, dname, "DELETE", "Domain mapping permanently deleted from platform database")
+    await _log_domain_action(db, domain_id, dname, "DELETE", f"Domain mapping {dname} permanently deleted from platform database")
 
     return {"status": "success", "message": f"Domain {dname} deleted successfully."}
 
@@ -258,7 +270,7 @@ async def verify_cname_ping(domain: str, db: AsyncSession = Depends(get_db)):
             UPDATE public.custom_domains 
             SET verified_at = NOW(), status = 'Active', ssl_status = 'Let''s Encrypt SSL Active',
                 ssl_expires_at = :exp, health_score = 100
-            WHERE domain = :domain
+            WHERE domain = :domain OR id::text = :domain
         """), {"domain": clean, "exp": exp_date})
         await db.commit()
     except Exception:
@@ -380,7 +392,7 @@ async def upload_custom_certificate(req: UploadCertRequest, db: AsyncSession = D
         UPDATE public.custom_domains
         SET ssl_status = 'Custom EV SSL Active', ssl_issuer = 'Custom Uploaded EV',
             custom_cert_pem = :cert, custom_key_encrypted = :key, health_score = 100
-        WHERE id = :id OR domain = :id
+        WHERE id::text = :id OR domain = :id
     """), {"id": req.domain_id, "cert": req.cert_pem, "key": req.key_pem[:30] + "...[encrypted]"})
     await db.commit()
 
@@ -402,7 +414,7 @@ async def update_security_headers(domain_id: str, req: UpdateSecurityHeadersRequ
     await db.execute(text("""
         UPDATE public.custom_domains
         SET hsts_enabled = :hsts, min_tls_version = :tls, force_https = :https
-        WHERE id = :id OR domain = :id
+        WHERE id::text = :id OR domain = :id
     """), {"id": domain_id, "hsts": req.hsts_enabled, "tls": req.min_tls_version, "https": req.force_https})
     await db.commit()
 
@@ -430,7 +442,7 @@ async def get_domain_audit_logs(domain_id: str, db: AsyncSession = Depends(get_d
         res = await db.execute(text("""
             SELECT action, details, performed_at 
             FROM public.domain_audit_logs 
-            WHERE domain_id = :did OR domain_name = :did 
+            WHERE domain_id::text = :did OR domain_name = :did 
             ORDER BY performed_at DESC LIMIT 50
         """), {"did": domain_id})
         rows = res.fetchall()
