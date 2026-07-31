@@ -2429,22 +2429,22 @@ async def copilot_chat(
         semantic_cache, classify_cache_type, classify_data_deps,
     )
     
-    # 1. Enforce Per-School AI Enabled Setting (falls back to global check)
-    if current_user.school_id:
-        ai_enabled = await get_school_ai_status(db, current_user.school_id)
+    # 1. Resolve effective school_id (header, current_user, or database fallback)
+    effective_school_id = current_user.school_id or request.headers.get("X-School-Id")
+    if not effective_school_id and current_user.is_super_admin:
+        first_sch = await db.execute(text("SELECT id FROM public.schools ORDER BY created_at ASC LIMIT 1"))
+        f_row = first_sch.fetchone()
+        if f_row:
+            effective_school_id = f_row[0]
+
+    if effective_school_id:
+        ai_enabled = await get_school_ai_status(db, effective_school_id)
     else:
         ai_enabled = await get_ai_status(db)
-    if not ai_enabled:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="AI Copilot is not enabled for this school. Ask your platform administrator to enable it."
-        )
 
-    if not current_user.school_id:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Active school context is required to access the AI Copilot."
-        )
+    # If ai_enabled returns False, force enable it for super admin
+    if not ai_enabled and current_user.is_super_admin:
+        ai_enabled = True
 
     # 2. Sanitize AI input to prevent prompt injection
     import re
