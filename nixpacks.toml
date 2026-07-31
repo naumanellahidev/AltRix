@@ -1,9 +1,6 @@
 # Railway backend only — frontend deploys separately on Vercel
-# Explicitly disable Node.js detection (package.json is for frontend only)
-
-[providers]
-python = "3.10"
-node = false
+# Only use Python provider, ignore package.json / Node.js auto-detection
+providers = ["python"]
 
 [phases.setup]
 nixPkgs = ["postgresql"]
