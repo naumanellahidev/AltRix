@@ -6,7 +6,7 @@ from typing import List, Optional, cast
 from uuid import UUID
 
 import json
-from fastapi import APIRouter, Query, status, Request
+from fastapi import APIRouter, Query, status, Request, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import func, select, text
 
@@ -94,7 +94,7 @@ async def update_complaint_status(
     if not complaint:
         raise NotFoundError("Complaint", str(complaint_id))
     from app.utils.security import require_school_match
-    require_school_match(current_user, cast(UUID, complaint.school_id))
+    require_school_match(current_user, complaint.school_id)
     complaint.status = body.status  # type: ignore[assignment]
     complaint.resolution_note = body.resolution_note  # type: ignore[assignment]
     if body.status == "resolved":
@@ -2473,7 +2473,7 @@ async def copilot_chat(
     # Security: school_id + role_key exact match enforced inside find_similar().
     _sem_hit = await semantic_cache.find_similar(
         db=db,
-        school_id=current_user.school_id,
+        school_id=effective_school_id or "",
         query=body.message,
         roles=current_user.roles or [],
         module=body.current_module,
@@ -2485,7 +2485,7 @@ async def copilot_chat(
         async def _track():
             try:
                 await semantic_cache.track_hit(db, _sem_hit.entry_id)
-                await semantic_cache.record_hit_stats(db, current_user.school_id)
+                await semantic_cache.record_hit_stats(db, effective_school_id or "")
                 await db.commit()
             except Exception:
                 pass
@@ -2496,7 +2496,7 @@ async def copilot_chat(
         return StreamingResponse(_cached_event_generator(), media_type="text/event-stream")
 
     # 2. Fetch scoped DB context based on role permissions
-    db_context = await fetch_ai_context(db, current_user, current_user.school_id)
+    db_context = await fetch_ai_context(db, current_user, effective_school_id or "")
     
     # 3. Build System Prompt
     system_prompt = """You are the **AltRix AI Copilot V2 - Enterprise ERP Intelligence Engine**, a highly experienced school operations manager who understands the entire ERP and can instantly answer questions, explain information, generate reports, provide insights, and guide users without ever modifying system data.
@@ -2640,7 +2640,7 @@ __DB_CONTEXT__
 
     # 5. Stream response from OllamaAIService
     # Capture resolved context values for closure
-    _school_id  = current_user.school_id
+    _school_id  = effective_school_id or ""
     _roles      = list(current_user.roles or [])
     _module     = body.current_module
     _screen     = body.current_screen
