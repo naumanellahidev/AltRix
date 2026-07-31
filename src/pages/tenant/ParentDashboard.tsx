@@ -34,9 +34,9 @@ const ReportCardModule = lazy(() => import("./modules/ReportCardModule"));
 const ParentReportCardModule = lazy(() => import("./parent-modules/ParentReportCardModule"));
 const ParentVisitorModule = lazy(() => import("./parent-modules/ParentVisitorModule"));
 const EventsModule = lazy(() => import("./modules/EventsModule"));
-const LibraryModule = lazy(() => import("./modules/LibraryModule"));
-const HostelModule = lazy(() => import("./modules/HostelModule"));
-const ExamSeatingPlanModule = lazy(() => import("./modules/ExamSeatingPlanModule").then(m => ({ default: m.ExamSeatingPlanModule })));
+const LibraryModule = lazy(() => import("./parent-modules/ParentLibraryModule"));
+const HostelModule = lazy(() => import("./parent-modules/ParentHostelModule"));
+const ExamSeatingPlanModule = lazy(() => import("./parent-modules/ParentSeatingModule"));
 const StudentWellbeingModule = lazy(() => import("./modules/StudentWellbeingModule"));
 const DocManagementModule = lazy(() => import("./modules/DocManagementModule"));
 import { RouteGuard } from "@/components/tenant/RouteGuard";
@@ -354,9 +354,9 @@ const ParentDashboard = () => {
             <Route path="quick-contact" element={<ParentQuickContactModule child={selectedChild} schoolId={schoolId} />} />
             <Route path="parent-visitor" element={<ParentVisitorModule child={selectedChild} schoolId={schoolId} />} />
             <Route path="events" element={<EventsModule />} />
-            <Route path="library" element={<LibraryModule />} />
-            <Route path="hostel" element={<HostelModule />} />
-            <Route path="seating-plan" element={<ExamSeatingPlanModule />} />
+            <Route path="library" element={<LibraryModule child={selectedChild} />} />
+            <Route path="hostel" element={<HostelModule child={selectedChild} />} />
+            <Route path="seating-plan" element={<ExamSeatingPlanModule child={selectedChild} />} />
             <Route path="student-wellbeing" element={<StudentWellbeingModule />} />
             <Route path="doc-management" element={<DocManagementModule />} />
             <Route path="*" element={<Navigate to="" replace />} />

@@ -19,10 +19,10 @@ const StudentMessagesModule = lazy(() => import("@/pages/tenant/student-modules/
 const StudentAIModule = lazy(() => import("@/pages/tenant/student-modules/StudentAIModule").then(m => ({ default: m.StudentAIModule })));
 const StudentComplaintsModule = lazy(() => import("@/pages/tenant/student-modules/StudentComplaintsModule"));
 const EventsModule = lazy(() => import("@/pages/tenant/modules/EventsModule"));
-const LibraryModule = lazy(() => import("@/pages/tenant/modules/LibraryModule"));
-const TransportModule = lazy(() => import("@/pages/tenant/modules/TransportModule"));
-const HostelModule = lazy(() => import("@/pages/tenant/modules/HostelModule"));
-const ExamSeatingPlanModule = lazy(() => import("@/pages/tenant/modules/ExamSeatingPlanModule").then(m => ({ default: m.ExamSeatingPlanModule })));
+const LibraryModule = lazy(() => import("@/pages/tenant/student-modules/StudentLibraryModule"));
+const TransportModule = lazy(() => import("@/pages/tenant/student-modules/StudentTransportModule"));
+const HostelModule = lazy(() => import("@/pages/tenant/student-modules/StudentHostelModule"));
+const ExamSeatingPlanModule = lazy(() => import("@/pages/tenant/student-modules/StudentSeatingModule"));
 const StudentWellbeingModule = lazy(() => import("@/pages/tenant/modules/StudentWellbeingModule"));
 const DocManagementModule = lazy(() => import("@/pages/tenant/modules/DocManagementModule"));
 import { RouteGuard } from "@/components/tenant/RouteGuard";
