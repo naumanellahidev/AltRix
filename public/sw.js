@@ -1,7 +1,7 @@
 // PWA Service Worker for AltRix Parent Portal
 // Handles offline caching strategy, push notifications, click handlers, and app badges.
 
-const CACHE_NAME = 'altrix-parent-cache-v1';
+const CACHE_NAME = 'altrix-parent-cache-v2';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
