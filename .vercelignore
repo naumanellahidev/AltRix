@@ -1,2 +1,5 @@
 # Ignore backend folder on Vercel deployment
 backend/
+Dockerfile
+.dockerignore
+.railwayignore
