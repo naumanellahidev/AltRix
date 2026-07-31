@@ -738,8 +738,26 @@ async def list_audit_logs(
 ai_router = APIRouter(prefix="/ai", tags=["AI"])
 
 
+async def verify_ai_access(db: DbSession, school_id: Optional[str] = None):
+    from fastapi import HTTPException
+    global_enabled = await get_ai_status(db)
+    if not global_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="AI features are currently disabled system-wide."
+        )
+    if school_id:
+        school_enabled = await get_school_ai_status(db, school_id)
+        if not school_enabled:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="AI features are currently disabled for this school."
+            )
+
+
 @ai_router.get("/predictions/{student_id}", response_model=List[AiPredictionOut])
 async def get_predictions(student_id: UUID, current_user: CurrentUser, db: DbSession):
+    await verify_ai_access(db, str(current_user.school_id) if current_user.school_id else None)
     result = await db.execute(
         select(AiAcademicPrediction).where(AiAcademicPrediction.student_id == student_id)
         .order_by(AiAcademicPrediction.created_at.desc())
@@ -749,6 +767,7 @@ async def get_predictions(student_id: UUID, current_user: CurrentUser, db: DbSes
 
 @ai_router.get("/profiles/{student_id}", response_model=AiStudentProfileOut)
 async def get_student_ai_profile(student_id: UUID, current_user: CurrentUser, db: DbSession):
+    await verify_ai_access(db, str(current_user.school_id) if current_user.school_id else None)
     result = await db.execute(
         select(AiStudentProfile).where(AiStudentProfile.student_id == student_id)
     )
@@ -764,6 +783,7 @@ async def list_warnings(
     student_id: Optional[UUID] = Query(None),
     severity: Optional[str] = Query(None),
 ):
+    await verify_ai_access(db, str(current_user.school_id) if current_user.school_id else None)
     if not current_user.school_id:
         return []
     query = select(AiEarlyWarning).where(AiEarlyWarning.school_id == current_user.school_id)
@@ -777,6 +797,7 @@ async def list_warnings(
 
 @ai_router.get("/counseling-queue")
 async def get_counseling_queue(current_user: CurrentUser, db: DbSession):
+    await verify_ai_access(db, str(current_user.school_id) if current_user.school_id else None)
     if not current_user.school_id:
         return []
     result = await db.execute(
@@ -792,6 +813,7 @@ async def get_teacher_performance(
     current_user: CurrentUser, db: DbSession,
     teacher_user_id: Optional[UUID] = Query(None),
 ):
+    await verify_ai_access(db, str(current_user.school_id) if current_user.school_id else None)
     if not current_user.school_id:
         return []
     query = select(AiTeacherPerformance).where(

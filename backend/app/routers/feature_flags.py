@@ -57,6 +57,11 @@ async def get_school_feature_flags(
     db: DbSession,
     current_user: CurrentUser,
 ):
+    from app.routers.misc import get_ai_status, get_school_ai_status
+    global_ai = await get_ai_status(db)
+    school_ai = await get_school_ai_status(db, str(school_id))
+    effective_ai = global_ai and school_ai
+
     try:
         stmt = select(SchoolFeatureFlag).where(SchoolFeatureFlag.school_id == school_id)
         res = await db.execute(stmt)
@@ -69,7 +74,7 @@ async def get_school_feature_flags(
                 library_enabled=True,
                 parent_app_enabled=True,
                 document_cert_enabled=True,
-                ai_features_enabled=True,
+                ai_features_enabled=effective_ai,
                 wellbeing_enabled=True,
                 inventory_enabled=True,
                 alumni_enabled=True,
@@ -83,6 +88,9 @@ async def get_school_feature_flags(
             db.add(flags)
             await db.commit()
             await db.refresh(flags)
+        else:
+            if not effective_ai:
+                flags.ai_features_enabled = False
 
         return flags
     except Exception:
@@ -92,7 +100,7 @@ async def get_school_feature_flags(
             library_enabled=True,
             parent_app_enabled=True,
             document_cert_enabled=True,
-            ai_features_enabled=True,
+            ai_features_enabled=effective_ai,
             wellbeing_enabled=True,
             inventory_enabled=True,
             alumni_enabled=True,
