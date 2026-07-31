@@ -42,7 +42,7 @@ export default function PlatformHealthPage() {
   };
 
   return (
-    <SuperAdminShell title="System Health" subtitle="Monitor real-time platform health metrics, database nodes, and latencies">
+    <SuperAdminShell title="10. System Health & Telemetry Desk" subtitle="FastAPI endpoint response times (p50/p95/p99), WebSocket connection counters & memory meters">
       <div className="space-y-6">
         {/* KPI Panel */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">

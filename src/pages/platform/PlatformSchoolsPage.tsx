@@ -384,17 +384,20 @@ export default function PlatformSchoolsPage() {
   }
 
   return (
-    <SuperAdminShell title="Schools" subtitle="Create, manage and inspect every tenant on the platform">
+    <SuperAdminShell
+      title="02. Tenant Portfolio & School Provisioning HQ"
+      subtitle="1-Click Elite School Provisioner, Ghost Mode Impersonation Desk & Quota Metering"
+    >
       <div className="space-y-6 text-zinc-100">
         {authz !== "ok" && (
-          <Card className="bg-zinc-950 border-amber-500/10 shadow-[0_4px_20px_rgba(0,0,0,0.5)]">
+          <Card className="bg-zinc-950/80 border-cyan-500/20 shadow-xl backdrop-blur-xl">
             <CardHeader>
-              <CardTitle className="font-display text-xl text-white">Access</CardTitle>
-              <p className="text-xs text-zinc-400">Platform Super Admin only</p>
+              <CardTitle className="text-xl font-black text-white">Access Check</CardTitle>
+              <p className="text-xs text-zinc-400">Platform Super Admin authorization required</p>
             </CardHeader>
             <CardContent>
               <div className="rounded-2xl border border-zinc-800 bg-zinc-900/50 p-4 text-sm text-zinc-300">
-                {authz === "checking" ? "Verifying access…" : authzMessage ?? "Access denied."}
+                {authz === "checking" ? "Verifying platform access credentials…" : authzMessage ?? "Access denied."}
               </div>
             </CardContent>
           </Card>
@@ -403,13 +406,13 @@ export default function PlatformSchoolsPage() {
         {authz === "ok" && (
           <>
             {/* Sub-tabs Navigation */}
-            <div className="flex flex-wrap gap-2 border-b border-zinc-800 pb-px mb-6">
+            <div className="flex flex-wrap gap-2 border-b border-zinc-800/80 pb-px mb-6">
               {[
-                { id: "directory", label: "Schools Directory", icon: ListFilter },
-                { id: "provisioning", label: "Tenant Provisioning", icon: PlusCircle },
-                { id: "access", label: "Access & Control", icon: Lock },
+                { id: "directory", label: "Schools Portfolio", icon: ListFilter },
+                { id: "provisioning", label: "1-Click Provisioner", icon: PlusCircle },
+                { id: "access", label: "Access & Ghost Mode", icon: Lock },
                 { id: "requests", label: "Tenant Requests", icon: Inbox },
-                { id: "audits", label: "School Audit Log", icon: ScrollText },
+                { id: "audits", label: "Audit Stream", icon: ScrollText },
               ].map((tab) => {
                 const Icon = tab.icon;
                 const active = activeTab === tab.id;
@@ -417,13 +420,13 @@ export default function PlatformSchoolsPage() {
                   <button
                     key={tab.id}
                     onClick={() => setActiveTab(tab.id as any)}
-                    className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-all -mb-px ${
+                    className={`flex items-center gap-2.5 px-4 py-3 text-xs font-bold border-b-2 transition-all duration-200 -mb-px ${
                       active
-                        ? "border-amber-500 text-amber-400 font-semibold"
+                        ? "border-cyan-400 text-cyan-300 font-extrabold bg-cyan-500/10 rounded-t-lg"
                         : "border-transparent text-zinc-400 hover:text-zinc-200 hover:border-zinc-700"
                     }`}
                   >
-                    <Icon className="h-4 w-4" />
+                    <Icon className={`h-4 w-4 ${active ? "text-cyan-400" : "text-zinc-500"}`} />
                     {tab.label}
                   </button>
                 );

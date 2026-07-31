@@ -151,7 +151,7 @@ export default function PlatformSettingsPage() {
   };
 
   return (
-    <SuperAdminShell title="System Settings" subtitle="Configure platform-wide variables, branding, bank details, and registration parameters">
+    <SuperAdminShell title="12. Enterprise Platform Keys & Global Settings" subtitle="System-wide credentials for SMTP mailers, payment gateways (JazzCash/EasyPaisa) & Global AI Copilot settings">
       <div className="space-y-6 max-w-4xl text-zinc-100">
         {/* KPI/Status Grid */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

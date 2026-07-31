@@ -17,6 +17,8 @@ import {
   Database,
   Globe,
   TrendingUp,
+  Radio,
+  Zap,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/hooks/useSession";
@@ -28,31 +30,30 @@ type Item = { label: string; to: string; icon: any; badge?: string };
 
 const NAV: { section: string; items: Item[] }[] = [
   {
-    section: "Platform",
+    section: "Executive Control",
     items: [
-      { label: "Overview", to: "/super_admin", icon: LayoutDashboard },
-      { label: "Schools", to: "/super_admin/schools", icon: Building2 },
-      { label: "Support Center", to: "/super_admin/support", icon: MessageSquare },
-      { label: "Owners & Admins", to: "/super_admin/directory", icon: Users2 },
+      { label: "01. Executive Overview HQ", to: "/super_admin", icon: LayoutDashboard },
+      { label: "02. Tenant Portfolio", to: "/super_admin/schools", icon: Building2 },
+      { label: "03. Global User Matrix", to: "/super_admin/directory", icon: Users2 },
     ],
   },
   {
-    section: "Operations",
+    section: "Monetization & Scale",
     items: [
-      { label: "Billing & Plans", to: "/super_admin/billing", icon: Receipt },
-      { label: "Revenue & Analytics", to: "/super_admin/revenue", icon: TrendingUp },
-      { label: "Add-ons & Modules", to: "/super_admin/addons", icon: Cpu },
-      { label: "Audit Log", to: "/super_admin/audit", icon: ScrollText },
-      { label: "System Health", to: "/super_admin/health", icon: Activity },
+      { label: "04. Revenue & Subscriptions", to: "/super_admin/billing", icon: Receipt },
+      { label: "05. Financial Telemetry", to: "/super_admin/revenue", icon: TrendingUp },
+      { label: "06. Feature Flag Matrix", to: "/super_admin/addons", icon: Cpu, badge: "14 Modules" },
     ],
   },
   {
-    section: "System",
+    section: "Infrastructure & Security",
     items: [
-      { label: "Database & Backups", to: "/super_admin/database", icon: Database },
-      { label: "Domains & Branding", to: "/super_admin/domains", icon: Globe },
-      { label: "Security", to: "/super_admin/security", icon: ShieldCheck },
-      { label: "Settings", to: "/super_admin/settings", icon: Settings },
+      { label: "07. Database & Storage HQ", to: "/super_admin/database", icon: Database },
+      { label: "08. Custom Domains & SSL", to: "/super_admin/domains", icon: Globe },
+      { label: "09. Security & Audit Stream", to: "/super_admin/security", icon: ShieldCheck },
+      { label: "10. System Health & SLA", to: "/super_admin/health", icon: Activity, badge: "99.99%" },
+      { label: "11. Customer Support Desk", to: "/super_admin/support", icon: MessageSquare },
+      { label: "12. Enterprise Keys & AI", to: "/super_admin/settings", icon: Settings },
     ],
   },
 ];
@@ -88,66 +89,76 @@ export function SuperAdminShell({ title, subtitle, actions, children }: Props) {
 
   return (
     <div
-      className="min-h-screen flex w-full text-zinc-100"
+      className="min-h-screen flex w-full text-zinc-100 bg-zinc-950 font-sans selection:bg-cyan-500/30 selection:text-cyan-200"
       style={{
         background:
-          "radial-gradient(1200px 600px at 10% -10%, hsl(45 80% 50% / 0.12), transparent 70%)," +
-          "radial-gradient(900px 600px at 110% 10%, hsl(35 70% 50% / 0.08), transparent 55%)," +
-          "linear-gradient(180deg, hsl(20 10% 4%), hsl(0 0% 1%))",
+          "radial-gradient(1200px 600px at 15% -10%, rgba(6, 182, 212, 0.08), transparent 70%)," +
+          "radial-gradient(900px 600px at 105% 10%, rgba(99, 102, 241, 0.06), transparent 55%)," +
+          "linear-gradient(180deg, #09090b 0%, #040405 100%)",
       }}
     >
       {/* Sidebar */}
       <aside
-        className="w-64 shrink-0 border-r flex flex-col"
-        style={{
-          background: "hsl(20 10% 3% / 0.95)",
-          borderColor: "hsl(45 15% 12%)",
-          backdropFilter: "blur(12px)",
-        }}
+        className="w-72 shrink-0 border-r border-zinc-800/80 flex flex-col backdrop-blur-xl bg-zinc-950/80"
       >
-        <div className="p-4 border-b" style={{ borderColor: "hsl(45 15% 12%)" }}>
-          <div className="flex items-center gap-2.5">
+        {/* Brand Header */}
+        <div className="p-4 border-b border-zinc-800/80">
+          <div className="flex items-center gap-3">
             <div
-              className="h-9 w-9 rounded-lg flex items-center justify-center"
+              className="h-10 w-10 rounded-xl flex items-center justify-center border border-cyan-400/30 shadow-[0_0_20px_rgba(6,182,212,0.3)]"
               style={{
-                background:
-                  "linear-gradient(135deg, hsl(45 95% 55%), hsl(35 90% 50%))",
-                boxShadow: "0 4px 16px hsl(45 90% 50% / 0.35)",
+                background: "linear-gradient(135deg, #06b6d4 0%, #3b82f6 50%, #6366f1 100%)",
               }}
             >
-              <Crown className="h-5 w-5 text-slate-900" />
+              <Crown className="h-5 w-5 text-zinc-950 font-black" />
             </div>
-            <div className="leading-tight">
-              <p className="text-[10px] uppercase tracking-[0.22em] text-amber-300/80 font-semibold">
-                Master Admin
+            <div className="leading-tight flex-1 min-w-0">
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] uppercase tracking-[0.22em] text-cyan-400 font-extrabold">
+                  ALTRIX ENTERPRISE
+                </span>
+                <span className="flex h-2 w-2 relative">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan-500"></span>
+                </span>
+              </div>
+              <p className="text-sm font-black text-white tracking-tight truncate">
+                COMMAND & CONTROL
               </p>
-              <p className="text-sm font-bold text-slate-100">Control Center</p>
             </div>
           </div>
         </div>
 
-        <nav className="flex-1 overflow-y-auto px-2 py-4 space-y-5">
+        {/* Navigation Grid */}
+        <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-6">
           {NAV.map((group) => (
             <div key={group.section}>
-              <p className="px-3 mb-1.5 text-[10px] uppercase tracking-wider text-zinc-500 font-semibold">
+              <p className="px-3 mb-2 text-[10px] uppercase tracking-widest text-zinc-500 font-bold">
                 {group.section}
               </p>
-              <ul className="space-y-0.5">
+              <ul className="space-y-1">
                 {group.items.map((item) => {
                   const active = isActive(item.to);
                   const Icon = item.icon;
                   return (
                     <li key={item.to}>
                       <NavLink
-                         to={item.to}
-                        className={`flex items-center gap-2.5 px-3 py-2 text-sm rounded-md transition-all ${
+                        to={item.to}
+                        className={`flex items-center justify-between px-3 py-2 text-xs rounded-lg transition-all duration-200 group ${
                           active
-                            ? "bg-gradient-to-r from-amber-500/15 to-transparent text-amber-400 border-l-2 border-amber-500 font-semibold shadow-[inset_1px_0_0_0_rgba(245,158,11,0.2)]"
-                            : "text-zinc-400 hover:bg-amber-500/5 hover:text-amber-300"
+                            ? "bg-gradient-to-r from-cyan-500/20 via-cyan-500/10 to-transparent text-cyan-300 border-l-2 border-cyan-400 font-bold shadow-[inset_1px_0_0_0_rgba(6,182,212,0.4)]"
+                            : "text-zinc-400 hover:bg-zinc-900/60 hover:text-zinc-200"
                         }`}
                       >
-                        <Icon className="h-4 w-4" />
-                        {item.label}
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <Icon className={`h-4 w-4 shrink-0 transition-colors ${active ? "text-cyan-400" : "text-zinc-500 group-hover:text-zinc-300"}`} />
+                          <span className="truncate">{item.label}</span>
+                        </div>
+                        {item.badge && (
+                          <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-semibold border ${active ? "bg-cyan-500/20 text-cyan-300 border-cyan-400/30" : "bg-zinc-900 text-zinc-500 border-zinc-800"}`}>
+                            {item.badge}
+                          </span>
+                        )}
                       </NavLink>
                     </li>
                   );
@@ -157,22 +168,26 @@ export function SuperAdminShell({ title, subtitle, actions, children }: Props) {
           ))}
         </nav>
 
-        <div className="p-3 border-t" style={{ borderColor: "hsl(45 15% 12%)" }}>
-          <div className="flex items-center gap-2 px-2 py-2 rounded-md bg-white/[0.02]">
+        {/* User Identity Footer */}
+        <div className="p-3 border-t border-zinc-800/80 bg-zinc-950/60">
+          <div className="flex items-center gap-2.5 px-2.5 py-2 rounded-xl bg-zinc-900/60 border border-zinc-800/60">
             <div
-              className="h-8 w-8 rounded-full flex items-center justify-center text-xs font-semibold text-slate-900"
-              style={{ background: "hsl(45 95% 60%)" }}
+              className="h-8 w-8 rounded-lg flex items-center justify-center text-xs font-black text-zinc-950 shadow-md"
+              style={{ background: "linear-gradient(135deg, #06b6d4 0%, #3b82f6 100%)" }}
             >
-              {(user?.email || "?").slice(0, 1).toUpperCase()}
+              {(user?.email || "A").slice(0, 1).toUpperCase()}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-xs font-semibold text-slate-200 truncate">{user?.email}</p>
-              <p className="text-[10px] text-amber-300/70">Platform Owner</p>
+              <p className="text-xs font-bold text-zinc-200 truncate">{user?.email}</p>
+              <div className="flex items-center gap-1">
+                <ShieldCheck className="h-3 w-3 text-cyan-400 shrink-0" />
+                <p className="text-[10px] text-cyan-400/90 font-medium truncate">Platform Super Admin</p>
+              </div>
             </div>
             <Button
               size="icon"
               variant="ghost"
-              className="h-7 w-7 text-slate-400 hover:text-amber-300 hover:bg-amber-500/10"
+              className="h-7 w-7 text-zinc-400 hover:text-cyan-300 hover:bg-cyan-500/10 rounded-lg"
               onClick={signOut}
               title="Sign out"
             >
@@ -182,76 +197,75 @@ export function SuperAdminShell({ title, subtitle, actions, children }: Props) {
         </div>
       </aside>
 
-      {/* Main */}
+      {/* Main Command Workspace */}
       <div className="flex-1 flex flex-col min-w-0">
         <header
-          className="h-16 px-6 flex items-center justify-between border-b sticky top-0 z-30"
-          style={{
-            background: "hsl(20 10% 3% / 0.8)",
-            borderColor: "hsl(45 15% 12%)",
-            backdropFilter: "blur(12px)",
-          }}
+          className="h-16 px-8 flex items-center justify-between border-b border-zinc-800/80 sticky top-0 z-30 backdrop-blur-xl bg-zinc-950/80"
         >
           <div className="flex items-center gap-4 min-w-0">
             <div className="min-w-0">
-              <h1 className="text-lg font-bold tracking-tight text-slate-100 truncate">
-                {title || "Master Admin"}
-              </h1>
+              <div className="flex items-center gap-2">
+                <span className="px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
+                  HQ COMMAND
+                </span>
+                <h1 className="text-base font-extrabold tracking-tight text-white truncate">
+                  {title || "Super Master Admin HQ"}
+                </h1>
+              </div>
               {subtitle && (
-                <p className="text-[11px] text-zinc-400 truncate">{subtitle}</p>
+                <p className="text-xs text-zinc-400 truncate mt-0.5">{subtitle}</p>
               )}
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-4">
+            <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-zinc-900/60 border border-zinc-800 text-xs font-mono text-cyan-300">
+              <Zap className="h-3.5 w-3.5 text-cyan-400" />
+              <span>SLA Uptime: 99.99%</span>
+            </div>
             <div className="relative hidden md:block">
               <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
               <Input
-                placeholder="Search schools, owners…"
-                className="pl-9 h-9 w-72 bg-zinc-950/60 border-zinc-800 text-zinc-200 placeholder:text-zinc-500 focus-visible:ring-amber-500/30"
+                placeholder="Omni-search tenants, owners, logs..."
+                className="pl-9 h-9 w-72 bg-zinc-900/60 border-zinc-800 text-zinc-200 placeholder:text-zinc-500 focus-visible:ring-cyan-500/30 focus-visible:border-cyan-500/50"
               />
             </div>
             {actions}
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto super-admin-scope bg-black/40">
+        <main className="flex-1 overflow-y-auto super-admin-scope bg-zinc-950">
           {(title || subtitle) && (
             <div
-              className="border-b"
-              style={{
-                background:
-                  "linear-gradient(180deg, hsl(20 10% 5% / 0.6), transparent)",
-                borderColor: "hsl(45 15% 12%)",
-              }}
+              className="border-b border-zinc-900/80 bg-gradient-to-b from-zinc-900/30 to-transparent"
             >
-              <div className="w-full px-6 md:px-8 py-5 flex items-center justify-between gap-4">
+              <div className="w-full px-8 py-6 flex items-center justify-between gap-4">
                 <div className="min-w-0">
-                  <p
-                    className="text-[10px] uppercase tracking-[0.22em] font-semibold"
-                    style={{ color: "hsl(45 95% 65% / 0.9)" }}
-                  >
-                    Master Admin
-                  </p>
-                  <h2 className="mt-1 text-2xl font-bold tracking-tight text-slate-100 truncate">
+                  <div className="flex items-center gap-2">
+                    <Radio className="h-4 w-4 text-cyan-400 animate-pulse" />
+                    <p className="text-[10px] uppercase tracking-[0.25em] font-extrabold text-cyan-400">
+                      ALTRIX HQ REAL-TIME TELEMETRY
+                    </p>
+                  </div>
+                  <h2 className="mt-1 text-2xl font-black tracking-tight text-white truncate">
                     {title}
                   </h2>
                   {subtitle && (
-                    <p className="text-sm text-zinc-400 mt-0.5 truncate">{subtitle}</p>
+                    <p className="text-sm text-zinc-400 mt-1 truncate">{subtitle}</p>
                   )}
                 </div>
                 <div
-                  className="hidden md:block h-12 w-12 rounded-xl"
+                  className="hidden md:flex h-12 w-12 rounded-xl items-center justify-center border border-cyan-500/30 shadow-[0_0_25px_rgba(6,182,212,0.15)]"
                   style={{
-                    background:
-                      "linear-gradient(135deg, hsl(45 95% 55% / 0.18), hsl(35 90% 50% / 0.12))",
-                    border: "1px solid hsl(45 80% 50% / 0.25)",
+                    background: "linear-gradient(135deg, rgba(6,182,212,0.15) 0%, rgba(99,102,241,0.1) 100%)",
                   }}
-                />
+                >
+                  <Crown className="h-6 w-6 text-cyan-400" />
+                </div>
               </div>
             </div>
           )}
-          <div className="w-full p-6 md:p-8">{children}</div>
+          <div className="w-full p-8">{children}</div>
         </main>
       </div>
       <GlobalCommandPalette basePath="/super_admin" />

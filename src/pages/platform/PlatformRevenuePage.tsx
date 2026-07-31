@@ -889,8 +889,8 @@ export default function PlatformRevenuePage() {
 
   return (
     <SuperAdminShell
-      title="Revenue & Analytics"
-      subtitle="Comprehensive insights into platform revenue streams, collection status, and future forecasts"
+      title="05. Financial Telemetry & Growth Analytics"
+      subtitle="Net Revenue Retention (NRR), expansion revenue, cohort retention matrix & LTV analytics"
     >
       <div className="space-y-6 text-zinc-100">
         {/* DB Schema Missing Banner */}

@@ -8,7 +8,27 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
-import { Cpu, Save, ShieldAlert, Sparkles, Bus, BookOpen, Smartphone, FileText, RefreshCw, HeartPulse, PackageCheck, GraduationCap, Globe, Home, Award, Grid, Shield, Languages } from "lucide-react";
+import {
+  Cpu,
+  Save,
+  Sparkles,
+  Bus,
+  BookOpen,
+  Smartphone,
+  FileText,
+  RefreshCw,
+  HeartPulse,
+  PackageCheck,
+  GraduationCap,
+  Globe,
+  Home,
+  Award,
+  Grid,
+  Shield,
+  Languages,
+  CheckCircle2,
+  XCircle,
+} from "lucide-react";
 
 type SchoolRow = { id: string; slug: string; name: string };
 
@@ -37,19 +57,19 @@ type Addon = {
 };
 
 const ADDONS: Addon[] = [
-  { key: "transport_enabled", name: "Bus Tracking & Transport System", desc: "Enables fleet management, route sequence builder, and parent live GPS tracking.", icon: Bus, category: "Operations" },
-  { key: "library_enabled", name: "Library Management System", desc: "Catalog books, process student/staff loans, barcode scanning, and calculate overdue fines.", icon: BookOpen, category: "Academics" },
-  { key: "parent_app_enabled", name: "Enhanced Parent Mobile App", desc: "Mobile-optimized PWA feed with fee voucher checkout, PTM slot booking, and child updates.", icon: Smartphone, category: "Experience" },
-  { key: "document_cert_enabled", name: "Document Vault & Certificate Engine", desc: "Document storage, Transfer/Character Certificate generator with public QR verification.", icon: FileText, category: "Governance" },
-  { key: "ai_features_enabled", name: "AI Intelligence & Copilot Engine", desc: "Enables AI early warnings, student academic predictions, and intelligent assistance.", icon: Sparkles, category: "Intelligence" },
-  { key: "wellbeing_enabled", name: "Student Health & Infirmary Desk", desc: "Clinic visit tracking, vaccination records, allergy alerts, and emergency parent notifications.", icon: HeartPulse, category: "Operations" },
-  { key: "inventory_enabled", name: "Asset & School Inventory Management", desc: "IT hardware, lab gear, and furniture stock tracking with reorder alerts.", icon: PackageCheck, category: "Operations" },
-  { key: "alumni_enabled", name: "Alumni Network & Placement Portal", desc: "Searchable alumni directory, reunion event management, and scholarship contribution ledger.", icon: GraduationCap, category: "Community" },
-  { key: "public_admissions_enabled", name: "Public Online Admissions Portal", desc: "External applicant landing page, online document submission, and public status tracking.", icon: Globe, category: "Marketing" },
+  { key: "transport_enabled", name: "Bus Tracking & Transport System", desc: "Fleet management, route sequence builder, and parent live GPS tracking.", icon: Bus, category: "Operations" },
+  { key: "library_enabled", name: "Library Management System", desc: "Book catalog, loans processing, barcode scanning, and fine calculations.", icon: BookOpen, category: "Academics" },
+  { key: "parent_app_enabled", name: "Enhanced Parent Mobile App", desc: "Mobile PWA feed, fee voucher checkout, PTM slot booking, and child updates.", icon: Smartphone, category: "Experience" },
+  { key: "document_cert_enabled", name: "Document Vault & Certificate Engine", desc: "Transfer/Character Certificate generator with public QR verification.", icon: FileText, category: "Governance" },
+  { key: "ai_features_enabled", name: "AI Intelligence & Copilot Engine", desc: "Enables AI early warnings, student academic predictions, and copilot assistant.", icon: Sparkles, category: "Intelligence" },
+  { key: "wellbeing_enabled", name: "Student Health & Infirmary Desk", desc: "Infirmary visit logs, vaccination records, allergy alerts, and emergency contact desk.", icon: HeartPulse, category: "Operations" },
+  { key: "inventory_enabled", name: "Asset & School Inventory Management", desc: "IT hardware, lab gear, and furniture stock tracking with reorder threshold alerts.", icon: PackageCheck, category: "Operations" },
+  { key: "alumni_enabled", name: "Alumni Network & Placement Portal", desc: "Searchable alumni directory, reunion events, and scholarship contribution ledger.", icon: GraduationCap, category: "Community" },
+  { key: "public_admissions_enabled", name: "Public Online Admissions Portal", desc: "External applicant landing page, online document submission, and application tracking.", icon: Globe, category: "Marketing" },
   { key: "hostel_enabled", name: "Hostel & Boarding Facility Management", desc: "Room allocation grid, nightly boarding attendance, mess meal menu scheduling.", icon: Home, category: "Operations" },
-  { key: "appraisals_enabled", name: "Staff Appraisal & 360° KPI System", desc: "Teacher self-appraisals, Principal reviews, 360 anonymous student ratings, increment calculator.", icon: Award, category: "Governance" },
+  { key: "appraisals_enabled", name: "Staff Appraisal & 360° KPI System", desc: "Teacher self-appraisals, Principal reviews, and 360 anonymous student ratings.", icon: Award, category: "Governance" },
   { key: "seating_plan_enabled", name: "Exam Hall Seating Plan Generator", desc: "Auto-generator ensuring non-adjacent seating per class, room capacity, invigilator duties.", icon: Grid, category: "Academics" },
-  { key: "white_label_enabled", name: "Full White-Label & Custom Domain Engine", desc: "Custom SMTP sending, white-label branding, custom splash screens, brand color theme.", icon: Shield, category: "Enterprise" },
+  { key: "white_label_enabled", name: "Full White-Label & Custom Domain Engine", desc: "Custom SMTP sending, white-label branding, custom splash screens, and brand color theme.", icon: Shield, category: "Enterprise" },
   { key: "multilang_enabled", name: "Multi-Language & RTL Layout Engine", desc: "Urdu (ur) + English (en) localization with automatic right-to-left layout switching.", icon: Languages, category: "Localization" },
 ];
 
@@ -114,7 +134,7 @@ export default function PlatformAddonsPage() {
           multilang_enabled: res.data.multilang_enabled ?? true,
         });
       }
-    } catch (e) {
+    } catch {
       // Fallback defaults
       setFlags({
         transport_enabled: true,
@@ -152,6 +172,15 @@ export default function PlatformAddonsPage() {
     }));
   };
 
+  const handleBulkToggle = (status: boolean) => {
+    const updated: Record<AddonKey, boolean> = { ...flags };
+    ADDONS.forEach(a => {
+      updated[a.key] = status;
+    });
+    setFlags(updated);
+    toast.info(status ? "All 14 SaaS feature modules set to Enabled" : "All 14 SaaS feature modules set to Disabled");
+  };
+
   const handleSave = async () => {
     const school = schools.find(s => s.id === selectedSchoolId);
     if (!school) return;
@@ -166,16 +195,9 @@ export default function PlatformAddonsPage() {
         { enabled: flags.ai_features_enabled },
         { headers: token ? { Authorization: `Bearer ${token}` } : {} }
       ).catch(() => {});
-      if (school.slug) {
-        await apiClient.post(
-          `/ai/settings/school/${school.slug}`,
-          { enabled: flags.ai_features_enabled },
-          { headers: token ? { Authorization: `Bearer ${token}` } : {} }
-        ).catch(() => {});
-      }
 
-      toast.success("Add-on configurations updated!", {
-        description: `Successfully configured feature flags & AI Copilot module for tenant ${school.name} (/${school.slug}).`
+      toast.success("14-Module Feature Flags Saved!", {
+        description: `Updated module permissions & AI Copilot settings for tenant ${school.name} (/${school.slug}).`
       });
     } catch (err: any) {
       toast.error(err?.response?.data?.detail || "Failed to update feature flags");
@@ -185,102 +207,128 @@ export default function PlatformAddonsPage() {
   };
 
   return (
-    <SuperAdminShell title="Add-ons & Modules" subtitle="Activate, allocate, and configure advanced SaaS features and software packages per tenant">
+    <SuperAdminShell
+      title="06. Feature Flag Matrix & Add-On Control"
+      subtitle="14-Module SaaS feature toggle matrix per tenant fleet with 1-click bulk master switches"
+    >
       <div className="space-y-6 text-zinc-100">
         
-        {/* Selector Header */}
-        <Card className="bg-zinc-950 border-amber-500/10 shadow-[0_4px_20px_rgba(0,0,0,0.5)]">
-          <CardHeader className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        {/* Tenant Selector & Bulk Controls Header */}
+        <Card className="bg-zinc-950/80 border-cyan-500/20 backdrop-blur-xl shadow-xl">
+          <CardHeader className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b border-zinc-900 pb-5">
             <div>
-              <CardTitle className="text-lg font-bold text-white flex items-center gap-2">
-                <Cpu className="h-5 w-5 text-amber-500" /> Active School Selector
+              <CardTitle className="text-lg font-black text-white flex items-center gap-2.5">
+                <Cpu className="h-5 w-5 text-cyan-400" /> Active School Feature Matrix Hub
               </CardTitle>
-              <p className="text-xs text-zinc-400">Choose the tenant to view and modify active system packages</p>
+              <p className="text-xs text-zinc-400 mt-1">Select a tenant campus to view and configure all 14 SaaS feature modules</p>
             </div>
-            <div className="flex items-center gap-2">
-              <Select value={selectedSchoolId} onValueChange={setSelectedSchoolId} disabled={loading}>
-                <SelectTrigger className="w-64 bg-zinc-900 border-amber-500/20 text-white focus:ring-amber-500/30">
-                  <SelectValue placeholder="Pick a school" />
+            <div className="flex flex-wrap items-center gap-3">
+              <Select value={selectedSchoolId} onValueChange={setSelectedSchoolId} disabled={loading || schools.length === 0}>
+                <SelectTrigger className="w-[280px] bg-zinc-900 border-zinc-800 text-cyan-300 font-bold focus:ring-cyan-500/30">
+                  <SelectValue placeholder={loading ? "Loading campuses..." : "Select Campus Tenant"} />
                 </SelectTrigger>
-                <SelectContent>
-                  {schools.map((s) => (
-                    <SelectItem key={s.id} value={s.id}>
-                      {s.name} (/{s.slug})
+                <SelectContent className="bg-zinc-950 border-zinc-800 text-zinc-200">
+                  {schools.map(s => (
+                    <SelectItem key={s.id} value={s.id} className="focus:bg-cyan-500/10 focus:text-cyan-300 font-medium">
+                      {s.name} <span className="text-xs text-zinc-500 font-mono">({s.slug})</span>
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+
               <Button
                 variant="outline"
-                onClick={() => { loadSchools(); if (selectedSchoolId !== "__none__") loadFlags(selectedSchoolId); }}
-                disabled={loading}
-                className="border-zinc-800 bg-zinc-950/60 text-zinc-200 hover:bg-amber-500/10 hover:text-amber-300 border"
+                size="sm"
+                onClick={() => handleBulkToggle(true)}
+                className="bg-emerald-950/30 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20 font-bold"
               >
-                <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+                <CheckCircle2 className="h-4 w-4 mr-1.5" /> Enable All
+              </Button>
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleBulkToggle(false)}
+                className="bg-rose-950/30 border-rose-500/30 text-rose-400 hover:bg-rose-500/20 font-bold"
+              >
+                <XCircle className="h-4 w-4 mr-1.5" /> Disable All
+              </Button>
+
+              <Button
+                onClick={handleSave}
+                disabled={busy || selectedSchoolId === "__none__"}
+                className="bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-zinc-950 font-black shadow-lg shadow-cyan-500/20 border border-cyan-400/30"
+              >
+                <Save className={`h-4 w-4 mr-2 ${busy ? "animate-spin" : ""}`} /> Save Feature Matrix
               </Button>
             </div>
           </CardHeader>
+          <CardContent className="pt-5">
+            <div className="flex items-center justify-between text-xs text-zinc-400 font-mono bg-zinc-900/60 p-3 rounded-xl border border-zinc-800/80">
+              <span className="flex items-center gap-2">
+                <span className="h-2 w-2 rounded-full bg-cyan-400 animate-pulse" />
+                Active Campus: <strong className="text-white font-sans">{schools.find(s => s.id === selectedSchoolId)?.name || "None Selected"}</strong>
+              </span>
+              <span>14 Modules Registered</span>
+            </div>
+          </CardContent>
         </Card>
 
-        {/* Modules List */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* 14-Module Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
           {ADDONS.map((addon) => {
             const Icon = addon.icon;
-            const active = flags[addon.key];
+            const isEnabled = flags[addon.key];
             return (
-              <Card key={addon.key} className="bg-zinc-950 border-amber-500/10 shadow-[0_4px_20px_rgba(0,0,0,0.5)] p-5 flex flex-col justify-between">
-                <div>
-                  <div className="flex items-center justify-between gap-3 mb-2">
-                    <span className="text-[10px] uppercase tracking-widest text-amber-500/80 font-bold">
-                      {addon.category}
-                    </span>
-                    <Switch
-                      checked={active}
-                      onCheckedChange={() => handleToggle(addon.key)}
-                    />
-                  </div>
-                  <div className="flex gap-3 items-start mt-2">
-                    <div className={`p-2.5 rounded-lg border ${
-                      active ? "border-amber-500/30 bg-amber-500/5 text-amber-400" : "border-zinc-800 bg-zinc-900/50 text-zinc-500"
+              <Card 
+                key={addon.key} 
+                className={`transition-all duration-300 border backdrop-blur-xl ${
+                  isEnabled 
+                    ? "bg-zinc-900/70 border-cyan-500/30 shadow-[0_0_20px_rgba(6,182,212,0.08)]" 
+                    : "bg-zinc-950/50 border-zinc-900 opacity-70 hover:opacity-100"
+                }`}
+              >
+                <CardHeader className="flex flex-row items-start justify-between pb-2 space-y-0">
+                  <div className="flex items-center gap-3">
+                    <div className={`p-2.5 rounded-xl border ${
+                      isEnabled 
+                        ? "bg-cyan-500/10 border-cyan-500/30 text-cyan-400 shadow-[0_0_12px_rgba(6,182,212,0.2)]" 
+                        : "bg-zinc-900 border-zinc-800 text-zinc-500"
                     }`}>
                       <Icon className="h-5 w-5" />
                     </div>
                     <div>
-                      <h4 className="font-semibold text-white text-base">{addon.name}</h4>
-                      <p className="text-xs text-zinc-400 mt-1 leading-relaxed">{addon.desc}</p>
+                      <CardTitle className="text-sm font-bold text-white">{addon.name}</CardTitle>
+                      <Badge variant="outline" className={`mt-1 text-[10px] uppercase font-mono ${
+                        isEnabled ? "bg-cyan-950/40 text-cyan-400 border-cyan-500/30" : "bg-zinc-900 text-zinc-500 border-zinc-800"
+                      }`}>
+                        {addon.category}
+                      </Badge>
                     </div>
                   </div>
-                </div>
-
-                <div className="mt-4 pt-3 border-t border-zinc-900 flex justify-between items-center">
-                  <span className="text-[11px] text-zinc-500 flex items-center gap-1.5">
-                    <ShieldAlert className="h-3.5 w-3.5 text-amber-500/40" /> Tenant Feature Flag Toggle
-                  </span>
-                  <Badge variant="outline" className={`text-[10px] ${
-                    active ? "border-amber-500/20 text-amber-400 bg-amber-500/5" : "border-zinc-800 text-zinc-500 bg-zinc-900/10"
-                  }`}>
-                    {active ? "Active & Enabled" : "Disabled by Admin"}
-                  </Badge>
-                </div>
+                  <Switch
+                    checked={isEnabled}
+                    onCheckedChange={() => handleToggle(addon.key)}
+                    className="data-[state=checked]:bg-cyan-500"
+                  />
+                </CardHeader>
+                <CardContent className="pt-2">
+                  <p className="text-xs text-zinc-400 leading-relaxed font-sans min-h-[36px]">
+                    {addon.desc}
+                  </p>
+                  <div className="mt-4 pt-3 border-t border-zinc-800/60 flex items-center justify-between text-[11px] font-mono">
+                    <span className="text-zinc-500">Module Status:</span>
+                    <span className={`font-bold ${isEnabled ? "text-emerald-400" : "text-rose-400"}`}>
+                      {isEnabled ? "ENABLED FOR TENANT" : "DISABLED"}
+                    </span>
+                  </div>
+                </CardContent>
               </Card>
             );
           })}
-        </div>
-
-        {/* Action Bar */}
-        <div className="flex justify-end pt-4">
-          <Button
-            size="lg"
-            onClick={handleSave}
-            disabled={busy || selectedSchoolId === "__none__"}
-            className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-zinc-950 font-bold border border-amber-400/20 shadow-md shadow-amber-500/10 px-8"
-          >
-            <Save className="h-4 w-4 mr-2" /> {busy ? "Saving Configuration…" : "Save Feature Flags"}
-          </Button>
         </div>
 
       </div>
     </SuperAdminShell>
   );
 }
-

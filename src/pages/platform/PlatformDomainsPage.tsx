@@ -84,7 +84,7 @@ export default function PlatformDomainsPage() {
   };
 
   return (
-    <SuperAdminShell title="Domains & Branding" subtitle="Configure custom domains, verify DNS records, manage SSL certificates, and set whitelabel parameters">
+    <SuperAdminShell title="08. Custom Domains & Edge SSL Authority" subtitle="Manage custom school domain routing (CNAME), edge Let's Encrypt SSL certificates & DNS verification">
       <div className="space-y-6 text-zinc-100">
         
         {/* Domain Metrics */}

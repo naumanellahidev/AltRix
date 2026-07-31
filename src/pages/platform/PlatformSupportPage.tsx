@@ -87,7 +87,7 @@ export default function PlatformSupportPage() {
   const totalResolved = rows.filter(r => r.status === "resolved").length;
 
   return (
-    <SuperAdminShell title="Support Center" subtitle="Manage incoming tenant assistance queries, server upgrades, and custom integrations">
+    <SuperAdminShell title="11. Customer Support Desk & SLA Escalation" subtitle="Centralized inbox for school owner tickets, SLA countdown timers & automated escalation alerts">
       <div className="space-y-6 text-zinc-100">
         
         {/* Support Stats Grid */}

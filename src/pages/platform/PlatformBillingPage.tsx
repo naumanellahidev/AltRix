@@ -895,8 +895,8 @@ export default function PlatformBillingPage() {
 
   return (
     <SuperAdminShell
-      title="Billing & Plans"
-      subtitle="Manage school subscriptions, recurring pricing, and platform invoices"
+      title="04. Revenue & Subscriptions Engine"
+      subtitle="Automated tier pricing rules, billing vouchers, PDF generation & grace period workflows"
     >
       <div className="space-y-6 text-zinc-100">
         {/* DB Schema Missing Banner */}

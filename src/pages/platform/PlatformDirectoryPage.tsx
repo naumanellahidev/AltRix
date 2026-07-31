@@ -118,7 +118,7 @@ type DirRow = { id: string; school_id: string; email: string; display_name: stri
   }
 
   return (
-    <SuperAdminShell title="Owners & Admins" subtitle="Search across schools, users, students and leads">
+    <SuperAdminShell title="03. Global User Matrix & Identity Center" subtitle="Cross-tenant search across students, parents, teachers, HR staff, and school owners">
       <div className="space-y-4 text-zinc-100 bg-transparent rounded-xl p-1">
         <div className="-mx-1 -my-1 p-4">
 

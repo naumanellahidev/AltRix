@@ -772,7 +772,7 @@ const [activeTab, setActiveTab] = useState<"global" | "schedules" | "hub" | "fil
   });
 
   return (
-    <SuperAdminShell title="Database & Backups" subtitle="Inspect database status, manage storage capacities, run vacuum cleaners and compile raw backups">
+    <SuperAdminShell title="07. Database & Storage HQ (Migration Runner)" subtitle="Live SQL migration runner, schema table row counts, storage telemetry & backup vault">
       <div className="space-y-6 text-zinc-100">
         
         {/* Navigation Tabs */}

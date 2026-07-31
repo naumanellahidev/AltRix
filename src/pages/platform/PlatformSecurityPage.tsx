@@ -35,7 +35,7 @@ export default function PlatformSecurityPage() {
   };
 
   return (
-    <SuperAdminShell title="Security Center" subtitle="Manage global platform security policies, authentication, and audits">
+    <SuperAdminShell title="09. Security & Audit Stream" subtitle="Threat Watch, 1-click IP firewall banlist, role inspector & session revocation">
       <div className="space-y-6">
         {/* KPI Panel */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
