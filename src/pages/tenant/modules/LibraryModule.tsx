@@ -277,23 +277,33 @@ export function LibraryModule() {
     }
   };
 
-  // Unique categories for filter pills
-  const categories = ["All", ...Array.from(new Set(books.map(b => b.category).filter(Boolean)))];
+  // Defensive Array Wrappers
+  const safeBooks = Array.isArray(books) ? books : [];
+  const safeIssues = Array.isArray(issues) ? issues : [];
+  const safeReservations = Array.isArray(reservations) ? reservations : [];
 
-  const filteredBooks = books.filter(b => {
-    const matchesSearch = b.title.toLowerCase().includes(search.toLowerCase()) ||
-      b.author.toLowerCase().includes(search.toLowerCase()) ||
-      b.category.toLowerCase().includes(search.toLowerCase()) ||
-      (b.isbn && b.isbn.includes(search)) ||
-      (b.barcode && b.barcode.includes(search));
-    const matchesCategory = selectedCategory === "All" || b.category === selectedCategory;
+  // Unique categories for filter pills
+  const categories = ["All", ...Array.from(new Set(safeBooks.map(b => b?.category).filter(Boolean)))];
+
+  const filteredBooks = safeBooks.filter(b => {
+    const titleStr = (b?.title || "").toLowerCase();
+    const authorStr = (b?.author || "").toLowerCase();
+    const categoryStr = (b?.category || "").toLowerCase();
+    const query = search.toLowerCase();
+
+    const matchesSearch = titleStr.includes(query) ||
+      authorStr.includes(query) ||
+      categoryStr.includes(query) ||
+      (b?.isbn && b.isbn.includes(search)) ||
+      (b?.barcode && b.barcode.includes(search));
+    const matchesCategory = selectedCategory === "All" || b?.category === selectedCategory;
     return matchesSearch && matchesCategory;
   });
 
-  const totalTitles = books.length;
-  const totalCopies = books.reduce((acc, b) => acc + (b.total_copies || 0), 0);
-  const totalAvailable = books.reduce((acc, b) => acc + (b.available_copies || 0), 0);
-  const activeLoans = issues.filter(i => i.status === "issued" || i.status === "overdue").length;
+  const totalTitles = safeBooks.length;
+  const totalCopies = safeBooks.reduce((acc, b) => acc + (b?.total_copies || 0), 0);
+  const totalAvailable = safeBooks.reduce((acc, b) => acc + (b?.available_copies || 0), 0);
+  const activeLoans = safeIssues.filter(i => i?.status === "issued" || i?.status === "overdue").length;
 
   return (
     <div className="space-y-6">
