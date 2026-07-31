@@ -360,8 +360,6 @@ async def lifespan(app: FastAPI):
 
     # ── Event Bus Tables Initialization ──────────────────────────────────────────
     try:
-        from sqlalchemy import text
-        from app.database import engine
         async with engine.begin() as conn:
             # 1. event_store table
             await conn.execute(text("""

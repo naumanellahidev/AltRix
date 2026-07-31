@@ -675,7 +675,10 @@ export default function AltrixCopilot() {
   useEffect(() => {
     if (!user) return;
     const rawSchoolId = typeof schoolId === "string" ? schoolId : (schoolId && typeof schoolId === "object" ? ((schoolId as any).id || String(schoolId)) : "");
-    const effectiveId = rawSchoolId || schoolSlug || localStorage.getItem("eduverse_active_school_id") || "";
+    // On super_admin pages, don't fall back to stale localStorage school IDs —
+    // query the global AI toggle instead of a per-school toggle.
+    const isSuperAdminPage = location.pathname.startsWith("/super_admin");
+    const effectiveId = isSuperAdminPage ? "" : (rawSchoolId || schoolSlug || localStorage.getItem("eduverse_active_school_id") || "");
     const params = effectiveId ? `?school_id=${encodeURIComponent(String(effectiveId))}` : "";
     apiClient
       .get<{ enabled: boolean }>(`/ai/settings${params}`)
@@ -685,7 +688,7 @@ export default function AltrixCopilot() {
       .catch(() => {
         setAiEnabled(true);
       });
-  }, [user, schoolId, schoolSlug]);
+  }, [user, schoolId, schoolSlug, location.pathname]);
 
   // ── Restore Chat History ──────────────────────────────────────────────────
   useEffect(() => {
