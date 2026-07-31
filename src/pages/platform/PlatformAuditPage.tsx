@@ -95,50 +95,50 @@ export default function PlatformAuditPage() {
       <div className="space-y-6">
         {/* KPI Panel */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Card className="bg-zinc-950 border-amber-500/10 shadow-[0_4px_20px_rgba(0,0,0,0.5)]">
+          <Card className="bg-white border-slate-200 shadow-[0_4px_20px_rgba(0,0,0,0.5)]">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-xs font-semibold uppercase tracking-wider text-zinc-400">Total Audit Logs</CardTitle>
-              <ScrollText className="h-4 w-4 text-amber-500" />
+              <CardTitle className="text-xs font-semibold uppercase tracking-wider text-slate-500">Total Audit Logs</CardTitle>
+              <ScrollText className="h-4 w-4 text-blue-700" />
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold text-white">{auditLogs.length} Records</div>
-              <div className="text-xs text-zinc-400 mt-1">Stored securely on the platform</div>
+              <div className="text-3xl font-bold text-slate-900">{auditLogs.length} Records</div>
+              <div className="text-xs text-slate-500 mt-1">Stored securely on the platform</div>
             </CardContent>
           </Card>
 
-          <Card className="bg-zinc-950 border-amber-500/10 shadow-[0_4px_20px_rgba(0,0,0,0.5)]">
+          <Card className="bg-white border-slate-200 shadow-[0_4px_20px_rgba(0,0,0,0.5)]">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-xs font-semibold uppercase tracking-wider text-zinc-400">Security Events</CardTitle>
-              <ShieldAlert className="h-4 w-4 text-amber-500" />
+              <CardTitle className="text-xs font-semibold uppercase tracking-wider text-slate-500">Security Events</CardTitle>
+              <ShieldAlert className="h-4 w-4 text-blue-700" />
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold text-white">
+              <div className="text-3xl font-bold text-slate-900">
                 {auditLogs.filter(l => l.action.includes("impersonate")).length} Impersonations
               </div>
-              <div className="text-xs text-zinc-400 mt-1">All secure logins are digitally logged</div>
+              <div className="text-xs text-slate-500 mt-1">All secure logins are digitally logged</div>
             </CardContent>
           </Card>
 
-          <Card className="bg-zinc-950 border-amber-500/10 shadow-[0_4px_20px_rgba(0,0,0,0.5)]">
+          <Card className="bg-white border-slate-200 shadow-[0_4px_20px_rgba(0,0,0,0.5)]">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-xs font-semibold uppercase tracking-wider text-zinc-400">Actor Context</CardTitle>
-              <ScrollText className="h-4 w-4 text-amber-500" />
+              <CardTitle className="text-xs font-semibold uppercase tracking-wider text-slate-500">Actor Context</CardTitle>
+              <ScrollText className="h-4 w-4 text-blue-700" />
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold text-white">1 Active Admin</div>
-              <div className="text-xs text-zinc-400 mt-1">admin@altrixbynec.com</div>
+              <div className="text-3xl font-bold text-slate-900">1 Active Admin</div>
+              <div className="text-xs text-slate-500 mt-1">admin@altrixbynec.com</div>
             </CardContent>
           </Card>
         </div>
 
         {/* Filter Toolbar */}
-        <Card className="bg-zinc-950 border-amber-500/10 shadow-[0_4px_20px_rgba(0,0,0,0.5)]">
+        <Card className="bg-white border-slate-200 shadow-[0_4px_20px_rgba(0,0,0,0.5)]">
           <CardContent className="pt-6 space-y-4">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <div className="relative flex-1 max-w-md">
-                <Search className="absolute left-3 top-3 h-4 w-4 text-zinc-500" />
+                <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
                 <Input
-                  className="pl-9 bg-zinc-900 border-amber-500/15 text-white placeholder:text-zinc-500 focus-visible:ring-amber-500/30"
+                  className="pl-9 bg-slate-50 border-amber-500/15 text-slate-900 placeholder:text-slate-400 focus-visible:ring-blue-500/30"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Search logs by action, actor or entity ID..."
@@ -146,7 +146,7 @@ export default function PlatformAuditPage() {
               </div>
               <div className="flex flex-wrap gap-2">
                 <Select value={filterSchool} onValueChange={setFilterSchool}>
-                  <SelectTrigger className="w-44 bg-zinc-900 border-amber-500/15 text-white">
+                  <SelectTrigger className="w-44 bg-slate-50 border-amber-500/15 text-slate-900">
                     <SelectValue placeholder="All Schools" />
                   </SelectTrigger>
                   <SelectContent>
@@ -158,7 +158,7 @@ export default function PlatformAuditPage() {
                 </Select>
 
                 <Select value={filterAction} onValueChange={setFilterAction}>
-                  <SelectTrigger className="w-44 bg-zinc-900 border-amber-500/15 text-white">
+                  <SelectTrigger className="w-44 bg-slate-50 border-amber-500/15 text-slate-900">
                     <SelectValue placeholder="All Actions" />
                   </SelectTrigger>
                   <SelectContent>
@@ -169,49 +169,49 @@ export default function PlatformAuditPage() {
                   </SelectContent>
                 </Select>
 
-                <Button variant="soft" size="icon" onClick={refreshLogs} disabled={loading} className="border border-zinc-800 text-zinc-400 hover:text-amber-300">
+                <Button variant="soft" size="icon" onClick={refreshLogs} disabled={loading} className="border border-slate-200 text-slate-500 hover:text-blue-700">
                   <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
                 </Button>
 
-                <Button onClick={exportCSV} className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-zinc-950 font-bold border border-amber-400/20 shadow-md">
+                <Button onClick={exportCSV} className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-zinc-950 font-bold border border-0 shadow-md">
                   <FileSpreadsheet className="h-4 w-4 mr-2" /> Export
                 </Button>
               </div>
             </div>
 
             {/* Audit Log Table */}
-            <div className="overflow-auto rounded-xl border border-zinc-800 bg-black/40 mt-4">
+            <div className="overflow-auto rounded-xl border border-slate-200 bg-white mt-4">
               <Table>
                 <TableHeader className="border-b border-zinc-850">
-                  <TableRow className="hover:bg-transparent border-b border-zinc-800">
-                    <TableHead className="text-zinc-400 font-medium">Timestamp</TableHead>
-                    <TableHead className="text-zinc-400 font-medium">Action</TableHead>
-                    <TableHead className="text-zinc-400 font-medium">School context</TableHead>
-                    <TableHead className="text-zinc-400 font-medium">Target Entity</TableHead>
-                    <TableHead className="text-zinc-400 font-medium">Actor</TableHead>
+                  <TableRow className="hover:bg-transparent border-b border-slate-200">
+                    <TableHead className="text-slate-500 font-medium">Timestamp</TableHead>
+                    <TableHead className="text-slate-500 font-medium">Action</TableHead>
+                    <TableHead className="text-slate-500 font-medium">School context</TableHead>
+                    <TableHead className="text-slate-500 font-medium">Target Entity</TableHead>
+                    <TableHead className="text-slate-500 font-medium">Actor</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filteredLogs.map((log) => {
                     const sch = log.school_id ? schoolsById.get(log.school_id) : null;
                     return (
-                      <TableRow key={log.id} className="hover:bg-zinc-900/20 border-b border-zinc-900">
-                        <TableCell className="text-zinc-400 font-mono text-xs">
+                      <TableRow key={log.id} className="hover:bg-slate-50/20 border-b border-slate-200">
+                        <TableCell className="text-slate-500 font-mono text-xs">
                           {new Date(log.created_at).toLocaleString()}
                         </TableCell>
-                        <TableCell className="font-semibold text-white">
-                          <code className="bg-amber-500/10 text-amber-400 border border-amber-500/20 px-2 py-0.5 rounded text-[11px] font-mono">
+                        <TableCell className="font-semibold text-slate-900">
+                          <code className="bg-blue-600/10 text-blue-700 border border-slate-300 px-2 py-0.5 rounded text-[11px] font-mono">
                             {log.action}
                           </code>
                         </TableCell>
-                        <TableCell className="text-zinc-300">
+                        <TableCell className="text-slate-700">
                           {sch ? sch.name : "Platform Wide"}
                         </TableCell>
-                        <TableCell className="text-zinc-400 text-xs font-mono">
+                        <TableCell className="text-slate-500 text-xs font-mono">
                           {log.entity_type ? `${log.entity_type}: ` : ""}
-                          <span className="text-zinc-300 font-medium">{log.entity_id || "—"}</span>
+                          <span className="text-slate-700 font-medium">{log.entity_id || "—"}</span>
                         </TableCell>
-                        <TableCell className="text-zinc-300 text-xs font-mono">
+                        <TableCell className="text-slate-700 text-xs font-mono">
                           {log.actor_user_id}
                         </TableCell>
                       </TableRow>
@@ -219,7 +219,7 @@ export default function PlatformAuditPage() {
                   })}
                   {filteredLogs.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={5} className="text-center text-zinc-500 py-8">
+                      <TableCell colSpan={5} className="text-center text-slate-400 py-8">
                         No audit records found matching the criteria.
                       </TableCell>
                     </TableRow>

@@ -257,7 +257,7 @@ export default function PlatformAddonsPage() {
               <Button
                 onClick={handleSave}
                 disabled={busy || selectedSchoolId === "__none__"}
-                className="bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 hover:from-blue-500 hover:to-indigo-500 text-white font-black shadow-md shadow-blue-500/20 border-0"
+                className="bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 hover:from-blue-500 hover:to-indigo-500 text-slate-900 font-black shadow-md shadow-blue-500/20 border-0"
               >
                 <Save className={`h-4 w-4 mr-2 ${busy ? "animate-spin" : ""}`} /> Save Feature Matrix
               </Button>

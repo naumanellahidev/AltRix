@@ -75,33 +75,10 @@ export default function PlatformRevenuePage() {
   }, []);
 
   const chartData = useMemo(() => {
-    const base = forecastingData.series_12m || [];
-    if (horizon === "12m") return base;
-    if (horizon === "24m") {
-      const extended = [...base];
-      for (let i = 1; i <= 12; i++) {
-        const last = extended[extended.length - 1];
-        extended.push({
-          month: `M${12 + i}`,
-          arr_usd: Math.round(last.arr_usd * 1.02),
-          arr_pkr: Math.round(last.arr_pkr * 1.02),
-          expansion_arr: Math.round(last.expansion_arr * 1.025)
-        });
-      }
-      return extended;
-    }
+    if (horizon === "12m") return forecastingData.series_12m || [];
+    if (horizon === "24m") return forecastingData.series_24m || forecastingData.series_12m || [];
     // 36m
-    const extended = [...base];
-    for (let i = 1; i <= 24; i++) {
-      const last = extended[extended.length - 1];
-      extended.push({
-        month: `M${12 + i}`,
-        arr_usd: Math.round(last.arr_usd * 1.02),
-        arr_pkr: Math.round(last.arr_pkr * 1.02),
-        expansion_arr: Math.round(last.expansion_arr * 1.025)
-      });
-    }
-    return extended;
+    return forecastingData.series_36m || forecastingData.series_12m || [];
   }, [forecastingData, horizon]);
 
   const metrics = forecastingData.metrics;

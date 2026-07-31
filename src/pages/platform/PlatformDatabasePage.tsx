@@ -773,7 +773,7 @@ const [activeTab, setActiveTab] = useState<"global" | "schedules" | "hub" | "fil
 
   return (
     <SuperAdminShell title="07. Database & Storage HQ (Migration Runner)" subtitle="Live SQL migration runner, schema table row counts, storage telemetry & backup vault">
-      <div className="space-y-6 text-zinc-100">
+      <div className="space-y-6 text-slate-900">
         
         {/* Navigation Tabs */}
         <div className="flex flex-wrap gap-2 border-b border-slate-200 pb-px">
@@ -803,8 +803,8 @@ const [activeTab, setActiveTab] = useState<"global" | "schedules" | "hub" | "fil
             onClick={() => { setActiveTab("hub"); setSelectedSchool(null); }}
             className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-all -mb-px ${
               activeTab === "hub" && !selectedSchool
-                ? "border-amber-500 text-amber-400 font-semibold"
-                : "border-transparent text-zinc-400 hover:text-zinc-200 hover:border-zinc-700"
+                ? "border-amber-500 text-blue-700 font-semibold"
+                : "border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300"
             }`}
           >
             <History className="h-4 w-4" />
@@ -814,8 +814,8 @@ const [activeTab, setActiveTab] = useState<"global" | "schedules" | "hub" | "fil
             onClick={() => { setActiveTab("files"); setSelectedSchool(null); }}
             className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-all -mb-px ${
               activeTab === "files" && !selectedSchool
-                ? "border-amber-500 text-amber-400 font-semibold"
-                : "border-transparent text-zinc-400 hover:text-zinc-200 hover:border-zinc-700"
+                ? "border-amber-500 text-blue-700 font-semibold"
+                : "border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300"
             }`}
           >
             <FolderArchive className="h-4 w-4" />
@@ -825,8 +825,8 @@ const [activeTab, setActiveTab] = useState<"global" | "schedules" | "hub" | "fil
             onClick={() => { setActiveTab("migrations"); setSelectedSchool(null); }}
             className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-all -mb-px ${
               activeTab === "migrations" && !selectedSchool
-                ? "border-amber-500 text-amber-400 font-semibold"
-                : "border-transparent text-zinc-400 hover:text-zinc-200 hover:border-zinc-700"
+                ? "border-amber-500 text-blue-700 font-semibold"
+                : "border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300"
             }`}
           >
             <FileCode2 className="h-4 w-4" />
@@ -847,30 +847,30 @@ const [activeTab, setActiveTab] = useState<"global" | "schedules" | "hub" | "fil
           <>
             {/* Storage Stats Grid */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <Card className="bg-zinc-950 border-amber-500/10 p-4 flex items-center justify-between shadow-md">
+              <Card className="bg-white border-slate-200 p-4 flex items-center justify-between shadow-md">
                 <div>
-                  <p className="text-xs text-zinc-400">Total DB Size</p>
-                  <h3 className="text-2xl font-bold text-amber-500 mt-1">114.6 MB</h3>
+                  <p className="text-xs text-slate-500">Total DB Size</p>
+                  <h3 className="text-2xl font-bold text-blue-700 mt-1">114.6 MB</h3>
                 </div>
-                <Database className="h-8 w-8 text-amber-500/20" />
+                <Database className="h-8 w-8 text-blue-700/20" />
               </Card>
-              <Card className="bg-zinc-950 border-amber-500/10 p-4 flex items-center justify-between shadow-md">
+              <Card className="bg-white border-slate-200 p-4 flex items-center justify-between shadow-md">
                 <div>
-                  <p className="text-xs text-zinc-400">Total Table Count</p>
-                  <h3 className="text-2xl font-bold text-white mt-1">{TABLES.length} Tables</h3>
+                  <p className="text-xs text-slate-500">Total Table Count</p>
+                  <h3 className="text-2xl font-bold text-slate-900 mt-1">{TABLES.length} Tables</h3>
                 </div>
                 <LayoutGrid className="h-8 w-8 text-white/20" />
               </Card>
-              <Card className="bg-zinc-950 border-amber-500/10 p-4 flex items-center justify-between shadow-md">
+              <Card className="bg-white border-slate-200 p-4 flex items-center justify-between shadow-md">
                 <div>
-                  <p className="text-xs text-zinc-400">Disk Space Allocated</p>
-                  <h3 className="text-2xl font-bold text-white mt-1">5.0 GB</h3>
+                  <p className="text-xs text-slate-500">Disk Space Allocated</p>
+                  <h3 className="text-2xl font-bold text-slate-900 mt-1">5.0 GB</h3>
                 </div>
                 <HardDrive className="h-8 w-8 text-white/20" />
               </Card>
-              <Card className="bg-zinc-950 border-amber-500/10 p-4 flex items-center justify-between shadow-md">
+              <Card className="bg-white border-slate-200 p-4 flex items-center justify-between shadow-md">
                 <div>
-                  <p className="text-xs text-zinc-400">Database Connection</p>
+                  <p className="text-xs text-slate-500">Database Connection</p>
                   <h3 className="text-2xl font-bold text-emerald-400 mt-1">Active (99.9%)</h3>
                 </div>
                 <ShieldCheck className="h-8 w-8 text-emerald-400/20" />
@@ -878,16 +878,16 @@ const [activeTab, setActiveTab] = useState<"global" | "schedules" | "hub" | "fil
             </div>
 
             {/* Database Actions */}
-            <Card className="bg-zinc-950 border-amber-500/10 shadow-[0_4px_20px_rgba(0,0,0,0.5)]">
+            <Card className="bg-white border-slate-200 shadow-[0_4px_20px_rgba(0,0,0,0.5)]">
               <CardHeader>
-                <CardTitle className="text-lg font-bold text-white">Database Operations & Archiving</CardTitle>
-                <p className="text-xs text-zinc-400">Manually trigger safety processes or clear runtime garbage to prevent lag</p>
+                <CardTitle className="text-lg font-bold text-slate-900">Database Operations & Archiving</CardTitle>
+                <p className="text-xs text-slate-500">Manually trigger safety processes or clear runtime garbage to prevent lag</p>
               </CardHeader>
               <CardContent className="flex flex-wrap gap-4">
                 <Button
                   onClick={handleGlobalBackup}
                   disabled={busyBackup}
-                  className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-zinc-950 font-bold border border-amber-400/20 shadow-md shadow-amber-500/10"
+                  className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-zinc-950 font-bold border border-0 shadow-md shadow-blue-500/10"
                 >
                   <Clock className="h-4 w-4 mr-2" /> {busyBackup ? "Compiling Full Snapshot…" : "Generate Full DB Backup"}
                 </Button>
@@ -895,7 +895,7 @@ const [activeTab, setActiveTab] = useState<"global" | "schedules" | "hub" | "fil
                   variant="outline"
                   onClick={handleClean}
                   disabled={busyClean}
-                  className="border-zinc-800 bg-zinc-950/60 text-zinc-200 hover:bg-amber-500/10 hover:text-amber-300 border font-semibold"
+                  className="border-slate-200 bg-slate-50 text-slate-700 hover:bg-blue-50 hover:text-blue-700 border font-semibold"
                 >
                   <Trash2 className="h-4 w-4 mr-2" /> {busyClean ? "Optimizing Database Cache…" : "Vacuum & Clean DB Cache"}
                 </Button>
@@ -903,28 +903,28 @@ const [activeTab, setActiveTab] = useState<"global" | "schedules" | "hub" | "fil
             </Card>
 
             {/* Table explorer */}
-            <Card className="bg-zinc-950 border-amber-500/10 shadow-[0_4px_20px_rgba(0,0,0,0.5)]">
+            <Card className="bg-white border-slate-200 shadow-[0_4px_20px_rgba(0,0,0,0.5)]">
               <CardHeader>
-                <CardTitle className="text-base font-bold text-white">Platform Core Tables</CardTitle>
-                <p className="text-xs text-zinc-400">Review estimated row counts and data sizes inside public schemas</p>
+                <CardTitle className="text-base font-bold text-slate-900">Platform Core Tables</CardTitle>
+                <p className="text-xs text-slate-500">Review estimated row counts and data sizes inside public schemas</p>
               </CardHeader>
               <CardContent>
-                <div className="overflow-auto rounded-xl border border-zinc-900 bg-zinc-950">
+                <div className="overflow-auto rounded-xl border border-slate-200 bg-white">
                   <Table>
-                    <TableHeader className="bg-zinc-900/40">
-                      <TableRow className="border-b border-zinc-900 hover:bg-transparent">
-                        <TableHead className="text-zinc-400 font-semibold">Table Name</TableHead>
-                        <TableHead className="text-zinc-400 font-semibold">Rows</TableHead>
-                        <TableHead className="text-zinc-400 font-semibold">Data Size</TableHead>
-                        <TableHead className="text-zinc-400 font-semibold">Status</TableHead>
+                    <TableHeader className="bg-slate-100/90">
+                      <TableRow className="border-b border-slate-200 hover:bg-transparent">
+                        <TableHead className="text-slate-500 font-semibold">Table Name</TableHead>
+                        <TableHead className="text-slate-500 font-semibold">Rows</TableHead>
+                        <TableHead className="text-slate-500 font-semibold">Data Size</TableHead>
+                        <TableHead className="text-slate-500 font-semibold">Status</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {TABLES.map((t) => (
-                        <TableRow key={t.name} className="border-b border-zinc-900/80 hover:bg-zinc-900/30">
-                          <TableCell className="font-mono text-xs text-white">{t.name}</TableCell>
-                          <TableCell className="text-zinc-300 font-semibold">{t.rows.toLocaleString()}</TableCell>
-                          <TableCell className="text-zinc-400 text-xs">{t.size}</TableCell>
+                        <TableRow key={t.name} className="border-b border-slate-100 hover:bg-blue-50/30">
+                          <TableCell className="font-mono text-xs text-slate-900">{t.name}</TableCell>
+                          <TableCell className="text-slate-700 font-semibold">{t.rows.toLocaleString()}</TableCell>
+                          <TableCell className="text-slate-500 text-xs">{t.size}</TableCell>
                           <TableCell>
                             <Badge variant="outline" className="border-emerald-500/20 text-emerald-400 bg-emerald-500/5 text-[10px]">
                               {t.status}
@@ -942,16 +942,16 @@ const [activeTab, setActiveTab] = useState<"global" | "schedules" | "hub" | "fil
 
         {/* Tab content: Schedules & Schools Registry */}
         {activeTab === "schedules" && !selectedSchool && (
-          <Card className="bg-zinc-950 border-amber-500/10 shadow-[0_4px_20px_rgba(0,0,0,0.5)]">
+          <Card className="bg-white border-slate-200 shadow-[0_4px_20px_rgba(0,0,0,0.5)]">
             <CardHeader>
-              <CardTitle className="text-lg font-bold text-white">Schools Backup Registry</CardTitle>
-              <p className="text-xs text-zinc-400">Configure automated routines, specific running hours, and logs routing per school</p>
+              <CardTitle className="text-lg font-bold text-slate-900">Schools Backup Registry</CardTitle>
+              <p className="text-xs text-slate-500">Configure automated routines, specific running hours, and logs routing per school</p>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="relative max-w-md">
-                <Search className="absolute left-3 top-3 h-4 w-4 text-zinc-500" />
+                <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
                 <Input
-                  className="pl-9 bg-zinc-900 border-amber-500/20 text-white placeholder:text-zinc-500 focus-visible:ring-amber-500/30"
+                  className="pl-9 bg-slate-50 border-slate-300 text-slate-900 placeholder:text-slate-400 focus-visible:ring-blue-500/30"
                   placeholder="Search schools by name or slug..."
                   value={searchSchoolQuery}
                   onChange={(e) => setSearchSchoolQuery(e.target.value)}
@@ -959,18 +959,18 @@ const [activeTab, setActiveTab] = useState<"global" | "schedules" | "hub" | "fil
               </div>
 
               {schoolsLoading ? (
-                <div className="text-center py-6 text-zinc-500 text-sm">Loading schools registry...</div>
+                <div className="text-center py-6 text-slate-400 text-sm">Loading schools registry...</div>
               ) : (
-                <div className="overflow-auto rounded-xl border border-zinc-800 bg-zinc-950">
+                <div className="overflow-auto rounded-xl border border-slate-200 bg-white">
                   <Table>
-                    <TableHeader className="bg-zinc-900/40">
-                      <TableRow className="border-b border-zinc-900 hover:bg-transparent">
-                        <TableHead className="text-zinc-400 font-semibold">School Tenant</TableHead>
-                        <TableHead className="text-zinc-400 font-semibold">Slug</TableHead>
-                        <TableHead className="text-zinc-400 font-semibold">Schedule Frequency</TableHead>
-                        <TableHead className="text-zinc-400 font-semibold">Scheduled Time</TableHead>
-                        <TableHead className="text-zinc-400 font-semibold">Next Scheduled Run</TableHead>
-                        <TableHead className="text-right text-zinc-400 font-semibold"></TableHead>
+                    <TableHeader className="bg-slate-100/90">
+                      <TableRow className="border-b border-slate-200 hover:bg-transparent">
+                        <TableHead className="text-slate-500 font-semibold">School Tenant</TableHead>
+                        <TableHead className="text-slate-500 font-semibold">Slug</TableHead>
+                        <TableHead className="text-slate-500 font-semibold">Schedule Frequency</TableHead>
+                        <TableHead className="text-slate-500 font-semibold">Scheduled Time</TableHead>
+                        <TableHead className="text-slate-500 font-semibold">Next Scheduled Run</TableHead>
+                        <TableHead className="text-right text-slate-500 font-semibold"></TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -978,25 +978,25 @@ const [activeTab, setActiveTab] = useState<"global" | "schedules" | "hub" | "fil
                         const sched = schedules.find(x => x.schoolId === s.id);
                         const isOff = !sched || sched.frequency === "off";
                         return (
-                          <TableRow key={s.id} className="border-b border-zinc-900/80 hover:bg-zinc-900/30">
-                            <TableCell className="font-semibold text-white">{s.name}</TableCell>
-                            <TableCell className="text-zinc-300 font-mono text-xs">/{s.slug}</TableCell>
+                          <TableRow key={s.id} className="border-b border-slate-100 hover:bg-blue-50/30">
+                            <TableCell className="font-semibold text-slate-900">{s.name}</TableCell>
+                            <TableCell className="text-slate-700 font-mono text-xs">/{s.slug}</TableCell>
                             <TableCell>
-                              <Badge variant="outline" className={isOff ? "border-zinc-800 text-zinc-500 bg-zinc-900/10 text-[10px]" : "border-amber-500/20 text-amber-400 bg-amber-500/5 text-[10px]"}>
+                              <Badge variant="outline" className={isOff ? "border-slate-200 text-slate-400 bg-slate-50/10 text-[10px]" : "border-slate-300 text-blue-700 bg-blue-50 text-[10px]"}>
                                 {isOff ? "Off (Manual Only)" : sched.frequency.toUpperCase()}
                               </Badge>
                             </TableCell>
-                            <TableCell className="text-zinc-300 font-mono text-xs">
+                            <TableCell className="text-slate-700 font-mono text-xs">
                               {isOff ? "N/A" : `${sched.hour}:${sched.minute} AM`}
                             </TableCell>
-                            <TableCell className="text-zinc-400 text-xs font-mono">
+                            <TableCell className="text-slate-500 text-xs font-mono">
                               {isOff ? "N/A" : sched.nextBackupTime ? new Date(sched.nextBackupTime).toLocaleString() : "Pending"}
                             </TableCell>
                             <TableCell className="text-right">
                               <Button
                                 size="sm"
                                 onClick={() => handleOpenConfigureSchool(s)}
-                                className="bg-zinc-900 hover:bg-amber-500/10 hover:text-amber-300 text-zinc-300 border border-zinc-800 shadow-sm text-xs font-semibold"
+                                className="bg-slate-50 hover:bg-blue-50 hover:text-blue-700 text-slate-700 border border-slate-200 shadow-sm text-xs font-semibold"
                               >
                                 <Settings2 className="h-3.5 w-3.5 mr-1.5" /> Configure settings
                               </Button>
@@ -1006,7 +1006,7 @@ const [activeTab, setActiveTab] = useState<"global" | "schedules" | "hub" | "fil
                       })}
                       {filteredSchools.length === 0 && (
                         <TableRow>
-                          <TableCell colSpan={6} className="text-center py-6 text-zinc-500">
+                          <TableCell colSpan={6} className="text-center py-6 text-slate-400">
                             No schools matching your search query.
                           </TableCell>
                         </TableRow>
@@ -1024,18 +1024,18 @@ const [activeTab, setActiveTab] = useState<"global" | "schedules" | "hub" | "fil
           <div className="space-y-6">
             
             {/* Direct file upload dropzone */}
-            <Card className="bg-zinc-950 border-amber-500/10 shadow-[0_4px_20px_rgba(0,0,0,0.5)]">
+            <Card className="bg-white border-slate-200 shadow-[0_4px_20px_rgba(0,0,0,0.5)]">
               <CardHeader>
-                <CardTitle className="text-base font-bold text-white flex items-center gap-2">
-                  <UploadCloud className="h-5 w-5 text-amber-500" /> Direct Recovery console
+                <CardTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
+                  <UploadCloud className="h-5 w-5 text-blue-700" /> Direct Recovery console
                 </CardTitle>
-                <p className="text-xs text-zinc-400">Restore any school's database perfectly by uploading a verified snapshot payload</p>
+                <p className="text-xs text-slate-500">Restore any school's database perfectly by uploading a verified snapshot payload</p>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                   
                   {/* Dropzone */}
-                  <div className="border-2 border-dashed border-zinc-800 hover:border-amber-500/40 bg-zinc-900/20 rounded-xl p-6 text-center cursor-pointer transition-all flex flex-col justify-center items-center">
+                  <div className="border-2 border-dashed border-slate-200 hover:border-amber-500/40 bg-slate-50/20 rounded-xl p-6 text-center cursor-pointer transition-all flex flex-col justify-center items-center">
                     <input
                       type="file"
                       accept=".json"
@@ -1049,13 +1049,13 @@ const [activeTab, setActiveTab] = useState<"global" | "schedules" | "hub" | "fil
                       }}
                     />
                     <label htmlFor="direct-backup-file" className="cursor-pointer space-y-2 block w-full">
-                      <UploadCloud className="h-10 w-10 text-amber-500/40 mx-auto" />
+                      <UploadCloud className="h-10 w-10 text-blue-700/40 mx-auto" />
                       {uploadFile ? (
-                        <p className="text-sm text-amber-400 font-semibold">{uploadFile.name}</p>
+                        <p className="text-sm text-blue-700 font-semibold">{uploadFile.name}</p>
                       ) : (
                         <>
-                          <p className="text-sm text-zinc-300">Click to upload or drag files here</p>
-                          <p className="text-xs text-zinc-500">Only verified .json backup files allowed</p>
+                          <p className="text-sm text-slate-700">Click to upload or drag files here</p>
+                          <p className="text-xs text-slate-400">Only verified .json backup files allowed</p>
                         </>
                       )}
                     </label>
@@ -1063,9 +1063,9 @@ const [activeTab, setActiveTab] = useState<"global" | "schedules" | "hub" | "fil
 
                   {/* Actions & info */}
                   <div className="space-y-3 flex flex-col justify-between">
-                    <div className="rounded-xl border border-zinc-900 bg-zinc-900/10 p-4 text-xs text-zinc-400 space-y-2">
-                      <h4 className="font-semibold text-white flex items-center gap-1.5">
-                        <ShieldCheck className="h-4 w-4 text-amber-500" /> Integrity Verification System
+                    <div className="rounded-xl border border-slate-200 bg-slate-50/10 p-4 text-xs text-slate-500 space-y-2">
+                      <h4 className="font-semibold text-slate-900 flex items-center gap-1.5">
+                        <ShieldCheck className="h-4 w-4 text-blue-700" /> Integrity Verification System
                       </h4>
                       <p>
                         Every recovery operation processes deletion and insertion in ordered database layers. This prevents foreign key crashes, keeps structural referential integrity, and verifies cryptographic integrity signatures.
@@ -1074,7 +1074,7 @@ const [activeTab, setActiveTab] = useState<"global" | "schedules" | "hub" | "fil
                     <Button
                       onClick={handleRestoreSchoolData}
                       disabled={restoring || !uploadFile}
-                      className="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-zinc-950 font-bold border border-amber-400/20 shadow-md py-6"
+                      className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-zinc-950 font-bold border border-0 shadow-md py-6"
                     >
                       {restoring ? "Executing Recovery Sequence…" : "Execute Restoration"}
                     </Button>
@@ -1083,12 +1083,12 @@ const [activeTab, setActiveTab] = useState<"global" | "schedules" | "hub" | "fil
 
                 {/* Console Terminal */}
                 {terminalLogs.length > 0 && (
-                  <div className="rounded-xl border border-zinc-900 bg-black p-4 font-mono text-xs text-amber-400 max-h-64 overflow-y-auto space-y-1 mt-4">
-                    <div className="flex items-center gap-1.5 border-b border-zinc-900 pb-2 mb-2 text-zinc-500">
-                      <TerminalIcon className="h-3.5 w-3.5 text-zinc-600" /> Diagnostics Console Terminal
+                  <div className="rounded-xl border border-slate-200 bg-slate-900 p-4 font-mono text-xs text-blue-700 max-h-64 overflow-y-auto space-y-1 mt-4">
+                    <div className="flex items-center gap-1.5 border-b border-slate-200 pb-2 mb-2 text-slate-400">
+                      <TerminalIcon className="h-3.5 w-3.5 text-slate-500" /> Diagnostics Console Terminal
                     </div>
                     {terminalLogs.map((logLine, idx) => (
-                      <div key={idx} className={logLine.includes("ERROR") ? "text-rose-500" : logLine.includes("SUCCESS") ? "text-emerald-400" : logLine.includes("WARNING") ? "text-amber-500" : "text-amber-400"}>
+                      <div key={idx} className={logLine.includes("ERROR") ? "text-rose-500" : logLine.includes("SUCCESS") ? "text-emerald-400" : logLine.includes("WARNING") ? "text-blue-700" : "text-blue-700"}>
                         {logLine}
                       </div>
                     ))}
@@ -1098,11 +1098,11 @@ const [activeTab, setActiveTab] = useState<"global" | "schedules" | "hub" | "fil
             </Card>
 
             {/* Backups List */}
-            <Card className="bg-zinc-950 border-amber-500/10 shadow-[0_4px_20px_rgba(0,0,0,0.5)]">
+            <Card className="bg-white border-slate-200 shadow-[0_4px_20px_rgba(0,0,0,0.5)]">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
                 <div>
-                  <CardTitle className="text-base font-bold text-white">Platform Cold Snapshots Hub</CardTitle>
-                  <p className="text-xs text-zinc-400">Unified repository showing all backups. Filter by school or search by ID</p>
+                  <CardTitle className="text-base font-bold text-slate-900">Platform Cold Snapshots Hub</CardTitle>
+                  <p className="text-xs text-slate-500">Unified repository showing all backups. Filter by school or search by ID</p>
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -1110,9 +1110,9 @@ const [activeTab, setActiveTab] = useState<"global" | "schedules" | "hub" | "fil
                 {/* Search & Filters */}
                 <div className="flex flex-wrap gap-3">
                   <div className="relative flex-1 min-w-[200px]">
-                    <Search className="absolute left-3 top-3 h-4 w-4 text-zinc-500" />
+                    <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
                     <Input
-                      className="pl-9 bg-zinc-900 border-amber-500/20 text-white placeholder:text-zinc-500"
+                      className="pl-9 bg-slate-50 border-slate-300 text-slate-900 placeholder:text-slate-400"
                       placeholder="Search backups by ID..."
                       value={searchBackupQuery}
                       onChange={(e) => setSearchBackupQuery(e.target.value)}
@@ -1120,7 +1120,7 @@ const [activeTab, setActiveTab] = useState<"global" | "schedules" | "hub" | "fil
                   </div>
                   <div className="w-[200px]">
                     <Select value={selectedSchoolIdFilter} onValueChange={setSelectedSchoolIdFilter}>
-                      <SelectTrigger className="bg-zinc-900 border-amber-500/20 text-white">
+                      <SelectTrigger className="bg-slate-50 border-slate-300 text-slate-900">
                         <SelectValue placeholder="Filter by School" />
                       </SelectTrigger>
                       <SelectContent>
@@ -1134,28 +1134,28 @@ const [activeTab, setActiveTab] = useState<"global" | "schedules" | "hub" | "fil
                 </div>
 
                 {/* Backups Table */}
-                <div className="overflow-auto rounded-xl border border-zinc-800 bg-zinc-950">
+                <div className="overflow-auto rounded-xl border border-slate-200 bg-white">
                   <Table>
-                    <TableHeader className="bg-zinc-900/40">
-                      <TableRow className="border-b border-zinc-900 hover:bg-transparent">
-                        <TableHead className="text-zinc-400 font-semibold">Backup ID</TableHead>
-                        <TableHead className="text-zinc-400 font-semibold">School Slug</TableHead>
-                        <TableHead className="text-zinc-400 font-semibold">Created Time</TableHead>
-                        <TableHead className="text-zinc-400 font-semibold">File Size</TableHead>
-                        <TableHead className="text-zinc-400 font-semibold">Backup Type</TableHead>
-                        <TableHead className="text-zinc-400 font-semibold">Status</TableHead>
-                        <TableHead className="text-right text-zinc-400 font-semibold"></TableHead>
+                    <TableHeader className="bg-slate-100/90">
+                      <TableRow className="border-b border-slate-200 hover:bg-transparent">
+                        <TableHead className="text-slate-500 font-semibold">Backup ID</TableHead>
+                        <TableHead className="text-slate-500 font-semibold">School Slug</TableHead>
+                        <TableHead className="text-slate-500 font-semibold">Created Time</TableHead>
+                        <TableHead className="text-slate-500 font-semibold">File Size</TableHead>
+                        <TableHead className="text-slate-500 font-semibold">Backup Type</TableHead>
+                        <TableHead className="text-slate-500 font-semibold">Status</TableHead>
+                        <TableHead className="text-right text-slate-500 font-semibold"></TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {filteredBackups.map((bk) => (
-                        <TableRow key={bk.id} className="border-b border-zinc-900/80 hover:bg-zinc-900/30">
-                          <TableCell className="font-mono text-xs font-semibold text-white">{bk.id}</TableCell>
-                          <TableCell className="font-semibold text-amber-500 font-mono text-xs">/{bk.schoolSlug}</TableCell>
-                          <TableCell className="text-zinc-400 text-xs font-mono">{bk.date}</TableCell>
-                          <TableCell className="text-zinc-300 text-xs font-mono">{bk.size}</TableCell>
+                        <TableRow key={bk.id} className="border-b border-slate-100 hover:bg-blue-50/30">
+                          <TableCell className="font-mono text-xs font-semibold text-slate-900">{bk.id}</TableCell>
+                          <TableCell className="font-semibold text-blue-700 font-mono text-xs">/{bk.schoolSlug}</TableCell>
+                          <TableCell className="text-slate-500 text-xs font-mono">{bk.date}</TableCell>
+                          <TableCell className="text-slate-700 text-xs font-mono">{bk.size}</TableCell>
                           <TableCell>
-                            <Badge variant="outline" className={bk.type === "Scheduled" ? "border-amber-500/20 text-amber-400 bg-amber-500/5 text-[10px]" : "border-zinc-800 text-zinc-400 bg-zinc-900/5 text-[10px]"}>
+                            <Badge variant="outline" className={bk.type === "Scheduled" ? "border-slate-300 text-blue-700 bg-blue-50 text-[10px]" : "border-slate-200 text-slate-500 bg-slate-50/5 text-[10px]"}>
                               {bk.type}
                             </Badge>
                           </TableCell>
@@ -1192,7 +1192,7 @@ const [activeTab, setActiveTab] = useState<"global" | "schedules" | "hub" | "fil
                                   toast.error("Raw payload not available for this legacy entry.");
                                 }
                               }}
-                              className="border-zinc-800 bg-zinc-900/60 hover:bg-amber-500/10 hover:text-amber-300 text-zinc-300 text-xs font-semibold"
+                              className="border-slate-200 bg-slate-50/60 hover:bg-blue-50 hover:text-blue-700 text-slate-700 text-xs font-semibold"
                             >
                               <Download className="h-3 w-3 mr-1.5" /> Download
                             </Button>
@@ -1201,7 +1201,7 @@ const [activeTab, setActiveTab] = useState<"global" | "schedules" | "hub" | "fil
                       ))}
                       {filteredBackups.length === 0 && (
                         <TableRow>
-                          <TableCell colSpan={7} className="text-center py-6 text-zinc-500">
+                          <TableCell colSpan={7} className="text-center py-6 text-slate-400">
                             No backup records match filters.
                           </TableCell>
                         </TableRow>
@@ -1217,10 +1217,10 @@ const [activeTab, setActiveTab] = useState<"global" | "schedules" | "hub" | "fil
 
         {/* Tab content: System Health */}
         {activeTab === "health" && (
-          <Card className="bg-zinc-950 border-amber-500/10 shadow-[0_4px_20px_rgba(0,0,0,0.5)] p-8 text-center space-y-4">
-            <Activity className="h-16 w-16 mx-auto text-amber-500/20" />
-            <CardTitle className="text-xl text-white">System Health Monitor</CardTitle>
-            <p className="text-zinc-400 max-w-lg mx-auto">Database health monitoring tools and real-time connectivity diagnostics are currently being initialized for your environment.</p>
+          <Card className="bg-white border-slate-200 shadow-[0_4px_20px_rgba(0,0,0,0.5)] p-8 text-center space-y-4">
+            <Activity className="h-16 w-16 mx-auto text-blue-700/20" />
+            <CardTitle className="text-xl text-slate-900">System Health Monitor</CardTitle>
+            <p className="text-slate-500 max-w-lg mx-auto">Database health monitoring tools and real-time connectivity diagnostics are currently being initialized for your environment.</p>
           </Card>
         )}
 
@@ -1234,15 +1234,15 @@ const [activeTab, setActiveTab] = useState<"global" | "schedules" | "hub" | "fil
                 variant="outline"
                 size="sm"
                 onClick={() => setSelectedSchool(null)}
-                className="border-zinc-800 bg-zinc-950/60 text-zinc-300 hover:bg-zinc-900 border text-xs"
+                className="border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-50 border text-xs"
               >
                 <ChevronLeft className="h-4 w-4 mr-1.5" /> Back to list
               </Button>
               <div>
-                <h3 className="text-xl font-bold text-white flex items-center gap-2">
-                  {selectedSchool.name} <span className="font-mono text-sm text-amber-500">({selectedSchool.slug})</span>
+                <h3 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+                  {selectedSchool.name} <span className="font-mono text-sm text-blue-700">({selectedSchool.slug})</span>
                 </h3>
-                <p className="text-xs text-zinc-400">Configure automated schedules, run direct JSON queries, or restore data for this school</p>
+                <p className="text-xs text-slate-500">Configure automated schedules, run direct JSON queries, or restore data for this school</p>
               </div>
             </div>
 
@@ -1253,19 +1253,19 @@ const [activeTab, setActiveTab] = useState<"global" | "schedules" | "hub" | "fil
               <div className="space-y-6">
                 
                 {/* Scheduler card */}
-                <Card className="bg-zinc-950 border-amber-500/10 shadow-[0_4px_20px_rgba(0,0,0,0.5)]">
+                <Card className="bg-white border-slate-200 shadow-[0_4px_20px_rgba(0,0,0,0.5)]">
                   <CardHeader>
-                    <CardTitle className="text-base font-bold text-white flex items-center gap-2">
-                      <Clock className="h-4 w-4 text-amber-500" /> Automated Schedule Settings
+                    <CardTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
+                      <Clock className="h-4 w-4 text-blue-700" /> Automated Schedule Settings
                     </CardTitle>
-                    <p className="text-xs text-zinc-400">Configure automatic background backups to run on a specific time for this school</p>
+                    <p className="text-xs text-slate-500">Configure automatic background backups to run on a specific time for this school</p>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                       <div className="space-y-1.5">
-                        <label className="text-xs text-zinc-400">Backup Frequency</label>
+                        <label className="text-xs text-slate-500">Backup Frequency</label>
                         <Select value={freq} onValueChange={(val: any) => setFreq(val)}>
-                          <SelectTrigger className="bg-zinc-900 border-amber-500/20 text-white focus:ring-amber-500/30">
+                          <SelectTrigger className="bg-slate-50 border-slate-300 text-slate-900 focus:ring-blue-500/30">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
@@ -1278,9 +1278,9 @@ const [activeTab, setActiveTab] = useState<"global" | "schedules" | "hub" | "fil
                       </div>
 
                       <div className="space-y-1.5">
-                        <label className="text-xs text-zinc-400">Scheduled Time Hour</label>
+                        <label className="text-xs text-slate-500">Scheduled Time Hour</label>
                         <Select value={hour} onValueChange={setHour} disabled={freq === "off"}>
-                          <SelectTrigger className="bg-zinc-900 border-amber-500/20 text-white focus:ring-amber-500/30">
+                          <SelectTrigger className="bg-slate-50 border-slate-300 text-slate-900 focus:ring-blue-500/30">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
@@ -1292,9 +1292,9 @@ const [activeTab, setActiveTab] = useState<"global" | "schedules" | "hub" | "fil
                       </div>
 
                       <div className="space-y-1.5">
-                        <label className="text-xs text-zinc-400">Scheduled Minute</label>
+                        <label className="text-xs text-slate-500">Scheduled Minute</label>
                         <Select value={minute} onValueChange={setMinute} disabled={freq === "off"}>
-                          <SelectTrigger className="bg-zinc-900 border-amber-500/20 text-white focus:ring-amber-500/30">
+                          <SelectTrigger className="bg-slate-50 border-slate-300 text-slate-900 focus:ring-blue-500/30">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
@@ -1307,9 +1307,9 @@ const [activeTab, setActiveTab] = useState<"global" | "schedules" | "hub" | "fil
                     </div>
 
                     <div className="space-y-2">
-                      <label className="text-sm font-medium text-white">Recipient Email for logs</label>
+                      <label className="text-sm font-medium text-slate-900">Recipient Email for logs</label>
                       <Input
-                        className="bg-zinc-900 border-amber-500/20 text-white focus-visible:ring-amber-500/30"
+                        className="bg-slate-50 border-slate-300 text-slate-900 focus-visible:ring-blue-500/30"
                         value={notifyEmail}
                         onChange={(e) => setNotifyEmail(e.target.value)}
                         placeholder="admin@school.com"
@@ -1319,7 +1319,7 @@ const [activeTab, setActiveTab] = useState<"global" | "schedules" | "hub" | "fil
 
                     <Button
                       onClick={handleSaveSchedule}
-                      className="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-zinc-950 font-bold border border-amber-400/20 shadow-md"
+                      className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-zinc-950 font-bold border border-0 shadow-md"
                     >
                       Save Automated Backup Schedule
                     </Button>
@@ -1327,21 +1327,21 @@ const [activeTab, setActiveTab] = useState<"global" | "schedules" | "hub" | "fil
                 </Card>
 
                 {/* Exporter Card */}
-                <Card className="bg-zinc-950 border-amber-500/10 shadow-[0_4px_20px_rgba(0,0,0,0.5)]">
+                <Card className="bg-white border-slate-200 shadow-[0_4px_20px_rgba(0,0,0,0.5)]">
                   <CardHeader>
-                    <CardTitle className="text-base font-bold text-white flex items-center gap-2">
-                      <Download className="h-4 w-4 text-amber-500" /> Export Complete School Data
+                    <CardTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
+                      <Download className="h-4 w-4 text-blue-700" /> Export Complete School Data
                     </CardTitle>
-                    <p className="text-xs text-zinc-400">Download a verified snapshot payload of all databases for this school tenant</p>
+                    <p className="text-xs text-slate-500">Download a verified snapshot payload of all databases for this school tenant</p>
                   </CardHeader>
                   <CardContent className="space-y-3">
-                    <div className="rounded-xl border border-zinc-900 bg-zinc-900/10 p-3 text-xs text-zinc-400">
+                    <div className="rounded-xl border border-slate-200 bg-slate-50/10 p-3 text-xs text-slate-500">
                       Export file includes complete details from `campuses`, `students`, `classes`, `sections`, and all other school specific tables. A cryptographic signature ensures 100% authenticity.
                     </div>
                     <Button
                       onClick={handleExportSchoolData}
                       disabled={busyBackup}
-                      className="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-zinc-950 font-bold border border-amber-400/20 shadow-md"
+                      className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-zinc-950 font-bold border border-0 shadow-md"
                     >
                       {busyBackup ? "Compiling Verified JSON..." : "Download Verified Backup JSON"}
                     </Button>
@@ -1350,18 +1350,18 @@ const [activeTab, setActiveTab] = useState<"global" | "schedules" | "hub" | "fil
               </div>
 
               {/* Restore Importer / Terminal */}
-              <Card className="bg-zinc-950 border-amber-500/10 shadow-[0_4px_20px_rgba(0,0,0,0.5)] flex flex-col justify-between h-full">
+              <Card className="bg-white border-slate-200 shadow-[0_4px_20px_rgba(0,0,0,0.5)] flex flex-col justify-between h-full">
                 <div>
                   <CardHeader>
-                    <CardTitle className="text-base font-bold text-white flex items-center gap-2">
-                      <UploadCloud className="h-5 w-5 text-amber-500" /> Upload & Restore Data Console
+                    <CardTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
+                      <UploadCloud className="h-5 w-5 text-blue-700" /> Upload & Restore Data Console
                     </CardTitle>
-                    <p className="text-xs text-zinc-400">Recover tenant database values perfectly from a previously exported JSON backup file</p>
+                    <p className="text-xs text-slate-500">Recover tenant database values perfectly from a previously exported JSON backup file</p>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     
                     {/* Drag and Drop Zone */}
-                    <div className="border-2 border-dashed border-zinc-800 hover:border-amber-500/40 bg-zinc-900/20 rounded-xl p-6 text-center cursor-pointer transition-all">
+                    <div className="border-2 border-dashed border-slate-200 hover:border-amber-500/40 bg-slate-50/20 rounded-xl p-6 text-center cursor-pointer transition-all">
                       <input
                         type="file"
                         accept=".json"
@@ -1375,13 +1375,13 @@ const [activeTab, setActiveTab] = useState<"global" | "schedules" | "hub" | "fil
                         }}
                       />
                       <label htmlFor="backup-file" className="cursor-pointer space-y-2 block">
-                        <UploadCloud className="h-8 w-8 text-amber-500/40 mx-auto" />
+                        <UploadCloud className="h-8 w-8 text-blue-700/40 mx-auto" />
                         {uploadFile ? (
-                          <p className="text-sm text-amber-400 font-semibold">{uploadFile.name}</p>
+                          <p className="text-sm text-blue-700 font-semibold">{uploadFile.name}</p>
                         ) : (
                           <>
-                            <p className="text-sm text-zinc-300">Click to upload or drag files here</p>
-                            <p className="text-xs text-zinc-500">Only verified .json backup exports allowed</p>
+                            <p className="text-sm text-slate-700">Click to upload or drag files here</p>
+                            <p className="text-xs text-slate-400">Only verified .json backup exports allowed</p>
                           </>
                         )}
                       </label>
@@ -1389,12 +1389,12 @@ const [activeTab, setActiveTab] = useState<"global" | "schedules" | "hub" | "fil
 
                     {/* Console Monospace logs */}
                     {terminalLogs.length > 0 && (
-                      <div className="rounded-xl border border-zinc-900 bg-black p-4 font-mono text-xs text-amber-400 max-h-56 overflow-y-auto space-y-1">
-                        <div className="flex items-center gap-1.5 border-b border-zinc-900 pb-2 mb-2 text-zinc-500">
-                          <TerminalIcon className="h-3.5 w-3.5 text-zinc-600" /> Diagnostics Console Terminal
+                      <div className="rounded-xl border border-slate-200 bg-slate-900 p-4 font-mono text-xs text-blue-700 max-h-56 overflow-y-auto space-y-1">
+                        <div className="flex items-center gap-1.5 border-b border-slate-200 pb-2 mb-2 text-slate-400">
+                          <TerminalIcon className="h-3.5 w-3.5 text-slate-500" /> Diagnostics Console Terminal
                         </div>
                         {terminalLogs.map((logLine, idx) => (
-                          <div key={idx} className={logLine.includes("ERROR") ? "text-rose-500" : logLine.includes("SUCCESS") ? "text-emerald-400" : logLine.includes("WARNING") ? "text-amber-500" : "text-amber-400"}>
+                          <div key={idx} className={logLine.includes("ERROR") ? "text-rose-500" : logLine.includes("SUCCESS") ? "text-emerald-400" : logLine.includes("WARNING") ? "text-blue-700" : "text-blue-700"}>
                             {logLine}
                           </div>
                         ))}
@@ -1403,11 +1403,11 @@ const [activeTab, setActiveTab] = useState<"global" | "schedules" | "hub" | "fil
                   </CardContent>
                 </div>
 
-                <div className="p-6 border-t border-zinc-900 bg-zinc-900/10 flex justify-end">
+                <div className="p-6 border-t border-slate-200 bg-slate-50/10 flex justify-end">
                   <Button
                     onClick={handleRestoreSchoolData}
                     disabled={restoring || !uploadFile}
-                    className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-zinc-950 font-bold border border-amber-400/20 shadow-md shadow-amber-500/10 px-8"
+                    className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-zinc-950 font-bold border border-0 shadow-md shadow-blue-500/10 px-8"
                   >
                     {restoring ? "Executing Recovery Sequence…" : "Execute Restoration"}
                   </Button>

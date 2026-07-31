@@ -119,11 +119,11 @@ type DirRow = { id: string; school_id: string; email: string; display_name: stri
 
   return (
     <SuperAdminShell title="03. Global User Matrix & Identity Center" subtitle="Cross-tenant search across students, parents, teachers, HR staff, and school owners">
-      <div className="space-y-4 text-zinc-100 bg-transparent rounded-xl p-1">
+      <div className="space-y-4 text-slate-900 bg-transparent rounded-xl p-1">
         <div className="-mx-1 -my-1 p-4">
 
         {!authz.loading && !authz.allowed && (
-          <Card className="bg-zinc-950 border-amber-500/10 shadow-[0_4px_20px_rgba(0,0,0,0.5)]">
+          <Card className="bg-white border-slate-200 shadow-[0_4px_20px_rgba(0,0,0,0.5)]">
             <CardContent className="pt-6">
               <div className="rounded-2xl bg-rose-500/10 border border-rose-500/20 p-4 text-sm text-rose-400">{authz.message ?? "Access denied."}</div>
             </CardContent>
@@ -131,53 +131,53 @@ type DirRow = { id: string; school_id: string; email: string; display_name: stri
         )}
 
         {authz.allowed && (
-          <Card className="bg-zinc-950 border-amber-500/10 shadow-[0_4px_20px_rgba(0,0,0,0.5)]">
+          <Card className="bg-white border-slate-200 shadow-[0_4px_20px_rgba(0,0,0,0.5)]">
             <CardContent className="space-y-4 pt-6">
               <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                 <div className="relative flex-1 md:max-w-md">
-                  <Search className="absolute left-3 top-3 h-4 w-4 text-zinc-500" />
-                  <Input className="pl-9 bg-zinc-900 border-amber-500/15 text-white placeholder:text-zinc-500 focus-visible:ring-amber-500/30" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search…" />
+                  <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                  <Input className="pl-9 bg-slate-50 border-amber-500/15 text-slate-900 placeholder:text-slate-400 focus-visible:ring-blue-500/30" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search…" />
                 </div>
-                <Button disabled={busy} onClick={runSearch} className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-zinc-950 font-bold border border-amber-400/20 shadow-md">
+                <Button disabled={busy} onClick={runSearch} className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-zinc-950 font-bold border border-0 shadow-md">
                   Run search
                 </Button>
               </div>
 
               <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)}>
-                <TabsList className="w-full bg-zinc-900 border border-zinc-850 p-1">
-                  <TabsTrigger value="schools" className="flex-1 text-zinc-400 data-[state=active]:bg-amber-500 data-[state=active]:text-zinc-950 font-semibold">
+                <TabsList className="w-full bg-slate-50 border border-zinc-850 p-1">
+                  <TabsTrigger value="schools" className="flex-1 text-slate-500 data-[state=active]:bg-blue-600 data-[state=active]:text-zinc-950 font-semibold">
                     Schools
                   </TabsTrigger>
-                  <TabsTrigger value="users" className="flex-1 text-zinc-400 data-[state=active]:bg-amber-500 data-[state=active]:text-zinc-950 font-semibold">
+                  <TabsTrigger value="users" className="flex-1 text-slate-500 data-[state=active]:bg-blue-600 data-[state=active]:text-zinc-950 font-semibold">
                     Users
                   </TabsTrigger>
-                  <TabsTrigger value="students" className="flex-1 text-zinc-400 data-[state=active]:bg-amber-500 data-[state=active]:text-zinc-950 font-semibold">
+                  <TabsTrigger value="students" className="flex-1 text-slate-500 data-[state=active]:bg-blue-600 data-[state=active]:text-zinc-950 font-semibold">
                     Students
                   </TabsTrigger>
-                  <TabsTrigger value="leads" className="flex-1 text-zinc-400 data-[state=active]:bg-amber-500 data-[state=active]:text-zinc-950 font-semibold">
+                  <TabsTrigger value="leads" className="flex-1 text-slate-500 data-[state=active]:bg-blue-600 data-[state=active]:text-zinc-950 font-semibold">
                     Leads
                   </TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="schools" className="mt-4">
-                  <div className="overflow-auto rounded-2xl border border-zinc-800 bg-black/40">
+                  <div className="overflow-auto rounded-2xl border border-slate-200 bg-white">
                     <Table>
                       <TableHeader className="border-b border-zinc-850">
-                        <TableRow className="hover:bg-transparent border-b border-zinc-800">
-                          <TableHead className="text-zinc-400 font-medium">School</TableHead>
-                          <TableHead className="text-zinc-400 font-medium">Slug</TableHead>
-                          <TableHead className="text-zinc-400 font-medium">Status</TableHead>
-                          <TableHead className="text-right text-zinc-400 font-medium">Open</TableHead>
+                        <TableRow className="hover:bg-transparent border-b border-slate-200">
+                          <TableHead className="text-slate-500 font-medium">School</TableHead>
+                          <TableHead className="text-slate-500 font-medium">Slug</TableHead>
+                          <TableHead className="text-slate-500 font-medium">Status</TableHead>
+                          <TableHead className="text-right text-slate-500 font-medium">Open</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {schools.map((s) => (
-                          <TableRow key={s.id} className="hover:bg-zinc-900/20 border-b border-zinc-900">
-                            <TableCell className="font-semibold text-white">{s.name}</TableCell>
-                            <TableCell className="text-zinc-300">/{s.slug}</TableCell>
-                            <TableCell className="text-zinc-300">{s.is_active ? "Active" : "Disabled"}</TableCell>
+                          <TableRow key={s.id} className="hover:bg-slate-50/20 border-b border-slate-200">
+                            <TableCell className="font-semibold text-slate-900">{s.name}</TableCell>
+                            <TableCell className="text-slate-700">/{s.slug}</TableCell>
+                            <TableCell className="text-slate-700">{s.is_active ? "Active" : "Disabled"}</TableCell>
                             <TableCell className="text-right">
-                              <Button size="sm" asChild className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-zinc-950 font-bold border border-amber-400/20 shadow-md">
+                              <Button size="sm" asChild className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-zinc-950 font-bold border border-0 shadow-md">
                                 <a href={`/${s.slug}/super_admin`}>
                                   <ExternalLink className="mr-2 h-4 w-4" /> Open
                                 </a>
@@ -187,7 +187,7 @@ type DirRow = { id: string; school_id: string; email: string; display_name: stri
                         ))}
                         {schools.length === 0 && (
                           <TableRow>
-                            <TableCell colSpan={4} className="text-center text-zinc-500 py-8">
+                            <TableCell colSpan={4} className="text-center text-slate-400 py-8">
                               No results.
                             </TableCell>
                           </TableRow>
@@ -198,26 +198,26 @@ type DirRow = { id: string; school_id: string; email: string; display_name: stri
                 </TabsContent>
 
                 <TabsContent value="users" className="mt-4">
-                  <div className="overflow-auto rounded-2xl border border-zinc-800 bg-black/40">
+                  <div className="overflow-auto rounded-2xl border border-slate-200 bg-white">
                     <Table>
                       <TableHeader className="border-b border-zinc-850">
-                        <TableRow className="hover:bg-transparent border-b border-zinc-800">
-                          <TableHead className="text-zinc-400 font-medium">Email</TableHead>
-                          <TableHead className="text-zinc-400 font-medium">Name</TableHead>
-                          <TableHead className="text-zinc-400 font-medium">School ID</TableHead>
+                        <TableRow className="hover:bg-transparent border-b border-slate-200">
+                          <TableHead className="text-slate-500 font-medium">Email</TableHead>
+                          <TableHead className="text-slate-500 font-medium">Name</TableHead>
+                          <TableHead className="text-slate-500 font-medium">School ID</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {users.map((u) => (
-                          <TableRow key={u.id} className="hover:bg-zinc-900/20 border-b border-zinc-900">
-                            <TableCell className="font-semibold text-white">{u.email}</TableCell>
-                            <TableCell className="text-zinc-300">{u.display_name ?? "—"}</TableCell>
-                            <TableCell className="text-zinc-400 font-mono text-xs">{u.school_id}</TableCell>
+                          <TableRow key={u.id} className="hover:bg-slate-50/20 border-b border-slate-200">
+                            <TableCell className="font-semibold text-slate-900">{u.email}</TableCell>
+                            <TableCell className="text-slate-700">{u.display_name ?? "—"}</TableCell>
+                            <TableCell className="text-slate-500 font-mono text-xs">{u.school_id}</TableCell>
                           </TableRow>
                         ))}
                         {users.length === 0 && (
                           <TableRow>
-                            <TableCell colSpan={3} className="text-center text-zinc-500 py-8">
+                            <TableCell colSpan={3} className="text-center text-slate-400 py-8">
                               No results.
                             </TableCell>
                           </TableRow>
@@ -228,26 +228,26 @@ type DirRow = { id: string; school_id: string; email: string; display_name: stri
                 </TabsContent>
 
                 <TabsContent value="students" className="mt-4">
-                  <div className="overflow-auto rounded-2xl border border-zinc-800 bg-black/40">
+                  <div className="overflow-auto rounded-2xl border border-slate-200 bg-white">
                     <Table>
                       <TableHeader className="border-b border-zinc-850">
-                        <TableRow className="hover:bg-transparent border-b border-zinc-800">
-                          <TableHead className="text-zinc-400 font-medium">Name</TableHead>
-                          <TableHead className="text-zinc-400 font-medium">Status</TableHead>
-                          <TableHead className="text-zinc-400 font-medium">School ID</TableHead>
+                        <TableRow className="hover:bg-transparent border-b border-slate-200">
+                          <TableHead className="text-slate-500 font-medium">Name</TableHead>
+                          <TableHead className="text-slate-500 font-medium">Status</TableHead>
+                          <TableHead className="text-slate-500 font-medium">School ID</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {students.map((s) => (
-                          <TableRow key={s.id} className="hover:bg-zinc-900/20 border-b border-zinc-900">
-                            <TableCell className="font-semibold text-white">{s.first_name} {s.last_name ?? ""}</TableCell>
-                            <TableCell className="text-zinc-300">{s.status}</TableCell>
-                            <TableCell className="text-zinc-400 font-mono text-xs">{s.school_id}</TableCell>
+                          <TableRow key={s.id} className="hover:bg-slate-50/20 border-b border-slate-200">
+                            <TableCell className="font-semibold text-slate-900">{s.first_name} {s.last_name ?? ""}</TableCell>
+                            <TableCell className="text-slate-700">{s.status}</TableCell>
+                            <TableCell className="text-slate-500 font-mono text-xs">{s.school_id}</TableCell>
                           </TableRow>
                         ))}
                         {students.length === 0 && (
                           <TableRow>
-                            <TableCell colSpan={3} className="text-center text-zinc-500 py-8">
+                            <TableCell colSpan={3} className="text-center text-slate-400 py-8">
                               No results.
                             </TableCell>
                           </TableRow>
@@ -258,28 +258,28 @@ type DirRow = { id: string; school_id: string; email: string; display_name: stri
                 </TabsContent>
 
                 <TabsContent value="leads" className="mt-4">
-                  <div className="overflow-auto rounded-2xl border border-zinc-800 bg-black/40">
+                  <div className="overflow-auto rounded-2xl border border-slate-200 bg-white">
                     <Table>
                       <TableHeader className="border-b border-zinc-850">
-                        <TableRow className="hover:bg-transparent border-b border-zinc-800">
-                          <TableHead className="text-zinc-400 font-medium">Name</TableHead>
-                          <TableHead className="text-zinc-400 font-medium">Contact</TableHead>
-                          <TableHead className="text-zinc-400 font-medium">Status</TableHead>
-                          <TableHead className="text-zinc-400 font-medium">School ID</TableHead>
+                        <TableRow className="hover:bg-transparent border-b border-slate-200">
+                          <TableHead className="text-slate-500 font-medium">Name</TableHead>
+                          <TableHead className="text-slate-500 font-medium">Contact</TableHead>
+                          <TableHead className="text-slate-500 font-medium">Status</TableHead>
+                          <TableHead className="text-slate-500 font-medium">School ID</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {leads.map((l) => (
-                          <TableRow key={l.id} className="hover:bg-zinc-900/20 border-b border-zinc-900">
-                            <TableCell className="font-semibold text-white">{l.full_name}</TableCell>
-                            <TableCell className="text-zinc-300">{l.email ?? l.phone ?? "—"}</TableCell>
-                            <TableCell className="text-zinc-300">{l.status}</TableCell>
-                            <TableCell className="text-zinc-400 font-mono text-xs">{l.school_id}</TableCell>
+                          <TableRow key={l.id} className="hover:bg-slate-50/20 border-b border-slate-200">
+                            <TableCell className="font-semibold text-slate-900">{l.full_name}</TableCell>
+                            <TableCell className="text-slate-700">{l.email ?? l.phone ?? "—"}</TableCell>
+                            <TableCell className="text-slate-700">{l.status}</TableCell>
+                            <TableCell className="text-slate-500 font-mono text-xs">{l.school_id}</TableCell>
                           </TableRow>
                         ))}
                         {leads.length === 0 && (
                           <TableRow>
-                            <TableCell colSpan={4} className="text-center text-zinc-500 py-8">
+                            <TableCell colSpan={4} className="text-center text-slate-400 py-8">
                               No results.
                             </TableCell>
                           </TableRow>

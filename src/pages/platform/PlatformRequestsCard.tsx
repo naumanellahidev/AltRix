@@ -78,18 +78,18 @@ export default function PlatformRequestsCard({ schools }: { schools: SchoolLite[
   };
 
   return (
-    <Card className="bg-zinc-950 border-amber-500/10 shadow-[0_4px_20px_rgba(0,0,0,0.5)]">
+    <Card className="bg-white border-slate-200 shadow-[0_4px_20px_rgba(0,0,0,0.5)]">
       <CardHeader>
         <div className="flex items-center justify-between gap-3">
           <div>
-            <CardTitle className="font-display text-xl flex items-center gap-2 text-white">
-              <Inbox className="h-5 w-5 text-amber-500" /> Owner Requests
+            <CardTitle className="font-display text-xl flex items-center gap-2 text-slate-900">
+              <Inbox className="h-5 w-5 text-blue-700" /> Owner Requests
             </CardTitle>
-            <p className="text-xs text-zinc-400">New campus / school requests sent by school owners.</p>
+            <p className="text-xs text-slate-500">New campus / school requests sent by school owners.</p>
           </div>
           <div className="flex items-center gap-2">
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-36 bg-zinc-900 border-amber-500/20 text-white focus:ring-amber-500/30"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="w-36 bg-slate-50 border-slate-300 text-slate-900 focus:ring-blue-500/30"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="open">Open</SelectItem>
                 <SelectItem value="in_progress">In progress</SelectItem>
@@ -103,7 +103,7 @@ export default function PlatformRequestsCard({ schools }: { schools: SchoolLite[
               size="sm"
               onClick={load}
               disabled={loading}
-              className="border-zinc-800 bg-zinc-950/60 text-zinc-200 hover:bg-amber-500/10 hover:text-amber-300"
+              className="border-slate-200 bg-slate-50 text-slate-700 hover:bg-blue-50 hover:text-blue-700"
             >
               <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
             </Button>
@@ -112,7 +112,7 @@ export default function PlatformRequestsCard({ schools }: { schools: SchoolLite[
       </CardHeader>
       <CardContent className="space-y-3">
         {rows.length === 0 ? (
-          <div className="rounded-2xl border border-zinc-800 bg-zinc-900/30 p-6 text-center text-sm text-zinc-400">
+          <div className="rounded-2xl border border-slate-200 bg-blue-50/30 p-6 text-center text-sm text-slate-500">
             No requests {statusFilter !== "all" ? `with status "${statusFilter}"` : ""}.
           </div>
         ) : (
@@ -120,32 +120,32 @@ export default function PlatformRequestsCard({ schools }: { schools: SchoolLite[
             const school = r.school_id ? schoolMap.get(r.school_id) : null;
             const requester = requesters[r.requester_user_id];
             return (
-              <div key={r.id} className="rounded-2xl border border-zinc-800 bg-zinc-900/20 p-4 space-y-2">
+              <div key={r.id} className="rounded-2xl border border-slate-200 bg-slate-50/20 p-4 space-y-2">
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <Badge variant="outline" className="border-amber-500/30 text-amber-400 bg-amber-500/5">{r.request_type.replace("_", " ")}</Badge>
-                      <Badge variant={r.status === "open" ? "default" : "outline"} className={r.status === "open" ? "bg-amber-500 text-zinc-950 hover:bg-amber-400 font-semibold" : "border-zinc-700 text-zinc-400 bg-zinc-800/20"}>{r.status}</Badge>
-                      {school && <Badge variant="outline" className="border-zinc-700 text-zinc-300">{school.slug}</Badge>}
-                      <span className="text-xs text-zinc-400">{new Date(r.created_at).toLocaleString()}</span>
+                      <Badge variant="outline" className="border-blue-200 text-blue-700 bg-blue-50">{r.request_type.replace("_", " ")}</Badge>
+                      <Badge variant={r.status === "open" ? "default" : "outline"} className={r.status === "open" ? "bg-blue-600 text-zinc-950 hover:bg-blue-500 font-semibold" : "border-slate-300 text-slate-500 bg-slate-100/20"}>{r.status}</Badge>
+                      {school && <Badge variant="outline" className="border-slate-300 text-slate-700">{school.slug}</Badge>}
+                      <span className="text-xs text-slate-500">{new Date(r.created_at).toLocaleString()}</span>
                     </div>
-                    <p className="mt-1 font-medium text-white">{r.subject}</p>
-                    <p className="text-xs text-zinc-400">
+                    <p className="mt-1 font-medium text-slate-900">{r.subject}</p>
+                    <p className="text-xs text-slate-500">
                       From: {requester?.display_name || "—"} {requester?.email ? `(${requester.email})` : ""}
                     </p>
                   </div>
                 </div>
-                <p className="whitespace-pre-wrap text-sm text-zinc-200">{r.message}</p>
+                <p className="whitespace-pre-wrap text-sm text-slate-700">{r.message}</p>
                 <Textarea
                   placeholder="Admin notes (optional)"
                   defaultValue={r.admin_notes ?? ""}
                   rows={2}
-                  className="bg-zinc-900 border-amber-500/20 text-white placeholder:text-zinc-500 focus-visible:ring-amber-500/30 autofill:shadow-[0_0_0px_1000px_#18181b_inset]"
+                  className="bg-slate-50 border-slate-300 text-slate-900 placeholder:text-slate-400 focus-visible:ring-blue-500/30 autofill:shadow-[0_0_0px_1000px_#18181b_inset]"
                   onChange={(e) => setNotesById((m) => ({ ...m, [r.id]: e.target.value }))}
                 />
                 <div className="flex flex-wrap gap-2">
-                  <Button size="sm" variant="outline" onClick={() => updateStatus(r.id, "in_progress")} className="border-zinc-800 text-zinc-300 hover:bg-zinc-800 hover:text-white">Mark in progress</Button>
-                  <Button size="sm" onClick={() => updateStatus(r.id, "resolved")} className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-zinc-950 font-bold border border-amber-400/20 shadow-sm">Resolve</Button>
+                  <Button size="sm" variant="outline" onClick={() => updateStatus(r.id, "in_progress")} className="border-slate-200 text-slate-700 hover:bg-slate-100 hover:text-slate-900">Mark in progress</Button>
+                  <Button size="sm" onClick={() => updateStatus(r.id, "resolved")} className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-zinc-950 font-bold border border-0 shadow-sm">Resolve</Button>
                   <Button size="sm" variant="outline" onClick={() => updateStatus(r.id, "rejected")} className="border-rose-500/20 text-rose-400 hover:bg-rose-500/10 hover:text-rose-300">Reject</Button>
                 </div>
               </div>

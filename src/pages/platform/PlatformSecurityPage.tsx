@@ -129,7 +129,7 @@ export default function PlatformSecurityPage() {
               />
               <Button
                 onClick={handleBanIp}
-                className="w-full sm:w-auto bg-rose-600 hover:bg-rose-700 text-white font-black shadow-sm shrink-0"
+                className="w-full sm:w-auto bg-rose-600 hover:bg-rose-700 text-slate-900 font-black shadow-sm shrink-0"
               >
                 <Ban className="h-4 w-4 mr-1.5" /> 1-Click Ban IP
               </Button>

@@ -406,7 +406,7 @@ export default function PlatformBillingPage() {
       const targetEmail = matchedSchool.billing_email || "principal@school.com";
       toast.success("Invoice generated & notification sent!", {
         description: `Invoice ${invoiceNumber} sent to ${targetEmail}`,
-        icon: <Mail className="h-4 w-4 text-amber-400" />,
+        icon: <Mail className="h-4 w-4 text-blue-700" />,
       });
 
       setIsInvoiceModalOpen(false);
@@ -901,18 +901,18 @@ export default function PlatformBillingPage() {
       <div className="space-y-6 text-slate-900">
         {/* DB Schema Missing Banner */}
         {!isDbSchemaApplied && (
-          <Card className="bg-amber-950/20 border border-amber-500/30 p-4 rounded-xl flex flex-col md:flex-row items-start md:items-center gap-4 justify-between">
+          <Card className="bg-amber-950/20 border border-blue-200 p-4 rounded-xl flex flex-col md:flex-row items-start md:items-center gap-4 justify-between">
             <div className="space-y-1">
-              <div className="flex items-center gap-2 text-amber-400 font-semibold">
+              <div className="flex items-center gap-2 text-blue-700 font-semibold">
                 <Database className="h-5 w-5" />
                 <span>Local Storage Mode Active</span>
               </div>
-              <p className="text-xs text-zinc-400 max-w-2xl">
+              <p className="text-xs text-slate-500 max-w-2xl">
                 The billing schema columns (plan_tier, billing_cycle, invoices table) are not yet fully compiled in your Supabase database. 
                 The system is running on a high-fidelity local cache so you can test all features immediately. Apply the migration SQL to save changes persistently.
               </p>
             </div>
-            <Badge variant="outline" className="border-amber-500/30 text-amber-400 font-mono">
+            <Badge variant="outline" className="border-blue-200 text-blue-700 font-mono">
               20260605000000_platform_billing.sql
             </Badge>
           </Card>
@@ -943,7 +943,7 @@ export default function PlatformBillingPage() {
                       toast.success("Executed automated dunning sweep across all overdue accounts (5-day grace period)");
                     }
                   }}
-                  className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-xs h-8 shadow-sm"
+                  className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-slate-900 font-bold text-xs h-8 shadow-sm"
                 >
                   <RefreshCw className="h-3.5 w-3.5 mr-1.5" /> Execute Dunning Sweep
                 </Button>
@@ -951,26 +951,26 @@ export default function PlatformBillingPage() {
             </CardContent>
           </Card>
 
-          <Card className="bg-zinc-950 border-amber-500/10 shadow-[0_4px_20px_rgba(0,0,0,0.5)]">
+          <Card className="bg-white border-slate-200 shadow-[0_4px_20px_rgba(0,0,0,0.5)]">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
+              <CardTitle className="text-xs font-semibold uppercase tracking-wider text-slate-500">
                 Active Tenant Licenses
               </CardTitle>
-              <Award className="h-4 w-4 text-amber-500" />
+              <Award className="h-4 w-4 text-blue-700" />
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold text-white">
+              <div className="text-3xl font-bold text-slate-900">
                 {activeLicenses} / {schools.length} Schools
               </div>
-              <div className="text-xs text-zinc-400 mt-1">
+              <div className="text-xs text-slate-500 mt-1">
                 {schools.length - activeLicenses} inactive or disabled schools
               </div>
             </CardContent>
           </Card>
 
-          <Card className="bg-zinc-950 border-amber-500/10 shadow-[0_4px_20px_rgba(0,0,0,0.5)]">
+          <Card className="bg-white border-slate-200 shadow-[0_4px_20px_rgba(0,0,0,0.5)]">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
+              <CardTitle className="text-xs font-semibold uppercase tracking-wider text-slate-500">
                 Unpaid / Overdue Invoices
               </CardTitle>
               <ShieldAlert className="h-4 w-4 text-rose-500" />
@@ -979,7 +979,7 @@ export default function PlatformBillingPage() {
               <div className={`text-3xl font-bold ${overdueInvoices > 0 ? "text-rose-400" : "text-emerald-400"}`}>
                 {overdueInvoices} Overdue
               </div>
-              <div className="text-xs text-zinc-400 mt-1">
+              <div className="text-xs text-slate-500 mt-1">
                 {invoices.filter((i) => i.status === "Unpaid").length} total outstanding invoices
               </div>
             </CardContent>
@@ -987,18 +987,18 @@ export default function PlatformBillingPage() {
         </div>
 
         {/* Subscription Tables */}
-        <Card className="bg-zinc-950 border-amber-500/10 shadow-[0_4px_20px_rgba(0,0,0,0.5)]">
+        <Card className="bg-white border-slate-200 shadow-[0_4px_20px_rgba(0,0,0,0.5)]">
           <CardHeader className="flex flex-row items-center justify-between">
             <div>
-              <CardTitle className="text-lg font-bold text-white">School Subscription Plans</CardTitle>
-              <p className="text-xs text-zinc-400">Manage tier rates, cycle periods, and billing info for each school</p>
+              <CardTitle className="text-lg font-bold text-slate-900">School Subscription Plans</CardTitle>
+              <p className="text-xs text-slate-500">Manage tier rates, cycle periods, and billing info for each school</p>
             </div>
             <div className="flex items-center gap-2">
               <Button
                 variant="outline"
                 size="sm"
                 onClick={handleOpenTemplateModal}
-                className="border-zinc-800 bg-zinc-950 hover:bg-amber-500/10 hover:text-amber-300"
+                className="border-slate-200 bg-white hover:bg-blue-50 hover:text-blue-700"
               >
                 <Settings className="mr-2 h-4 w-4" /> Edit Plan Templates
               </Button>
@@ -1006,68 +1006,68 @@ export default function PlatformBillingPage() {
                 variant="outline"
                 size="sm"
                 onClick={handleRunBillingCycle}
-                className="border-zinc-800 bg-zinc-950 hover:bg-amber-500/10 hover:text-amber-300"
+                className="border-slate-200 bg-white hover:bg-blue-50 hover:text-blue-700"
               >
                 <RefreshCw className="mr-2 h-4 w-4" /> Run Billing Cycle
               </Button>
             </div>
           </CardHeader>
           <CardContent>
-            <div className="overflow-auto rounded-xl border border-zinc-800 bg-black/40">
+            <div className="overflow-auto rounded-xl border border-slate-200 bg-white">
               <Table>
-                <TableHeader className="border-b border-zinc-800">
-                  <TableRow className="hover:bg-transparent border-b border-zinc-800">
-                    <TableHead className="text-zinc-400 font-medium">School</TableHead>
-                    <TableHead className="text-zinc-400 font-medium">Plan Tier</TableHead>
-                    <TableHead className="text-zinc-400 font-medium">Billing Cycle</TableHead>
-                    <TableHead className="text-zinc-400 font-medium">Amount</TableHead>
-                    <TableHead className="text-zinc-400 font-medium">Next Invoice</TableHead>
-                    <TableHead className="text-zinc-400 font-medium">Notification Email</TableHead>
-                    <TableHead className="text-right text-zinc-400 font-medium">Actions</TableHead>
+                <TableHeader className="border-b border-slate-200">
+                  <TableRow className="hover:bg-transparent border-b border-slate-200">
+                    <TableHead className="text-slate-500 font-medium">School</TableHead>
+                    <TableHead className="text-slate-500 font-medium">Plan Tier</TableHead>
+                    <TableHead className="text-slate-500 font-medium">Billing Cycle</TableHead>
+                    <TableHead className="text-slate-500 font-medium">Amount</TableHead>
+                    <TableHead className="text-slate-500 font-medium">Next Invoice</TableHead>
+                    <TableHead className="text-slate-500 font-medium">Notification Email</TableHead>
+                    <TableHead className="text-right text-slate-500 font-medium">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {loading ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center py-6 text-zinc-500">
+                      <TableCell colSpan={7} className="text-center py-6 text-slate-400">
                         Loading subscriptions data...
                       </TableCell>
                     </TableRow>
                   ) : schools.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center py-6 text-zinc-500">
+                      <TableCell colSpan={7} className="text-center py-6 text-slate-400">
                         No registered schools found. Add a school first.
                       </TableCell>
                     </TableRow>
                   ) : (
                     schools.map((s) => (
-                      <TableRow key={s.id} className="hover:bg-zinc-900/20 border-b border-zinc-900">
-                        <TableCell className="font-semibold text-white">
+                      <TableRow key={s.id} className="hover:bg-slate-50/20 border-b border-slate-200">
+                        <TableCell className="font-semibold text-slate-900">
                           {s.name}
-                          <span className="block text-[10px] text-zinc-400 font-normal">/{s.slug}</span>
+                          <span className="block text-[10px] text-slate-500 font-normal">/{s.slug}</span>
                         </TableCell>
                         <TableCell>
-                          <Badge className="bg-amber-500/15 text-amber-400 border border-amber-500/20">
+                          <Badge className="bg-blue-600/15 text-blue-700 border border-slate-300">
                             {s.plan_tier}
                           </Badge>
                         </TableCell>
-                        <TableCell className="capitalize text-zinc-300 text-xs">
+                        <TableCell className="capitalize text-slate-700 text-xs">
                           {s.billing_cycle}
                         </TableCell>
-                        <TableCell className="text-zinc-300 font-mono">
+                        <TableCell className="text-slate-700 font-mono">
                           Rs. {s.billing_amount.toLocaleString()}/{s.billing_cycle === "yearly" ? "yr" : "mo"}
                         </TableCell>
-                        <TableCell className="text-zinc-400 text-xs">
+                        <TableCell className="text-slate-500 text-xs">
                           {s.next_billing_date}
                         </TableCell>
-                        <TableCell className="text-zinc-400 text-xs font-mono">
-                          {s.billing_email || <span className="text-zinc-600 italic">No email set</span>}
+                        <TableCell className="text-slate-500 text-xs font-mono">
+                          {s.billing_email || <span className="text-slate-500 italic">No email set</span>}
                         </TableCell>
                         <TableCell className="text-right">
                           <Button
                             size="sm"
                             onClick={() => handleOpenPlanModal(s)}
-                            className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-zinc-950 font-bold border border-amber-400/20"
+                            className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-zinc-950 font-bold border border-0"
                           >
                             Manage Plan
                           </Button>
@@ -1082,15 +1082,15 @@ export default function PlatformBillingPage() {
         </Card>
 
         {/* Invoice Records */}
-        <Card className="bg-zinc-950 border-amber-500/10 shadow-[0_4px_20px_rgba(0,0,0,0.5)]">
+        <Card className="bg-white border-slate-200 shadow-[0_4px_20px_rgba(0,0,0,0.5)]">
           <CardHeader className="flex flex-row items-center justify-between pb-3">
             <div>
-              <CardTitle className="text-lg font-bold text-white">Platform Invoices</CardTitle>
-              <p className="text-xs text-zinc-400">View or manually issue invoices to schools</p>
+              <CardTitle className="text-lg font-bold text-slate-900">Platform Invoices</CardTitle>
+              <p className="text-xs text-slate-500">View or manually issue invoices to schools</p>
             </div>
             <Button
               onClick={handleOpenInvoiceModal}
-              className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-zinc-950 font-bold border border-amber-400/20 shadow-sm"
+              className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-zinc-950 font-bold border border-0 shadow-sm"
             >
               <PlusCircle className="mr-2 h-4 w-4" /> Create Invoice
             </Button>
@@ -1098,7 +1098,7 @@ export default function PlatformBillingPage() {
           <CardContent>
             <div className="space-y-2">
               {invoices.length === 0 ? (
-                <div className="text-center py-8 text-zinc-500 border border-dashed border-zinc-800 rounded-xl">
+                <div className="text-center py-8 text-slate-400 border border-dashed border-slate-200 rounded-xl">
                   No billing invoices have been issued yet.
                 </div>
               ) : (
@@ -1107,26 +1107,26 @@ export default function PlatformBillingPage() {
                   return (
                     <div
                       key={inv.id}
-                      className="flex flex-col sm:flex-row sm:items-center justify-between p-3.5 rounded-xl border border-zinc-900 bg-black/20 hover:bg-zinc-900/10 transition-colors gap-3"
+                      className="flex flex-col sm:flex-row sm:items-center justify-between p-3.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-50/10 transition-colors gap-3"
                     >
                       <div className="flex items-center gap-3">
-                        <Receipt className="h-5 w-5 text-amber-500 shrink-0" />
+                        <Receipt className="h-5 w-5 text-blue-700 shrink-0" />
                         <div>
-                          <p className="text-sm font-semibold text-white">{inv.invoice_number}</p>
-                          <p className="text-xs text-zinc-400">
+                          <p className="text-sm font-semibold text-slate-900">{inv.invoice_number}</p>
+                          <p className="text-xs text-slate-500">
                             {inv.school_name} · Billing: {inv.billing_date} · Due: {inv.due_date}
                           </p>
                         </div>
                       </div>
                       <div className="flex items-center justify-between sm:justify-end gap-4">
-                        <span className="text-sm font-mono text-zinc-300">Rs. {inv.amount.toLocaleString()}</span>
+                        <span className="text-sm font-mono text-slate-700">Rs. {inv.amount.toLocaleString()}</span>
                         <Badge
                           className={
                             inv.status === "Paid"
                               ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/20"
                               : isOverdue
                               ? "bg-rose-500/15 text-rose-400 border border-rose-500/20"
-                              : "bg-amber-500/15 text-amber-400 border border-amber-500/20"
+                              : "bg-blue-600/15 text-blue-700 border border-slate-300"
                           }
                         >
                           {inv.status === "Paid" ? "Paid" : isOverdue ? "Overdue" : "Unpaid"}
@@ -1137,7 +1137,7 @@ export default function PlatformBillingPage() {
                               size="sm"
                               variant="outline"
                               onClick={() => handleMarkAsPaid(inv.id)}
-                              className="border-zinc-800 h-8 hover:bg-emerald-500/10 hover:text-emerald-400 text-xs px-2 animate-pulse"
+                              className="border-slate-200 h-8 hover:bg-emerald-500/10 hover:text-emerald-400 text-xs px-2 animate-pulse"
                             >
                               Mark Paid
                             </Button>
@@ -1146,7 +1146,7 @@ export default function PlatformBillingPage() {
                             variant="ghost"
                             size="icon"
                             onClick={() => handleOpenEditInvoiceModal(inv)}
-                            className="h-8 w-8 text-zinc-500 hover:text-amber-400"
+                            className="h-8 w-8 text-slate-400 hover:text-blue-700"
                             title="Edit Invoice"
                           >
                             <Pencil className="h-4 w-4" />
@@ -1155,7 +1155,7 @@ export default function PlatformBillingPage() {
                             variant="ghost"
                             size="icon"
                             onClick={() => handlePrintReceipt(inv)}
-                            className="h-8 w-8 text-zinc-500 hover:text-amber-400"
+                            className="h-8 w-8 text-slate-400 hover:text-blue-700"
                             title="Download PDF Receipt"
                           >
                             <Download className="h-4 w-4" />
@@ -1164,7 +1164,7 @@ export default function PlatformBillingPage() {
                             variant="ghost"
                             size="icon"
                             onClick={() => handleDeleteInvoice(inv.id)}
-                            className="h-8 w-8 text-zinc-500 hover:text-rose-400"
+                            className="h-8 w-8 text-slate-400 hover:text-rose-400"
                             title="Delete Record"
                           >
                             <Trash2 className="h-4 w-4" />
@@ -1181,21 +1181,21 @@ export default function PlatformBillingPage() {
 
         {/* Edit Plan Templates Dialog */}
         <Dialog open={isTemplateModalOpen} onOpenChange={setIsTemplateModalOpen}>
-          <DialogContent className="bg-zinc-950 border border-zinc-800 text-zinc-100 max-w-lg">
+          <DialogContent className="bg-white border border-slate-200 text-slate-900 max-w-lg">
             <DialogHeader>
-              <DialogTitle className="text-white text-lg">Edit Default Plan Templates</DialogTitle>
-              <DialogDescription className="text-zinc-400 text-xs">
+              <DialogTitle className="text-slate-900 text-lg">Edit Default Plan Templates</DialogTitle>
+              <DialogDescription className="text-slate-500 text-xs">
                 Configure default monthly and yearly PKR rates for all standard platform plans.
               </DialogDescription>
             </DialogHeader>
 
             <div className="space-y-4 py-3 max-h-[60vh] overflow-y-auto pr-1">
               {(["Basic", "Standard", "Premium", "Enterprise"] as const).map((tier) => (
-                <div key={tier} className="p-3.5 border border-zinc-800 rounded-xl bg-zinc-900/40 space-y-3">
-                  <h4 className="font-semibold text-sm text-amber-400">{tier} Plan Defaults</h4>
+                <div key={tier} className="p-3.5 border border-slate-200 rounded-xl bg-slate-100/90 space-y-3">
+                  <h4 className="font-semibold text-sm text-blue-700">{tier} Plan Defaults</h4>
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1.5">
-                      <Label className="text-zinc-400 text-xs">Monthly Rate (PKR)</Label>
+                      <Label className="text-slate-500 text-xs">Monthly Rate (PKR)</Label>
                       <Input
                         type="number"
                         value={tempTemplates[tier].monthly}
@@ -1203,11 +1203,11 @@ export default function PlatformBillingPage() {
                           ...tempTemplates,
                           [tier]: { ...tempTemplates[tier], monthly: Number(e.target.value) }
                         })}
-                        className="bg-zinc-900 border-zinc-800 text-white text-sm"
+                        className="bg-slate-50 border-slate-200 text-slate-900 text-sm"
                       />
                     </div>
                     <div className="space-y-1.5">
-                      <Label className="text-zinc-400 text-xs">Yearly Rate (PKR)</Label>
+                      <Label className="text-slate-500 text-xs">Yearly Rate (PKR)</Label>
                       <Input
                         type="number"
                         value={tempTemplates[tier].yearly}
@@ -1215,7 +1215,7 @@ export default function PlatformBillingPage() {
                           ...tempTemplates,
                           [tier]: { ...tempTemplates[tier], yearly: Number(e.target.value) }
                         })}
-                        className="bg-zinc-900 border-zinc-800 text-white text-sm"
+                        className="bg-slate-50 border-slate-200 text-slate-900 text-sm"
                       />
                     </div>
                   </div>
@@ -1227,13 +1227,13 @@ export default function PlatformBillingPage() {
               <Button
                 variant="outline"
                 onClick={() => setIsTemplateModalOpen(false)}
-                className="border-zinc-800 text-zinc-300 hover:bg-zinc-900"
+                className="border-slate-200 text-slate-700 hover:bg-slate-50"
               >
                 Cancel
               </Button>
               <Button
                 onClick={handleSaveTemplates}
-                className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-zinc-950 font-bold border border-amber-400/20"
+                className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-zinc-950 font-bold border border-0"
               >
                 Save Templates
               </Button>
@@ -1243,25 +1243,25 @@ export default function PlatformBillingPage() {
 
         {/* Change Plan Dialog */}
         <Dialog open={isPlanModalOpen} onOpenChange={setIsPlanModalOpen}>
-          <DialogContent className="bg-zinc-950 border border-zinc-800 text-zinc-100 max-w-md">
+          <DialogContent className="bg-white border border-slate-200 text-slate-900 max-w-md">
             <DialogHeader>
-              <DialogTitle className="text-white text-lg">Change School Subscription</DialogTitle>
-              <DialogDescription className="text-zinc-400 text-xs">
+              <DialogTitle className="text-slate-900 text-lg">Change School Subscription</DialogTitle>
+              <DialogDescription className="text-slate-500 text-xs">
                 Modify pricing structure and cycle policies for {selectedSchool?.name}.
               </DialogDescription>
             </DialogHeader>
 
             <div className="space-y-4 py-3">
               <div className="space-y-1.5">
-                <Label htmlFor="plan-select" className="text-zinc-300 text-xs">Plan Tier</Label>
+                <Label htmlFor="plan-select" className="text-slate-700 text-xs">Plan Tier</Label>
                 <Select
                   value={newPlan}
                   onValueChange={(val: any) => setNewPlan(val)}
                 >
-                  <SelectTrigger id="plan-select" className="bg-zinc-900 border-zinc-800 text-white focus:ring-amber-500/30">
+                  <SelectTrigger id="plan-select" className="bg-slate-50 border-slate-200 text-slate-900 focus:ring-blue-500/30">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent className="bg-zinc-900 border-zinc-800 text-white">
+                  <SelectContent className="bg-slate-50 border-slate-200 text-slate-900">
                     <SelectItem value="Basic">Basic (Rs. {(planTemplates.Basic?.monthly ?? 15000).toLocaleString()}/mo)</SelectItem>
                     <SelectItem value="Standard">Standard (Rs. {(planTemplates.Standard?.monthly ?? 30000).toLocaleString()}/mo)</SelectItem>
                     <SelectItem value="Premium">Premium (Rs. {(planTemplates.Premium?.monthly ?? 45000).toLocaleString()}/mo)</SelectItem>
@@ -1271,15 +1271,15 @@ export default function PlatformBillingPage() {
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="cycle-select" className="text-zinc-300 text-xs">Billing Cycle</Label>
+                <Label htmlFor="cycle-select" className="text-slate-700 text-xs">Billing Cycle</Label>
                 <Select
                   value={newCycle}
                   onValueChange={(val: any) => setNewCycle(val)}
                 >
-                  <SelectTrigger id="cycle-select" className="bg-zinc-900 border-zinc-800 text-white focus:ring-amber-500/30">
+                  <SelectTrigger id="cycle-select" className="bg-slate-50 border-slate-200 text-slate-900 focus:ring-blue-500/30">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent className="bg-zinc-900 border-zinc-800 text-white">
+                  <SelectContent className="bg-slate-50 border-slate-200 text-slate-900">
                     <SelectItem value="monthly">Monthly billing</SelectItem>
                     <SelectItem value="yearly">Yearly billing</SelectItem>
                   </SelectContent>
@@ -1287,27 +1287,27 @@ export default function PlatformBillingPage() {
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="plan-amount" className="text-zinc-300 text-xs">Custom Billing Amount (Rs.)</Label>
+                <Label htmlFor="plan-amount" className="text-slate-700 text-xs">Custom Billing Amount (Rs.)</Label>
                 <Input
                   id="plan-amount"
                   type="number"
                   value={newAmount}
                   onChange={(e) => setNewAmount(Number(e.target.value))}
-                  className="bg-zinc-900 border-zinc-800 text-white focus:ring-amber-500/30"
+                  className="bg-slate-50 border-slate-200 text-slate-900 focus:ring-blue-500/30"
                 />
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="billing-email" className="text-zinc-300 text-xs">Invoice Recipient Email</Label>
+                <Label htmlFor="billing-email" className="text-slate-700 text-xs">Invoice Recipient Email</Label>
                 <Input
                   id="billing-email"
                   type="email"
                   value={newEmail}
                   onChange={(e) => setNewEmail(e.target.value)}
                   placeholder="principal@school.com"
-                  className="bg-zinc-900 border-zinc-800 text-white focus:ring-amber-500/30"
+                  className="bg-slate-50 border-slate-200 text-slate-900 focus:ring-blue-500/30"
                 />
-                <p className="text-[10px] text-zinc-500">
+                <p className="text-[10px] text-slate-400">
                   Recurring invoices will automatically notify this address.
                 </p>
               </div>
@@ -1317,13 +1317,13 @@ export default function PlatformBillingPage() {
               <Button
                 variant="outline"
                 onClick={() => setIsPlanModalOpen(false)}
-                className="border-zinc-800 text-zinc-300 hover:bg-zinc-900"
+                className="border-slate-200 text-slate-700 hover:bg-slate-50"
               >
                 Cancel
               </Button>
               <Button
                 onClick={handleSavePlan}
-                className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-zinc-950 font-bold border border-amber-400/20"
+                className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-zinc-950 font-bold border border-0"
               >
                 Save Subscription
               </Button>
@@ -1333,17 +1333,17 @@ export default function PlatformBillingPage() {
 
         {/* Create Invoice Dialog */}
         <Dialog open={isInvoiceModalOpen} onOpenChange={setIsInvoiceModalOpen}>
-          <DialogContent className="bg-zinc-950 border border-zinc-800 text-zinc-100 max-w-md">
+          <DialogContent className="bg-white border border-slate-200 text-slate-900 max-w-md">
             <DialogHeader>
-              <DialogTitle className="text-white text-lg">Generate Manual Invoice</DialogTitle>
-              <DialogDescription className="text-zinc-400 text-xs">
+              <DialogTitle className="text-slate-900 text-lg">Generate Manual Invoice</DialogTitle>
+              <DialogDescription className="text-slate-500 text-xs">
                 Create a one-off platform billing invoice and notify the school client.
               </DialogDescription>
             </DialogHeader>
 
             <div className="space-y-4 py-3">
               <div className="space-y-1.5">
-                <Label htmlFor="school-select" className="text-zinc-300 text-xs">Select School</Label>
+                <Label htmlFor="school-select" className="text-slate-700 text-xs">Select School</Label>
                 <Select
                   value={invoiceSchoolId}
                   onValueChange={(val) => {
@@ -1352,10 +1352,10 @@ export default function PlatformBillingPage() {
                     if (sch) setInvoiceAmount(sch.billing_amount);
                   }}
                 >
-                  <SelectTrigger id="school-select" className="bg-zinc-900 border-zinc-800 text-white focus:ring-amber-500/30">
+                  <SelectTrigger id="school-select" className="bg-slate-50 border-slate-200 text-slate-900 focus:ring-blue-500/30">
                     <SelectValue placeholder="Choose school..." />
                   </SelectTrigger>
-                  <SelectContent className="bg-zinc-900 border-zinc-800 text-white">
+                  <SelectContent className="bg-slate-50 border-slate-200 text-slate-900">
                     {schools.map((s) => (
                       <SelectItem key={s.id} value={s.id}>
                         {s.name} ({s.plan_tier})
@@ -1366,35 +1366,35 @@ export default function PlatformBillingPage() {
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="inv-amount" className="text-zinc-300 text-xs">Invoice Amount (Rs.)</Label>
+                <Label htmlFor="inv-amount" className="text-slate-700 text-xs">Invoice Amount (Rs.)</Label>
                 <Input
                   id="inv-amount"
                   type="number"
                   value={invoiceAmount}
                   onChange={(e) => setInvoiceAmount(Number(e.target.value))}
-                  className="bg-zinc-900 border-zinc-800 text-white focus:ring-amber-500/30"
+                  className="bg-slate-50 border-slate-200 text-slate-900 focus:ring-blue-500/30"
                 />
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="due-date" className="text-zinc-300 text-xs">Due Date</Label>
+                <Label htmlFor="due-date" className="text-slate-700 text-xs">Due Date</Label>
                 <Input
                   id="due-date"
                   type="date"
                   value={invoiceDueDate}
                   onChange={(e) => setInvoiceDueDate(e.target.value)}
-                  className="bg-zinc-900 border-zinc-800 text-white focus:ring-amber-500/30"
+                  className="bg-slate-50 border-slate-200 text-slate-900 focus:ring-blue-500/30"
                 />
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="inv-notes" className="text-zinc-300 text-xs">Invoice Description / Memo</Label>
+                <Label htmlFor="inv-notes" className="text-slate-700 text-xs">Invoice Description / Memo</Label>
                 <Input
                   id="inv-notes"
                   value={invoiceNotes}
                   onChange={(e) => setInvoiceNotes(e.target.value)}
                   placeholder="Standard monthly licensing invoice"
-                  className="bg-zinc-900 border-zinc-800 text-white focus:ring-amber-500/30"
+                  className="bg-slate-50 border-slate-200 text-slate-900 focus:ring-blue-500/30"
                 />
               </div>
             </div>
@@ -1403,13 +1403,13 @@ export default function PlatformBillingPage() {
               <Button
                 variant="outline"
                 onClick={() => setIsInvoiceModalOpen(false)}
-                className="border-zinc-800 text-zinc-300 hover:bg-zinc-900"
+                className="border-slate-200 text-slate-700 hover:bg-slate-50"
               >
                 Cancel
               </Button>
               <Button
                 onClick={handleCreateInvoice}
-                className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-zinc-950 font-bold border border-amber-400/20"
+                className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-zinc-950 font-bold border border-0"
               >
                 Issue Invoice
               </Button>
@@ -1419,69 +1419,69 @@ export default function PlatformBillingPage() {
 
         {/* Edit Invoice Dialog */}
         <Dialog open={isEditInvoiceModalOpen} onOpenChange={setIsEditInvoiceModalOpen}>
-          <DialogContent className="bg-zinc-950 border border-zinc-800 text-zinc-100 max-w-md">
+          <DialogContent className="bg-white border border-slate-200 text-slate-900 max-w-md">
             <DialogHeader>
-              <DialogTitle className="text-white text-lg">Edit Invoice Details</DialogTitle>
-              <DialogDescription className="text-zinc-400 text-xs">
+              <DialogTitle className="text-slate-900 text-lg">Edit Invoice Details</DialogTitle>
+              <DialogDescription className="text-slate-500 text-xs">
                 Update billing amount, dates, or payment status for {editingInvoice?.invoice_number}.
               </DialogDescription>
             </DialogHeader>
 
             <div className="space-y-4 py-3">
               <div className="space-y-1.5">
-                <Label htmlFor="edit-school" className="text-zinc-300 text-xs">School Name</Label>
+                <Label htmlFor="edit-school" className="text-slate-700 text-xs">School Name</Label>
                 <Input
                   id="edit-school"
                   value={editingInvoice?.school_name || ""}
                   disabled
-                  className="bg-zinc-900 border-zinc-800 text-zinc-400 h-9 text-xs"
+                  className="bg-slate-50 border-slate-200 text-slate-500 h-9 text-xs"
                 />
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="edit-amount" className="text-zinc-300 text-xs">Billed Amount (PKR)</Label>
+                <Label htmlFor="edit-amount" className="text-slate-700 text-xs">Billed Amount (PKR)</Label>
                 <Input
                   id="edit-amount"
                   type="number"
                   value={editAmount}
                   onChange={(e) => setEditAmount(Number(e.target.value))}
-                  className="bg-zinc-900 border-zinc-800 text-zinc-100 h-9 text-xs"
+                  className="bg-slate-50 border-slate-200 text-slate-900 h-9 text-xs"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
-                  <Label htmlFor="edit-bill-date" className="text-zinc-300 text-xs">Billed Date</Label>
+                  <Label htmlFor="edit-bill-date" className="text-slate-700 text-xs">Billed Date</Label>
                   <Input
                     id="edit-bill-date"
                     type="date"
                     value={editBillingDate}
                     onChange={(e) => setEditBillingDate(e.target.value)}
-                    className="bg-zinc-900 border-zinc-800 text-zinc-100 h-9 text-xs font-mono"
+                    className="bg-slate-50 border-slate-200 text-slate-900 h-9 text-xs font-mono"
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="edit-due-date" className="text-zinc-300 text-xs">Due Date</Label>
+                  <Label htmlFor="edit-due-date" className="text-slate-700 text-xs">Due Date</Label>
                   <Input
                     id="edit-due-date"
                     type="date"
                     value={editDueDate}
                     onChange={(e) => setEditDueDate(e.target.value)}
-                    className="bg-zinc-900 border-zinc-800 text-zinc-100 h-9 text-xs font-mono"
+                    className="bg-slate-50 border-slate-200 text-slate-900 h-9 text-xs font-mono"
                   />
                 </div>
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="edit-status" className="text-zinc-300 text-xs">Payment Status</Label>
+                <Label htmlFor="edit-status" className="text-slate-700 text-xs">Payment Status</Label>
                 <Select
                   value={editStatus}
                   onValueChange={(val: any) => setEditStatus(val)}
                 >
-                  <SelectTrigger id="edit-status" className="bg-zinc-900 border-zinc-800 text-zinc-200 h-9 text-xs">
+                  <SelectTrigger id="edit-status" className="bg-slate-50 border-slate-200 text-slate-700 h-9 text-xs">
                     <SelectValue placeholder="Select Status" />
                   </SelectTrigger>
-                  <SelectContent className="bg-zinc-950 border-zinc-800 text-zinc-200">
+                  <SelectContent className="bg-white border-slate-200 text-slate-700">
                     <SelectItem value="Paid">Paid</SelectItem>
                     <SelectItem value="Unpaid">Unpaid</SelectItem>
                     <SelectItem value="Overdue">Overdue</SelectItem>
@@ -1494,13 +1494,13 @@ export default function PlatformBillingPage() {
               <Button
                 variant="outline"
                 onClick={() => setIsEditInvoiceModalOpen(false)}
-                className="border-zinc-800 bg-zinc-950 hover:bg-zinc-900 text-zinc-300 h-9 text-xs"
+                className="border-slate-200 bg-white hover:bg-slate-50 text-slate-700 h-9 text-xs"
               >
                 Cancel
               </Button>
               <Button
                 onClick={handleSaveEditInvoice}
-                className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-zinc-950 font-bold border border-amber-400/20 h-9 text-xs"
+                className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-zinc-950 font-bold border border-0 h-9 text-xs"
               >
                 Save Changes
               </Button>
