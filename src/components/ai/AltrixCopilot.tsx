@@ -671,7 +671,8 @@ export default function AltrixCopilot() {
   // ── Fetch AI Settings ─────────────────────────────────────────────────────
   useEffect(() => {
     if (!user) return;
-    const params = schoolId ? `?school_id=${encodeURIComponent(schoolId)}` : "";
+    const safeSchoolId = typeof schoolId === "string" ? schoolId : (schoolId && typeof schoolId === "object" ? ((schoolId as any).id || String(schoolId)) : "");
+    const params = safeSchoolId ? `?school_id=${encodeURIComponent(String(safeSchoolId))}` : "";
     apiClient
       .get<{ enabled: boolean }>(`/ai/settings${params}`)
       .then((res) => setAiEnabled(res.data.enabled))
@@ -1051,7 +1052,7 @@ export default function AltrixCopilot() {
           headers: {
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
-            "X-School-Id": schoolId || "",
+            "X-School-Id": typeof schoolId === "string" ? schoolId : (schoolId && typeof schoolId === "object" ? ((schoolId as any).id || "") : ""),
           },
           body: JSON.stringify({
             message: promptToSend,

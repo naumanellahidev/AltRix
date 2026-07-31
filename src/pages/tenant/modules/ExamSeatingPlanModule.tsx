@@ -266,13 +266,13 @@ export function ExamSeatingPlanModule() {
               {/* Plan Picker & Controls */}
               <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm print:hidden">
                 <div className="flex items-center gap-3 w-full md:w-auto">
-                  <Select value={selectedPlan?.id} onValueChange={id => setSelectedPlan(plans.find(p => p.id === id) || null)}>
+                  <Select value={selectedPlan?.id ? String(selectedPlan.id) : ""} onValueChange={id => setSelectedPlan(plans.find(p => String(p.id) === String(id)) || null)}>
                     <SelectTrigger className="w-full md:w-80 font-bold text-slate-800 dark:text-slate-200">
                       <SelectValue placeholder="Select Seating Plan" />
                     </SelectTrigger>
                     <SelectContent>
                       {plans.map(p => (
-                        <SelectItem key={p.id} value={p.id}>{p.exam_title} ({p.room_name})</SelectItem>
+                        <SelectItem key={String(p.id)} value={String(p.id)}>{p.exam_title} ({p.room_name})</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
