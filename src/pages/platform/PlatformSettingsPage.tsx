@@ -42,10 +42,9 @@ export default function PlatformSettingsPage() {
     const fetchAiSettings = async () => {
       try {
         const res = await apiClient.get<{ enabled: boolean }>("/ai/settings");
-        if (typeof res.data?.enabled === "boolean") {
-          setAiEnabled(res.data.enabled);
-          localStorage.setItem("altrix_global_ai_enabled", String(res.data.enabled));
-        }
+        const isEnabled = res.data?.enabled !== false;
+        setAiEnabled(isEnabled);
+        localStorage.setItem("altrix_global_ai_enabled", String(isEnabled));
       } catch (err) {
         console.error("Failed to load global AI status:", err);
       }
