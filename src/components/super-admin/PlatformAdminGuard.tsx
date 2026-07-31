@@ -12,7 +12,7 @@ export default function PlatformAdminGuard() {
   if (sessionLoading || authz.loading) {
     return (
       <div 
-        className="min-h-screen flex flex-col items-center justify-center text-zinc-100"
+        className="min-h-screen flex flex-col items-center justify-center text-slate-900"
         style={{
           background: "linear-gradient(180deg, hsl(20 10% 4%), hsl(0 0% 1%))",
         }}
@@ -26,10 +26,10 @@ export default function PlatformAdminGuard() {
               boxShadow: "0 0 24px hsl(45 90% 50% / 0.15)",
             }}
           >
-            <Crown className="h-8 w-8 text-amber-400 animate-bounce" style={{ animationDuration: "2s" }} />
+            <Crown className="h-8 w-8 text-blue-700 animate-bounce" style={{ animationDuration: "2s" }} />
           </div>
           <div className="h-4 w-4 animate-spin rounded-full border-2 border-amber-500 border-t-transparent mt-2" />
-          <p className="text-xs uppercase tracking-[0.25em] text-amber-300/60 font-semibold mt-1">
+          <p className="text-xs uppercase tracking-[0.25em] text-blue-700/60 font-semibold mt-1">
             Authenticating Control Center...
           </p>
         </div>
@@ -41,7 +41,7 @@ export default function PlatformAdminGuard() {
   if (authz.isNetworkError) {
     return (
       <div 
-        className="min-h-screen flex items-center justify-center p-4 text-zinc-100"
+        className="min-h-screen flex items-center justify-center p-4 text-slate-900"
         style={{
           background:
             "radial-gradient(1200px 600px at 50% -20%, hsl(45 80% 50% / 0.08), transparent 70%)," +
@@ -71,22 +71,22 @@ export default function PlatformAdminGuard() {
                 boxShadow: "0 8px 32px hsl(35 90% 50% / 0.1)",
               }}
             >
-              <ServerCrash className="h-8 w-8 text-amber-400" />
+              <ServerCrash className="h-8 w-8 text-blue-700" />
             </div>
 
-            <p className="text-[10px] uppercase tracking-[0.25em] text-amber-400 font-semibold mb-2">
+            <p className="text-[10px] uppercase tracking-[0.25em] text-blue-700 font-semibold mb-2">
               System Diagnostics
             </p>
             <h2 className="text-xl font-bold text-slate-100 mb-3">Backend Connection Failure</h2>
             
-            <p className="text-sm text-zinc-400 leading-relaxed mb-6">
+            <p className="text-sm text-slate-500 leading-relaxed mb-6">
               The control center is currently unable to communicate with the FastAPI server. 
               Please verify that your backend service is running locally on port 8000 and try again.
             </p>
 
             <div className="w-full space-y-3">
               <Button
-                className="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-zinc-950 font-semibold shadow-lg shadow-amber-500/20 py-5 transition-all"
+                className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-amber-600 hover:to-amber-700 text-slate-900 font-semibold shadow-lg shadow-amber-500/20 py-5 transition-all"
                 onClick={() => window.location.reload()}
               >
                 <RefreshCw className="mr-2 h-4 w-4" />
@@ -94,9 +94,9 @@ export default function PlatformAdminGuard() {
               </Button>
 
               <div 
-                className="p-3.5 rounded-lg border text-left text-xs bg-zinc-950/40 border-zinc-800/80 font-mono text-zinc-400 max-h-24 overflow-y-auto"
+                className="p-3.5 rounded-lg border text-left text-xs bg-slate-50 border-slate-200 font-mono text-slate-500 max-h-24 overflow-y-auto"
               >
-                <span className="text-amber-500/90 font-bold">Error:</span> {authz.message || "GET /api/auth/me 502 (Bad Gateway)"}
+                <span className="text-blue-700/90 font-bold">Error:</span> {authz.message || "GET /api/auth/me 502 (Bad Gateway)"}
               </div>
             </div>
           </div>

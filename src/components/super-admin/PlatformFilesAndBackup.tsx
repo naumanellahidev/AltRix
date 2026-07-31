@@ -245,33 +245,33 @@ export function PlatformFilesAndBackup() {
   };
 
   return (
-    <div className="space-y-6 text-zinc-100">
+    <div className="space-y-6 text-slate-900">
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="bg-zinc-950 border-amber-500/10 p-4 flex items-center justify-between">
+        <Card className="bg-white border-slate-200 p-4 flex items-center justify-between">
           <div>
-            <p className="text-xs text-zinc-400">Storage Buckets</p>
-            <h3 className="text-2xl font-bold text-amber-500 mt-1">{BUCKETS.length}</h3>
+            <p className="text-xs text-slate-500">Storage Buckets</p>
+            <h3 className="text-2xl font-bold text-blue-700 mt-1">{BUCKETS.length}</h3>
           </div>
-          <HardDrive className="h-8 w-8 text-amber-500/30" />
+          <HardDrive className="h-8 w-8 text-blue-700/30" />
         </Card>
-        <Card className="bg-zinc-950 border-amber-500/10 p-4 flex items-center justify-between">
+        <Card className="bg-white border-slate-200 p-4 flex items-center justify-between">
           <div>
-            <p className="text-xs text-zinc-400">Total Files</p>
-            <h3 className="text-2xl font-bold text-white mt-1">{files.length.toLocaleString()}</h3>
+            <p className="text-xs text-slate-500">Total Files</p>
+            <h3 className="text-2xl font-bold text-slate-900 mt-1">{files.length.toLocaleString()}</h3>
           </div>
           <FilesIcon className="h-8 w-8 text-white/20" />
         </Card>
-        <Card className="bg-zinc-950 border-amber-500/10 p-4 flex items-center justify-between">
+        <Card className="bg-white border-slate-200 p-4 flex items-center justify-between">
           <div>
-            <p className="text-xs text-zinc-400">Total File Size</p>
-            <h3 className="text-2xl font-bold text-white mt-1">{fmtBytes(totalSize)}</h3>
+            <p className="text-xs text-slate-500">Total File Size</p>
+            <h3 className="text-2xl font-bold text-slate-900 mt-1">{fmtBytes(totalSize)}</h3>
           </div>
           <FolderArchive className="h-8 w-8 text-white/20" />
         </Card>
-        <Card className="bg-zinc-950 border-amber-500/10 p-4 flex items-center justify-between">
+        <Card className="bg-white border-slate-200 p-4 flex items-center justify-between">
           <div>
-            <p className="text-xs text-zinc-400">Tables Tracked</p>
+            <p className="text-xs text-slate-500">Tables Tracked</p>
             <h3 className="text-2xl font-bold text-emerald-400 mt-1">{PLATFORM_TABLES.length}</h3>
           </div>
           <Database className="h-8 w-8 text-emerald-400/20" />
@@ -279,10 +279,10 @@ export function PlatformFilesAndBackup() {
       </div>
 
       {/* Operations */}
-      <Card className="bg-zinc-950 border-amber-500/10">
+      <Card className="bg-white border-slate-200">
         <CardHeader>
-          <CardTitle className="text-lg font-bold text-white">Platform Backup & Restore</CardTitle>
-          <p className="text-xs text-zinc-400">
+          <CardTitle className="text-lg font-bold text-slate-900">Platform Backup & Restore</CardTitle>
+          <p className="text-xs text-slate-500">
             Download every uploaded file across all buckets, export a complete database snapshot, or restore from a previous backup.
           </p>
         </CardHeader>
@@ -290,7 +290,7 @@ export function PlatformFilesAndBackup() {
           <Button
             onClick={downloadAllAsZip}
             disabled={downloadingAll || loading}
-            className="bg-gradient-to-r from-amber-500 to-amber-600 text-zinc-950 font-bold"
+            className="bg-gradient-to-r from-blue-600 to-indigo-600 text-slate-900 font-bold"
           >
             <FolderArchive className="h-4 w-4 mr-2" />
             {downloadingAll ? "Packing ZIP…" : "Download All Files (ZIP)"}
@@ -298,7 +298,7 @@ export function PlatformFilesAndBackup() {
           <Button
             onClick={downloadFullBackup}
             disabled={backupBusy}
-            className="bg-gradient-to-r from-emerald-600 to-emerald-700 text-white font-bold"
+            className="bg-gradient-to-r from-emerald-600 to-emerald-700 text-slate-900 font-bold"
           >
             <FileJson className="h-4 w-4 mr-2" />
             {backupBusy ? "Compiling…" : "Download Full DB Backup (JSON)"}
@@ -308,41 +308,41 @@ export function PlatformFilesAndBackup() {
               type="file"
               accept="application/json"
               onChange={(e) => setRestoreFile(e.target.files?.[0] ?? null)}
-              className="bg-zinc-900 border-zinc-800 text-zinc-200 w-72"
+              className="bg-slate-50 border-slate-200 text-slate-700 w-72"
             />
             <Button
               onClick={handleRestore}
               disabled={!restoreFile || restoreBusy}
               variant="outline"
-              className="border-amber-500/30 text-amber-300 hover:bg-amber-500/10"
+              className="border-blue-200 text-blue-700 hover:bg-blue-50"
             >
               <UploadCloud className="h-4 w-4 mr-2" />
               {restoreBusy ? "Restoring…" : "Restore from Backup"}
             </Button>
           </div>
-          <Button variant="ghost" onClick={refresh} disabled={loading} className="text-zinc-300 hover:text-amber-300">
+          <Button variant="ghost" onClick={refresh} disabled={loading} className="text-slate-700 hover:text-blue-700">
             <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
             Refresh
           </Button>
           {progress && (
-            <span className="text-xs text-amber-300/80 font-mono">{progress}</span>
+            <span className="text-xs text-blue-700/80 font-mono">{progress}</span>
           )}
         </CardContent>
       </Card>
 
       {/* Per-bucket summary */}
-      <Card className="bg-zinc-950 border-amber-500/10">
+      <Card className="bg-white border-slate-200">
         <CardHeader>
-          <CardTitle className="text-base font-bold text-white">Storage Buckets</CardTitle>
+          <CardTitle className="text-base font-bold text-slate-900">Storage Buckets</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
             {perBucket.map(b => (
-              <div key={b.bucket} className="rounded-lg border border-zinc-900 p-3 bg-zinc-950/60">
-                <p className="text-xs font-mono text-amber-300">{b.bucket}</p>
+              <div key={b.bucket} className="rounded-lg border border-slate-200 p-3 bg-slate-50">
+                <p className="text-xs font-mono text-blue-700">{b.bucket}</p>
                 <div className="flex items-baseline justify-between mt-1">
-                  <span className="text-lg font-bold text-white">{b.count}</span>
-                  <span className="text-[10px] text-zinc-400">{fmtBytes(b.size)}</span>
+                  <span className="text-lg font-bold text-slate-900">{b.count}</span>
+                  <span className="text-[10px] text-slate-500">{fmtBytes(b.size)}</span>
                 </div>
               </div>
             ))}
@@ -351,56 +351,56 @@ export function PlatformFilesAndBackup() {
       </Card>
 
       {/* File list */}
-      <Card className="bg-zinc-950 border-amber-500/10">
+      <Card className="bg-white border-slate-200">
         <CardHeader className="flex flex-row items-center justify-between gap-3">
           <div>
-            <CardTitle className="text-base font-bold text-white">All Uploaded Files</CardTitle>
-            <p className="text-xs text-zinc-400">Across every storage bucket on the platform</p>
+            <CardTitle className="text-base font-bold text-slate-900">All Uploaded Files</CardTitle>
+            <p className="text-xs text-slate-500">Across every storage bucket on the platform</p>
           </div>
           <Input
             placeholder="Search file path or bucket…"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            className="w-72 bg-zinc-900 border-zinc-800 text-zinc-200"
+            className="w-72 bg-slate-50 border-slate-200 text-slate-700"
           />
         </CardHeader>
         <CardContent>
-          <div className="overflow-auto rounded-xl border border-zinc-900 max-h-[520px]">
+          <div className="overflow-auto rounded-xl border border-slate-200 max-h-[520px]">
             <Table>
-              <TableHeader className="bg-zinc-900/40 sticky top-0">
-                <TableRow className="border-b border-zinc-900 hover:bg-transparent">
-                  <TableHead className="text-zinc-400">Bucket</TableHead>
-                  <TableHead className="text-zinc-400">Path</TableHead>
-                  <TableHead className="text-zinc-400">Size</TableHead>
-                  <TableHead className="text-zinc-400">Updated</TableHead>
-                  <TableHead className="text-zinc-400 text-right">Action</TableHead>
+              <TableHeader className="bg-slate-100/90 sticky top-0">
+                <TableRow className="border-b border-slate-200 hover:bg-transparent">
+                  <TableHead className="text-slate-500">Bucket</TableHead>
+                  <TableHead className="text-slate-500">Path</TableHead>
+                  <TableHead className="text-slate-500">Size</TableHead>
+                  <TableHead className="text-slate-500">Updated</TableHead>
+                  <TableHead className="text-slate-500 text-right">Action</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filtered.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center text-zinc-500 py-10">
+                    <TableCell colSpan={5} className="text-center text-slate-400 py-10">
                       {loading ? "Loading…" : "No files found."}
                     </TableCell>
                   </TableRow>
                 )}
                 {filtered.slice(0, 500).map((f, idx) => (
-                  <TableRow key={`${f.bucket}/${f.path}-${idx}`} className="border-b border-zinc-900/80 hover:bg-zinc-900/30">
+                  <TableRow key={`${f.bucket}/${f.path}-${idx}`} className="border-b border-slate-100 hover:bg-blue-50/30">
                     <TableCell>
-                      <Badge variant="outline" className="border-amber-500/20 text-amber-300 text-[10px] font-mono">
+                      <Badge variant="outline" className="border-slate-300 text-blue-700 text-[10px] font-mono">
                         {f.bucket}
                       </Badge>
                     </TableCell>
-                    <TableCell className="font-mono text-xs text-zinc-200 break-all">{f.path}</TableCell>
-                    <TableCell className="text-zinc-400 text-xs">{fmtBytes(f.size)}</TableCell>
-                    <TableCell className="text-zinc-500 text-xs">
+                    <TableCell className="font-mono text-xs text-slate-700 break-all">{f.path}</TableCell>
+                    <TableCell className="text-slate-500 text-xs">{fmtBytes(f.size)}</TableCell>
+                    <TableCell className="text-slate-400 text-xs">
                       {f.updated_at ? new Date(f.updated_at).toLocaleString() : "—"}
                     </TableCell>
                     <TableCell className="text-right">
                       <Button
                         size="sm"
                         variant="ghost"
-                        className="h-7 text-amber-300 hover:bg-amber-500/10"
+                        className="h-7 text-blue-700 hover:bg-blue-50"
                         onClick={() => downloadSingle(f)}
                       >
                         <Download className="h-3.5 w-3.5" />
@@ -411,7 +411,7 @@ export function PlatformFilesAndBackup() {
               </TableBody>
             </Table>
             {filtered.length > 500 && (
-              <p className="text-xs text-zinc-500 px-3 py-2">Showing first 500 of {filtered.length}. Refine with search.</p>
+              <p className="text-xs text-slate-400 px-3 py-2">Showing first 500 of {filtered.length}. Refine with search.</p>
             )}
           </div>
         </CardContent>

@@ -187,17 +187,17 @@ Generated: ${new Date().toISOString()}
   };
 
   return (
-    <div className="space-y-6 text-zinc-100">
+    <div className="space-y-6 text-slate-900">
       {/* Friendly explainer */}
-      <Card className="bg-gradient-to-br from-amber-500/10 via-zinc-950 to-zinc-950 border-amber-500/20">
+      <Card className="bg-gradient-to-br from-amber-500/10 via-zinc-950 to-zinc-950 border-slate-300">
         <CardContent className="p-5 flex items-start gap-3">
           <div className="h-10 w-10 rounded-xl bg-amber-500/15 flex items-center justify-center shrink-0">
-            <Info className="h-5 w-5 text-amber-400" />
+            <Info className="h-5 w-5 text-blue-700" />
           </div>
-          <div className="text-sm text-zinc-300 leading-relaxed">
-            <p className="font-semibold text-white mb-1">What is this?</p>
+          <div className="text-sm text-slate-700 leading-relaxed">
+            <p className="font-semibold text-slate-900 mb-1">What is this?</p>
             <p>
-              These are the <span className="text-amber-300 font-medium">SQL blueprint files</span> that build your
+              These are the <span className="text-blue-700 font-medium">SQL blueprint files</span> that build your
               entire AltRix database — every table, every security rule, every formula.
               Download them as a single ZIP to keep a safe copy of your platform's structure,
               upload a previous backup to keep it stored securely in the cloud, or take a fresh
@@ -209,34 +209,34 @@ Generated: ${new Date().toISOString()}
 
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="bg-zinc-950 border-amber-500/10 p-4 flex items-center justify-between">
+        <Card className="bg-white border-slate-200 p-4 flex items-center justify-between">
           <div>
-            <p className="text-xs text-zinc-400">Migration Files</p>
-            <h3 className="text-2xl font-bold text-amber-500 mt-1">{allMigrations.length}</h3>
+            <p className="text-xs text-slate-500">Migration Files</p>
+            <h3 className="text-2xl font-bold text-blue-700 mt-1">{allMigrations.length}</h3>
           </div>
-          <FileCode2 className="h-8 w-8 text-amber-500/30" />
+          <FileCode2 className="h-8 w-8 text-blue-700/30" />
         </Card>
-        <Card className="bg-zinc-950 border-amber-500/10 p-4 flex items-center justify-between">
+        <Card className="bg-white border-slate-200 p-4 flex items-center justify-between">
           <div>
-            <p className="text-xs text-zinc-400">Saved Cloud Backups</p>
+            <p className="text-xs text-slate-500">Saved Cloud Backups</p>
             <h3 className="text-2xl font-bold text-emerald-400 mt-1">{remote.length}</h3>
           </div>
           <Layers className="h-8 w-8 text-emerald-400/30" />
         </Card>
-        <Card className="bg-zinc-950 border-amber-500/10 p-4 flex items-center justify-between">
+        <Card className="bg-white border-slate-200 p-4 flex items-center justify-between">
           <div>
-            <p className="text-xs text-zinc-400">Security</p>
-            <h3 className="text-sm font-bold text-white mt-1">Master Admin only · Private bucket</h3>
+            <p className="text-xs text-slate-500">Security</p>
+            <h3 className="text-sm font-bold text-slate-900 mt-1">Master Admin only · Private bucket</h3>
           </div>
           <ShieldCheck className="h-8 w-8 text-white/20" />
         </Card>
       </div>
 
       {/* Big actions */}
-      <Card className="bg-zinc-950 border-amber-500/10">
+      <Card className="bg-white border-slate-200">
         <CardHeader>
-          <CardTitle className="text-lg font-bold text-white">One-Click Backup & Restore</CardTitle>
-          <p className="text-xs text-zinc-400">
+          <CardTitle className="text-lg font-bold text-slate-900">One-Click Backup & Restore</CardTitle>
+          <p className="text-xs text-slate-500">
             Download everything at once, save a snapshot to secure cloud storage, or upload a previous backup file.
           </p>
         </CardHeader>
@@ -244,7 +244,7 @@ Generated: ${new Date().toISOString()}
           <Button
             onClick={downloadAllZip}
             disabled={!!busy}
-            className="bg-gradient-to-r from-amber-500 to-amber-600 text-zinc-950 font-bold"
+            className="bg-gradient-to-r from-blue-600 to-indigo-600 text-slate-900 font-bold"
           >
             <FolderArchive className="h-4 w-4 mr-2" />
             Download ALL Migrations (ZIP)
@@ -252,7 +252,7 @@ Generated: ${new Date().toISOString()}
           <Button
             onClick={uploadGeneratedSnapshot}
             disabled={!!busy}
-            className="bg-gradient-to-r from-emerald-600 to-emerald-700 text-white font-bold"
+            className="bg-gradient-to-r from-emerald-600 to-emerald-700 text-slate-900 font-bold"
           >
             <CloudUpload className="h-4 w-4 mr-2" />
             Save Snapshot to Cloud
@@ -262,62 +262,62 @@ Generated: ${new Date().toISOString()}
               type="file"
               accept=".sql,.zip,application/sql,application/zip"
               onChange={(e) => setUploadFile(e.target.files?.[0] ?? null)}
-              className="bg-zinc-900 border-zinc-800 text-zinc-200 w-72"
+              className="bg-slate-50 border-slate-200 text-slate-700 w-72"
             />
             <Button
               onClick={uploadBackup}
               disabled={!uploadFile || !!busy}
               variant="outline"
-              className="border-amber-500/30 text-amber-300 hover:bg-amber-500/10"
+              className="border-blue-200 text-blue-700 hover:bg-blue-50"
             >
               <UploadCloud className="h-4 w-4 mr-2" />
               Upload a Backup File
             </Button>
           </div>
-          <Button variant="ghost" onClick={loadRemote} disabled={!!busy} className="text-zinc-300 hover:text-amber-300">
+          <Button variant="ghost" onClick={loadRemote} disabled={!!busy} className="text-slate-700 hover:text-blue-700">
             <RefreshCw className="h-4 w-4 mr-2" />
             Refresh
           </Button>
-          {busy && <span className="text-xs text-amber-300/80 font-mono">{busy}</span>}
+          {busy && <span className="text-xs text-blue-700/80 font-mono">{busy}</span>}
         </CardContent>
       </Card>
 
       {/* Saved cloud backups */}
-      <Card className="bg-zinc-950 border-amber-500/10">
+      <Card className="bg-white border-slate-200">
         <CardHeader>
-          <CardTitle className="text-base font-bold text-white">Saved Cloud Backups</CardTitle>
-          <p className="text-xs text-zinc-400">
+          <CardTitle className="text-base font-bold text-slate-900">Saved Cloud Backups</CardTitle>
+          <p className="text-xs text-slate-500">
             Snapshots and uploads kept in your private storage area. Download any of them any time.
           </p>
         </CardHeader>
         <CardContent>
           {remote.length === 0 ? (
-            <p className="text-sm text-zinc-500 italic py-6 text-center">
+            <p className="text-sm text-slate-400 italic py-6 text-center">
               No cloud backups yet. Click <span className="text-emerald-400 font-semibold">"Save Snapshot to Cloud"</span> to create one.
             </p>
           ) : (
-            <div className="overflow-auto rounded-xl border border-zinc-900">
+            <div className="overflow-auto rounded-xl border border-slate-200">
               <Table>
-                <TableHeader className="bg-zinc-900/40">
-                  <TableRow className="border-b border-zinc-900 hover:bg-transparent">
-                    <TableHead className="text-zinc-400">File</TableHead>
-                    <TableHead className="text-zinc-400">Size</TableHead>
-                    <TableHead className="text-zinc-400">Saved</TableHead>
-                    <TableHead className="text-zinc-400 text-right">Action</TableHead>
+                <TableHeader className="bg-slate-100/90">
+                  <TableRow className="border-b border-slate-200 hover:bg-transparent">
+                    <TableHead className="text-slate-500">File</TableHead>
+                    <TableHead className="text-slate-500">Size</TableHead>
+                    <TableHead className="text-slate-500">Saved</TableHead>
+                    <TableHead className="text-slate-500 text-right">Action</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {remote.map(r => (
-                    <TableRow key={r.name} className="border-b border-zinc-900/80 hover:bg-zinc-900/30">
-                      <TableCell className="font-mono text-xs text-zinc-200 break-all">{r.name}</TableCell>
-                      <TableCell className="text-zinc-400 text-xs">{fmtBytes(r.size)}</TableCell>
-                      <TableCell className="text-zinc-500 text-xs">
+                    <TableRow key={r.name} className="border-b border-slate-100 hover:bg-blue-50/30">
+                      <TableCell className="font-mono text-xs text-slate-700 break-all">{r.name}</TableCell>
+                      <TableCell className="text-slate-500 text-xs">{fmtBytes(r.size)}</TableCell>
+                      <TableCell className="text-slate-400 text-xs">
                         {r.updated_at ? new Date(r.updated_at).toLocaleString() : "—"}
                       </TableCell>
                       <TableCell className="text-right">
                         <Button
                           size="sm" variant="ghost"
-                          className="h-7 text-amber-300 hover:bg-amber-500/10"
+                          className="h-7 text-blue-700 hover:bg-blue-50"
                           onClick={() => downloadRemote(r.name)}
                         >
                           <Download className="h-3.5 w-3.5 mr-1" /> Download
@@ -333,48 +333,48 @@ Generated: ${new Date().toISOString()}
       </Card>
 
       {/* Per-file list */}
-      <Card className="bg-zinc-950 border-amber-500/10">
+      <Card className="bg-white border-slate-200">
         <CardHeader className="flex flex-row items-center justify-between gap-3">
           <div>
-            <CardTitle className="text-base font-bold text-white">All SQL Migration Files</CardTitle>
-            <p className="text-xs text-zinc-400">Click any file to download just that one.</p>
+            <CardTitle className="text-base font-bold text-slate-900">All SQL Migration Files</CardTitle>
+            <p className="text-xs text-slate-500">Click any file to download just that one.</p>
           </div>
           <Input
             placeholder="Search migration name…"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            className="w-72 bg-zinc-900 border-zinc-800 text-zinc-200"
+            className="w-72 bg-slate-50 border-slate-200 text-slate-700"
           />
         </CardHeader>
         <CardContent>
-          <div className="overflow-auto rounded-xl border border-zinc-900 max-h-[520px]">
+          <div className="overflow-auto rounded-xl border border-slate-200 max-h-[520px]">
             <Table>
-              <TableHeader className="bg-zinc-900/40 sticky top-0">
-                <TableRow className="border-b border-zinc-900 hover:bg-transparent">
-                  <TableHead className="text-zinc-400 w-12">#</TableHead>
-                  <TableHead className="text-zinc-400">File name</TableHead>
-                  <TableHead className="text-zinc-400 text-right">Action</TableHead>
+              <TableHeader className="bg-slate-100/90 sticky top-0">
+                <TableRow className="border-b border-slate-200 hover:bg-transparent">
+                  <TableHead className="text-slate-500 w-12">#</TableHead>
+                  <TableHead className="text-slate-500">File name</TableHead>
+                  <TableHead className="text-slate-500 text-right">Action</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filtered.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={3} className="text-center text-zinc-500 py-10">
+                    <TableCell colSpan={3} className="text-center text-slate-400 py-10">
                       No migration files match your search.
                     </TableCell>
                   </TableRow>
                 )}
                 {filtered.map((m, idx) => (
-                  <TableRow key={m.path} className="border-b border-zinc-900/80 hover:bg-zinc-900/30">
-                    <TableCell className="text-zinc-500 text-xs">{idx + 1}</TableCell>
-                    <TableCell className="font-mono text-xs text-zinc-200 break-all">
-                      <Badge variant="outline" className="border-amber-500/20 text-amber-300 text-[10px] mr-2">SQL</Badge>
+                  <TableRow key={m.path} className="border-b border-slate-100 hover:bg-blue-50/30">
+                    <TableCell className="text-slate-400 text-xs">{idx + 1}</TableCell>
+                    <TableCell className="font-mono text-xs text-slate-700 break-all">
+                      <Badge variant="outline" className="border-slate-300 text-blue-700 text-[10px] mr-2">SQL</Badge>
                       {m.name}
                     </TableCell>
                     <TableCell className="text-right">
                       <Button
                         size="sm" variant="ghost"
-                        className="h-7 text-amber-300 hover:bg-amber-500/10"
+                        className="h-7 text-blue-700 hover:bg-blue-50"
                         onClick={() => downloadSingle(m)}
                       >
                         <Download className="h-3.5 w-3.5 mr-1" /> Download
