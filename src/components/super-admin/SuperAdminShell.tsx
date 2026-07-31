@@ -234,38 +234,8 @@ export function SuperAdminShell({ title, subtitle, actions, children }: Props) {
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto super-admin-scope bg-slate-100/60">
-          {(title || subtitle) && (
-            <div
-              className="border-b border-slate-200/80 bg-gradient-to-b from-white to-transparent"
-            >
-              <div className="w-full px-8 py-6 flex items-center justify-between gap-4">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <Radio className="h-4 w-4 text-blue-600 animate-pulse" />
-                    <p className="text-[10px] uppercase tracking-[0.25em] font-extrabold text-blue-700">
-                      ALTRIX HQ REAL-TIME TELEMETRY
-                    </p>
-                  </div>
-                  <h2 className="mt-1 text-2xl font-black tracking-tight text-slate-900 truncate">
-                    {title}
-                  </h2>
-                  {subtitle && (
-                    <p className="text-sm text-slate-500 mt-1 truncate">{subtitle}</p>
-                  )}
-                </div>
-                <div
-                  className="hidden md:flex h-12 w-12 rounded-xl items-center justify-center border border-blue-200 shadow-md shadow-blue-500/10"
-                  style={{
-                    background: "linear-gradient(135deg, #2563eb 0%, #4f46e5 100%)",
-                  }}
-                >
-                  <Crown className="h-6 w-6 text-white" />
-                </div>
-              </div>
-            </div>
-          )}
-          <div className="w-full p-8">{children}</div>
+        <main className="flex-1 overflow-y-auto super-admin-scope bg-slate-100/60 p-6 md:p-8">
+          {children}
         </main>
       </div>
       <GlobalCommandPalette basePath="/super_admin" />
