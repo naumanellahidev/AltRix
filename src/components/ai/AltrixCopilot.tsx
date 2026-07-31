@@ -74,6 +74,9 @@ type ActionPayload = {
   examId?: string;
   route?: string;
   label?: string;
+  cta?: string;
+  execute?: boolean;
+  auto_execute?: boolean;
   // Generic API Action parameters
   method?: "POST" | "PATCH" | "DELETE" | "PUT";
   path?: string;
