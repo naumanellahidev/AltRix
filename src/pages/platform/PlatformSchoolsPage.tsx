@@ -149,7 +149,6 @@ export default function PlatformSchoolsPage() {
     if (!sErr) {
       const schoolList = (s ?? []) as SchoolRow[];
       setSchools(schoolList);
-      await loadSchoolAiStates(schoolList);
     }
 
     const { data: a, error: aErr } = await (supabase as any)
