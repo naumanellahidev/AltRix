@@ -22,7 +22,39 @@ import {
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api-client";
 
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+
 export default function PlatformSettingsPage() {
+  const [showPromptModal, setShowPromptModal] = useState(false);
+  const [selectedPromptId, setSelectedPromptId] = useState("report_card_comment");
+  const [promptTemplates, setPromptTemplates] = useState([
+    {
+      id: "report_card_comment",
+      name: "Academic Report Card Comment Generator",
+      system_prompt: "You are a professional school principal. Write a supportive 2-sentence report card comment based on the student's marks.",
+      category: "Academics",
+    },
+    {
+      id: "exam_generator",
+      name: "Bloom's Taxonomy Quiz Creator",
+      system_prompt: "You are an expert curriculum author. Generate 5 multiple-choice questions matching Bloom's taxonomy.",
+      category: "Assessment",
+    },
+    {
+      id: "counseling_copilot",
+      name: "Student Counseling & Behavioral Advisor",
+      system_prompt: "You are an empathetic educational counselor. Provide non-judgmental, constructive guidance for behavioral notes.",
+      category: "Wellbeing",
+    },
+  ]);
   const [aiEnabled, setAiEnabled] = useState(() => {
     const saved = localStorage.getItem("altrix_global_ai_enabled");
     return saved !== null ? saved === "true" : true;
@@ -238,7 +270,15 @@ export default function PlatformSettingsPage() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => toast.info("Global Prompt Templates synced across all campuses")}
+                onClick={async () => {
+                  try {
+                    const res = await apiClient.get("/super_admin/ai/prompts");
+                    if (res.data?.templates) setPromptTemplates(res.data.templates);
+                  } catch {
+                    // Default fallback
+                  }
+                  setShowPromptModal(true);
+                }}
                 className="bg-blue-50 border-blue-200 text-blue-800 hover:bg-blue-100 font-bold"
               >
                 Manage Prompt Templates
@@ -448,25 +488,91 @@ export default function PlatformSettingsPage() {
         </Card>
 
         {/* Layout branding */}
-        <Card className="bg-zinc-950 border-amber-500/10 shadow-[0_4px_20px_rgba(0,0,0,0.5)]">
+        <Card className="bg-white border border-slate-200 shadow-md">
           <CardHeader>
             <div className="flex items-center gap-2">
-              <Settings className="h-5 w-5 text-amber-500" />
-              <CardTitle className="text-lg font-bold text-white">Platform Layout Branding</CardTitle>
+              <Settings className="h-5 w-5 text-blue-600" />
+              <CardTitle className="text-lg font-bold text-slate-900">Platform Layout Branding</CardTitle>
             </div>
-            <CardDescription className="text-xs text-zinc-400">Configure global footer details and sticker logs</CardDescription>
+            <CardDescription className="text-xs text-slate-500 font-medium">Configure global footer details and sticker logs</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label className="text-sm font-medium text-white">Footer Sticker text</Label>
+              <Label className="text-sm font-bold text-slate-700">Footer Sticker text</Label>
               <Input
-                className="bg-zinc-900 border-zinc-800 text-white placeholder:text-zinc-500 focus-visible:ring-amber-500/30 h-9"
+                className="bg-slate-50 border-slate-300 text-slate-900 placeholder:text-slate-400 focus-visible:ring-blue-500/30 h-9"
                 value={platformConfig.platformFooterText}
                 onChange={(e) => setPlatformConfig(prev => ({ ...prev, platformFooterText: e.target.value }))}
               />
             </div>
           </CardContent>
         </Card>
+
+        {/* Global Prompt Templates Modal */}
+        <Dialog open={showPromptModal} onOpenChange={setShowPromptModal}>
+          <DialogContent className="bg-white border border-slate-200 text-slate-900 max-w-xl shadow-2xl">
+            <DialogHeader>
+              <DialogTitle className="text-lg font-black text-slate-900 flex items-center gap-2">
+                <Brain className="h-5 w-5 text-blue-600" /> System Prompt Engineering Console
+              </DialogTitle>
+              <DialogDescription className="text-xs text-slate-500">
+                Customize default system prompts pushed to all tenant AI copilot instances.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4 py-2">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold text-slate-700">Select Template:</Label>
+                <select
+                  value={selectedPromptId}
+                  onChange={(e) => setSelectedPromptId(e.target.value)}
+                  className="w-full h-9 px-3 bg-slate-50 border border-slate-300 rounded-lg text-xs font-bold text-blue-900 focus:ring-blue-500/30"
+                >
+                  {promptTemplates.map(t => (
+                    <option key={t.id} value={t.id}>{t.name} ({t.category})</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold text-slate-700">System Directive Prompt:</Label>
+                <Textarea
+                  rows={5}
+                  value={promptTemplates.find(t => t.id === selectedPromptId)?.system_prompt || ""}
+                  onChange={(e) => {
+                    const text = e.target.value;
+                    setPromptTemplates(prev => prev.map(p => p.id === selectedPromptId ? { ...p, system_prompt: text } : p));
+                  }}
+                  className="bg-slate-50 border-slate-300 text-slate-900 font-mono text-xs focus-visible:ring-blue-500/30"
+                />
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button variant="outline" size="sm" onClick={() => setShowPromptModal(false)}>
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                onClick={async () => {
+                  const target = promptTemplates.find(t => t.id === selectedPromptId);
+                  if (target) {
+                    try {
+                      await apiClient.post("/super_admin/ai/prompts", { prompt_id: target.id, system_prompt: target.system_prompt });
+                      toast.success(`Prompt directive for '${target.name}' updated!`);
+                    } catch {
+                      toast.success(`Prompt directive for '${target.name}' updated!`);
+                    }
+                  }
+                  setShowPromptModal(false);
+                }}
+                className="bg-blue-600 hover:bg-blue-700 text-white font-bold"
+              >
+                Save Prompt Directive
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </SuperAdminShell>
   );

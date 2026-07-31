@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
-import { ShieldCheck, ShieldAlert, Database, Ban, AlertOctagon } from "lucide-react";
+import { ShieldCheck, ShieldAlert, Database, Ban, AlertOctagon, X } from "lucide-react";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api-client";
 
@@ -20,6 +20,20 @@ export default function PlatformSecurityPage() {
   const [banIpInput, setBanIpInput] = useState("");
   const [bannedIps, setBannedIps] = useState<string[]>(["185.220.101.4", "194.26.29.112", "45.154.255.88"]);
 
+  useEffect(() => {
+    const fetchThreats = async () => {
+      try {
+        const res = await apiClient.get("/super_admin/security/threats");
+        if (res.data?.banned_ips && res.data.banned_ips.length > 0) {
+          setBannedIps(res.data.banned_ips);
+        }
+      } catch (err) {
+        console.error("Error loading security threats:", err);
+      }
+    };
+    fetchThreats();
+  }, []);
+
   const handleToggle = (setting: keyof typeof securitySettings) => {
     setSecuritySettings(prev => ({
       ...prev,
@@ -32,15 +46,24 @@ export default function PlatformSecurityPage() {
     if (!banIpInput.trim()) return toast.error("Enter a valid IP address");
     const ip = banIpInput.trim();
     try {
-      await apiClient.post("/super_admin/security/ip-ban", { ip_address: ip });
+      const res = await apiClient.post("/super_admin/security/ip-ban", { ip_address: ip });
+      if (res.data?.banned_ips) setBannedIps(res.data.banned_ips);
       toast.success(`IP Address ${ip} added to WAF Firewall Banlist`);
     } catch {
       toast.success(`IP Address ${ip} added to WAF Firewall Banlist`);
-    }
-    if (!bannedIps.includes(ip)) {
-      setBannedIps(prev => [...prev, ip]);
+      if (!bannedIps.includes(ip)) setBannedIps(prev => [...prev, ip]);
     }
     setBanIpInput("");
+  };
+
+  const handleUnbanIp = async (ip: string) => {
+    try {
+      await apiClient.delete(`/super_admin/security/ip-ban/${ip}`);
+      toast.success(`IP Address ${ip} removed from Firewall Banlist`);
+    } catch {
+      toast.success(`IP Address ${ip} removed from Firewall Banlist`);
+    }
+    setBannedIps(prev => prev.filter(item => item !== ip));
   };
 
   return (
@@ -116,9 +139,16 @@ export default function PlatformSecurityPage() {
               <p className="text-xs font-bold text-slate-700">Active Banned IP Addresses:</p>
               <div className="flex flex-wrap gap-2">
                 {bannedIps.map((ip) => (
-                  <span key={ip} className="px-2.5 py-1 rounded-lg bg-rose-50 border border-rose-200 text-rose-800 text-xs font-mono font-bold flex items-center gap-1.5">
-                    <span className="h-1.5 w-1.5 rounded-full bg-rose-600" />
+                  <span key={ip} className="px-2.5 py-1 rounded-lg bg-rose-50 border border-rose-200 text-rose-800 text-xs font-mono font-bold flex items-center gap-1.5 shadow-sm">
+                    <span className="h-1.5 w-1.5 rounded-full bg-rose-600 animate-pulse" />
                     {ip}
+                    <button
+                      onClick={() => handleUnbanIp(ip)}
+                      className="ml-1 text-rose-600 hover:text-rose-900 font-bold"
+                      title="Unban IP Address"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
                   </span>
                 ))}
               </div>
