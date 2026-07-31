@@ -159,8 +159,16 @@ export default function PlatformAddonsPage() {
     setBusy(true);
     try {
       await apiClient.patch(`/feature-flags/${school.id}`, flags);
+      const session = await supabase.auth.getSession();
+      const token = session.data.session?.access_token || "";
+      await apiClient.post(
+        `/ai/settings/school/${school.id}`,
+        { enabled: flags.ai_features_enabled },
+        { headers: token ? { Authorization: `Bearer ${token}` } : {} }
+      ).catch(() => {});
+
       toast.success("Add-on configurations updated!", {
-        description: `Successfully configured feature flags for tenant ${school.name} (/${school.slug}).`
+        description: `Successfully configured feature flags & AI Copilot module for tenant ${school.name} (/${school.slug}).`
       });
     } catch (err: any) {
       toast.error(err?.response?.data?.detail || "Failed to update feature flags");

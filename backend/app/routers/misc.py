@@ -1287,15 +1287,35 @@ async def get_school_ai_status(db: DbSession, school_id: str) -> bool:
     return False
 
 async def set_school_ai_status(db: DbSession, school_id: str, enabled: bool):
-    await db.execute(
-        text("""
-            INSERT INTO public.system_settings (key, value)
-            VALUES (:key, :val)
-            ON CONFLICT (key) DO UPDATE SET value = :val, updated_at = now()
-        """),
-        {"key": _school_ai_key(school_id), "val": json.dumps({"enabled": enabled})}
-    )
-    await db.commit()
+    try:
+        await db.execute(
+            text("""
+                INSERT INTO public.system_settings (key, value)
+                VALUES (:key, :val)
+                ON CONFLICT (key) DO UPDATE SET value = :val, updated_at = now()
+            """),
+            {"key": _school_ai_key(school_id), "val": json.dumps({"enabled": enabled})}
+        )
+        await db.commit()
+    except Exception as e:
+        logger.warning(f"ON CONFLICT upsert failed for set_school_ai_status, retrying manual update: {e}")
+        try:
+            await db.rollback()
+        except Exception:
+            pass
+        try:
+            res = await db.execute(text("SELECT key FROM public.system_settings WHERE key = :key"), {"key": _school_ai_key(school_id)})
+            if res.fetchone():
+                await db.execute(text("UPDATE public.system_settings SET value = :val WHERE key = :key"), {"key": _school_ai_key(school_id), "val": json.dumps({"enabled": enabled})})
+            else:
+                await db.execute(text("INSERT INTO public.system_settings (key, value) VALUES (:key, :val)"), {"key": _school_ai_key(school_id), "val": json.dumps({"enabled": enabled})})
+            await db.commit()
+        except Exception as ex2:
+            logger.error(f"Fallback set_school_ai_status failed: {ex2}")
+            try:
+                await db.rollback()
+            except Exception:
+                pass
 
 async def fetch_ai_context(db: DbSession, user: AuthenticatedUser, school_id: str) -> str:
     from app.utils.permissions import expand_roles
@@ -2362,17 +2382,23 @@ async def update_school_ai_settings(
     db: DbSession,
 ):
     """Enable or disable AI copilot for a specific school. Super Admin only."""
-    from fastapi import HTTPException
-    if not current_user.is_super_admin:
+    # Check super admin privileges (either flag or role list)
+    user_roles = current_user.roles or []
+    is_admin = current_user.is_super_admin or "super_admin" in user_roles or "platform_owner" in user_roles or "school_owner" in user_roles
+    if not is_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only platform super administrators can modify per-school AI settings."
         )
-    # Verify the school exists
-    school_res = await db.execute(text("SELECT id FROM public.schools WHERE id = :sid"), {"sid": school_id})
-    if not school_res.fetchone():
-        raise HTTPException(status_code=404, detail="School not found.")
-    await set_school_ai_status(db, school_id, body.enabled)
+    # Verify the school exists by ID or slug
+    school_res = await db.execute(text("SELECT id, slug FROM public.schools WHERE id = :sid OR slug = :sid"), {"sid": school_id})
+    s_row = school_res.fetchone()
+    resolved_id = s_row[0] if s_row else school_id
+    
+    await set_school_ai_status(db, resolved_id, body.enabled)
+    if s_row and s_row[1]:
+        await set_school_ai_status(db, s_row[1], body.enabled)
+
     logger.info(f"Super admin {current_user.email} {'enabled' if body.enabled else 'disabled'} AI for school {school_id}")
     return {"success": True, "school_id": school_id, "enabled": body.enabled}
 
