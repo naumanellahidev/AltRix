@@ -18,6 +18,7 @@ except ImportError:
     RateLimitExceeded = Exception
     _rate_limit_exceeded_handler = None
 
+from sqlalchemy import text
 from app.config import settings
 from app.database import engine
 from app.middleware import LoggingMiddleware
@@ -132,8 +133,7 @@ async def lifespan(app: FastAPI):
 
     # 1. Verify Database Connection & Initialize Settings
     try:
-        from sqlalchemy import text
-        from app.database import engine, Base
+        from app.database import Base
         import app.models  # Register all ORM models
         async with engine.begin() as conn:
             await conn.execute(text("SELECT 1"))
