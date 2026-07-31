@@ -544,7 +544,7 @@ export default function AltrixCopilot() {
 
   const [isOpen, setIsOpen] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
-  const [aiEnabled, setAiEnabled] = useState(false);
+  const [aiEnabled, setAiEnabled] = useState(true);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
@@ -675,8 +675,16 @@ export default function AltrixCopilot() {
     const params = safeSchoolId ? `?school_id=${encodeURIComponent(String(safeSchoolId))}` : "";
     apiClient
       .get<{ enabled: boolean }>(`/ai/settings${params}`)
-      .then((res) => setAiEnabled(res.data.enabled))
-      .catch(() => {});
+      .then((res) => {
+        if (typeof res.data?.enabled === "boolean") {
+          setAiEnabled(res.data.enabled);
+        } else {
+          setAiEnabled(true);
+        }
+      })
+      .catch(() => {
+        setAiEnabled(true);
+      });
   }, [user, schoolId]);
 
   // ── Restore Chat History ──────────────────────────────────────────────────

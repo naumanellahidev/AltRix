@@ -94,10 +94,6 @@ export default function PlatformSchoolsPage() {
   const [unlockSchoolId, setUnlockSchoolId] = useState<string>("__none__");
   const [unlocking, setUnlocking] = useState(false);
 
-  // Per-school AI Copilot toggles
-  const [aiStates, setAiStates] = useState<Record<string, boolean>>({});
-  const [aiLoading, setAiLoading] = useState<Record<string, boolean>>({}); 
-
   // Impersonation (audited)
   const [impSchoolId, setImpSchoolId] = useState<string>("__none__");
   const [impRolePath, setImpRolePath] = useState<string>("principal");
@@ -143,56 +139,6 @@ export default function PlatformSchoolsPage() {
       cancelled = true;
     };
   }, [user]);
-
-  const loadSchoolAiStates = async (schoolList: SchoolRow[]) => {
-    const session = await supabase.auth.getSession();
-    const token = session.data.session?.access_token || "";
-    const results: Record<string, boolean> = {};
-    await Promise.all(
-      schoolList.map(async (s) => {
-        try {
-          const res = await apiClient.get<{ enabled: boolean }>(
-            `/ai/settings/school/${s.id}`,
-            { headers: { Authorization: `Bearer ${token}` } }
-          );
-          results[s.id] = res.data.enabled;
-        } catch {
-          results[s.id] = false;
-        }
-      })
-    );
-    setAiStates(results);
-  };
-
-  const toggleSchoolAI = async (schoolId: string, enabled: boolean) => {
-    setAiLoading((prev) => ({ ...prev, [schoolId]: true }));
-    try {
-      const session = await supabase.auth.getSession();
-      const token = session.data.session?.access_token || "";
-      await apiClient.post(
-        `/ai/settings/school/${schoolId}`,
-        { enabled },
-        { headers: token ? { Authorization: `Bearer ${token}` } : {} }
-      );
-      setAiStates((prev) => ({ ...prev, [schoolId]: enabled }));
-      toast.success(
-        enabled
-          ? "AI Copilot enabled for this school"
-          : "AI Copilot disabled for this school",
-        { icon: enabled ? "🤖" : "🔕" }
-      );
-    } catch (e: any) {
-      // Gracefully set state so UI toggle stays responsive
-      setAiStates((prev) => ({ ...prev, [schoolId]: enabled }));
-      toast.success(
-        enabled
-          ? "AI Copilot activated for school"
-          : "AI Copilot deactivated for school"
-      );
-    } finally {
-      setAiLoading((prev) => ({ ...prev, [schoolId]: false }));
-    }
-  };
 
   const refresh = async () => {
     const { data: s, error: sErr } = await supabase
