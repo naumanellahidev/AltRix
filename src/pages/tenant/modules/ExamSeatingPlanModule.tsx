@@ -539,3 +539,5 @@ export function ExamSeatingPlanModule() {
     </div>
   );
 }
+
+export default ExamSeatingPlanModule;

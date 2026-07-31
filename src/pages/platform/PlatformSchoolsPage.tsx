@@ -519,12 +519,6 @@ export default function PlatformSchoolsPage() {
                           <TableHead className="text-zinc-400 font-semibold">School</TableHead>
                           <TableHead className="text-zinc-400 font-semibold">Slug</TableHead>
                           <TableHead className="text-zinc-400 font-semibold">Status</TableHead>
-                          <TableHead className="text-zinc-400 font-semibold">
-                            <div className="flex items-center gap-1.5">
-                              <Brain className="h-3.5 w-3.5 text-purple-400" />
-                              AI Copilot
-                            </div>
-                          </TableHead>
                           <TableHead className="text-right text-zinc-400 font-semibold">Open</TableHead>
                         </TableRow>
                       </TableHeader>
@@ -539,35 +533,6 @@ export default function PlatformSchoolsPage() {
                               </span>
                             </TableCell>
 
-                            {/* AI Copilot Toggle — Super Admin only */}
-                            <TableCell>
-                              <div className="flex items-center gap-2">
-                                {aiLoading[s.id] ? (
-                                  <Loader2 className="h-4 w-4 animate-spin text-purple-400" />
-                                ) : (
-                                  <button
-                                    id={`ai-toggle-${s.id}`}
-                                    onClick={() => toggleSchoolAI(s.id, !aiStates[s.id])}
-                                    title={aiStates[s.id] ? "Click to disable AI Copilot" : "Click to enable AI Copilot"}
-                                    className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-2 transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-1 ${
-                                      aiStates[s.id]
-                                        ? "bg-purple-600 border-purple-500"
-                                        : "bg-zinc-700 border-zinc-600"
-                                    }`}
-                                  >
-                                    <span
-                                      className={`pointer-events-none block h-3.5 w-3.5 rounded-full bg-white shadow-sm transition-transform duration-200 ${
-                                        aiStates[s.id] ? "translate-x-4" : "translate-x-0.5"
-                                      }`}
-                                    />
-                                  </button>
-                                )}
-                                <span className={`text-[11px] font-medium ${
-                                  aiStates[s.id] ? "text-purple-300" : "text-zinc-500"
-                                }`}>
-                                  {aiStates[s.id] ? "ON" : "OFF"}
-                                </span>
-                              </div>
                             </TableCell>
 
                             <TableCell className="text-right">

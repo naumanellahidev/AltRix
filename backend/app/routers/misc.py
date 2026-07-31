@@ -1266,25 +1266,36 @@ def _school_ai_key(school_id: str) -> str:
     return f"ai_enabled_{school_id}"
 
 async def get_school_ai_status(db: DbSession, school_id: str) -> bool:
-    """Returns per-school AI toggle. Defaults to False (must be explicitly enabled per school)."""
+    """Returns per-school AI toggle. Checks both ID and slug, defaulting to True so AI Copilot works out-of-the-box."""
     try:
-        res = await db.execute(
-            text("SELECT value FROM public.system_settings WHERE key = :key"),
-            {"key": _school_ai_key(school_id)}
-        )
-        row = res.fetchone()
+        # Resolve ID and slug
+        school_res = await db.execute(text("SELECT id, slug FROM public.schools WHERE id = :sid OR slug = :sid"), {"sid": school_id})
+        row = school_res.fetchone()
+        keys_to_check = [_school_ai_key(school_id)]
         if row:
-            val = row[0]
-            if isinstance(val, str):
-                val = json.loads(val)
-            return val.get("enabled", False)
+            keys_to_check.append(_school_ai_key(row[0]))
+            if row[1]:
+                keys_to_check.append(_school_ai_key(row[1]))
+
+        for k in set(keys_to_check):
+            res = await db.execute(
+                text("SELECT value FROM public.system_settings WHERE key = :key"),
+                {"key": k}
+            )
+            val_row = res.fetchone()
+            if val_row:
+                val = val_row[0]
+                if isinstance(val, str):
+                    val = json.loads(val)
+                if isinstance(val, dict):
+                    return val.get("enabled", True)
     except Exception as e:
         logger.warning(f"Error fetching per-school AI status for {school_id}: {e}")
         try:
             await db.rollback()
         except Exception:
             pass
-    return False
+    return True
 
 async def set_school_ai_status(db: DbSession, school_id: str, enabled: bool):
     try:
