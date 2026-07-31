@@ -52,13 +52,15 @@ export function useEventTimeline(category?: string, page = 1, limit = 20) {
       }
 
       // 2. Fetch via Supabase direct fallback
-      const { data: profile } = await supabase
-        .from("profiles")
+      const { data: membership } = await supabase
+        .from("school_memberships")
         .select("school_id")
-        .eq("id", userId)
+        .eq("user_id", userId)
         .maybeSingle();
 
-      if (!profile || !profile.school_id) return { data: [], total: 0 };
+      const schoolId = membership?.school_id || localStorage.getItem("eduverse_active_school_id");
+
+      if (!schoolId) return { data: [], total: 0 };
 
       const { data: userRoles } = await supabase
         .from("user_roles")
@@ -70,7 +72,7 @@ export function useEventTimeline(category?: string, page = 1, limit = 20) {
       let query = supabase
         .from("activity_timeline")
         .select("*", { count: "exact" })
-        .eq("school_id", profile.school_id);
+        .eq("school_id", schoolId);
 
       if (category) {
         query = query.eq("category", category);
