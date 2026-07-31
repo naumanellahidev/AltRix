@@ -388,7 +388,7 @@ export default function PlatformSchoolsPage() {
       title="02. Tenant Portfolio & School Provisioning HQ"
       subtitle="1-Click Elite School Provisioner, Ghost Mode Impersonation Desk & Quota Metering"
     >
-      <div className="space-y-6 text-zinc-100">
+      <div className="space-y-6 text-slate-900">
         {authz !== "ok" && (
           <Card className="bg-white border-slate-200 shadow-md">
             <CardHeader>

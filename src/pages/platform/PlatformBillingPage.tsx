@@ -898,7 +898,7 @@ export default function PlatformBillingPage() {
       title="04. Revenue & Subscriptions Engine"
       subtitle="Automated tier pricing rules, billing vouchers, PDF generation & grace period workflows"
     >
-      <div className="space-y-6 text-zinc-100">
+      <div className="space-y-6 text-slate-900">
         {/* DB Schema Missing Banner */}
         {!isDbSchemaApplied && (
           <Card className="bg-amber-950/20 border border-amber-500/30 p-4 rounded-xl flex flex-col md:flex-row items-start md:items-center gap-4 justify-between">

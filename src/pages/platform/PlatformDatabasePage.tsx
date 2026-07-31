@@ -776,13 +776,13 @@ const [activeTab, setActiveTab] = useState<"global" | "schedules" | "hub" | "fil
       <div className="space-y-6 text-zinc-100">
         
         {/* Navigation Tabs */}
-<div className="flex flex-wrap gap-2 border-b border-zinc-800 pb-px">
+        <div className="flex flex-wrap gap-2 border-b border-slate-200 pb-px">
           <button
             onClick={() => { setActiveTab("global"); setSelectedSchool(null); }}
-            className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-all -mb-px ${
+            className={`flex items-center gap-2 px-4 py-3 text-xs font-bold border-b-2 transition-all duration-200 -mb-px ${
               activeTab === "global" && !selectedSchool
-                ? "border-amber-500 text-amber-400 font-semibold"
-                : "border-transparent text-zinc-400 hover:text-zinc-200 hover:border-zinc-700"
+                ? "border-blue-600 text-blue-700 font-extrabold bg-blue-50/80 rounded-t-lg shadow-xs"
+                : "border-transparent text-slate-500 hover:text-slate-900 hover:border-slate-300"
             }`}
           >
             <Database className="h-4 w-4" />
@@ -790,10 +790,10 @@ const [activeTab, setActiveTab] = useState<"global" | "schedules" | "hub" | "fil
           </button>
           <button
             onClick={() => { setActiveTab("schedules"); setSelectedSchool(null); }}
-            className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-all -mb-px ${
+            className={`flex items-center gap-2 px-4 py-3 text-xs font-bold border-b-2 transition-all duration-200 -mb-px ${
               activeTab === "schedules" && !selectedSchool
-                ? "border-amber-500 text-amber-400 font-semibold"
-                : "border-transparent text-zinc-400 hover:text-zinc-200 hover:border-zinc-700"
+                ? "border-blue-600 text-blue-700 font-extrabold bg-blue-50/80 rounded-t-lg shadow-xs"
+                : "border-transparent text-slate-500 hover:text-slate-900 hover:border-slate-300"
             }`}
           >
             <Clock className="h-4 w-4" />

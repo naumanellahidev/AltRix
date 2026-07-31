@@ -637,6 +637,8 @@ from app.routers.ai_management import router as ai_management_router
 from app.routers.global_billing import router as global_billing_router
 from app.routers.security_threats import router as security_threats_router
 from app.routers.tenant_orchestration import router as tenant_orchestration_router
+from app.routers.custom_domains import router as custom_domains_router
+from app.routers.financial_forecasting import router as financial_forecasting_router
 
 # ─── Register All Routers ─────────────────────────────────────────────────────
 _PREFIX = "/api"
@@ -688,4 +690,5 @@ app.include_router(ai_management_router, prefix=_PREFIX)
 app.include_router(global_billing_router, prefix=_PREFIX)
 app.include_router(security_threats_router, prefix=_PREFIX)
 app.include_router(tenant_orchestration_router, prefix=_PREFIX)
-
+app.include_router(custom_domains_router, prefix=_PREFIX)
+app.include_router(financial_forecasting_router, prefix=_PREFIX)
