@@ -32,8 +32,13 @@ const TeacherPresenceHistoryModule = lazy(() => import("@/pages/tenant/teacher-m
 const NoticesModule = lazy(() => import("@/pages/tenant/modules/NoticesModule"));
 const HolidaysModule = lazy(() => import("@/pages/tenant/modules/HolidaysModule"));
 const DiaryModule = lazy(() => import("@/pages/tenant/modules/DiaryModule"));
-const ExamsModule = lazy(() => import("@/pages/tenant/modules/ExamsModule"));
-const ReportCardModule = lazy(() => import("@/pages/tenant/modules/ReportCardModule"));
+const EventsModule = lazy(() => import("@/pages/tenant/modules/EventsModule"));
+const LibraryModule = lazy(() => import("@/pages/tenant/modules/LibraryModule"));
+const TransportModule = lazy(() => import("@/pages/tenant/modules/TransportModule"));
+const HostelModule = lazy(() => import("@/pages/tenant/modules/HostelModule"));
+const ExamSeatingPlanModule = lazy(() => import("@/pages/tenant/modules/ExamSeatingPlanModule").then(m => ({ default: m.ExamSeatingPlanModule })));
+const StudentWellbeingModule = lazy(() => import("@/pages/tenant/modules/StudentWellbeingModule"));
+const DocManagementModule = lazy(() => import("@/pages/tenant/modules/DocManagementModule"));
 import { RouteGuard } from "@/components/tenant/RouteGuard";
 
 const DashboardLoader = () => (
@@ -119,6 +124,7 @@ const TeacherDashboard = () => {
             "progress","lesson-plans","reports","report-cards","exams","diary",
             "notices","holidays","timetable","leaves","ai-insights","messages",
             "admin-inbox","complaints","parent-notes","presence-history",
+            "events","library","transport","hostel","seating-plan","student-wellbeing","doc-management"
           ]}>
           <Suspense fallback={<DashboardLoader />}>
             <Routes>
@@ -145,6 +151,13 @@ const TeacherDashboard = () => {
               <Route path="complaints" element={<TeacherComplaintsModule />} />
               <Route path="parent-notes" element={<TeacherParentNotesModule />} />
               <Route path="presence-history" element={<TeacherPresenceHistoryModule />} />
+              <Route path="events" element={<EventsModule />} />
+              <Route path="library" element={<LibraryModule />} />
+              <Route path="transport" element={<TransportModule />} />
+              <Route path="hostel" element={<HostelModule />} />
+              <Route path="seating-plan" element={<ExamSeatingPlanModule />} />
+              <Route path="student-wellbeing" element={<StudentWellbeingModule />} />
+              <Route path="doc-management" element={<DocManagementModule />} />
               <Route path="*" element={<Navigate to={`/${tenant.slug}/teacher`} replace />} />
             </Routes>
           </Suspense>

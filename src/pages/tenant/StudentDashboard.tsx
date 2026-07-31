@@ -18,11 +18,13 @@ const StudentSupportModule = lazy(() => import("@/pages/tenant/student-modules/S
 const StudentMessagesModule = lazy(() => import("@/pages/tenant/student-modules/StudentMessagesModule").then(m => ({ default: m.StudentMessagesModule })));
 const StudentAIModule = lazy(() => import("@/pages/tenant/student-modules/StudentAIModule").then(m => ({ default: m.StudentAIModule })));
 const StudentComplaintsModule = lazy(() => import("@/pages/tenant/student-modules/StudentComplaintsModule"));
-const NoticesModule = lazy(() => import("@/pages/tenant/modules/NoticesModule"));
-const HolidaysModule = lazy(() => import("@/pages/tenant/modules/HolidaysModule"));
-const DiaryModule = lazy(() => import("@/pages/tenant/modules/DiaryModule"));
-const ExamsModule = lazy(() => import("@/pages/tenant/modules/ExamsModule"));
-const ReportCardModule = lazy(() => import("@/pages/tenant/modules/ReportCardModule"));
+const EventsModule = lazy(() => import("@/pages/tenant/modules/EventsModule"));
+const LibraryModule = lazy(() => import("@/pages/tenant/modules/LibraryModule"));
+const TransportModule = lazy(() => import("@/pages/tenant/modules/TransportModule"));
+const HostelModule = lazy(() => import("@/pages/tenant/modules/HostelModule"));
+const ExamSeatingPlanModule = lazy(() => import("@/pages/tenant/modules/ExamSeatingPlanModule").then(m => ({ default: m.ExamSeatingPlanModule })));
+const StudentWellbeingModule = lazy(() => import("@/pages/tenant/modules/StudentWellbeingModule"));
+const DocManagementModule = lazy(() => import("@/pages/tenant/modules/DocManagementModule"));
 import { RouteGuard } from "@/components/tenant/RouteGuard";
 
 const DashboardLoader = () => (
@@ -220,6 +222,7 @@ const StudentDashboard = () => {
         "attendance","grades","timetable","assignments","certificates",
         "ai-insights","messages","support","notices","holidays","diary",
         "exams","report-card","complaints",
+        "events","library","transport","hostel","seating-plan","student-wellbeing","doc-management"
       ]}>
       <Suspense fallback={<DashboardLoader />}>
         <Routes>
@@ -238,6 +241,13 @@ const StudentDashboard = () => {
           <Route path="exams" element={<ExamsModule schoolId={schoolId} canManage={false} studentId={myStudent.status === "ready" ? myStudent.studentId : null} />} />
           <Route path="report-card" element={<ReportCardModule schoolId={schoolId} canManage={false} studentIdLocked={myStudent.status === "ready" ? myStudent.studentId : null} />} />
           <Route path="complaints" element={<StudentComplaintsModule schoolId={schoolId} />} />
+          <Route path="events" element={<EventsModule />} />
+          <Route path="library" element={<LibraryModule />} />
+          <Route path="transport" element={<TransportModule />} />
+          <Route path="hostel" element={<HostelModule />} />
+          <Route path="seating-plan" element={<ExamSeatingPlanModule />} />
+          <Route path="student-wellbeing" element={<StudentWellbeingModule />} />
+          <Route path="doc-management" element={<DocManagementModule />} />
           <Route path="*" element={<Navigate to={`/${tenant.slug}/student`} replace />} />
         </Routes>
       </Suspense>
