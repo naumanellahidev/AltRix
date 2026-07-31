@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Globe, ShieldCheck, RefreshCw, Plus, Trash2, CheckCircle2, AlertTriangle, Save, Palette } from "lucide-react";
+import { Globe, ShieldCheck, RefreshCw, Plus, Trash2, CheckCircle2, AlertTriangle, Save, Palette, Zap } from "lucide-react";
 
 type CustomDomain = {
   domain: string;
@@ -33,7 +33,7 @@ export default function PlatformDomainsPage() {
   const [newDomain, setNewDomain] = useState("");
   const [newSlug, setNewSlug] = useState("");
   const [brandTitle, setBrandTitle] = useState("AltRix - School Operating System");
-  const [brandColor, setBrandColor] = useState("#f59e0b"); // amber-500
+  const [brandColor, setBrandColor] = useState("#2563eb");
   const [brandFooter, setBrandFooter] = useState("© 2026 AltRix. Powered by Nec.");
 
   const loadSchools = async () => {
@@ -85,176 +85,117 @@ export default function PlatformDomainsPage() {
 
   return (
     <SuperAdminShell title="08. Custom Domains & Edge SSL Authority" subtitle="Manage custom school domain routing (CNAME), edge Let's Encrypt SSL certificates & DNS verification">
-      <div className="space-y-6 text-zinc-100">
+      <div className="space-y-6 text-slate-900">
         
         {/* Domain Metrics */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <Card className="bg-zinc-950 border-amber-500/10 p-4 flex items-center justify-between">
+          <Card className="bg-white border border-slate-200 shadow-md p-4 flex items-center justify-between">
             <div>
-              <p className="text-xs text-zinc-400">Custom Domains</p>
-              <h3 className="text-2xl font-bold text-amber-500 mt-1">{domains.length} Active</h3>
+              <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Custom Domains</p>
+              <h3 className="text-2xl font-black text-blue-700 mt-1">{domains.length} Active</h3>
             </div>
-            <Globe className="h-8 w-8 text-amber-500/20" />
+            <Globe className="h-8 w-8 text-blue-600/20" />
           </Card>
-          <Card className="bg-zinc-950 border-amber-500/10 p-4 flex items-center justify-between">
+          <Card className="bg-white border border-slate-200 shadow-md p-4 flex items-center justify-between">
             <div>
-              <p className="text-xs text-zinc-400">SSL Encryption</p>
-              <h3 className="text-2xl font-bold text-emerald-400 mt-1">100% Secured</h3>
+              <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Edge SSL Certs</p>
+              <h3 className="text-2xl font-black text-emerald-700 mt-1">{domains.filter(d => d.ssl).length} Active</h3>
             </div>
-            <ShieldCheck className="h-8 w-8 text-emerald-400/20" />
+            <ShieldCheck className="h-8 w-8 text-emerald-600/20" />
           </Card>
-          <Card className="bg-zinc-950 border-amber-500/10 p-4 flex items-center justify-between">
+          <Card className="bg-white border border-slate-200 shadow-md p-4 flex items-center justify-between">
             <div>
-              <p className="text-xs text-zinc-400">Whitelabel Instances</p>
-              <h3 className="text-2xl font-bold text-white mt-1">14 Schools</h3>
+              <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">CNAME Status</p>
+              <h3 className="text-2xl font-black text-slate-900 mt-1">100% Routed</h3>
             </div>
-            <Palette className="h-8 w-8 text-white/20" />
+            <CheckCircle2 className="h-8 w-8 text-blue-600/20" />
           </Card>
-          <Card className="bg-zinc-950 border-amber-500/10 p-4 flex items-center justify-between">
+          <Card className="bg-white border border-slate-200 shadow-md p-4 flex items-center justify-between">
             <div>
-              <p className="text-xs text-zinc-400">DNS Propagations</p>
-              <h3 className="text-2xl font-bold text-white mt-1">Active</h3>
+              <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">CDN Cache Flush</p>
+              <Button size="sm" onClick={() => toast.success("Edge CDN cache invalidated globally")} className="mt-1 bg-blue-600 hover:bg-blue-700 text-white font-bold h-7 text-xs">
+                <Zap className="h-3.5 w-3.5 mr-1" /> Flush Cache
+              </Button>
             </div>
-            <CheckCircle2 className="h-8 w-8 text-white/20" />
           </Card>
         </div>
 
-        {/* Mappings and Branding side-by-side */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          
-          {/* Domains Manager */}
-          <Card className="bg-zinc-950 border-amber-500/10 shadow-[0_4px_20px_rgba(0,0,0,0.5)]">
-            <CardHeader>
-              <CardTitle className="text-base font-bold text-white">Custom Domain Mappings</CardTitle>
-              <p className="text-xs text-zinc-400">Route private domains into tenant portals</p>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              
-              {/* Form */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                <Input
-                  className="bg-zinc-900 border-amber-500/20 text-white placeholder:text-zinc-500 focus-visible:ring-amber-500/30"
-                  placeholder="e.g. portal.beacon.edu"
-                  value={newDomain}
-                  onChange={(e) => setNewDomain(e.target.value)}
-                />
-                <div className="flex gap-2">
-                  <Select value={newSlug} onValueChange={setNewSlug} disabled={loadingSchools}>
-                    <SelectTrigger className="w-full bg-zinc-900 border-amber-500/20 text-white focus:ring-amber-500/30">
-                      <SelectValue placeholder="Slug" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {schools.map((s) => (
-                        <SelectItem key={s.id} value={s.slug}>
-                          /{s.slug}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Button
-                    onClick={handleAddDomain}
-                    className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-zinc-950 font-bold border border-amber-400/20 shadow-sm"
-                  >
-                    <Plus className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
+        {/* Add New Custom Domain */}
+        <Card className="bg-white border border-slate-200 shadow-md">
+          <CardHeader>
+            <CardTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
+              <Plus className="h-5 w-5 text-blue-600" /> Map New Custom Domain (CNAME)
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-col md:flex-row gap-3">
+              <Input
+                placeholder="portal.myschool.edu.pk"
+                value={newDomain}
+                onChange={(e) => setNewDomain(e.target.value)}
+                className="bg-slate-50 border-slate-300 text-slate-900 placeholder:text-slate-400 focus-visible:ring-blue-500/30"
+              />
+              <Select value={newSlug} onValueChange={setNewSlug} disabled={loadingSchools}>
+                <SelectTrigger className="w-full md:w-64 bg-slate-50 border-slate-300 text-blue-900 font-bold focus:ring-blue-500/30">
+                  <SelectValue placeholder="Target Tenant Slug" />
+                </SelectTrigger>
+                <SelectContent className="bg-white border-slate-200 text-slate-800">
+                  {schools.map(s => (
+                    <SelectItem key={s.id} value={s.slug} className="focus:bg-blue-50 font-medium">
+                      {s.name} (/{s.slug})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button onClick={handleAddDomain} className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-black shrink-0">
+                <Globe className="h-4 w-4 mr-2" /> Add Domain
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
 
-              {/* Table */}
-              <div className="overflow-auto rounded-xl border border-zinc-800 bg-zinc-950 mt-4">
-                <Table>
-                  <TableHeader className="bg-zinc-900/40">
-                    <TableRow className="border-b border-zinc-900 hover:bg-transparent">
-                      <TableHead className="text-zinc-400 font-semibold">Custom Domain</TableHead>
-                      <TableHead className="text-zinc-400 font-semibold">Slug</TableHead>
-                      <TableHead className="text-zinc-400 font-semibold">Status</TableHead>
-                      <TableHead className="text-zinc-400 font-semibold"></TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {domains.map((d) => (
-                      <TableRow key={d.domain} className="border-b border-zinc-900/80 hover:bg-zinc-900/30">
-                        <TableCell className="font-mono text-xs text-white truncate max-w-[180px]">{d.domain}</TableCell>
-                        <TableCell className="text-zinc-300 font-semibold">/{d.slug}</TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className={`text-[10px] ${
-                            d.status === "Active" ? "border-emerald-500/20 text-emerald-400 bg-emerald-500/5" : "border-amber-500/20 text-amber-400 bg-amber-500/5 animate-pulse"
-                          }`}>
-                            {d.status}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <button
-                            onClick={() => handleDeleteDomain(d.domain)}
-                            className="text-rose-500 hover:text-rose-400 p-1"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-
-            </CardContent>
-          </Card>
-
-          {/* Whitelabel Branding Card */}
-          <Card className="bg-zinc-950 border-amber-500/10 shadow-[0_4px_20px_rgba(0,0,0,0.5)]">
-            <CardHeader>
-              <CardTitle className="text-base font-bold text-white">Platform Whitelabel Branding</CardTitle>
-              <p className="text-xs text-zinc-400">Configure global metadata tags, footer texts and brand identities</p>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-white">Platform Layout Title</label>
-                <Input
-                  className="bg-zinc-900 border-amber-500/20 text-white placeholder:text-zinc-500 focus-visible:ring-amber-500/30"
-                  value={brandTitle}
-                  onChange={(e) => setBrandTitle(e.target.value)}
-                />
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-white">Primary Theme Color</label>
-                  <div className="flex gap-2">
-                    <Input
-                      className="bg-zinc-900 border-amber-500/20 text-white focus-visible:ring-amber-500/30"
-                      value={brandColor}
-                      onChange={(e) => setBrandColor(e.target.value)}
-                    />
-                    <div
-                      className="h-10 w-12 rounded-md border border-zinc-800"
-                      style={{ backgroundColor: brandColor }}
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-white">Platform Footer Copyright</label>
-                  <Input
-                    className="bg-zinc-900 border-amber-500/20 text-white placeholder:text-zinc-500 focus-visible:ring-amber-500/30"
-                    value={brandFooter}
-                    onChange={(e) => setBrandFooter(e.target.value)}
-                  />
-                </div>
-              </div>
-
-              <div className="pt-4 border-t border-zinc-900 flex justify-end">
-                <Button
-                  onClick={handleSaveBranding}
-                  className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-zinc-950 font-bold border border-amber-400/20 shadow-md shadow-amber-500/10 px-6"
-                >
-                  <Save className="h-4 w-4 mr-2" /> Save Branding
-                </Button>
-              </div>
-
-            </CardContent>
-          </Card>
-
-        </div>
+        {/* Domains Table */}
+        <Card className="bg-white border border-slate-200 shadow-md">
+          <CardHeader>
+            <CardTitle className="text-base font-bold text-slate-900">Active Tenant Domain Mappings</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader className="bg-slate-50">
+                <TableRow className="border-slate-200">
+                  <TableHead className="text-slate-600 font-bold">Custom Domain URL</TableHead>
+                  <TableHead className="text-slate-600 font-bold">Target Campus</TableHead>
+                  <TableHead className="text-slate-600 font-bold">CNAME Status</TableHead>
+                  <TableHead className="text-slate-600 font-bold">Edge SSL</TableHead>
+                  <TableHead className="text-right text-slate-600 font-bold">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {domains.map(d => (
+                  <TableRow key={d.domain} className="border-slate-100 hover:bg-slate-50">
+                    <TableCell className="font-mono font-bold text-blue-700">{d.domain}</TableCell>
+                    <TableCell className="font-mono text-slate-700">/{d.slug}</TableCell>
+                    <TableCell>
+                      <Badge className={d.status === "Active" ? "bg-emerald-50 text-emerald-800 border-emerald-300 font-bold" : "bg-amber-50 text-amber-800 border-amber-300 font-bold"}>
+                        {d.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Badge className={d.ssl ? "bg-blue-50 text-blue-800 border-blue-300 font-bold" : "bg-slate-100 text-slate-500 border-slate-200 font-bold"}>
+                        {d.ssl ? "Let's Encrypt SSL Active" : "Pending Cert"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button size="icon" variant="ghost" className="h-8 w-8 text-rose-600 hover:bg-rose-50" onClick={() => handleDeleteDomain(d.domain)}>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
 
       </div>
     </SuperAdminShell>

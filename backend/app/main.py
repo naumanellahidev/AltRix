@@ -632,6 +632,12 @@ async def system_status():
     return result
 
 
+from app.routers.white_label import router as white_label_router
+from app.routers.ai_management import router as ai_management_router
+from app.routers.global_billing import router as global_billing_router
+from app.routers.security_threats import router as security_threats_router
+from app.routers.tenant_orchestration import router as tenant_orchestration_router
+
 # ─── Register All Routers ─────────────────────────────────────────────────────
 _PREFIX = "/api"
 app.include_router(auth_router, prefix=_PREFIX)
@@ -678,3 +684,8 @@ app.include_router(alumni_router, prefix=_PREFIX)
 app.include_router(public_admissions_router, prefix=_PREFIX)
 app.include_router(hostel_router, prefix=_PREFIX)
 app.include_router(white_label_router, prefix=_PREFIX)
+app.include_router(ai_management_router, prefix=_PREFIX)
+app.include_router(global_billing_router, prefix=_PREFIX)
+app.include_router(security_threats_router, prefix=_PREFIX)
+app.include_router(tenant_orchestration_router, prefix=_PREFIX)
+

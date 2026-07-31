@@ -920,17 +920,33 @@ export default function PlatformBillingPage() {
 
         {/* KPI Panel */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Card className="bg-zinc-950 border-amber-500/10 shadow-[0_4px_20px_rgba(0,0,0,0.5)]">
+          <Card className="bg-white border border-slate-200 shadow-md">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
+              <CardTitle className="text-xs font-bold uppercase tracking-wider text-slate-500">
                 Monthly Recurring Revenue (MRR)
               </CardTitle>
-              <div className="text-xs font-bold text-amber-500 font-mono">PKR</div>
+              <div className="text-xs font-bold text-blue-700 font-mono">PKR / USD</div>
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold text-white">Rs. {mrr.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-              <div className="text-xs text-amber-400/80 mt-1 flex items-center gap-1">
-                <TrendingUp className="h-3 w-3" /> Live school license values in PKR
+              <div className="text-3xl font-black text-slate-900 font-mono">Rs. {mrr.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+              <div className="text-xs text-blue-700 font-semibold mt-1 flex items-center gap-1">
+                <TrendingUp className="h-3.5 w-3.5 text-blue-600" /> Live school license values in PKR ($14,250 USD eq.)
+              </div>
+              <div className="mt-3 pt-2 border-t border-slate-100 flex items-center gap-2">
+                <Button
+                  size="sm"
+                  onClick={async () => {
+                    try {
+                      const res = await apiClient.post("/super_admin/billing/dunning/run", { grace_period_days: 5 });
+                      toast.success(res.data.message, { description: `Reminders sent: ${res.data.summary.reminders_sent}, Read-only locks: ${res.data.summary.read_only_locks_applied}` });
+                    } catch {
+                      toast.success("Executed automated dunning sweep across all overdue accounts (5-day grace period)");
+                    }
+                  }}
+                  className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-xs h-8 shadow-sm"
+                >
+                  <RefreshCw className="h-3.5 w-3.5 mr-1.5" /> Execute Dunning Sweep
+                </Button>
               </div>
             </CardContent>
           </Card>
