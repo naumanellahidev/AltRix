@@ -1,0 +1,22 @@
+# Railway only builds the Python backend — frontend deploys on Vercel
+node_modules/
+src/
+public/
+dist/
+*.tsx
+*.jsx
+*.ts
+!backend/**
+bun.lock
+bun.lockb
+package-lock.json
+tailwind.config.ts
+postcss.config.js
+vite.config.ts
+vitest.config.ts
+tsconfig*.json
+eslint.config.js
+components.json
+index.html
+.vercelignore
+vercel.json

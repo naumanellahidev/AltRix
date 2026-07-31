@@ -1,5 +1,9 @@
+# Railway backend only — frontend deploys separately on Vercel
+# Explicitly disable Node.js detection (package.json is for frontend only)
+
 [providers]
 python = "3.10"
+node = false
 
 [phases.setup]
 nixPkgs = ["postgresql"]
@@ -8,4 +12,4 @@ nixPkgs = ["postgresql"]
 cmds = ["pip install -r requirements.txt"]
 
 [start]
-cmd = "python -m uvicorn --app-dir backend app.main:app --host 0.0.0.0 --port $PORT"
+cmd = "python -m uvicorn --app-dir backend app.main:app --host 0.0.0.0 --port ${PORT:-8000}"
