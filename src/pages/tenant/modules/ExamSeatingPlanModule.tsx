@@ -98,19 +98,24 @@ export function ExamSeatingPlanModule() {
   const [genDate, setGenDate] = useState("2026-08-20");
   const [genTime, setGenTime] = useState("09:00 AM - 12:00 PM");
 
-  const loadData = async () => {
-    setLoading(true);
+  const loadData = async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const [resRooms, resPlans] = await Promise.all([
         apiClient.get("/exams/rooms").catch(() => null),
         apiClient.get("/exams/seating-plans").catch(() => null)
       ]);
-      if (resRooms?.data && resRooms.data.length > 0) setRooms(resRooms.data);
-      if (resPlans?.data && resPlans.data.length > 0) setPlans(resPlans.data);
+      if (resRooms?.data && Array.isArray(resRooms.data) && resRooms.data.length > 0) {
+        setRooms(resRooms.data);
+      }
+      if (resPlans?.data && Array.isArray(resPlans.data) && resPlans.data.length > 0) {
+        setPlans(resPlans.data);
+      }
     } catch {
       // retain local default fallback state
+    } finally {
+      if (!silent) setLoading(false);
     }
-    setLoading(false);
   };
 
   useEffect(() => {
@@ -118,7 +123,7 @@ export function ExamSeatingPlanModule() {
   }, []);
 
   useEffect(() => {
-    if (plans.length > 0 && !selectedPlan) {
+    if (Array.isArray(plans) && plans.length > 0 && !selectedPlan) {
       setSelectedPlan(plans[0]);
     }
   }, [plans]);
@@ -323,7 +328,7 @@ export function ExamSeatingPlanModule() {
                         className="grid gap-3 min-w-[600px]"
                         style={{ gridTemplateColumns: `repeat(${selectedPlan.cols}, minmax(0, 1fr))` }}
                       >
-                        {selectedPlan.assignments.map((seat, idx) => {
+                        {(Array.isArray(selectedPlan.assignments) ? selectedPlan.assignments : []).map((seat, idx) => {
                           const isClassA = (seat.row + seat.col) % 2 === 0;
                           return (
                             <div 

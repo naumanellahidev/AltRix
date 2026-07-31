@@ -147,24 +147,51 @@ export default function ExamsModule({ schoolId, canManage: canManageProp = false
   const submit = async () => {
     if (!schoolId || !user) return;
     if (!form.name.trim()) return toast.error("Name required");
-    const { error } = await supabase
-      .from("exams")
-      .insert({ school_id: schoolId, ...form, created_by: user.id });
-    
-    if (error) return toast.error(error.message);
-    toast.success("Exam created"); 
-    setOpen(false); 
-    loadExams();
+    const payload = { school_id: schoolId, ...form, created_by: user.id };
+
+    // Optimistic UI Update
+    const tempId = `temp-${Date.now()}`;
+    const optimisticExam = { ...payload, id: tempId, created_at: new Date().toISOString() };
+    setItems(prev => [optimisticExam, ...(Array.isArray(prev) ? prev : [])]);
+    setOpen(false);
+    toast.success("Exam created");
     setForm({ name: "", term_label: "", start_date: today, end_date: today, status: "scheduled" });
+
+    try {
+      const { data, error } = await supabase
+        .from("exams")
+        .insert(payload)
+        .select()
+        .single();
+      if (error) {
+        setItems(prev => (Array.isArray(prev) ? prev : []).filter(i => i.id !== tempId));
+        toast.error(error.message);
+      } else if (data) {
+        setItems(prev => (Array.isArray(prev) ? prev : []).map(i => i.id === tempId ? data : i));
+      }
+      loadExams();
+    } catch {
+      loadExams();
+    }
   };
 
   const remove = async (id: string) => {
-    const { error } = await supabase
-      .from("exams")
-      .delete()
-      .eq("id", id);
-    if (error) return toast.error(error.message);
-    loadExams();
+    // Optimistic UI Update
+    setItems(prev => (Array.isArray(prev) ? prev : []).filter(i => i.id !== id));
+    toast.success("Exam deleted");
+
+    try {
+      const { error } = await supabase
+        .from("exams")
+        .delete()
+        .eq("id", id);
+      if (error) {
+        toast.error(error.message);
+        loadExams();
+      }
+    } catch {
+      loadExams();
+    }
   };
 
   const subjectMap = useMemo(() => new Map(subjects.map(s => [s.id, s.name])), [subjects]);
