@@ -255,12 +255,20 @@ const [voiceOpen, setVoiceOpen] = useState(false);
     const flagPathMap: Record<string, string> = {
       transport: "transport_enabled",
       library: "library_enabled",
+      "parent-app": "parent_app_enabled",
+      "doc-management": "document_cert_enabled",
       "student-wellbeing": "wellbeing_enabled",
       inventory: "inventory_enabled",
       alumni: "alumni_enabled",
-      hostel: "hostel_enabled",
-      "doc-management": "document_cert_enabled",
       "public-admissions": "public_admissions_enabled",
+      hostel: "hostel_enabled",
+      appraisals: "appraisals_enabled",
+      "seating-plan": "seating_plan_enabled",
+      "ai-assistant": "ai_features_enabled",
+      "ai-generator": "ai_features_enabled",
+      "ai-lesson-planner": "ai_features_enabled",
+      "ai-timetable": "ai_features_enabled",
+      "ai-report-card-comments": "ai_features_enabled",
     };
 
     const items = perms.visibleModules.filter((item) => {

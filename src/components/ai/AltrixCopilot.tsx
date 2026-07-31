@@ -696,21 +696,36 @@ export default function AltrixCopilot() {
     const isSuperAdminPage = location.pathname.startsWith("/super_admin");
     const effectiveId = isSuperAdminPage ? "" : (rawSchoolId || schoolSlug || localStorage.getItem("eduverse_active_school_id") || "");
     const params = effectiveId ? `?school_id=${encodeURIComponent(String(effectiveId))}` : "";
-    apiClient
-      .get<{ enabled: boolean }>(`/ai/settings${params}`)
-      .then((res) => {
-        const enabled = res.data?.enabled !== false;
+
+    const fetchSettings = async () => {
+      try {
+        const res = await apiClient.get<{ enabled: boolean }>(`/ai/settings${params}`);
+        let enabled = res.data?.enabled !== false;
+
+        // If in school tenant context, also verify feature flags
+        if (enabled && effectiveId && effectiveId !== "__none__") {
+          try {
+            const flagRes = await apiClient.get(`/feature-flags/${effectiveId}`);
+            if (flagRes.data?.ai_features_enabled === false) {
+              enabled = false;
+            }
+          } catch {
+            // Ignore flag check error
+          }
+        }
+
         setAiEnabled(enabled);
         if (!effectiveId) {
           localStorage.setItem("altrix_global_ai_enabled", String(enabled));
         }
-      })
-      .catch(() => {
+      } catch {
         const saved = localStorage.getItem("altrix_global_ai_enabled");
         if (saved !== null) {
           setAiEnabled(saved === "true");
         }
-      });
+      }
+    };
+    fetchSettings();
   }, [user, schoolId, schoolSlug, location.pathname]);
 
   // ── Restore Chat History ──────────────────────────────────────────────────

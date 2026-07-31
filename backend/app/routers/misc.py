@@ -826,15 +826,16 @@ async def generate_curriculum_plan(
     from app.utils.ai_service import OllamaAIService
     import json
 
-    # 1. Enforce Per-School AI Enabled Setting
+    # 1. Enforce Per-School & Global AI Enabled Setting
+    global_ai_enabled = await get_ai_status(db)
     if current_user.school_id:
         ai_enabled = await get_school_ai_status(db, current_user.school_id)
     else:
-        ai_enabled = await get_ai_status(db)
-    if not ai_enabled:
+        ai_enabled = global_ai_enabled
+    if not global_ai_enabled or not ai_enabled:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="AI features are not enabled for this school."
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="AI features are currently disabled by Platform Administrator."
         )
 
     # 2. Build system prompt for structured output
@@ -1240,8 +1241,14 @@ async def get_ai_status(db: DbSession) -> bool:
         if row:
             val = row[0]
             if isinstance(val, str):
-                val = json.loads(val)
-            return val.get("enabled", True)
+                try:
+                    val = json.loads(val)
+                except Exception:
+                    pass
+            if isinstance(val, dict):
+                return bool(val.get("enabled", True))
+            if isinstance(val, bool):
+                return val
     except Exception as e:
         logger.warning(f"Error fetching AI status from database: {e}")
         try:
@@ -1274,11 +1281,19 @@ async def get_school_ai_status(db: DbSession, school_id: str) -> bool:
         row = school_res.fetchone()
         keys_to_check = [_school_ai_key(school_id)]
         if row:
-            keys_to_check.append(_school_ai_key(row[0]))
+            keys_to_check.append(_school_ai_key(str(row[0])))
             if row[1]:
-                keys_to_check.append(_school_ai_key(row[1]))
+                keys_to_check.append(_school_ai_key(str(row[1])))
 
-        for k in set(keys_to_check):
+        # Preserve check order deterministically
+        seen = set()
+        ordered_keys = []
+        for k in keys_to_check:
+            if k not in seen:
+                seen.add(k)
+                ordered_keys.append(k)
+
+        for k in ordered_keys:
             res = await db.execute(
                 text("SELECT value FROM public.system_settings WHERE key = :key"),
                 {"key": k}
@@ -1287,9 +1302,14 @@ async def get_school_ai_status(db: DbSession, school_id: str) -> bool:
             if val_row:
                 val = val_row[0]
                 if isinstance(val, str):
-                    val = json.loads(val)
+                    try:
+                        val = json.loads(val)
+                    except Exception:
+                        pass
                 if isinstance(val, dict):
-                    return val.get("enabled", True)
+                    return bool(val.get("enabled", True))
+                if isinstance(val, bool):
+                    return val
     except Exception as e:
         logger.warning(f"Error fetching per-school AI status for {school_id}: {e}")
         try:
@@ -2439,14 +2459,17 @@ async def copilot_chat(
         if f_row:
             effective_school_id = f_row[0]
 
+    global_ai_enabled = await get_ai_status(db)
     if effective_school_id:
         ai_enabled = await get_school_ai_status(db, effective_school_id)
     else:
-        ai_enabled = await get_ai_status(db)
+        ai_enabled = global_ai_enabled
 
-    # If ai_enabled returns False, force enable it for super admin
-    if not ai_enabled and current_user.is_super_admin:
-        ai_enabled = True
+    if not global_ai_enabled or not ai_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="AI Copilot is currently disabled by Administrator."
+        )
 
     # 2. Sanitize AI input to prevent prompt injection
     import re
