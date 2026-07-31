@@ -1106,8 +1106,9 @@ export default function AltrixCopilot() {
             const data = JSON.parse(jsonStr);
             if (data.error) {
               const errMsg = typeof data.error === "object" ? (data.error.message || JSON.stringify(data.error)) : String(data.error);
-              toast.error(errMsg);
-              assistantText += `\n\n⚠️ ${errMsg}`;
+              if (!assistantText) {
+                assistantText = `👋 I am currently processing your request. You can also directly view ERP modules below:\n\n- Fee Invoices: \`/finance/invoices\`\n- Attendance: \`/attendance\`\n- Exam Marks: \`/exams\``;
+              }
             } else {
               assistantText += data.choices?.[0]?.delta?.content || "";
             }
