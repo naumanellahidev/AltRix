@@ -87,31 +87,40 @@ export function LibraryModule() {
   const [showBarcodeModal, setShowBarcodeModal] = useState<Book | null>(null);
   const [reservations, setReservations] = useState<BookReservation[]>([]);
 
-  const loadBooks = async () => {
-    setLoading(true);
+  const loadBooks = async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const res = await apiClient.get("/library/books");
       setBooks(Array.isArray(res.data) ? res.data : []);
-    } catch { setBooks([]); }
-    setLoading(false);
+    } catch { 
+      if (!silent) setBooks([]); 
+    } finally {
+      if (!silent) setLoading(false);
+    }
   };
 
-  const loadIssues = async () => {
-    setLoading(true);
+  const loadIssues = async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const res = await apiClient.get("/library/issues");
       setIssues(Array.isArray(res.data) ? res.data : []);
-    } catch { setIssues([]); }
-    setLoading(false);
+    } catch { 
+      if (!silent) setIssues([]); 
+    } finally {
+      if (!silent) setLoading(false);
+    }
   };
 
-  const loadReservations = async () => {
-    setLoading(true);
+  const loadReservations = async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const res = await apiClient.get("/library/reservations");
       setReservations(Array.isArray(res.data) ? res.data : []);
-    } catch { setReservations([]); }
-    setLoading(false);
+    } catch { 
+      if (!silent) setReservations([]); 
+    } finally {
+      if (!silent) setLoading(false);
+    }
   };
 
   const loadBorrowers = async () => {
@@ -178,7 +187,7 @@ export function LibraryModule() {
   useEffect(() => {
     if (showIssueModal) {
       loadBorrowers();
-      loadBooks();
+      loadBooks(true);
     }
   }, [showIssueModal]);
 
@@ -196,44 +205,66 @@ export function LibraryModule() {
       toast.error("Please provide book title and author");
       return;
     }
+    const generatedBarcode = newBook.barcode || `LIB-${Math.floor(100000 + Math.random() * 900000)}`;
+    const generatedISBN = newBook.isbn || `978-969-${Math.floor(1000 + Math.random() * 9000)}-${Math.floor(10 + Math.random() * 90)}-1`;
+    const payload = {
+      ...newBook,
+      barcode: generatedBarcode,
+      isbn: generatedISBN,
+      available_copies: newBook.total_copies
+    };
+
+    // Optimistic UI Update
+    const tempId = `temp-${Date.now()}`;
+    const optimisticBook: Book = { ...payload, id: tempId };
+    setBooks(prev => [optimisticBook, ...(Array.isArray(prev) ? prev : [])]);
+    setShowAddBook(false);
+    setNewBook({ title: "", author: "", isbn: "", barcode: "", category: "General", publisher: "", publication_year: 2024, total_copies: 5, available_copies: 5, shelf_location: "Rack A-1" });
+    toast.success("Book added to catalog!");
+
     try {
-      const generatedBarcode = newBook.barcode || `LIB-${Math.floor(100000 + Math.random() * 900000)}`;
-      const generatedISBN = newBook.isbn || `978-969-${Math.floor(1000 + Math.random() * 9000)}-${Math.floor(10 + Math.random() * 90)}-1`;
-      
-      await apiClient.post("/library/books", {
-        ...newBook,
-        barcode: generatedBarcode,
-        isbn: generatedISBN,
-        available_copies: newBook.total_copies
-      });
-      toast.success("Book added to catalog!");
-      setShowAddBook(false);
-      setNewBook({ title: "", author: "", isbn: "", barcode: "", category: "General", publisher: "", publication_year: 2024, total_copies: 5, available_copies: 5, shelf_location: "Rack A-1" });
-      loadBooks();
+      const res = await apiClient.post("/library/books", payload);
+      if (res.data?.id) {
+        setBooks(prev => (Array.isArray(prev) ? prev : []).map(b => b.id === tempId ? res.data : b));
+      }
+      loadBooks(true);
     } catch (err: any) {
+      // Rollback on error
+      setBooks(prev => (Array.isArray(prev) ? prev : []).filter(b => b.id !== tempId));
       toast.error(getErrorMessage(err, "Failed to add book"));
     }
   };
 
   const handleUpdateBook = async () => {
     if (!showEditBook) return;
+    const targetBook = showEditBook;
+    setShowEditBook(null);
+
+    // Optimistic UI Update
+    setBooks(prev => (Array.isArray(prev) ? prev : []).map(b => b.id === targetBook.id ? targetBook : b));
+    toast.success("Book details updated");
+
     try {
-      await apiClient.put(`/library/books/${showEditBook.id}`, showEditBook);
-      toast.success("Book details updated");
-      setShowEditBook(null);
-      loadBooks();
+      await apiClient.put(`/library/books/${targetBook.id}`, targetBook);
+      loadBooks(true);
     } catch (err: any) {
+      loadBooks(true);
       toast.error(getErrorMessage(err, "Failed to update book"));
     }
   };
 
   const handleDeleteBook = async (bookId: string, title: string) => {
     if (!confirm(`Are you sure you want to remove "${title}" from the catalog?`)) return;
+
+    // Optimistic UI Update
+    setBooks(prev => (Array.isArray(prev) ? prev : []).filter(b => b.id !== bookId));
+    toast.success(`"${title}" deleted successfully`);
+
     try {
       await apiClient.delete(`/library/books/${bookId}`);
-      toast.success(`"${title}" deleted successfully`);
-      loadBooks();
+      loadBooks(true);
     } catch (err: any) {
+      loadBooks(true);
       toast.error(getErrorMessage(err, "Failed to delete book"));
     }
   };
@@ -243,13 +274,22 @@ export function LibraryModule() {
       toast.error("Select a book and borrower");
       return;
     }
+    const issuePayload = { ...newIssue };
+    setShowIssueModal(false);
+
+    // Optimistic UI Update: decrement available copies instantly
+    setBooks(prev => (Array.isArray(prev) ? prev : []).map(b => 
+      b.id === issuePayload.book_id ? { ...b, available_copies: Math.max(0, b.available_copies - 1) } : b
+    ));
+    toast.success("Book issued successfully!");
+
     try {
-      await apiClient.post("/library/issue", newIssue);
-      toast.success("Book issued successfully!");
-      setShowIssueModal(false);
-      loadBooks();
-      loadIssues();
+      await apiClient.post("/library/issue", issuePayload);
+      loadBooks(true);
+      loadIssues(true);
     } catch (err: any) {
+      loadBooks(true);
+      loadIssues(true);
       toast.error(getErrorMessage(err, "Failed to issue book"));
     }
   };
@@ -258,21 +298,28 @@ export function LibraryModule() {
     try {
       await apiClient.post("/library/reserve", { book_id: bookId, student_id: borrowers[0]?.id || "student-1" });
       toast.success("Book reserved successfully!");
-      loadReservations();
+      loadReservations(true);
     } catch (err: any) {
       toast.error(getErrorMessage(err, "Book reserved in queue"));
     }
   };
 
   const handleReturnBook = async (issueId: string) => {
+    // Optimistic UI Update: mark issue as returned instantly
+    setIssues(prev => (Array.isArray(prev) ? prev : []).map(i => 
+      i.id === issueId ? { ...i, status: "returned", return_date: new Date().toISOString().split('T')[0] } : i
+    ));
+
     try {
       const res = await apiClient.post(`/library/return/${issueId}`);
       toast.success("Book returned to library", {
         description: res.data?.fine_amount > 0 ? `Calculated overdue fine: PKR ${res.data.fine_amount.toFixed(2)}` : "Returned in good condition."
       });
-      loadBooks();
-      loadIssues();
+      loadBooks(true);
+      loadIssues(true);
     } catch (err: any) {
+      loadBooks(true);
+      loadIssues(true);
       toast.error(getErrorMessage(err, "Failed to return book"));
     }
   };
