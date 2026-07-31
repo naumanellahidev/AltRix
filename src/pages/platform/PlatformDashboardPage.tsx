@@ -511,18 +511,6 @@ export default function PlatformDashboardPage() {
               <p className="text-sm font-bold text-white">Status: {dbStats.backupStatus}</p>
             </div>
           </div>
-          <span className="text-[10px] text-indigo-400 bg-indigo-950/40 border border-indigo-500/30 px-2 py-0.5 rounded font-mono font-bold">24h Encrypted</span>
-        </div>
-      </div>
-          <div className="flex items-center gap-3">
-            <Activity className="h-5 w-5 text-amber-500" />
-            <div>
-              <p className="text-xs text-zinc-400">Database Consistency</p>
-              <p className="text-sm font-semibold text-white">{dbStats.backupStatus}</p>
-            </div>
-          </div>
-          <span className="text-[10px] text-amber-400 bg-amber-950/20 px-2 py-0.5 rounded font-mono">Passed</span>
-        </div>
       </div>
 
       {/* Switcher & Global Search Grid */}
