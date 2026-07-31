@@ -47,6 +47,10 @@ export default function PlatformSettingsPage() {
         localStorage.setItem("altrix_global_ai_enabled", String(isEnabled));
       } catch (err) {
         console.error("Failed to load global AI status:", err);
+        const saved = localStorage.getItem("altrix_global_ai_enabled");
+        if (saved !== null) {
+          setAiEnabled(saved === "true");
+        }
       }
     };
     fetchAiSettings();
@@ -56,6 +60,7 @@ export default function PlatformSettingsPage() {
     setIsAiLoading(true);
     setAiEnabled(val);
     localStorage.setItem("altrix_global_ai_enabled", String(val));
+    window.dispatchEvent(new CustomEvent("altrix:global-ai-changed", { detail: val }));
     try {
       await apiClient.post("/ai/settings", { enabled: val });
       toast.success(val ? "Global AI Copilot has been enabled system-wide." : "Global AI Copilot has been disabled system-wide.");

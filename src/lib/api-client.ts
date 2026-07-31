@@ -76,23 +76,23 @@ apiClient.interceptors.request.use(
       console.warn("Failed to retrieve Supabase session:", e);
     }
 
-    // 2. Resolve and inject the X-School-Id header dynamically
-    if (!config.headers["X-School-Id"]) {
+    // 2. Resolve and inject the X-School-Id header dynamically for tenant routes only
+    const pathSegments = window.location.pathname.split("/").filter(Boolean);
+    const firstSegment = pathSegments[0] || "";
+    const isSystemRoute = ["super_admin", "platform", "auth", "reset-password"].includes(firstSegment);
+
+    if (!isSystemRoute && !config.headers["X-School-Id"]) {
       let schoolId: string | null = null;
       try {
         schoolId = localStorage.getItem("eduverse_active_school_id");
         
         // First check current URL pathname for slug
-        if (!schoolId) {
-          const pathParts = window.location.pathname.split("/").filter(Boolean);
-          const possibleSlug = pathParts[0];
-          if (possibleSlug && possibleSlug !== "platform" && possibleSlug !== "auth") {
-            const item = localStorage.getItem(`eduverse_tenant_${possibleSlug}`);
-            if (item) {
-              const parsed = JSON.parse(item);
-              if (parsed?.data?.id) {
-                schoolId = parsed.data.id;
-              }
+        if (!schoolId && firstSegment) {
+          const item = localStorage.getItem(`eduverse_tenant_${firstSegment}`);
+          if (item) {
+            const parsed = JSON.parse(item);
+            if (parsed?.data?.id) {
+              schoolId = parsed.data.id;
             }
           }
         }

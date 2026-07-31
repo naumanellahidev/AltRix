@@ -547,7 +547,23 @@ export default function AltrixCopilot() {
 
   const [isOpen, setIsOpen] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
-  const [aiEnabled, setAiEnabled] = useState(true);
+  const [aiEnabled, setAiEnabled] = useState(() => {
+    const saved = localStorage.getItem("altrix_global_ai_enabled");
+    return saved !== null ? saved === "true" : true;
+  });
+
+  useEffect(() => {
+    const handleGlobalAiChange = (e: Event) => {
+      const customEv = e as CustomEvent<boolean>;
+      if (typeof customEv.detail === "boolean") {
+        setAiEnabled(customEv.detail);
+      }
+    };
+    window.addEventListener("altrix:global-ai-changed", handleGlobalAiChange);
+    return () => {
+      window.removeEventListener("altrix:global-ai-changed", handleGlobalAiChange);
+    };
+  }, []);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
@@ -683,10 +699,17 @@ export default function AltrixCopilot() {
     apiClient
       .get<{ enabled: boolean }>(`/ai/settings${params}`)
       .then((res) => {
-        setAiEnabled(res.data?.enabled !== false);
+        const enabled = res.data?.enabled !== false;
+        setAiEnabled(enabled);
+        if (!effectiveId) {
+          localStorage.setItem("altrix_global_ai_enabled", String(enabled));
+        }
       })
       .catch(() => {
-        setAiEnabled(true);
+        const saved = localStorage.getItem("altrix_global_ai_enabled");
+        if (saved !== null) {
+          setAiEnabled(saved === "true");
+        }
       });
   }, [user, schoolId, schoolSlug, location.pathname]);
 
