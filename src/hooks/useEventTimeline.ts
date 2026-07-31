@@ -54,7 +54,7 @@ export function useEventTimeline(category?: string, page = 1, limit = 20) {
       // 2. Fetch via Supabase direct fallback
       const { data: profile } = await supabase
         .from("profiles")
-        .select("school_id, campus_id")
+        .select("school_id")
         .eq("id", userId)
         .maybeSingle();
 
@@ -81,8 +81,8 @@ export function useEventTimeline(category?: string, page = 1, limit = 20) {
         ["super_admin", "school_owner", "principal", "vice_principal"].includes(roleName)
       );
 
-      if (profile.campus_id && !isSchoolAdmin) {
-        query = query.eq("campus_id", profile.campus_id);
+      if ((profile as any)?.campus_id && !isSchoolAdmin) {
+        query = query.eq("campus_id", (profile as any).campus_id);
       }
 
       const { data: rows, count, error: dbErr } = await query
