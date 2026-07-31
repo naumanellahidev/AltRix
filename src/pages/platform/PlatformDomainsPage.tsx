@@ -537,7 +537,7 @@ export default function PlatformDomainsPage() {
 
               <div className="flex items-center justify-between p-3 rounded-xl border border-slate-200 bg-slate-50">
                 <div>
-                  <p className="text-sm font-bold text-slate-900">Force HTTP -> HTTPS 301 Redirect</p>
+                  <p className="text-sm font-bold text-slate-900">Force HTTP {"->"} HTTPS 301 Redirect</p>
                   <p className="text-xs text-slate-500 font-medium">Automatically upgrade unencrypted HTTP traffic</p>
                 </div>
                 <Switch checked={forceHttps} onCheckedChange={setForceHttps} />
