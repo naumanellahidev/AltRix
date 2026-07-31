@@ -15,7 +15,7 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import {
   Globe, ShieldCheck, RefreshCw, Plus, Trash2, CheckCircle2, Zap,
-  Activity, Sliders, Upload, History, KeyRound, Inbox, Loader2
+  Activity, Sliders, Upload, History, KeyRound, Inbox, Loader2, Copy, Check
 } from "lucide-react";
 
 type CustomDomain = {
@@ -68,6 +68,12 @@ export default function PlatformDomainsPage() {
 
   // Modals & Drawers State
   const [selectedDomain, setSelectedDomain] = useState<CustomDomain | null>(null);
+  
+  // Registrar Setup Modal
+  const [registrarModalOpen, setRegistrarModalOpen] = useState(false);
+  const [verifyingRegistrar, setVerifyingRegistrar] = useState(false);
+  const [copiedField, setCopiedField] = useState<string | null>(null);
+
   const [diagModalOpen, setDiagModalOpen] = useState(false);
   const [diagResult, setDiagResult] = useState<DnsDiagResult | null>(null);
   const [diagLoading, setDiagLoading] = useState(false);
@@ -126,10 +132,13 @@ export default function PlatformDomainsPage() {
     try {
       const res = await apiClient.post("/super_admin/domains", { domain: clean, slug: newSlug });
       toast.success(res.data?.message || "Custom domain registered successfully!", {
-        description: `Add CNAME pointing to altrix.pk or TXT verification record.`
+        description: `Configure CNAME or TXT records at domain registrar.`
       });
       setNewDomain("");
       await loadDomains();
+      if (res.data?.domain) {
+        openRegistrarModal(res.data.domain);
+      }
     } catch (err: any) {
       toast.error(err?.response?.data?.detail || "Failed to register custom domain");
     } finally {
@@ -139,12 +148,10 @@ export default function PlatformDomainsPage() {
 
   const handleDeleteDomain = async (domainObj: CustomDomain) => {
     const targetKey = domainObj.domain || domainObj.id;
-    // Optimistic UI delete
     setDomains(prev => prev.filter(d => d.domain !== domainObj.domain && d.id !== domainObj.id));
     toast.success(`Domain ${domainObj.domain} deleted.`);
     
     try {
-      // Execute REAL PostgreSQL delete query using exact domain name parameter
       await apiClient.delete(`/super_admin/domains/${encodeURIComponent(targetKey)}`);
       await loadDomains();
     } catch (err: any) {
@@ -162,6 +169,42 @@ export default function PlatformDomainsPage() {
     } catch (err) {
       console.error("Purge error:", err);
     }
+  };
+
+  // Open Registrar Setup Modal
+  const openRegistrarModal = (domainObj: CustomDomain) => {
+    setSelectedDomain(domainObj);
+    setRegistrarModalOpen(true);
+  };
+
+  const handleVerifyRegistrarLive = async () => {
+    if (!selectedDomain) return;
+    setVerifyingRegistrar(true);
+    try {
+      const res = await apiClient.post("/super_admin/domains/verify-registrar", {
+        domain: selectedDomain.domain,
+        method: "auto"
+      });
+
+      if (res.data?.verified) {
+        toast.success(res.data.message || "Domain registrar records verified! Domain is now Active.");
+        setRegistrarModalOpen(false);
+        await loadDomains();
+      } else {
+        toast.error(res.data?.message || "DNS records not detected yet at registrar. Please wait 1-2 mins for DNS propagation.");
+      }
+    } catch (err: any) {
+      toast.error(err?.response?.data?.detail || "Failed to verify DNS registrar records.");
+    } finally {
+      setVerifyingRegistrar(false);
+    }
+  };
+
+  const copyToClipboard = (textToCopy: string, fieldName: string) => {
+    navigator.clipboard.writeText(textToCopy);
+    setCopiedField(fieldName);
+    toast.success(`Copied ${fieldName} to clipboard!`);
+    setTimeout(() => setCopiedField(null), 2000);
   };
 
   const handleVerifyCname = async (domainName: string) => {
@@ -334,7 +377,7 @@ export default function PlatformDomainsPage() {
         <Card className="bg-white border border-slate-200 shadow-md">
           <CardHeader>
             <CardTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
-              <Plus className="h-5 w-5 text-blue-600" /> Map New Custom Domain (CNAME)
+              <Plus className="h-5 w-5 text-blue-600" /> Map New Custom Domain (CNAME / TXT)
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -412,7 +455,7 @@ export default function PlatformDomainsPage() {
                   <TableRow className="border-slate-200">
                     <TableHead className="text-slate-700 font-extrabold">Custom Domain URL</TableHead>
                     <TableHead className="text-slate-700 font-extrabold">Target Campus</TableHead>
-                    <TableHead className="text-slate-700 font-extrabold">Health Score</TableHead>
+                    <TableHead className="text-slate-700 font-extrabold">Health & Verification</TableHead>
                     <TableHead className="text-slate-700 font-extrabold">Edge SSL & Expiry</TableHead>
                     <TableHead className="text-slate-700 font-extrabold">Security Headers</TableHead>
                     <TableHead className="text-right text-slate-700 font-extrabold">Actions & Tools</TableHead>
@@ -429,11 +472,16 @@ export default function PlatformDomainsPage() {
                       </TableCell>
                       <TableCell className="font-mono text-slate-700 font-bold">/{d.slug}</TableCell>
                       <TableCell>
-                        <Badge variant="outline" className={`font-bold ${
-                          (d.health_score || 100) >= 90 ? "bg-emerald-50 text-emerald-800 border-emerald-300" : "bg-amber-50 text-amber-800 border-amber-300"
-                        }`}>
-                          {d.health_score || 100}/100
-                        </Badge>
+                        <div className="flex flex-col gap-1">
+                          <Badge variant="outline" className={`w-fit font-bold ${
+                            d.status === "Active" ? "bg-emerald-50 text-emerald-800 border-emerald-300" : "bg-amber-50 text-amber-800 border-amber-300"
+                          }`}>
+                            {d.status || "Active"}
+                          </Badge>
+                          <Button size="sm" variant="link" onClick={() => openRegistrarModal(d)} className="p-0 h-auto text-[11px] font-bold text-blue-600 hover:text-blue-800 justify-start">
+                            Registrar Setup & Verify →
+                          </Button>
+                        </div>
                       </TableCell>
                       <TableCell>
                         <div className="flex flex-col gap-1">
@@ -486,7 +534,90 @@ export default function PlatformDomainsPage() {
           </CardContent>
         </Card>
 
-        {/* 1. DNS & CAA Diagnostics Modal */}
+        {/* 1. Registrar Verification Setup Modal */}
+        <Dialog open={registrarModalOpen} onOpenChange={setRegistrarModalOpen}>
+          <DialogContent className="bg-white border-slate-200 text-slate-900 max-w-2xl">
+            <DialogHeader>
+              <DialogTitle className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                <Globe className="h-5 w-5 text-blue-600" /> Domain Registrar DNS Verification Instructions
+              </DialogTitle>
+              <DialogDescription className="text-xs text-slate-500 font-medium">
+                Add either record below at your domain registrar (Cloudflare, GoDaddy, Namecheap, Route53) for <span className="font-mono text-blue-700 font-bold">{selectedDomain?.domain}</span>
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4 py-2">
+              {/* Option A: CNAME Record */}
+              <div className="p-4 rounded-xl border border-blue-200 bg-blue-50/50 space-y-2">
+                <div className="flex items-center justify-between">
+                  <Badge className="bg-blue-600 text-white font-bold text-xs">Option A (Recommended): CNAME Record</Badge>
+                  <span className="text-xs text-blue-700 font-bold">Proxy Routing</span>
+                </div>
+                <div className="grid grid-cols-3 gap-2 text-xs font-mono bg-white p-3 rounded-lg border border-blue-200">
+                  <div>
+                    <span className="text-[10px] text-slate-400 font-sans font-bold uppercase block">Record Type</span>
+                    <span className="font-bold text-slate-800">CNAME</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-400 font-sans font-bold uppercase block">Host / Name</span>
+                    <span className="font-bold text-blue-700">{selectedDomain?.domain}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="text-[10px] text-slate-400 font-sans font-bold uppercase block">Points To</span>
+                      <span className="font-bold text-emerald-700">altrix.pk</span>
+                    </div>
+                    <Button size="icon" variant="ghost" className="h-7 w-7 text-blue-600" onClick={() => copyToClipboard("altrix.pk", "CNAME Target")}>
+                      {copiedField === "CNAME Target" ? <Check className="h-4 w-4 text-emerald-600" /> : <Copy className="h-4 w-4" />}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Option B: TXT Record Challenge */}
+              <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-2">
+                <div className="flex items-center justify-between">
+                  <Badge variant="outline" className="border-slate-300 bg-white text-slate-800 font-bold text-xs">Option B: TXT Ownership Challenge</Badge>
+                  <span className="text-xs text-slate-500 font-bold">Ownership Verification Only</span>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs font-mono bg-white p-3 rounded-lg border border-slate-200">
+                  <div>
+                    <span className="text-[10px] text-slate-400 font-sans font-bold uppercase block">TXT Host Name</span>
+                    <span className="font-bold text-slate-800 truncate block">_altrix-challenge.{selectedDomain?.domain}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className="min-w-0 flex-1">
+                      <span className="text-[10px] text-slate-400 font-sans font-bold uppercase block">TXT Token Value</span>
+                      <span className="font-bold text-blue-700 truncate block">{selectedDomain?.verification_token || `altrix-verification=${selectedDomain?.id?.slice(0,8)}`}</span>
+                    </div>
+                    <Button size="icon" variant="ghost" className="h-7 w-7 text-blue-600 shrink-0" onClick={() => copyToClipboard(selectedDomain?.verification_token || `altrix-verification=${selectedDomain?.id?.slice(0,8)}`, "TXT Token")}>
+                      {copiedField === "TXT Token" ? <Check className="h-4 w-4 text-emerald-600" /> : <Copy className="h-4 w-4" />}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <DialogFooter className="gap-2 sm:gap-0">
+              <Button variant="outline" onClick={() => setRegistrarModalOpen(false)} className="border-slate-300 text-slate-700 font-bold">
+                Close
+              </Button>
+              <Button onClick={handleVerifyRegistrarLive} disabled={verifyingRegistrar} className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold">
+                {verifyingRegistrar ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" /> Querying Registrar DNS…
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="h-4 w-4 mr-2" /> Verify Registrar Records Now
+                  </>
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* 2. DNS & CAA Diagnostics Modal */}
         <Dialog open={diagModalOpen} onOpenChange={setDiagModalOpen}>
           <DialogContent className="bg-white border-slate-200 text-slate-900 max-w-2xl">
             <DialogHeader>
@@ -578,7 +709,7 @@ export default function PlatformDomainsPage() {
           </DialogContent>
         </Dialog>
 
-        {/* 2. Security Headers Modal */}
+        {/* 3. Security Headers Modal */}
         <Dialog open={headersModalOpen} onOpenChange={setHeadersModalOpen}>
           <DialogContent className="bg-white border-slate-200 text-slate-900 max-w-lg">
             <DialogHeader>
@@ -645,7 +776,7 @@ export default function PlatformDomainsPage() {
           </DialogContent>
         </Dialog>
 
-        {/* 3. Upload Custom Certificate Modal */}
+        {/* 4. Upload Custom Certificate Modal */}
         <Dialog open={certModalOpen} onOpenChange={setCertModalOpen}>
           <DialogContent className="bg-white border-slate-200 text-slate-900 max-w-xl">
             <DialogHeader>
@@ -701,7 +832,7 @@ export default function PlatformDomainsPage() {
           </DialogContent>
         </Dialog>
 
-        {/* 4. Domain Audit History Modal */}
+        {/* 5. Domain Audit History Modal */}
         <Dialog open={auditDrawerOpen} onOpenChange={setAuditDrawerOpen}>
           <DialogContent className="bg-white border-slate-200 text-slate-900 max-w-lg">
             <DialogHeader>
