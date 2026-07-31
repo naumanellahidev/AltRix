@@ -671,21 +671,18 @@ export default function AltrixCopilot() {
   // ── Fetch AI Settings ─────────────────────────────────────────────────────
   useEffect(() => {
     if (!user) return;
-    const safeSchoolId = typeof schoolId === "string" ? schoolId : (schoolId && typeof schoolId === "object" ? ((schoolId as any).id || String(schoolId)) : "");
-    const params = safeSchoolId ? `?school_id=${encodeURIComponent(String(safeSchoolId))}` : "";
+    const rawSchoolId = typeof schoolId === "string" ? schoolId : (schoolId && typeof schoolId === "object" ? ((schoolId as any).id || String(schoolId)) : "");
+    const effectiveId = rawSchoolId || schoolSlug || localStorage.getItem("eduverse_active_school_id") || "";
+    const params = effectiveId ? `?school_id=${encodeURIComponent(String(effectiveId))}` : "";
     apiClient
       .get<{ enabled: boolean }>(`/ai/settings${params}`)
       .then((res) => {
-        if (typeof res.data?.enabled === "boolean") {
-          setAiEnabled(res.data.enabled);
-        } else {
-          setAiEnabled(true);
-        }
+        setAiEnabled(res.data?.enabled !== false);
       })
       .catch(() => {
         setAiEnabled(true);
       });
-  }, [user, schoolId]);
+  }, [user, schoolId, schoolSlug]);
 
   // ── Restore Chat History ──────────────────────────────────────────────────
   useEffect(() => {

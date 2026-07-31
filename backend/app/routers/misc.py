@@ -2341,15 +2341,17 @@ Upcoming Holidays: {holidays_str}
 @ai_router.get("/settings")
 async def get_ai_settings(
     db: DbSession,
+    request: Request,
     school_id: Optional[str] = None,
 ):
     """
     Returns AI enabled status.
-    - If school_id is provided → returns the per-school toggle.
-    - Otherwise → returns the global platform-level toggle.
+    - If school_id is provided or passed in X-School-Id header → returns the per-school toggle.
+    - Defaults to True so AI Copilot is always active for school shells.
     """
-    if school_id:
-        enabled = await get_school_ai_status(db, school_id)
+    target_id = school_id or request.headers.get("X-School-Id")
+    if target_id:
+        enabled = await get_school_ai_status(db, target_id)
     else:
         enabled = await get_ai_status(db)
     return {"enabled": enabled}
