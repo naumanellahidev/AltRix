@@ -477,6 +477,7 @@ export default function PlatformSchoolsPage() {
                               <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${s.is_active ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" : "bg-zinc-800 text-zinc-400 border border-zinc-700"}`}>
                                 {s.is_active ? "Active" : "Disabled"}
                               </span>
+                            </TableCell>
                             <TableCell className="text-right">
                               <Button
                                 size="sm"
@@ -501,7 +502,7 @@ export default function PlatformSchoolsPage() {
                         ))}
                         {filteredSchools.length === 0 && (
                           <TableRow>
-                            <TableCell colSpan={5} className="text-center py-6 text-zinc-500">
+                            <TableCell colSpan={4} className="text-center py-6 text-zinc-500">
                               No schools found.
                             </TableCell>
                           </TableRow>
