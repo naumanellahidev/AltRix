@@ -1259,6 +1259,7 @@ async def set_ai_status(db: DbSession, enabled: bool):
         """),
         {"val": json.dumps({"enabled": enabled})}
     )
+    await db.commit()
 
 # ── Per-school AI toggle ──────────────────────────────────────────────────────
 
