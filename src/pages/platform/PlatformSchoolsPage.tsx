@@ -390,13 +390,13 @@ export default function PlatformSchoolsPage() {
     >
       <div className="space-y-6 text-zinc-100">
         {authz !== "ok" && (
-          <Card className="bg-zinc-950/80 border-cyan-500/20 shadow-xl backdrop-blur-xl">
+          <Card className="bg-white border-slate-200 shadow-md">
             <CardHeader>
-              <CardTitle className="text-xl font-black text-white">Access Check</CardTitle>
-              <p className="text-xs text-zinc-400">Platform Super Admin authorization required</p>
+              <CardTitle className="text-xl font-black text-slate-900">Access Check</CardTitle>
+              <p className="text-xs text-slate-500">Platform Super Admin authorization required</p>
             </CardHeader>
             <CardContent>
-              <div className="rounded-2xl border border-zinc-800 bg-zinc-900/50 p-4 text-sm text-zinc-300">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
                 {authz === "checking" ? "Verifying platform access credentials…" : authzMessage ?? "Access denied."}
               </div>
             </CardContent>
@@ -406,7 +406,7 @@ export default function PlatformSchoolsPage() {
         {authz === "ok" && (
           <>
             {/* Sub-tabs Navigation */}
-            <div className="flex flex-wrap gap-2 border-b border-zinc-800/80 pb-px mb-6">
+            <div className="flex flex-wrap gap-2 border-b border-slate-200 pb-px mb-6">
               {[
                 { id: "directory", label: "Schools Portfolio", icon: ListFilter },
                 { id: "provisioning", label: "1-Click Provisioner", icon: PlusCircle },
@@ -422,11 +422,11 @@ export default function PlatformSchoolsPage() {
                     onClick={() => setActiveTab(tab.id as any)}
                     className={`flex items-center gap-2.5 px-4 py-3 text-xs font-bold border-b-2 transition-all duration-200 -mb-px ${
                       active
-                        ? "border-cyan-400 text-cyan-300 font-extrabold bg-cyan-500/10 rounded-t-lg"
-                        : "border-transparent text-zinc-400 hover:text-zinc-200 hover:border-zinc-700"
+                        ? "border-blue-600 text-blue-700 font-extrabold bg-blue-50/80 rounded-t-lg shadow-sm"
+                        : "border-transparent text-slate-500 hover:text-slate-900 hover:border-slate-300"
                     }`}
                   >
-                    <Icon className={`h-4 w-4 ${active ? "text-cyan-400" : "text-zinc-500"}`} />
+                    <Icon className={`h-4 w-4 ${active ? "text-blue-600" : "text-slate-400"}`} />
                     {tab.label}
                   </button>
                 );

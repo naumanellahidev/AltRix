@@ -211,26 +211,26 @@ export default function PlatformAddonsPage() {
       title="06. Feature Flag Matrix & Add-On Control"
       subtitle="14-Module SaaS feature toggle matrix per tenant fleet with 1-click bulk master switches"
     >
-      <div className="space-y-6 text-zinc-100">
+      <div className="space-y-6 text-slate-900">
         
         {/* Tenant Selector & Bulk Controls Header */}
-        <Card className="bg-zinc-950/80 border-cyan-500/20 backdrop-blur-xl shadow-xl">
-          <CardHeader className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b border-zinc-900 pb-5">
+        <Card className="bg-white border-slate-200 shadow-md">
+          <CardHeader className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b border-slate-100 pb-5">
             <div>
-              <CardTitle className="text-lg font-black text-white flex items-center gap-2.5">
-                <Cpu className="h-5 w-5 text-cyan-400" /> Active School Feature Matrix Hub
+              <CardTitle className="text-lg font-black text-slate-900 flex items-center gap-2.5">
+                <Cpu className="h-5 w-5 text-blue-600" /> Active School Feature Matrix Hub
               </CardTitle>
-              <p className="text-xs text-zinc-400 mt-1">Select a tenant campus to view and configure all 14 SaaS feature modules</p>
+              <p className="text-xs text-slate-500 mt-1 font-medium">Select a tenant campus to view and configure all 14 SaaS feature modules</p>
             </div>
             <div className="flex flex-wrap items-center gap-3">
               <Select value={selectedSchoolId} onValueChange={setSelectedSchoolId} disabled={loading || schools.length === 0}>
-                <SelectTrigger className="w-[280px] bg-zinc-900 border-zinc-800 text-cyan-300 font-bold focus:ring-cyan-500/30">
+                <SelectTrigger className="w-[280px] bg-slate-50 border-slate-200 text-blue-900 font-bold focus:ring-blue-500/30">
                   <SelectValue placeholder={loading ? "Loading campuses..." : "Select Campus Tenant"} />
                 </SelectTrigger>
-                <SelectContent className="bg-zinc-950 border-zinc-800 text-zinc-200">
+                <SelectContent className="bg-white border-slate-200 text-slate-800">
                   {schools.map(s => (
-                    <SelectItem key={s.id} value={s.id} className="focus:bg-cyan-500/10 focus:text-cyan-300 font-medium">
-                      {s.name} <span className="text-xs text-zinc-500 font-mono">({s.slug})</span>
+                    <SelectItem key={s.id} value={s.id} className="focus:bg-blue-50 focus:text-blue-900 font-medium">
+                      {s.name} <span className="text-xs text-slate-400 font-mono">({s.slug})</span>
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -240,7 +240,7 @@ export default function PlatformAddonsPage() {
                 variant="outline"
                 size="sm"
                 onClick={() => handleBulkToggle(true)}
-                className="bg-emerald-950/30 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20 font-bold"
+                className="bg-emerald-50 border-emerald-300 text-emerald-800 hover:bg-emerald-100 font-bold"
               >
                 <CheckCircle2 className="h-4 w-4 mr-1.5" /> Enable All
               </Button>
@@ -249,7 +249,7 @@ export default function PlatformAddonsPage() {
                 variant="outline"
                 size="sm"
                 onClick={() => handleBulkToggle(false)}
-                className="bg-rose-950/30 border-rose-500/30 text-rose-400 hover:bg-rose-500/20 font-bold"
+                className="bg-rose-50 border-rose-300 text-rose-800 hover:bg-rose-100 font-bold"
               >
                 <XCircle className="h-4 w-4 mr-1.5" /> Disable All
               </Button>
@@ -257,19 +257,19 @@ export default function PlatformAddonsPage() {
               <Button
                 onClick={handleSave}
                 disabled={busy || selectedSchoolId === "__none__"}
-                className="bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-zinc-950 font-black shadow-lg shadow-cyan-500/20 border border-cyan-400/30"
+                className="bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 hover:from-blue-500 hover:to-indigo-500 text-white font-black shadow-md shadow-blue-500/20 border-0"
               >
                 <Save className={`h-4 w-4 mr-2 ${busy ? "animate-spin" : ""}`} /> Save Feature Matrix
               </Button>
             </div>
           </CardHeader>
-          <CardContent className="pt-5">
-            <div className="flex items-center justify-between text-xs text-zinc-400 font-mono bg-zinc-900/60 p-3 rounded-xl border border-zinc-800/80">
-              <span className="flex items-center gap-2">
-                <span className="h-2 w-2 rounded-full bg-cyan-400 animate-pulse" />
-                Active Campus: <strong className="text-white font-sans">{schools.find(s => s.id === selectedSchoolId)?.name || "None Selected"}</strong>
+          <CardContent className="pt-4">
+            <div className="flex items-center justify-between text-xs text-slate-600 font-mono bg-slate-50 p-3 rounded-xl border border-slate-200/80">
+              <span className="flex items-center gap-2 font-sans font-medium">
+                <span className="h-2 w-2 rounded-full bg-blue-600 animate-pulse" />
+                Active Campus: <strong className="text-slate-900 font-bold">{schools.find(s => s.id === selectedSchoolId)?.name || "None Selected"}</strong>
               </span>
-              <span>14 Modules Registered</span>
+              <span className="font-bold text-blue-800">14 Modules Registered</span>
             </div>
           </CardContent>
         </Card>
@@ -282,25 +282,25 @@ export default function PlatformAddonsPage() {
             return (
               <Card 
                 key={addon.key} 
-                className={`transition-all duration-300 border backdrop-blur-xl ${
+                className={`transition-all duration-300 border ${
                   isEnabled 
-                    ? "bg-zinc-900/70 border-cyan-500/30 shadow-[0_0_20px_rgba(6,182,212,0.08)]" 
-                    : "bg-zinc-950/50 border-zinc-900 opacity-70 hover:opacity-100"
+                    ? "bg-white border-blue-300 shadow-md shadow-blue-500/5" 
+                    : "bg-slate-50/70 border-slate-200 opacity-75 hover:opacity-100"
                 }`}
               >
                 <CardHeader className="flex flex-row items-start justify-between pb-2 space-y-0">
                   <div className="flex items-center gap-3">
                     <div className={`p-2.5 rounded-xl border ${
                       isEnabled 
-                        ? "bg-cyan-500/10 border-cyan-500/30 text-cyan-400 shadow-[0_0_12px_rgba(6,182,212,0.2)]" 
-                        : "bg-zinc-900 border-zinc-800 text-zinc-500"
+                        ? "bg-blue-50 border-blue-200 text-blue-700 shadow-sm" 
+                        : "bg-slate-100 border-slate-200 text-slate-400"
                     }`}>
                       <Icon className="h-5 w-5" />
                     </div>
                     <div>
-                      <CardTitle className="text-sm font-bold text-white">{addon.name}</CardTitle>
+                      <CardTitle className="text-sm font-bold text-slate-900">{addon.name}</CardTitle>
                       <Badge variant="outline" className={`mt-1 text-[10px] uppercase font-mono ${
-                        isEnabled ? "bg-cyan-950/40 text-cyan-400 border-cyan-500/30" : "bg-zinc-900 text-zinc-500 border-zinc-800"
+                        isEnabled ? "bg-blue-50 text-blue-800 border-blue-200 font-bold" : "bg-slate-100 text-slate-500 border-slate-200"
                       }`}>
                         {addon.category}
                       </Badge>
@@ -309,16 +309,16 @@ export default function PlatformAddonsPage() {
                   <Switch
                     checked={isEnabled}
                     onCheckedChange={() => handleToggle(addon.key)}
-                    className="data-[state=checked]:bg-cyan-500"
+                    className="data-[state=checked]:bg-blue-600"
                   />
                 </CardHeader>
                 <CardContent className="pt-2">
-                  <p className="text-xs text-zinc-400 leading-relaxed font-sans min-h-[36px]">
+                  <p className="text-xs text-slate-600 leading-relaxed font-sans font-medium min-h-[36px]">
                     {addon.desc}
                   </p>
-                  <div className="mt-4 pt-3 border-t border-zinc-800/60 flex items-center justify-between text-[11px] font-mono">
-                    <span className="text-zinc-500">Module Status:</span>
-                    <span className={`font-bold ${isEnabled ? "text-emerald-400" : "text-rose-400"}`}>
+                  <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] font-mono">
+                    <span className="text-slate-400 font-medium">Module Status:</span>
+                    <span className={`font-bold ${isEnabled ? "text-emerald-700" : "text-rose-600"}`}>
                       {isEnabled ? "ENABLED FOR TENANT" : "DISABLED"}
                     </span>
                   </div>
