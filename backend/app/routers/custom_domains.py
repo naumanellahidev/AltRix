@@ -1,10 +1,10 @@
 """
 AltRix Super Admin — Custom Domain Authority & Edge SSL Manager Router
-Manages custom domain CNAME mappings in PostgreSQL, performs live socket/DNS CNAME ping checks,
-SSL handshake certificate chain inspections, BYO SSL cert uploads, DNS multi-record diagnostics,
-and domain registrar TXT/CNAME verification.
+Manages custom domain CNAME mappings in PostgreSQL, performs authentic multi-nameserver DNS lookups
+(Cloudflare 1.1.1.1, Google 8.8.8.8, Quad9 9.9.9.9) for live registrar CNAME and TXT challenge verification,
+SSL handshake certificate chain inspections, BYO SSL cert uploads, and DNS multi-record diagnostics.
 
-Zero dummy data — 100% real-time database transactions with high-speed DNS resolution.
+Zero dummy fallbacks — 100% authentic DNS wire protocol verification.
 """
 from typing import Dict, Any, Optional, List
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -15,7 +15,6 @@ import socket
 import ssl
 import uuid
 import secrets
-import asyncio
 from datetime import datetime, timedelta
 import dns.resolver
 
@@ -244,10 +243,10 @@ async def add_custom_domain(req: AddDomainRequest, db: AsyncSession = Depends(ge
 @router.post("/verify-registrar")
 async def verify_domain_registrar_records(req: VerifyRegistrarRequest, db: AsyncSession = Depends(get_db)):
     """
-    Perform live DNS query against public DNS resolvers to verify domain registrar TXT or CNAME records.
-    Method 'cname': verifies CNAME points to altrix.pk
-    Method 'txt': verifies TXT record at _altrix-challenge.<domain> contains verification token
-    Method 'auto': checks both CNAME and TXT
+    100% Authentic DNS Wire Protocol Verification.
+    Directly queries public authoritative DNS resolvers (Cloudflare 1.1.1.1, Google 8.8.8.8, Quad9 9.9.9.9).
+    Verifies actual live CNAME pointing to altrix.pk or TXT challenge token at _altrix-challenge.<domain>.
+    Zero dummy fallbacks or dummy IP matching.
     """
     await _ensure_domains_table(db)
     clean_domain = req.domain.strip().lower()
@@ -263,41 +262,35 @@ async def verify_domain_registrar_records(req: VerifyRegistrarRequest, db: Async
 
     cname_found = False
     txt_found = False
-    detected_target = None
+    detected_cname = None
     detected_txt = []
 
-    # Configure fast resolver with 1.5s timeout for instant performance
+    # Configure authentic public DNS resolvers
     resolver = dns.resolver.Resolver()
-    resolver.timeout = 1.5
-    resolver.lifetime = 1.5
+    resolver.nameservers = ['1.1.1.1', '8.8.8.8', '9.9.9.9']
+    resolver.timeout = 2.0
+    resolver.lifetime = 2.0
 
-    # 1. CNAME Verification Check
+    # 1. Authentic CNAME Record Inspection
     try:
         cname_answers = resolver.resolve(clean_domain, 'CNAME')
         for rdata in cname_answers:
             cname_str = str(rdata.target).rstrip('.').lower()
-            detected_target = cname_str
-            if "altrix.pk" in cname_str:
+            detected_cname = cname_str
+            if cname_str == "altrix.pk" or cname_str.endswith(".altrix.pk"):
                 cname_found = True
                 break
     except Exception:
-        # Fallback using socket
-        try:
-            resolved_ip = socket.gethostbyname(clean_domain)
-            if resolved_ip:
-                cname_found = True
-                detected_target = resolved_ip
-        except Exception:
-            pass
+        pass
 
-    # 2. TXT Record Challenge Verification Check
+    # 2. Authentic TXT Challenge Record Inspection
     txt_host = f"_altrix-challenge.{clean_domain}"
     try:
         txt_answers = resolver.resolve(txt_host, 'TXT')
         for rdata in txt_answers:
             txt_val = str(rdata).strip('"')
             detected_txt.append(txt_val)
-            if token in txt_val or "altrix-verification" in txt_val:
+            if token in txt_val:
                 txt_found = True
                 break
     except Exception:
@@ -317,7 +310,7 @@ async def verify_domain_registrar_records(req: VerifyRegistrarRequest, db: Async
         """), {"id": domain_id, "d": clean_domain, "exp": exp_date})
         await db.commit()
 
-        method_str = "CNAME Record" if cname_found else "TXT Challenge Record"
+        method_str = "Authentic CNAME Record" if cname_found else "Authentic TXT Challenge Record"
         await _log_domain_action(db, domain_id, clean_domain, "VERIFY_REGISTRAR", f"Verified live via Registrar {method_str}")
 
         return {
@@ -326,9 +319,15 @@ async def verify_domain_registrar_records(req: VerifyRegistrarRequest, db: Async
             "domain": clean_domain,
             "verification_method": method_str,
             "cname_detected": cname_found,
+            "cname_target_found": detected_cname,
+            "expected_cname": "altrix.pk",
             "txt_detected": txt_found,
-            "detected_target": detected_target,
-            "message": f"Domain registrar DNS records verified! {clean_domain} is now Active & SSL Secured.",
+            "txt_records_found": detected_txt,
+            "expected_txt_host": txt_host,
+            "expected_txt_value": token,
+            "queried_nameservers": ["1.1.1.1 (Cloudflare)", "8.8.8.8 (Google DNS)", "9.9.9.9 (Quad9)"],
+            "query_timestamp": datetime.utcnow().isoformat(),
+            "message": f"Authentic DNS Registrar records verified! {clean_domain} is now Active & SSL Secured.",
             "health_score": 100
         }
     else:
@@ -337,12 +336,15 @@ async def verify_domain_registrar_records(req: VerifyRegistrarRequest, db: Async
             "verified": False,
             "domain": clean_domain,
             "cname_detected": cname_found,
-            "txt_detected": txt_found,
-            "detected_target": detected_target,
+            "cname_target_found": detected_cname,
             "expected_cname": "altrix.pk",
+            "txt_detected": txt_found,
+            "txt_records_found": detected_txt,
             "expected_txt_host": txt_host,
             "expected_txt_value": token,
-            "message": f"DNS records not detected yet at domain registrar for {clean_domain}. Add CNAME or TXT record as shown below.",
+            "queried_nameservers": ["1.1.1.1 (Cloudflare)", "8.8.8.8 (Google DNS)", "9.9.9.9 (Quad9)"],
+            "query_timestamp": datetime.utcnow().isoformat(),
+            "message": f"DNS records not published yet at domain registrar for {clean_domain}. Add CNAME or TXT record as shown below.",
             "instructions": {
                 "cname_option": {"type": "CNAME", "host": clean_domain, "points_to": "altrix.pk"},
                 "txt_option": {"type": "TXT", "host": txt_host, "value": token}
