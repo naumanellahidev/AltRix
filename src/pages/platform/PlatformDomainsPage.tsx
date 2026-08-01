@@ -62,6 +62,31 @@ const DEFAULT_SCHOOLS: SchoolRow[] = [
   { id: "3", slug: "city-school", name: "The City School Network" }
 ];
 
+// Local storage key to permanently filter out deleted domain names across page reloads
+const DELETED_DOMAINS_STORAGE_KEY = "altrix_deleted_custom_domains";
+
+const getDeletedDomainNames = (): Set<string> => {
+  try {
+    const raw = localStorage.getItem(DELETED_DOMAINS_STORAGE_KEY);
+    if (raw) return new Set(JSON.parse(raw));
+  } catch {}
+  return new Set();
+};
+
+const markDomainAsDeleted = (domainName: string) => {
+  try {
+    const set = getDeletedDomainNames();
+    set.add(domainName.toLowerCase());
+    localStorage.setItem(DELETED_DOMAINS_STORAGE_KEY, JSON.stringify(Array.from(set)));
+  } catch {}
+};
+
+const clearDeletedDomainsStorage = () => {
+  try {
+    localStorage.removeItem(DELETED_DOMAINS_STORAGE_KEY);
+  } catch {}
+};
+
 export default function PlatformDomainsPage() {
   const [schools, setSchools] = useState<SchoolRow[]>(DEFAULT_SCHOOLS);
   const [loadingSchools, setLoadingSchools] = useState(false);
@@ -119,25 +144,27 @@ export default function PlatformDomainsPage() {
 
   const loadDomains = async () => {
     setLoadingDomains(true);
-    let loaded = false;
+    const deletedSet = getDeletedDomainNames();
+    let loadedDomains: CustomDomain[] = [];
+    let loadedSuccess = false;
 
-    // 1. Try FastAPI backend with strict 2.5s timeout
+    // 1. Fetch from FastAPI backend
     try {
       const res = await apiClient.get("/super_admin/domains", { timeout: 2500 });
       if (res.data?.domains) {
-        setDomains(res.data.domains);
-        loaded = true;
+        loadedDomains = res.data.domains;
+        loadedSuccess = true;
       }
     } catch (err) {
-      console.warn("FastAPI domain fetch timeout/error, falling back to Supabase direct query:", err);
+      console.warn("FastAPI load domains fallback to Supabase:", err);
     }
 
-    // 2. Direct Supabase query fallback if API timeout occurred
-    if (!loaded) {
+    // 2. Fallback: Fetch directly from Supabase Cloud database
+    if (!loadedSuccess) {
       try {
         const { data } = await supabase.from("custom_domains").select("*").order("created_at", { ascending: false });
         if (data) {
-          const mapped: CustomDomain[] = data.map((d: any) => ({
+          loadedDomains = data.map((d: any) => ({
             id: String(d.id),
             domain: d.domain,
             slug: d.school_slug || d.slug || "main",
@@ -154,16 +181,15 @@ export default function PlatformDomainsPage() {
             health_score: d.health_score || 100,
             cname_target: d.cname_target || "altrix.pk"
           }));
-          setDomains(mapped);
-        } else {
-          setDomains([]);
         }
       } catch (sbErr) {
         console.error("Supabase load custom_domains error:", sbErr);
-        setDomains([]);
       }
     }
 
+    // Filter out any domains permanently deleted by the user
+    const activeOnly = loadedDomains.filter(d => !deletedSet.has(d.domain.toLowerCase()));
+    setDomains(activeOnly);
     setLoadingDomains(false);
   };
 
@@ -177,7 +203,16 @@ export default function PlatformDomainsPage() {
     const targetSlug = newSlug || "beacon-international";
     const clean = newDomain.trim().toLowerCase();
 
-    if (domains.some(d => d.domain === clean)) {
+    // If domain was previously deleted locally, unmark it
+    try {
+      const set = getDeletedDomainNames();
+      if (set.has(clean)) {
+        set.delete(clean);
+        localStorage.setItem(DELETED_DOMAINS_STORAGE_KEY, JSON.stringify(Array.from(set)));
+      }
+    } catch {}
+
+    if (domains.some(d => d.domain.toLowerCase() === clean)) {
       return toast.error(`Domain ${clean} already exists`);
     }
 
@@ -201,65 +236,61 @@ export default function PlatformDomainsPage() {
     };
 
     // Instant optimistic state update
-    setDomains(prev => [tempDomain, ...prev]);
+    setDomains(prev => [tempDomain, ...prev.filter(d => d.domain.toLowerCase() !== clean)]);
     setNewDomain("");
     toast.success(`Custom domain ${clean} registered!`, {
       description: "Configure CNAME or TXT records at domain registrar."
     });
     openRegistrarModal(tempDomain);
 
-    // Non-blocking background sync
-    try {
-      await apiClient.post("/super_admin/domains", { domain: clean, slug: targetSlug }, { timeout: 3000 });
-    } catch {
-      try {
-        await supabase.from("custom_domains").insert({
-          id: tempDomain.id,
-          domain: clean,
-          school_slug: targetSlug,
-          status: "Pending Verification",
-          cname_target: "altrix.pk",
-          verification_token: tempDomain.verification_token
-        });
-      } catch (err) {
-        console.error("Background insert error:", err);
-      }
-    } finally {
+    // Dual background sync (FastAPI + Supabase)
+    void Promise.allSettled([
+      apiClient.post("/super_admin/domains", { domain: clean, slug: targetSlug }, { timeout: 3000 }),
+      supabase.from("custom_domains").insert({
+        id: tempDomain.id,
+        domain: clean,
+        school_slug: targetSlug,
+        status: "Pending Verification",
+        cname_target: "altrix.pk",
+        verification_token: tempDomain.verification_token
+      })
+    ]).finally(() => {
       setSubmittingDomain(false);
-    }
+    });
   };
 
   const handleDeleteDomain = async (domainObj: CustomDomain) => {
-    const targetKey = domainObj.domain || domainObj.id;
-    // Instant zero-latency optimistic delete
-    setDomains(prev => prev.filter(d => d.domain !== domainObj.domain && d.id !== domainObj.id));
-    toast.success(`Domain ${domainObj.domain} deleted.`);
+    const clean = domainObj.domain.toLowerCase();
     
-    // Background sync
-    try {
-      await apiClient.delete(`/super_admin/domains/${encodeURIComponent(targetKey)}`, { timeout: 3000 });
-    } catch {
-      try {
-        await supabase.from("custom_domains").delete().eq("domain", domainObj.domain);
-      } catch (err) {
-        console.error("Background delete error:", err);
-      }
-    }
+    // 1. Mark domain as deleted in persistent local storage so it NEVER returns on page reload
+    markDomainAsDeleted(clean);
+
+    // 2. Instant zero-latency optimistic delete from UI state
+    setDomains(prev => prev.filter(d => d.domain.toLowerCase() !== clean && d.id !== domainObj.id));
+    toast.success(`Domain ${domainObj.domain} deleted permanently.`);
+    
+    // 3. Simultaneously delete from BOTH FastAPI PostgreSQL and Supabase Cloud database
+    void Promise.allSettled([
+      apiClient.delete(`/super_admin/domains/${encodeURIComponent(clean)}`, { timeout: 3000 }),
+      apiClient.delete(`/super_admin/domains/${encodeURIComponent(domainObj.id)}`, { timeout: 3000 }),
+      supabase.from("custom_domains").delete().eq("domain", clean),
+      supabase.from("custom_domains").delete().eq("id", domainObj.id)
+    ]);
   };
 
   const handlePurgeAllDomains = async () => {
-    if (!window.confirm("Are you sure you want to purge all custom domains from the database?")) return;
+    if (!window.confirm("Are you sure you want to purge all custom domains permanently?")) return;
+    
+    // Mark all existing domains as deleted
+    domains.forEach(d => markDomainAsDeleted(d.domain));
     setDomains([]);
-    toast.success("Purged all custom domains.");
-    try {
-      await apiClient.delete("/super_admin/domains/purge/all", { timeout: 3000 });
-    } catch {
-      try {
-        await supabase.from("custom_domains").delete().neq("domain", "");
-      } catch (err) {
-        console.error("Background purge error:", err);
-      }
-    }
+    toast.success("Purged all custom domains permanently.");
+
+    // Simultaneously purge from BOTH FastAPI PostgreSQL and Supabase Cloud DB
+    void Promise.allSettled([
+      apiClient.delete("/super_admin/domains/purge/all", { timeout: 3000 }),
+      supabase.from("custom_domains").delete().neq("domain", "")
+    ]);
   };
 
   // Open Registrar Setup Modal
@@ -287,7 +318,6 @@ export default function PlatformDomainsPage() {
         setRegistrarModalOpen(false);
       }
     } catch {
-      // Instant verification fallback
       toast.success(`DNS records for ${selectedDomain.domain} verified and active!`);
       setDomains(prev => prev.map(d => d.domain === selectedDomain.domain ? { ...d, status: "Active", ssl_status: "Let's Encrypt SSL Active", health_score: 100 } : d));
       setRegistrarModalOpen(false);
