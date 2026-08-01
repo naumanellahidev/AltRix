@@ -33,8 +33,12 @@ export function checkBackendReachability(): Promise<boolean> {
   const baseUrl = apiClient.defaults.baseURL || "/api";
   const url = `${baseUrl}/health`;
 
-  reachabilityPromise = fetch(url)
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 1500);
+
+  reachabilityPromise = fetch(url, { signal: controller.signal })
     .then((res) => {
+      clearTimeout(timeoutId);
       if (!res.ok) return false;
       
       // If we got HTML (e.g. Vercel fallback serving index.html), the backend is NOT reachable at this URL
@@ -47,6 +51,7 @@ export function checkBackendReachability(): Promise<boolean> {
       return true;
     })
     .catch(() => {
+      clearTimeout(timeoutId);
       return false;
     });
 
