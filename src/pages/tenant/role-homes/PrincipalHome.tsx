@@ -371,36 +371,17 @@ export function PrincipalHome() {
         });
 
         let revenueMtd = validPayments.reduce((sum, r: any) => sum + Number(r.amount ?? 0), 0);
-        let expensesMtd = validExpenses.reduce((sum, r: any) => sum + Number(r.amount ?? 0), 0);
+        const expensesMtd = validExpenses.reduce((sum, r: any) => sum + Number(r.amount ?? 0), 0);
 
-        // Fallback: Calculate revenue from paid fee_invoices if fee_payments table is empty or has 0
-        const allInvoices = payments.data && payments.data.length > 0 ? (pendingInvoicesCount.data ?? []) : (pendingInvoicesCount.data ?? []);
-        const invoiceRevenue = (allInvoices ?? []).reduce((sum: number, inv: any) => {
-          const paidVal = Number(inv.paid_amount ?? (inv.status === 'paid' ? inv.total_amount : 0));
-          return sum + (isNaN(paidVal) ? 0 : paidVal);
-        }, 0);
-
-        if (revenueMtd === 0 && invoiceRevenue > 0) {
-          revenueMtd = invoiceRevenue;
+        // Include paid invoices revenue if fee_payments contains 0 rows for this school
+        if (revenueMtd === 0 && pendingInvoicesCount.data && pendingInvoicesCount.data.length > 0) {
+          revenueMtd = pendingInvoicesCount.data.reduce((sum: number, inv: any) => {
+            const paidVal = Number(inv.paid_amount ?? (inv.status === 'paid' ? inv.total_amount : 0));
+            return sum + (isNaN(paidVal) ? 0 : paidVal);
+          }, 0);
         }
 
-        // Global fallback if school_id filtering returns 0 rows due to schema isolation
-        if (revenueMtd === 0 && (!payments.data || payments.data.length === 0)) {
-          const [allPayments, allInvoicesGlobal] = await Promise.all([
-            supabase.from("fee_payments").select("amount,status").limit(500),
-            supabase.from("fee_invoices").select("total_amount,paid_amount,status").limit(500),
-          ]);
-          const globalPayRev = (allPayments.data ?? []).reduce((sum, p: any) => sum + Number(p.amount ?? 0), 0);
-          const globalInvRev = (allInvoicesGlobal.data ?? []).reduce((sum, inv: any) => sum + Number(inv.paid_amount ?? (inv.status === 'paid' ? inv.total_amount : 0)), 0);
-          revenueMtd = Math.max(globalPayRev, globalInvRev);
-        }
-
-        if (expensesMtd === 0 && (!expenses.data || expenses.data.length === 0)) {
-          const { data: allExp } = await supabase.from("finance_expenses").select("amount").limit(500);
-          expensesMtd = (allExp ?? []).reduce((sum, e: any) => sum + Number(e.amount ?? 0), 0);
-        }
-
-        const pendingCount = (allInvoices ?? []).filter((inv: any) => inv.status !== 'paid' && inv.status !== 'cancelled').length;
+        const pendingCount = (pendingInvoicesCount.data ?? []).filter((inv: any) => inv.status !== 'paid' && inv.status !== 'cancelled').length;
 
         setKpis({
           students: studentsCount.count ?? 0,
@@ -412,7 +393,7 @@ export function PrincipalHome() {
           attendancePresent7d: present7.count ?? 0,
           revenueMtd,
           expensesMtd,
-          pendingInvoices: pendingCount || (pendingInvoicesCount.count ?? 0),
+          pendingInvoices: pendingCount,
           classes: classesCount.count ?? 0,
           sections: sectionsCount.count ?? 0,
         });
@@ -426,6 +407,7 @@ export function PrincipalHome() {
           if (d.getMonth() !== monthStart.getMonth()) break;
           byDay.set(fmt(d), { revenue: 0, expenses: 0 });
         }
+
         validPayments.forEach((p: any) => {
           const dateVal = p.paid_at || p.created_at;
           if (!dateVal) return;
@@ -442,6 +424,7 @@ export function PrincipalHome() {
           cur.expenses += Number(e.amount ?? 0);
           byDay.set(k, cur);
         });
+
         setTrend(Array.from(byDay.entries()).map(([day, v]) => ({ day, revenue: v.revenue, expenses: v.expenses })));
       }
     } catch (err) {
