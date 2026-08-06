@@ -225,18 +225,36 @@ const TenantDashboard = () => {
     queryKey: ["dashboard_kpi_revenue", schoolId],
     queryFn: async () => {
       if (USE_FASTAPI) {
-        const resp = await apiClient.get<any>("/reports/dashboard");
-        return resp.data.collected_fees ?? 0;
+        try {
+          const resp = await apiClient.get<any>("/reports/dashboard");
+          if (resp?.data?.collected_fees !== undefined) {
+            return resp.data.collected_fees ?? 0;
+          }
+        } catch (fastApiErr) {
+          console.warn("FastAPI backend unreachable, using Supabase fallback for TenantDashboard revenue:", fastApiErr);
+        }
       }
       const { data, error } = await supabase
         .from("fee_payments")
-        .select("amount")
+        .select("amount, paid_at, created_at, status")
         .eq("school_id", schoolId!)
-        .eq("status", "success")
-        .gte("paid_at", monthStart.toISOString())
         .limit(1000);
       if (error) throw error;
-      return (data || []).reduce((sum, p) => sum + Number(p.amount ?? 0), 0);
+
+      const mtdMonth = monthStart.getMonth();
+      const mtdYear = monthStart.getFullYear();
+
+      return (data || []).reduce((sum, p: any) => {
+        const isPaid = !p.status || p.status === 'success' || p.status === 'completed' || p.status === 'paid';
+        if (!isPaid) return sum;
+        const dStr = p.paid_at || p.created_at;
+        if (!dStr) return sum + Number(p.amount ?? 0);
+        const d = new Date(dStr);
+        if (d.getMonth() === mtdMonth && d.getFullYear() === mtdYear) {
+          return sum + Number(p.amount ?? 0);
+        }
+        return sum;
+      }, 0);
     },
     enabled: !!schoolId && isOnline,
     staleTime: 5 * 60 * 1000,

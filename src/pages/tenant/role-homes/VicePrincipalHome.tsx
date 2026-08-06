@@ -176,18 +176,13 @@ export function VicePrincipalHome() {
           .gte("created_at", d7.toISOString()),
         supabase
           .from("fee_payments")
-          .select("amount,paid_at")
+          .select("amount,paid_at,created_at,status")
           .eq("school_id", schoolId)
-          .eq("status", "success")
-          .gte("paid_at", monthStart.toISOString())
-          .order("paid_at", { ascending: true })
           .limit(1000),
         supabase
           .from("finance_expenses")
-          .select("amount,expense_date")
+          .select("amount,expense_date,created_at")
           .eq("school_id", schoolId)
-          .gte("expense_date", monthStart.toISOString().slice(0, 10))
-          .order("expense_date", { ascending: true })
           .limit(1000),
         supabase.from("fee_invoices").select("id", { count: "exact", head: true }).eq("school_id", schoolId).not("status", "eq", "paid").not("status", "eq", "cancelled"),
         supabase.from("academic_classes").select("id", { count: "exact", head: true }).eq("school_id", schoolId),
@@ -195,8 +190,27 @@ export function VicePrincipalHome() {
         supabase.from("assignment_submissions").select("id", { count: "exact", head: true }).eq("school_id", schoolId).is("marks", null),
       ]);
 
-      const revenueMtd = (payments.data ?? []).reduce((sum, r: any) => sum + Number(r.amount ?? 0), 0);
-      const expensesMtd = (expenses.data ?? []).reduce((sum, r: any) => sum + Number(r.amount ?? 0), 0);
+      const mtdMonth = monthStart.getMonth();
+      const mtdYear = monthStart.getFullYear();
+
+      const validPayments = (payments.data ?? []).filter((p: any) => {
+        const isPaid = !p.status || p.status === 'success' || p.status === 'completed' || p.status === 'paid';
+        if (!isPaid) return false;
+        const dStr = p.paid_at || p.created_at;
+        if (!dStr) return true;
+        const d = new Date(dStr);
+        return d.getMonth() === mtdMonth && d.getFullYear() === mtdYear;
+      });
+
+      const validExpenses = (expenses.data ?? []).filter((e: any) => {
+        const dStr = e.expense_date || e.created_at;
+        if (!dStr) return true;
+        const d = new Date(dStr);
+        return d.getMonth() === mtdMonth && d.getFullYear() === mtdYear;
+      });
+
+      const revenueMtd = validPayments.reduce((sum, r: any) => sum + Number(r.amount ?? 0), 0);
+      const expensesMtd = validExpenses.reduce((sum, r: any) => sum + Number(r.amount ?? 0), 0);
 
       setKpis({
         students: studentsCount.count ?? 0,
@@ -225,14 +239,18 @@ export function VicePrincipalHome() {
         if (d.getMonth() !== monthStart.getMonth()) break;
         byDay.set(fmt(d), { revenue: 0, expenses: 0 });
       }
-      (payments.data ?? []).forEach((p: any) => {
-        const k = fmt(new Date(p.paid_at));
+      validPayments.forEach((p: any) => {
+        const dateVal = p.paid_at || p.created_at;
+        if (!dateVal) return;
+        const k = fmt(new Date(dateVal));
         const cur = byDay.get(k) ?? { revenue: 0, expenses: 0 };
         cur.revenue += Number(p.amount ?? 0);
         byDay.set(k, cur);
       });
-      (expenses.data ?? []).forEach((e: any) => {
-        const k = String(e.expense_date).slice(5, 10);
+      validExpenses.forEach((e: any) => {
+        const dateVal = e.expense_date || e.created_at;
+        if (!dateVal) return;
+        const k = String(dateVal).slice(5, 10);
         const cur = byDay.get(k) ?? { revenue: 0, expenses: 0 };
         cur.expenses += Number(e.amount ?? 0);
         byDay.set(k, cur);
