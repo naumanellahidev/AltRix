@@ -71,19 +71,27 @@ const SparklineTooltip = ({ active, payload }: any) => {
 const FinanceTooltip = ({ active, payload, label }: any) => {
   if (active && payload && payload.length) {
     return (
-      <div className="bg-background/90 backdrop-blur-md border border-muted-foreground/15 p-3 rounded-2xl shadow-xl text-xs space-y-1.5 min-w-[130px]">
-        <p className="font-semibold text-muted-foreground border-b pb-1 mb-1.5">{label}</p>
-        {payload.map((item: any, index: number) => (
-          <div key={index} className="flex items-center justify-between gap-4">
-            <span className="flex items-center gap-1.5 text-muted-foreground text-[10px]">
-              <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
-              {item.name === "revenue" ? "Revenue" : "Expenses"}
-            </span>
-            <span className="font-bold text-foreground">
-              Rs. {Number(item.value).toLocaleString()}
-            </span>
-          </div>
-        ))}
+      <div className="bg-background/95 backdrop-blur-md border border-muted-foreground/15 p-3 rounded-2xl shadow-xl text-xs space-y-1.5 min-w-[150px]">
+        <p className="font-semibold text-muted-foreground border-b pb-1 mb-1.5">Date: {label}</p>
+        {payload.map((item: any, index: number) => {
+          const nameLabel =
+            item.name === "revenue"
+              ? "Revenue"
+              : item.name === "expenses"
+              ? "Expenses"
+              : "Net Cashflow";
+          return (
+            <div key={index} className="flex items-center justify-between gap-4">
+              <span className="flex items-center gap-1.5 text-muted-foreground text-[10px]">
+                <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: item.stroke || item.color }} />
+                {nameLabel}
+              </span>
+              <span className="font-bold font-mono text-foreground">
+                Rs. {Number(item.value).toLocaleString()}
+              </span>
+            </div>
+          );
+        })}
       </div>
     );
   }
@@ -165,7 +173,7 @@ export function PrincipalHome() {
     classes: 0,
     sections: 0,
   });
-  const [trend, setTrend] = useState<{ day: string; revenue: number; expenses: number }[]>([]);
+  const [trend, setTrend] = useState<{ day: string; revenue: number; expenses: number; cashflow: number }[]>([]);
   const [busy, setBusy] = useState(false);
   const [activeTab, setActiveTab] = useState("overview");
 
@@ -425,7 +433,7 @@ export function PrincipalHome() {
           byDay.set(k, cur);
         });
 
-        setTrend(Array.from(byDay.entries()).map(([day, v]) => ({ day, revenue: v.revenue, expenses: v.expenses })));
+        setTrend(Array.from(byDay.entries()).map(([day, v]) => ({ day, revenue: v.revenue, expenses: v.expenses, cashflow: v.revenue - v.expenses })));
       }
     } catch (err) {
       console.error("Error refreshing dashboard:", err);
@@ -906,14 +914,18 @@ export function PrincipalHome() {
               </CardTitle>
               <p className="text-xs text-muted-foreground">Month-to-date revenue stream versus operating expenditures</p>
             </div>
-            <div className="flex items-center gap-4 text-xs font-medium border rounded-xl p-1 bg-muted/30">
-              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-surface shadow-sm text-foreground">
-                <span className="h-2 w-2 rounded-full bg-[hsl(var(--primary))]" />
+            <div className="flex items-center gap-2 sm:gap-3 text-xs font-medium border rounded-xl p-1 bg-muted/30 overflow-x-auto no-scrollbar">
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-surface shadow-sm text-foreground shrink-0">
+                <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
                 <span>Revenue</span>
               </div>
-              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-muted-foreground">
-                <span className="h-2 w-2 rounded-full bg-[hsl(var(--destructive))]" />
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-surface shadow-sm text-foreground shrink-0">
+                <span className="h-2.5 w-2.5 rounded-full bg-rose-500" />
                 <span>Expenses</span>
+              </div>
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-surface shadow-sm text-foreground shrink-0">
+                <span className="h-2.5 w-2.5 rounded-full bg-blue-500" />
+                <span>Net Cashflow</span>
               </div>
             </div>
           </CardHeader>
@@ -952,10 +964,10 @@ export function PrincipalHome() {
 
                   {/* Net Net */}
                   <div 
-                    className="p-3.5 rounded-2xl bg-primary/[0.04] border border-primary/10 cursor-pointer hover:bg-primary/[0.07] hover:border-primary/30 transition-all"
+                    className="p-3.5 rounded-2xl bg-blue-500/[0.04] border border-blue-500/10 cursor-pointer hover:bg-blue-500/[0.07] hover:border-blue-500/30 transition-all"
                     onClick={() => setActiveTab("fees")}
                   >
-                    <div className="flex items-center justify-between text-xs font-medium text-primary mb-1">
+                    <div className="flex items-center justify-between text-xs font-medium text-blue-600 mb-1">
                       <span>Net Cashflow</span>
                       <TrendingUp className="h-4 w-4" />
                     </div>
@@ -991,36 +1003,51 @@ export function PrincipalHome() {
                       <YAxis 
                         tickLine={false} 
                         axisLine={false} 
-                        width={40} 
+                        width={45} 
                         tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }}
-                        tickFormatter={(v) => v >= 1000 ? `Rs. ${(v / 1000).toFixed(0)}K` : `Rs. ${v}`}
+                        tickFormatter={(v) => Math.abs(v) >= 1000 ? `Rs. ${(v / 1000).toFixed(0)}K` : `Rs. ${v}`}
                       />
                       <Tooltip content={<FinanceTooltip />} />
                       <defs>
                         <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.35}/>
-                          <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0.01}/>
+                          <stop offset="5%" stopColor="#10b981" stopOpacity={0.35}/>
+                          <stop offset="95%" stopColor="#10b981" stopOpacity={0.01}/>
                         </linearGradient>
                         <linearGradient id="colorExpenses" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="hsl(var(--destructive))" stopOpacity={0.35}/>
-                          <stop offset="95%" stopColor="hsl(var(--destructive))" stopOpacity={0.01}/>
+                          <stop offset="5%" stopColor="#f43f5e" stopOpacity={0.35}/>
+                          <stop offset="95%" stopColor="#f43f5e" stopOpacity={0.01}/>
+                        </linearGradient>
+                        <linearGradient id="colorCashflow" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.35}/>
+                          <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.01}/>
                         </linearGradient>
                       </defs>
                       <Area 
                         type="monotone" 
                         dataKey="revenue" 
-                        stroke="hsl(var(--primary))" 
+                        name="revenue"
+                        stroke="#10b981" 
                         fill="url(#colorRevenue)" 
-                        strokeWidth={3} 
-                        activeDot={{ r: 5, strokeWidth: 0, fill: "hsl(var(--primary))" }}
+                        strokeWidth={2.5} 
+                        activeDot={{ r: 5, strokeWidth: 0, fill: "#10b981" }}
                       />
                       <Area 
                         type="monotone" 
                         dataKey="expenses" 
-                        stroke="hsl(var(--destructive))" 
+                        name="expenses"
+                        stroke="#f43f5e" 
                         fill="url(#colorExpenses)" 
-                        strokeWidth={3} 
-                        activeDot={{ r: 5, strokeWidth: 0, fill: "hsl(var(--destructive))" }}
+                        strokeWidth={2.5} 
+                        activeDot={{ r: 5, strokeWidth: 0, fill: "#f43f5e" }}
+                      />
+                      <Area 
+                        type="monotone" 
+                        dataKey="cashflow" 
+                        name="cashflow"
+                        stroke="#3b82f6" 
+                        fill="url(#colorCashflow)" 
+                        strokeWidth={2.5} 
+                        activeDot={{ r: 5, strokeWidth: 0, fill: "#3b82f6" }}
                       />
                     </AreaChart>
                   </ResponsiveContainer>
