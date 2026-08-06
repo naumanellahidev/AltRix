@@ -29,26 +29,30 @@ export function useAlertSettings(schoolId: string | null) {
       if (!schoolId) return null;
 
       if (USE_FASTAPI) {
-        const resp = await apiClient.get<AlertSettings>("/schools/alert-settings");
-        return resp.data;
-      } else {
-        const { data, error } = await (supabase as any)
-          .from("school_alert_settings")
-          .select("*")
-          .eq("school_id", schoolId)
-          .maybeSingle();
-
-        if (error) throw error;
-
-        if (!data) {
-          return {
-            school_id: schoolId,
-            ...DEFAULT_SETTINGS,
-          } as AlertSettings;
+        try {
+          const resp = await apiClient.get<AlertSettings>("/schools/alert-settings");
+          if (resp?.data) return resp.data;
+        } catch (fastApiErr) {
+          console.warn("FastAPI alert settings endpoint unreachable, falling back to Supabase:", fastApiErr);
         }
-
-        return data as AlertSettings;
       }
+
+      const { data, error } = await (supabase as any)
+        .from("school_alert_settings")
+        .select("*")
+        .eq("school_id", schoolId)
+        .maybeSingle();
+
+      if (error) throw error;
+
+      if (!data) {
+        return {
+          school_id: schoolId,
+          ...DEFAULT_SETTINGS,
+        } as AlertSettings;
+      }
+
+      return data as AlertSettings;
     },
     enabled: !!schoolId,
   });

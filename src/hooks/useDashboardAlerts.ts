@@ -45,20 +45,28 @@ export function useDashboardAlerts(schoolId: string | null) {
     if (!schoolId) return;
 
     try {
+      let fetchedViaFastApi = false;
       if (USE_FASTAPI) {
-        const resp = await apiClient.get<{
-          alerts: DashboardAlert[];
-          newTicketsCount: number;
-          attendanceRate: number;
-          thresholds: AlertThresholds;
-        }>("/schools/dashboard/alerts");
+        try {
+          const resp = await apiClient.get<{
+            alerts: DashboardAlert[];
+            newTicketsCount: number;
+            attendanceRate: number;
+            thresholds: AlertThresholds;
+          }>("/schools/dashboard/alerts");
 
-        setAlerts(resp.data.alerts ?? []);
-        setNewTicketsCount(resp.data.newTicketsCount ?? 0);
-        setAttendanceRate(resp.data.attendanceRate ?? 100);
-        setThresholds(resp.data.thresholds ?? DEFAULT_THRESHOLDS);
-        setInitialized(true);
-      } else {
+          setAlerts(resp.data.alerts ?? []);
+          setNewTicketsCount(resp.data.newTicketsCount ?? 0);
+          setAttendanceRate(resp.data.attendanceRate ?? 100);
+          setThresholds(resp.data.thresholds ?? DEFAULT_THRESHOLDS);
+          setInitialized(true);
+          fetchedViaFastApi = true;
+        } catch (fastApiErr) {
+          console.warn("FastAPI dashboard alerts endpoint unreachable, using Supabase fallback:", fastApiErr);
+        }
+      }
+
+      if (!fetchedViaFastApi) {
         const now = new Date();
         const d7 = new Date(now);
         d7.setDate(now.getDate() - 7);
