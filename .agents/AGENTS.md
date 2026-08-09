@@ -2,108 +2,82 @@
 
 - Always use the FastAPI backend for any backend features in this project (never use Supabase Edge Functions or other serverless technologies).
 
-## Permanent Mandatory Verification Engine Policy
+---
 
-This is a permanent engineering policy for ALL future security, infrastructure, VPS, deployment, audit, forensic, hardening, regression, and verification scripts. Every verification script MUST use an evidence-driven verification architecture.
+# RULE SCOPE OPTIMIZATION & VERIFICATION POLICY
 
-### Rule 1 — No Hardcoded Verification Outcomes
-Never assign a verification result directly:
-`status = "PASS"`
-`status = "FAIL"`
-`status = "GO"`
-Never create audit matrix entries with unconditional outcomes:
-`("SSH", ..., "PASS")`
-`("Docker", ..., "PASS")`
-`("Database", ..., "PASS")`
-Expected values may be hardcoded. Verification outcomes may NOT be hardcoded.
+To maintain high engineering velocity while preserving strict security standards, rules and verification procedures are strictly classified into scopes. Verification must always be proportional: **"VERIFY WHAT YOU CHANGED, NOT EVERYTHING THAT EXISTS."**
 
-### Rule 2 — PASS Must Be Computed
-Every PASS must originate from a boolean condition derived from actual live evidence.
-Allowed:
-```python
-exit_code = result.returncode
-status = "PASS" if exit_code == 0 else "FAIL"
-```
-Allowed:
+---
+
+## 1. SCOPE A — ALWAYS APPLY (All Tasks)
+
+These lightweight rules apply universally to every task:
+
+1. **Never fabricate results**: Every stated result must come from actual execution and observed evidence.
+2. **Never claim something was tested when it was not**: If a check could not be run, state it truthfully or mark it `UNVERIFIED`.
+3. **No hardcoded verification outcomes**: Never write fake passing statements (`status = "PASS"`, `expected = observed`). Outcomes must be computed from live evidence.
+4. **Never silently ignore errors**: Do not swallow exceptions or convert non-zero command exits into fake success.
+5. **Never expose secrets**: Do not log or commit private keys, passwords, API tokens, or credentials.
+6. **No unnecessary infrastructure modifications**: Never touch production infrastructure unless the task explicitly requires it.
+7. **No destructive changes without explicit authorization**: Preserve existing data, schema, and operational state.
+8. **Preserve working functionality**: Keep changes strictly focused on the requested task without breaking existing features.
+9. **No unrelated audits or refactoring**: Do not perform 20–30 minute unrequested audits on unrelated historical phases.
+10. **Firewall strictly protected**: Do NOT modify UFW, iptables, or nftables unless the user explicitly requests firewall work.
+11. **SSH strictly protected**: Preserve the hardened SSH baseline (`PermitRootLogin no`, `PasswordAuthentication no`, `altrixadmin` Ed25519 public-key auth, `MaxStartups 10:30:60`, `MaxSessions 10`). Do not alter SSH during unrelated tasks.
+
+---
+
+## 2. SCOPE B — SECURITY / VPS / INFRASTRUCTURE TASKS ONLY
+
+The heavy forensic verification engine applies **ONLY** when a task specifically involves security or infrastructure modifications:
+- SSH hardening / authentication changes / user management
+- VPS OS hardening / PAM / sudo configuration
+- Nginx security configuration / TLS / SSL certificates / reverse proxy architecture
+- Firewall configuration (UFW, iptables, nftables) when explicitly requested
+- Fail2Ban / systemd service security / daemon hardening
+- Network attack surface reduction / exposed port management
+- Domain binding at the VPS / Nginx layer
+- Security-critical production deployment / infrastructure rollouts
+
+### Mandatory Verification Engine Policy (Rules 1–20 for Scope B)
+
+#### Rule 1 — No Hardcoded Verification Outcomes
+Never assign a verification result directly: `status = "PASS"`, `status = "FAIL"`, `status = "GO"`. Expected values may be hardcoded; verification outcomes must NOT be hardcoded.
+
+#### Rule 2 — PASS Must Be Computed
+Every PASS must originate from a boolean condition derived from actual live evidence:
 ```python
 status = "PASS" if (result.returncode == 0 and "active" in result.stdout) else "FAIL"
 ```
-Not allowed:
-`status = "PASS"`
-`status = expected_status`
-`status = "PASS" if True else "FAIL"`
 
-### Rule 3 — Required Verification Pipeline
-Every test MUST follow this architecture:
+#### Rule 3 — Required Verification Pipeline
 ```
-LIVE COMMAND
-↓
-RAW OUTPUT
-↓
-EXIT CODE / HTTP STATUS / STRUCTURED RESPONSE
-↓
-ASSERTION FUNCTION
-↓
-CALCULATED STATUS
-↓
-EVIDENCE RECORD
-↓
-FINAL REPORT
+LIVE COMMAND → RAW OUTPUT → EXIT CODE / RESPONSE → ASSERTION FUNCTION → CALCULATED STATUS → EVIDENCE RECORD → FINAL REPORT
 ```
-The report generator MUST NEVER determine whether a test passes. The test evaluator determines the status. The report only displays the already-calculated result.
 
-### Rule 4 — Separate Execution From Evaluation
-Create separate functions/classes where practical:
-- `run_command()`
-- `capture_http()`
-- `capture_ssh()`
-- `evaluate_test()`
-- `build_evidence_record()`
-- `generate_report()`
+#### Rule 4 — Separate Execution From Evaluation
+Keep execution (`run_cmd()`), evaluation (`evaluate_test()`), and reporting distinct.
 
-The evaluator must calculate `PASS / FAIL / UNVERIFIED` directly from the result.
+#### Rule 5 — Raw Evidence Is Authoritative
+Each test must retain exact command, timestamp, exit code, stdout, stderr, HTTP status, and calculated status. If missing: `UNVERIFIED`.
 
-### Rule 5 — Raw Evidence Is Authoritative
-A PASS is valid only if raw evidence exists. Each test must retain:
-- exact command
-- timestamp
-- exit code
-- stdout
-- stderr
-- HTTP status where applicable
-- relevant response body
-- expected condition
-- calculated status
+#### Rule 6 — Failed Command = FAIL
+Non-zero exit codes evaluate to `FAIL` unless explicitly defined as the expected condition.
 
-If raw evidence is missing: `UNVERIFIED`. Never `PASS`.
+#### Rule 7 — UNVERIFIED Is a Valid Result
+If a test cannot be executed (e.g. missing external dependency or sensor): `UNVERIFIED`. Never convert to PASS.
 
-### Rule 6 — Failed Command = FAIL
-Do not hide command failures. If a required command returns a non-zero exit code: `FAIL`, unless the test specification explicitly defines that non-zero exit code as the expected successful condition. Never replace failed output with a friendly PASS message.
+#### Rule 8 — Expected State Is Not Observed State
+Inspect the live system dynamically; never assume configured state is running state.
 
-### Rule 7 — UNVERIFIED Is a Valid Result
-If a test cannot actually be executed: `UNVERIFIED`.
-Examples:
-- required credentials unavailable
-- second SSH session cannot be established safely
-- scanner not installed
-- external DNS unavailable
-- test account unavailable
-- required dependency unavailable
-Do NOT convert these into PASS.
+#### Rule 9 — Previous Phase Results Are Never Trusted
+Every security phase independently evaluates its controls with live commands.
 
-### Rule 8 — Expected State Is Not Observed State
-Never confuse "this configuration SHOULD be active" with "this configuration IS active." The script must inspect the live system.
-- Bad: `expected = "active"`; `status = "PASS"`
-- Good: `actual = run_command("systemctl is-active ssh")`; `status = "PASS" if actual.stdout.strip() == "active" else "FAIL"`
+#### Rule 10 — Regression Tests Must Be Live
+Execute live regression checks dynamically rather than referencing historical reports.
 
-### Rule 9 — Previous Phase Results Are Never Trusted
-Previous audit reports, previous phase reports, previous PASS values, previous checkpoints, and previous summaries are historical information only. They MUST NOT be used as evidence for current verification. Every current phase must independently verify the controls it claims.
-
-### Rule 10 — Regression Tests Must Also Be Live
-Do not optimize regression testing by writing: "Phase 1–14 regression: PASS". Instead execute the required regression checks. Each control gets its own live evidence and calculated status. Then calculate `pass_count`, `fail_count`, `unverified_count` from the actual results.
-
-### Rule 11 — Final GO/NO-GO Must Also Be Computed
-Never write `FINAL DECISION: GO` as a fixed string. Calculate it dynamically:
+#### Rule 11 — Final GO/NO-GO Must Be Computed
 ```python
 if fail_count > 0:
     decision = "NO-GO"
@@ -112,86 +86,81 @@ elif unverified_count > 0:
 else:
     decision = "GO"
 ```
-The decision must be derived exclusively from the verification matrix.
 
-### Rule 12 — Static Self-Audit Is Mandatory
-Before executing ANY security verification script, the script must inspect itself. Reject execution if it finds unconditional verification assignments such as `status = "PASS"`, `status = "FAIL"`, `status = "GO"`, or matrix records containing hardcoded outcomes. Static analysis must inspect:
-- direct assignments
-- tuples/lists/dictionaries
-- summary counters
-- final decisions
-- report templates
-- helper functions
-- exception handlers
-- fallback branches
+#### Rule 12 — Static Self-Audit Is Mandatory
+Before executing any security script, inspect the script source via AST/regex to verify:
+- 0 hardcoded PASS/FAIL/GO assignments
+- 0 unauthorized firewall modification commands
+- 0 unauthorized SSH modification commands
 
-### Rule 13 — Behavioral Self-Test Is Also Mandatory
-Static inspection alone is insufficient. Before production execution, the verification engine MUST perform local evaluator self-tests:
-1. Simulated successful evidence → PASS
-2. Simulated failed evidence → FAIL
-3. Simulated unavailable evidence → UNVERIFIED
-4. Simulated malformed evidence → FAIL or UNVERIFIED according to specification
-If these self-tests fail: **ABORT**.
+#### Rule 13 — Behavioral Evaluator Self-Tests
+Verify evaluator logic locally before production execution (success → PASS, failure → FAIL, missing → UNVERIFIED).
 
-### Rule 14 — No Exception-to-PASS Fallback
-Never do:
-```python
-try:
-    ...
-except:
-    status = "PASS"
-```
-Exceptions must produce `FAIL` or `UNVERIFIED` depending on whether the test could actually be completed.
+#### Rule 14 — No Exception-to-PASS Fallback
+Exceptions in test execution must produce `FAIL` or `UNVERIFIED`.
 
-### Rule 15 — No Silent Command Fallbacks
-Do not use shell constructs that hide failures unless explicitly required. Avoid patterns such as `command || true` when the command's success/failure is part of the security verification. Do not convert errors into successful output.
+#### Rule 15 — No Silent Command Fallbacks
+Do not use constructs like `cmd || true` to mask failures during security verification.
 
-### Rule 16 — Report Generation Must Be Dumb
-The report generator must NOT contain security decisions. It should receive `EvidenceRecord[]` and render them. Security decisions belong in evaluator functions.
+#### Rule 16 — Dumb Report Generation
+The report generator only renders already-calculated `EvidenceRecord[]`.
 
-### Rule 17 — Evidence Hashing
-For forensic phases, raw evidence must be written to a timestamped directory (e.g. `/var/log/altrix/phaseXX-evidence/<timestamp>/`). Then calculate SHA-256 checksums over the evidence files. The report must reference the actual evidence files.
+#### Rule 17 — Evidence Hashing
+Save raw test outputs to `/var/log/altrix/phaseXX-evidence/<timestamp>/` and compute `checksums.sha256`.
 
-### Rule 18 — Production Safety
-Before any modifying phase:
-1. Establish primary SSH session.
-2. Establish independent SSH session.
-3. Verify both sessions execute commands.
-4. Create recovery checkpoint.
-5. Verify checkpoint.
-6. Only then modify production.
-If lockout protection cannot be established: **ABORT**.
+#### Rule 18 — Production Lockout Protection
+Before modifying SSH or Nginx:
+1. Establish and verify primary admin session.
+2. Establish and verify independent secondary admin session.
+3. Create recovery checkpoint at `/root/altrix-phaseXX-backup/<timestamp>/`.
+4. Only then apply changes. Verify post-change lockout gate before exiting.
 
-### Rule 19 — Never Optimize for a PASS Result
-The objective of the script is NOT "make the audit pass." The objective is "discover the actual state of the system." A truthful FAIL is better than a fabricated PASS. A truthful UNVERIFIED is better than a fabricated PASS.
+#### Rule 19 — Never Optimize for a PASS Result
+A truthful FAIL or UNVERIFIED is better than a fabricated PASS.
 
-### Rule 20 — Agent Completion Claims Are Not Evidence
-Never trust statements such as "Completed successfully", "All tests passed", "Security is fully hardened", "Zero findings", "Production is GO" unless the underlying live evidence supporting those claims is present. The agent's narrative is not evidence.
+#### Rule 20 — Agent Narrative Is Not Evidence
+Claims in chat are not evidence; raw output and computed exit codes are evidence.
 
-## Mandatory Pre-Execution Check
-Before running any new security script, print:
-```
-SELF-AUDIT:
-* Hardcoded verification outcomes: 0
-* Dynamic evaluators detected: YES
-* Raw evidence capture: YES
-* Exit-code evaluation: YES
-* UNVERIFIED handling: YES
-* Behavioral evaluator tests: PASS
-* Final decision dynamically calculated: YES
-```
-If any item fails: **DO NOT EXECUTE THE PRODUCTION SCRIPT**.
+---
 
-## Execution & Reporting Protocol (Mandatory for all tasks)
-- Whenever a task is given: Analyze request -> Create plan -> Execute scripts -> Perform all validations -> Verify results -> **Immediately and automatically return the full execution report in the final output of the response turn**.
-- Never stop after running a background script or command without presenting the complete report in the same turn.
-- Every report must include:
-  1. Executive Summary
-  2. Files Modified
-  3. Commands Executed
-  4. Validation Performed
-  5. Verification Results (PASS / FAIL / WARNING / UNVERIFIED table)
-  6. Safety Verification (SSH, Docker, Internet, Firewall, Unrelated files)
-  7. Rollback Information
-  8. Remaining Work
-  9. Final Status (`COMPLETED` | `COMPLETED WITH UNVERIFIED ITEMS` | `FAILED`)
+## 3. SCOPE C — NORMAL APPLICATION DEVELOPMENT
+
+For normal development tasks:
+- **Frontend**: React components, TypeScript, JSX, Tailwind styling, CSS, pages, routing, navigation, modals, forms, tables, hooks, state management, UI accessibility.
+- **Backend**: FastAPI endpoints, Pydantic schemas, routers, middleware, business logic, CRUD operations, database queries.
+- **Features**: Attendance tracking, fee management, student/teacher modules, reports, notifications UI, PDF generation, bug fixes, refactoring.
+
+### Proportional Lightweight Verification Workflow
+**DO NOT run the heavy 20–30 minute forensic security workflow for Scope C tasks.**
+- **No** VPS security audits (SSH, UFW, Fail2Ban, TLS).
+- **No** SHA-256 evidence directory creation or recovery checkpoints (unless production rollback protection is explicitly needed).
+- **No** behavioral security evaluator unit tests.
+- **No** formal `phaseXX_security_hardening.md` forensic report.
+
+### Required Verification for Scope C:
+1. **Frontend Changes**: Run TypeScript compilation / Vite build (`npm run build` or `npx tsc --noEmit`), targeted linting, and targeted page/browser check if applicable.
+2. **Backend Changes**: Run syntax check, targeted endpoint unit test, or API response verification.
+3. **Database Changes**: Verify migration syntax and query execution against Supabase.
+4. **Summary Format**: Return a concise, high-signal response:
+   - What changed
+   - Files modified
+   - Tests/validations performed
+   - Result / current status
+   - Any remaining items or follow-ups
+
+---
+
+## 4. TASK CLASSIFICATION MATRIX
+
+Before starting any task, classify it:
+
+| Task Classification | Scope | Verification Level | Checkpoint / Evidence Required? |
+| :--- | :---: | :--- | :---: |
+| **`NORMAL_DEVELOPMENT`** | Scope A + C | Lightweight targeted verification (build, unit tests, affected routes) | **NO** |
+| **`SECURITY_INFRASTRUCTURE`** | Scope A + B | Full forensic verification (lockout gates, checkpoints, SHA-256 evidence, report) | **YES** |
+| **`DEPLOYMENT_INFRASTRUCTURE`** | Scope A + B/C | Proportional deployment verification (container health, endpoint health) | Only if infra config changes |
+
+---
+
+## 5. REALTIME GIT SYNC RULE
+- Automatically commit and push all code changes to GitHub for realtime sync upon completing each task.
