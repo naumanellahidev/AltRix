@@ -63,13 +63,18 @@ async def get_current_user(
     if not user_id:
         raise credentials_exception
 
-    email: str = payload.get("email", "") or ""
+    import uuid
+    # Convert string user_id to UUID object for native asyncpg parameter binding
+    try:
+        uid_obj = uuid.UUID(user_id) if isinstance(user_id, str) else user_id
+    except ValueError:
+        uid_obj = user_id
 
     # Check if super admin — FAIL CLOSED: never grant super_admin on DB error
     try:
         result = await db.execute(
-            text("SELECT user_id FROM platform_super_admins WHERE user_id = :uid::uuid LIMIT 1"),
-            {"uid": user_id},
+            text("SELECT user_id FROM platform_super_admins WHERE user_id = :uid LIMIT 1"),
+            {"uid": uid_obj},
         )
         is_super = result.fetchone() is not None
     except Exception as e:
@@ -96,11 +101,17 @@ async def get_current_user_with_roles(
     """
     user = await get_current_user(authorization=authorization, db=db)
 
+    import uuid
+    try:
+        uid_obj = uuid.UUID(user.id) if isinstance(user.id, str) else user.id
+    except ValueError:
+        uid_obj = user.id
+
     if not x_school_id:
         try:
             res_ur = await db.execute(
-                text("SELECT school_id FROM user_roles WHERE user_id = :uid::uuid LIMIT 1"),
-                {"uid": user.id}
+                text("SELECT school_id FROM user_roles WHERE user_id = :uid LIMIT 1"),
+                {"uid": uid_obj}
             )
             row_ur = res_ur.fetchone()
             if row_ur and row_ur[0]:
@@ -115,6 +126,11 @@ async def get_current_user_with_roles(
             logging.getLogger("app.dependencies").warning(f"Error resolving fallback school_id: {e}")
 
     if x_school_id:
+        try:
+            sid_obj = uuid.UUID(x_school_id) if isinstance(x_school_id, str) else x_school_id
+        except ValueError:
+            sid_obj = x_school_id
+
         # Load roles from user_roles table scoped to school
         try:
             cache_key = cache.build_key(
@@ -130,10 +146,10 @@ async def get_current_user_with_roles(
                     text(
                         """
                         SELECT role FROM user_roles
-                        WHERE user_id = :uid::uuid AND school_id = :sid::uuid
+                        WHERE user_id = :uid AND school_id = :sid
                         """
                     ),
-                    {"uid": user.id, "sid": x_school_id},
+                    {"uid": uid_obj, "sid": sid_obj},
                 )
                 roles = [row[0] for row in result.fetchall()]
                 user.roles = roles

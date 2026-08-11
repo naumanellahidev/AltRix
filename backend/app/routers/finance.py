@@ -1026,7 +1026,7 @@ async def upsert_gateway_config(body: PaymentGatewayConfigCreate, current_user: 
     # If setting as default, unset others
     if body.is_default:
         await db.execute(
-            text("UPDATE payment_gateway_configs SET is_default = FALSE WHERE school_id = :sid::uuid"),
+            text("UPDATE payment_gateway_configs SET is_default = FALSE WHERE school_id = CAST(:sid AS UUID)"),
             {"sid": current_user.school_id}
         )
 

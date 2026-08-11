@@ -635,7 +635,7 @@ async def unsubscribe_web_push(
 ):
     """Unregister a web push subscription endpoint."""
     await db.execute(
-        text("DELETE FROM user_web_push_subscriptions WHERE endpoint = :ep AND user_id = :uid::uuid"),
+        text("DELETE FROM user_web_push_subscriptions WHERE endpoint = :ep AND user_id = CAST(:uid AS UUID)"),
         {"ep": unsub.endpoint, "uid": current_user.id}
     )
     return MessageResponse(message="Push subscription removed successfully")
@@ -644,7 +644,7 @@ async def unsubscribe_web_push(
 async def get_notification_preferences(current_user: CurrentUser, db: DbSession):
     """Get the user's notification preferences."""
     res = await db.execute(
-        text("SELECT preferences FROM user_notification_preferences WHERE user_id = :uid::uuid"),
+        text("SELECT preferences FROM user_notification_preferences WHERE user_id = CAST(:uid AS UUID)"),
         {"uid": current_user.id}
     )
     row = res.fetchone()
@@ -674,7 +674,7 @@ async def update_notification_preferences(
     
     # Check if entry exists
     res = await db.execute(
-        text("SELECT 1 FROM user_notification_preferences WHERE user_id = :uid::uuid"),
+        text("SELECT 1 FROM user_notification_preferences WHERE user_id = CAST(:uid AS UUID)"),
         {"uid": current_user.id}
     )
     exists = res.fetchone() is not None
@@ -684,7 +684,7 @@ async def update_notification_preferences(
             text("""
                 UPDATE user_notification_preferences 
                 SET preferences = :prefs, updated_at = NOW() 
-                WHERE user_id = :uid::uuid
+                WHERE user_id = CAST(:uid AS UUID)
             """),
             {"prefs": json.dumps(payload.preferences), "uid": current_user.id}
         )
@@ -692,7 +692,7 @@ async def update_notification_preferences(
         await db.execute(
             text("""
                 INSERT INTO user_notification_preferences (user_id, school_id, preferences)
-                VALUES (:uid::uuid, :sid::uuid, :prefs)
+                VALUES (CAST(:uid AS UUID), CAST(:sid AS UUID), :prefs)
             """),
             {"uid": current_user.id, "sid": school_id, "prefs": json.dumps(payload.preferences)}
         )
@@ -1379,7 +1379,7 @@ async def fetch_ai_context(db: DbSession, user: AuthenticatedUser, school_id: st
     currency = "PKR"
     try:
         curr_res = await db.execute(
-            text("SELECT currency FROM public.fee_settings WHERE school_id = :sid::uuid LIMIT 1"),
+            text("SELECT currency FROM public.fee_settings WHERE school_id = CAST(:sid AS UUID) LIMIT 1"),
             {"sid": school_id}
         )
         curr_row = curr_res.fetchone()
@@ -1430,7 +1430,7 @@ async def fetch_ai_context(db: DbSession, user: AuthenticatedUser, school_id: st
     branding_info = "Default Branding"
     try:
         brand_res = await db.execute(
-            text("SELECT accent_hue, accent_saturation, accent_lightness, radius_scale FROM public.school_branding WHERE school_id = :sid::uuid LIMIT 1"),
+            text("SELECT accent_hue, accent_saturation, accent_lightness, radius_scale FROM public.school_branding WHERE school_id = CAST(:sid AS UUID) LIMIT 1"),
             {"sid": school_id}
         )
         brand_row = brand_res.fetchone()
@@ -1446,7 +1446,7 @@ async def fetch_ai_context(db: DbSession, user: AuthenticatedUser, school_id: st
     holidays_str = "None"
     try:
         hol_res = await db.execute(
-            text("SELECT title, start_date, end_date, holiday_type FROM public.holidays WHERE school_id = :sid::uuid AND end_date >= CURRENT_DATE ORDER BY start_date ASC LIMIT 10"),
+            text("SELECT title, start_date, end_date, holiday_type FROM public.holidays WHERE school_id = CAST(:sid AS UUID) AND end_date >= CURRENT_DATE ORDER BY start_date ASC LIMIT 10"),
             {"sid": school_id}
         )
         hols = hol_res.fetchall()
@@ -1500,7 +1500,7 @@ async def fetch_ai_context(db: DbSession, user: AuthenticatedUser, school_id: st
                 LEFT JOIN student_enrollments se ON se.student_id = s.id AND se.end_date IS NULL
                 LEFT JOIN class_sections cs ON se.class_section_id = cs.id
                 LEFT JOIN academic_classes c ON cs.class_id = c.id
-                WHERE i.school_id = :sid AND i.status != 'paid' AND i.student_id != '00000000-0000-0000-0000-000000000000'::uuid
+                WHERE i.school_id = :sid AND i.status != 'paid' AND i.student_id != CAST('00000000-0000-0000-0000-000000000000' AS UUID)
                 ORDER BY balance DESC LIMIT 10
             """, {"sid": school_id})
             defaulters_str = "\n".join([
@@ -1518,7 +1518,7 @@ async def fetch_ai_context(db: DbSession, user: AuthenticatedUser, school_id: st
                 LEFT JOIN student_enrollments se ON se.student_id = s.id AND se.end_date IS NULL
                 LEFT JOIN class_sections cs ON se.class_section_id = cs.id
                 LEFT JOIN academic_classes c ON cs.class_id = c.id
-                WHERE i.school_id = :sid AND i.student_id != '00000000-0000-0000-0000-000000000000'::uuid
+                WHERE i.school_id = :sid AND i.student_id != CAST('00000000-0000-0000-0000-000000000000' AS UUID)
                 ORDER BY i.created_at DESC LIMIT 100
             """, {"sid": school_id})
             recent_invoices_str = "\n".join([
@@ -1674,7 +1674,7 @@ async def fetch_ai_context(db: DbSession, user: AuthenticatedUser, school_id: st
             # Pending admissions
             try:
                 adm_res = await db.execute(
-                    text("SELECT COUNT(*) FROM admission_applications WHERE school_id = :sid::uuid AND status = 'submitted'"),
+                    text("SELECT COUNT(*) FROM admission_applications WHERE school_id = CAST(:sid AS UUID) AND status = 'submitted'"),
                     {"sid": school_id}
                 )
                 pending_admissions = adm_res.scalar() or 0
@@ -1693,7 +1693,7 @@ async def fetch_ai_context(db: DbSession, user: AuthenticatedUser, school_id: st
                     text("""
                         SELECT COUNT(*), COUNT(DISTINCT class_section_id), COUNT(DISTINCT teacher_user_id) 
                         FROM public.timetable_entries 
-                        WHERE school_id = :sid::uuid
+                        WHERE school_id = CAST(:sid AS UUID)
                     """),
                     {"sid": school_id}
                 )
@@ -1711,7 +1711,7 @@ async def fetch_ai_context(db: DbSession, user: AuthenticatedUser, school_id: st
             crm_stats = "None"
             try:
                 crm_res = await db.execute(
-                    text("SELECT status, COUNT(*) FROM public.crm_leads WHERE school_id = :sid::uuid GROUP BY status"),
+                    text("SELECT status, COUNT(*) FROM public.crm_leads WHERE school_id = CAST(:sid AS UUID) GROUP BY status"),
                     {"sid": school_id}
                 )
                 crm_rows = crm_res.fetchall()
@@ -1728,7 +1728,7 @@ async def fetch_ai_context(db: DbSession, user: AuthenticatedUser, school_id: st
             admissions_stats = "None"
             try:
                 adm_res_all = await db.execute(
-                    text("SELECT status, COUNT(*) FROM public.admission_applications WHERE school_id = :sid::uuid GROUP BY status"),
+                    text("SELECT status, COUNT(*) FROM public.admission_applications WHERE school_id = CAST(:sid AS UUID) GROUP BY status"),
                     {"sid": school_id}
                 )
                 adm_rows_all = adm_res_all.fetchall()
@@ -1825,7 +1825,7 @@ Recent ERP Complaints & Feedback:
                             COALESCE(SUM(total_amount - paid_amount), 0) as outstanding,
                             COALESCE(SUM(paid_amount), 0) as paid
                         FROM fee_invoices
-                        WHERE school_id = :sid AND status != 'paid' AND student_id != '00000000-0000-0000-0000-000000000000'::uuid
+                        WHERE school_id = :sid AND status != 'paid' AND student_id != CAST('00000000-0000-0000-0000-000000000000' AS UUID)
                     """),
                     {"sid": school_id}
                 )
@@ -1843,7 +1843,7 @@ Recent ERP Complaints & Feedback:
                 SELECT s.first_name, s.last_name, COALESCE(i.total_amount, 0) - COALESCE(i.paid_amount, 0) as balance, i.invoice_number, s.id as student_id, i.id as invoice_id
                 FROM fee_invoices i
                 JOIN students s ON i.student_id = s.id
-                WHERE i.school_id = :sid AND i.status != 'paid' AND i.student_id != '00000000-0000-0000-0000-000000000000'::uuid
+                WHERE i.school_id = :sid AND i.status != 'paid' AND i.student_id != CAST('00000000-0000-0000-0000-000000000000' AS UUID)
                 ORDER BY balance DESC LIMIT 15
             """, {"sid": school_id})
             defaulters_str = "\n".join([f"- {r[0]} {r[1] or ''}: Balance: {format_money(r[2])} (Invoice: {r[3]} [Invoice ID: {r[5]}]) [Student ID: {r[4]}]" for r in defaulters])
@@ -1858,7 +1858,7 @@ Recent ERP Complaints & Feedback:
                 LEFT JOIN student_enrollments se ON se.student_id = s.id AND se.end_date IS NULL
                 LEFT JOIN class_sections cs ON se.class_section_id = cs.id
                 LEFT JOIN academic_classes c ON cs.class_id = c.id
-                WHERE i.school_id = :sid AND i.student_id != '00000000-0000-0000-0000-000000000000'::uuid
+                WHERE i.school_id = :sid AND i.student_id != CAST('00000000-0000-0000-0000-000000000000' AS UUID)
                 ORDER BY i.created_at DESC LIMIT 100
             """, {"sid": school_id})
             invoices_str = "\n".join([

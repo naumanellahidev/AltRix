@@ -56,7 +56,7 @@ async def create_template(body: ReportCardTemplateCreate, current_user: CurrentU
     # If this is default, unset other defaults
     if body.is_default:
         await db.execute(
-            text("UPDATE report_card_templates SET is_default = FALSE WHERE school_id = :sid::uuid"),
+            text("UPDATE report_card_templates SET is_default = FALSE WHERE school_id = CAST(:sid AS UUID)"),
             {"sid": current_user.school_id}
         )
 
@@ -145,7 +145,7 @@ async def upsert_grade_scales(
 
     # Deactivate existing
     await db.execute(
-        text("UPDATE grade_scales SET is_active = FALSE WHERE school_id = :sid::uuid"),
+        text("UPDATE grade_scales SET is_active = FALSE WHERE school_id = CAST(:sid AS UUID)"),
         {"sid": current_user.school_id}
     )
 

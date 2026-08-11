@@ -454,10 +454,13 @@ async def get_user_school_roles(
     db: DbSession,
 ):
     """Retrieve roles for a specific user and school."""
+    import uuid
     try:
+        sid_obj = uuid.UUID(str(school_id)) if isinstance(school_id, str) else school_id
+        uid_obj = uuid.UUID(str(user_id)) if isinstance(user_id, str) else user_id
         result = await db.execute(
-            text("SELECT role FROM user_roles WHERE school_id = :sid::uuid AND user_id = :uid::uuid"),
-            {"sid": str(school_id), "uid": str(user_id)},
+            text("SELECT role FROM user_roles WHERE school_id = :sid AND user_id = :uid"),
+            {"sid": sid_obj, "uid": uid_obj},
         )
         rows = result.fetchall()
         return [UserRoleBriefOut(role=row[0]) for row in rows]

@@ -333,7 +333,7 @@ class SemanticCacheEngine:
                   AND expires_at > NOW()
                   AND (
                       :campus_id IS NULL
-                      OR campus_id = :campus_id::uuid
+                      OR campus_id = CAST(:campus_id AS UUID)
                       OR campus_id IS NULL
                   )
                   AND similarity(query_normalized, :nq) > 0.20
@@ -548,7 +548,7 @@ class SemanticCacheEngine:
                 UPDATE public.ai_semantic_cache
                 SET hit_count = hit_count + 1,
                     last_used_at = NOW()
-                WHERE id = :entry_id::uuid
+                WHERE id = CAST(:entry_id AS UUID)
             """), {"entry_id": entry_id})
         except Exception as e:
             logger.warning(f"Semantic cache hit tracking failed (non-fatal): {e}")
