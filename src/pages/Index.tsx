@@ -129,7 +129,7 @@ const Index = () => {
 
   const routeUserAfterLogin = async (userId: string) => {
     if (tenant.status !== "ready") {
-      showError("School not found. Please check the school code.");
+      showError("Institute not found. Please check the institute code.");
       await supabase.auth.signOut();
       return;
     }
@@ -167,14 +167,14 @@ const Index = () => {
     const isMember = !!membership || roles.length > 0;
 
     if (!isMember) {
-      showError("Your account is not a member of this school.");
+      showError("Your account is not a member of this institute.");
       await supabase.auth.signOut();
       return;
     }
     const destRole = resolveDestinationRole(roles);
 
     if (!destRole) {
-      showError("No role assigned to your account for this school. Contact an administrator.");
+      showError("No role assigned to your account for this institute. Contact an administrator.");
       await supabase.auth.signOut();
       return;
     }
@@ -377,7 +377,7 @@ const Index = () => {
     tenant.status === "ready"
       ? { label: tenant.school.name, tone: "ok" as const }
       : tenant.status === "error"
-        ? { label: "School not found", tone: "err" as const }
+        ? { label: "Institute not found", tone: "err" as const }
         : safeSlug
           ? { label: "Checking…", tone: "neutral" as const }
           : null;
@@ -392,11 +392,11 @@ const Index = () => {
 
       {/* ── HEADER ── */}
       <header className="w-full py-8 px-6 flex flex-col items-center relative z-10">
-        <div className="flex items-center gap-3.5">
+        <div className="flex items-center justify-center">
           <img
             src="/altrix-logo.png"
             alt="AltRix"
-            className="h-12 w-auto object-contain drop-shadow-md"
+            className="h-16 sm:h-20 md:h-24 w-auto max-w-[280px] sm:max-w-[340px] md:max-w-[400px] object-contain drop-shadow-md transition-all"
           />
         </div>
         <p className="mt-2 text-[10px] font-bold text-slate-500 tracking-[0.2em] uppercase opacity-85">
@@ -440,7 +440,7 @@ const Index = () => {
                   Welcome Back
                 </h2>
                 <p className="text-xs sm:text-sm text-slate-600 mt-1">
-                  Enter your school code and credentials.
+                  Enter your institute code and credentials.
                 </p>
               </div>
             )}
@@ -451,10 +451,10 @@ const Index = () => {
                 onSubmit={(e) => { e.preventDefault(); if (!busy) void doLogin(); }}
                 className="flex flex-col gap-5 relative z-10"
               >
-                {/* School code */}
+                {/* Institute code */}
                 <div>
                   <label className="block text-xs font-bold tracking-wider text-primary uppercase mb-2 ml-1">
-                    School Code
+                    Institute Code
                   </label>
                   <div className="relative rounded-xl border border-white/35 bg-white/45 shadow-soft transition-all duration-200 focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary focus-within:bg-white/60 overflow-hidden">
                     <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-primary/60 flex items-center">
@@ -489,7 +489,7 @@ const Index = () => {
                   )}
                   {tenant.status === "error" && safeSlug && (
                     <p className="text-xs text-red-600 mt-1.5 flex items-center gap-1.5 ml-1">
-                      <AlertCircle className="h-3.5 w-3.5" /> School not found
+                      <AlertCircle className="h-3.5 w-3.5" /> Institute not found
                     </p>
                   )}
                 </div>
@@ -578,11 +578,11 @@ const Index = () => {
                   {busy ? (
                     <><Loader2 className="h-4 w-4 animate-spin" /> Signing in…</>
                   ) : tenant.status === "loading" && safeSlug ? (
-                    <><Loader2 className="h-4 w-4 animate-spin" /> Verifying school…</>
+                    <><Loader2 className="h-4 w-4 animate-spin" /> Verifying institute…</>
                   ) : tenant.status === "error" ? (
-                    "Invalid school code"
+                    "Invalid institute code"
                   ) : !safeSlug ? (
-                    "Enter school code"
+                    "Enter institute code"
                   ) : (
                     <><span>Sign In to AltRix</span><ArrowRight className="h-4 w-4" /></>
                   )}
@@ -758,7 +758,7 @@ const Index = () => {
             )}
 
             <p className="mt-5 text-center text-xs text-slate-500 relative z-10">
-              Demo school: <span className="font-semibold text-slate-800">beacon</span> · Accounts are created by administrators.
+              Demo institute: <span className="font-semibold text-slate-800">beacon</span> · Accounts are created by administrators.
             </p>
           </div>
         </motion.div>
@@ -776,7 +776,7 @@ const Index = () => {
               { icon: Brain, iconColor: "text-primary", bg: "bg-primary/10", border: "border-primary/20", label: "AI Insights", desc: "Predictive student performance analytics and trend spotting." },
               { icon: ShieldCheck, iconColor: "text-primary", bg: "bg-primary/10", border: "border-primary/20", label: "Secure Vault", desc: "Military-grade data encryption and privacy compliance." },
               { icon: Eye, iconColor: "text-primary", bg: "bg-primary/10", border: "border-primary/20", label: "Transparency", desc: "Clear visibility with real-time data." },
-              { icon: MessageSquare, iconColor: "text-primary", bg: "bg-primary/10", border: "border-primary/20", label: "Universal Hub", desc: "Unified school-parent communication and collaboration." },
+              { icon: MessageSquare, iconColor: "text-primary", bg: "bg-primary/10", border: "border-primary/20", label: "Universal Hub", desc: "Unified institute-parent communication and collaboration." },
             ].map(({ icon: Icon, iconColor, bg, border, label, desc }) => (
               <div 
                 key={label} 
@@ -792,7 +792,7 @@ const Index = () => {
           </div>
 
           <p className="text-sm text-slate-600">
-            Need a school account?{" "}
+            Need an institute account?{" "}
             <a
               href="mailto:sales@altrix.io"
               className="text-primary font-semibold hover:underline"

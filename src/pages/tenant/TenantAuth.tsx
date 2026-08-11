@@ -96,14 +96,14 @@ const TenantAuth = () => {
 
     if (!isMember) {
       setMessageType("error");
-      setMessage("Your account is not a member of this school.");
+      setMessage("Your account is not a member of this institute.");
       await supabase.auth.signOut();
       return;
     }
     const destRole = resolveDestinationRole(roles);
     if (!destRole) {
       setMessageType("error");
-      setMessage("No role assigned. Contact an administrator.");
+      setMessage("No role assigned to your account for this institute. Contact an administrator.");
       await supabase.auth.signOut();
       return;
     }
@@ -159,11 +159,11 @@ const TenantAuth = () => {
 
       {/* ── HEADER ── */}
       <header className="w-full py-8 px-6 flex flex-col items-center relative z-10">
-        <div className="flex items-center gap-3.5">
+        <div className="flex items-center justify-center">
           <img
             src="/altrix-logo.png"
             alt="AltRix"
-            className="h-12 w-auto object-contain drop-shadow-md"
+            className="h-16 sm:h-20 md:h-24 w-auto max-w-[280px] sm:max-w-[340px] md:max-w-[400px] object-contain drop-shadow-md transition-all"
           />
         </div>
         <p className="mt-2 text-[10px] font-bold text-slate-500 tracking-[0.2em] uppercase opacity-85">
@@ -185,7 +185,7 @@ const TenantAuth = () => {
             Empowering education through intelligent operations
           </h2>
           <p className="text-base text-slate-600 leading-relaxed max-w-xl">
-            AltRix provides the infrastructure for modern schools to manage performance, security, and communication in one unified platform.
+            AltRix provides the infrastructure for modern educational institutes to manage performance, security, and communication in one unified platform.
           </p>
         </motion.div>
 
@@ -217,11 +217,11 @@ const TenantAuth = () => {
                   onSubmit={(e) => { e.preventDefault(); if (!busy) void doPasswordLogin(); }}
                   className="flex flex-col gap-5 relative z-10"
                 >
-                  {/* School Name Display */}
+                  {/* Institute Name Display */}
                   {tenant.slug && (
                     <div>
                       <label className="block text-xs font-bold tracking-wider text-primary uppercase mb-2 ml-1">
-                        School
+                        Institute
                       </label>
                       <div className="relative rounded-xl border border-white/35 bg-white/45 px-4 py-3 text-sm text-slate-800 flex items-center justify-between gap-3 backdrop-blur-sm overflow-hidden shadow-soft">
                         <div className="flex items-center gap-2.5 min-w-0">
@@ -236,7 +236,7 @@ const TenantAuth = () => {
                         href="/auth" 
                         className="text-xs text-primary hover:text-primary/80 hover:underline font-semibold mt-1.5 inline-block transition-colors"
                       >
-                        Not your school? Switch school
+                        Not your institute? Switch institute
                       </a>
                     </div>
                   )}
@@ -435,7 +435,7 @@ const TenantAuth = () => {
               { icon: Sparkles, iconColor: "text-primary", bg: "bg-primary/10", border: "border-primary/20", label: "AI Insights", desc: "Predictive student performance analytics and trend spotting." },
               { icon: Shield, iconColor: "text-primary", bg: "bg-primary/10", border: "border-primary/20", label: "Secure Vault", desc: "Military-grade data encryption and privacy compliance." },
               { icon: Activity, iconColor: "text-primary", bg: "bg-primary/10", border: "border-primary/20", label: "Real-time Audit", desc: "Live transparent audit logs for staff and administrators." },
-              { icon: Workflow, iconColor: "text-primary", bg: "bg-primary/10", border: "border-primary/20", label: "Universal Hub", desc: "Unified school-parent communication and collaboration." },
+              { icon: Workflow, iconColor: "text-primary", bg: "bg-primary/10", border: "border-primary/20", label: "Universal Hub", desc: "Unified institute-parent communication and collaboration." },
             ].map(({ icon: Icon, iconColor, bg, border, label, desc }) => (
               <div 
                 key={label} 
@@ -451,7 +451,7 @@ const TenantAuth = () => {
           </div>
 
           <p className="text-sm text-slate-600">
-            Need a school account?{" "}
+            Need an institute account?{" "}
             <a
               href="mailto:sales@altrix.io"
               className="text-primary font-semibold hover:underline"
