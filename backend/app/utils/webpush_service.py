@@ -182,7 +182,7 @@ async def dispatch_notification(
     try:
         from sqlalchemy import text
         res = await db.execute(
-            text("SELECT preferences FROM user_notification_preferences WHERE user_id = :uid AND school_id = :sid"),
+            text("SELECT preferences FROM user_notification_preferences WHERE user_id = :uid::uuid AND school_id = :sid::uuid"),
             {"uid": user_id, "sid": school_id}
         )
         row = res.fetchone()
@@ -220,7 +220,7 @@ async def dispatch_notification(
         try:
             from sqlalchemy import text
             res = await db.execute(
-                text("SELECT id, endpoint, p256dh, auth FROM user_web_push_subscriptions WHERE user_id = :uid"),
+                text("SELECT id, endpoint, p256dh, auth FROM user_web_push_subscriptions WHERE user_id = :uid::uuid"),
                 {"uid": user_id}
             )
             subs = res.fetchall()

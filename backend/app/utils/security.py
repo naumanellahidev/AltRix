@@ -231,7 +231,7 @@ async def get_allowed_student_ids(user, db) -> Optional[list]:
     if "student" in user_roles:
         try:
             res = await db.execute(
-                text("SELECT id FROM students WHERE profile_id = :uid"),
+                text("SELECT id FROM students WHERE profile_id = :uid::uuid"),
                 {"uid": str(user.id)}
             )
             allowed_ids.extend([r[0] for r in res.fetchall() if r[0]])
@@ -242,7 +242,7 @@ async def get_allowed_student_ids(user, db) -> Optional[list]:
     if "parent" in user_roles:
         try:
             res = await db.execute(
-                text("SELECT student_id FROM student_guardians WHERE user_id = :uid"),
+                text("SELECT student_id FROM student_guardians WHERE user_id = :uid::uuid"),
                 {"uid": str(user.id)}
             )
             allowed_ids.extend([r[0] for r in res.fetchall() if r[0]])

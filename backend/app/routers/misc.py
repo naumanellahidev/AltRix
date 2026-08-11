@@ -635,7 +635,7 @@ async def unsubscribe_web_push(
 ):
     """Unregister a web push subscription endpoint."""
     await db.execute(
-        text("DELETE FROM user_web_push_subscriptions WHERE endpoint = :ep AND user_id = :uid"),
+        text("DELETE FROM user_web_push_subscriptions WHERE endpoint = :ep AND user_id = :uid::uuid"),
         {"ep": unsub.endpoint, "uid": current_user.id}
     )
     return MessageResponse(message="Push subscription removed successfully")
@@ -644,7 +644,7 @@ async def unsubscribe_web_push(
 async def get_notification_preferences(current_user: CurrentUser, db: DbSession):
     """Get the user's notification preferences."""
     res = await db.execute(
-        text("SELECT preferences FROM user_notification_preferences WHERE user_id = :uid"),
+        text("SELECT preferences FROM user_notification_preferences WHERE user_id = :uid::uuid"),
         {"uid": current_user.id}
     )
     row = res.fetchone()
@@ -674,7 +674,7 @@ async def update_notification_preferences(
     
     # Check if entry exists
     res = await db.execute(
-        text("SELECT 1 FROM user_notification_preferences WHERE user_id = :uid"),
+        text("SELECT 1 FROM user_notification_preferences WHERE user_id = :uid::uuid"),
         {"uid": current_user.id}
     )
     exists = res.fetchone() is not None
@@ -684,7 +684,7 @@ async def update_notification_preferences(
             text("""
                 UPDATE user_notification_preferences 
                 SET preferences = :prefs, updated_at = NOW() 
-                WHERE user_id = :uid
+                WHERE user_id = :uid::uuid
             """),
             {"prefs": json.dumps(payload.preferences), "uid": current_user.id}
         )
@@ -692,7 +692,7 @@ async def update_notification_preferences(
         await db.execute(
             text("""
                 INSERT INTO user_notification_preferences (user_id, school_id, preferences)
-                VALUES (:uid, :sid, :prefs)
+                VALUES (:uid::uuid, :sid::uuid, :prefs)
             """),
             {"uid": current_user.id, "sid": school_id, "prefs": json.dumps(payload.preferences)}
         )
@@ -1299,7 +1299,7 @@ async def get_school_ai_status(db: DbSession, school_id: str) -> bool:
     """Returns per-school AI toggle. Checks both ID and slug, defaulting to True so AI Copilot works out-of-the-box."""
     try:
         # Resolve ID and slug
-        school_res = await db.execute(text("SELECT id, slug FROM public.schools WHERE id = :sid OR slug = :sid"), {"sid": school_id})
+        school_res = await db.execute(text("SELECT id, slug FROM public.schools WHERE id::text = :sid OR slug = :sid"), {"sid": school_id})
         row = school_res.fetchone()
         keys_to_check = [_school_ai_key(school_id)]
         if row:
@@ -1379,7 +1379,7 @@ async def fetch_ai_context(db: DbSession, user: AuthenticatedUser, school_id: st
     currency = "PKR"
     try:
         curr_res = await db.execute(
-            text("SELECT currency FROM public.fee_settings WHERE school_id = :sid LIMIT 1"),
+            text("SELECT currency FROM public.fee_settings WHERE school_id = :sid::uuid LIMIT 1"),
             {"sid": school_id}
         )
         curr_row = curr_res.fetchone()
@@ -1430,7 +1430,7 @@ async def fetch_ai_context(db: DbSession, user: AuthenticatedUser, school_id: st
     branding_info = "Default Branding"
     try:
         brand_res = await db.execute(
-            text("SELECT accent_hue, accent_saturation, accent_lightness, radius_scale FROM public.school_branding WHERE school_id = :sid LIMIT 1"),
+            text("SELECT accent_hue, accent_saturation, accent_lightness, radius_scale FROM public.school_branding WHERE school_id = :sid::uuid LIMIT 1"),
             {"sid": school_id}
         )
         brand_row = brand_res.fetchone()
@@ -1446,7 +1446,7 @@ async def fetch_ai_context(db: DbSession, user: AuthenticatedUser, school_id: st
     holidays_str = "None"
     try:
         hol_res = await db.execute(
-            text("SELECT title, start_date, end_date, holiday_type FROM public.holidays WHERE school_id = :sid AND end_date >= CURRENT_DATE ORDER BY start_date ASC LIMIT 10"),
+            text("SELECT title, start_date, end_date, holiday_type FROM public.holidays WHERE school_id = :sid::uuid AND end_date >= CURRENT_DATE ORDER BY start_date ASC LIMIT 10"),
             {"sid": school_id}
         )
         hols = hol_res.fetchall()
@@ -1674,7 +1674,7 @@ async def fetch_ai_context(db: DbSession, user: AuthenticatedUser, school_id: st
             # Pending admissions
             try:
                 adm_res = await db.execute(
-                    text("SELECT COUNT(*) FROM admission_applications WHERE school_id = :sid AND status = 'submitted'"),
+                    text("SELECT COUNT(*) FROM admission_applications WHERE school_id = :sid::uuid AND status = 'submitted'"),
                     {"sid": school_id}
                 )
                 pending_admissions = adm_res.scalar() or 0
@@ -1693,7 +1693,7 @@ async def fetch_ai_context(db: DbSession, user: AuthenticatedUser, school_id: st
                     text("""
                         SELECT COUNT(*), COUNT(DISTINCT class_section_id), COUNT(DISTINCT teacher_user_id) 
                         FROM public.timetable_entries 
-                        WHERE school_id = :sid
+                        WHERE school_id = :sid::uuid
                     """),
                     {"sid": school_id}
                 )
@@ -1711,7 +1711,7 @@ async def fetch_ai_context(db: DbSession, user: AuthenticatedUser, school_id: st
             crm_stats = "None"
             try:
                 crm_res = await db.execute(
-                    text("SELECT status, COUNT(*) FROM public.crm_leads WHERE school_id = :sid GROUP BY status"),
+                    text("SELECT status, COUNT(*) FROM public.crm_leads WHERE school_id = :sid::uuid GROUP BY status"),
                     {"sid": school_id}
                 )
                 crm_rows = crm_res.fetchall()
@@ -1728,7 +1728,7 @@ async def fetch_ai_context(db: DbSession, user: AuthenticatedUser, school_id: st
             admissions_stats = "None"
             try:
                 adm_res_all = await db.execute(
-                    text("SELECT status, COUNT(*) FROM public.admission_applications WHERE school_id = :sid GROUP BY status"),
+                    text("SELECT status, COUNT(*) FROM public.admission_applications WHERE school_id = :sid::uuid GROUP BY status"),
                     {"sid": school_id}
                 )
                 adm_rows_all = adm_res_all.fetchall()
@@ -2446,7 +2446,7 @@ async def update_school_ai_settings(
             detail="Only platform super administrators can modify per-school AI settings."
         )
     # Verify the school exists by ID or slug
-    school_res = await db.execute(text("SELECT id, slug FROM public.schools WHERE id = :sid OR slug = :sid"), {"sid": school_id})
+    school_res = await db.execute(text("SELECT id, slug FROM public.schools WHERE id::text = :sid OR slug = :sid"), {"sid": school_id})
     s_row = school_res.fetchone()
     resolved_id = s_row[0] if s_row else school_id
     

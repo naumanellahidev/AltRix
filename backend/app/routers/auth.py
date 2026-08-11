@@ -456,7 +456,7 @@ async def get_user_school_roles(
     """Retrieve roles for a specific user and school."""
     try:
         result = await db.execute(
-            text("SELECT role FROM user_roles WHERE school_id = :sid AND user_id = :uid"),
+            text("SELECT role FROM user_roles WHERE school_id = :sid::uuid AND user_id = :uid::uuid"),
             {"sid": str(school_id), "uid": str(user_id)},
         )
         rows = result.fetchall()
