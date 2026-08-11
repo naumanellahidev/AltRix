@@ -1,4 +1,4 @@
-# Logs
+dist_deploy.tar.gz
 logs
 *.log
 npm-debug.log*

@@ -10,6 +10,16 @@ type TenantState =
 // LocalStorage cache key builder
 const getTenantCacheKey = (slug: string) => `eduverse_tenant_basic_${slug}`;
 
+function purgeTenantCache(slug: string) {
+  try {
+    localStorage.removeItem(getTenantCacheKey(slug));
+    localStorage.removeItem(`eduverse_tenant_${slug}`);
+    localStorage.removeItem(`eduverse_brand_color_${slug}`);
+  } catch {
+    // Ignore storage errors
+  }
+}
+
 // Get cached tenant data from localStorage
 function getCachedTenant(slug: string): { id: string; slug: string; name: string } | null {
   try {
@@ -21,7 +31,13 @@ function getCachedTenant(slug: string): { id: string; slug: string; name: string
     
     // Cache valid for 24 hours
     if (age > 24 * 60 * 60 * 1000) {
-      localStorage.removeItem(getTenantCacheKey(slug));
+      purgeTenantCache(slug);
+      return null;
+    }
+
+    // Purge legacy hardcoded fallback entries where name was 'Beacon House' for non-beacon slugs
+    if (parsed.data?.name === "Beacon House" && slug !== "beacon") {
+      purgeTenantCache(slug);
       return null;
     }
     
@@ -49,15 +65,15 @@ export function useTenant(schoolSlug: string | undefined) {
     [schoolSlug],
   );
 
-  // Check for cached data immediately for offline support
+  // Check for cached data for offline support only
   const cachedData = useMemo(() => {
     if (!normalizedSlug) return null;
     return getCachedTenant(normalizedSlug);
   }, [normalizedSlug]);
 
-  // Initialize state with cached data if available (offline-first)
   const [state, setState] = useState<TenantState>(() => {
-    if (cachedData) {
+    // Only use cached data on initial render if OFFLINE
+    if (!navigator.onLine && cachedData) {
       return {
         status: "ready",
         school: cachedData,
@@ -87,11 +103,7 @@ export function useTenant(schoolSlug: string | undefined) {
     }
 
     let cancelled = false;
-    
-    // Only show loading if we don't have cached data
-    if (!cachedData) {
-      setState({ status: "loading", school: null, schoolId: null, error: null });
-    }
+    setState({ status: "loading", school: null, schoolId: null, error: null });
 
     const runSupabaseTenant = () => {
       supabase
@@ -99,30 +111,9 @@ export function useTenant(schoolSlug: string | undefined) {
         .maybeSingle()
         .then(({ data, error }) => {
           if (cancelled) return;
-          if (error) {
-            if (cachedData) {
-              setState({
-                status: "ready",
-                school: cachedData,
-                schoolId: cachedData.id,
-                error: null,
-              });
-            } else {
-              setState({ status: "error", school: null, schoolId: null, error: error.message });
-            }
-            return;
-          }
-          if (!data) {
-            if (cachedData) {
-              setState({
-                status: "ready",
-                school: cachedData,
-                schoolId: cachedData.id,
-                error: null,
-              });
-            } else {
-              setState({ status: "error", school: null, schoolId: null, error: "School not found." });
-            }
+          if (error || !data) {
+            purgeTenantCache(normalizedSlug);
+            setState({ status: "error", school: null, schoolId: null, error: error?.message || "School not found." });
             return;
           }
           const tenantData = { id: data.id, slug: data.slug, name: data.name };
@@ -138,16 +129,8 @@ export function useTenant(schoolSlug: string | undefined) {
           if (cancelled) return;
           const data = resp.data;
           if (!data) {
-            if (cachedData) {
-              setState({
-                status: "ready",
-                school: cachedData,
-                schoolId: cachedData.id,
-                error: null,
-              });
-            } else {
-              setState({ status: "error", school: null, schoolId: null, error: "School not found." });
-            }
+            purgeTenantCache(normalizedSlug);
+            setState({ status: "error", school: null, schoolId: null, error: "School not found." });
             return;
           }
           const tenantData = { id: data.id, slug: data.slug, name: data.name };
@@ -161,8 +144,7 @@ export function useTenant(schoolSlug: string | undefined) {
             setUseFastAPI(false);
             runSupabaseTenant();
           } else {
-            // Non-network error (e.g. 404 unknown slug) — NEVER fall back to cached data
-            // This prevents stale cache from masking an unknown/invalid slug
+            purgeTenantCache(normalizedSlug);
             setState({ status: "error", school: null, schoolId: null, error: err.response?.data?.detail || err.message || "School not found." });
           }
         });
@@ -173,7 +155,7 @@ export function useTenant(schoolSlug: string | undefined) {
     return () => {
       cancelled = true;
     };
-  }, [normalizedSlug, cachedData]);
+  }, [normalizedSlug]);
 
   return { ...state, slug: normalizedSlug };
 }

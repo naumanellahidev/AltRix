@@ -1,6 +1,6 @@
 FROM python:3.10-slim
 
-WORKDIR /app
+WORKDIR /app/backend
 
 # Install system dependencies for psycopg2 and other native packages
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -11,11 +11,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY backend/requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy backend code
-COPY backend/ ./backend/
+# Copy backend code cleanly into /app/backend
+COPY backend/ ./
 
-# Default port (Railway injects PORT env var)
+# Set PYTHONPATH explicitly to /app/backend
+ENV PYTHONPATH=/app/backend
 ENV PORT=8000
 
 # Start the FastAPI server
-CMD ["sh", "-c", "cd backend && python start.py"]
+CMD ["python", "start.py"]

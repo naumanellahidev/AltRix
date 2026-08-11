@@ -1,0 +1,1 @@
+"""AltRix Backend App Package."""

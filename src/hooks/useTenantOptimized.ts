@@ -6,6 +6,16 @@ import { apiClient } from "@/lib/api-client";
 // LocalStorage cache key builder
 const getTenantCacheKey = (slug: string) => `eduverse_tenant_${slug}`;
 
+function purgeTenantCache(slug: string) {
+  try {
+    localStorage.removeItem(getTenantCacheKey(slug));
+    localStorage.removeItem(`eduverse_tenant_basic_${slug}`);
+    localStorage.removeItem(`eduverse_brand_color_${slug}`);
+  } catch {
+    // Ignore storage errors
+  }
+}
+
 // Get cached tenant data from localStorage
 function getCachedTenant(slug: string): TenantData | null {
   try {
@@ -17,7 +27,13 @@ function getCachedTenant(slug: string): TenantData | null {
     
     // Cache valid for 24 hours
     if (age > 24 * 60 * 60 * 1000) {
-      localStorage.removeItem(getTenantCacheKey(slug));
+      purgeTenantCache(slug);
+      return null;
+    }
+
+    // Purge legacy hardcoded fallback entries where name was 'Beacon House' for non-beacon slugs
+    if (parsed.data?.name === "Beacon House" && slug !== "beacon") {
+      purgeTenantCache(slug);
       return null;
     }
     
@@ -94,7 +110,10 @@ export function useTenantOptimized(schoolSlug: string | undefined): TenantResult
       if (USE_FASTAPI) {
         const schoolResp = await apiClient.get(`/schools/by-slug/${normalizedSlug}`);
         const schoolData = schoolResp.data;
-        if (!schoolData) return null;
+        if (!schoolData) {
+          purgeTenantCache(normalizedSlug);
+          return null;
+        }
 
         let branding = null;
         try {
