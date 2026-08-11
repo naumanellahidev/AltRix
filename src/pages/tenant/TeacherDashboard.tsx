@@ -78,6 +78,33 @@ const TeacherDashboard = () => {
     enabled: !!schoolId && !!user && authzState === 'ok',
   });
 
+  // ─── TENANT AUTHORIZATION GATES ────────────────────────────────────────
+  // Gate 1: Unknown/invalid school slug → reject before any data loads
+  if (tenant.status === "error") {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-8">
+        <div className="rounded-3xl bg-surface p-8 shadow-elevated max-w-md text-center">
+          <h2 className="text-xl font-semibold text-destructive mb-2">School Not Found</h2>
+          <p className="text-sm text-muted-foreground mb-4">
+            The school you are trying to access does not exist or is no longer available.
+          </p>
+          <Button variant="outline" onClick={() => navigate("/auth")}>
+            Return to Login
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // Gate 2: Tenant still resolving
+  if (tenant.status === "loading" || tenant.status === "idle") {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+      </div>
+    );
+  }
+
   // Don't show loading screen if we have cached session data
   if (loading && !user) {
     return (
@@ -93,35 +120,37 @@ const TeacherDashboard = () => {
     return <Navigate to={`/${tenant.slug}/auth`} replace />;
   }
 
+  // Gate 3: Authorization check — must pass before any tenant content renders
+  if (authzState === "checking") {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+      </div>
+    );
+  }
+
+  if (authzState === "denied") {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-8">
+        <div className="rounded-3xl bg-surface p-8 shadow-elevated max-w-md text-center">
+          <h2 className="text-xl font-semibold text-destructive mb-2">Access Denied</h2>
+          <p className="text-sm text-muted-foreground mb-4">
+            {authzMessage || "You do not have permission to access this school or role."}
+          </p>
+          <Button variant="outline" onClick={() => navigate("/auth")}>
+            Return to Login
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   const title = tenant.status === "ready" ? `${tenant.school?.name} • Teacher` : "AltRix";
 
   return (
     <TeacherShell title={title} schoolSlug={tenant.slug}>
       <div className="flex flex-col gap-6">
-
-        {/* Access check - only show if denied (not while checking with cache) */}
-        {authzState === "denied" && (
-          <div className="rounded-2xl bg-destructive/10 p-4 text-sm">
-            <p className="font-medium text-destructive">Access Denied</p>
-            <p className="mt-1">{authzMessage ?? "You do not have access to this area."}</p>
-            <div className="mt-3">
-              <Button
-                variant="hero"
-                size="sm"
-                onClick={async () => {
-                  await supabase.auth.signOut();
-                  navigate(`/${tenant.slug}/auth`);
-                }}
-              >
-                Return to login
-              </Button>
-            </div>
-          </div>
-        )}
-
-        {/* Routes - show if OK or checking (with cached auth) */}
-        {authzState !== "denied" && (
-          <RouteGuard extraAllowedPaths={[
+        <RouteGuard extraAllowedPaths={[
             "students","attendance","homework","assignments","behavior","gradebook",
             "progress","lesson-plans","reports","report-cards","exams","diary",
             "notices","holidays","timetable","leaves","ai-insights","messages",
@@ -164,7 +193,6 @@ const TeacherDashboard = () => {
             </Routes>
           </Suspense>
           </RouteGuard>
-        )}
       </div>
     </TeacherShell>
   );

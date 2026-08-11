@@ -396,6 +396,33 @@ const TenantDashboard = () => {
     return location.pathname === basePath || location.pathname === `${basePath}/`;
   }, [location.pathname, tenant.slug, role]);
 
+  // ─── TENANT AUTHORIZATION GATES ────────────────────────────────────────
+  // Gate 1: Unknown/invalid school slug → reject before any data loads
+  if (tenant.status === "error") {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-8">
+        <div className="rounded-3xl bg-surface p-8 shadow-elevated max-w-md text-center">
+          <h2 className="text-xl font-semibold text-destructive mb-2">School Not Found</h2>
+          <p className="text-sm text-muted-foreground mb-4">
+            The school you are trying to access does not exist or is no longer available.
+          </p>
+          <Button variant="outline" onClick={() => navigate("/auth")}>
+            Return to Login
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // Gate 2: Tenant still resolving
+  if (tenant.status === "loading" || tenant.status === "idle") {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+      </div>
+    );
+  }
+
   if (!role) return <Navigate to={`/${tenant.slug || ""}/auth`} replace />;
 
   // Don't show loading if we have cached user
@@ -411,6 +438,31 @@ const TenantDashboard = () => {
 
   if (!user) {
     return <Navigate to={`/${tenant.slug}/auth`} replace />;
+  }
+
+  // Gate 3: Authorization check — must pass before any tenant data renders
+  if (authzState === "checking") {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+      </div>
+    );
+  }
+
+  if (authzState === "denied") {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-8">
+        <div className="rounded-3xl bg-surface p-8 shadow-elevated max-w-md text-center">
+          <h2 className="text-xl font-semibold text-destructive mb-2">Access Denied</h2>
+          <p className="text-sm text-muted-foreground mb-4">
+            {authzMessage || "You do not have permission to access this school or role."}
+          </p>
+          <Button variant="outline" onClick={() => navigate("/auth")}>
+            Return to Login
+          </Button>
+        </div>
+      </div>
+    );
   }
 
   // Use cached values for offline display

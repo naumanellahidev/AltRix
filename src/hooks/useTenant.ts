@@ -161,16 +161,9 @@ export function useTenant(schoolSlug: string | undefined) {
             setUseFastAPI(false);
             runSupabaseTenant();
           } else {
-            if (cachedData) {
-              setState({
-                status: "ready",
-                school: cachedData,
-                schoolId: cachedData.id,
-                error: null,
-              });
-            } else {
-              setState({ status: "error", school: null, schoolId: null, error: err.message || "Failed to fetch school." });
-            }
+            // Non-network error (e.g. 404 unknown slug) — NEVER fall back to cached data
+            // This prevents stale cache from masking an unknown/invalid slug
+            setState({ status: "error", school: null, schoolId: null, error: err.response?.data?.detail || err.message || "School not found." });
           }
         });
     } else {

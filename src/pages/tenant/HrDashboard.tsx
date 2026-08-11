@@ -54,6 +54,26 @@ const HrDashboard = () => {
     enabled: !!schoolId && !!user && authzState === 'ok',
   });
 
+  // ─── TENANT AUTHORIZATION GATES ────────────────────────────────────────
+  if (tenant.status === "error") {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-8">
+        <div className="rounded-3xl bg-surface p-8 shadow-elevated max-w-md text-center">
+          <h2 className="text-xl font-semibold text-destructive mb-2">School Not Found</h2>
+          <p className="text-sm text-muted-foreground">The school you are trying to access does not exist.</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (tenant.status === "loading" || tenant.status === "idle") {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+      </div>
+    );
+  }
+
   if (loading && !user) {
     return (
       <div className="min-h-screen bg-background p-8">

@@ -73,23 +73,12 @@ async def create_school(body: SchoolCreate, current_user: CurrentUser, db: DbSes
 
 @schools_router.get("/by-slug/{slug}", response_model=SchoolOut)
 async def get_school_by_slug(slug: str, db: DbSession):
-    """Retrieve school metadata by slug (public endpoint, no auth required)."""
-    try:
-        result = await db.execute(select(School).where(School.slug == slug))
-        school = result.scalar_one_or_none()
-        if not school:
-            raise NotFoundError("School", slug)
-        return school
-    except Exception as e:
-        import logging
-        logging.getLogger("app.schools").warning(f"Error querying school by slug {slug}: {e}")
-        import uuid
-        return SchoolOut(
-            id=uuid.UUID("70b40b4e-ae36-4c1e-82b0-61e08dc5d4d8"),
-            name="Beacon House",
-            slug=slug,
-            is_active=True
-        )
+    """Retrieve school metadata by slug (public endpoint for tenant resolution)."""
+    result = await db.execute(select(School).where(School.slug == slug))
+    school = result.scalar_one_or_none()
+    if not school:
+        raise NotFoundError("School", slug)
+    return school
 
 
 @schools_router.get("/users-directory")

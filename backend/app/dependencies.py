@@ -118,11 +118,6 @@ async def get_current_user_with_roles(
             row_ur = res_ur.fetchone()
             if row_ur and row_ur[0]:
                 x_school_id = str(row_ur[0])
-            else:
-                res_sch = await db.execute(text("SELECT id FROM schools ORDER BY created_at ASC LIMIT 1"))
-                row_sch = res_sch.fetchone()
-                if row_sch and row_sch[0]:
-                    x_school_id = str(row_sch[0])
         except Exception as e:
             import logging
             logging.getLogger("app.dependencies").warning(f"Error resolving fallback school_id: {e}")

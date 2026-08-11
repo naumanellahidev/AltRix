@@ -91,30 +91,13 @@ apiClient.interceptors.request.use(
       try {
         schoolId = localStorage.getItem("eduverse_active_school_id");
         
-        // First check current URL pathname for slug
+        // Check current URL pathname for slug-specific cached tenant
         if (!schoolId && firstSegment) {
           const item = localStorage.getItem(`eduverse_tenant_${firstSegment}`);
           if (item) {
             const parsed = JSON.parse(item);
             if (parsed?.data?.id) {
               schoolId = parsed.data.id;
-            }
-          }
-        }
-
-        // Fallback: scan localStorage
-        if (!schoolId) {
-          for (let i = 0; i < localStorage.length; i++) {
-            const key = localStorage.key(i);
-            if (key && (key.startsWith("eduverse_tenant_basic_") || key.startsWith("eduverse_tenant_"))) {
-              const item = localStorage.getItem(key);
-              if (item) {
-                const parsed = JSON.parse(item);
-                if (parsed?.data?.id) {
-                  schoolId = parsed.data.id;
-                  break;
-                }
-              }
             }
           }
         }

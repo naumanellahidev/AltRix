@@ -166,11 +166,6 @@ export function useTenantOptimized(schoolSlug: string | undefined): TenantResult
     enabled: !!normalizedSlug,
     staleTime: 5 * 60 * 1000, // Cache for 5 minutes
     gcTime: 10 * 60 * 1000, // Keep in cache for 10 minutes
-    initialData: () => {
-      // Provide cached data as initial data to prevent loading state
-      if (!normalizedSlug) return undefined;
-      return getCachedTenant(normalizedSlug) || undefined;
-    },
   });
 
   // Apply branding when data is available
