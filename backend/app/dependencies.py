@@ -63,6 +63,8 @@ async def get_current_user(
     if not user_id:
         raise credentials_exception
 
+    email: str = payload.get("email", "") or ""
+
     import uuid
     # Convert string user_id to UUID object for native asyncpg parameter binding
     try:
