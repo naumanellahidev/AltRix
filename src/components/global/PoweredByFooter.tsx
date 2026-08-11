@@ -1,7 +1,7 @@
 export function PoweredByFooter() {
   const content = (
     <span className="pointer-events-auto text-[10px] text-muted-foreground/40 font-medium tracking-wide">
-      AltRix - School Operating System
+      AltRix - Institute Operating System
     </span>
   );
 

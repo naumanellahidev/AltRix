@@ -1343,7 +1343,7 @@ export default function PlatformBillingPage() {
 
             <div className="space-y-4 py-3">
               <div className="space-y-1.5">
-                <Label htmlFor="school-select" className="text-slate-700 text-xs">Select School</Label>
+                <Label htmlFor="school-select" className="text-slate-700 text-xs">Select Institute</Label>
                 <Select
                   value={invoiceSchoolId}
                   onValueChange={(val) => {
@@ -1429,7 +1429,7 @@ export default function PlatformBillingPage() {
 
             <div className="space-y-4 py-3">
               <div className="space-y-1.5">
-                <Label htmlFor="edit-school" className="text-slate-700 text-xs">School Name</Label>
+                <Label htmlFor="edit-school" className="text-slate-700 text-xs">Institute Name</Label>
                 <Input
                   id="edit-school"
                   value={editingInvoice?.school_name || ""}

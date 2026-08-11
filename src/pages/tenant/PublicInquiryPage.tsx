@@ -293,7 +293,7 @@ export default function PublicInquiryPage() {
               <School className="h-5 w-5 text-primary" />
             </div>
           )}
-          <span className="font-display font-bold text-sm tracking-tight">{school?.name || "School Portal"}</span>
+          <span className="font-display font-bold text-sm tracking-tight">{school?.name || "Institute Portal"}</span>
         </div>
         <div className="hidden sm:flex items-center gap-4 text-xs text-muted-foreground">
           {(schoolDetails?.email || (school as any)?.email) && (

@@ -164,7 +164,7 @@ export default function PlatformAuditPage() {
                   <SelectContent>
                     <SelectItem value="all">All Actions</SelectItem>
                     <SelectItem value="impersonate_user">Impersonation</SelectItem>
-                    <SelectItem value="create_school">Create School</SelectItem>
+                    <SelectItem value="create_school">Create Institute</SelectItem>
                     <SelectItem value="update_school_settings">Update Settings</SelectItem>
                   </SelectContent>
                 </Select>

@@ -1241,7 +1241,7 @@ export function StudentCardsModule() {
                       
                       {/* Logo upload control */}
                       <div className="space-y-2 pb-4 border-b border-slate-100">
-                        <Label className="text-slate-700 font-medium">School Brand Logo</Label>
+                        <Label className="text-slate-700 font-medium">Institute Brand Logo</Label>
                         <div className="flex items-center gap-4">
                           <div className="w-16 h-16 rounded-lg bg-slate-50 border border-slate-200 flex items-center justify-center overflow-hidden shrink-0">
                             {schoolLogo ? (
@@ -1419,7 +1419,7 @@ export function StudentCardsModule() {
                         <h4 className="text-slate-800 font-semibold text-sm">Visible Fields & Branding</h4>
                         
                         <div className="flex items-center justify-between">
-                          <Label htmlFor="show-logo" className="text-slate-600 font-normal">Show School Logo</Label>
+                          <Label htmlFor="show-logo" className="text-slate-600 font-normal">Show Institute Logo</Label>
                           <Switch 
                             id="show-logo"
                             checked={settings?.show_logo}

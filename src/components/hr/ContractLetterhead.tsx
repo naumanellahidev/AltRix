@@ -155,7 +155,7 @@ export const ContractLetterhead = forwardRef<HTMLDivElement, Props>(
         {/* Footer band — single tagline */}
         <div className="px-10 py-3 border-t flex items-center justify-end text-[10.5px] text-slate-500"
              style={{ borderColor: "hsl(var(--primary) / 0.4)" }}>
-          <span>AltRix — School Operating System</span>
+          <span>AltRix — Institute Operating System</span>
         </div>
       </div>
     );

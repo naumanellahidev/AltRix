@@ -458,7 +458,7 @@ const ParentHomeModule = ({ child, schoolId }: ParentHomeModuleProps) => {
           <div className="rounded-2xl border border-blue-50 bg-white p-5 sm:p-6 shadow-[0_4px_25px_rgb(219,234,254,0.15)] space-y-5 animate-rise">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="font-display text-sm font-bold tracking-tight text-slate-800">School Broadcasts</h3>
+                <h3 className="font-display text-sm font-bold tracking-tight text-slate-800">Institute Broadcasts</h3>
                 <p className="text-xs text-slate-400 mt-0.5">Announcements and notices</p>
               </div>
               <Link to="notices" className="text-xs font-bold text-blue-600 hover:underline flex items-center gap-0.5">

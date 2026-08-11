@@ -145,7 +145,7 @@ export function OwnerSecurityModule({ schoolId }: Props) {
           <CardContent className="p-4">
             <Users className="h-5 w-5 text-blue-600" />
             <p className="mt-2 font-display text-2xl font-bold">{summary.totalMembers}</p>
-            <p className="text-xs text-muted-foreground">School Members</p>
+            <p className="text-xs text-muted-foreground">Institute Members</p>
           </CardContent>
         </Card>
         <Card>

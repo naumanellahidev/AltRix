@@ -702,7 +702,7 @@ export function InquiriesModule() {
 
                       {/* Logo Switch */}
                       <div className="flex items-center justify-between py-2 border-b border-slate-50">
-                        <Label htmlFor="setup-logo" className="cursor-pointer">Show School Logo</Label>
+                        <Label htmlFor="setup-logo" className="cursor-pointer">Show Institute Logo</Label>
                         <Switch 
                           id="setup-logo"
                           checked={settings.show_logo}

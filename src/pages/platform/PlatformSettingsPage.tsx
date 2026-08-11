@@ -67,7 +67,7 @@ export default function PlatformSettingsPage() {
     smtpPort: "587",
     smtpUser: "postmaster@mg.altrix.com",
     senderEmail: "no-reply@altrixbynec.com",
-    platformFooterText: "AltRix - School Operating System"
+    platformFooterText: "AltRix - Institute Operating System"
   });
 
   useEffect(() => {

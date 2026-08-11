@@ -529,7 +529,7 @@ export default function PlatformSchoolsPage() {
                   <CardContent className="space-y-4">
                     <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
                       <div className="space-y-2">
-                        <label className="text-sm font-medium text-slate-900">School Slug</label>
+                        <label className="text-sm font-medium text-slate-900">Institute Slug</label>
                         <Input
                           className="bg-slate-50 border-slate-300 text-slate-900 placeholder:text-slate-400 focus-visible:ring-blue-500/30 autofill:shadow-none"
                           value={newSlug}
@@ -538,7 +538,7 @@ export default function PlatformSchoolsPage() {
                         />
                       </div>
                       <div className="space-y-2 md:col-span-2">
-                        <label className="text-sm font-medium text-slate-900">School Name</label>
+                        <label className="text-sm font-medium text-slate-900">Institute Name</label>
                         <Input
                           className="bg-slate-50 border-slate-300 text-slate-900 placeholder:text-slate-400 focus-visible:ring-blue-500/30 autofill:shadow-none"
                           value={newName}

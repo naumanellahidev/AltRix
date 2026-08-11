@@ -142,7 +142,7 @@ export default function OwnerDashboard() {
     if (!navigator.onLine && cachedAuth !== null) {
       setAuthzState(cachedAuth ? "ok" : "denied");
       if (!cachedAuth) {
-        setAuthzMessage("You do not have the School Owner role for this institution.");
+        setAuthzMessage("You do not have the Institute Owner role for this institution.");
       }
       return;
     }
@@ -179,7 +179,7 @@ export default function OwnerDashboard() {
       const ownsCurrentSchool = Array.isArray(ownedSchools) && ownedSchools.some((school: any) => school.id === schoolIdVal);
       if (!ownsCurrentSchool) {
         setAuthzState("denied");
-        setAuthzMessage("You do not have the School Owner role for this institution.");
+        setAuthzMessage("You do not have the Institute Owner role for this institution.");
         setCachedOwnerAuthz(schoolIdVal, userId, false);
         return;
       }
@@ -198,7 +198,7 @@ export default function OwnerDashboard() {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-8">
         <div className="rounded-3xl bg-surface p-8 shadow-elevated max-w-md text-center">
-          <h2 className="text-xl font-semibold text-destructive mb-2">School Not Found</h2>
+          <h2 className="text-xl font-semibold text-destructive mb-2">Institute Not Found</h2>
           <p className="text-sm text-muted-foreground">The school you are trying to access does not exist.</p>
         </div>
       </div>

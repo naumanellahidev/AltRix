@@ -67,7 +67,7 @@ export default defineConfig(({ mode }) => ({
     react(),
     VitePWA({
       registerType: "autoUpdate",
-      includeAssets: ["favicon.ico", "robots.txt", "pwa-512.png"],
+      includeAssets: ["favicon.ico", "altrix-icon.png", "altrix-logo.png", "robots.txt", "pwa-512.png"],
       workbox: {
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 5 MiB
         cleanupOutdatedCaches: true,
@@ -95,9 +95,9 @@ export default defineConfig(({ mode }) => ({
         ],
       },
       manifest: {
-        name: "AltRix Parent Portal",
+        name: "AltRix Portal",
         short_name: "AltRix",
-        description: "AltRix — The AI-Powered School Operating System",
+        description: "AltRix — The AI-Powered Institute Operating System",
         theme_color: "#2563eb",
         background_color: "#f8fafc",
         display: "standalone",

@@ -394,16 +394,13 @@ const Index = () => {
       <header className="w-full py-8 px-6 flex flex-col items-center relative z-10">
         <div className="flex items-center gap-3.5">
           <img
-            src="/pwa-512.png"
+            src="/altrix-logo.png"
             alt="AltRix"
-            className="w-11 h-11 rounded-xl shadow-md shadow-primary/20 border border-white/40"
+            className="h-12 w-auto object-contain drop-shadow-md"
           />
-          <span className="font-sans text-3xl font-extrabold tracking-tight bg-gradient-to-r from-primary to-primary/80 bg-clip-text text-transparent">
-            AltRix
-          </span>
         </div>
-        <p className="mt-1.5 text-[10px] font-bold text-slate-500 tracking-[0.2em] uppercase opacity-85">
-          School Operating System
+        <p className="mt-2 text-[10px] font-bold text-slate-500 tracking-[0.2em] uppercase opacity-85">
+          Institute Operating System
         </p>
       </header>
 
@@ -421,7 +418,7 @@ const Index = () => {
             Empowering education through intelligent operations
           </h2>
           <p className="text-base text-slate-600 leading-relaxed max-w-xl">
-            AltRix provides the infrastructure for modern schools to manage performance, security, and communication in one unified platform.
+            AltRix provides the infrastructure for modern educational institutes to manage performance, security, and communication in one unified platform.
           </p>
         </motion.div>
 
@@ -810,8 +807,8 @@ const Index = () => {
       {/* ── FOOTER ── */}
       <footer className="w-full bg-white/40 border-t border-white/50 py-4 px-6 relative z-10 backdrop-blur-sm">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-2 opacity-50 hover:opacity-100 transition-opacity duration-200">
-            <img src="/pwa-512.png" alt="AltRix" className="w-6 h-6 rounded-md" />
+          <div className="flex items-center gap-2 opacity-70 hover:opacity-100 transition-opacity duration-200">
+            <img src="/altrix-icon.png" alt="AltRix" className="w-6 h-6 object-contain" />
             <span className="font-sans text-sm font-bold text-slate-900">AltRix</span>
           </div>
           <div className="flex gap-6 justify-center flex-wrap">
@@ -826,7 +823,7 @@ const Index = () => {
             ))}
           </div>
           <p className="text-[11px] sm:text-xs text-slate-500">
-            © {new Date().getFullYear()} AltRix School OS. All rights reserved.
+            © {new Date().getFullYear()} AltRix Institute OS. All rights reserved.
           </p>
         </div>
       </footer>

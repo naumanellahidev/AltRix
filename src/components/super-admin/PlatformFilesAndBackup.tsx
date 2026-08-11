@@ -195,7 +195,7 @@ export function PlatformFilesAndBackup() {
       }
       const payload = {
         exportedAt: new Date().toISOString(),
-        platform: "AltRix - School Operating System",
+        platform: "AltRix - Institute Operating System",
         tableCount: Object.keys(dump).length,
         rowCount: total,
         tables: dump,

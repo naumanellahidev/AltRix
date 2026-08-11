@@ -220,7 +220,7 @@ export default function ParentFeesModule({ child, schoolId }: ParentFeesModulePr
   };
 
   const downloadTaxCertificate = (cert: TaxCertificate) => {
-    const text = `ANNUAL TAX CERTIFICATE\n=====================\nCertificate No: ${cert.certificate_number}\nFiscal Year:    ${cert.fiscal_year}\nStudent:        ${child?.first_name} ${child?.last_name || ""}\nTotal Paid:     PKR ${Number(cert.total_fees_paid).toLocaleString()}\nGenerated:      ${new Date(cert.generated_at).toLocaleDateString()}\n\nVerified by AltRix School ERP Finance Module.`;
+    const text = `ANNUAL TAX CERTIFICATE\n=====================\nCertificate No: ${cert.certificate_number}\nFiscal Year:    ${cert.fiscal_year}\nStudent:        ${child?.first_name} ${child?.last_name || ""}\nTotal Paid:     PKR ${Number(cert.total_fees_paid).toLocaleString()}\nGenerated:      ${new Date(cert.generated_at).toLocaleDateString()}\n\nVerified by AltRix Institute Platform Finance Module.`;
     const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");

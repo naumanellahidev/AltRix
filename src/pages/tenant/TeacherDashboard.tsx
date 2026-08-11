@@ -84,7 +84,7 @@ const TeacherDashboard = () => {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-8">
         <div className="rounded-3xl bg-surface p-8 shadow-elevated max-w-md text-center">
-          <h2 className="text-xl font-semibold text-destructive mb-2">School Not Found</h2>
+          <h2 className="text-xl font-semibold text-destructive mb-2">Institute Not Found</h2>
           <p className="text-sm text-muted-foreground mb-4">
             The school you are trying to access does not exist or is no longer available.
           </p>

@@ -123,7 +123,7 @@ export function OwnerComplianceModule({ schoolId }: Props) {
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Card><CardContent className="p-4"><Scale className="h-5 w-5 text-primary" /><p className="mt-2 font-display text-2xl font-bold">{data?.isActive ? "Active" : "Inactive"}</p><p className="text-xs text-muted-foreground">School Status</p></CardContent></Card>
+        <Card><CardContent className="p-4"><Scale className="h-5 w-5 text-primary" /><p className="mt-2 font-display text-2xl font-bold">{data?.isActive ? "Active" : "Inactive"}</p><p className="text-xs text-muted-foreground">Institute Status</p></CardContent></Card>
         <Card><CardContent className="p-4"><Shield className="h-5 w-5 text-emerald-600" /><p className={`mt-2 font-display text-2xl font-bold ${scoreColor}`}>{score}%</p><p className="text-xs text-muted-foreground">Compliance Score</p></CardContent></Card>
         <Card><CardContent className="p-4"><FileWarning className="h-5 w-5 text-amber-600" /><p className="mt-2 font-display text-2xl font-bold">{data?.expiring.length ?? 0}</p><p className="text-xs text-muted-foreground">Expiring Contracts (60d)</p></CardContent></Card>
         <Card><CardContent className="p-4"><AlertTriangle className="h-5 w-5 text-red-600" /><p className="mt-2 font-display text-2xl font-bold">{(data?.missingContract.length ?? 0) + (data?.missingDocs.length ?? 0)}</p><p className="text-xs text-muted-foreground">Open Audit Items</p></CardContent></Card>

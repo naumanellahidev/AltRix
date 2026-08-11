@@ -1,5 +1,5 @@
 /**
- * Internationalization & Localization Utility for AltRix School ERP (English & Urdu RTL support).
+ * Internationalization & Localization Utility for AltRix Institute Platform (English & Urdu RTL support).
  */
 
 export type Language = "en" | "ur";

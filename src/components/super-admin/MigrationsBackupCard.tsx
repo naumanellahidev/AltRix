@@ -102,7 +102,7 @@ export function MigrationsBackupCard() {
       }
       zip.file("ALL_MIGRATIONS_COMBINED.sql", combined);
       zip.file("README.txt",
-`AltRix — School Operating System
+`AltRix — Institute Operating System
 Database Migration Backup
 
 This archive contains every SQL migration file that defines the AltRix

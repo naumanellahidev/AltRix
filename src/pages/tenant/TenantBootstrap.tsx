@@ -74,11 +74,11 @@ const TenantBootstrap = () => {
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">School Slug</label>
+                  <label className="text-sm font-medium">Institute Slug</label>
                   <Input value={slug} disabled />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">School Name</label>
+                  <label className="text-sm font-medium">Institute Name</label>
                   <Input value={schoolName} onChange={(e) => setSchoolName(e.target.value)} />
                 </div>
               </div>
