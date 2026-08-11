@@ -32,6 +32,8 @@ const TeacherPresenceHistoryModule = lazy(() => import("@/pages/tenant/teacher-m
 const NoticesModule = lazy(() => import("@/pages/tenant/modules/NoticesModule"));
 const HolidaysModule = lazy(() => import("@/pages/tenant/modules/HolidaysModule"));
 const DiaryModule = lazy(() => import("@/pages/tenant/modules/DiaryModule"));
+const ExamsModule = lazy(() => import("@/pages/tenant/modules/ExamsModule"));
+const ReportCardModule = lazy(() => import("@/pages/tenant/modules/ReportCardModule"));
 const EventsModule = lazy(() => import("@/pages/tenant/modules/EventsModule"));
 const LibraryModule = lazy(() => import("@/pages/tenant/modules/LibraryModule"));
 const TransportModule = lazy(() => import("@/pages/tenant/modules/TransportModule"));

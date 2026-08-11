@@ -18,6 +18,11 @@ const StudentSupportModule = lazy(() => import("@/pages/tenant/student-modules/S
 const StudentMessagesModule = lazy(() => import("@/pages/tenant/student-modules/StudentMessagesModule").then(m => ({ default: m.StudentMessagesModule })));
 const StudentAIModule = lazy(() => import("@/pages/tenant/student-modules/StudentAIModule").then(m => ({ default: m.StudentAIModule })));
 const StudentComplaintsModule = lazy(() => import("@/pages/tenant/student-modules/StudentComplaintsModule"));
+const NoticesModule = lazy(() => import("@/pages/tenant/modules/NoticesModule"));
+const HolidaysModule = lazy(() => import("@/pages/tenant/modules/HolidaysModule"));
+const DiaryModule = lazy(() => import("@/pages/tenant/modules/DiaryModule"));
+const ExamsModule = lazy(() => import("@/pages/tenant/modules/ExamsModule"));
+const ReportCardModule = lazy(() => import("@/pages/tenant/modules/ReportCardModule"));
 const EventsModule = lazy(() => import("@/pages/tenant/modules/EventsModule"));
 const LibraryModule = lazy(() => import("@/pages/tenant/student-modules/StudentLibraryModule"));
 const TransportModule = lazy(() => import("@/pages/tenant/student-modules/StudentTransportModule"));
