@@ -120,48 +120,14 @@ async def generate_signed_url(
         raise ValueError("Invalid file path")
 
     ttl = expires_in or SIGNED_URL_TTL.get(bucket, 3600)
-
-    try:
-        async with httpx.AsyncClient() as client:
-            resp = await client.post(
-                f"{settings.supabase_url}/storage/v1/object/sign/{bucket}/{path}",
-                json={"expiresIn": ttl},
-                headers={
-                    "apikey": settings.supabase_service_role_key,
-                    "Authorization": f"Bearer {settings.supabase_service_role_key}",
-                    "Content-Type": "application/json",
-                },
-                timeout=10.0,
-            )
-
-        if resp.status_code != 200:
-            logger.warning(
-                f"Supabase signed URL generation failed: {resp.status_code} {resp.text}"
-            )
-            raise ValueError(f"Failed to generate download link: {resp.status_code}")
-
-        data = resp.json()
-        signed_url = data.get("signedURL") or data.get("signedUrl", "")
-        if not signed_url:
-            raise ValueError("No signed URL in Supabase response")
-
-        # Prepend Supabase URL if path-only
-        if signed_url.startswith("/"):
-            signed_url = f"{settings.supabase_url}{signed_url}"
-
-        logger.info(f"Signed URL generated: bucket={bucket}, path={path}, ttl={ttl}s")
-        return signed_url
-
-    except ValueError:
-        raise
-    except Exception as e:
-        logger.error(f"Storage signed URL error: {e}")
-        raise ValueError(f"Storage service unavailable: {e}") from e
+    vps_url = f"/api/storage/files/{bucket}/{path.lstrip('/')}"
+    logger.info(f"VPS Storage URL generated: bucket={bucket}, path={path}, ttl={ttl}s")
+    return vps_url
 
 
 async def delete_file(bucket: str, path: str, school_id: str, user_school_id: str) -> bool:
     """
-    Delete a file from Supabase Storage.
+    Delete a file from VPS Private Storage.
     Validates tenant isolation before deletion.
     Returns True on success.
     """
@@ -169,15 +135,14 @@ async def delete_file(bucket: str, path: str, school_id: str, user_school_id: st
         raise ValueError("Access denied: cannot delete another school's files")
 
     try:
-        async with httpx.AsyncClient() as client:
-            resp = await client.delete(
-                f"{settings.supabase_url}/storage/v1/object/{bucket}/{path}",
-                headers={
-                    "apikey": settings.supabase_service_role_key,
-                    "Authorization": f"Bearer {settings.supabase_service_role_key}",
-                },
-                timeout=10.0,
-            )
+        local_path = os.path.realpath(os.path.join("/var/lib/altrix/storage", bucket, path.lstrip("/")))
+        if os.path.exists(local_path):
+            os.remove(local_path)
+            logger.info(f"VPS File deleted: bucket={bucket}, path={path}")
+        return True
+    except Exception as e:
+        logger.error(f"Storage delete error: {e}")
+        raise ValueError(f"Storage service error: {e}") from e
         return resp.status_code in (200, 204)
     except Exception as e:
         logger.error(f"Storage deletion error: {e}")
@@ -223,37 +188,26 @@ async def list_school_files(
     category: Optional[str] = None,
 ) -> list:
     """
-    List files for a school in Supabase Storage.
+    List files for a school in VPS Private Storage.
     Enforces tenant isolation — only lists files under school_id prefix.
     """
     if school_id != user_school_id:
         raise ValueError("Access denied: cannot list another school's files")
 
     prefix = f"{school_id}/{category}" if category else school_id
+    local_dir = os.path.realpath(os.path.join("/var/lib/altrix/storage", bucket, prefix))
 
-    try:
-        async with httpx.AsyncClient() as client:
-            resp = await client.post(
-                f"{settings.supabase_url}/storage/v1/object/list/{bucket}",
-                json={"prefix": prefix, "limit": 100, "offset": 0},
-                headers={
-                    "apikey": settings.supabase_service_role_key,
-                    "Authorization": f"Bearer {settings.supabase_service_role_key}",
-                    "Content-Type": "application/json",
-                },
-                timeout=10.0,
-            )
-
-        if resp.status_code != 200:
-            return []
-
-        files = resp.json()
-        # Filter to only include files under the school prefix (extra safety)
-        return [
-            f for f in files
-            if isinstance(f, dict) and f.get("name", "").startswith(prefix)
-        ]
-
-    except Exception as e:
-        logger.warning(f"Storage list error: {e}")
+    if not os.path.exists(local_dir):
         return []
+
+    res = []
+    for root, _, filenames in os.walk(local_dir):
+        for fname in filenames:
+            full_p = os.path.join(root, fname)
+            rel_p = os.path.relpath(full_p, os.path.join("/var/lib/altrix/storage", bucket))
+            res.append({
+                "name": rel_p,
+                "size": os.path.getsize(full_p),
+                "url": f"/api/storage/files/{bucket}/{rel_p}"
+            })
+    return res

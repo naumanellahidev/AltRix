@@ -1,5 +1,6 @@
 import { useEffect, useState, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { getVPSFileUrl } from "@/lib/vpsStorage";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -1071,7 +1072,7 @@ export default function ParentAssignmentsModule({ child, schoolId }: ParentAssig
                       return (
                         <a
                           key={idx}
-                          href={supabase.storage.from("assignment-submissions").getPublicUrl(path).data.publicUrl}
+                          href={getVPSFileUrl("assignment-submissions", path)}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="text-xs text-blue-600 hover:underline flex items-center gap-1"

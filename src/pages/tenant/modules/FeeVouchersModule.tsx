@@ -7,6 +7,7 @@ import { toast } from "sonner";
 
 
 import { supabase } from "@/integrations/supabase/client";
+import { getVPSFileUrl } from "@/lib/vpsStorage";
 import { useTenant } from "@/hooks/useTenant";
 import { useRealtimeTable } from "@/hooks/useRealtime";
 import { Button } from "@/components/ui/button";
@@ -441,21 +442,21 @@ function PaymentProofsCard({ schoolId }: { schoolId: string | null }) {
   }, [bulkRejectOpen]);
 
   const openProof = async (p: ProofRow) => {
-    const { data, error } = await supabase.storage.from("fee-payment-proofs").createSignedUrl(p.file_path, 600);
-    if (error || !data) { toast.error("Could not open file"); return; }
+    const url = getVPSFileUrl("fee-payment-proofs", p.file_path);
+    if (!url) { toast.error("Could not open file"); return; }
     const name = p.file_name || "proof";
-    setViewing({ url: data.signedUrl, name, pdf: (p.mime_type || name).toLowerCase().includes("pdf") });
+    setViewing({ url, name, pdf: (p.mime_type || name).toLowerCase().includes("pdf") });
   };
 
   const openProofForReview = async (p: ProofRow) => {
     setBusy(p.id);
     try {
-      const { data, error } = await supabase.storage.from("fee-payment-proofs").createSignedUrl(p.file_path, 600);
-      if (error || !data) {
+      const url = getVPSFileUrl("fee-payment-proofs", p.file_path);
+      if (!url) {
         toast.error("Could not load proof preview");
         return;
       }
-      setViewingUrl(data.signedUrl);
+      setViewingUrl(url);
       setReviewingProof(p);
       setReviewAmount((p.amount || 0).toString());
       setReviewDate(p.paid_at ? p.paid_at.slice(0, 10) : new Date(p.created_at).toISOString().slice(0, 10));

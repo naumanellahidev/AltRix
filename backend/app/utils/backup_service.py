@@ -170,28 +170,16 @@ async def _run_pg_dump() -> Optional[bytes]:
         return None
 
 
-async def _upload_backup(data: bytes, path: str) -> bool:
-    """Upload backup data to Supabase Storage backup bucket."""
-    from app.config import settings
-    import httpx
-
+async def _upload_to_storage(data: bytes, path: str) -> bool:
+    """Upload encrypted backup file to VPS Private Storage."""
     try:
-        async with httpx.AsyncClient() as client:
-            resp = await client.post(
-                f"{settings.supabase_url}/storage/v1/object/{BACKUP_BUCKET}/{path}",
-                content=data,
-                headers={
-                    "apikey": settings.supabase_service_role_key,
-                    "Authorization": f"Bearer {settings.supabase_service_role_key}",
-                    "Content-Type": "application/octet-stream",
-                    "x-upsert": "true",
-                },
-                timeout=120.0,
-            )
-        if resp.status_code in (200, 201):
-            return True
-        logger.error(f"Backup upload failed: {resp.status_code} {resp.text[:200]}")
-        return False
+        local_path = os.path.realpath(os.path.join("/var/lib/altrix/storage", BACKUP_BUCKET, path.lstrip("/")))
+        os.makedirs(os.path.dirname(local_path), exist_ok=True)
+        with open(local_path, "wb") as f:
+            f.write(data)
+        os.chmod(local_path, 0o640)
+        logger.info(f"Backup uploaded to VPS storage: {local_path} ({len(data)} bytes)")
+        return True
     except Exception as e:
         logger.error(f"Backup upload exception: {e}")
         return False
@@ -202,44 +190,19 @@ async def _rotate_old_backups() -> None:
     Remove backups beyond BACKUP_RETENTION_COUNT.
     Keeps the N most recent backups.
     """
-    from app.config import settings
-    import httpx
-
     try:
-        async with httpx.AsyncClient() as client:
-            resp = await client.post(
-                f"{settings.supabase_url}/storage/v1/object/list/{BACKUP_BUCKET}",
-                json={"prefix": "daily/", "limit": 200, "sortBy": {"column": "name", "order": "asc"}},
-                headers={
-                    "apikey": settings.supabase_service_role_key,
-                    "Authorization": f"Bearer {settings.supabase_service_role_key}",
-                    "Content-Type": "application/json",
-                },
-                timeout=30.0,
-            )
-
-        if resp.status_code != 200:
+        daily_dir = os.path.realpath(os.path.join("/var/lib/altrix/storage", BACKUP_BUCKET, "daily"))
+        if not os.path.exists(daily_dir):
             return
 
-        files = resp.json()
+        files = sorted([os.path.join(daily_dir, f) for f in os.listdir(daily_dir) if os.path.isfile(os.path.join(daily_dir, f))])
         if len(files) <= BACKUP_RETENTION_COUNT:
             return
 
-        # Delete oldest backups beyond retention limit
         to_delete = files[:len(files) - BACKUP_RETENTION_COUNT]
-        for f in to_delete:
-            file_path = f.get("name", "")
-            if file_path:
-                async with httpx.AsyncClient() as client:
-                    await client.delete(
-                        f"{settings.supabase_url}/storage/v1/object/{BACKUP_BUCKET}/{file_path}",
-                        headers={
-                            "apikey": settings.supabase_service_role_key,
-                            "Authorization": f"Bearer {settings.supabase_service_role_key}",
-                        },
-                        timeout=10.0,
-                    )
-                logger.info(f"Rotated old backup: {file_path}")
+        for fpath in to_delete:
+            os.remove(fpath)
+            logger.info(f"Rotated old backup file: {fpath}")
 
     except Exception as e:
         logger.warning(f"Backup rotation failed: {e}")
@@ -250,31 +213,22 @@ async def get_backup_status() -> dict:
     Return the status of recent backups.
     Used by the security monitoring dashboard.
     """
-    from app.config import settings
-    import httpx
-
     try:
-        async with httpx.AsyncClient() as client:
-            resp = await client.post(
-                f"{settings.supabase_url}/storage/v1/object/list/{BACKUP_BUCKET}",
-                json={"prefix": "daily/", "limit": 5, "sortBy": {"column": "name", "order": "desc"}},
-                headers={
-                    "apikey": settings.supabase_service_role_key,
-                    "Authorization": f"Bearer {settings.supabase_service_role_key}",
-                    "Content-Type": "application/json",
-                },
-                timeout=10.0,
-            )
-
-        if resp.status_code != 200:
+        daily_dir = os.path.realpath(os.path.join("/var/lib/altrix/storage", BACKUP_BUCKET, "daily"))
+        if not os.path.exists(daily_dir):
             return {"available": False, "backups": []}
 
-        files = resp.json()
+        files = sorted([f for f in os.listdir(daily_dir) if os.path.isfile(os.path.join(daily_dir, f))], reverse=True)
+        backups = []
+        for fname in files[:5]:
+            fpath = os.path.join(daily_dir, fname)
+            backups.append({"name": fname, "size": os.path.getsize(fpath)})
+
         return {
             "available": True,
             "count": len(files),
-            "latest": files[0].get("name") if files else None,
-            "backups": [{"name": f.get("name"), "size": f.get("metadata", {}).get("size")} for f in files[:5]],
+            "latest": files[0] if files else None,
+            "backups": backups,
         }
     except Exception as e:
         logger.warning(f"Backup status check failed: {e}")

@@ -25,6 +25,7 @@ import {
   CloudOff,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { getVPSFileUrl } from "@/lib/vpsStorage";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -1027,8 +1028,8 @@ export function MessagesModule({ schoolId, isStudentPortal = false }: Props) {
   };
 
   const downloadAttachment = async (path: string) => {
-    const { data } = await supabase.storage.from("message-attachments").createSignedUrl(path, 300);
-    if (data?.signedUrl) window.open(data.signedUrl, "_blank");
+    const url = getVPSFileUrl("message-attachments", path);
+    if (url) window.open(url, "_blank");
   };
 
   const getInitials = (name: string) =>

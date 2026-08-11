@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { getVPSFileUrl } from "@/lib/vpsStorage";
 import { useTenant } from "@/hooks/useTenant";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -94,14 +95,12 @@ export function HrDocumentsModule() {
         setPreviewDoc({ url: path, name, type, path });
         return;
       }
-      const { data, error } = await supabase.storage
-        .from("hr-documents")
-        .createSignedUrl(path, 3600);
-      if (error || !data?.signedUrl) {
-        toast.error(error?.message || "Unable to open document");
+      const url = getVPSFileUrl("hr-documents", path);
+      if (!url) {
+        toast.error("Unable to open document");
         return;
       }
-      setPreviewDoc({ url: data.signedUrl, name, type, path });
+      setPreviewDoc({ url, name, type, path });
     } catch (err: any) {
       toast.error(err.message || "Failed to load document");
     } finally {

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, useRef } from "react";
 import { useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { getVPSFileUrl, uploadVPSFile } from "@/lib/vpsStorage";
 import { useTenant } from "@/hooks/useTenant";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -661,16 +662,12 @@ export function StudentCardsModule() {
         .from("student-photos")
         .upload(path, file, { cacheControl: "3600", upsert: true });
 
-      if (uploadErr) throw uploadErr;
-
-      const { data: pubUrl } = supabase.storage
-        .from("student-photos")
-        .getPublicUrl(path);
+      const logoUrl = getVPSFileUrl("student-photos", path);
 
       // Save to schools table
       const { error: dbErr } = await supabase
         .from("schools")
-        .update({ logo_url: pubUrl.publicUrl })
+        .update({ logo_url: logoUrl })
         .eq("id", schoolId);
 
       if (dbErr) throw dbErr;

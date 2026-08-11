@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { Plus, CheckCircle2, XCircle, FileText, Upload, Eye, Printer, Check } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { getVPSFileUrl } from "@/lib/vpsStorage";
 import { printStudentCards } from "@/lib/id-card-print";
 import { useTenantOptimized } from "@/hooks/useTenantOptimized";
 import { useSchoolPermissions } from "@/hooks/useSchoolPermissions";
@@ -169,9 +170,9 @@ export default function AdmissionsModule() {
 
   const docsFor = (appId: string) => docs.filter(d => d.application_id === appId);
   const downloadDoc = async (path: string) => {
-    const { data, error } = await supabase.storage.from("admission-documents").createSignedUrl(path, 60 * 5);
-    if (error || !data) return toast.error("Failed to open document");
-    window.open(data.signedUrl, "_blank");
+    const url = getVPSFileUrl("admission-documents", path);
+    if (!url) return toast.error("Failed to open document");
+    window.open(url, "_blank");
   };
 
   const statusVar = (s: string): any => s === "approved" ? "default" : s === "rejected" ? "destructive" : s === "submitted" ? "secondary" : "outline";
