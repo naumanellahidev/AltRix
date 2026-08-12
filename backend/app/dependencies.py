@@ -123,40 +123,59 @@ async def get_current_user_with_roles(
             logging.getLogger("app.dependencies").warning(f"Error resolving fallback school_id: {e}")
 
     if x_school_id:
+        sid_obj = None
+        sid_str = str(x_school_id).strip()
         try:
-            sid_obj = uuid.UUID(x_school_id) if isinstance(x_school_id, str) else x_school_id
-        except ValueError:
-            sid_obj = x_school_id
+            sid_obj = uuid.UUID(sid_str)
+            sid_str = str(sid_obj)
+        except (ValueError, TypeError):
+            # Not a UUID -> query schools table by slug
+            try:
+                res_slug = await db.execute(
+                    text("SELECT id FROM schools WHERE slug = :slug OR id::text = :slug LIMIT 1"),
+                    {"slug": sid_str}
+                )
+                row_slug = res_slug.fetchone()
+                if row_slug and row_slug[0]:
+                    sid_obj = row_slug[0]
+                    sid_str = str(row_slug[0])
+            except Exception as e:
+                import logging
+                logging.getLogger("app.dependencies").warning(f"Error resolving school slug {x_school_id}: {e}")
 
         # Load roles from user_roles table scoped to school
-        try:
-            cache_key = cache.build_key(
-                school_id=x_school_id,
-                base_key=f"auth:roles:{user.id}"
-            )
-            cached_roles = await cache.get(cache_key)
-            if cached_roles is not None:
-                user.roles = cached_roles
-                user.school_id = x_school_id
-            else:
-                result = await db.execute(
-                    text(
-                        """
-                        SELECT role FROM user_roles
-                        WHERE user_id = :uid AND school_id = :sid
-                        """
-                    ),
-                    {"uid": uid_obj, "sid": sid_obj},
+        if sid_obj:
+            try:
+                cache_key = cache.build_key(
+                    school_id=sid_str,
+                    base_key=f"auth:roles:{user.id}"
                 )
-                roles = [row[0] for row in result.fetchall()]
-                user.roles = roles
-                user.school_id = x_school_id
-                await cache.set(cache_key, roles, ttl=TTL_USER_ROLES)
-        except Exception as e:
-            import logging
-            logging.getLogger("app.dependencies").warning(f"DB exception loading roles for school {x_school_id}: {e}")
+                cached_roles = await cache.get(cache_key)
+                if cached_roles is not None:
+                    user.roles = cached_roles
+                    user.school_id = sid_str
+                else:
+                    result = await db.execute(
+                        text(
+                            """
+                            SELECT role FROM user_roles
+                            WHERE user_id = :uid AND school_id = :sid
+                            """
+                        ),
+                        {"uid": uid_obj, "sid": sid_obj},
+                    )
+                    roles = [row[0] for row in result.fetchall()]
+                    user.roles = roles
+                    user.school_id = sid_str
+                    await cache.set(cache_key, roles, ttl=TTL_USER_ROLES)
+            except Exception as e:
+                import logging
+                logging.getLogger("app.dependencies").warning(f"DB exception loading roles for school {x_school_id}: {e}")
+                user.roles = []
+                user.school_id = sid_str
+        else:
             user.roles = []
-            user.school_id = x_school_id
+            user.school_id = sid_str
 
         # Enforce multi-tenant membership check
         if not user.is_super_admin and not user.roles:

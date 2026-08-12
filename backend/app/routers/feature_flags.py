@@ -53,23 +53,62 @@ class FeatureFlagsUpdateSchema(BaseModel):
 
 @router.get("/{school_id}", response_model=FeatureFlagsSchema)
 async def get_school_feature_flags(
-    school_id: UUID,
+    school_id: str,
     db: DbSession,
-    current_user: CurrentUser,
 ):
     from app.routers.misc import get_ai_status, get_school_ai_status
-    global_ai = await get_ai_status(db)
-    school_ai = await get_school_ai_status(db, str(school_id))
-    effective_ai = global_ai and school_ai
+    import uuid
+    import logging
+    logger = logging.getLogger("app.routers.feature_flags")
+
+    target_school_id: Optional[UUID] = None
+    try:
+        target_school_id = UUID(str(school_id).strip())
+    except (ValueError, TypeError):
+        try:
+            stmt_school = select(School.id).where(School.slug == str(school_id).strip())
+            res_school = await db.execute(stmt_school)
+            target_school_id = res_school.scalar_one_or_none()
+        except Exception as e:
+            logger.warning(f"Error resolving school slug '{school_id}': {e}")
+            target_school_id = None
+
+    if not target_school_id:
+        fallback_uuid = uuid.uuid4()
+        return SchoolFeatureFlag(
+            school_id=fallback_uuid,
+            transport_enabled=True,
+            library_enabled=True,
+            parent_app_enabled=True,
+            document_cert_enabled=True,
+            ai_features_enabled=True,
+            wellbeing_enabled=True,
+            inventory_enabled=True,
+            alumni_enabled=True,
+            public_admissions_enabled=True,
+            hostel_enabled=True,
+            appraisals_enabled=True,
+            seating_plan_enabled=True,
+            white_label_enabled=True,
+            multilang_enabled=True,
+        )
+
+    effective_ai = True
+    try:
+        global_ai = await get_ai_status(db)
+        school_ai = await get_school_ai_status(db, str(target_school_id))
+        effective_ai = global_ai and school_ai
+    except Exception as e:
+        logger.warning(f"Error checking AI status for school {target_school_id}: {e}")
 
     try:
-        stmt = select(SchoolFeatureFlag).where(SchoolFeatureFlag.school_id == school_id)
+        stmt = select(SchoolFeatureFlag).where(SchoolFeatureFlag.school_id == target_school_id)
         res = await db.execute(stmt)
         flags = res.scalar_one_or_none()
 
         if not flags:
             flags = SchoolFeatureFlag(
-                school_id=school_id,
+                school_id=target_school_id,
                 transport_enabled=True,
                 library_enabled=True,
                 parent_app_enabled=True,
@@ -85,17 +124,22 @@ async def get_school_feature_flags(
                 white_label_enabled=True,
                 multilang_enabled=True,
             )
-            db.add(flags)
-            await db.commit()
-            await db.refresh(flags)
+            try:
+                db.add(flags)
+                await db.commit()
+                await db.refresh(flags)
+            except Exception as e:
+                logger.warning(f"Failed to persist initial feature flags for {target_school_id}: {e}")
+                await db.rollback()
         else:
             if not effective_ai:
                 flags.ai_features_enabled = False
 
         return flags
-    except Exception:
+    except Exception as e:
+        logger.warning(f"Exception fetching feature flags for school {target_school_id}: {e}")
         return SchoolFeatureFlag(
-            school_id=school_id,
+            school_id=target_school_id,
             transport_enabled=True,
             library_enabled=True,
             parent_app_enabled=True,
@@ -115,17 +159,29 @@ async def get_school_feature_flags(
 
 @router.patch("/{school_id}", response_model=FeatureFlagsSchema)
 async def update_school_feature_flags(
-    school_id: UUID,
+    school_id: str,
     payload: FeatureFlagsUpdateSchema,
     db: DbSession,
     current_user: CurrentUser,
 ):
-    stmt = select(SchoolFeatureFlag).where(SchoolFeatureFlag.school_id == school_id)
+    import uuid
+    target_school_id: Optional[UUID] = None
+    try:
+        target_school_id = UUID(str(school_id).strip())
+    except (ValueError, TypeError):
+        stmt_school = select(School.id).where(School.slug == str(school_id).strip())
+        res_school = await db.execute(stmt_school)
+        target_school_id = res_school.scalar_one_or_none()
+
+    if not target_school_id:
+        raise HTTPException(status_code=404, detail="School not found")
+
+    stmt = select(SchoolFeatureFlag).where(SchoolFeatureFlag.school_id == target_school_id)
     res = await db.execute(stmt)
     flags = res.scalar_one_or_none()
 
     if not flags:
-        flags = SchoolFeatureFlag(school_id=school_id)
+        flags = SchoolFeatureFlag(school_id=target_school_id)
         db.add(flags)
 
     if payload.transport_enabled is not None:
