@@ -758,30 +758,35 @@ export default function AltrixCopilot() {
     }
   }, [messages, storageKey]);
 
-  // ── Scroll to Bottom ──────────────────────────────────────────────────────
-  const scrollToBottom = useCallback(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-      // Scroll again on next tick to account for layout / markdown updates
-      setTimeout(() => {
-        if (scrollRef.current) {
-          scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-        }
-      }, 50);
+  // ── Scroll Handlers ───────────────────────────────────────────────────────
+  const scrollToStartOfReply = useCallback((messageId?: string) => {
+    if (!scrollRef.current) return;
+    if (messageId) {
+      const el = document.getElementById(`copilot-msg-${messageId}`);
+      if (el && scrollRef.current) {
+        const containerTop = scrollRef.current.getBoundingClientRect().top;
+        const elTop = el.getBoundingClientRect().top;
+        const currentScroll = scrollRef.current.scrollTop;
+        const targetScroll = currentScroll + (elTop - containerTop) - 16;
+        scrollRef.current.scrollTo({ top: Math.max(0, targetScroll), behavior: "smooth" });
+        return;
+      }
     }
   }, []);
 
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages, isThinking, isOpen, scrollToBottom]);
+  const scrollToBottom = useCallback(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
+    }
+  }, []);
 
-  // Ensure scroll is at the very bottom when panel is opened
+  // When panel is opened, scroll to latest position once
   useEffect(() => {
-    if (isOpen) {
-      const t = setTimeout(scrollToBottom, 250);
+    if (isOpen && messages.length > 0) {
+      const t = setTimeout(scrollToBottom, 200);
       return () => clearTimeout(t);
     }
-  }, [isOpen, scrollToBottom]);
+  }, [isOpen]);
 
   const handleScroll = () => {
     if (!scrollRef.current) return;
@@ -1055,10 +1060,16 @@ export default function AltrixCopilot() {
       timestamp: new Date(),
       fileAttachment: fileToAttach ? { name: fileToAttach.name, size: fileToAttach.size } : undefined,
     };
+    const userMsgId = userMsg.id;
     setMessages((prev) => [...prev, userMsg]);
     setInput("");
     setIsThinking(true);
     setIsStreaming(true);
+
+    // Smoothly focus viewport on the start of the user question / reply
+    setTimeout(() => {
+      scrollToStartOfReply(userMsgId);
+    }, 60);
 
     abortRef.current = new AbortController();
 
@@ -1463,6 +1474,7 @@ export default function AltrixCopilot() {
             {messages.map((msg) => (
               <div
                 key={msg.id}
+                id={`copilot-msg-${msg.id}`}
                 className={`flex flex-col ${msg.role === "user" ? "items-end" : "items-start"}`}
               >
                 {/* Avatar */}
