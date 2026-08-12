@@ -410,408 +410,116 @@ export function OwnerOverviewModule({ schoolId }: Props) {
     setRefreshing(true);
     await refetchKpis();
     setRefreshing(false);
-  };
-
-  const formatCurrency = (amount: number) => {
-    if (amount >= 1000000) return `${(amount / 1000000).toFixed(1)}M`;
-    if (amount >= 1000) return `${(amount / 1000).toFixed(0)}K`;
-    return amount.toLocaleString();
-  };
-
   if (isLoading) {
     return (
       <div className="flex flex-col items-center justify-center py-20">
         <div className="h-10 w-10 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-        <p className="mt-4 text-muted-foreground">Loading executive dashboard…</p>
+        <p className="mt-4 text-sm text-muted-foreground">Loading executive dashboard…</p>
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-border/40 pb-4">
         <div>
-          <h1 className="font-display text-2xl font-bold tracking-tight lg:text-3xl">
-            Executive Command Center
-          </h1>
-          <p className="text-muted-foreground">
-            Real-time institutional performance • {format(new Date(), "EEEE, MMMM d, yyyy")}
-          </p>
+          <div className="flex items-center gap-2.5">
+            <h1 className="font-display text-2xl font-bold tracking-tight lg:text-3xl text-foreground">Executive Command Center</h1>
+            <Badge variant="outline" className="bg-primary/10 text-primary border-primary/25 text-[11px] font-bold gap-1.5 py-0.5">
+              <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" /> Live
+            </Badge>
+          </div>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handleRefresh}
-          disabled={refreshing}
-          className="shrink-0"
-        >
-          <RefreshCw className={`mr-2 h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
-          Refresh
+        <Button variant="outline" size="sm" onClick={handleRefresh} disabled={refreshing} className="rounded-xl text-xs">
+          <RefreshCw className={`mr-2 h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} /> Refresh Data
         </Button>
       </div>
 
-      {/* AI Insights Banner */}
-      <Card className="border-primary/20 bg-gradient-to-br from-primary/5 to-transparent">
-        <CardHeader className="pb-2">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Brain className="h-5 w-5 text-primary" />
-            AI Insights & Alerts
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-2">
-            {insights.map((insight, idx) => (
-              <div
-                key={idx}
-                className={`flex items-start gap-3 rounded-xl p-3 ${
-                  insight.type === "warning"
-                    ? "bg-amber-500/10"
-                    : insight.type === "success"
-                    ? "bg-emerald-500/10"
-                    : "bg-blue-500/10"
-                }`}
-              >
-                {insight.type === "warning" ? (
-                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
-                ) : insight.type === "success" ? (
-                  <Zap className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
-                ) : (
-                  <Lightbulb className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" />
-                )}
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium">{insight.message}</p>
-                  {insight.action && (
-                    <button className="mt-1 text-xs text-primary hover:underline">
-                      {insight.action} →
-                    </button>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Primary KPI Grid */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-        <MotionCard
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="cursor-pointer hover:shadow-lg transition-shadow"
-          onClick={() => navigate(`${basePath}/academics`)}
-        >
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <GraduationCap className="h-5 w-5 text-primary" />
-              <Badge variant="outline" className="text-[10px]">
-                {kpis?.activeStudents}/{kpis?.totalStudents}
-              </Badge>
-            </div>
-            <p className="mt-3 font-display text-2xl font-bold">{kpis?.totalStudents || 0}</p>
-            <p className="text-xs text-muted-foreground">Total Students</p>
-          </CardContent>
-        </MotionCard>
-
-        <MotionCard
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.15 }}
-          className="cursor-pointer hover:shadow-lg transition-shadow"
-          onClick={() => navigate(`${basePath}/fees`)}
-        >
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <Coins className="h-5 w-5 text-emerald-600" />
-              {(kpis?.profit || 0) >= 0 ? (
-                <ArrowUp className="h-4 w-4 text-emerald-600" />
-              ) : (
-                <ArrowDown className="h-4 w-4 text-red-600" />
-              )}
-            </div>
-            <p className="mt-3 font-display text-2xl font-bold text-emerald-600">
-              {formatCurrency(kpis?.revenueMtd || 0)}
-            </p>
-            <p className="text-xs text-muted-foreground">Revenue (MTD)</p>
-          </CardContent>
-        </MotionCard>
-
-        <MotionCard
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className="cursor-pointer hover:shadow-lg transition-shadow"
-          onClick={() => navigate(`${basePath}/fees`)}
-        >
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <BarChart3 className="h-5 w-5 text-blue-600" />
-              <Badge
-                variant={kpis?.profitMargin && kpis.profitMargin > 0 ? "default" : "destructive"}
-                className="text-[10px]"
-              >
-                {kpis?.profitMargin || 0}%
-              </Badge>
-            </div>
-            <p className="mt-3 font-display text-2xl font-bold">
-              {formatCurrency(kpis?.profit || 0)}
-            </p>
-            <p className="text-xs text-muted-foreground">Profit (MTD)</p>
-          </CardContent>
-        </MotionCard>
-
-        <MotionCard
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.25 }}
-          className="cursor-pointer hover:shadow-lg transition-shadow"
-          onClick={() => navigate(`${basePath}/academics`)}
-        >
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <Activity className="h-5 w-5 text-purple-600" />
-              <Badge
-                variant={kpis?.attendanceRate && kpis.attendanceRate >= 85 ? "default" : "destructive"}
-                className="text-[10px]"
-              >
-                7d
-              </Badge>
-            </div>
-            <p className="mt-3 font-display text-2xl font-bold">{kpis?.attendanceRate || 0}%</p>
-            <p className="text-xs text-muted-foreground">Attendance</p>
-          </CardContent>
-        </MotionCard>
-
-        <MotionCard
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="cursor-pointer hover:shadow-lg transition-shadow"
-          onClick={() => navigate(`${basePath}/admissions`)}
-        >
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <TrendingUp className="h-5 w-5 text-amber-600" />
-              <Badge variant="outline" className="text-[10px]">
-                {kpis?.conversionRate || 0}%
-              </Badge>
-            </div>
-            <p className="mt-3 font-display text-2xl font-bold">{kpis?.openLeads || 0}</p>
-            <p className="text-xs text-muted-foreground">Open Leads</p>
-          </CardContent>
-        </MotionCard>
-
-        <MotionCard
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.35 }}
-          className="cursor-pointer hover:shadow-lg transition-shadow"
-          onClick={() => navigate(`${basePath}/hr`)}
-        >
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <Users className="h-5 w-5 text-indigo-600" />
-              <Badge variant="outline" className="text-[10px]">
-                {kpis?.totalTeachers || 0} teachers
-              </Badge>
-            </div>
-            <p className="mt-3 font-display text-2xl font-bold">{kpis?.totalStaff || 0}</p>
-            <p className="text-xs text-muted-foreground">Total Staff</p>
-          </CardContent>
-        </MotionCard>
+        {[
+          { icon: GraduationCap, label: "Total Students", val: kpis?.totalStudents, color: "text-primary" },
+          { icon: Coins, label: "Revenue (MTD)", val: formatCurrency(kpis?.revenueMtd || 0), color: "text-emerald-600" },
+          { icon: BarChart3, label: "Profit (MTD)", val: formatCurrency(kpis?.profit || 0), color: "text-blue-600" },
+          { icon: Activity, label: "7d Attendance", val: `${kpis?.attendanceRate || 0}%`, color: "text-purple-600" },
+          { icon: TrendingUp, label: "Open Leads", val: kpis?.openLeads || 0, color: "text-amber-600" },
+          { icon: Users, label: "Total Staff", val: kpis?.totalStaff || 0, color: "text-indigo-600" },
+        ].map((item, idx) => (
+          <MotionCard key={idx} initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: idx * 0.05 }} className="cursor-pointer hover:shadow-md transition-all">
+            <CardContent className="p-3.5">
+              <item.icon className={`h-4 w-4 ${item.color}`} />
+              <p className="mt-2.5 font-display text-lg font-bold tracking-tight truncate">{item.val}</p>
+              <p className="text-[11px] font-medium text-muted-foreground">{item.label}</p>
+            </CardContent>
+          </MotionCard>
+        ))}
       </div>
 
-      {/* Secondary KPIs & Charts */}
-      <div className="grid gap-6 lg:grid-cols-2">
-        {/* Revenue Trend */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Financial Performance (12 months)</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[280px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart 
-                  data={trendData || []}
-                  margin={{ top: 10, right: 10, left: 0, bottom: 5 }}
-                >
-                  <defs>
-                    <linearGradient id="revenueGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
-                    </linearGradient>
-                    <linearGradient id="expenseGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="hsl(var(--destructive))" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="hsl(var(--destructive))" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <XAxis 
-                    dataKey="month" 
-                    fontSize={10} 
-                    tickLine={false} 
-                    axisLine={false}
-                    interval="preserveStartEnd"
-                    height={30}
-                  />
-                  <YAxis 
-                    fontSize={10} 
-                    tickLine={false} 
-                    axisLine={false} 
-                    tickFormatter={formatCurrency}
-                    width={45}
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: "hsl(var(--background))",
-                      border: "1px solid hsl(var(--border))",
-                      borderRadius: "0.75rem",
-                      fontSize: "12px"
-                    }}
-                    formatter={(value: number) => formatCurrency(value)}
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="revenue"
-                    stroke="hsl(var(--primary))"
-                    fill="url(#revenueGrad)"
-                    strokeWidth={2}
-                    name="Revenue"
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="expenses"
-                    stroke="hsl(var(--destructive))"
-                    fill="url(#expenseGrad)"
-                    strokeWidth={2}
-                    name="Expenses"
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
+      <div className="grid gap-6 lg:grid-cols-12">
+        <div className="lg:col-span-8">
+          <Card className="h-full">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base font-bold">Financial Performance Trend</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="h-[270px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={trendData || []}>
+                    <XAxis dataKey="month" fontSize={10} tickLine={false} axisLine={false} />
+                    <YAxis fontSize={10} tickLine={false} axisLine={false} tickFormatter={formatCurrency} />
+                    <Tooltip contentStyle={{ fontSize: "12px", borderRadius: "0.75rem" }} />
+                    <Area type="monotone" dataKey="revenue" stroke="hsl(var(--primary))" fill="url(#revenueGrad)" />
+                    <Area type="monotone" dataKey="expenses" stroke="hsl(var(--destructive))" fill="url(#expenseGrad)" />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+        <div className="lg:col-span-4 flex flex-col gap-4">
+          <Card className="flex-1">
+            <CardHeader className="pb-3 border-b border-border/40"><CardTitle className="text-base flex items-center gap-2"><Star className="h-4 w-4 text-amber-500" /> YTD Financials</CardTitle></CardHeader>
+            <CardContent className="pt-4 space-y-3.5">
+              <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20"><p className="text-[11px] font-semibold">Revenue (YTD)</p><p className="text-lg font-bold text-emerald-600">{formatCurrency(kpis?.revenueYtd || 0)}</p></div>
+              <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20"><p className="text-[11px] font-semibold">Expenses (YTD)</p><p className="text-lg font-bold text-red-600">{formatCurrency(kpis?.expensesYtd || 0)}</p></div>
+              <div className="p-3 rounded-xl bg-primary/10 border border-primary/20"><p className="text-[11px] font-semibold">Net Profit</p><p className="text-xl font-black text-primary">{formatCurrency((kpis?.revenueYtd || 0) - (kpis?.expensesYtd || 0))}</p></div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
 
-        {/* Quick Actions / Navigation */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Quick Actions</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 gap-3">
-              {[
-                { icon: GraduationCap, label: "Academics Intelligence", path: "academics", color: "text-primary" },
-                { icon: TrendingUp, label: "Admissions & Growth", path: "admissions", color: "text-amber-600" },
-                { icon: Coins, label: "Fees & Expenses", path: "fees", color: "text-emerald-600" },
-                { icon: Users, label: "HR & Culture", path: "hr", color: "text-indigo-600" },
-                { icon: HeartPulse, label: "Student Wellbeing", path: "wellbeing", color: "text-pink-600" },
-                { icon: Shield, label: "System & Security", path: "security", color: "text-slate-600" },
-                { icon: LifeBuoy, label: "Support Tickets", path: "support", color: "text-orange-600" },
-                { icon: Brain, label: "AI Strategy Advisor", path: "advisor", color: "text-purple-600" },
-              ].map((item) => (
-                <button
-                  key={item.path}
-                  onClick={() => navigate(`${basePath}/${item.path}`)}
-                  className="flex items-center gap-3 rounded-xl bg-muted/50 p-3 text-left hover:bg-muted transition-colors"
-                >
-                  <item.icon className={`h-5 w-5 shrink-0 ${item.color}`} />
-                  <span className="text-sm font-medium truncate">{item.label}</span>
-                </button>
+      <div className="grid gap-6 lg:grid-cols-12">
+        <div className="space-y-6 lg:col-span-7">
+          <Card>
+            <CardHeader className="pb-3 border-b border-border/40"><CardTitle className="text-base font-bold">Operational Health</CardTitle></CardHeader>
+            <CardContent className="pt-4 space-y-4">
+              {[ { label: "Fee Collection", val: kpis?.collectionRate || 0 }, { label: "Teacher Utilization", val: kpis?.teacherUtilization || 0 }, { label: "Academic Index", val: kpis?.academicIndex || 0 } ].map((m, i) => (
+                <div key={i}><div className="flex justify-between text-sm"><span className="font-semibold">{m.label}</span><span className="font-bold">{m.val}%</span></div><Progress value={m.val} className="mt-2 h-2.5" /></div>
               ))}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* System Health & Alerts */}
-      <div className="grid gap-6 lg:grid-cols-3">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Activity className="h-4 w-4 text-emerald-600" />
-              System Health
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <div className="flex items-center justify-between text-sm">
-                <span>Fee Collection</span>
-                <span className="font-medium">{kpis?.collectionRate || 0}%</span>
-              </div>
-              <Progress value={kpis?.collectionRate || 0} className="mt-2 h-2" />
-            </div>
-            <div>
-              <div className="flex items-center justify-between text-sm">
-                <span>Teacher Utilization</span>
-                <span className="font-medium">{kpis?.teacherUtilization || 0}%</span>
-              </div>
-              <Progress value={kpis?.teacherUtilization || 0} className="mt-2 h-2" />
-            </div>
-            <div>
-              <div className="flex items-center justify-between text-sm">
-                <span>Academic Performance</span>
-                <span className="font-medium">{kpis?.academicIndex || 0}%</span>
-              </div>
-              <Progress value={kpis?.academicIndex || 0} className="mt-2 h-2" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <AlertTriangle className="h-4 w-4 text-amber-600" />
-              Attention Required
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              <div className="flex items-center justify-between rounded-lg bg-amber-500/10 p-3">
-                <span className="text-sm">Pending Invoices</span>
-                <Badge variant="outline">{kpis?.pendingInvoices || 0}</Badge>
-              </div>
-              <div className="flex items-center justify-between rounded-lg bg-red-500/10 p-3">
-                <span className="text-sm">Dropout Risk</span>
-                <Badge variant="destructive">{kpis?.dropoutRisk || 0}%</Badge>
-              </div>
-              <div className="flex items-center justify-between rounded-lg bg-blue-500/10 p-3">
-                <span className="text-sm">Unpaid Amount</span>
-                <Badge variant="outline">{formatCurrency(kpis?.unpaidAmount || 0)}</Badge>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Star className="h-4 w-4 text-primary" />
-              YTD Summary
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Total Revenue</span>
-                <span className="font-semibold text-emerald-600">
-                  {formatCurrency(kpis?.revenueYtd || 0)}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Total Expenses</span>
-                <span className="font-semibold text-red-600">
-                  {formatCurrency(kpis?.expensesYtd || 0)}
-                </span>
-              </div>
-              <div className="flex items-center justify-between border-t pt-3">
-                <span className="text-sm font-medium">Net Profit</span>
-                <span className="font-bold text-primary">
-                  {formatCurrency((kpis?.revenueYtd || 0) - (kpis?.expensesYtd || 0))}
-                </span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-3 border-b border-border/40"><CardTitle className="text-base font-bold">Quick Navigation</CardTitle></CardHeader>
+            <CardContent className="pt-4 grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {[ { label: "Academics", path: "academics" }, { label: "Admissions", path: "admissions" }, { label: "Finance", path: "fees" }, { label: "HR", path: "hr" } ].map((item) => (
+                <button key={item.path} onClick={() => navigate(`${basePath}/${item.path}`)} className="flex items-center gap-2 rounded-xl bg-muted/40 p-3 text-left hover:bg-primary/10 border border-transparent text-xs font-semibold">{item.label}</button>
+              ))}
+            </CardContent>
+          </Card>
+        </div>
+        <div className="space-y-6 lg:col-span-5">
+          <DashboardNotificationsBanner schoolId={schoolId} schoolSlug={schoolSlug || ""} role="school_owner" inline={true} />
+          <Card className="border-primary/20 bg-gradient-to-br from-primary/5 via-background to-accent/10">
+            <CardHeader className="pb-3 border-b border-border/40"><CardTitle className="text-base font-bold flex items-center gap-2"><Brain className="h-4 w-4 text-primary" /> AI Strategic Insights</CardTitle></CardHeader>
+            <CardContent className="pt-4 space-y-3">
+              {insights.map((insight, idx) => (
+                <div key={idx} className={`p-3.5 rounded-2xl border ${insight.type === "warning" ? "bg-amber-500/10" : "bg-emerald-500/10"}`}>
+                  <p className="text-xs font-semibold">{insight.message}</p>
+                  {insight.action && <button onClick={() => navigate(`${basePath}/admissions`)} className="mt-1 text-[11px] font-bold text-primary hover:underline">{insight.action} →</button>}
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
   );

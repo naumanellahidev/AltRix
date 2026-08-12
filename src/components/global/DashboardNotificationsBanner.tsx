@@ -1,5 +1,4 @@
-import { useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
   Bell,
   BookOpen,
@@ -28,6 +27,7 @@ interface Props {
   schoolId: string | null;
   schoolSlug: string;
   role: string;
+  inline?: boolean;
 }
 
 function getRolePath(role: string): string {
@@ -124,8 +124,9 @@ function targetPath(n: AppNotification, slug: string, rolePath: string): string 
   return base;
 }
 
-export function DashboardNotificationsBanner({ schoolId, schoolSlug, role }: Props) {
+export function DashboardNotificationsBanner({ schoolId, schoolSlug, role, inline }: Props) {
   const navigate = useNavigate();
+  const location = useLocation();
   const { data, unreadCount, markRead, markAllRead } = useNotifications(schoolId);
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
   const [dismissedAll, setDismissedAll] = useState(false);
@@ -134,6 +135,15 @@ export function DashboardNotificationsBanner({ schoolId, schoolSlug, role }: Pro
   const [showCenter, setShowCenter] = useState(false);
 
   const rolePath = getRolePath(role);
+
+  // Suppress top banner on owner overview dashboard if not inline
+  const isOwnerOverview = role === "school_owner" && (
+    location.pathname.endsWith("/school_owner") || 
+    location.pathname.endsWith("/school_owner/")
+  );
+  if (!inline && isOwnerOverview) {
+    return null;
+  }
 
   const unreadItems = useMemo(() => {
     return (data ?? []).filter((n) => !n.read_at && !dismissed.has(n.id));
@@ -187,8 +197,13 @@ export function DashboardNotificationsBanner({ schoolId, schoolSlug, role }: Pro
 
   // Render Full Compact Floating Panel
   return (
-    <div className="w-full flex justify-end mb-4">
-      <div className="w-full max-w-xl rounded-2xl border border-slate-200/80 dark:border-slate-800/80 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl shadow-xl shadow-slate-900/5 dark:shadow-black/40 overflow-hidden transition-all duration-300 animate-rise">
+    <div className={cn("w-full mb-4", !inline && "flex justify-end")}>
+      <div
+        className={cn(
+          "w-full rounded-2xl border border-slate-200/80 dark:border-slate-800/80 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl shadow-xl shadow-slate-900/5 dark:shadow-black/40 overflow-hidden transition-all duration-300 animate-rise",
+          !inline && "max-w-xl"
+        )}
+      >
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-primary/10 via-primary/5 to-transparent border-b border-border/50">
           <div className="flex items-center gap-2.5">
