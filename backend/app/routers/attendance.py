@@ -607,12 +607,13 @@ async def mark_staff_attendance(body: dict, current_user: CurrentUser, db: DbSes
 
 @router.get("/staff-today")
 async def get_staff_today(
-    school_id: UUID,
     current_user: CurrentUser,
     db: DbSession,
+    school_id: Optional[UUID] = Query(None),
     date: Optional[str] = Query(None),
 ):
-    if not current_user.school_id:
+    target_school_id = school_id or (UUID(str(current_user.school_id)) if current_user.school_id else None)
+    if not target_school_id:
         raise ForbiddenError("No school context")
         
     today_date = date or datetime.now(timezone.utc).strftime("%Y-%m-%d")
@@ -627,7 +628,7 @@ async def get_staff_today(
             LEFT JOIN profiles p ON a.user_id = p.id
             WHERE a.school_id = CAST(:school_id AS uuid) AND a.attendance_date = CAST(:today_date AS date)
         """
-        res = await db.execute(text(sql), {"school_id": school_id, "today_date": today_date})
+        res = await db.execute(text(sql), {"school_id": str(target_school_id), "today_date": today_date})
         rows = res.fetchall()
         
         return [

@@ -3,7 +3,7 @@ AI-Powered Owner Insights Router
 """
 from typing import List, Optional
 from uuid import UUID
-from datetime import datetime, timedelta, date
+from datetime import datetime, timedelta, date, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select, func
@@ -38,19 +38,19 @@ async def get_owner_insights_summary(current_user: CurrentUser, db: DbSession):
     revenue_data = []
     month_labels = []
     for i in range(5, -1, -1):
-        target_date = datetime.now() - timedelta(days=i * 30)
-        start_date = date(target_date.year, target_date.month, 1)
+        target_date = datetime.now(timezone.utc) - timedelta(days=i * 30)
+        start_dt = datetime(target_date.year, target_date.month, 1, tzinfo=timezone.utc)
         # End date of target month
         if target_date.month == 12:
-            end_date = date(target_date.year + 1, 1, 1)
+            end_dt = datetime(target_date.year + 1, 1, 1, tzinfo=timezone.utc)
         else:
-            end_date = date(target_date.year, target_date.month + 1, 1)
+            end_dt = datetime(target_date.year, target_date.month + 1, 1, tzinfo=timezone.utc)
             
         pay_res = await db.execute(
-            select(func.sum(FeePayment.amount_paid)).where(
+            select(func.sum(FeePayment.amount)).where(
                 FeePayment.school_id == current_user.school_id,
-                FeePayment.payment_date >= start_date,
-                FeePayment.payment_date < end_date,
+                FeePayment.paid_at >= start_dt,
+                FeePayment.paid_at < end_dt,
             )
         )
         total = pay_res.scalar() or 0.0

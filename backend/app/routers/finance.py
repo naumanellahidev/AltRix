@@ -3,6 +3,7 @@ Finance router: fee structures, vouchers, payments, financial reports.
 """
 from typing import List, Optional
 from uuid import UUID
+from datetime import datetime, timezone, date
 
 from fastapi import APIRouter, Query, status, HTTPException, Request
 from app.cache import cache
@@ -450,12 +451,19 @@ def save_budget_store(data):
 
 
 @router.get("/budget-targets")
-async def get_budget_targets(school_id: UUID, year: int, current_user: CurrentUser, db: DbSession):
-    if not current_user.school_id:
+async def get_budget_targets(
+    current_user: CurrentUser,
+    db: DbSession,
+    school_id: Optional[UUID] = Query(None),
+    year: Optional[int] = Query(None),
+):
+    target_sid = school_id or (UUID(str(current_user.school_id)) if current_user.school_id else None)
+    if not target_sid:
         raise ForbiddenError("No school context")
+    target_year = year or datetime.now(timezone.utc).year
     try:
         sql = "SELECT id, fiscal_year, department, role, budget_amount, notes FROM salary_budget_targets WHERE school_id = :sid AND fiscal_year = :year ORDER BY role ASC"
-        res = await db.execute(text(sql), {"sid": str(school_id), "year": year})
+        res = await db.execute(text(sql), {"sid": str(target_sid), "year": target_year})
         rows = res.fetchall()
         return [
             {
@@ -473,7 +481,7 @@ async def get_budget_targets(school_id: UUID, year: int, current_user: CurrentUs
         store = load_budget_store()
         targets = [
             t for t in store["budget_targets"]
-            if t.get("school_id") == str(school_id) and t.get("fiscal_year") == year
+            if t.get("school_id") == str(target_sid) and t.get("fiscal_year") == target_year
         ]
         return targets
 
@@ -570,12 +578,17 @@ async def delete_budget_target(target_id: UUID, current_user: CurrentUser, db: D
 
 
 @router.get("/salary-records")
-async def get_salary_records(school_id: UUID, current_user: CurrentUser, db: DbSession):
-    if not current_user.school_id:
+async def get_salary_records(
+    current_user: CurrentUser,
+    db: DbSession,
+    school_id: Optional[UUID] = Query(None),
+):
+    target_sid = school_id or (UUID(str(current_user.school_id)) if current_user.school_id else None)
+    if not target_sid:
         raise ForbiddenError("No school context")
     try:
         sql = "SELECT id, user_id, base_salary, allowances, deductions, is_active FROM hr_salary_records WHERE school_id = :sid AND is_active = true"
-        res = await db.execute(text(sql), {"sid": str(school_id)})
+        res = await db.execute(text(sql), {"sid": str(target_sid)})
         rows = res.fetchall()
         return [
             {
@@ -598,12 +611,17 @@ async def get_salary_records(school_id: UUID, current_user: CurrentUser, db: DbS
 
 
 @router.get("/staff-roles")
-async def get_staff_roles(school_id: UUID, current_user: CurrentUser, db: DbSession):
-    if not current_user.school_id:
+async def get_staff_roles(
+    current_user: CurrentUser,
+    db: DbSession,
+    school_id: Optional[UUID] = Query(None),
+):
+    target_sid = school_id or (UUID(str(current_user.school_id)) if current_user.school_id else None)
+    if not target_sid:
         raise ForbiddenError("No school context")
     try:
         sql = "SELECT user_id, role FROM user_roles WHERE school_id = :sid"
-        res = await db.execute(text(sql), {"sid": str(school_id)})
+        res = await db.execute(text(sql), {"sid": str(target_sid)})
         rows = res.fetchall()
         return [{"user_id": str(r[0]), "role": r[1]} for r in rows]
     except Exception as e:

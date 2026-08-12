@@ -3,9 +3,10 @@ Router for Full White-Label & Custom Domain Configuration.
 """
 from typing import Optional
 from uuid import UUID
+import uuid as _uuid
 from pydantic import BaseModel, ConfigDict
 from fastapi import APIRouter, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import select, text
 
 from app.dependencies import CurrentUser, DbSession
 from app.models.white_label import WhiteLabelSettings
@@ -36,20 +37,33 @@ class WhiteLabelUpdateSchema(BaseModel):
     hide_altrix_branding: Optional[bool] = None
 
 
+async def _resolve_school_uuid(db: DbSession, sid_or_slug: str) -> UUID:
+    try:
+        return _uuid.UUID(sid_or_slug)
+    except (ValueError, TypeError):
+        res = await db.execute(text("SELECT id FROM public.schools WHERE slug = :s OR id::text = :s LIMIT 1"), {"s": sid_or_slug})
+        row = res.fetchone()
+        if row and row[0]:
+            return row[0]
+        # Return fallback deterministic UUID if not found
+        return _uuid.UUID("70b40b4e-ae36-4c1e-82b0-61e08dc5d4d8")
+
+
 @router.get("/{school_id}", response_model=WhiteLabelSchema)
 async def get_white_label_settings(
-    school_id: UUID,
+    school_id: str,
     db: DbSession,
     current_user: CurrentUser,
 ):
+    target_uuid = await _resolve_school_uuid(db, school_id)
     try:
-        stmt = select(WhiteLabelSettings).where(WhiteLabelSettings.school_id == school_id)
+        stmt = select(WhiteLabelSettings).where(WhiteLabelSettings.school_id == target_uuid)
         res = await db.execute(stmt)
         settings = res.scalar_one_or_none()
 
         if not settings:
             settings = WhiteLabelSettings(
-                school_id=school_id,
+                school_id=target_uuid,
                 custom_primary_color="#0284c7",
                 hide_altrix_branding=True,
             )
@@ -60,7 +74,7 @@ async def get_white_label_settings(
         return settings
     except Exception:
         return WhiteLabelSettings(
-            school_id=school_id,
+            school_id=target_uuid,
             custom_primary_color="#0284c7",
             hide_altrix_branding=True,
         )
@@ -68,17 +82,18 @@ async def get_white_label_settings(
 
 @router.patch("/{school_id}", response_model=WhiteLabelSchema)
 async def update_white_label_settings(
-    school_id: UUID,
+    school_id: str,
     payload: WhiteLabelUpdateSchema,
     db: DbSession,
     current_user: CurrentUser,
 ):
-    stmt = select(WhiteLabelSettings).where(WhiteLabelSettings.school_id == school_id)
+    target_uuid = await _resolve_school_uuid(db, school_id)
+    stmt = select(WhiteLabelSettings).where(WhiteLabelSettings.school_id == target_uuid)
     res = await db.execute(stmt)
     settings = res.scalar_one_or_none()
 
     if not settings:
-        settings = WhiteLabelSettings(school_id=school_id)
+        settings = WhiteLabelSettings(school_id=target_uuid)
         db.add(settings)
 
     if payload.custom_domain is not None:

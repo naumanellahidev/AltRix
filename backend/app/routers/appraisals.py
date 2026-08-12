@@ -226,18 +226,22 @@ async def submit_360_feedback(
 
 @router.get("/feedback-360-summary")
 async def get_teacher_feedback_summary(
-    staff_user_id: UUID,
     current_user: CurrentUser,
     db: DbSession,
+    staff_user_id: Optional[UUID] = Query(None),
 ):
     """Aggregate average ratings and list comments for a teacher."""
     if not current_user.school_id:
         raise ForbiddenError()
         
+    target_staff_id = staff_user_id or (UUID(str(current_user.id)) if current_user.id else None)
+    if not target_staff_id:
+        return {"average_rating": 5.0, "total_reviews": 0, "comments": []}
+
     res = await db.execute(
         select(Feedback360).where(
             Feedback360.school_id == current_user.school_id,
-            Feedback360.staff_user_id == staff_user_id
+            Feedback360.staff_user_id == target_staff_id
         )
     )
     feedbacks = res.scalars().all()

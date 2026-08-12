@@ -464,7 +464,7 @@ class AdmissionOut(BaseModel):
 
 class AttendanceSessionCreate(BaseModel):
     class_section_id: UUID
-    session_date: str
+    session_date: Union[date, str]
     campus_id: Optional[UUID] = None
     period_label: Optional[str] = None
 
@@ -485,7 +485,7 @@ class AttendanceSessionOut(BaseModel):
     school_id: UUID
     campus_id: Optional[UUID] = None
     class_section_id: UUID
-    session_date: str
+    session_date: Union[date, str]
     period_label: Optional[str] = None
     created_by: Optional[UUID] = None
     created_at: Optional[datetime] = None
@@ -629,7 +629,7 @@ class FeePaymentOut(BaseModel):
     student_id: UUID
     voucher_id: Optional[UUID] = None
     amount: float
-    payment_date: str
+    payment_date: Union[date, str]
     payment_method: Optional[str] = None
     transaction_id: Optional[str] = None
     status: str
@@ -671,7 +671,7 @@ class DiaryEntryCreate(BaseModel):
     subject_id: Optional[UUID] = None
     title: str
     content: Optional[str] = None
-    entry_date: str
+    entry_date: Union[date, str]
     homework: Optional[str] = None
     campus_id: Optional[UUID] = None
 
@@ -684,7 +684,7 @@ class DiaryEntryOut(BaseModel):
     teacher_user_id: Optional[UUID] = None
     title: str
     content: Optional[str] = None
-    entry_date: str
+    entry_date: Union[date, str]
     homework: Optional[str] = None
     created_at: Optional[datetime] = None
 
@@ -873,8 +873,8 @@ class LeaveRequestOut(BaseModel):
     school_id: UUID
     user_id: UUID
     leave_type: str
-    start_date: str
-    end_date: str
+    start_date: Union[date, str]
+    end_date: Union[date, str]
     status: str
     reason: Optional[str] = None
     created_at: Optional[datetime] = None
