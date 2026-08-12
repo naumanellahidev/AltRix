@@ -134,10 +134,7 @@ apiClient.interceptors.response.use(
   (response) => response,
   async (error) => {
     if (isNetworkOrProxyError(error)) {
-      if (USE_FASTAPI) {
-        console.warn("FastAPI backend is unreachable, disabling USE_FASTAPI dynamically for fallback:", error);
-        setUseFastAPI(false);
-      }
+      console.warn("VPS API Proxy Warning:", error);
     }
 
     if (error.response?.status === 401) {

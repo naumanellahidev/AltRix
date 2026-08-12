@@ -7,21 +7,16 @@ const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
 const getInitialUseFastAPI = (): boolean => {
-  if (typeof window === "undefined") return import.meta.env.VITE_USE_FASTAPI === 'true';
-  const cached = sessionStorage.getItem("eduverse:use_fastapi");
-  if (cached !== null) {
-    return cached === "true";
-  }
-  return import.meta.env.VITE_USE_FASTAPI === 'true';
+  return true;
 };
 
-export let USE_FASTAPI = getInitialUseFastAPI();
+export let USE_FASTAPI = true;
 
 export function setUseFastAPI(val: boolean) {
-  USE_FASTAPI = val;
+  USE_FASTAPI = true;
   if (typeof window !== "undefined") {
-    sessionStorage.setItem("eduverse:use_fastapi", String(val));
-    window.dispatchEvent(new CustomEvent("eduverse:use-fastapi-changed", { detail: val }));
+    sessionStorage.setItem("eduverse:use_fastapi", "true");
+    window.dispatchEvent(new CustomEvent("eduverse:use-fastapi-changed", { detail: true }));
   }
 }
 
