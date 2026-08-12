@@ -501,23 +501,62 @@ async def update_school(school_id: UUID, body: SchoolUpdate, current_user: Curre
 # ─── SCHOOL BRANDING ──────────────────────────────────────────────────────────
 
 @schools_router.get("/{school_id}/branding", response_model=BrandingOut)
-async def get_branding(school_id: UUID, current_user: CurrentUser, db: DbSession):
-    result = await db.execute(select(SchoolBranding).where(SchoolBranding.school_id == school_id))
+async def get_branding(school_id: str, current_user: CurrentUser, db: DbSession):
+    # Resolve UUID or slug
+    resolved_uuid = None
+    try:
+        resolved_uuid = UUID(school_id)
+    except (ValueError, TypeError):
+        pass
+
+    if not resolved_uuid:
+        s_res = await db.execute(select(School.id).where(School.slug == school_id))
+        resolved_uuid = s_res.scalar_one_or_none()
+
+    if not resolved_uuid:
+        raise NotFoundError("School", school_id)
+
+    result = await db.execute(select(SchoolBranding).where(SchoolBranding.school_id == resolved_uuid))
     branding = result.scalar_one_or_none()
     if not branding:
-        raise NotFoundError("Branding", str(school_id))
+        # Return default branding fallback
+        import uuid
+        return BrandingOut(
+            id=uuid.uuid4(),
+            school_id=resolved_uuid,
+            primary_color="#2563eb",
+            secondary_color="#1e40af",
+            accent_color="#3b82f6",
+            accent_hue=217.0,
+            accent_saturation=91.0,
+            accent_lightness=60.0,
+            radius_scale=1.0,
+        )
     return branding
 
 
 @schools_router.put("/{school_id}/branding", response_model=BrandingOut)
-async def upsert_branding(school_id: UUID, body: BrandingUpdate, current_user: CurrentUser, db: DbSession):
-    result = await db.execute(select(SchoolBranding).where(SchoolBranding.school_id == school_id))
+async def upsert_branding(school_id: str, body: BrandingUpdate, current_user: CurrentUser, db: DbSession):
+    resolved_uuid = None
+    try:
+        resolved_uuid = UUID(school_id)
+    except (ValueError, TypeError):
+        pass
+
+    if not resolved_uuid:
+        s_res = await db.execute(select(School.id).where(School.slug == school_id))
+        resolved_uuid = s_res.scalar_one_or_none()
+
+    if not resolved_uuid:
+        raise NotFoundError("School", school_id)
+
+    result = await db.execute(select(SchoolBranding).where(SchoolBranding.school_id == resolved_uuid))
     branding = result.scalar_one_or_none()
     if branding:
         for field, value in body.model_dump(exclude_none=True).items():
             setattr(branding, field, value)
     else:
-        branding = SchoolBranding(school_id=school_id, **body.model_dump(exclude_none=True))
+        branding = SchoolBranding(school_id=resolved_uuid, **body.model_dump(exclude_none=True))
         db.add(branding)
     await db.flush()
     await db.refresh(branding)

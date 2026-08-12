@@ -1375,6 +1375,27 @@ async def fetch_ai_context(db: DbSession, user: AuthenticatedUser, school_id: st
     from app.utils.permissions import expand_roles
     effective_roles = expand_roles(user.roles)
     
+    # Resolve school_id to UUID if slug was passed
+    resolved_school_id = school_id
+    if school_id:
+        try:
+            UUID(str(school_id))
+        except (ValueError, TypeError):
+            try:
+                s_res = await db.execute(
+                    text("SELECT id FROM public.schools WHERE slug = :sid OR id::text = :sid LIMIT 1"),
+                    {"sid": str(school_id)}
+                )
+                s_row = s_res.fetchone()
+                if s_row:
+                    resolved_school_id = str(s_row[0])
+            except Exception:
+                try:
+                    await db.rollback()
+                except Exception:
+                    pass
+    school_id = resolved_school_id
+
     # Fetch school currency configuration
     currency = "PKR"
     try:
@@ -2474,12 +2495,31 @@ async def copilot_chat(
     )
     
     # 1. Resolve effective school_id (header, current_user, or database fallback)
-    effective_school_id = current_user.school_id or request.headers.get("X-School-Id")
+    raw_school_id = current_user.school_id or request.headers.get("X-School-Id")
+    effective_school_id = str(raw_school_id) if raw_school_id else None
+    if effective_school_id:
+        try:
+            UUID(effective_school_id)
+        except (ValueError, TypeError):
+            try:
+                s_res = await db.execute(
+                    text("SELECT id FROM public.schools WHERE slug = :sid OR id::text = :sid LIMIT 1"),
+                    {"sid": effective_school_id}
+                )
+                s_row = s_res.fetchone()
+                if s_row:
+                    effective_school_id = str(s_row[0])
+            except Exception:
+                try:
+                    await db.rollback()
+                except Exception:
+                    pass
+
     if not effective_school_id and current_user.is_super_admin:
         first_sch = await db.execute(text("SELECT id FROM public.schools ORDER BY created_at ASC LIMIT 1"))
         f_row = first_sch.fetchone()
         if f_row:
-            effective_school_id = f_row[0]
+            effective_school_id = str(f_row[0])
 
     global_ai_enabled = await get_ai_status(db)
     if effective_school_id:
@@ -2539,7 +2579,17 @@ async def copilot_chat(
         asyncio.ensure_future(_track())
 
         async def _cached_event_generator():
-            yield _sem_hit.response_text
+            if _sem_hit.response_text.startswith("data: "):
+                for block in _sem_hit.response_text.split("\n\n"):
+                    if block.strip():
+                        yield block.strip() + "\n\n"
+            else:
+                words = _sem_hit.response_text.split(" ")
+                for i, word in enumerate(words):
+                    token = word if i == 0 else " " + word
+                    sse_data = {"choices": [{"delta": {"content": token}}]}
+                    yield f"data: {json.dumps(sse_data)}\n\n"
+                yield "data: [DONE]\n\n"
         return StreamingResponse(_cached_event_generator(), media_type="text/event-stream")
 
     # 2. Fetch scoped DB context based on role permissions
