@@ -22,16 +22,15 @@ import {
   TrendingUp,
   Users,
   Zap,
-  LifeBuoy,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { useRealtimeTable } from "@/hooks/useRealtime";
 import { useActiveCampus } from "@/hooks/useActiveCampus";
+import { DashboardNotificationsBanner } from "@/components/global/DashboardNotificationsBanner";
 import {
   ResponsiveContainer,
   AreaChart,
@@ -39,13 +38,6 @@ import {
   XAxis,
   YAxis,
   Tooltip,
-  LineChart,
-  Line,
-  BarChart,
-  Bar,
-  PieChart,
-  Pie,
-  Cell,
 } from "recharts";
 import { format, subDays, startOfMonth, startOfYear, subMonths } from "date-fns";
 
@@ -80,7 +72,8 @@ type Kpis = {
   collectionRate: number;
 };
 
-const COLORS = ["hsl(var(--primary))", "hsl(var(--chart-2))", "hsl(var(--chart-3))", "hsl(var(--chart-4))", "hsl(var(--chart-5))"];
+const formatCurrency = (val: number) =>
+  new Intl.NumberFormat("en-PK", { style: "currency", currency: "PKR", maximumFractionDigits: 0 }).format(val);
 
 export function OwnerOverviewModule({ schoolId }: Props) {
   const { schoolSlug } = useParams();
@@ -96,7 +89,6 @@ export function OwnerOverviewModule({ schoolId }: Props) {
   const monthStart = useMemo(() => startOfMonth(new Date()), []);
   const yearStart = useMemo(() => startOfYear(new Date()), []);
   const d7Ago = useMemo(() => subDays(new Date(), 7), []);
-  const d30Ago = useMemo(() => subDays(new Date(), 30), []);
 
   // Real-time subscriptions for automatic KPI refresh
   useRealtimeTable({
@@ -139,14 +131,6 @@ export function OwnerOverviewModule({ schoolId }: Props) {
     onChange: () => void qc.invalidateQueries({ queryKey: ["owner_overview_kpis", schoolId] }),
   });
 
-  useRealtimeTable({
-    channel: `owner-kpi-tickets-${schoolId}`,
-    table: "admin_messages",
-    filter: schoolId ? `school_id=eq.${schoolId}` : undefined,
-    enabled: !!schoolId,
-    onChange: () => void qc.invalidateQueries({ queryKey: ["owner_support_tickets", schoolId] }),
-  });
-
   // Fetch all KPI data
   const { data: kpis, refetch: refetchKpis, isLoading } = useQuery({
     queryKey: ["owner_overview_kpis", schoolId, activeCampusId],
@@ -166,13 +150,9 @@ export function OwnerOverviewModule({ schoolId }: Props) {
         timetableRes,
         teacherAssignRes,
       ] = await Promise.all([
-        // Students (campus-scoped)
         campusEq(supabase.from("students").select("id,status").eq("school_id", schoolId)),
-        // Payments — fee_payments now carries campus_id
         campusEq(supabase.from("fee_payments").select("amount,paid_at").eq("school_id", schoolId).eq("status", "success")),
-        // Expenses (school-wide; not campus tagged)
         supabase.from("finance_expenses").select("amount,expense_date").eq("school_id", schoolId),
-        // Attendance (7 days, campus-scoped)
         campusEq(
           supabase
             .from("attendance_entries")
@@ -180,15 +160,10 @@ export function OwnerOverviewModule({ schoolId }: Props) {
             .eq("school_id", schoolId)
             .gte("created_at", d7Ago.toISOString())
         ),
-        // Leads (school-wide)
         supabase.from("crm_leads").select("id,status,created_at").eq("school_id", schoolId),
-        // Invoices (campus-scoped)
         campusEq(supabase.from("fee_invoices").select("id,status,total_amount").eq("school_id", schoolId)),
-        // Staff
         supabase.from("school_memberships").select("id").eq("school_id", schoolId),
-        // Teachers
         supabase.from("user_roles").select("id").eq("school_id", schoolId).eq("role", "teacher"),
-        // Marks (campus-scoped)
         campusEq(
           supabase
             .from("student_marks")
@@ -196,9 +171,7 @@ export function OwnerOverviewModule({ schoolId }: Props) {
             .eq("school_id", schoolId)
             .not("marks", "is", null)
         ),
-        // Timetable entries (to compute teacher utilization)
         supabase.from("timetable_entries").select("teacher_id").eq("school_id", schoolId),
-        // Teacher subject assignments (active teachers with assignments)
         supabase.from("teacher_subject_assignments").select("teacher_id").eq("school_id", schoolId),
       ]);
 
@@ -214,57 +187,38 @@ export function OwnerOverviewModule({ schoolId }: Props) {
       const timetable = timetableRes.data || [];
       const teacherAssignments = teacherAssignRes.data || [];
 
-      // Student counts
       const totalStudents = students.length;
       const activeStudents = students.filter((s) => s.status === "enrolled" || s.status === "active").length;
       const inactiveStudents = students.filter((s) => s.status === "inactive" || s.status === "withdrawn").length;
       const alumniCount = students.filter((s) => s.status === "graduated").length;
 
-      // Revenue
-      const mtdPayments = payments.filter(
-        (p) => new Date(p.paid_at) >= monthStart
-      );
-      const ytdPayments = payments.filter(
-        (p) => new Date(p.paid_at) >= yearStart
-      );
+      const mtdPayments = payments.filter((p) => new Date(p.paid_at) >= monthStart);
+      const ytdPayments = payments.filter((p) => new Date(p.paid_at) >= yearStart);
       const revenueMtd = mtdPayments.reduce((sum, p) => sum + Number(p.amount || 0), 0);
       const revenueYtd = ytdPayments.reduce((sum, p) => sum + Number(p.amount || 0), 0);
 
-      // Expenses
-      const mtdExpenses = expenses.filter(
-        (e) => new Date(e.expense_date) >= monthStart
-      );
-      const ytdExpenses = expenses.filter(
-        (e) => new Date(e.expense_date) >= yearStart
-      );
+      const mtdExpenses = expenses.filter((e) => new Date(e.expense_date) >= monthStart);
+      const ytdExpenses = expenses.filter((e) => new Date(e.expense_date) >= yearStart);
       const expensesMtd = mtdExpenses.reduce((sum, e) => sum + Number(e.amount || 0), 0);
       const expensesYtd = ytdExpenses.reduce((sum, e) => sum + Number(e.amount || 0), 0);
 
-      // Profit
       const profit = revenueMtd - expensesMtd;
       const profitMargin = revenueMtd > 0 ? Math.round((profit / revenueMtd) * 100) : 0;
 
-      // Attendance
       const totalAttendance = attendance.length;
-      const presentCount = attendance.filter(
-        (a) => a.status === "present" || a.status === "late"
-      ).length;
+      const presentCount = attendance.filter((a) => a.status === "present" || a.status === "late").length;
       const attendanceRate = totalAttendance > 0 ? Math.round((presentCount / totalAttendance) * 100) : 0;
 
-      // Academic Index (average marks as %)
       const avgMark = marks.length > 0 ? marks.reduce((sum, m) => sum + Number(m.marks || 0), 0) / marks.length : 0;
       const academicIndex = Math.min(100, Math.round(avgMark));
 
-      // Leads
       const openLeads = leads.filter((l) => l.status === "open" || !l.status).length;
       const wonLeads = leads.filter((l) => l.status === "won").length;
       const totalLeads = leads.length;
       const conversionRate = totalLeads > 0 ? Math.round((wonLeads / totalLeads) * 100) : 0;
 
-      // Dropout risk (students with <60% attendance or at risk)
       const dropoutRisk = Math.max(0, Math.round((inactiveStudents / Math.max(1, totalStudents)) * 100));
 
-      // Invoices
       const pendingInvoices = invoices.filter((i) => i.status === "pending" || i.status === "unpaid").length;
       const paidInvoices = invoices.filter((i) => i.status === "paid").length;
       const unpaidAmount = invoices
@@ -272,14 +226,11 @@ export function OwnerOverviewModule({ schoolId }: Props) {
         .reduce((sum: number, i: any) => sum + Number(i.total_amount || 0), 0);
       const collectionRate = invoices.length > 0 ? Math.round((paidInvoices / invoices.length) * 100) : 0;
 
-      // Teacher utilization: % of teachers actively scheduled or assigned
       const scheduledTeacherIds = new Set<string>([
         ...timetable.map((t: any) => t.teacher_id).filter(Boolean),
         ...teacherAssignments.map((t: any) => t.teacher_id).filter(Boolean),
       ]);
-      const teacherUtilization = teachers.length > 0
-        ? Math.round((scheduledTeacherIds.size / teachers.length) * 100)
-        : 0;
+      const teacherUtilization = teachers.length > 0 ? Math.round((scheduledTeacherIds.size / teachers.length) * 100) : 0;
 
       return {
         totalStudents,
@@ -410,6 +361,8 @@ export function OwnerOverviewModule({ schoolId }: Props) {
     setRefreshing(true);
     await refetchKpis();
     setRefreshing(false);
+  };
+
   if (isLoading) {
     return (
       <div className="flex flex-col items-center justify-center py-20">
@@ -437,7 +390,7 @@ export function OwnerOverviewModule({ schoolId }: Props) {
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         {[
-          { icon: GraduationCap, label: "Total Students", val: kpis?.totalStudents, color: "text-primary" },
+          { icon: GraduationCap, label: "Total Students", val: kpis?.totalStudents || 0, color: "text-primary" },
           { icon: Coins, label: "Revenue (MTD)", val: formatCurrency(kpis?.revenueMtd || 0), color: "text-emerald-600" },
           { icon: BarChart3, label: "Profit (MTD)", val: formatCurrency(kpis?.profit || 0), color: "text-blue-600" },
           { icon: Activity, label: "7d Attendance", val: `${kpis?.attendanceRate || 0}%`, color: "text-purple-600" },
