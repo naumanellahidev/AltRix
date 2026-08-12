@@ -41,7 +41,7 @@ def validate_and_resolve_path(bucket: str, path: str, current_user: Authenticate
 
     path_school_id = path_segments[0]
     if not current_user.is_super_admin:
-        user_school = str(current_user.school_id) if current_user.school_id else ""
+        user_school = current_user.school_id if current_user.school_id else ""
         if user_school and path_school_id != user_school:
             logger.warning(f"Cross-tenant storage access attempt blocked: user {current_user.id} (school {user_school}) attempted path in school {path_school_id}")
             raise HTTPException(
