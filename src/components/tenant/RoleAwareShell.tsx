@@ -80,13 +80,14 @@ export function RoleAwareShell({ schoolSlug, title, subtitle, children }: Props)
   const schoolId = tenant.schoolId;
   const { roles, loading } = useUserRole(schoolId, user?.id ?? null);
   const { unreadCount } = useUnreadMessagesOptimized(schoolId, user?.id ?? null);
+  const rolesKey = roles.join(",");
 
   const primaryRole = useMemo<EduverseRole | null>(
     () => pickPrimaryRole(roles),
-    [roles],
+    [rolesKey],
   );
 
-  const { grouped } = useMemo(() => buildMergedNav(roles), [roles]);
+  const { grouped } = useMemo(() => buildMergedNav(roles), [rolesKey]);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();

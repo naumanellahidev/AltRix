@@ -68,7 +68,8 @@ function HubContent({
   isOwner: boolean;
 }) {
   const { user } = useSession();
-  const { grouped, items } = useMemo(() => buildMergedNav(roles), [roles]);
+  const rolesKey = roles.join(",");
+  const { grouped, items } = useMemo(() => buildMergedNav(roles), [rolesKey]);
   const { data: notifications = [], unreadCount } = useNotifications(schoolId);
   const { unreadCount: unreadMsgs } = useUnreadMessagesOptimized(schoolId, user?.id ?? null);
   const base = `/${schoolSlug}/${primaryRole ?? "student"}`;
@@ -83,7 +84,7 @@ function HubContent({
       lookup("timetable"),
       lookup("notices"),
     ].filter(Boolean).slice(0, 6);
-  }, [items]);
+  }, [rolesKey]);
 
   const recentNotifications = notifications.slice(0, 5);
 

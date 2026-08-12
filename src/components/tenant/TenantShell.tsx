@@ -229,13 +229,14 @@ const [voiceOpen, setVoiceOpen] = useState(false);
   // (read from user_roles). The visible URL role prefix stays as the current
   // route's role so existing dashboards & routes keep working unchanged.
   const { roles: assignedRoles } = useUserRole(schoolId, user?.id ?? null);
+  const assignedRolesKey = assignedRoles.join(",");
   const effectiveRoles = useMemo<EduverseRole[]>(() => {
     // Fall back to the current shell role until roles load, so the UI never
     // flashes empty for users whose user_roles row hasn't loaded yet.
     if (assignedRoles.length === 0) return [role];
     // Always include the current shell role (defensive).
     return Array.from(new Set<EduverseRole>([...assignedRoles, role]));
-  }, [assignedRoles, role]);
+  }, [assignedRolesKey, role]);
 
   // Fetch feature flags to enforce Super Master Admin module controls per school tenant
   const [featureFlags, setFeatureFlags] = useState<Record<string, boolean>>({});

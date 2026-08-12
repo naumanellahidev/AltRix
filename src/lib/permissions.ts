@@ -164,9 +164,12 @@ export function usePermissions(schoolId: string | null, fallbackRoles: EduverseR
   const { user } = useSession();
   const { roles, loading } = useUserRole(schoolId, user?.id ?? null);
 
+  const rolesKey = roles.join(",");
+  const fallbackKey = fallbackRoles.join(",");
+
   return useMemo(() => {
     const effectiveRoles = Array.from(new Set<EduverseRole>([...roles, ...fallbackRoles]));
     const bundle = resolvePermissions(effectiveRoles);
     return { ...bundle, loading };
-  }, [roles, fallbackRoles, loading]);
+  }, [rolesKey, fallbackKey, loading]);
 }
