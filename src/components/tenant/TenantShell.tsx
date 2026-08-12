@@ -315,7 +315,7 @@ const [voiceOpen, setVoiceOpen] = useState(false);
     <>
       <div className="flex items-center justify-between">
         <div className="min-w-0">
-          <img src="/altrix-logo.png" alt="AltRix" className="h-8 sm:h-9 w-auto max-w-[140px] object-contain mb-1 drop-shadow-sm transition-all" />
+          <img src="/altrix-logo.png" alt="AltRix" className="h-10 sm:h-11 w-auto max-w-[175px] object-contain mb-1 drop-shadow-sm transition-all" />
           <p className="text-[11px] text-muted-foreground truncate font-medium">
             {tenant.school?.name ?? schoolSlug} • {role}
           </p>

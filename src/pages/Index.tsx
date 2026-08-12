@@ -391,15 +391,15 @@ const Index = () => {
       </div>
 
       {/* ── HEADER ── */}
-      <header className="w-full py-8 px-6 flex flex-col items-center relative z-10">
-        <div className="flex items-center justify-center">
+      <header className="w-full py-8 sm:py-10 px-6 flex flex-col items-center justify-center relative z-10">
+        <div className="flex items-center justify-center p-2 transition-transform duration-300 hover:scale-[1.02]">
           <img
             src="/altrix-logo.png"
-            alt="AltRix"
-            className="h-16 sm:h-20 md:h-24 w-auto max-w-[280px] sm:max-w-[340px] md:max-w-[400px] object-contain drop-shadow-md transition-all"
+            alt="AltRix Operating System"
+            className="h-20 sm:h-24 md:h-28 lg:h-32 w-auto max-w-[360px] sm:max-w-[460px] md:max-w-[540px] object-contain filter drop-shadow-xl transition-all"
           />
         </div>
-        <p className="mt-2 text-[10px] font-bold text-slate-500 tracking-[0.2em] uppercase opacity-85">
+        <p className="mt-3 text-xs sm:text-sm font-bold text-slate-500 tracking-[0.25em] uppercase opacity-90">
           Institute Operating System
         </p>
       </header>
@@ -805,23 +805,23 @@ const Index = () => {
       </main>
 
       {/* ── FOOTER ── */}
-      <footer className="w-full bg-white/40 border-t border-white/50 py-4 px-6 relative z-10 backdrop-blur-sm">
-        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-2.5 opacity-85 hover:opacity-100 transition-opacity duration-200">
-            <img src="/altrix-logo.png" alt="AltRix" className="h-6 sm:h-7 w-auto object-contain" />
+      <footer className="w-full bg-white/60 border-t border-slate-200/60 py-6 px-8 relative z-10 backdrop-blur-md">
+        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-6">
+          <div className="flex items-center gap-3">
+            <img src="/altrix-logo.png" alt="AltRix" className="h-10 sm:h-12 w-auto max-w-[200px] object-contain drop-shadow-sm transition-all" />
           </div>
-          <div className="flex gap-6 justify-center flex-wrap">
+          <div className="flex gap-8 justify-center flex-wrap">
             {["Privacy Policy", "Terms of Service", "Compliance"].map((link) => (
               <a 
                 key={link} 
                 href="#" 
-                className="text-[11px] sm:text-xs font-semibold text-slate-600 hover:text-primary transition-colors"
+                className="text-xs sm:text-sm font-semibold text-slate-600 hover:text-primary transition-colors"
               >
                 {link}
               </a>
             ))}
           </div>
-          <p className="text-[11px] sm:text-xs text-slate-500">
+          <p className="text-xs text-slate-500 font-medium">
             © {new Date().getFullYear()} AltRix Institute OS. All rights reserved.
           </p>
         </div>
