@@ -140,7 +140,9 @@ export function OwnerOverviewModule({ schoolId }: Props) {
 
       if (USE_FASTAPI) {
         try {
-          const dashResp = await apiClient.get("/reports/dashboard");
+          const dashResp = await apiClient.get("/reports/dashboard", {
+            params: activeCampusId ? { campus_id: activeCampusId } : undefined,
+          });
           const dbData = dashResp.data;
           if (dbData && typeof dbData.total_students === "number") {
             const totalStudents = dbData.total_students ?? 0;
@@ -149,10 +151,13 @@ export function OwnerOverviewModule({ schoolId }: Props) {
             const totalTeachers = dbData.total_teachers ?? 0;
             const openLeads = dbData.open_leads ?? 0;
             const revenueMtd = dbData.collected_fees ?? 0;
+            const revenueYtd = typeof dbData.revenue_ytd === "number" ? dbData.revenue_ytd : revenueMtd;
             const expensesMtd = dbData.mtd_expenses ?? 0;
+            const expensesYtd = typeof dbData.expenses_ytd === "number" ? dbData.expenses_ytd : expensesMtd;
             const pendingInvoices = dbData.pending_payments ?? 0;
             const profit = revenueMtd - expensesMtd;
             const profitMargin = revenueMtd > 0 ? Math.round((profit / revenueMtd) * 100) : 0;
+            const attendanceRate = typeof dbData.attendance_rate === "number" ? dbData.attendance_rate : 0;
 
             return {
               totalStudents,
@@ -160,12 +165,12 @@ export function OwnerOverviewModule({ schoolId }: Props) {
               inactiveStudents: 0,
               alumniCount: 0,
               revenueMtd,
-              revenueYtd: revenueMtd,
+              revenueYtd,
               expensesMtd,
-              expensesYtd: expensesMtd,
+              expensesYtd,
               profit,
               profitMargin,
-              attendanceRate: 96,
+              attendanceRate,
               academicIndex: 92,
               admissionFunnel: openLeads,
               openLeads,

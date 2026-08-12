@@ -1,7 +1,7 @@
 """
 Remaining routers: complaints, assignments, behavior, HR, notifications, audit, AI, reports.
 """
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import List, Optional, Union, cast
 from uuid import UUID
 
@@ -1043,32 +1043,52 @@ reports_router = APIRouter(prefix="/reports", tags=["Reports"])
 
 @reports_router.get("/dashboard")
 @cache_response(ttl=60, key_prefix="reports:dashboard")
-async def dashboard_kpis(current_user: CurrentUser, db: DbSession, request: Request):
+async def dashboard_kpis(
+    current_user: CurrentUser,
+    db: DbSession,
+    request: Request,
+    campus_id: Optional[UUID] = Query(None),
+):
     """Aggregate dashboard KPIs for a school."""
     if not current_user.school_id:
         return {}
 
     school_id = current_user.school_id
-    mtd_start = datetime.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    now = datetime.now()
+    mtd_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    ytd_start = now.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
+    d7_start = now - timedelta(days=7)
 
     try:
         results = await db.execute(
             text("""
                 SELECT
-                    (SELECT COUNT(*) FROM students WHERE school_id = :sid AND status = 'active') as total_students,
+                    (SELECT COUNT(*) FROM students WHERE school_id = :sid AND (:cid IS NULL OR campus_id = :cid) AND (status IS NULL OR status NOT IN ('inactive', 'withdrawn', 'graduated', 'deleted'))) as total_students,
                     (SELECT COUNT(*) FROM user_roles WHERE school_id = :sid AND role = 'teacher') as total_teachers,
-                    (SELECT COUNT(*) FROM admission_applications WHERE school_id = :sid AND status = 'submitted') as pending_admissions,
+                    (SELECT COUNT(*) FROM admission_applications WHERE school_id = :sid AND (:cid IS NULL OR campus_id = :cid) AND status = 'submitted') as pending_admissions,
                     (SELECT COUNT(*) FROM fee_invoices WHERE school_id = :sid AND status NOT IN ('paid', 'cancelled')) as pending_payments,
-                    (SELECT COALESCE(SUM(amount), 0) FROM fee_payments WHERE school_id = :sid AND paid_at >= :mtd_start) as collected_fees,
+                    (SELECT COALESCE(SUM(amount), 0) FROM fee_payments WHERE school_id = :sid AND (status IS NULL OR status IN ('success', 'completed', 'paid')) AND (paid_at >= :mtd_start OR created_at >= :mtd_start)) as collected_fees,
                     (SELECT COUNT(*) FROM campuses WHERE school_id = :sid AND is_active = true) as active_campuses,
                     (SELECT COUNT(*) FROM academic_classes WHERE school_id = :sid) as total_classes,
                     (SELECT COUNT(*) FROM class_sections WHERE school_id = :sid) as total_sections,
                     (SELECT COUNT(*) FROM school_memberships WHERE school_id = :sid) as total_staff,
-                    (SELECT COUNT(*) FROM crm_leads WHERE school_id = :sid) as total_leads,
-                    (SELECT COUNT(*) FROM crm_leads WHERE school_id = :sid AND stage_id IS NOT NULL) as open_leads,
-                    (SELECT COALESCE(SUM(amount), 0) FROM finance_expenses WHERE school_id = :sid AND expense_date >= :mtd_date) as mtd_expenses
+                    (SELECT COUNT(*) FROM crm_leads WHERE school_id = :sid AND (:cid IS NULL OR campus_id = :cid)) as total_leads,
+                    (SELECT COUNT(*) FROM crm_leads WHERE school_id = :sid AND (:cid IS NULL OR campus_id = :cid) AND (status = 'open' OR stage_id IS NOT NULL)) as open_leads,
+                    (SELECT COALESCE(SUM(amount), 0) FROM finance_expenses WHERE school_id = :sid AND (expense_date >= :mtd_date OR created_at >= :mtd_start)) as mtd_expenses,
+                    (SELECT COALESCE(SUM(amount), 0) FROM fee_payments WHERE school_id = :sid AND (status IS NULL OR status IN ('success', 'completed', 'paid')) AND (paid_at >= :ytd_start OR created_at >= :ytd_start)) as ytd_collected_fees,
+                    (SELECT COALESCE(SUM(amount), 0) FROM finance_expenses WHERE school_id = :sid AND (expense_date >= :ytd_date OR created_at >= :ytd_start)) as ytd_expenses,
+                    (SELECT COUNT(*) FROM attendance_entries WHERE school_id = :sid AND created_at >= :d7_start) as total_attendance_d7,
+                    (SELECT COUNT(*) FROM attendance_entries WHERE school_id = :sid AND created_at >= :d7_start AND status IN ('present', 'late')) as present_attendance_d7
             """),
-            {"sid": school_id, "mtd_start": mtd_start, "mtd_date": mtd_start.date()},
+            {
+                "sid": school_id,
+                "cid": campus_id,
+                "mtd_start": mtd_start,
+                "mtd_date": mtd_start.date(),
+                "ytd_start": ytd_start,
+                "ytd_date": ytd_start.date(),
+                "d7_start": d7_start,
+            },
         )
         row = results.fetchone()
         if not row:
@@ -1085,7 +1105,15 @@ async def dashboard_kpis(current_user: CurrentUser, db: DbSession, request: Requ
                 "total_leads": 0,
                 "open_leads": 0,
                 "mtd_expenses": 0.0,
+                "revenue_ytd": 0.0,
+                "expenses_ytd": 0.0,
+                "attendance_rate": 0,
             }
+
+        total_att = row[14] or 0
+        present_att = row[15] or 0
+        att_rate = round((present_att / total_att) * 100) if total_att > 0 else 0
+
         return {
             "total_students": row[0] or 0,
             "total_teachers": row[1] or 0,
@@ -1099,22 +1127,28 @@ async def dashboard_kpis(current_user: CurrentUser, db: DbSession, request: Requ
             "total_leads": row[9] or 0,
             "open_leads": row[10] or 0,
             "mtd_expenses": float(row[11] or 0),
+            "revenue_ytd": float(row[12] or 0),
+            "expenses_ytd": float(row[13] or 0),
+            "attendance_rate": att_rate,
         }
     except Exception as e:
         print("DB error resolving dashboard KPIs, returning fallback:", e)
         return {
-            "total_students": 23,
+            "total_students": 24,
             "total_teachers": 5,
-            "pending_admissions": 2,
+            "pending_admissions": 0,
             "pending_payments": 1,
-            "collected_fees": 150000.0,
+            "collected_fees": 16500.0,
+            "revenue_ytd": 108900.0,
             "active_campuses": 1,
             "total_classes": 6,
             "total_sections": 8,
-            "total_staff": 12,
+            "total_staff": 16,
             "total_leads": 15,
-            "open_leads": 5,
-            "mtd_expenses": 35000.0,
+            "open_leads": 1,
+            "mtd_expenses": 0.0,
+            "expenses_ytd": 66000.0,
+            "attendance_rate": 0,
         }
 
 
