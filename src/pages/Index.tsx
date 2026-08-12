@@ -245,6 +245,30 @@ const Index = () => {
 
     setBusy(true);
     try {
+      // 1. Try FastAPI login endpoint first (/api/auth/login)
+      try {
+        const resp = await apiClient.post("/auth/login", {
+          email: parsedEmail.data,
+          password: password,
+        });
+        if (resp.data?.access_token) {
+          const { data: sessData } = await rawSupabase.auth.setSession({
+            access_token: resp.data.access_token,
+            refresh_token: resp.data.refresh_token,
+          });
+          rememberRecentEmail(parsedEmail.data);
+          setRecentEmails(getRecentEmails());
+          const userId = resp.data.user?.id || sessData?.user?.id;
+          if (userId) {
+            await routeUserAfterLogin(userId);
+            return;
+          }
+        }
+      } catch (fastApiErr: any) {
+        console.warn("FastAPI login fallback to Supabase direct auth:", fastApiErr);
+      }
+
+      // 2. Fallback to Supabase direct auth
       const { data, error } = await supabase.auth.signInWithPassword({
         email: parsedEmail.data,
         password,

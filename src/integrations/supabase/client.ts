@@ -4,13 +4,7 @@ import { addToOfflineQueue } from '@/lib/offline-db';
 import { toast } from 'sonner';
 
 const getSupabaseUrl = (): string => {
-  if (typeof window !== "undefined") {
-    const host = window.location.hostname;
-    if (host.includes("altrixcore.com") || host === "localhost" || host === "127.0.0.1") {
-      return window.location.origin;
-    }
-  }
-  return import.meta.env.VITE_SUPABASE_URL || "https://altrixcore.com";
+  return import.meta.env.VITE_SUPABASE_URL || "https://nhossjmkdjeeacbajelq.supabase.co";
 };
 
 const SUPABASE_URL = getSupabaseUrl();
