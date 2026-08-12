@@ -60,13 +60,25 @@ export function SchoolReputationDashboard({ schoolId }: Props) {
 
   const latestReport = useMemo(() => reputationData?.[0], [reputationData]);
 
+  const safeFormatMonth = (monthVal?: string | null, pattern: string = "MMM"): string => {
+    if (!monthVal) return "";
+    try {
+      const raw = String(monthVal).trim();
+      const d = /^\d{4}-\d{2}$/.test(raw) ? parseISO(`${raw}-01`) : new Date(raw);
+      if (!isNaN(d.getTime())) {
+        return format(d, pattern);
+      }
+    } catch {}
+    return String(monthVal);
+  };
+
   const trendData = useMemo(() => {
     if (!reputationData) return [];
     return reputationData
       .slice()
       .reverse()
       .map((r) => ({
-        month: format(parseISO(r.report_month + "-01"), "MMM"),
+        month: safeFormatMonth(r.report_month, "MMM") || "Month",
         reputation: r.reputation_score || 0,
         satisfaction: r.parent_satisfaction_index || 0,
         engagement: r.engagement_level || 0,
@@ -154,9 +166,11 @@ export function SchoolReputationDashboard({ schoolId }: Props) {
                         ? "Good"
                         : "Needs Improvement"}
                     </Badge>
-                    <span className="text-xs text-muted-foreground">
-                      as of {format(parseISO(latestReport.report_month + "-01"), "MMMM yyyy")}
-                    </span>
+                    {latestReport.report_month && (
+                      <span className="text-xs text-muted-foreground">
+                        as of {safeFormatMonth(latestReport.report_month, "MMMM yyyy")}
+                      </span>
+                    )}
                   </div>
                 </div>
                 <div className={`rounded-2xl p-4 ${getScoreColor(latestReport.reputation_score || 0)}`}>

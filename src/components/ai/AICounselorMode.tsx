@@ -272,7 +272,14 @@ export function AICounselorMode({ schoolId }: Props) {
                                   {item.scheduled_date && (
                                     <div className="mt-2 flex items-center gap-2 text-xs text-blue-600">
                                       <Calendar className="h-3.5 w-3.5" />
-                                      Scheduled: {format(parseISO(item.scheduled_date), "MMM d, yyyy 'at' h:mm a")}
+                                      Scheduled: {(() => {
+                                        try {
+                                          const d = new Date(item.scheduled_date);
+                                          return !isNaN(d.getTime()) ? format(d, "MMM d, yyyy 'at' h:mm a") : String(item.scheduled_date);
+                                        } catch {
+                                          return String(item.scheduled_date);
+                                        }
+                                      })()}
                                     </div>
                                   )}
 

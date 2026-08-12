@@ -1372,7 +1372,14 @@ export function SmartTimetableGenerator({ schoolId }: Props) {
                     AI Suggestion Matrix (Version {latestSuggestion.version_number || 1})
                   </CardTitle>
                   <p className="text-xs text-muted-foreground">
-                    Generated {format(new Date(latestSuggestion.created_at), "MMM d, yyyy 'at' h:mm a")}
+                    Generated {latestSuggestion.created_at ? (() => {
+                      try {
+                        const d = new Date(latestSuggestion.created_at);
+                        return !isNaN(d.getTime()) ? format(d, "MMM d, yyyy 'at' h:mm a") : String(latestSuggestion.created_at);
+                      } catch {
+                        return String(latestSuggestion.created_at);
+                      }
+                    })() : "Recently"}
                   </p>
                 </div>
                 <div className="flex items-center gap-3">
@@ -1543,7 +1550,14 @@ export function SmartTimetableGenerator({ schoolId }: Props) {
                         Draft Version {suggestion.version_number || "—"}
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        {format(new Date(suggestion.created_at), "MMMM d, h:mm a")}
+                        {suggestion.created_at ? (() => {
+                          try {
+                            const d = new Date(suggestion.created_at);
+                            return !isNaN(d.getTime()) ? format(d, "MMMM d, h:mm a") : String(suggestion.created_at);
+                          } catch {
+                            return String(suggestion.created_at);
+                          }
+                        })() : ""}
                       </p>
                     </div>
                     <div className="flex items-center gap-3">

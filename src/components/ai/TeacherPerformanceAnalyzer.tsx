@@ -272,7 +272,14 @@ export function TeacherPerformanceAnalyzer({ schoolId }: Props) {
                         </Badge>
                       </div>
                       <p className="text-xs text-muted-foreground">
-                        {teacher.last_analyzed_at ? format(parseISO(teacher.last_analyzed_at), "MMM d, yyyy") : "Not analyzed yet"}
+                        {teacher.last_analyzed_at ? (() => {
+                          try {
+                            const d = new Date(teacher.last_analyzed_at);
+                            return !isNaN(d.getTime()) ? format(d, "MMM d, yyyy") : "Analyzed recently";
+                          } catch {
+                            return "Analyzed recently";
+                          }
+                        })() : "Not analyzed yet"}
                       </p>
                     </div>
                   </div>

@@ -250,7 +250,14 @@ export function ParentTrustDashboard({ studentId, schoolId, parentUserId }: Prop
                         <div className="flex items-start justify-between">
                           <div className="flex-1">
                             <p className="text-xs text-muted-foreground">
-                              {format(parseISO(update.update_date), "EEEE, MMM d")}
+                              {update.update_date ? (() => {
+                                try {
+                                  const d = new Date(update.update_date);
+                                  return !isNaN(d.getTime()) ? format(d, "EEEE, MMM d") : String(update.update_date);
+                                } catch {
+                                  return String(update.update_date);
+                                }
+                              })() : ""}
                             </p>
                             {update.ai_summary && (
                               <p className="mt-2 text-sm">{update.ai_summary}</p>
@@ -289,7 +296,14 @@ export function ParentTrustDashboard({ studentId, schoolId, parentUserId }: Prop
                     <div className="flex items-center justify-between">
                       <CardTitle className="flex items-center gap-2 text-sm">
                         <Sparkles className="h-4 w-4 text-primary" />
-                        Week of {format(parseISO(update.update_date), "MMM d")}
+                        Week of {update.update_date ? (() => {
+                          try {
+                            const d = new Date(update.update_date);
+                            return !isNaN(d.getTime()) ? format(d, "MMM d") : String(update.update_date);
+                          } catch {
+                            return String(update.update_date);
+                          }
+                        })() : ""}
                       </CardTitle>
                       {update.performance_change_percent !== null && (
                         <Badge className={
@@ -365,7 +379,14 @@ export function ParentTrustDashboard({ studentId, schoolId, parentUserId }: Prop
                     <div className="flex items-center justify-between">
                       <CardTitle className="flex items-center gap-2">
                         <GraduationCap className="h-5 w-5 text-primary" />
-                        {format(parseISO(update.update_date), "MMMM yyyy")} Report
+                        {update.update_date ? (() => {
+                          try {
+                            const d = new Date(update.update_date);
+                            return !isNaN(d.getTime()) ? format(d, "MMMM yyyy") : String(update.update_date);
+                          } catch {
+                            return String(update.update_date);
+                          }
+                        })() : "Monthly"} Report
                       </CardTitle>
                     </div>
                   </CardHeader>
