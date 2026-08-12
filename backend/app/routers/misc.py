@@ -2,7 +2,7 @@
 Remaining routers: complaints, assignments, behavior, HR, notifications, audit, AI, reports.
 """
 from datetime import datetime, timezone
-from typing import List, Optional, cast
+from typing import List, Optional, Union, cast
 from uuid import UUID
 
 import json
@@ -738,7 +738,7 @@ async def list_audit_logs(
 ai_router = APIRouter(prefix="/ai", tags=["AI"])
 
 
-async def verify_ai_access(db: DbSession, school_id: Optional[str] = None):
+async def verify_ai_access(db: DbSession, school_id: Optional[Union[str, UUID]] = None):
     from fastapi import HTTPException
     global_enabled = await get_ai_status(db)
     if not global_enabled:
@@ -747,7 +747,7 @@ async def verify_ai_access(db: DbSession, school_id: Optional[str] = None):
             detail="AI features are currently disabled system-wide."
         )
     if school_id:
-        school_enabled = await get_school_ai_status(db, school_id)
+        school_enabled = await get_school_ai_status(db, str(school_id))
         if not school_enabled:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -757,7 +757,7 @@ async def verify_ai_access(db: DbSession, school_id: Optional[str] = None):
 
 @ai_router.get("/predictions/{student_id}", response_model=List[AiPredictionOut])
 async def get_predictions(student_id: UUID, current_user: CurrentUser, db: DbSession):
-    await verify_ai_access(db, str(current_user.school_id) if current_user.school_id else None)
+    await verify_ai_access(db, current_user.school_id)
     result = await db.execute(
         select(AiAcademicPrediction).where(AiAcademicPrediction.student_id == student_id)
         .order_by(AiAcademicPrediction.created_at.desc())
@@ -767,7 +767,7 @@ async def get_predictions(student_id: UUID, current_user: CurrentUser, db: DbSes
 
 @ai_router.get("/profiles/{student_id}", response_model=AiStudentProfileOut)
 async def get_student_ai_profile(student_id: UUID, current_user: CurrentUser, db: DbSession):
-    await verify_ai_access(db, str(current_user.school_id) if current_user.school_id else None)
+    await verify_ai_access(db, current_user.school_id)
     result = await db.execute(
         select(AiStudentProfile).where(AiStudentProfile.student_id == student_id)
     )
@@ -783,7 +783,7 @@ async def list_warnings(
     student_id: Optional[UUID] = Query(None),
     severity: Optional[str] = Query(None),
 ):
-    await verify_ai_access(db, str(current_user.school_id) if current_user.school_id else None)
+    await verify_ai_access(db, current_user.school_id)
     if not current_user.school_id:
         return []
     query = select(AiEarlyWarning).where(AiEarlyWarning.school_id == current_user.school_id)
@@ -797,7 +797,7 @@ async def list_warnings(
 
 @ai_router.get("/counseling-queue")
 async def get_counseling_queue(current_user: CurrentUser, db: DbSession):
-    await verify_ai_access(db, str(current_user.school_id) if current_user.school_id else None)
+    await verify_ai_access(db, current_user.school_id)
     if not current_user.school_id:
         return []
     result = await db.execute(
@@ -813,7 +813,7 @@ async def get_teacher_performance(
     current_user: CurrentUser, db: DbSession,
     teacher_user_id: Optional[UUID] = Query(None),
 ):
-    await verify_ai_access(db, str(current_user.school_id) if current_user.school_id else None)
+    await verify_ai_access(db, current_user.school_id)
     if not current_user.school_id:
         return []
     query = select(AiTeacherPerformance).where(
@@ -1379,12 +1379,12 @@ async def fetch_ai_context(db: DbSession, user: AuthenticatedUser, school_id: st
     resolved_school_id = school_id
     if school_id:
         try:
-            UUID(str(school_id))
+            UUID(school_id)
         except (ValueError, TypeError):
             try:
                 s_res = await db.execute(
                     text("SELECT id FROM public.schools WHERE slug = :sid OR id::text = :sid LIMIT 1"),
-                    {"sid": str(school_id)}
+                    {"sid": school_id}
                 )
                 s_row = s_res.fetchone()
                 if s_row:
@@ -1685,11 +1685,26 @@ async def fetch_ai_context(db: DbSession, user: AuthenticatedUser, school_id: st
             # Recent Notices
             notices = await fetch_rows("""
                 SELECT id, title, body, audience, created_at FROM notices 
-                WHERE school_id = :sid ORDER BY created_at DESC LIMIT 10
+                WHERE school_id = :sid ORDER BY created_at DESC LIMIT 15
             """, {"sid": school_id})
             notices_str = "\n".join([
-                f"- {r[1]} (Audience: {r[3]}, Date: {r[4].strftime('%Y-%m-%d') if r[4] else 'N/A'}): {r[2][:100]}... [Notice ID: {r[0]}]"
+                f"- Title: '{r[1]}' | Audience: {r[3] or 'All'} | Date: {to_pkt_date_str(r[4])} | Content: '{r[2] or 'No details'}' [Notice ID: {r[0]}]"
                 for r in notices
+            ])
+
+            # Timetables & Scheduled Lectures (V2)
+            timetable_rows = await fetch_rows("""
+                SELECT te.day_of_week, te.subject_name, te.start_time, te.end_time, c.name, cs.name, te.room, sd.full_name, te.id
+                FROM timetable_entries te
+                JOIN class_sections cs ON te.class_section_id = cs.id
+                JOIN academic_classes c ON cs.class_id = c.id
+                LEFT JOIN hr_staff_directory sd ON te.teacher_user_id = sd.linked_user_id
+                WHERE te.school_id = :sid
+                ORDER BY te.day_of_week, te.start_time LIMIT 50
+            """, {"sid": school_id})
+            timetable_str = "\n".join([
+                f"- Day: {r[0]} | Timing: {r[2]} to {r[3]} | Class: {r[4]} - {r[5]} | Subject: {r[1]} | Room: {r[6] or 'N/A'} | Teacher: {r[7] or 'N/A'} [Entry ID: {r[8]}]"
+                for r in timetable_rows
             ])
 
             # Pending admissions
@@ -1709,24 +1724,8 @@ async def fetch_ai_context(db: DbSession, user: AuthenticatedUser, school_id: st
 
             # Timetables Stats (V2)
             timetable_stats = "None"
-            try:
-                tt_res = await db.execute(
-                    text("""
-                        SELECT COUNT(*), COUNT(DISTINCT class_section_id), COUNT(DISTINCT teacher_user_id) 
-                        FROM public.timetable_entries 
-                        WHERE school_id = CAST(:sid AS UUID)
-                    """),
-                    {"sid": school_id}
-                )
-                tt_row = tt_res.fetchone()
-                if tt_row and tt_row[0] > 0:
-                    timetable_stats = f"Structured Scheduled Periods: {tt_row[0]}, sections scheduled: {tt_row[1]}, scheduled teachers: {tt_row[2]}"
-            except Exception as e:
-                logger.warning(f"Error fetching timetable stats: {e}")
-                try:
-                    await db.rollback()
-                except Exception:
-                    pass
+            if timetable_rows:
+                timetable_stats = f"Active Scheduled Lectures Logged: {len(timetable_rows)} periods across active class sections."
 
             # CRM Stats (V2)
             crm_stats = "None"
@@ -1827,6 +1826,9 @@ Recent Staff Leave Requests:
 
 Recent School Announcements / Notices:
 {notices_str if notices_str else "None"}
+
+Scheduled Timetable & Today's Lectures:
+{timetable_str if timetable_str else "None"}
 
 Recent ERP Complaints & Feedback:
 {complaints_str if complaints_str else "None"}

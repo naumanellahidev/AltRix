@@ -63,10 +63,10 @@ async def get_school_feature_flags(
 
     target_school_id: Optional[UUID] = None
     try:
-        target_school_id = UUID(str(school_id).strip())
+        target_school_id = UUID(school_id.strip())
     except (ValueError, TypeError):
         try:
-            stmt_school = select(School.id).where(School.slug == str(school_id).strip())
+            stmt_school = select(School.id).where(School.slug == school_id.strip())
             res_school = await db.execute(stmt_school)
             target_school_id = res_school.scalar_one_or_none()
         except Exception as e:
@@ -167,9 +167,9 @@ async def update_school_feature_flags(
     import uuid
     target_school_id: Optional[UUID] = None
     try:
-        target_school_id = UUID(str(school_id).strip())
+        target_school_id = UUID(school_id.strip())
     except (ValueError, TypeError):
-        stmt_school = select(School.id).where(School.slug == str(school_id).strip())
+        stmt_school = select(School.id).where(School.slug == school_id.strip())
         res_school = await db.execute(stmt_school)
         target_school_id = res_school.scalar_one_or_none()
 

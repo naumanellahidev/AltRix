@@ -66,7 +66,7 @@ async def provision_tenant_fleet(req: ProvisionTenantRequest, db: AsyncSession =
 @router.get("/{tenant_id}/export")
 async def export_tenant_database_dump(tenant_id: str, db: AsyncSession = Depends(get_db)):
     """Generate and return an on-demand SQL schema & data dump script for a specific school tenant."""
-    res = await db.execute(text("SELECT id, name, slug FROM public.schools WHERE id = :id OR slug = :id"), {"id": tenant_id})
+    res = await db.execute(text("SELECT id, name, slug FROM public.schools WHERE id::text = :id OR slug = :id"), {"id": tenant_id})
     school = res.fetchone()
     
     school_name = school[1] if school else tenant_id

@@ -3,7 +3,7 @@ import logging
 import re
 import asyncio
 import httpx
-from typing import AsyncGenerator, Dict, List, Optional
+from typing import AsyncGenerator, Dict, List, Optional, Any, cast
 from app.config import settings
 
 logger = logging.getLogger("app.ai_service")
@@ -23,9 +23,7 @@ class OllamaAIService:
     def route_model(cls, query: str) -> str:
         reasoning_keywords = [
             "compare", "analyze", "trend", "report", "why", "performance",
-            "defaulter", "weak", "average", "outstanding", "revenue",
-            "grades", "marks", "fail", "pass", "top", "analytics", "kpi",
-            "overall", "metrics", "financial"
+            "forecast", "predict", "benchmark", "root cause", "explain"
         ]
         query_lower = query.lower()
 
@@ -40,11 +38,11 @@ class OllamaAIService:
         return general_model
 
     @classmethod
-    def _parse_context_metrics(cls, context_text: str) -> Dict[str, any]:
+    def _parse_context_metrics(cls, context_text: str) -> Dict[str, Any]:
         """
         Parses real-time numbers, lists, and records directly from the database context string.
         """
-        data = {
+        data: Dict[str, Any] = {
             "role": "General User",
             "total_students": 0,
             "active_campuses": 0,
@@ -52,21 +50,21 @@ class OllamaAIService:
             "collected_fees": "Rs. 0.00",
             "pending_invoices_count": 0,
             "pending_admissions": 0,
-            "campuses": [],
-            "classes": [],
-            "students": [],
-            "staff": [],
-            "staff_attendance": {"present": 0, "absent": 0, "unmarked": 0, "details": []},
-            "defaulters": [],
-            "recent_invoices": [],
-            "recent_payments": [],
-            "exams": [],
-            "leaves": [],
-            "notices": [],
-            "complaints": [],
+            "campuses": cast(List[str], []),
+            "classes": cast(List[str], []),
+            "students": cast(List[str], []),
+            "staff": cast(List[str], []),
+            "staff_attendance": {"present": 0, "absent": 0, "unmarked": 0, "details": cast(List[str], [])},
+            "defaulters": cast(List[str], []),
+            "recent_invoices": cast(List[str], []),
+            "recent_payments": cast(List[str], []),
+            "exams": cast(List[str], []),
+            "leaves": cast(List[str], []),
+            "notices": cast(List[str], []),
+            "complaints": cast(List[str], []),
             "crm_leads": "None",
             "admissions": "None",
-            "holidays": [],
+            "holidays": cast(List[str], []),
             "active_screen": "",
             "active_module": "",
         }
@@ -174,7 +172,7 @@ class OllamaAIService:
                 if line.startswith('- ') and line[2:].strip() != "None":
                     data["exams"].append(line[2:])
 
-        # 11. Parse Notices
+        # 11. Parse Notices / Notifications
         notices_section = re.search(r"Recent School Announcements / Notices:\s*\n(.*?)(?=\n\n|\n[A-Z]|\Z)", context_text, re.DOTALL)
         if notices_section:
             for line in notices_section.group(1).strip().split('\n'):
@@ -182,7 +180,23 @@ class OllamaAIService:
                 if line.startswith('- ') and line[2:].strip() != "None":
                     data["notices"].append(line[2:])
 
-        # 12. Parse Holidays
+        # 12. Parse Timetable & Scheduled Lectures
+        tt_section = re.search(r"Scheduled Timetable & Today's Lectures:\s*\n(.*?)(?=\n\n|\n[A-Z]|\Z)", context_text, re.DOTALL)
+        if tt_section:
+            for line in tt_section.group(1).strip().split('\n'):
+                line = line.strip()
+                if line.startswith('- ') and line[2:].strip() != "None":
+                    data["classes"].append(line[2:])
+
+        # 13. Parse Complaints
+        comp_section = re.search(r"Recent ERP Complaints & Feedback:\s*\n(.*?)(?=\n\n|\n[A-Z]|\Z)", context_text, re.DOTALL)
+        if comp_section:
+            for line in comp_section.group(1).strip().split('\n'):
+                line = line.strip()
+                if line.startswith('- ') and line[2:].strip() != "None":
+                    data["complaints"].append(line[2:])
+
+        # 14. Parse Holidays
         hol_section = re.search(r"Upcoming Holidays Calendar:\s*\n(.*?)(?=\n\n|\n[A-Z]|\Z)", context_text, re.DOTALL)
         if hol_section:
             for line in hol_section.group(1).strip().split('\n'):
@@ -201,6 +215,79 @@ class OllamaAIService:
         """
         ctx = cls._parse_context_metrics(system_prompt)
         q = user_message.lower().strip()
+
+        # ─────────────────────────────────────────────────────────────────────
+        # INTENT 0: NOTIFICATIONS / NOTICES / BROADCASTS / ALERTS
+        # ─────────────────────────────────────────────────────────────────────
+        if any(w in q for w in [
+            "notification", "notifications", "notice", "notices", "announcement",
+            "announcements", "broadcast", "alert", "alerts", "news", "update", "updates"
+        ]):
+            response_parts = [
+                "### 🔔 Recent School Notifications & Announcements\n\n",
+                f"Here are the active broadcast notices for your school shell:\n\n",
+            ]
+            if ctx["notices"]:
+                for n in ctx["notices"][:6]:
+                    response_parts.append(f"{n}\n")
+            else:
+                response_parts.append("- *No recent unread broadcast notices logged in system.*")
+
+            response_parts.append(
+                "\n\nDirect navigation links:\n"
+                "- Broadcast Center: `/notices`\n"
+                "- School Calendar: `/holidays`\n\n"
+                '<altrix_action>{"type": "NAVIGATE_TO", "route": "/notices", "label": "Open Notices & Broadcasts"}</altrix_action>'
+            )
+            return "".join(response_parts)
+
+        # ─────────────────────────────────────────────────────────────────────
+        # INTENT 0.5: LECTURES / TIMETABLE / CLASS SCHEDULES / PERIODS
+        # ─────────────────────────────────────────────────────────────────────
+        elif any(w in q for w in [
+            "lecture", "lectures", "period", "periods", "timetable", "schedule",
+            "class today", "routine", "timing", "slot", "subject schedule"
+        ]):
+            response_parts = [
+                "### 📅 Today's Scheduled Lectures & Timetable\n\n",
+                f"Here is the active timetable schedule from your ERP database:\n\n",
+            ]
+            if ctx["classes"]:
+                for c in ctx["classes"][:10]:
+                    response_parts.append(f"{c}\n")
+            else:
+                response_parts.append("- *Scheduled periods and teacher lectures are active in database.*")
+
+            response_parts.append(
+                "\n\nDirect navigation paths:\n"
+                "- Timetable Module: `/timetable`\n"
+                "- Attendance Register: `/attendance`\n\n"
+                '<altrix_action>{"type": "NAVIGATE_TO", "route": "/timetable", "label": "View School Timetable"}</altrix_action>'
+            )
+            return "".join(response_parts)
+
+        # ─────────────────────────────────────────────────────────────────────
+        # INTENT 0.8: COMPLAINTS / FEEDBACK / ISSUES
+        # ─────────────────────────────────────────────────────────────────────
+        elif any(w in q for w in [
+            "complaint", "complaints", "issue", "issues", "ticket", "grievance", "feedback"
+        ]):
+            response_parts = [
+                "### ⚠️ ERP Complaints & Feedback Register\n\n",
+                f"Here is the live complaint log for your school:\n\n",
+            ]
+            if ctx["complaints"]:
+                for comp in ctx["complaints"][:6]:
+                    response_parts.append(f"{comp}\n")
+            else:
+                response_parts.append("- *No unresolved complaints logged for your school.*")
+
+            response_parts.append(
+                "\n\nDirect navigation paths:\n"
+                "- Complaints Desk: `/complaints`\n\n"
+                '<altrix_action>{"type": "NAVIGATE_TO", "route": "/complaints", "label": "Open Complaints Desk"}</altrix_action>'
+            )
+            return "".join(response_parts)
 
         # ─────────────────────────────────────────────────────────────────────
         # INTENT 1: OVERALL SCHOOL PERFORMANCE / HEALTH / DASHBOARD / KPIS
@@ -499,7 +586,7 @@ class OllamaAIService:
         cls, 
         system_prompt: str, 
         user_message: str, 
-        history: List[Dict[str, str]] = None
+        history: Optional[List[Dict[str, str]]] = None
     ) -> AsyncGenerator[str, None]:
         """
         Executes streaming AI response.
@@ -526,7 +613,7 @@ class OllamaAIService:
                 target_url = f"{settings.ai_api_base.rstrip('/')}/chat/completions"
                 if api_key:
                     headers["Authorization"] = f"Bearer {api_key}"
-            elif settings.ollama_url and settings.ollama_url != "http://localhost:11434":
+            elif settings.ollama_url:
                 base_url = settings.ollama_url.rstrip('/')
                 target_url = f"{base_url}/chat" if base_url.endswith("/api") else f"{base_url}/api/chat"
                 if api_key:

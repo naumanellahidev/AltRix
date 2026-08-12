@@ -36,7 +36,7 @@ async def get_billing_tiers():
 @router.post("/vouchers/generate")
 async def generate_billing_voucher(req: VoucherRequest, db: AsyncSession = Depends(get_db)):
     """Generate an automated PDF invoice voucher with embedded JazzCash/EasyPaisa QR payment codes."""
-    res = await db.execute(text("SELECT id, name, slug FROM public.schools WHERE id = :id OR slug = :id"), {"id": req.school_id})
+    res = await db.execute(text("SELECT id, name, slug FROM public.schools WHERE id::text = :id OR slug = :id"), {"id": req.school_id})
     school = res.fetchone()
     school_name = school[1] if school else "School Campus"
     school_slug = school[2] if school else "campus"
