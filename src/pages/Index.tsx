@@ -415,7 +415,7 @@ const Index = () => {
       </div>
 
       {/* ── HEADER ── */}
-      <header className="w-full pt-4 pb-2 sm:pt-6 sm:pb-3 px-6 flex flex-col items-center justify-center relative z-10">
+      <header className="w-full pt-2 pb-2 sm:pb-3 px-6 flex flex-col items-center justify-center relative z-10">
         <div className="flex items-center justify-center p-1 transition-transform duration-300 hover:scale-[1.02]">
           <img
             src="/altrix-logo.png"
