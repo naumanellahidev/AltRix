@@ -128,24 +128,28 @@ docker run -d \
 docker exec -u 0 altrix_backend apt-get update >/dev/null 2>&1 || true
 docker exec -u 0 altrix_backend apt-get install -y curl >/dev/null 2>&1 || true
 
-echo "[INFO] Pausing 4 seconds for backend warm up..."
-sleep 4
+echo "[INFO] Waiting for backend container startup and health probe response..."
+PROBE_FAIL=true
 
-# 6. Live Health Verification Probes
-echo "[INFO] Running Production Health Probes..."
-PROBE_FAIL=false
+for i in {1..15}; do
+    API_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:8000/api/health || echo "000")
+    if [ "${API_CODE}" = "200" ]; then
+        echo "[INFO] FastAPI backend probe responded healthy (HTTP 200) on attempt ${i}."
+        PROBE_FAIL=false
+        break
+    fi
+    sleep 1
+done
 
-API_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:8000/api/health || echo "000")
-if [ "${API_CODE}" != "200" ]; then
-    echo "[ERROR] FastAPI health probe failed! Code: ${API_CODE}"
-    PROBE_FAIL=true
+if [ "${PROBE_FAIL}" = "true" ]; then
+    echo "[ERROR] FastAPI health probe failed after 15 attempts!"
 fi
 
 API_VER_JSON=$(curl -s http://127.0.0.1:8000/api/version || echo "{}")
 echo "[INFO] Live API Version Response: ${API_VER_JSON}"
 
 if echo "${API_VER_JSON}" | grep -q '"status":\s*"healthy"'; then
-    echo "[INFO] Live API status is healthy."
+    echo "[INFO] Live API version status verified."
 else
     echo "[ERROR] Live API version response status unhealthy!"
     PROBE_FAIL=true

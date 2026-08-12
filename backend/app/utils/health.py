@@ -58,6 +58,10 @@ async def check_supabase() -> dict:
         return {"status": "unreachable", "error": str(e)[:200]}
 
 
+def get_uptime_seconds() -> float:
+    return time.time() - _startup_time
+
+
 def get_commit_sha() -> str:
     import os
     sha = os.getenv("GIT_COMMIT_SHA") or os.getenv("COMMIT_SHA")
