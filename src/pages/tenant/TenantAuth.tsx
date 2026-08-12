@@ -158,33 +158,33 @@ const TenantAuth = () => {
       </div>
 
       {/* ── HEADER ── */}
-      <header className="w-full py-8 sm:py-10 px-6 flex flex-col items-center justify-center relative z-10">
-        <div className="flex items-center justify-center p-2 transition-transform duration-300 hover:scale-[1.02]">
+      <header className="w-full pt-4 pb-2 sm:pt-6 sm:pb-3 px-6 flex flex-col items-center justify-center relative z-10">
+        <div className="flex items-center justify-center p-1 transition-transform duration-300 hover:scale-[1.02]">
           <img
             src="/altrix-logo.png"
             alt="AltRix Operating System"
-            className="h-20 sm:h-24 md:h-28 lg:h-32 w-auto max-w-[360px] sm:max-w-[460px] md:max-w-[540px] object-contain filter drop-shadow-xl transition-all"
+            className="h-12 sm:h-14 md:h-16 lg:h-18 w-auto max-w-[260px] sm:max-w-[320px] md:max-w-[360px] object-contain filter drop-shadow-md transition-all"
           />
         </div>
-        <p className="mt-3 text-xs sm:text-sm font-bold text-slate-500 tracking-[0.25em] uppercase opacity-90">
+        <p className="mt-1.5 text-xs sm:text-sm font-bold text-slate-500 tracking-[0.25em] uppercase opacity-90">
           Institute Operating System
         </p>
       </header>
 
       {/* ── MAIN ── */}
-      <main className="flex-1 w-full max-w-7xl mx-auto px-6 pb-16 lg:pb-24 grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-16 items-start z-10 relative">
+      <main className="flex-1 w-full max-w-7xl mx-auto px-6 pt-2 sm:pt-4 pb-8 sm:pb-12 grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-10 items-start z-10 relative">
         
         {/* ── HEADING BLOCK ── */}
         <motion.div
           initial={reduce ? false : { opacity: 0, x: -18 }}
           animate={reduce ? undefined : { opacity: 1, x: 0 }}
           transition={{ duration: 0.6, ease: [0.2, 0.8, 0.2, 1] }}
-          className="lg:col-span-7 flex flex-col gap-4 min-w-0"
+          className="lg:col-span-7 flex flex-col gap-3 min-w-0"
         >
-          <h2 className="font-display text-3xl sm:text-4xl font-extrabold tracking-tight text-slate-900 leading-snug pb-1 bg-gradient-to-r from-primary to-primary/80 bg-clip-text text-transparent">
+          <h2 className="font-display text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight text-slate-900 leading-snug pb-0.5 bg-gradient-to-r from-primary to-primary/80 bg-clip-text text-transparent">
             Empowering education through intelligent operations
           </h2>
-          <p className="text-base text-slate-600 leading-relaxed max-w-xl">
+          <p className="text-sm sm:text-base text-slate-600 leading-relaxed max-w-xl">
             AltRix provides the infrastructure for modern educational institutes to manage performance, security, and communication in one unified platform.
           </p>
         </motion.div>
@@ -196,14 +196,14 @@ const TenantAuth = () => {
           transition={{ duration: 0.55, delay: 0.06, ease: [0.2, 0.8, 0.2, 1] }}
           className="lg:col-span-5 lg:row-span-2 w-full max-w-md mx-auto"
         >
-          <div className="bg-white/25 border border-white/40 shadow-elevated rounded-3xl p-6 sm:p-8 backdrop-blur-2xl relative overflow-hidden transition-all duration-300 hover:shadow-2xl hover:bg-white/30">
+          <div className="bg-white/25 border border-white/40 shadow-elevated rounded-3xl p-5 sm:p-7 backdrop-blur-2xl relative overflow-hidden transition-all duration-300 hover:shadow-2xl hover:bg-white/30">
             {/* Corner decoration gradient */}
             <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl from-primary/10 to-transparent rounded-bl-full pointer-events-none" />
 
             {!showReset ? (
               <>
                 {/* Header */}
-                <div className="mb-6 relative z-10">
+                <div className="mb-4 relative z-10">
                   <h2 className="font-sans text-2xl font-bold tracking-tight text-slate-900 bg-gradient-to-r from-primary to-primary/80 bg-clip-text text-transparent">
                     Welcome Back
                   </h2>
@@ -427,10 +427,10 @@ const TenantAuth = () => {
           initial={reduce ? false : { opacity: 0, x: -18 }}
           animate={reduce ? undefined : { opacity: 1, x: 0 }}
           transition={{ duration: 0.6, delay: 0.12, ease: [0.2, 0.8, 0.2, 1] }}
-          className="lg:col-span-7 flex flex-col gap-6 min-w-0"
+          className="lg:col-span-7 flex flex-col gap-4 min-w-0"
         >
           {/* Bento Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-3.5">
             {[
               { icon: Sparkles, iconColor: "text-primary", bg: "bg-primary/10", border: "border-primary/20", label: "AI Insights", desc: "Predictive student performance analytics and trend spotting." },
               { icon: Shield, iconColor: "text-primary", bg: "bg-primary/10", border: "border-primary/20", label: "Secure Vault", desc: "Military-grade data encryption and privacy compliance." },
@@ -439,18 +439,18 @@ const TenantAuth = () => {
             ].map(({ icon: Icon, iconColor, bg, border, label, desc }) => (
               <div 
                 key={label} 
-                className="p-5 rounded-2xl bg-white/40 border border-white/60 shadow-sm backdrop-blur-md transition-all duration-300 hover:bg-white/60 hover:border-primary/30 hover:shadow-soft"
+                className="p-4 sm:p-4.5 rounded-2xl bg-white/40 border border-white/60 shadow-sm backdrop-blur-md transition-all duration-300 hover:bg-white/60 hover:border-primary/30 hover:shadow-soft"
               >
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-3 ${bg} ${border}`}>
-                  <Icon className={`h-5 w-5 ${iconColor}`} />
+                <div className={`w-9 h-9 rounded-xl flex items-center justify-center mb-2.5 ${bg} ${border}`}>
+                  <Icon className={`h-4.5 w-4.5 ${iconColor}`} />
                 </div>
                 <p className="text-xs font-bold tracking-wider text-primary uppercase mb-1">{label}</p>
-                <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">{desc}</p>
+                <p className="text-xs text-slate-600 leading-relaxed">{desc}</p>
               </div>
             ))}
           </div>
 
-          <p className="text-sm text-slate-600">
+          <p className="text-xs sm:text-sm text-slate-600">
             Need an institute account?{" "}
             <a
               href="mailto:sales@altrix.io"
@@ -463,17 +463,17 @@ const TenantAuth = () => {
       </main>
 
       {/* ── FOOTER ── */}
-      <footer className="w-full bg-white/60 border-t border-slate-200/60 py-6 px-8 relative z-10 backdrop-blur-md">
-        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-6">
-          <div className="flex items-center gap-3">
-            <img src="/altrix-logo.png" alt="AltRix" className="h-10 sm:h-12 w-auto max-w-[200px] object-contain drop-shadow-sm transition-all" />
+      <footer className="w-full bg-white/50 border-t border-slate-200/50 py-4 px-6 sm:px-8 relative z-10 backdrop-blur-md mt-auto">
+        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-2.5">
+            <img src="/altrix-logo.png" alt="AltRix" className="h-7 sm:h-8 w-auto max-w-[140px] object-contain drop-shadow-sm transition-all" />
           </div>
-          <div className="flex gap-8 justify-center flex-wrap">
+          <div className="flex gap-6 sm:gap-8 justify-center flex-wrap">
             {["Privacy Policy", "Terms of Service", "Compliance"].map((link) => (
               <a 
                 key={link} 
                 href="#" 
-                className="text-xs sm:text-sm font-semibold text-slate-600 hover:text-primary transition-colors"
+                className="text-xs font-semibold text-slate-600 hover:text-primary transition-colors"
               >
                 {link}
               </a>
