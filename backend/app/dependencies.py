@@ -112,12 +112,20 @@ async def get_current_user_with_roles(
     if not x_school_id:
         try:
             res_ur = await db.execute(
-                text("SELECT school_id FROM user_roles WHERE user_id = :uid LIMIT 1"),
+                text("SELECT school_id FROM user_roles WHERE user_id = :uid AND school_id IS NOT NULL LIMIT 1"),
                 {"uid": uid_obj}
             )
             row_ur = res_ur.fetchone()
             if row_ur and row_ur[0]:
                 x_school_id = str(row_ur[0])
+            else:
+                res_oa = await db.execute(
+                    text("SELECT school_id FROM school_owner_assignments WHERE owner_user_id = :uid LIMIT 1"),
+                    {"uid": uid_obj}
+                )
+                row_oa = res_oa.fetchone()
+                if row_oa and row_oa[0]:
+                    x_school_id = str(row_oa[0])
         except Exception as e:
             import logging
             logging.getLogger("app.dependencies").warning(f"Error resolving fallback school_id: {e}")
@@ -143,7 +151,7 @@ async def get_current_user_with_roles(
                 import logging
                 logging.getLogger("app.dependencies").warning(f"Error resolving school slug {x_school_id}: {e}")
 
-        # Load roles from user_roles table scoped to school
+        # Load roles from user_roles and school_owner_assignments tables scoped to school
         if sid_obj:
             try:
                 cache_key = cache.build_key(
@@ -151,7 +159,7 @@ async def get_current_user_with_roles(
                     base_key=f"auth:roles:{user.id}"
                 )
                 cached_roles = await cache.get(cache_key)
-                if cached_roles is not None:
+                if cached_roles:
                     user.roles = cached_roles
                     user.school_id = sid_str
                 else:
@@ -159,15 +167,32 @@ async def get_current_user_with_roles(
                         text(
                             """
                             SELECT role FROM user_roles
-                            WHERE user_id = :uid AND school_id = :sid
+                            WHERE user_id = :uid AND (school_id = :sid OR school_id IS NULL)
+                            UNION
+                            SELECT 'school_owner' FROM school_owner_assignments
+                            WHERE owner_user_id = :uid AND school_id = :sid
                             """
                         ),
                         {"uid": uid_obj, "sid": sid_obj},
                     )
                     roles = [row[0] for row in result.fetchall()]
-                    user.roles = roles
-                    user.school_id = sid_str
-                    await cache.set(cache_key, roles, ttl=TTL_USER_ROLES)
+                    if roles:
+                        user.roles = roles
+                        user.school_id = sid_str
+                        await cache.set(cache_key, roles, ttl=TTL_USER_ROLES)
+                    else:
+                        # Fallback check if user has roles under any school
+                        res_any = await db.execute(
+                            text("SELECT role, school_id FROM user_roles WHERE user_id = :uid LIMIT 5"),
+                            {"uid": uid_obj}
+                        )
+                        any_rows = res_any.fetchall()
+                        if any_rows:
+                            user.roles = [r[0] for r in any_rows]
+                            user.school_id = str(any_rows[0][1]) if any_rows[0][1] else sid_str
+                        else:
+                            user.roles = []
+                            user.school_id = sid_str
             except Exception as e:
                 import logging
                 logging.getLogger("app.dependencies").warning(f"DB exception loading roles for school {x_school_id}: {e}")
