@@ -3,7 +3,17 @@ import type { Database } from './types';
 import { addToOfflineQueue } from '@/lib/offline-db';
 import { toast } from 'sonner';
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const getSupabaseUrl = (): string => {
+  if (typeof window !== "undefined") {
+    const host = window.location.hostname;
+    if (host.includes("altrixcore.com") || host === "localhost" || host === "127.0.0.1") {
+      return window.location.origin;
+    }
+  }
+  return import.meta.env.VITE_SUPABASE_URL || "https://altrixcore.com";
+};
+
+const SUPABASE_URL = getSupabaseUrl();
 const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
 const getInitialUseFastAPI = (): boolean => {
