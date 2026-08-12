@@ -603,6 +603,19 @@ async def health():
     return await build_health_response(include_deps=False)
 
 
+@app.get("/version", tags=["Health"], summary="Version check", include_in_schema=False)
+@app.get(
+    "/api/version",
+    tags=["Health"],
+    summary="Version and commit SHA check",
+    description="Returns current application release version and Git commit SHA.",
+)
+async def version():
+    from app.utils.health import build_health_response
+    return await build_health_response(include_deps=False)
+
+
+
 @app.get(
     "/api/health/ready",
     tags=["Health"],

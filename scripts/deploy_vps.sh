@@ -1,0 +1,190 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# AltRix SaaS ERP — Production Permanent CI/CD Deployment Engine
+# ==============================================================================
+set -euo pipefail
+
+TARGET_SHA="${1:-}"
+DEPLOY_TIME=$(date -u +'%Y%m%d-%H%M%S')
+LOCK_FILE="/opt/altrix/runtime/deploy.lock"
+LOG_DIR="/opt/altrix/logs/deployments"
+LOG_FILE="${LOG_DIR}/deploy_${DEPLOY_TIME}.log"
+REPO_DIR="/opt/altrix/repo"
+RELEASES_DIR="/opt/altrix/releases"
+CURRENT_SYMLINK="/opt/altrix/current"
+
+mkdir -p "${LOG_DIR}" /opt/altrix/runtime "${RELEASES_DIR}"
+
+exec 200>"${LOCK_FILE}"
+if ! flock -n 200; then
+    echo "[ERROR] Another deployment is currently in progress. Exiting."
+    exit 1
+fi
+
+exec > >(tee -a "${LOG_FILE}") 2>&1
+
+echo "================================================================="
+echo " Starting AltRix Automated Production Deployment"
+echo " Timestamp: $(date -u +'%Y-%m-%d %H:%M:%S UTC')"
+echo "================================================================="
+
+# 1. Disk & Resource Checks
+FREE_SPACE_MB=$(df -m /opt/altrix | awk 'NR==2 {print $4}')
+if [ "${FREE_SPACE_MB}" -lt 2000 ]; then
+    echo "[ERROR] Insufficient disk space (< 2GB available). Aborting deployment."
+    exit 1
+fi
+
+if ! systemctl is-active docker >/dev/null 2>&1; then
+    echo "[ERROR] Docker engine is not running. Aborting deployment."
+    exit 1
+fi
+
+# 2. Source Code Sync
+if [ ! -d "${REPO_DIR}/.git" ]; then
+    echo "[INFO] Initializing main repository clone..."
+    rm -rf "${REPO_DIR}"
+    git clone https://github.com/naumanellahidev/AltRix.git "${REPO_DIR}"
+fi
+
+cd "${REPO_DIR}"
+git fetch origin main
+
+if [ -z "${TARGET_SHA}" ]; then
+    TARGET_SHA=$(git rev-parse origin/main)
+fi
+
+echo "[INFO] Target GitHub Commit SHA: ${TARGET_SHA}"
+
+if ! git cat-file -e "${TARGET_SHA}^{commit}" 2>/dev/null; then
+    echo "[ERROR] Commit ${TARGET_SHA} not found in repository!"
+    exit 1
+fi
+
+SHORT_SHA=${TARGET_SHA:0:12}
+RELEASE_NAME="release-${SHORT_SHA}-${DEPLOY_TIME}"
+RELEASE_DIR="${RELEASES_DIR}/${RELEASE_NAME}"
+mkdir -p "${RELEASE_DIR}"
+
+echo "[INFO] Creating release archive at ${RELEASE_DIR}..."
+git archive "${TARGET_SHA}" | tar -x -C "${RELEASE_DIR}"
+echo "${TARGET_SHA}" > "${RELEASE_DIR}/COMMIT_SHA"
+
+# 3. Build Frontend
+echo "[INFO] Building Node/Vite Frontend..."
+cd "${RELEASE_DIR}"
+export VITE_COMMIT_SHA="${TARGET_SHA}"
+
+if [ -f package-lock.json ]; then
+    npm ci --prefer-offline || npm install
+else
+    npm install
+fi
+
+VITE_COMMIT_SHA="${TARGET_SHA}" npm run build
+
+# Inject version.json into dist
+cat <<EOT > "${RELEASE_DIR}/dist/version.json"
+{
+  "commit": "${TARGET_SHA}",
+  "timestamp": "$(date -u +'%Y-%m-%dT%H:%M:%SZ')",
+  "environment": "production-vps"
+}
+EOT
+
+# 4. Copy Environment & Build Docker Backend
+echo "[INFO] Preparing Backend Docker Image..."
+if [ -f /opt/altrix/shared/config/production.env ]; then
+    cp /opt/altrix/shared/config/production.env "${RELEASE_DIR}/backend/.env"
+elif [ -f /opt/altrix/config/production.env ]; then
+    cp /opt/altrix/config/production.env "${RELEASE_DIR}/backend/.env"
+fi
+
+echo "${TARGET_SHA}" > "${RELEASE_DIR}/backend/COMMIT_SHA"
+
+PREV_IMAGE=$(docker inspect -f '{{.Config.Image}}' altrix_backend 2>/dev/null || echo "")
+
+echo "[INFO] Building altrix-backend:${SHORT_SHA}..."
+docker build \
+    --build-arg GIT_COMMIT_SHA="${TARGET_SHA}" \
+    -t "altrix-backend:${SHORT_SHA}" \
+    -f backend/Dockerfile \
+    backend/
+
+# 5. Swap Backend Container
+echo "[INFO] Deploying altrix_backend container..."
+docker stop altrix_backend 2>/dev/null || true
+docker rm altrix_backend 2>/dev/null || true
+
+docker run -d \
+    --name altrix_backend \
+    --restart always \
+    --network host \
+    -e GIT_COMMIT_SHA="${TARGET_SHA}" \
+    -e APP_ENV=production \
+    -v /opt/altrix/shared/config/production.env:/app/.env:ro \
+    "altrix-backend:${SHORT_SHA}"
+
+docker exec -u 0 altrix_backend apt-get update >/dev/null 2>&1 || true
+docker exec -u 0 altrix_backend apt-get install -y curl >/dev/null 2>&1 || true
+
+echo "[INFO] Pausing 4 seconds for backend warm up..."
+sleep 4
+
+# 6. Live Health Verification Probes
+echo "[INFO] Running Production Health Probes..."
+PROBE_FAIL=false
+
+API_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:8000/api/health || echo "000")
+if [ "${API_CODE}" != "200" ]; then
+    echo "[ERROR] FastAPI health probe failed! Code: ${API_CODE}"
+    PROBE_FAIL=true
+fi
+
+API_VER_JSON=$(curl -s http://127.0.0.1:8000/api/version || echo "{}")
+echo "[INFO] Live API Version Response: ${API_VER_JSON}"
+
+if echo "${API_VER_JSON}" | grep -q '"status":\s*"healthy"'; then
+    echo "[INFO] Live API status is healthy."
+else
+    echo "[ERROR] Live API version response status unhealthy!"
+    PROBE_FAIL=true
+fi
+
+# 7. Rollback Protection
+if [ "${PROBE_FAIL}" = "true" ]; then
+    echo "================================================="
+    echo " [CRITICAL] HEALTH PROBES FAILED! INITIATING ROLLBACK..."
+    echo "================================================="
+    if [ -n "${PREV_IMAGE}" ]; then
+        echo "[ROLLBACK] Restoring previous container: ${PREV_IMAGE}..."
+        docker stop altrix_backend 2>/dev/null || true
+        docker rm altrix_backend 2>/dev/null || true
+        docker run -d \
+            --name altrix_backend \
+            --restart always \
+            --network host \
+            -v /opt/altrix/shared/config/production.env:/app/.env:ro \
+            "${PREV_IMAGE}"
+    fi
+    rm -rf "${RELEASE_DIR}"
+    echo "[ROLLBACK COMPLETE] Production safely preserved on previous release."
+    exit 1
+fi
+
+# 8. Atomic Activation
+echo "[INFO] Probes passed! Activating release ${RELEASE_NAME}..."
+ln -sfn "${RELEASE_DIR}" "${CURRENT_SYMLINK}"
+sudo systemctl reload nginx
+
+# 9. Cleanup Obsolete Releases
+echo "[INFO] Pruning obsolete releases & container images..."
+ls -dt /opt/altrix/releases/release-* 2>/dev/null | tail -n +4 | xargs rm -rf 2>/dev/null || true
+docker image prune -f >/dev/null 2>&1 || true
+
+echo "================================================="
+echo " AUTOMATED DEPLOYMENT SUCCESSFUL!"
+echo " Target Commit: ${TARGET_SHA}"
+echo " Active Symlink: $(readlink -f ${CURRENT_SYMLINK})"
+echo " Timestamp: $(date -u +'%Y-%m-%d %H:%M:%S UTC')"
+echo "================================================="

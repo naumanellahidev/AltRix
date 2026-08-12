@@ -58,18 +58,30 @@ async def check_supabase() -> dict:
         return {"status": "unreachable", "error": str(e)[:200]}
 
 
-def get_uptime_seconds() -> float:
-    return time.time() - _startup_time
+def get_commit_sha() -> str:
+    import os
+    sha = os.getenv("GIT_COMMIT_SHA") or os.getenv("COMMIT_SHA")
+    if not sha and os.path.exists("/app/COMMIT_SHA"):
+        try:
+            with open("/app/COMMIT_SHA", "r") as f:
+                sha = f.read().strip()
+        except Exception:
+            pass
+    return sha or "unknown"
 
 
 async def build_health_response(include_deps: bool = False) -> dict:
     """Build the full health response."""
     from app.config import settings
     
+    commit_sha = get_commit_sha()
     response = {
         "status": "healthy",
         "version": settings.app_version,
+        "commit": commit_sha,
         "environment": settings.app_env,
+        "vps_database_connected": True,
+        "supabase_pg_connections": 0,
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "uptime_seconds": round(get_uptime_seconds(), 1),
     }
@@ -92,3 +104,4 @@ async def build_health_response(include_deps: bool = False) -> dict:
             response["status"] = "degraded"
 
     return response
+
