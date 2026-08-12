@@ -392,11 +392,16 @@ const Index = () => {
 
       {/* ── HEADER ── */}
       <header className="w-full pt-4 pb-2 sm:pt-6 sm:pb-3 px-6 flex flex-col items-center justify-center relative z-10">
-        <div className="flex items-center justify-center p-1 transition-transform duration-300 hover:scale-[1.02]">
+        <div className="flex items-center justify-center gap-2.5 sm:gap-3 p-1 transition-transform duration-300 hover:scale-[1.02]">
+          <img
+            src="/altrix-icon.png"
+            alt="AltRix Emblem"
+            className="h-10 sm:h-12 md:h-14 w-auto object-contain filter drop-shadow-md"
+          />
           <img
             src="/altrix-logo.png"
             alt="AltRix Operating System"
-            className="h-12 sm:h-14 md:h-16 lg:h-18 w-auto max-w-[260px] sm:max-w-[320px] md:max-w-[360px] object-contain filter drop-shadow-md transition-all"
+            className="h-10 sm:h-12 md:h-14 w-auto max-w-[220px] sm:max-w-[280px] md:max-w-[320px] object-contain filter drop-shadow-md transition-all"
           />
         </div>
         <p className="mt-1.5 text-xs sm:text-sm font-bold text-slate-500 tracking-[0.25em] uppercase opacity-90">
@@ -805,12 +810,13 @@ const Index = () => {
       </main>
 
       {/* ── FOOTER ── */}
-      <footer className="w-full bg-white/60 border-t border-slate-200/60 py-6 px-8 relative z-10 backdrop-blur-md">
-        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-6">
-          <div className="flex items-center gap-3">
-            <img src="/altrix-logo.png" alt="AltRix" className="h-10 sm:h-12 w-auto max-w-[200px] object-contain drop-shadow-sm transition-all" />
+      <footer className="w-full bg-white/50 border-t border-slate-200/50 py-4 px-6 sm:px-8 relative z-10 backdrop-blur-md mt-auto">
+        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-2.5 opacity-90 hover:opacity-100 transition-opacity duration-200">
+            <img src="/altrix-icon.png" alt="AltRix Icon" className="h-6 sm:h-7 w-auto object-contain" />
+            <img src="/altrix-logo.png" alt="AltRix Logo" className="h-6 sm:h-7 w-auto max-w-[130px] object-contain" />
           </div>
-          <div className="flex gap-8 justify-center flex-wrap">
+          <div className="flex gap-6 sm:gap-8 justify-center flex-wrap">
             {["Privacy Policy", "Terms of Service", "Compliance"].map((link) => (
               <a 
                 key={link} 
