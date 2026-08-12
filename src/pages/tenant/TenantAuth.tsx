@@ -465,9 +465,8 @@ const TenantAuth = () => {
       {/* ── FOOTER ── */}
       <footer className="w-full bg-white/40 border-t border-white/50 py-4 px-6 relative z-10 backdrop-blur-sm">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-2 opacity-70 hover:opacity-100 transition-opacity duration-200">
-            <img src="/altrix-icon.png" alt="AltRix" className="w-6 h-6 object-contain" />
-            <span className="font-sans text-sm font-bold text-slate-900">AltRix</span>
+          <div className="flex items-center gap-2.5 opacity-85 hover:opacity-100 transition-opacity duration-200">
+            <img src="/altrix-logo.png" alt="AltRix" className="h-6 sm:h-7 w-auto object-contain" />
           </div>
           <div className="flex gap-6 justify-center flex-wrap">
             {["Privacy Policy", "Terms of Service", "Compliance"].map((link) => (
