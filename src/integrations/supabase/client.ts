@@ -140,7 +140,14 @@ class MockQueryBuilder {
         }
       }
       
-      const res = { data: response.data, error: response.error || null, count: response.data?.length || 0 };
+      const responseData = response.data?.data;
+      const responseError = response.data?.error || null;
+      
+      const res = {
+        data: responseData,
+        error: responseError,
+        count: Array.isArray(responseData) ? responseData.length : 0
+      };
       
       // Handle single/maybeSingle mapping
       const isSingle = this.context.filters.some((f: any) => f.method === 'single');
