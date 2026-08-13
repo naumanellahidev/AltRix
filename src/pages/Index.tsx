@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { motion, useReducedMotion } from "framer-motion";
 import { Brain, ShieldCheck, Eye, EyeOff, MessageSquare, ArrowRight, ArrowLeft, Loader2, CheckCircle2, AlertCircle, Info, Building2, Mail, Lock, Key } from "lucide-react";
 import { z } from "zod";
+import { apiClient } from "@/lib/api-client";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
