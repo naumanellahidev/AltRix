@@ -20,6 +20,11 @@ celery_app = Celery(
 )
 
 celery_app.conf.update(
+    # Fail-fast settings if Redis is down
+    broker_connection_retry_on_startup=False,
+    broker_connection_max_retries=2,
+    task_publish_retry=False,
+
     # Serialization
     task_serializer="json",
     accept_content=["json"],

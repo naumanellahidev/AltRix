@@ -116,7 +116,7 @@ docker build \
     -f backend/Dockerfile \
     backend/
 
-# 5. Swap Backend Container
+# 5. Swap Backend & Celery Containers
 echo "[INFO] Deploying altrix_backend container..."
 docker stop altrix_backend 2>/dev/null || true
 docker rm altrix_backend 2>/dev/null || true
@@ -129,6 +129,28 @@ docker run -d \
     -e APP_ENV=production \
     -v /opt/altrix/shared/config/production.env:/app/.env:ro \
     "altrix-backend:${SHORT_SHA}"
+
+echo "[INFO] Deploying altrix_celery_worker container..."
+docker stop altrix_celery_worker 2>/dev/null || true
+docker rm altrix_celery_worker 2>/dev/null || true
+docker run -d \
+    --name altrix_celery_worker \
+    --restart always \
+    --network host \
+    -v /opt/altrix/shared/config/production.env:/app/.env:ro \
+    "altrix-backend:${SHORT_SHA}" \
+    celery -A app.celery_app.celery_app worker --loglevel=info -Q default,emails,pdfs,ai
+
+echo "[INFO] Deploying altrix_celery_beat container..."
+docker stop altrix_celery_beat 2>/dev/null || true
+docker rm altrix_celery_beat 2>/dev/null || true
+docker run -d \
+    --name altrix_celery_beat \
+    --restart always \
+    --network host \
+    -v /opt/altrix/shared/config/production.env:/app/.env:ro \
+    "altrix-backend:${SHORT_SHA}" \
+    celery -A app.celery_app.celery_app beat --loglevel=info
 
 docker exec -u 0 altrix_backend apt-get update >/dev/null 2>&1 || true
 docker exec -u 0 altrix_backend apt-get install -y curl >/dev/null 2>&1 || true
