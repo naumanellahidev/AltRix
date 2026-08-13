@@ -80,6 +80,42 @@ async def log_audit_event(
         if old_values:
             old_values = _sanitize_values(old_values)
 
+        # Resolve school_id from user_id if not provided to prevent NULL violations on database constraint
+        if not school_id and user_id:
+            try:
+                import uuid
+                from sqlalchemy import text
+                uid_obj = uuid.UUID(str(user_id)) if not isinstance(user_id, uuid.UUID) else user_id
+                
+                role_res = await db.execute(
+                    text("SELECT school_id FROM user_roles WHERE user_id = :uid AND school_id IS NOT NULL LIMIT 1"),
+                    {"uid": uid_obj}
+                )
+                row = role_res.fetchone()
+                if row:
+                    school_id = row[0]
+                else:
+                    mem_res = await db.execute(
+                        text("SELECT school_id FROM school_memberships WHERE user_id = :uid AND school_id IS NOT NULL LIMIT 1"),
+                        {"uid": uid_obj}
+                    )
+                    row_mem = mem_res.fetchone()
+                    if row_mem:
+                        school_id = row_mem[0]
+            except Exception as resolve_err:
+                logger.warning(f"Failed to auto-resolve school_id for audit log: {resolve_err}")
+
+        # Absolute fallback if school_id is still None (due to strict NOT NULL DB constraint)
+        if not school_id:
+            try:
+                from sqlalchemy import text
+                sch_res = await db.execute(text("SELECT id FROM schools LIMIT 1"))
+                row_sch = sch_res.fetchone()
+                if row_sch:
+                    school_id = row_sch[0]
+            except Exception as sch_err:
+                logger.warning(f"Failed to fetch fallback school_id: {sch_err}")
+
         log_entry = AuditLog(
             school_id=_to_uuid(school_id),
             user_id=_to_uuid(user_id),
