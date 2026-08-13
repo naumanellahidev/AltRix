@@ -404,7 +404,8 @@ export const supabase = {
         }
         throw new Error('Authentication failed');
       } catch (e: any) {
-        return { data: null, error: e };
+        const errMsg = e.response?.data?.detail || e.message || 'Authentication failed';
+        return { data: null, error: { message: errMsg } };
       }
     },
     signOut: async () => {
