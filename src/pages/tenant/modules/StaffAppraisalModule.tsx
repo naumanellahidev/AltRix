@@ -106,7 +106,7 @@ export default function StaffAppraisalModule() {
 
   const checkUserRole = async () => {
     try {
-      const { data: auth } = await apiClient.get("/users/me");
+      const { data: auth } = await apiClient.get("/auth/me");
       if (auth?.roles && auth.roles.length > 0) {
         const adminRoles = ["super_admin", "school_owner", "principal", "vice_principal"];
         const isAdmin = auth.roles.some((r: string) => adminRoles.includes(r));

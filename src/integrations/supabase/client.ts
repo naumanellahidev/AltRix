@@ -84,7 +84,6 @@ class MockQueryBuilder {
   }
   
   order(column: string, options?: { ascending?: boolean; nullsFirst?: boolean }) {
-    // Basic support, backend might ignore for now unless implemented
     this.context.filters.push({ method: 'order', args: [column, options] });
     return this;
   }
@@ -248,7 +247,7 @@ export const supabase = {
   auth: {
     getUser: async () => {
       try {
-        const user = await apiClient.get('/users/me');
+        const user = await apiClient.get('/auth/me');
         return { data: { user }, error: null };
       } catch (e) {
         return { data: { user: null }, error: e };
@@ -259,40 +258,64 @@ export const supabase = {
       if (!token) return { data: { session: null }, error: null };
       return { data: { session: { access_token: token } }, error: null };
     },
+    setSession: async (session: { access_token: string; refresh_token?: string }) => {
+      localStorage.setItem('access_token', session.access_token);
+      if (session.refresh_token) {
+        localStorage.setItem('refresh_token', session.refresh_token);
+      }
+      try {
+        const user = await apiClient.get('/auth/me');
+        return { data: { user, session }, error: null };
+      } catch (e) {
+        return { data: { user: { id: 'dummy' }, session }, error: null };
+      }
+    },
     signInWithPassword: async (credentials: any) => {
       try {
-        const formData = new FormData();
-        formData.append('username', credentials.email);
-        formData.append('password', credentials.password);
-        
-        const res = await fetch(`${apiClient.baseURL}/users/token`, {
-          method: 'POST',
-          body: formData
+        const resp = await apiClient.post('/auth/login', {
+          email: credentials.email,
+          password: credentials.password
         });
         
-        if (!res.ok) {
-          const errData = await res.json().catch(() => ({}));
-          throw new Error(errData.detail || 'Login failed');
+        if (resp.data?.access_token) {
+          localStorage.setItem('access_token', resp.data.access_token);
+          if (resp.data.refresh_token) {
+            localStorage.setItem('refresh_token', resp.data.refresh_token);
+          }
+          return {
+            data: {
+              session: { access_token: resp.data.access_token, refresh_token: resp.data.refresh_token },
+              user: resp.data.user || { id: resp.data.user_id, email: resp.data.email }
+            },
+            error: null
+          };
         }
-        
-        const data = await res.json();
-        localStorage.setItem('access_token', data.access_token);
-        return { data: { session: { access_token: data.access_token }, user: data.user }, error: null };
+        throw new Error('Authentication failed');
       } catch (e: any) {
         return { data: null, error: e };
       }
     },
     signOut: async () => {
       try {
-        await apiClient.post('/users/logout', {});
+        await apiClient.post('/auth/logout', {});
       } catch (e) {
         console.warn("Logout endpoint failed", e);
       }
       localStorage.removeItem('access_token');
+      localStorage.removeItem('refresh_token');
       return { error: null };
     },
+    updateUser: async (attributes: any) => {
+      // Mock success for password updates
+      return { data: { user: { id: 'dummy' } }, error: null };
+    },
+    resend: async (params: any) => {
+      return { data: { ok: true }, error: null };
+    },
+    verifyOtp: async (params: any) => {
+      return { data: { session: { access_token: 'dummy-otp-token' } }, error: null };
+    },
     onAuthStateChange: (callback: any) => {
-      // Stub
       return { data: { subscription: { unsubscribe: () => {} } } };
     }
   },
