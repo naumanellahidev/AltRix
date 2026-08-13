@@ -131,6 +131,32 @@ async def delete_vps_storage_file(
     return {"status": "deleted", "bucket": bucket, "path": path}
 
 
+@router.get("/list/{bucket}")
+async def list_vps_storage_files(
+    bucket: str,
+    current_user: Annotated[AuthenticatedUser, Depends(get_current_user_with_roles)],
+    prefix: Optional[str] = None,
+):
+    """
+    Securely list files inside a bucket for the user's school.
+    """
+    from app.utils.storage_security import list_school_files
+    
+    school_id = current_user.school_id if current_user.school_id else ""
+    if current_user.is_super_admin:
+        # Super admin can list all or by prefix
+        school_id = prefix.split("/")[0] if prefix else ""
+        
+    category = None
+    if prefix:
+        segments = [s for s in prefix.split("/") if s]
+        if len(segments) > 1:
+            category = segments[1]
+            
+    files = await list_school_files(bucket, school_id, current_user.school_id or "", category)
+    return files
+
+
 @router.get("/health")
 async def vps_storage_health():
     """Health check for VPS storage subsystem."""

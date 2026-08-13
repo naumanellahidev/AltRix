@@ -29,11 +29,8 @@ class Settings(BaseSettings):
     db_pool_size: int = 20
     db_pool_max_overflow: int = 50
 
-    # Supabase
-    supabase_url: str = ""
+    # JWT Verification Key
     supabase_jwt_secret: str = ""
-    supabase_service_role_key: str = ""
-    supabase_anon_key: str = ""
 
     # CORS
     allowed_origins: str = "http://localhost:5173,http://localhost:8080,http://localhost:3000,http://127.0.0.1:5173,http://127.0.0.1:8080,http://127.0.0.1:3000"

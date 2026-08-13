@@ -17,6 +17,7 @@ Buckets:
 """
 import logging
 import uuid
+import os
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -142,10 +143,6 @@ async def delete_file(bucket: str, path: str, school_id: str, user_school_id: st
         return True
     except Exception as e:
         logger.error(f"Storage delete error: {e}")
-        raise ValueError(f"Storage service error: {e}") from e
-        return resp.status_code in (200, 204)
-    except Exception as e:
-        logger.error(f"Storage deletion error: {e}")
         return False
 
 

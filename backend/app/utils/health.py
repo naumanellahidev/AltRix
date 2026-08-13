@@ -39,25 +39,6 @@ async def check_redis() -> dict:
         return {"status": "unhealthy", "error": str(e)[:200]}
 
 
-async def check_supabase() -> dict:
-    """Check Supabase Auth API reachability."""
-    try:
-        import httpx
-        from app.config import settings
-        async with httpx.AsyncClient(timeout=5.0) as client:
-            start = time.monotonic()
-            resp = await client.get(
-                f"{settings.supabase_url}/auth/v1/health",
-                headers={"apikey": settings.supabase_anon_key},
-            )
-            latency_ms = round((time.monotonic() - start) * 1000, 2)
-            if resp.status_code < 500:
-                return {"status": "healthy", "latency_ms": latency_ms}
-            return {"status": "degraded", "http_status": resp.status_code}
-    except Exception as e:
-        return {"status": "unreachable", "error": str(e)[:200]}
-
-
 def get_uptime_seconds() -> float:
     return time.time() - _startup_time
 
@@ -85,21 +66,18 @@ async def build_health_response(include_deps: bool = False) -> dict:
         "commit": commit_sha,
         "environment": settings.app_env,
         "vps_database_connected": True,
-        "supabase_pg_connections": 0,
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "uptime_seconds": round(get_uptime_seconds(), 1),
     }
 
     if include_deps:
-        db_status, redis_status, supabase_status = await asyncio.gather(
+        db_status, redis_status = await asyncio.gather(
             check_database(),
             check_redis(),
-            check_supabase(),
         )
         response["dependencies"] = {
             "database": db_status,
             "redis": redis_status,
-            "supabase": supabase_status,
         }
         # Overall status is unhealthy if database is down
         if db_status.get("status") != "healthy":

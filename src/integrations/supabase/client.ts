@@ -189,7 +189,7 @@ class MockStorageBucket {
       formData.append('file', file);
       formData.append('path', path);
       formData.append('bucket', this.bucket);
-      const res = await fetch(`${apiClient.baseURL}/vps_storage/upload`, {
+      const res = await fetch(`${apiClient.baseURL}/storage/upload`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('access_token') || ''}`
@@ -205,7 +205,7 @@ class MockStorageBucket {
   
   async download(path: string) {
     try {
-      const res = await fetch(`${apiClient.baseURL}/vps_storage/download?bucket=${this.bucket}&path=${encodeURIComponent(path)}`, {
+      const res = await fetch(`${apiClient.baseURL}/storage/files/${this.bucket}/${path}`, {
         headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token') || ''}` }
       });
       if (!res.ok) throw new Error('Download failed');
@@ -217,12 +217,20 @@ class MockStorageBucket {
   }
   
   getPublicUrl(path: string) {
-    return { data: { publicUrl: `${apiClient.baseURL}/vps_storage/public?bucket=${this.bucket}&path=${encodeURIComponent(path)}` } };
+    return { data: { publicUrl: `${apiClient.baseURL}/storage/files/${this.bucket}/${path}` } };
   }
   
   async remove(paths: string[]) {
     try {
-      await apiClient.post('/vps_storage/remove', { bucket: this.bucket, paths });
+      for (const p of paths) {
+        const res = await fetch(`${apiClient.baseURL}/storage/files/${this.bucket}/${p}`, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('access_token') || ''}`
+          }
+        });
+        if (!res.ok) throw new Error(`Delete failed for ${p}`);
+      }
       return { data: true, error: null };
     } catch (e: any) {
       return { data: null, error: e };
@@ -231,11 +239,115 @@ class MockStorageBucket {
   
   async list(prefix?: string, options?: any) {
     try {
-      const res = await apiClient.get(`/vps_storage/list?bucket=${this.bucket}&prefix=${prefix || ''}`);
-      return { data: res, error: null };
+      const url = `${apiClient.baseURL}/storage/list/${this.bucket}` + (prefix ? `?prefix=${encodeURIComponent(prefix)}` : '');
+      const res = await fetch(url, {
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token') || ''}` }
+      });
+      if (!res.ok) throw new Error('List failed');
+      const data = await res.json();
+      return { data, error: null };
     } catch (e: any) {
       return { data: null, error: e };
     }
+  }
+}
+
+// ─── Realtime WebSocket Manager ──────────────────────────────────────────────
+
+const activeChannels = new Set<MockChannel>();
+let socket: WebSocket | null = null;
+let isConnecting = false;
+
+function connectRealtimeWebSocket() {
+  const token = localStorage.getItem('access_token');
+  if (!token || socket || isConnecting) return;
+  
+  isConnecting = true;
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const wsUrl = `${protocol}//${window.location.host}/api/ws?token=${token}`;
+  
+  console.log("Connecting to VPS Realtime WebSocket:", wsUrl);
+  const ws = new WebSocket(wsUrl);
+  
+  ws.onopen = () => {
+    console.log("VPS Realtime WebSocket connected");
+    socket = ws;
+    isConnecting = false;
+  };
+  
+  ws.onmessage = (event) => {
+    try {
+      const payload = JSON.parse(event.data);
+      if (payload.event === 'event_bus_event' && payload.data?.event_name === 'postgres_changes') {
+        const dbChange = payload.data;
+        const targetTable = dbChange.table;
+        const targetAction = dbChange.action;
+        const targetData = dbChange.data;
+        
+        console.log(`Realtime DB event received: table=${targetTable}, action=${targetAction}`);
+        
+        activeChannels.forEach(ch => {
+          ch.listeners.forEach((listener: any) => {
+            if (listener.table === targetTable) {
+              const envelope = {
+                schema: 'public',
+                table: targetTable,
+                commit_timestamp: new Date().toISOString(),
+                eventType: targetAction.toUpperCase(),
+                new: targetAction === 'delete' ? {} : (Array.isArray(targetData) ? targetData[0] : targetData),
+                old: targetAction === 'insert' ? {} : (Array.isArray(targetData) ? targetData[0] : targetData)
+              };
+              try {
+                listener.callback(envelope);
+              } catch (cbErr) {
+                console.error("Error in realtime callback:", cbErr);
+              }
+            }
+          });
+        });
+      }
+    } catch (err) {
+      console.warn("Failed to parse WebSocket message:", err);
+    }
+  };
+  
+  ws.onclose = () => {
+    console.log("VPS Realtime WebSocket disconnected. Retrying in 5 seconds...");
+    socket = null;
+    isConnecting = false;
+    setTimeout(connectRealtimeWebSocket, 5000);
+  };
+  
+  ws.onerror = (err) => {
+    console.error("VPS Realtime WebSocket error:", err);
+    ws.close();
+  };
+}
+
+class MockChannel {
+  name: string;
+  listeners: any[] = [];
+  
+  constructor(name: string) {
+    this.name = name;
+    connectRealtimeWebSocket();
+  }
+  
+  on(type: string, filter: any, callback: Function) {
+    this.listeners.push({ event: type, table: filter.table, callback });
+    return this;
+  }
+  
+  subscribe(callback?: any) {
+    activeChannels.add(this);
+    if (callback) {
+      setTimeout(() => callback('SUBSCRIBED'), 100);
+    }
+    return this;
+  }
+  
+  unsubscribe() {
+    activeChannels.delete(this);
   }
 }
 
@@ -306,7 +418,6 @@ export const supabase = {
       return { error: null };
     },
     updateUser: async (attributes: any) => {
-      // Mock success for password updates
       return { data: { user: { id: 'dummy' } }, error: null };
     },
     resend: async (params: any) => {
@@ -325,13 +436,13 @@ export const supabase = {
   },
   
   channel: (name: string) => {
-    return {
-      on: () => supabase.channel(name),
-      subscribe: (cb?: any) => { if (cb) cb('SUBSCRIBED'); return supabase.channel(name); }
-    };
+    return new MockChannel(name);
   },
   
   removeChannel: async (channel: any) => {
+    if (channel && typeof channel.unsubscribe === 'function') {
+      channel.unsubscribe();
+    }
     return true;
   }
 };

@@ -1,4 +1,5 @@
 import logging
+import json
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
@@ -7,6 +8,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import text
 from app.dependencies import CurrentUser, DbSession
 from app.exceptions import ForbiddenError
+from app.cache import get_redis
 
 logger = logging.getLogger("app.vps_db")
 router = APIRouter(prefix="/vps-db", tags=["Generic DB Proxy"])
@@ -32,6 +34,22 @@ GLOBAL_TABLES = {
     "global_metrics",
     "ai_providers"
 }
+
+async def broadcast_mutation(table: str, action: str, school_id: Optional[Any], data: Any):
+    try:
+        redis = await get_redis()
+        if redis:
+            event_payload = {
+                "event_name": "postgres_changes",
+                "school_id": str(school_id) if school_id else None,
+                "table": table,
+                "action": action,
+                "data": data
+            }
+            await redis.publish("altrix:realtime:events", json.dumps(event_payload))
+            logger.info(f"Broadcasted database proxy mutation: table={table}, action={action}")
+    except Exception as redis_err:
+        logger.error(f"Failed to broadcast database proxy mutation to Redis: {redis_err}")
 
 @router.post("/query")
 async def execute_query(query: QueryPayload, current_user: CurrentUser, db: DbSession):
@@ -151,6 +169,7 @@ async def execute_query(query: QueryPayload, current_user: CurrentUser, db: DbSe
                 return {"data": None, "error": {"message": str(e)}}
                 
         await db.flush()
+        await broadcast_mutation(query.table, "insert", current_user.school_id, inserted_rows)
         return {"data": inserted_rows, "error": None}
 
     elif action == "update":
@@ -175,6 +194,7 @@ async def execute_query(query: QueryPayload, current_user: CurrentUser, db: DbSe
             res = await db.execute(text(sql), params)
             rows = [dict(r._mapping) for r in res.fetchall()]
             await db.flush()
+            await broadcast_mutation(query.table, "update", current_user.school_id, rows)
             return {"data": rows, "error": None}
         except Exception as e:
             logger.error(f"DB Proxy Update Error: {e}")
@@ -186,6 +206,7 @@ async def execute_query(query: QueryPayload, current_user: CurrentUser, db: DbSe
             res = await db.execute(text(sql), params)
             rows = [dict(r._mapping) for r in res.fetchall()]
             await db.flush()
+            await broadcast_mutation(query.table, "delete", current_user.school_id, rows)
             return {"data": rows, "error": None}
         except Exception as e:
             logger.error(f"DB Proxy Delete Error: {e}")
