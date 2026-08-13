@@ -16,10 +16,12 @@ CURRENT_SYMLINK="/opt/altrix/current"
 mkdir -p "${LOG_DIR}" /opt/altrix/runtime "${RELEASES_DIR}"
 
 exec 200>"${LOCK_FILE}"
-if ! flock -n 200; then
-    echo "[ERROR] Another deployment is currently in progress. Exiting."
+echo "[INFO] Waiting for deployment lock..."
+if ! flock -w 900 200; then
+    echo "[ERROR] Another deployment is currently in progress and did not finish within 15 minutes. Exiting."
     exit 1
 fi
+echo "[INFO] Lock acquired. Proceeding with deployment."
 
 exec > >(tee -a "${LOG_FILE}") 2>&1
 
@@ -48,7 +50,9 @@ if [ ! -d "${REPO_DIR}/.git" ]; then
 fi
 
 cd "${REPO_DIR}"
-git fetch origin main
+# Add second repo as remote to fetch commits from both sources
+git remote add altrix2 https://github.com/farhathashmireflections-sys/Altrix-2.git 2>/dev/null || true
+git fetch --all
 
 if [ -z "${TARGET_SHA}" ]; then
     TARGET_SHA=$(git rev-parse origin/main)
