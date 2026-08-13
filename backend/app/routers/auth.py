@@ -54,20 +54,37 @@ async def login(request: Request, body: LoginRequest, db: DbSession):
     # 1. Brute-force check BEFORE attempting auth
     await check_brute_force(request, body.email)
 
-    async with httpx.AsyncClient() as client:
-        resp = await client.post(
-            f"{settings.supabase_url}/auth/v1/token?grant_type=password",
-            json={"email": body.email, "password": body.password},
-            headers={
-                "apikey": settings.supabase_anon_key,
-                "Content-Type": "application/json",
-            },
-            timeout=10.0,
-        )
+    import bcrypt
+    from app.utils.jwt import create_access_token
 
-    if resp.status_code != 200:
-        error_data = resp.json()
-        
+    # Query auth.users directly on the VPS
+    result = await db.execute(
+        text("SELECT id, email, encrypted_password FROM auth.users WHERE email = :email LIMIT 1"),
+        {"email": body.email}
+    )
+    user = result.fetchone()
+
+    is_valid = False
+    if user and user.encrypted_password:
+        # Some older Supabase hashes start with $argon2i$ or similar, bcrypt handles $2b$ and $2y$ (sometimes $2a$)
+        # Supabase uses standard bcrypt, but just in case, wrap in try-except
+        try:
+            # Bcrypt checkpw requires bytes
+            # Ensure the hash has standard bcrypt prefix if necessary, but passlib handles it better.
+            # Using raw bcrypt for speed and simplicity.
+            hash_bytes = user.encrypted_password.encode('utf-8')
+            if hash_bytes.startswith(b"$2a$"):
+                hash_bytes = b"$2b$" + hash_bytes[4:]
+            
+            is_valid = bcrypt.checkpw(
+                body.password.encode('utf-8'),
+                hash_bytes
+            )
+        except Exception as e:
+            logger.warning(f"Bcrypt check failed: {e}")
+            is_valid = False
+
+    if not is_valid:
         # Record failed login attempt (brute force and persistent SQL table)
         await record_failed_attempt(request, body.email, db=db)
         
@@ -81,7 +98,7 @@ async def login(request: Request, body: LoginRequest, db: DbSession):
                     "email": body.email,
                     "ip": request.client.host if request.client else "unknown",
                     "ua": request.headers.get("User-Agent", "")[:500],
-                    "reason": error_data.get("error_description", "Invalid credentials"),
+                    "reason": "Invalid credentials",
                 }
             )
             await db.commit()
@@ -99,15 +116,15 @@ async def login(request: Request, body: LoginRequest, db: DbSession):
         )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=error_data.get("error_description", "Invalid credentials"),
+            detail="Invalid credentials",
         )
 
-    data = resp.json()
-    access_token = data.get("access_token", "")
-    refresh_token = data.get("refresh_token", "")
-    user_data = data.get("user", {})
-    user_id = user_data.get("id", "")
-    email = user_data.get("email", "")
+    user_id = str(user.id)
+    email = user.email
+    
+    # Generate local tokens
+    access_token = create_access_token(user_id=user_id, email=email)
+    refresh_token = create_access_token(user_id=user_id, email=email)
 
     # Clear brute-force counters on success
     ip = request.client.host if request.client else None
@@ -185,15 +202,7 @@ async def logout(request: Request, current_user: CurrentUser, db: DbSession):
     token = auth_header.replace("Bearer ", "").strip()
 
     if token:
-        async with httpx.AsyncClient() as client:
-            await client.post(
-                f"{settings.supabase_url}/auth/v1/logout",
-                headers={
-                    "apikey": settings.supabase_anon_key,
-                    "Authorization": f"Bearer {token}",
-                },
-                timeout=5.0,
-            )
+        # Token invalidation is handled locally below
 
         # Blacklist current token
         import hashlib
@@ -269,30 +278,32 @@ async def refresh_token(body: dict, request: Request):
             detail="refresh_token is required in request body",
         )
 
-    async with httpx.AsyncClient() as client:
-        resp = await client.post(
-            f"{settings.supabase_url}/auth/v1/token?grant_type=refresh_token",
-            json={"refresh_token": token},
-            headers={
-                "apikey": settings.supabase_anon_key,
-                "Content-Type": "application/json",
-            },
-            timeout=10.0,
-        )
-
-    if resp.status_code != 200:
+    from app.utils.jwt import decode_supabase_token, create_access_token
+    from jose import JWTError
+    try:
+        payload = await decode_supabase_token(token)
+        user_id = payload.get("sub")
+        email = payload.get("email")
+        if not user_id:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid or expired refresh token",
+            )
+    except JWTError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired refresh token",
         )
 
-    data = resp.json()
-    user_data = data.get("user", {})
+    # Generate new local tokens
+    access_token = create_access_token(user_id=user_id, email=email)
+    new_refresh_token = create_access_token(user_id=user_id, email=email)
+    
     return LoginResponse(
-        access_token=data.get("access_token", ""),
-        refresh_token=data.get("refresh_token", ""),
-        user_id=user_data.get("id", ""),
-        email=user_data.get("email", ""),
+        access_token=access_token,
+        refresh_token=new_refresh_token,
+        user_id=user_id,
+        email=email,
         roles=[],
     )
 
@@ -324,16 +335,9 @@ async def get_me(current_user: CurrentUser, db: DbSession):
 @limiter.limit("3/5minutes")
 async def request_password_reset(request: Request, email: str, db: DbSession):
     """Send a password reset email via Supabase Auth. Rate limited."""
-    async with httpx.AsyncClient() as client:
-        await client.post(
-            f"{settings.supabase_url}/auth/v1/recover",
-            json={"email": email},
-            headers={
-                "apikey": settings.supabase_anon_key,
-                "Content-Type": "application/json",
-            },
-            timeout=10.0,
-        )
+    # TODO: Implement local SMTP email dispatch here.
+    # The actual SMTP dispatch will be configured later.
+    logger.info(f"Mocking password reset request for: {email}")
 
     await log_audit_event(
         db=db,
