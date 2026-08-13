@@ -97,6 +97,13 @@ cat <<EOT > "${RELEASE_DIR}/dist/version.json"
 }
 EOT
 
+# 3b. Link assets to shared folder to prevent service worker 404s
+echo "[INFO] Linking assets to shared folder to prevent service worker 404s..."
+mkdir -p /opt/altrix/shared/assets
+cp -rp "${RELEASE_DIR}/dist/assets/"* /opt/altrix/shared/assets/ 2>/dev/null || true
+rm -rf "${RELEASE_DIR}/dist/assets"
+ln -s /opt/altrix/shared/assets "${RELEASE_DIR}/dist/assets"
+
 # 4. Copy Environment & Build Docker Backend
 echo "[INFO] Preparing Backend Docker Image..."
 if [ -f /opt/altrix/shared/config/production.env ]; then
