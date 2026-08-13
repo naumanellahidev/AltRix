@@ -5,7 +5,7 @@ import { motion, useReducedMotion } from "framer-motion";
 import { Loader2, Sparkles, Shield, Activity, Workflow, Building2, Mail, Lock, Eye, EyeOff, Info, ArrowRight, ArrowLeft, Key } from "lucide-react";
 
 import { apiClient } from "@/lib/api-client";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase, rawSupabase } from "@/integrations/supabase/client";
 import { useTenant } from "@/hooks/useTenant";
 import { useSchoolPermissions } from "@/hooks/useSchoolPermissions";
 import { MASTER_SUPER_ADMIN_EMAIL } from "@/hooks/usePlatformSuperAdmin";

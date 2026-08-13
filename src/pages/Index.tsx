@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { SpotlightBackdrop } from "@/components/visual/SpotlightBackdrop";
 import { AltrixLogo } from "@/components/AltrixLogo";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase, rawSupabase } from "@/integrations/supabase/client";
 import { useTenant } from "@/hooks/useTenant";
 import { MASTER_SUPER_ADMIN_EMAIL } from "@/hooks/usePlatformSuperAdmin";
 import { type EduverseRole } from "@/lib/eduverse-roles";
