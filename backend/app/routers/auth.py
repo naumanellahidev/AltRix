@@ -181,12 +181,46 @@ async def login(request: Request, body: LoginRequest, db: DbSession):
     except Exception as eb_err:
         logger.warning(f"Event bus publish failed (non-blocking): {eb_err}")
 
+    # Load user roles scoped to tenant or any school
+    user_roles = []
+    try:
+        school_id_header = request.headers.get("X-School-Id")
+        import uuid
+        uid_obj = uuid.UUID(user_id)
+        if school_id_header:
+            try:
+                sid_obj = uuid.UUID(school_id_header)
+                result_roles = await db.execute(
+                    text(
+                        """
+                        SELECT role FROM user_roles
+                        WHERE user_id = :uid AND (school_id = :sid OR school_id IS NULL)
+                        UNION
+                        SELECT 'school_owner' FROM school_owner_assignments
+                        WHERE owner_user_id = :uid AND school_id = :sid
+                        """
+                    ),
+                    {"uid": uid_obj, "sid": sid_obj},
+                )
+                user_roles = [row[0] for row in result_roles.fetchall()]
+            except (ValueError, TypeError):
+                pass
+        
+        if not user_roles:
+            res_any = await db.execute(
+                text("SELECT role FROM user_roles WHERE user_id = :uid LIMIT 5"),
+                {"uid": uid_obj}
+            )
+            user_roles = [row[0] for row in res_any.fetchall()]
+    except Exception as roles_err:
+        logger.warning(f"Failed to pre-load user roles for login: {roles_err}")
+
     return LoginResponse(
         access_token=access_token,
         refresh_token=refresh_token,
         user_id=user_id,
         email=email,
-        roles=[],
+        roles=user_roles,
     )
 
 
@@ -494,12 +528,4 @@ async def get_user_profile(user_id: UUID, current_user: CurrentUser, db: DbSessi
         raise
     except Exception as e:
         logger.warning(f"DB exception querying profile {user_id}: {e}")
-@router.get("/me")
-async def get_current_user_me(current_user: CurrentUser):
-    return {
-        "id": str(current_user.id),
-        "email": current_user.email,
-        "school_id": str(current_user.school_id) if current_user.school_id else None,
-        "roles": current_user.roles,
-        "is_super_admin": current_user.is_super_admin,
-    }
+        raise HTTPException(status_code=500, detail="Internal server error")
