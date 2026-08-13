@@ -69,6 +69,7 @@ from app.routers.public_admissions import router as public_admissions_router
 from app.routers.hostel import router as hostel_router
 from app.routers.white_label import router as white_label_router
 from app.routers.vps_storage import router as vps_storage_router
+from app.routers.vps_db import router as vps_db_router
 
 # ─── Structured Logging ───────────────────────────────────────────────────────
 logging.basicConfig(
@@ -707,3 +708,4 @@ app.include_router(tenant_orchestration_router, prefix=_PREFIX)
 app.include_router(custom_domains_router, prefix=_PREFIX)
 app.include_router(financial_forecasting_router, prefix=_PREFIX)
 app.include_router(vps_storage_router, prefix=_PREFIX)
+app.include_router(vps_db_router, prefix=_PREFIX)
