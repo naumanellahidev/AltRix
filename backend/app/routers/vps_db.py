@@ -100,7 +100,13 @@ def cast_value(val: Any, data_type: str) -> Any:
                 clean_val = val.replace('Z', '+00:00')
                 return datetime.fromisoformat(clean_val)
             except ValueError:
-                pass
+                # If it's a raw time (e.g. "09:00:00"), combine with today's date
+                try:
+                    clean_time = val.split('+')[0].split('-')[0].strip()
+                    parsed_time = time.fromisoformat(clean_time)
+                    return datetime.combine(date.today(), parsed_time)
+                except ValueError:
+                    pass
         return val
         
     # 4. Cast Time (time of day)
