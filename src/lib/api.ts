@@ -119,7 +119,8 @@ export class VpsQueryBuilder {
             table: this.table,
             action: this.context.action,
             payload: this.context.payload,
-            filters: this.context.filters
+            filters: this.context.filters,
+            options: this.context.options
           },
           priority: 'high'
         });
@@ -135,7 +136,8 @@ export class VpsQueryBuilder {
         action: this.context.action,
         select: this.context.select,
         filters: this.context.filters,
-        payload: this.context.payload
+        payload: this.context.payload,
+        options: this.context.options
       });
       
       if (this.context.action !== 'select') {
@@ -176,7 +178,7 @@ export class VpsQueryBuilder {
         // Fallback to offline queue
         await addToOfflineQueue({
           type: 'generic_mutation',
-          data: { table: this.table, action: this.context.action, payload: this.context.payload, filters: this.context.filters },
+          data: { table: this.table, action: this.context.action, payload: this.context.payload, filters: this.context.filters, options: this.context.options },
           priority: 'high'
         });
         showOfflineToast(this.table, this.context.action);
