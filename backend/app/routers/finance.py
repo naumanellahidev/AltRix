@@ -1383,7 +1383,8 @@ async def export_payment_proofs(
     def csv_escape(val):
         s = "" if val is None else str(val)
         if any(c in s for c in ('\n', '\r', '"', ',')):
-            return f'"{s.replace("\"", "\"\"")}"'
+            escaped_s = s.replace('"', '""')
+            return f'"{escaped_s}"'
         return s
 
     lines = ["uploaded_at,student,roll_number,invoice_number,method,paid_at,amount,status,rejection_reason,note"]
