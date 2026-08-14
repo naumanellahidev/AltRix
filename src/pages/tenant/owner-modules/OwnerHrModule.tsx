@@ -247,6 +247,14 @@ export function OwnerHrModule({ schoolId }: Props) {
     );
   }
 
+  if (!hrData) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <p className="text-muted-foreground text-sm">Loading school context...</p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
