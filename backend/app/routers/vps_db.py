@@ -65,7 +65,7 @@ async def broadcast_mutation(table: str, action: str, school_id: Optional[Any], 
     except Exception as redis_err:
         logger.error(f"Failed to broadcast database proxy mutation to Redis: {redis_err}")
 
-from datetime import date, datetime
+from datetime import date, datetime, time
 import uuid
 
 def cast_value(val: Any, data_type: str) -> Any:
@@ -103,7 +103,17 @@ def cast_value(val: Any, data_type: str) -> Any:
                 pass
         return val
         
-    # 4. Cast Integer
+    # 4. Cast Time (time of day)
+    elif "time" in data_type_lower and "timestamp" not in data_type_lower:
+        if isinstance(val, str):
+            try:
+                clean_time = val.split('+')[0].split('-')[0].strip()
+                return time.fromisoformat(clean_time)
+            except ValueError:
+                pass
+        return val
+        
+    # 5. Cast Integer
     elif data_type_lower in ("integer", "bigint", "smallint"):
         if isinstance(val, str):
             try:
@@ -112,7 +122,7 @@ def cast_value(val: Any, data_type: str) -> Any:
                 pass
         return val
         
-    # 5. Cast Boolean
+    # 6. Cast Boolean
     elif data_type_lower == "boolean":
         if isinstance(val, str):
             if val.lower() == "true":
