@@ -142,9 +142,6 @@ export function DashboardNotificationsBanner({ schoolId, schoolSlug, role, inlin
     location.pathname.endsWith("/school_owner") || 
     location.pathname.endsWith("/school_owner/")
   );
-  if (!inline && isOwnerOverview) {
-    return null;
-  }
 
   const unreadItems = useMemo(() => {
     return (data ?? []).filter((n) => !n.read_at && !dismissed.has(n.id));
@@ -170,6 +167,10 @@ export function DashboardNotificationsBanner({ schoolId, schoolSlug, role, inlin
     }
     return items;
   }, [items, activeFilter]);
+
+  if (!inline && isOwnerOverview) {
+    return null;
+  }
 
   if (!items.length || dismissedAll) return null;
 
