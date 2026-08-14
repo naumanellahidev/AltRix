@@ -400,6 +400,16 @@ export const api = {
   db: (table: string) => new VpsQueryBuilder(table),
   from: (table: string) => new VpsQueryBuilder(table),
   
+  rpc: async (fn: string, params?: any) => {
+    try {
+      const response = await apiClient.post('/vps-db/rpc', { fn, params });
+      return { data: response.data?.data ?? null, error: response.data?.error ?? null };
+    } catch (e: any) {
+      const errMsg = e.response?.data?.detail || e.message || 'RPC call failed';
+      return { data: null, error: { message: errMsg } };
+    }
+  },
+  
   auth: {
     getUser: async () => {
       try {
