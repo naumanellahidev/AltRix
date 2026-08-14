@@ -377,6 +377,23 @@ export class VpsChannel {
   }
 }
 
+// Helper to decode JWT payloads locally without external dependencies
+function parseJwt(token: string) {
+  try {
+    const base64Url = token.split('.')[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(
+      window.atob(base64)
+        .split('')
+        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .join('')
+    );
+    return JSON.parse(jsonPayload);
+  } catch (e) {
+    return null;
+  }
+}
+
 // ─── Main Native Client API ──────────────────────────────────────────────────
 
 export const api = {
@@ -389,25 +406,72 @@ export const api = {
         const user = await apiClient.get('/auth/me');
         return { data: { user: user.data }, error: null };
       } catch (e) {
+        const token = localStorage.getItem('access_token');
+        if (token) {
+          const payload = parseJwt(token);
+          if (payload) {
+            return {
+              data: {
+                user: {
+                  id: payload.sub,
+                  email: payload.email,
+                  user_metadata: payload.user_metadata || {}
+                }
+              },
+              error: null
+            };
+          }
+        }
         return { data: { user: null }, error: e };
       }
     },
     getSession: async () => {
       const token = localStorage.getItem('access_token');
       if (!token) return { data: { session: null }, error: null };
-      return { data: { session: { access_token: token } }, error: null };
+      const payload = parseJwt(token);
+      const user = payload ? {
+        id: payload.sub,
+        email: payload.email,
+        user_metadata: payload.user_metadata || {}
+      } : { id: 'dummy' };
+      return {
+        data: {
+          session: {
+            access_token: token,
+            refresh_token: localStorage.getItem('refresh_token') || undefined,
+            user
+          }
+        },
+        error: null
+      };
     },
     setSession: async (session: { access_token: string; refresh_token?: string }) => {
       localStorage.setItem('access_token', session.access_token);
       if (session.refresh_token) {
         localStorage.setItem('refresh_token', session.refresh_token);
       }
+      const payload = parseJwt(session.access_token);
+      const user = payload ? {
+        id: payload.sub,
+        email: payload.email,
+        user_metadata: payload.user_metadata || {}
+      } : { id: 'dummy' };
+      
+      const fullSession = {
+        ...session,
+        user
+      };
+      
       try {
-        const user = await apiClient.get('/auth/me');
-        return { data: { user: user.data, session }, error: null };
+        const resp = await apiClient.get('/auth/me');
+        if (resp.data) {
+          fullSession.user = resp.data;
+        }
       } catch (e) {
-        return { data: { user: { id: 'dummy' }, session }, error: null };
+        console.warn("Failed to fetch fresh user info in setSession", e);
       }
+      
+      return { data: { user: fullSession.user, session: fullSession }, error: null };
     },
     signInWithPassword: async (credentials: any) => {
       try {
@@ -421,10 +485,21 @@ export const api = {
           if (resp.data.refresh_token) {
             localStorage.setItem('refresh_token', resp.data.refresh_token);
           }
+          const payload = parseJwt(resp.data.access_token);
+          const user = payload ? {
+            id: payload.sub,
+            email: payload.email,
+            user_metadata: payload.user_metadata || {}
+          } : (resp.data.user || { id: resp.data.user_id, email: resp.data.email });
+          
           return {
             data: {
-              session: { access_token: resp.data.access_token, refresh_token: resp.data.refresh_token },
-              user: resp.data.user || { id: resp.data.user_id, email: resp.data.email }
+              session: {
+                access_token: resp.data.access_token,
+                refresh_token: resp.data.refresh_token,
+                user
+              },
+              user
             },
             error: null
           };

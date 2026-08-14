@@ -9,14 +9,25 @@ if (typeof window !== "undefined") {
     if (
       errorMsg.includes("failed to fetch dynamically imported module") ||
       errorMsg.includes("importing a module script failed") ||
-      errorMsg.includes("failed to fetch")
+      errorMsg.includes("failed to fetch") ||
+      errorMsg.includes("bad-precaching-response")
     ) {
-      console.warn("Dynamic import failed. Reloading page to fetch latest assets...", error);
+      console.warn("Dynamic import or service worker precache failed. Unregistering SW and reloading...", error);
       const lastReload = localStorage.getItem("eduverse:last_chunk_reload");
       const now = Date.now();
       if (!lastReload || now - parseInt(lastReload, 10) > 10000) {
         localStorage.setItem("eduverse:last_chunk_reload", String(now));
-        window.location.reload();
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.getRegistrations().then((registrations) => {
+            for (const registration of registrations) {
+              registration.unregister();
+            }
+          }).finally(() => {
+            window.location.reload();
+          });
+        } else {
+          window.location.reload();
+        }
       }
     }
   };
