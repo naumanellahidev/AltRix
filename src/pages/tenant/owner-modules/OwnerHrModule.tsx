@@ -80,21 +80,25 @@ export function OwnerHrModule({ schoolId }: Props) {
     queryFn: async () => {
       if (!schoolId) return null;
 
-      // Optionally restrict to staff assigned to active campus
-      let staffUserIds: string[] | null = null;
+      // Restrict to staff assigned to active campus, or all school staff if "All Campuses" is selected
+      let staffUserIds: string[] = [];
       if (activeCampusId) {
         const { data: sca } = await api
           .from("staff_campus_assignments")
           .select("user_id")
           .eq("campus_id", activeCampusId);
         staffUserIds = (sca || []).map((r: any) => r.user_id);
+      } else {
+        const { data: sca } = await api
+          .from("staff_campus_assignments")
+          .select("user_id");
+        staffUserIds = (sca || []).map((r: any) => r.user_id);
       }
+
       const applyUserFilter = (q: any) =>
-        staffUserIds
-          ? staffUserIds.length
-            ? q.in("user_id", staffUserIds)
-            : q.eq("user_id", "00000000-0000-0000-0000-000000000000")
-          : q;
+        staffUserIds.length
+          ? q.in("user_id", staffUserIds)
+          : q.eq("user_id", "00000000-0000-0000-0000-000000000000");
 
       const [staffRes, rolesRes, salariesRes, leavesRes, payRunsRes, contractsRes, reviewsRes] =
         await Promise.all([
