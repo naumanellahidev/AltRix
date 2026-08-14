@@ -59,6 +59,13 @@ export class VpsQueryBuilder {
     return this;
   }
 
+  upsert(payload: any, options?: { onConflict?: string; ignoreDuplicates?: boolean }) {
+    this.context.action = 'upsert';
+    this.context.payload = payload;
+    this.context.options = options;
+    return this;
+  }
+
   delete() {
     this.context.action = 'delete';
     return this;
@@ -74,6 +81,7 @@ export class VpsQueryBuilder {
   is(column: string, value: any) { this.context.filters.push({ method: 'is', args: [column, value] }); return this; }
   like(column: string, pattern: string) { this.context.filters.push({ method: 'like', args: [column, pattern] }); return this; }
   ilike(column: string, pattern: string) { this.context.filters.push({ method: 'ilike', args: [column, pattern] }); return this; }
+  or(conditions: string) { this.context.filters.push({ method: 'or', args: [conditions] }); return this; }
   range(from: number, to: number) { this.context.filters.push({ method: 'range', args: [from, to] }); return this; }
   
   match(filter: Record<string, any>) {

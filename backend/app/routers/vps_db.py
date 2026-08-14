@@ -23,6 +23,7 @@ class QueryPayload(BaseModel):
     select: Optional[str] = "*"
     filters: List[QueryFilter] = Field(default_factory=list)
     payload: Optional[Any] = None
+    options: Optional[Dict[str, Any]] = None
 
 class RpcPayload(BaseModel):
     fn: str
@@ -179,6 +180,46 @@ async def execute_rpc(payload: RpcPayload, current_user: CurrentUser, db: DbSess
         logger.error(f"DB Proxy RPC Error in {fn}: {e}")
         return {"data": None, "error": {"message": str(e)}}
 
+def parse_or_conditions(or_str: str) -> List[Any]:
+    conditions = []
+    current = []
+    paren_depth = 0
+    in_quotes = False
+    
+    for char in or_str:
+        if char == '"' or char == "'":
+            in_quotes = not in_quotes
+            current.append(char)
+        elif char == '(' and not in_quotes:
+            paren_depth += 1
+            current.append(char)
+        elif char == ')' and not in_quotes:
+            paren_depth -= 1
+            current.append(char)
+        elif char == ',' and paren_depth == 0 and not in_quotes:
+            conditions.append("".join(current).strip())
+            current = []
+        else:
+            current.append(char)
+            
+    if current:
+        conditions.append("".join(current).strip())
+        
+    parsed = []
+    for cond in conditions:
+        parts = cond.split('.', 2)
+        if len(parts) >= 2:
+            col = parts[0]
+            op = parts[1]
+            val = parts[2] if len(parts) > 2 else None
+            
+            if val and val.startswith('(') and val.endswith(')'):
+                val = val[1:-1]
+                
+            parsed.append((col, op, val))
+            
+    return parsed
+
 @router.post("/query")
 async def execute_query(query: QueryPayload, current_user: CurrentUser, db: DbSession):
     if not is_valid_identifier(query.table):
@@ -212,7 +253,7 @@ async def execute_query(query: QueryPayload, current_user: CurrentUser, db: DbSe
         if has_school_id:
             pass
         elif query.table not in GLOBAL_TABLES:
-            if query.action in ("insert", "update", "delete"):
+            if query.action in ("insert", "update", "delete", "upsert"):
                 logger.warning(f"Tenant {current_user.school_id} modifying global table {query.table}")
 
     action = query.action or "select"
@@ -223,9 +264,90 @@ async def execute_query(query: QueryPayload, current_user: CurrentUser, db: DbSe
         where_clauses.append("school_id = :__tenant_id")
         params["__tenant_id"] = cast_value(current_user.school_id, columns_types["school_id"])
 
-    for i, f in enumerate(query.filters):
+    order_by_clauses = []
+    limit_clause = ""
+    filters_to_process = []
+    
+    # Pre-process order, limit, and range filters
+    for f in query.filters:
+        if f.method == "order":
+            if f.args:
+                col = f.args[0]
+                if is_valid_identifier(col) and col in valid_columns:
+                    opts = f.args[1] if len(f.args) > 1 else {}
+                    asc = opts.get("ascending", True) if isinstance(opts, dict) else True
+                    dir_sql = "ASC" if asc else "DESC"
+                    nulls = opts.get("nullsFirst", False) if isinstance(opts, dict) else False
+                    nulls_sql = " NULLS FIRST" if nulls else " NULLS LAST"
+                    order_by_clauses.append(f'"{col}" {dir_sql}{nulls_sql}')
+        elif f.method == "limit":
+            if f.args:
+                try:
+                    limit_val = int(f.args[0])
+                    limit_clause = f" LIMIT {limit_val}"
+                except (ValueError, TypeError):
+                    pass
+        elif f.method == "range":
+            if len(f.args) >= 2:
+                try:
+                    offset_val = int(f.args[0])
+                    limit_val = int(f.args[1]) - offset_val + 1
+                    limit_clause = f" LIMIT {limit_val} OFFSET {offset_val}"
+                except (ValueError, TypeError):
+                    pass
+        else:
+            filters_to_process.append(f)
+
+    for i, f in enumerate(filters_to_process):
         if not f.args:
             continue
+            
+        if f.method == "or":
+            or_clauses = []
+            parsed_conds = parse_or_conditions(f.args[0])
+            for j, (col, op, raw_val) in enumerate(parsed_conds):
+                if not is_valid_identifier(col) or col not in valid_columns:
+                    continue
+                    
+                param_name = f"or_{i}_{j}"
+                
+                if op == "eq":
+                    or_clauses.append(f'"{col}" = :{param_name}')
+                    params[param_name] = cast_value(raw_val, columns_types[col])
+                elif op == "neq":
+                    or_clauses.append(f'"{col}" != :{param_name}')
+                    params[param_name] = cast_value(raw_val, columns_types[col])
+                elif op == "gt":
+                    or_clauses.append(f'"{col}" > :{param_name}')
+                    params[param_name] = cast_value(raw_val, columns_types[col])
+                elif op == "lt":
+                    or_clauses.append(f'"{col}" < :{param_name}')
+                    params[param_name] = cast_value(raw_val, columns_types[col])
+                elif op == "gte":
+                    or_clauses.append(f'"{col}" >= :{param_name}')
+                    params[param_name] = cast_value(raw_val, columns_types[col])
+                elif op == "lte":
+                    or_clauses.append(f'"{col}" <= :{param_name}')
+                    params[param_name] = cast_value(raw_val, columns_types[col])
+                elif op in ("in", "in_"):
+                    or_clauses.append(f'"{col}" = ANY(:{param_name})')
+                    items_list = [item.strip() for item in raw_val.split(",")]
+                    params[param_name] = [cast_value(item, columns_types[col]) for item in items_list]
+                elif op == "is":
+                    if raw_val is None or raw_val.lower() == "null":
+                        or_clauses.append(f'"{col}" IS NULL')
+                    else:
+                        or_clauses.append(f'"{col}" = :{param_name}')
+                        params[param_name] = cast_value(raw_val, columns_types[col])
+                elif op in ("like", "ilike"):
+                    op_sql = "ILIKE" if op == "ilike" else "LIKE"
+                    or_clauses.append(f'"{col}" {op_sql} :{param_name}')
+                    params[param_name] = raw_val
+                    
+            if or_clauses:
+                where_clauses.append(f"({ ' OR '.join(or_clauses) })")
+            continue
+
         col = f.args[0]
         if not is_valid_identifier(col) or col not in valid_columns:
             raise HTTPException(status_code=400, detail=f"Invalid column {col}")
@@ -234,38 +356,38 @@ async def execute_query(query: QueryPayload, current_user: CurrentUser, db: DbSe
         raw_val = f.args[1] if len(f.args) > 1 else None
         
         if f.method == "eq":
-            where_clauses.append(f"{col} = :{param_name}")
+            where_clauses.append(f'"{col}" = :{param_name}')
             params[param_name] = cast_value(raw_val, columns_types[col])
         elif f.method == "neq":
-            where_clauses.append(f"{col} != :{param_name}")
+            where_clauses.append(f'"{col}" != :{param_name}')
             params[param_name] = cast_value(raw_val, columns_types[col])
         elif f.method == "gt":
-            where_clauses.append(f"{col} > :{param_name}")
+            where_clauses.append(f'"{col}" > :{param_name}')
             params[param_name] = cast_value(raw_val, columns_types[col])
         elif f.method == "lt":
-            where_clauses.append(f"{col} < :{param_name}")
+            where_clauses.append(f'"{col}" < :{param_name}')
             params[param_name] = cast_value(raw_val, columns_types[col])
         elif f.method == "gte":
-            where_clauses.append(f"{col} >= :{param_name}")
+            where_clauses.append(f'"{col}" >= :{param_name}')
             params[param_name] = cast_value(raw_val, columns_types[col])
         elif f.method == "lte":
-            where_clauses.append(f"{col} <= :{param_name}")
+            where_clauses.append(f'"{col}" <= :{param_name}')
             params[param_name] = cast_value(raw_val, columns_types[col])
         elif f.method in ("in", "in_"):
-            where_clauses.append(f"{col} = ANY(:{param_name})")
+            where_clauses.append(f'"{col}" = ANY(:{param_name})')
             if isinstance(raw_val, list):
                 params[param_name] = [cast_value(item, columns_types[col]) for item in raw_val]
             else:
                 params[param_name] = cast_value(raw_val, columns_types[col])
         elif f.method == "is":
             if raw_val is None:
-                where_clauses.append(f"{col} IS NULL")
+                where_clauses.append(f'"{col}" IS NULL')
             else:
-                where_clauses.append(f"{col} = :{param_name}")
+                where_clauses.append(f'"{col}" = :{param_name}')
                 params[param_name] = cast_value(raw_val, columns_types[col])
         elif f.method in ("like", "ilike"):
             op = "ILIKE" if f.method == "ilike" else "LIKE"
-            where_clauses.append(f"{col} {op} :{param_name}")
+            where_clauses.append(f'"{col}" {op} :{param_name}')
             params[param_name] = raw_val
 
     where_sql = (" WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
@@ -275,7 +397,8 @@ async def execute_query(query: QueryPayload, current_user: CurrentUser, db: DbSe
         if "(" in select_clause: 
             select_clause = "*"
             
-        sql = f'SELECT {select_clause} FROM "{query.table}"{where_sql}'
+        order_sql = (" ORDER BY " + ", ".join(order_by_clauses)) if order_by_clauses else ""
+        sql = f'SELECT {select_clause} FROM "{query.table}"{where_sql}{order_sql}{limit_clause}'
         try:
             res = await db.execute(text(sql), params)
             rows = [dict(r._mapping) for r in res.fetchall()]
@@ -365,5 +488,72 @@ async def execute_query(query: QueryPayload, current_user: CurrentUser, db: DbSe
         except Exception as e:
             logger.error(f"DB Proxy Delete Error: {e}")
             return {"data": None, "error": {"message": str(e)}}
+
+    elif action == "upsert":
+        if not isinstance(query.payload, (dict, list)):
+            return {"data": None, "error": {"message": "Invalid payload format"}}
+            
+        items = query.payload if isinstance(query.payload, list) else [query.payload]
+        if not items:
+            return {"data": [], "error": None}
+            
+        keys = list(items[0].keys())
+        for k in keys:
+            if not is_valid_identifier(k) or k not in valid_columns:
+                return {"data": None, "error": {"message": f"Invalid column {k}"}}
+                
+        if has_school_id and not current_user.is_super_admin:
+            for item in items:
+                item["school_id"] = str(current_user.school_id)
+                if "school_id" not in keys:
+                    keys.append("school_id")
+                    
+        # Resolve conflict target
+        on_conflict = query.options.get("onConflict") if query.options else None
+        if not on_conflict:
+            # Default to "id" if present in table columns
+            on_conflict = "id" if "id" in valid_columns else None
+            
+        if on_conflict:
+            conflict_cols = ", ".join(f'"{c.strip()}"' for c in on_conflict.split(",") if is_valid_identifier(c.strip()))
+            conflict_set = {c.strip() for c in on_conflict.split(",")}
+            
+            update_clauses = []
+            for k in keys:
+                if k not in conflict_set and k != "created_at":
+                    update_clauses.append(f'"{k}" = EXCLUDED."{k}"')
+                    
+            if update_clauses:
+                conflict_sql = f'ON CONFLICT ({conflict_cols}) DO UPDATE SET {", ".join(update_clauses)}'
+            else:
+                conflict_sql = f'ON CONFLICT ({conflict_cols}) DO NOTHING'
+        else:
+            conflict_sql = ''
+            
+        inserted_rows = []
+        for item in items:
+            casted_item = {}
+            for k in keys:
+                if k in item:
+                    casted_item[k] = cast_value(item[k], columns_types[k])
+                elif k == "school_id" and has_school_id:
+                    casted_item["school_id"] = cast_value(current_user.school_id, columns_types["school_id"])
+                    
+            cols = ", ".join(f'"{k}"' for k in keys)
+            vals = ", ".join(f":{k}" for k in keys)
+            sql = f'INSERT INTO "{query.table}" ({cols}) VALUES ({vals}) {conflict_sql} RETURNING *'
+            
+            try:
+                res = await db.execute(text(sql), casted_item)
+                row = res.fetchone()
+                if row:
+                    inserted_rows.append(dict(row._mapping))
+            except Exception as e:
+                logger.error(f"DB Proxy Upsert Error: {e}")
+                return {"data": None, "error": {"message": str(e)}}
+                
+        await db.flush()
+        await broadcast_mutation(query.table, "upsert", current_user.school_id, inserted_rows)
+        return {"data": inserted_rows, "error": None}
 
     return {"data": None, "error": {"message": "Unknown action"}}
