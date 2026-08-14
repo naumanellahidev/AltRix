@@ -384,13 +384,13 @@ function PaymentProofsCard({ schoolId }: { schoolId: string | null }) {
       const { data: sess } = await api.auth.getSession();
       const token = sess.session?.access_token;
       if (!token) throw new Error("Not signed in");
-      const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/export-payment-proofs`;
+      const baseUrl = import.meta.env.VITE_API_URL || "/api";
+      const url = `${baseUrl.replace(/\/+$/, '')}/finance/export-payment-proofs`;
       const res = await fetch(url, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${token}`,
-          "apikey": import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
         },
         body: JSON.stringify({
           schoolId,

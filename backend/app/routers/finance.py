@@ -1282,3 +1282,132 @@ async def resolve_escalation(esc_id: UUID, current_user: CurrentUser, db: DbSess
         return {"message": "Escalation resolved"}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+class PaymentProofsExportPayload(BaseModel):
+    schoolId: str
+    status: Optional[str] = "pending"
+    method: Optional[str] = "__all"
+    fromDate: Optional[str] = ""
+    toDate: Optional[str] = ""
+    minAmount: Optional[float] = None
+    maxAmount: Optional[float] = None
+    search: Optional[str] = ""
+
+
+from pydantic import BaseModel
+from fastapi.responses import Response
+
+@router.post("/export-payment-proofs")
+async def export_payment_proofs(
+    body: PaymentProofsExportPayload,
+    current_user: CurrentUser,
+    db: DbSession,
+):
+    if not current_user.is_super_admin and str(current_user.school_id) != body.schoolId:
+        raise ForbiddenError("Access denied to this school's records")
+
+    query_parts = ["SELECT id, school_id, invoice_id, student_id, file_name, amount, paid_at, method, note, status, rejection_reason, created_at FROM fee_payment_proofs WHERE school_id = :school_id"]
+    params = {"school_id": UUID(body.schoolId)}
+
+    if body.status and body.status != "__all__":
+        query_parts.append("AND status = :status")
+        params["status"] = body.status
+    if body.method and body.method != "__all__":
+        query_parts.append("AND method = :method")
+        params["method"] = body.method
+    if body.fromDate:
+        query_parts.append("AND created_at >= :from_date")
+        params["from_date"] = datetime.strptime(f"{body.fromDate} 00:00:00", "%Y-%m-%d %H:%M:%S")
+    if body.toDate:
+        query_parts.append("AND created_at <= :to_date")
+        params["to_date"] = datetime.strptime(f"{body.toDate} 23:59:59", "%Y-%m-%d %H:%M:%S")
+    if body.minAmount is not None and body.minAmount != "":
+        query_parts.append("AND amount >= :min_amount")
+        params["min_amount"] = float(body.minAmount)
+    if body.maxAmount is not None and body.maxAmount != "":
+        query_parts.append("AND amount <= :max_amount")
+        params["max_amount"] = float(body.maxAmount)
+
+    query_str = " ".join(query_parts) + " ORDER BY created_at DESC"
+    result = await db.execute(text(query_str), params)
+    proofs = [dict(row._mapping) for row in result.fetchall()]
+
+    if not proofs:
+        csv_header = "uploaded_at,student,roll_number,invoice_number,method,paid_at,amount,status,rejection_reason,note\n"
+        return Response(
+            content=csv_header,
+            media_type="text/csv",
+            headers={
+                "Content-Disposition": "attachment; filename=payment-proofs.csv",
+                "X-Row-Count": "0",
+            }
+        )
+
+    student_ids = list({p["student_id"] for p in proofs if p["student_id"]})
+    invoice_ids = list({p["invoice_id"] for p in proofs if p["invoice_id"]})
+
+    students = {}
+    if student_ids:
+        s_res = await db.execute(
+            text("SELECT id, first_name, last_name, roll_number FROM students WHERE id IN :ids"),
+            {"ids": tuple(student_ids)}
+        )
+        students = {row.id: row for row in s_res.fetchall()}
+
+    invoices = {}
+    if invoice_ids:
+        i_res = await db.execute(
+            text("SELECT id, invoice_number FROM fee_invoices WHERE id IN :ids"),
+            {"ids": tuple(invoice_ids)}
+        )
+        invoices = {row.id: row for row in i_res.fetchall()}
+
+    search_q = body.search.strip().lower() if body.search else ""
+    filtered = []
+    for p in proofs:
+        s = students.get(p["student_id"])
+        inv = invoices.get(p["invoice_id"])
+
+        s_name = f"{s.first_name if s else ''} {s.last_name if s and s.last_name else ''}".strip()
+        roll = s.roll_number if s and s.roll_number else ""
+        inv_no = inv.invoice_number if inv and inv.invoice_number else ""
+
+        if search_q:
+            haystack = f"{s_name} {roll} {inv_no} {p['method'] or ''} {p['note'] or ''} {p['status'] or ''} {p['rejection_reason'] or ''}".lower()
+            if search_q not in haystack:
+                continue
+
+        filtered.append((p, s_name, roll, inv_no))
+
+    def csv_escape(val):
+        s = "" if val is None else str(val)
+        if any(c in s for c in ('\n', '\r', '"', ',')):
+            return f'"{s.replace("\"", "\"\"")}"'
+        return s
+
+    lines = ["uploaded_at,student,roll_number,invoice_number,method,paid_at,amount,status,rejection_reason,note"]
+    for p, s_name, roll, inv_no in filtered:
+        lines.append(",".join(map(csv_escape, [
+            p["created_at"].isoformat() if p["created_at"] else "",
+            s_name,
+            roll,
+            inv_no,
+            p["method"] or "",
+            p["paid_at"].isoformat() if isinstance(p["paid_at"], (datetime, date)) else (p["paid_at"] or ""),
+            p["amount"],
+            p["status"],
+            p["rejection_reason"] or "",
+            p["note"] or "",
+        ])))
+
+    csv_content = "\n".join(lines)
+    filename = f"payment-proofs-{datetime.now(timezone.utc).strftime('%Y-%m-%d')}.csv"
+    return Response(
+        content=csv_content,
+        media_type="text/csv",
+        headers={
+            "Content-Disposition": f"attachment; filename={filename}",
+            "X-Row-Count": str(len(filtered)),
+        }
+    )

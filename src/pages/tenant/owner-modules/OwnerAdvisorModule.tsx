@@ -138,15 +138,18 @@ export function OwnerAdvisorModule({ schoolId }: Props) {
     setMessages((prev) => [...prev, userMessage]);
     setQuery("");
     setIsStreaming(true);
-
     try {
+      const { data: sess } = await api.auth.getSession();
+      const token = sess.session?.access_token;
+      if (!token) throw new Error("Not signed in");
+      const baseUrl = import.meta.env.VITE_API_URL || "/api";
       const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/owner-ai-advisor`,
+        `${baseUrl.replace(/\/+$/, '')}/owner-insights/ai-advisor`,
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+            Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({
             message: messageToSend,

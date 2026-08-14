@@ -203,3 +203,69 @@ async def get_owner_insights_summary(current_user: CurrentUser, db: DbSession):
     await db.refresh(cached_insight)
     
     return cached_insight
+
+
+from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
+
+class OwnerAiAdvisorRequest(BaseModel):
+    message: str
+    schoolId: str
+    schoolData: Optional[dict] = None
+
+@router.post("/ai-advisor")
+async def owner_ai_advisor(
+    body: OwnerAiAdvisorRequest,
+    current_user: CurrentUser,
+    db: DbSession,
+):
+    if not current_user.school_id or str(current_user.school_id) != body.schoolId:
+        raise ForbiddenError("No school context or cross-tenant access denied")
+
+    sd = body.schoolData or {}
+    context_data = f"""
+Current School Performance Data:
+- Total Students: {sd.get('totalStudents', 0)} (Active: {sd.get('activeStudents', 0)})
+- Revenue MTD: {sd.get('revenueMtd', 0)} | Revenue YTD: {sd.get('revenueYtd', 0)}
+- Expenses MTD: {sd.get('expensesMtd', 0)} | Expenses YTD: {sd.get('expensesYtd', 0)}
+- Profit MTD: {sd.get('profit', 0)} | Margin: {sd.get('profitMargin', 0)}%
+- Attendance Rate (7 days): {sd.get('attendanceRate', 0)}%
+- Academic Performance Index: {sd.get('academicIndex', 0)}
+- Open Leads: {sd.get('openLeads', 0)} | Conversion Rate: {sd.get('conversionRate', 0)}%
+- Dropout Risk: {sd.get('dropoutRisk', 0)}%
+- Total Teachers: {sd.get('totalTeachers', 0)} | Total Staff: {sd.get('totalStaff', 0)}
+- Pending Invoices: {sd.get('pendingInvoices', 0)} | Unpaid Amount: {sd.get('unpaidAmount', 0)}
+- Fee Collection Rate: {sd.get('collectionRate', 0)}%
+"""
+
+    system_prompt = f"""You are an elite AI Strategy Advisor for school owners and educational institution CEOs. You analyze real institutional data and provide strategic, actionable recommendations.
+
+{context_data}
+
+Your role:
+1. Analyze the provided metrics and identify patterns, risks, and opportunities
+2. Provide strategic recommendations backed by data
+3. Compare against industry benchmarks (typical school profit margins: 10-20%, attendance targets: 95%+, collection rates: 90%+)
+4. Suggest specific actions with expected outcomes
+5. Flag urgent issues that need immediate attention
+
+Guidelines:
+- Be concise but insightful
+- Use specific numbers from the data
+- Prioritize recommendations by impact
+- Consider both financial and educational outcomes
+- Think like a management consultant
+
+Always structure responses clearly with actionable insights. Never be generic - use the actual data provided."""
+
+    from app.utils.ai_service import OllamaAIService
+    
+    async def sse_generator():
+        async for chunk in OllamaAIService.stream_completion(
+            system_prompt=system_prompt,
+            user_message=body.message,
+            context_messages=[]
+        ):
+            yield chunk
+
+    return StreamingResponse(sse_generator(), media_type="text/event-stream")
