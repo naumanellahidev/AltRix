@@ -29,7 +29,7 @@ class RpcPayload(BaseModel):
     params: Optional[Dict[str, Any]] = None
 
 def is_valid_identifier(name: str) -> bool:
-    return name.isidentifier() and not name.startswith("_")
+    return name.isidentifier()
 
 def is_uuid(val: Any) -> bool:
     if not isinstance(val, str):
