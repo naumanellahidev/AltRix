@@ -272,8 +272,25 @@ function connectRealtimeWebSocket() {
   if (!token || socket || isConnecting) return;
   
   isConnecting = true;
-  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  const wsUrl = `${protocol}//${window.location.host}/api/ws?token=${token}`;
+  
+  let host = window.location.host;
+  let protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  
+  const envApiUrl = import.meta.env.VITE_API_URL || '';
+  if (envApiUrl && envApiUrl.startsWith('http')) {
+    try {
+      const url = new URL(envApiUrl);
+      host = url.host;
+      protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
+    } catch (e) {
+      console.warn("Failed to parse VITE_API_URL for WebSocket", e);
+    }
+  } else if (host.includes('vercel.app')) {
+    host = 'altrixcore.com';
+    protocol = 'wss:';
+  }
+  
+  const wsUrl = `${protocol}//${host}/api/ws?token=${token}`;
   
   console.log("Connecting to VPS Realtime WebSocket:", wsUrl);
   const ws = new WebSocket(wsUrl);
