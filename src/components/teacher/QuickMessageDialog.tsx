@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Send, MessageSquare } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
@@ -40,7 +40,7 @@ export function QuickMessageDialog({
 
     const fetchGuardians = async () => {
       setLoading(true);
-      const { data } = await supabase
+      const { data } = await api
         .from("student_guardians")
         .select("id, user_id, full_name")
         .eq("student_id", studentId)
@@ -69,7 +69,7 @@ export function QuickMessageDialog({
 
     setSending(true);
 
-    const { data: user } = await supabase.auth.getUser();
+    const { data: user } = await api.auth.getUser();
     const userId = user.user?.id;
 
     if (!userId) {
@@ -88,7 +88,7 @@ export function QuickMessageDialog({
       content: content.trim(),
     }));
 
-    const { error } = await supabase.from("parent_messages").insert(messages);
+    const { error } = await api.from("parent_messages").insert(messages);
 
     if (error) {
       toast({ title: "Failed to send message", description: error.message, variant: "destructive" });

@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
 
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -33,7 +33,7 @@ export function SubjectCatalogCard({
     if (!n) return toast.error("Subject name required");
     const c = code.trim();
 
-    const { error } = await supabase
+    const { error } = await api
       .from("subjects")
       .insert({ school_id: schoolId, name: n, code: c || null });
     if (error) return toast.error(error.message);
@@ -49,14 +49,14 @@ export function SubjectCatalogCard({
 
     // Clean up dependent rows first to avoid FK violations
     const cleanups = await Promise.all([
-      supabase.from("teacher_subject_assignments").delete().eq("school_id", schoolId).eq("subject_id", subjectId),
-      supabase.from("class_section_subjects").delete().eq("school_id", schoolId).eq("subject_id", subjectId),
-      supabase.from("academic_assessments").delete().eq("school_id", schoolId).eq("subject_id", subjectId),
+      api.from("teacher_subject_assignments").delete().eq("school_id", schoolId).eq("subject_id", subjectId),
+      api.from("class_section_subjects").delete().eq("school_id", schoolId).eq("subject_id", subjectId),
+      api.from("academic_assessments").delete().eq("school_id", schoolId).eq("subject_id", subjectId),
     ]);
     const cleanupErr = cleanups.find((r) => r.error)?.error;
     if (cleanupErr) return toast.error(cleanupErr.message);
 
-    const { error } = await supabase
+    const { error } = await api
       .from("subjects")
       .delete()
       .eq("school_id", schoolId)

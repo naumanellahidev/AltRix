@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -68,7 +68,7 @@ export default function ParentComplaintsModule({ child, schoolId }: Props) {
 
   const load = async () => {
     if (!schoolId || !child) return;
-    const { data, error } = await (supabase as any)
+    const { data, error } = await (api as any)
       .from("complaints")
       .select(
         "id, subject, content, category, status, priority, rating, rating_comment, attachments, created_at, student_id, sender_user_id, resolution_note"
@@ -87,7 +87,7 @@ export default function ParentComplaintsModule({ child, schoolId }: Props) {
 
     const ids = Array.from(new Set(list.map((c) => c.sender_user_id)));
     if (ids.length) {
-      const { data: dir } = await supabase.rpc("get_school_user_directory", {
+      const { data: dir } = await api.rpc("get_school_user_directory", {
         _school_id: schoolId,
       });
       const map: Record<string, string> = {};
@@ -104,7 +104,7 @@ export default function ParentComplaintsModule({ child, schoolId }: Props) {
 
     if (!schoolId || !child?.student_id) return;
 
-    const complaintsChannel = supabase
+    const complaintsChannel = api
       .channel(`parent_complaints_changes:${schoolId}:${child.student_id}`)
       .on(
         "postgres_changes",
@@ -121,7 +121,7 @@ export default function ParentComplaintsModule({ child, schoolId }: Props) {
       .subscribe();
 
     return () => {
-      void supabase.removeChannel(complaintsChannel);
+      void api.removeChannel(complaintsChannel);
     };
   }, [schoolId, child?.student_id]);
 
@@ -149,7 +149,7 @@ export default function ParentComplaintsModule({ child, schoolId }: Props) {
     const note = responses[c.id]?.trim();
     if (!note) return toast.error("Write a response first");
     
-    const { error } = await (supabase as any)
+    const { error } = await (api as any)
       .from("complaints")
       .update({ resolution_note: note, status: "in_review" })
       .eq("id", c.id);
@@ -172,7 +172,7 @@ export default function ParentComplaintsModule({ child, schoolId }: Props) {
         });
       }
       
-      const { data: staffRoles } = await supabase
+      const { data: staffRoles } = await api
         .from("user_roles")
         .select("user_id")
         .eq("school_id", schoolId)
@@ -193,7 +193,7 @@ export default function ParentComplaintsModule({ child, schoolId }: Props) {
       });
 
       if (notifRows.length > 0) {
-        await supabase.from("app_notifications").insert(notifRows);
+        await api.from("app_notifications").insert(notifRows);
       }
     } catch (notifErr) {
       console.warn("Failed to notify teacher/principal:", notifErr);
@@ -208,7 +208,7 @@ export default function ParentComplaintsModule({ child, schoolId }: Props) {
     if (rating === 0) return toast.error("Please select a star rating first");
     setSubmittingFeedback(complaintId);
     
-    const { error } = await supabase
+    const { error } = await api
       .from("complaints")
       .update({
         rating: rating,

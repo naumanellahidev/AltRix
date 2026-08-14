@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { useSession } from "@/hooks/useSession";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -65,9 +65,9 @@ export default function ExamPublishDialog({
   const load = async () => {
     if (!open) return;
     const [p, s, st] = await Promise.all([
-      (supabase as any).from("exam_result_publications").select("*").eq("exam_id", examId).order("created_at", { ascending: false }),
-      (supabase as any).from("class_sections").select("id,name,academic_classes(name)").eq("school_id", schoolId),
-      (supabase as any).from("student_enrollments")
+      (api as any).from("exam_result_publications").select("*").eq("exam_id", examId).order("created_at", { ascending: false }),
+      (api as any).from("class_sections").select("id,name,academic_classes(name)").eq("school_id", schoolId),
+      (api as any).from("student_enrollments")
         .select("class_section_id,students!inner(id,first_name,last_name,school_id)")
         .eq("school_id", schoolId).is("end_date", null).limit(2000),
     ]);
@@ -92,15 +92,15 @@ export default function ExamPublishDialog({
       result_published: scheduled ? false : publish,
       result_published_at: scheduled ? null : publishAtIso,
     };
-    const { error } = await (supabase as any).from("exams").update(patch).eq("id", examId);
+    const { error } = await (api as any).from("exams").update(patch).eq("id", examId);
     if (error) return toast.error(error.message);
 
-    await (supabase as any)
+    await (api as any)
       .from("exam_result_publications")
       .delete()
       .eq("exam_id", examId)
       .eq("scope", "exam");
-    await (supabase as any).from("exam_result_publications").insert({
+    await (api as any).from("exam_result_publications").insert({
       school_id: schoolId, exam_id: examId, scope: "exam",
       is_published: publish,
       publish_at: publishAtIso,
@@ -110,7 +110,7 @@ export default function ExamPublishDialog({
     });
 
     if (!scheduled) {
-      const { data: notified } = await (supabase as any).rpc("notify_exam_result_publish", {
+      const { data: notified } = await (api as any).rpc("notify_exam_result_publish", {
         _exam_id: examId, _scope: "exam", _is_published: publish,
         _section_id: null, _student_id: null, _message: examNotes || null,
       });
@@ -127,13 +127,13 @@ export default function ExamPublishDialog({
     if (!secId) return toast.error("Pick a section");
     const publishAtIso = secAt ? new Date(secAt).toISOString() : null;
     const scheduled = isFuture(publishAtIso);
-    await (supabase as any)
+    await (api as any)
       .from("exam_result_publications")
       .delete()
       .eq("exam_id", examId)
       .eq("scope", "section")
       .eq("class_section_id", secId);
-    const { error } = await (supabase as any).from("exam_result_publications").insert({
+    const { error } = await (api as any).from("exam_result_publications").insert({
       school_id: schoolId, exam_id: examId, scope: "section",
       class_section_id: secId,
       is_published: secPublished,
@@ -144,7 +144,7 @@ export default function ExamPublishDialog({
     });
     if (error) return toast.error(error.message);
     if (!scheduled) {
-      const { data: notified } = await (supabase as any).rpc("notify_exam_result_publish", {
+      const { data: notified } = await (api as any).rpc("notify_exam_result_publish", {
         _exam_id: examId, _scope: "section", _is_published: secPublished,
         _section_id: secId, _student_id: null, _message: secNotes || null,
       });
@@ -160,13 +160,13 @@ export default function ExamPublishDialog({
     if (!studId) return toast.error("Pick a student");
     const publishAtIso = studAt ? new Date(studAt).toISOString() : null;
     const scheduled = isFuture(publishAtIso);
-    await (supabase as any)
+    await (api as any)
       .from("exam_result_publications")
       .delete()
       .eq("exam_id", examId)
       .eq("scope", "student")
       .eq("student_id", studId);
-    const { error } = await (supabase as any).from("exam_result_publications").insert({
+    const { error } = await (api as any).from("exam_result_publications").insert({
       school_id: schoolId, exam_id: examId, scope: "student",
       student_id: studId,
       is_published: studPublished,
@@ -177,7 +177,7 @@ export default function ExamPublishDialog({
     });
     if (error) return toast.error(error.message);
     if (!scheduled) {
-      const { data: notified } = await (supabase as any).rpc("notify_exam_result_publish", {
+      const { data: notified } = await (api as any).rpc("notify_exam_result_publish", {
         _exam_id: examId, _scope: "student", _is_published: studPublished,
         _section_id: null, _student_id: studId, _message: studNotes || null,
       });
@@ -191,7 +191,7 @@ export default function ExamPublishDialog({
 
 
   const removePub = async (id: string) => {
-    const { error } = await (supabase as any).from("exam_result_publications").delete().eq("id", id);
+    const { error } = await (api as any).from("exam_result_publications").delete().eq("id", id);
     if (error) return toast.error(error.message);
     toast.success("Rule removed");
     load();

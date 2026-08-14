@@ -1,5 +1,5 @@
 import axios from "axios";
-import { rawSupabase, setUseFastAPI, USE_FASTAPI } from "@/integrations/supabase/client";
+import { api, setUseFastAPI, USE_FASTAPI } from "@/lib/api";
 
 const getApiBaseUrl = (): string => {
   let raw = (import.meta.env.VITE_API_URL || "/api").trim().replace(/\/+$/, "");
@@ -72,7 +72,7 @@ apiClient.interceptors.request.use(
     try {
       const {
         data: { session },
-      } = await rawSupabase.auth.getSession();
+      } = await api.auth.getSession();
       
       if (session?.access_token) {
         config.headers.Authorization = `Bearer ${session.access_token}`;
@@ -140,8 +140,8 @@ apiClient.interceptors.response.use(
     if (error.response?.status === 401) {
       console.warn("Unauthorized API call. Attempting token refresh...");
       try {
-        // Triggering any auth operation on rawSupabase will auto-refresh if possible
-        const { data } = await rawSupabase.auth.getSession();
+        // Triggering any auth operation on api will auto-refresh if possible
+        const { data } = await api.auth.getSession();
         if (data.session?.access_token) {
           // Retry the failed request with the new token
           error.config.headers.Authorization = `Bearer ${data.session.access_token}`;
@@ -149,7 +149,7 @@ apiClient.interceptors.response.use(
         }
       } catch (refreshError) {
         console.error("Token refresh failed, logging out:", refreshError);
-        await rawSupabase.auth.signOut();
+        await api.auth.signOut();
         window.location.href = "/auth";
       }
     }

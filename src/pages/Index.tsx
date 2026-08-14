@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { SpotlightBackdrop } from "@/components/visual/SpotlightBackdrop";
 import { AltrixLogo } from "@/components/AltrixLogo";
-import { supabase, rawSupabase } from "@/integrations/supabase/client";
+import { api, api } from "@/lib/api";
 import { useTenant } from "@/hooks/useTenant";
 import { MASTER_SUPER_ADMIN_EMAIL } from "@/hooks/usePlatformSuperAdmin";
 import { type EduverseRole } from "@/lib/eduverse-roles";
@@ -131,15 +131,15 @@ const Index = () => {
   const routeUserAfterLogin = async (userId: string) => {
     if (tenant.status !== "ready") {
       showError("Institute not found. Please check the institute code.");
-      await supabase.auth.signOut();
+      await api.auth.signOut();
       return;
     }
     const schoolId = tenant.schoolId;
 
-    const { data: authUser } = await supabase.auth.getUser();
+    const { data: authUser } = await api.auth.getUser();
     const signedInEmail = authUser.user?.email?.toLowerCase() ?? null;
     if (signedInEmail === MASTER_SUPER_ADMIN_EMAIL) {
-      const { data: psa } = await supabase
+      const { data: psa } = await api
         .from("platform_super_admins")
         .select("user_id")
         .eq("user_id", userId)
@@ -151,13 +151,13 @@ const Index = () => {
     }
 
     const [{ data: membership }, { data: rolesData }] = await Promise.all([
-      supabase
+      api
         .from("school_memberships")
         .select("id")
         .eq("school_id", schoolId)
         .eq("user_id", userId)
         .maybeSingle(),
-      supabase
+      api
         .from("user_roles")
         .select("role")
         .eq("school_id", schoolId)
@@ -169,14 +169,14 @@ const Index = () => {
 
     if (!isMember) {
       showError("Your account is not a member of this institute.");
-      await supabase.auth.signOut();
+      await api.auth.signOut();
       return;
     }
     const destRole = resolveDestinationRole(roles);
 
     if (!destRole) {
       showError("No role assigned to your account for this institute. Contact an administrator.");
-      await supabase.auth.signOut();
+      await api.auth.signOut();
       return;
     }
 
@@ -186,7 +186,7 @@ const Index = () => {
   const handleResendVerifyEmailOtp = async (targetEmail: string) => {
     setIsResendingOtp(true);
     try {
-      const { error } = await supabase.auth.resend({
+      const { error } = await api.auth.resend({
         type: 'signup',
         email: targetEmail,
       });
@@ -206,7 +206,7 @@ const Index = () => {
     setIsVerificationPending(true);
     setOtpError(null);
     try {
-      const { data, error } = await supabase.auth.verifyOtp({
+      const { data, error } = await api.auth.verifyOtp({
         email: email.trim().toLowerCase(),
         token: code,
         type: 'signup',
@@ -253,7 +253,7 @@ const Index = () => {
           password: password,
         });
         if (resp.data?.access_token) {
-          const { data: sessData } = await rawSupabase.auth.setSession({
+          const { data: sessData } = await api.auth.setSession({
             access_token: resp.data.access_token,
             refresh_token: resp.data.refresh_token,
           });
@@ -270,7 +270,7 @@ const Index = () => {
       }
 
       // 2. Fallback to Supabase direct auth
-      const { data, error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await api.auth.signInWithPassword({
         email: parsedEmail.data,
         password,
       });
@@ -315,7 +315,7 @@ const Index = () => {
     setBusy(true);
     try {
       // Use our custom send-otp edge function (Resend REST API — no SMTP/domain required)
-      const { data, error } = await supabase.functions.invoke<{ ok: boolean; error?: string; code?: string; cooldownSeconds?: number }>("send-otp", {
+      const { data, error } = await api.functions.invoke<{ ok: boolean; error?: string; code?: string; cooldownSeconds?: number }>("send-otp", {
         body: { email: parsedEmail.data, purpose: "password_reset" },
       });
       if (error || !data?.ok) {
@@ -347,7 +347,7 @@ const Index = () => {
     }
     try {
       // Verify OTP against our custom table → get a hashed_token back
-      const { data, error } = await supabase.functions.invoke<{
+      const { data, error } = await api.functions.invoke<{
         ok: boolean;
         action?: "token" | "confirmed";
         token?: string;
@@ -369,7 +369,7 @@ const Index = () => {
         showSuccess("Code verified! Taking you to reset your password...");
 
         // Exchange the hashed_token for a PASSWORD_RECOVERY session (no redirect URL needed)
-        const { error: verifyErr } = await supabase.auth.verifyOtp({
+        const { error: verifyErr } = await api.auth.verifyOtp({
           token_hash: data.token,
           type: "recovery",
         });

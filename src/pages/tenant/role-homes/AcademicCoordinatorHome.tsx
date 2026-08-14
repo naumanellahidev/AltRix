@@ -12,7 +12,7 @@ import {
   GraduationCap, LayoutGrid, NotebookPen, School, Sparkles, Users, AlertTriangle,
 } from "lucide-react";
 
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { useTenant } from "@/hooks/useTenant";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -45,29 +45,29 @@ export function AcademicCoordinatorHome() {
         attendanceSessions, attendanceEntries,
         exams, timetable, diary, behavior,
       ] = await Promise.all([
-        supabase.from("students").select("id", { count: "exact", head: true })
+        api.from("students").select("id", { count: "exact", head: true })
           .eq("school_id", schoolId!).eq("status", "active"),
-        supabase.from("academic_classes").select("id", { count: "exact", head: true })
+        api.from("academic_classes").select("id", { count: "exact", head: true })
           .eq("school_id", schoolId!),
-        supabase.from("class_sections").select("id, name, class_id")
+        api.from("class_sections").select("id, name, class_id")
           .eq("school_id", schoolId!),
-        supabase.from("user_roles").select("id", { count: "exact", head: true })
+        api.from("user_roles").select("id", { count: "exact", head: true })
           .eq("school_id", schoolId!).eq("role", "teacher"),
-        supabase.from("attendance_sessions").select("id, class_section_id, session_date, period_label")
+        api.from("attendance_sessions").select("id, class_section_id, session_date, period_label")
           .eq("school_id", schoolId!).eq("session_date", todayDate),
-        supabase.from("attendance_entries").select("status, created_at")
+        api.from("attendance_entries").select("status, created_at")
           .eq("school_id", schoolId!).gte("created_at", dayStart).lte("created_at", dayEnd),
-        supabase.from("exams").select("id, name, start_date, end_date, status, term_label")
+        api.from("exams").select("id, name, start_date, end_date, status, term_label")
           .eq("school_id", schoolId!).gte("end_date", todayDate)
           .order("start_date", { ascending: true }).limit(6),
-        supabase.from("timetable_entries")
+        api.from("timetable_entries")
           .select("id, subject_name, room, start_time, end_time, day_of_week, class_section_id, teacher_user_id")
           .eq("school_id", schoolId!).eq("day_of_week", dow).eq("is_published", true)
           .order("start_time", { ascending: true }),
-        supabase.from("diary_entries")
+        api.from("diary_entries")
           .select("id, title, created_at, class_section_id")
           .eq("school_id", schoolId!).order("created_at", { ascending: false }).limit(5),
-        supabase.from("behavior_notes")
+        api.from("behavior_notes")
           .select("id, title, note_type, created_at, student_id, students:student_id(first_name,last_name)")
           .eq("school_id", schoolId!).in("note_type", ["incident","concern"])
           .order("created_at", { ascending: false }).limit(5),
@@ -93,7 +93,7 @@ export function AcademicCoordinatorHome() {
 
   useEffect(() => {
     if (!schoolId) return;
-    const ch = supabase.channel(`coord-home-${schoolId}`)
+    const ch = api.channel(`coord-home-${schoolId}`)
       .on("postgres_changes",
         { event: "*", schema: "public", table: "attendance_entries", filter: `school_id=eq.${schoolId}` },
         () => qc.invalidateQueries({ queryKey: ["coordinator-home", schoolId] }))
@@ -101,7 +101,7 @@ export function AcademicCoordinatorHome() {
         { event: "*", schema: "public", table: "diary_entries", filter: `school_id=eq.${schoolId}` },
         () => qc.invalidateQueries({ queryKey: ["coordinator-home", schoolId] }))
       .subscribe();
-    return () => { supabase.removeChannel(ch); };
+    return () => { api.removeChannel(ch); };
   }, [schoolId, qc]);
 
   const attendance = useMemo(() => {

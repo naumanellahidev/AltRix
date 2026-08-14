@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { apiClient } from "@/lib/api-client";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   BarChart, Bar, Legend, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar
@@ -70,11 +70,11 @@ export default function OwnerInsightsDashboard() {
       
       // 2. Fetch live data from Supabase in parallel
       const [stuRes, payRes, teachRes, markRes, compRes] = await Promise.all([
-        supabase.from("students").select("id, status, created_at").catch(() => ({ data: [] })),
-        supabase.from("fee_payments").select("amount, paid_at, status").catch(() => ({ data: [] })),
-        supabase.from("teachers").select("id, full_name, designation").catch(() => ({ data: [] })),
-        supabase.from("student_marks").select("marks, subject_id").catch(() => ({ data: [] })),
-        supabase.from("complaints").select("id, status, category").catch(() => ({ data: [] })),
+        api.from("students").select("id, status, created_at").catch(() => ({ data: [] })),
+        api.from("fee_payments").select("amount, paid_at, status").catch(() => ({ data: [] })),
+        api.from("teachers").select("id, full_name, designation").catch(() => ({ data: [] })),
+        api.from("student_marks").select("marks, subject_id").catch(() => ({ data: [] })),
+        api.from("complaints").select("id, status, category").catch(() => ({ data: [] })),
       ]);
 
       const students = stuRes.data || [];

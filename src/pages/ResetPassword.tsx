@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { z } from "zod";
 import { KeyRound, CheckCircle2, AlertCircle, Mail, RefreshCw, Timer, Eye, EyeOff } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -83,18 +83,18 @@ const ResetPassword = () => {
       setReady(true);
     };
 
-    const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
+    const { data: sub } = api.auth.onAuthStateChange((event, session) => {
       if (event === "PASSWORD_RECOVERY" || (event === "SIGNED_IN" && session)) {
         void activate(session?.expires_at ?? null);
       }
     });
 
     (async () => {
-      const { data } = await supabase.auth.getSession();
+      const { data } = await api.auth.getSession();
       if (data.session) await activate(data.session.expires_at ?? null);
       else {
         setTimeout(async () => {
-          const { data: d2 } = await supabase.auth.getSession();
+          const { data: d2 } = await api.auth.getSession();
           if (d2.session) await activate(d2.session.expires_at ?? null);
           else setExpired("This password reset link is invalid or has expired. Please request a new one.");
         }, 900);
@@ -145,14 +145,14 @@ const ResetPassword = () => {
     }
     setBusy(true);
     try {
-      const { error } = await supabase.auth.updateUser({ password });
+      const { error } = await api.auth.updateUser({ password });
       if (error) {
         toast.error(error.message);
         return;
       }
       setDone(true);
       toast.success("Password updated. You can now sign in.");
-      await supabase.auth.signOut();
+      await api.auth.signOut();
       setTimeout(() => navigate(returnTo, { replace: true }), 1600);
     } finally {
       setBusy(false);

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { useTenant } from "@/hooks/useTenant";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -133,7 +133,7 @@ export function InquiriesModule() {
     setLoading(true);
     try {
       // 1. Load settings
-      const { data: settingsData, error: settingsErr } = await supabase
+      const { data: settingsData, error: settingsErr } = await api
         .from("school_inquiry_settings")
         .select("*")
         .eq("school_id", schoolId)
@@ -143,7 +143,7 @@ export function InquiriesModule() {
       setSettings(settingsData ? (settingsData as any) : DEFAULT_SETTINGS(schoolId));
 
       // 2. Load CRM leads (inquiries)
-      const { data: leadsData, error: leadsErr } = await supabase
+      const { data: leadsData, error: leadsErr } = await api
         .from("crm_leads")
         .select("*")
         .eq("school_id", schoolId)
@@ -152,7 +152,7 @@ export function InquiriesModule() {
       if (leadsErr) throw leadsErr;
 
       // 3. Load active counselors / staff members
-      const { data: counselorData } = await supabase
+      const { data: counselorData } = await api
         .from("user_roles")
         .select("user_id, profiles(full_name)")
         .eq("school_id", schoolId)
@@ -190,7 +190,7 @@ export function InquiriesModule() {
     if (!schoolId) return;
 
     // Realtime channel for settings
-    const settingsChannel = supabase
+    const settingsChannel = api
       .channel("inquiry-settings-realtime")
       .on(
         "postgres_changes",
@@ -205,7 +205,7 @@ export function InquiriesModule() {
       .subscribe();
 
     // Realtime channel for leads
-    const leadsChannel = supabase
+    const leadsChannel = api
       .channel("crm-leads-realtime")
       .on(
         "postgres_changes",
@@ -220,8 +220,8 @@ export function InquiriesModule() {
       .subscribe();
 
     return () => {
-      supabase.removeChannel(settingsChannel);
-      supabase.removeChannel(leadsChannel);
+      api.removeChannel(settingsChannel);
+      api.removeChannel(leadsChannel);
     };
   }, [schoolId]);
 
@@ -237,13 +237,13 @@ export function InquiriesModule() {
 
       let err = null;
       if (updatedSettings.id) {
-        const { error } = await supabase
+        const { error } = await api
           .from("school_inquiry_settings")
           .update(payload)
           .eq("id", updatedSettings.id);
         err = error;
       } else {
-        const { error } = await supabase
+        const { error } = await api
           .from("school_inquiry_settings")
           .insert(payload);
         err = error;
@@ -269,7 +269,7 @@ export function InquiriesModule() {
     }
     setCreatingLead(true);
     try {
-      const { error } = await supabase
+      const { error } = await api
         .from("crm_leads")
         .insert({
           school_id: schoolId,
@@ -306,7 +306,7 @@ export function InquiriesModule() {
     if (!editingLead || !schoolId) return;
     setSavingLead(true);
     try {
-      const { error } = await supabase
+      const { error } = await api
         .from("crm_leads")
         .update({
           full_name: editingLead.full_name,
@@ -336,7 +336,7 @@ export function InquiriesModule() {
   const handleDeleteLead = async (id: string) => {
     if (!confirm("Are you sure you want to delete this admissions lead/inquiry?")) return;
     try {
-      const { error } = await supabase
+      const { error } = await api
         .from("crm_leads")
         .delete()
         .eq("id", id);

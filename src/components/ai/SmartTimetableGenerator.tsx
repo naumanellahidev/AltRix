@@ -26,7 +26,7 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { format } from "date-fns";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -47,7 +47,7 @@ import {
 } from "@/components/ui/collapsible";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import type { Json } from "@/integrations/supabase/types";
+import type { Json } from "@/integrations/api/types";
 
 interface Props {
   schoolId: string;
@@ -97,7 +97,7 @@ export function SmartTimetableGenerator({ schoolId }: Props) {
   const { data: sections, isLoading: loadingSections } = useQuery({
     queryKey: ["class_sections_for_timetable", schoolId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await api
         .from("class_sections")
         .select(`
           id,
@@ -122,7 +122,7 @@ export function SmartTimetableGenerator({ schoolId }: Props) {
   const { data: suggestions, isLoading: loadingSuggestions } = useQuery({
     queryKey: ["ai_timetable_suggestions", schoolId, selectedSection],
     queryFn: async () => {
-      let query = (supabase as any)
+      let query = (api as any)
         .from("ai_timetable_suggestions")
         .select("*")
         .eq("school_id", schoolId)
@@ -144,7 +144,7 @@ export function SmartTimetableGenerator({ schoolId }: Props) {
   const { data: teachers } = useQuery({
     queryKey: ["teachers_list", schoolId],
     queryFn: async () => {
-      const { data: rolesData, error: rolesError } = await supabase
+      const { data: rolesData, error: rolesError } = await api
         .from("user_roles")
         .select("user_id")
         .eq("school_id", schoolId)
@@ -155,7 +155,7 @@ export function SmartTimetableGenerator({ schoolId }: Props) {
       const teacherIds = (rolesData || []).map((r) => r.user_id);
       if (teacherIds.length === 0) return [];
 
-      const { data: profilesData, error: profilesError } = await supabase
+      const { data: profilesData, error: profilesError } = await api
         .from("profiles")
         .select("id, display_name")
         .in("id", teacherIds);
@@ -179,7 +179,7 @@ export function SmartTimetableGenerator({ schoolId }: Props) {
   const { data: subjects } = useQuery({
     queryKey: ["subjects_list", schoolId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await api
         .from("subjects")
         .select("id, name, code")
         .eq("school_id", schoolId);
@@ -204,7 +204,7 @@ export function SmartTimetableGenerator({ schoolId }: Props) {
       // Call remote Edge Function first to trigger the baseline AI model
       let remoteData: any = null;
       try {
-        const { data, error } = await supabase.functions.invoke("ai-timetable-generator", {
+        const { data, error } = await api.functions.invoke("ai-timetable-generator", {
           body: {
             schoolId,
             classSectionId: selectedSection || null,
@@ -227,13 +227,13 @@ export function SmartTimetableGenerator({ schoolId }: Props) {
         rolesRes,
         subjectsRes
       ] = await Promise.all([
-        supabase.from("class_section_subjects").select("*").eq("school_id", schoolId),
-        supabase.from("teacher_subject_assignments").select("*").eq("school_id", schoolId),
-        supabase.from("teacher_assignments").select("*").eq("school_id", schoolId),
-        supabase.from("timetable_periods").select("*").eq("school_id", schoolId).order("sort_order"),
-        supabase.from("timetable_entries").select("*").eq("school_id", schoolId),
-        supabase.from("user_roles").select("user_id").eq("school_id", schoolId).eq("role", "teacher"),
-        supabase.from("subjects").select("id, name, code").eq("school_id", schoolId)
+        api.from("class_section_subjects").select("*").eq("school_id", schoolId),
+        api.from("teacher_subject_assignments").select("*").eq("school_id", schoolId),
+        api.from("teacher_assignments").select("*").eq("school_id", schoolId),
+        api.from("timetable_periods").select("*").eq("school_id", schoolId).order("sort_order"),
+        api.from("timetable_entries").select("*").eq("school_id", schoolId),
+        api.from("user_roles").select("user_id").eq("school_id", schoolId).eq("role", "teacher"),
+        api.from("subjects").select("id, name, code").eq("school_id", schoolId)
       ]);
 
       if (classSectionSubjectsRes.error) throw classSectionSubjectsRes.error;
@@ -249,7 +249,7 @@ export function SmartTimetableGenerator({ schoolId }: Props) {
       const teacherIds = (rolesRes.data || []).map(r => r.user_id);
       let teacherProfiles: any[] = [];
       if (teacherIds.length > 0) {
-        const { data: profData, error: profErr } = await supabase
+        const { data: profData, error: profErr } = await api
           .from("profiles")
           .select("id, display_name")
           .in("id", teacherIds);
@@ -652,9 +652,9 @@ export function SmartTimetableGenerator({ schoolId }: Props) {
         return { mock: true };
       }
       try {
-        const { data: { user } } = await supabase.auth.getUser();
+        const { data: { user } } = await api.auth.getUser();
         
-        const { error } = await (supabase as any)
+        const { error } = await (api as any)
           .from("ai_timetable_suggestions")
           .update({
             status: "approved",
@@ -739,7 +739,7 @@ export function SmartTimetableGenerator({ schoolId }: Props) {
       const isSchoolWide = !suggestion.class_section_id;
 
       // Fetch periods to map P1.. -> period_id
-      const { data: periodsData, error: pErr } = await supabase
+      const { data: periodsData, error: pErr } = await api
         .from("timetable_periods")
         .select("id,sort_order,start_time,end_time,is_break")
         .eq("school_id", schoolId)
@@ -752,13 +752,13 @@ export function SmartTimetableGenerator({ schoolId }: Props) {
 
       // Clear existing entries
       if (isSchoolWide) {
-        const { error: delErr } = await supabase
+        const { error: delErr } = await api
           .from("timetable_entries")
           .delete()
           .eq("school_id", schoolId);
         if (delErr) throw delErr;
       } else {
-        const { error: delErr } = await supabase
+        const { error: delErr } = await api
           .from("timetable_entries")
           .delete()
           .eq("school_id", schoolId)
@@ -767,7 +767,7 @@ export function SmartTimetableGenerator({ schoolId }: Props) {
       }
 
       // Resolve teachers by display_name → user_id
-      const { data: rolesData, error: rolesError } = await supabase
+      const { data: rolesData, error: rolesError } = await api
         .from("user_roles")
         .select("user_id")
         .eq("school_id", schoolId)
@@ -778,7 +778,7 @@ export function SmartTimetableGenerator({ schoolId }: Props) {
       const teacherIds = (rolesData || []).map((r) => r.user_id);
       let teacherProfiles: any[] = [];
       if (teacherIds.length > 0) {
-        const { data: profilesData, error: profilesError } = await supabase
+        const { data: profilesData, error: profilesError } = await api
           .from("profiles")
           .select("id, display_name")
           .in("id", teacherIds);
@@ -867,7 +867,7 @@ export function SmartTimetableGenerator({ schoolId }: Props) {
       }
 
       if (inserts.length) {
-        const { error: insErr } = await supabase.from("timetable_entries").insert(inserts);
+        const { error: insErr } = await api.from("timetable_entries").insert(inserts);
         if (insErr) throw insErr;
       }
     },
@@ -885,7 +885,7 @@ export function SmartTimetableGenerator({ schoolId }: Props) {
   const { data: dbPeriods } = useQuery({
     queryKey: ["timetable_periods", schoolId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await api
         .from("timetable_periods")
         .select("*")
         .eq("school_id", schoolId)

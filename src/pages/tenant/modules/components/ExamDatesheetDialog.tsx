@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { useSession } from "@/hooks/useSession";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -61,7 +61,7 @@ export default function ExamDatesheetDialog({ open, onOpenChange, schoolId, exam
 
 
   const loadConflicts = async () => {
-    const { data } = await (supabase as any).rpc("check_exam_subject_conflicts", { _school_id: schoolId, _exam_id: examId });
+    const { data } = await (api as any).rpc("check_exam_subject_conflicts", { _school_id: schoolId, _exam_id: examId });
     setConflicts(data || []);
   };
 
@@ -69,11 +69,11 @@ export default function ExamDatesheetDialog({ open, onOpenChange, schoolId, exam
     if (!open) return;
     setLoading(true);
     const [subs, secs, ds, dir, sch] = await Promise.all([
-      (supabase as any).from("subjects").select("id,name").eq("school_id", schoolId).order("name"),
-      (supabase as any).from("class_sections").select("id,name,class_id,academic_classes(name)").eq("school_id", schoolId),
-      (supabase as any).from("exam_subjects").select("*").eq("exam_id", examId).order("exam_date").order("start_time"),
-      (supabase as any).rpc("get_school_user_directory", { _school_id: schoolId }),
-      (supabase as any).from("schools").select("name").eq("id", schoolId).maybeSingle(),
+      (api as any).from("subjects").select("id,name").eq("school_id", schoolId).order("name"),
+      (api as any).from("class_sections").select("id,name,class_id,academic_classes(name)").eq("school_id", schoolId),
+      (api as any).from("exam_subjects").select("*").eq("exam_id", examId).order("exam_date").order("start_time"),
+      (api as any).rpc("get_school_user_directory", { _school_id: schoolId }),
+      (api as any).from("schools").select("name").eq("id", schoolId).maybeSingle(),
     ]);
     setSubjects(subs.data || []);
     setSections((secs.data || []).map((s: any) => ({ id: s.id, name: s.name, class_name: s.academic_classes?.name })));
@@ -92,7 +92,7 @@ export default function ExamDatesheetDialog({ open, onOpenChange, schoolId, exam
   }, [conflicts]);
 
   const addRow = async () => {
-    const { data, error } = await (supabase as any)
+    const { data, error } = await (api as any)
       .from("exam_subjects")
       .insert({ school_id: schoolId, exam_id: examId, max_marks: 100, passing_marks: 40, duration_minutes: 60 })
       .select().single();
@@ -111,10 +111,10 @@ export default function ExamDatesheetDialog({ open, onOpenChange, schoolId, exam
     try {
       // Resolve subjects linked to this section (try section_subjects then class_section_subjects)
       let subjIds: string[] = [];
-      const ss = await (supabase as any).from("section_subjects").select("subject_id").eq("class_section_id", addSection);
+      const ss = await (api as any).from("section_subjects").select("subject_id").eq("class_section_id", addSection);
       if (!ss.error && ss.data?.length) subjIds = ss.data.map((x: any) => x.subject_id);
       if (subjIds.length === 0) {
-        const css = await (supabase as any).from("class_section_subjects").select("subject_id").eq("class_section_id", addSection);
+        const css = await (api as any).from("class_section_subjects").select("subject_id").eq("class_section_id", addSection);
         if (!css.error && css.data?.length) subjIds = css.data.map((x: any) => x.subject_id);
       }
       if (subjIds.length === 0) {
@@ -132,7 +132,7 @@ export default function ExamDatesheetDialog({ open, onOpenChange, schoolId, exam
           subject_id, max_marks: 100, passing_marks: 40, duration_minutes: 60,
         }));
       if (toInsert.length === 0) { toast.info("All subjects for this section are already on the datesheet."); setAddOpen(false); return; }
-      const { data, error } = await (supabase as any).from("exam_subjects").insert(toInsert).select();
+      const { data, error } = await (api as any).from("exam_subjects").insert(toInsert).select();
       if (error) throw error;
       setRows((r) => [...r, ...(data || [])]);
       toast.success(`Added ${data?.length || 0} paper${(data?.length || 0) !== 1 ? "s" : ""}`);
@@ -145,13 +145,13 @@ export default function ExamDatesheetDialog({ open, onOpenChange, schoolId, exam
 
   const updateRow = async (id: string, patch: Partial<Row>) => {
     setRows((r) => r.map((x) => (x.id === id ? { ...x, ...patch } : x)));
-    const { error } = await (supabase as any).from("exam_subjects").update(patch).eq("id", id);
+    const { error } = await (api as any).from("exam_subjects").update(patch).eq("id", id);
     if (error) toast.error(error.message);
     else loadConflicts();
   };
 
   const remove = async (id: string) => {
-    const { error } = await (supabase as any).from("exam_subjects").delete().eq("id", id);
+    const { error } = await (api as any).from("exam_subjects").delete().eq("id", id);
     if (error) return toast.error(error.message);
     setRows((r) => r.filter((x) => x.id !== id));
     toast.success("Paper removed");
@@ -186,7 +186,7 @@ export default function ExamDatesheetDialog({ open, onOpenChange, schoolId, exam
     try {
       const sectionIds = Array.from(new Set(rows.map((r) => r.class_section_id).filter(Boolean))) as string[];
       if (sectionIds.length === 0) { toast.error("No papers with sections assigned"); return; }
-      const { data: enrolls, error: eErr } = await (supabase as any)
+      const { data: enrolls, error: eErr } = await (api as any)
         .from("student_enrollments")
         .select("student_id,class_section_id,students!inner(id,first_name,last_name,student_code,school_id)")
         .in("class_section_id", sectionIds)
@@ -213,11 +213,11 @@ export default function ExamDatesheetDialog({ open, onOpenChange, schoolId, exam
           }, { fields, includePaperQR: paperQR, includeHallTicketQR: hallTicketQR }, lookups);
           const blob = doc.output("blob");
           const path = `${schoolId}/${examId}/${en.student_id}.pdf`;
-          const { error: upErr } = await (supabase as any).storage.from("exam-datesheets").upload(path, blob, {
+          const { error: upErr } = await (api as any).storage.from("exam-datesheets").upload(path, blob, {
             upsert: true, contentType: "application/pdf",
           });
           if (upErr) throw upErr;
-          const { error: distErr } = await (supabase as any).from("exam_datesheet_distributions").upsert({
+          const { error: distErr } = await (api as any).from("exam_datesheet_distributions").upsert({
             school_id: schoolId, exam_id: examId, student_id: en.student_id,
             class_section_id: en.class_section_id, file_path: path, generated_by: user?.id ?? null,
             generated_at: new Date().toISOString(),
@@ -237,7 +237,7 @@ export default function ExamDatesheetDialog({ open, onOpenChange, schoolId, exam
       let notified = 0;
       if (success > 0 && !scheduleAt) {
         for (const sectionId of Array.from(completedSections)) {
-          const { data: count, error: notifyErr } = await (supabase as any).rpc("notify_exam_datesheet_ready", {
+          const { data: count, error: notifyErr } = await (api as any).rpc("notify_exam_datesheet_ready", {
             _exam_id: examId,
             _class_section_id: sectionId,
           });
@@ -259,7 +259,7 @@ export default function ExamDatesheetDialog({ open, onOpenChange, schoolId, exam
   // Scheduled distributions list
   const [schedules, setSchedules] = useState<any[]>([]);
   const loadSchedules = async () => {
-    const { data } = await (supabase as any)
+    const { data } = await (api as any)
       .from("exam_datesheet_distributions")
       .select("id,student_id,notify_at,notified_at,class_section_id,students(first_name,last_name)")
       .eq("exam_id", examId)
@@ -268,13 +268,13 @@ export default function ExamDatesheetDialog({ open, onOpenChange, schoolId, exam
   };
   useEffect(() => { if (open) loadSchedules(); /* eslint-disable-next-line */ }, [open, examId]);
   const updateSchedule = async (id: string, notify_at: string | null) => {
-    const { error } = await (supabase as any).from("exam_datesheet_distributions")
+    const { error } = await (api as any).from("exam_datesheet_distributions")
       .update({ notify_at: notify_at ? new Date(notify_at).toISOString() : null, notified_at: null }).eq("id", id);
     if (error) return toast.error(error.message);
     toast.success("Schedule updated"); loadSchedules();
   };
   const cancelSchedule = async (id: string) => {
-    const { error } = await (supabase as any).from("exam_datesheet_distributions")
+    const { error } = await (api as any).from("exam_datesheet_distributions")
       .update({ notify_at: null }).eq("id", id);
     if (error) return toast.error(error.message);
     toast.success("Schedule cancelled"); loadSchedules();

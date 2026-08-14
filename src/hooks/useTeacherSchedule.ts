@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { supabase, USE_FASTAPI, setUseFastAPI } from "@/integrations/supabase/client";
+import { api, USE_FASTAPI, setUseFastAPI } from "@/lib/api";
 import { apiClient, isNetworkOrProxyError } from "@/lib/api-client";
 import { getCachedTimetable, cacheTimetable, CachedTimetableEntry } from "@/lib/offline-db";
 
@@ -148,7 +148,7 @@ export function useTeacherSchedule(
         let logsMap = new Map<string, PeriodLog>();
 
         // Get current user
-        const { data: userData, error: userError } = await supabase.auth.getUser();
+        const { data: userData, error: userError } = await api.auth.getUser();
         if (userError || !userData.user) {
           throw new Error("Not authenticated");
         }
@@ -156,7 +156,7 @@ export function useTeacherSchedule(
 
         const runSupabaseSchedule = async () => {
           // Fetch periods for this school
-          const { data: periods, error: periodsError } = await supabase
+          const { data: periods, error: periodsError } = await api
             .from("timetable_periods")
             .select("id, label, sort_order, start_time, end_time, is_break")
             .eq("school_id", schoolId)
@@ -176,7 +176,7 @@ export function useTeacherSchedule(
           });
 
           // Fetch timetable entries for this teacher on the selected day
-          const { data: timetableEntries, error: entriesError } = await supabase
+          const { data: timetableEntries, error: entriesError } = await api
             .from("timetable_entries")
             .select(`
               id,
@@ -200,7 +200,7 @@ export function useTeacherSchedule(
           
           let sectionMap = new Map<string, string>();
           if (sectionIds.length > 0) {
-            const { data: sections } = await supabase
+            const { data: sections } = await api
               .from("class_sections")
               .select("id, name, academic_classes(name)")
               .in("id", sectionIds);
@@ -237,7 +237,7 @@ export function useTeacherSchedule(
           const entryIds = enrichedEntries.map((e) => e.id);
           
           if (entryIds.length > 0) {
-            const { data: logs } = await (supabase as any)
+            const { data: logs } = await (api as any)
               .from("teacher_period_logs")
               .select("id, timetable_entry_id, status, notes, topic_covered")
               .eq("teacher_user_id", userId)

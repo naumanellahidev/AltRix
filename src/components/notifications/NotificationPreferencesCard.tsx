@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -42,14 +42,14 @@ export function NotificationPreferencesCard({ schoolId }: Props) {
     setLoading(true);
 
     // Get current user's children
-    const { data: user } = await supabase.auth.getUser();
+    const { data: user } = await api.auth.getUser();
     if (!user.user) {
       setLoading(false);
       return;
     }
 
     // Get children via student_guardians
-    const { data: guardianLinks } = await supabase
+    const { data: guardianLinks } = await api
       .from("student_guardians")
       .select("student_id")
       .eq("user_id", user.user.id);
@@ -62,7 +62,7 @@ export function NotificationPreferencesCard({ schoolId }: Props) {
     const studentIds = guardianLinks.map((g) => g.student_id);
 
     // Get student details
-    const { data: students } = await supabase
+    const { data: students } = await api
       .from("students")
       .select("id, first_name, last_name")
       .in("id", studentIds)
@@ -71,7 +71,7 @@ export function NotificationPreferencesCard({ schoolId }: Props) {
     setChildren(students || []);
 
     // Get existing preferences
-    const { data: prefs } = await (supabase as any)
+    const { data: prefs } = await (api as any)
       .from("parent_notification_preferences")
       .select("*")
       .eq("user_id", user.user.id)
@@ -93,14 +93,14 @@ export function NotificationPreferencesCard({ schoolId }: Props) {
   ) => {
     setSaving(studentId + field);
 
-    const { data: user } = await supabase.auth.getUser();
+    const { data: user } = await api.auth.getUser();
     if (!user.user) return;
 
     const existing = preferences.get(studentId);
 
     if (existing) {
       // Update existing
-      const { error } = await (supabase as any)
+      const { error } = await (api as any)
         .from("parent_notification_preferences")
         .update({ [field]: value })
         .eq("id", existing.id);
@@ -128,7 +128,7 @@ export function NotificationPreferencesCard({ schoolId }: Props) {
         low_grade_threshold: 60,
       };
 
-      const { data, error } = await (supabase as any)
+      const { data, error } = await (api as any)
         .from("parent_notification_preferences")
         .insert(newPref)
         .select()
@@ -152,13 +152,13 @@ export function NotificationPreferencesCard({ schoolId }: Props) {
   const updateThreshold = async (studentId: string, value: number) => {
     setSaving(studentId + "threshold");
 
-    const { data: user } = await supabase.auth.getUser();
+    const { data: user } = await api.auth.getUser();
     if (!user.user) return;
 
     const existing = preferences.get(studentId);
 
     if (existing) {
-      const { error } = await (supabase as any)
+      const { error } = await (api as any)
         .from("parent_notification_preferences")
         .update({ low_grade_threshold: value })
         .eq("id", existing.id);
@@ -186,7 +186,7 @@ export function NotificationPreferencesCard({ schoolId }: Props) {
         low_grade_threshold: value,
       };
 
-      const { data, error } = await (supabase as any)
+      const { data, error } = await (api as any)
         .from("parent_notification_preferences")
         .insert(newPref)
         .select()

@@ -9,7 +9,7 @@ import { Brain, Users, AlertTriangle, TrendingUp } from "lucide-react";
 import { TeacherPerformanceAnalyzer } from "@/components/ai/TeacherPerformanceAnalyzer";
 import { EarlyWarningSystem } from "@/components/ai/EarlyWarningSystem";
 import { Button } from "@/components/ui/button";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 
 export function TeacherAIModule() {
   const { schoolSlug } = useParams();
@@ -45,10 +45,10 @@ export function TeacherAIModule() {
               if (!user?.id) return;
               // Generate latest AI artifacts
               await Promise.allSettled([
-                supabase.functions.invoke("ai-teacher-analyzer", {
+                api.functions.invoke("ai-teacher-analyzer", {
                   body: { schoolId, teacherUserId: user.id },
                 }),
-                supabase.functions.invoke("ai-early-warning", {
+                api.functions.invoke("ai-early-warning", {
                   body: { schoolId },
                 }),
               ]);

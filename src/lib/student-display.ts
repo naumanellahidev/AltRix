@@ -1,4 +1,4 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { SupabaseClient } from "@/lib/api";
 
 type StudentRow = { id: string; first_name: string | null; last_name: string | null };
 type EnrollmentRow = { student_id: string; class_section_id: string; start_date: string; end_date: string | null };
@@ -11,21 +11,21 @@ function formatName(first: string | null, last: string | null) {
 }
 
 export async function fetchStudentLabelMap(
-  supabase: SupabaseClient,
+  api: SupabaseClient,
   opts: { schoolId?: string; studentIds: string[] }
 ): Promise<Record<string, string>> {
   const studentIds = Array.from(new Set(opts.studentIds)).filter(Boolean);
   if (studentIds.length === 0) return {};
 
   // Students
-  let studentsQuery = supabase.from("students").select("id,first_name,last_name").in("id", studentIds);
+  let studentsQuery = api.from("students").select("id,first_name,last_name").in("id", studentIds);
   if (opts.schoolId) studentsQuery = studentsQuery.eq("school_id", opts.schoolId);
   const { data: studentsData } = await studentsQuery;
   const students = (studentsData ?? []) as StudentRow[];
   const studentById = new Map(students.map((s) => [s.id, s]));
 
   // Enrollments (pick most recent, prefer active)
-  let enrQuery = supabase
+  let enrQuery = api
     .from("student_enrollments")
     .select("student_id,class_section_id,start_date,end_date")
     .in("student_id", studentIds)
@@ -51,7 +51,7 @@ export async function fetchStudentLabelMap(
 
   let sections: SectionRow[] = [];
   if (sectionIds.length) {
-    let sectionQuery = supabase.from("class_sections").select("id,name,class_id").in("id", sectionIds);
+    let sectionQuery = api.from("class_sections").select("id,name,class_id").in("id", sectionIds);
     if (opts.schoolId) sectionQuery = sectionQuery.eq("school_id", opts.schoolId);
     const { data: sectionData } = await sectionQuery;
     sections = (sectionData ?? []) as SectionRow[];
@@ -61,7 +61,7 @@ export async function fetchStudentLabelMap(
   const classIds = Array.from(new Set(sections.map((s) => s.class_id)));
   let classes: ClassRow[] = [];
   if (classIds.length) {
-    let classQuery = supabase.from("academic_classes").select("id,name").in("id", classIds);
+    let classQuery = api.from("academic_classes").select("id,name").in("id", classIds);
     if (opts.schoolId) classQuery = classQuery.eq("school_id", opts.schoolId);
     const { data: classData } = await classQuery;
     classes = (classData ?? []) as ClassRow[];

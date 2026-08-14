@@ -6,7 +6,7 @@ import { exportToCSV } from "@/lib/csv";
 import { toast } from "sonner";
 
 
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { getVPSFileUrl } from "@/lib/vpsStorage";
 import { useTenant } from "@/hooks/useTenant";
 import { useRealtimeTable } from "@/hooks/useRealtime";
@@ -136,7 +136,7 @@ export default function FeeVouchersModule() {
   const { data: batches = [] } = useQuery({
     queryKey: ["fee_voucher_batches", schoolId],
     queryFn: async () => {
-      const { data, error } = await (supabase as any)
+      const { data, error } = await (api as any)
         .from("fee_voucher_batches")
         .select("*")
         .eq("school_id", schoolId!)
@@ -311,7 +311,7 @@ function PaymentProofsCard({ schoolId }: { schoolId: string | null }) {
   const { data: proofs = [] } = useQuery({
     queryKey: ["fee_payment_proofs", schoolId, statusFilter],
     queryFn: async () => {
-      let q = (supabase as any).from("fee_payment_proofs")
+      let q = (api as any).from("fee_payment_proofs")
         .select("id, school_id, invoice_id, student_id, file_path, file_name, mime_type, amount, paid_at, method, note, status, rejection_reason, verified_at, created_at")
         .eq("school_id", schoolId!).order("created_at", { ascending: false }).limit(200);
       if (statusFilter !== "__all") q = q.eq("status", statusFilter);
@@ -327,7 +327,7 @@ function PaymentProofsCard({ schoolId }: { schoolId: string | null }) {
   const { data: students = [] } = useQuery({
     queryKey: ["proof_students", studentIds.join(",")],
     queryFn: async () => {
-      const { data } = await supabase.from("students").select("id, first_name, last_name, roll_number").in("id", studentIds);
+      const { data } = await api.from("students").select("id, first_name, last_name, roll_number").in("id", studentIds);
       return data || [];
     },
     enabled: studentIds.length > 0,
@@ -335,7 +335,7 @@ function PaymentProofsCard({ schoolId }: { schoolId: string | null }) {
   const { data: invoices = [] } = useQuery({
     queryKey: ["proof_invoices", invoiceIds.join(",")],
     queryFn: async () => {
-      const { data } = await supabase.from("fee_invoices").select("id, invoice_number, total_amount, paid_amount, status").in("id", invoiceIds);
+      const { data } = await api.from("fee_invoices").select("id, invoice_number, total_amount, paid_amount, status").in("id", invoiceIds);
       return data || [];
     },
     enabled: invoiceIds.length > 0,
@@ -381,7 +381,7 @@ function PaymentProofsCard({ schoolId }: { schoolId: string | null }) {
     setExporting(true);
     const tId = toast.loading("Preparing export…");
     try {
-      const { data: sess } = await supabase.auth.getSession();
+      const { data: sess } = await api.auth.getSession();
       const token = sess.session?.access_token;
       if (!token) throw new Error("Not signed in");
       const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/export-payment-proofs`;
@@ -478,7 +478,7 @@ function PaymentProofsCard({ schoolId }: { schoolId: string | null }) {
     }
     setBusy(p.id);
     try {
-      const { error: updateError } = await supabase
+      const { error: updateError } = await api
         .from("fee_payment_proofs")
         .update({
           amount: finalAmount,
@@ -489,7 +489,7 @@ function PaymentProofsCard({ schoolId }: { schoolId: string | null }) {
       
       if (updateError) throw updateError;
 
-      const { error: rpcError } = await (supabase as any).rpc("verify_fee_payment_proof", {
+      const { error: rpcError } = await (api as any).rpc("verify_fee_payment_proof", {
         _proof_id: p.id,
         _approve: true,
         _amount: finalAmount,
@@ -519,7 +519,7 @@ function PaymentProofsCard({ schoolId }: { schoolId: string | null }) {
     
     try {
       for (const proofId of selectedProofs) {
-        const { error } = await (supabase as any).rpc("verify_fee_payment_proof", {
+        const { error } = await (api as any).rpc("verify_fee_payment_proof", {
           _proof_id: proofId,
           _approve: true,
           _amount: null,
@@ -555,7 +555,7 @@ function PaymentProofsCard({ schoolId }: { schoolId: string | null }) {
 
     try {
       for (const proofId of selectedProofs) {
-        const { error } = await (supabase as any).rpc("verify_fee_payment_proof", {
+        const { error } = await (api as any).rpc("verify_fee_payment_proof", {
           _proof_id: proofId,
           _approve: false,
           _amount: null,
@@ -584,7 +584,7 @@ function PaymentProofsCard({ schoolId }: { schoolId: string | null }) {
   const verify = async (p: ProofRow, approve: boolean, reason?: string) => {
     setBusy(p.id);
     try {
-      const { error } = await (supabase as any).rpc("verify_fee_payment_proof", {
+      const { error } = await (api as any).rpc("verify_fee_payment_proof", {
         _proof_id: p.id, _approve: approve, _amount: null, _reason: reason || null,
       });
       if (error) throw error;
@@ -1182,7 +1182,7 @@ function DeliveriesDialog({ batch, onClose }: { batch: Batch | null; onClose: ()
   const { data: deliveries = [], isLoading } = useQuery({
     queryKey: ["fee_voucher_deliveries", batch?.id],
     queryFn: async () => {
-      const { data, error } = await (supabase as any)
+      const { data, error } = await (api as any)
         .from("fee_voucher_deliveries")
         .select("id,invoice_id,student_id,guardian_name,guardian_email,guardian_phone,guardian_user_id,channel,status,error,delivered_at")
         .eq("batch_id", batch!.id)
@@ -1202,7 +1202,7 @@ function DeliveriesDialog({ batch, onClose }: { batch: Batch | null; onClose: ()
     queryKey: ["voucher_invoices", batch?.id, invoiceIds.length],
     queryFn: async () => {
       if (invoiceIds.length === 0) return [] as BatchInvoice[];
-      const { data, error } = await supabase
+      const { data, error } = await api
         .from("fee_invoices")
         .select("id, invoice_number, period_label, due_date, total_amount, paid_amount, status")
         .in("id", invoiceIds);
@@ -1234,7 +1234,7 @@ function DeliveriesDialog({ batch, onClose }: { batch: Batch | null; onClose: ()
   const saveEdit = async () => {
     if (!editing) return;
     setBusyId(editing.id);
-    const { error } = await supabase
+    const { error } = await api
       .from("fee_invoices")
       .update({ 
         due_date: editDue, 
@@ -1256,7 +1256,7 @@ function DeliveriesDialog({ batch, onClose }: { batch: Batch | null; onClose: ()
       return;
     }
     setBusyId(inv.id);
-    const { error } = await supabase.from("fee_invoices").update({ status }).eq("id", inv.id);
+    const { error } = await api.from("fee_invoices").update({ status }).eq("id", inv.id);
     setBusyId(null);
     if (error) return toast.error(error.message);
     toast.success(status === "cancelled" ? "Voucher voided" : "Voucher restored");
@@ -1270,7 +1270,7 @@ function DeliveriesDialog({ batch, onClose }: { batch: Batch | null; onClose: ()
     }
     if (!confirm(`Delete voucher ${inv.invoice_number}? This cannot be undone.`)) return;
     setBusyId(inv.id);
-    const { error } = await supabase.from("fee_invoices").delete().eq("id", inv.id);
+    const { error } = await api.from("fee_invoices").delete().eq("id", inv.id);
     setBusyId(null);
     if (error) return toast.error(error.message);
     toast.success("Voucher deleted");
@@ -1494,7 +1494,7 @@ function GenerateVoucherDialog({
   const { data: feePlans = [] } = useQuery({
     queryKey: ["fp_for_vouchers", schoolId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await api
         .from("fee_plans")
         .select("id,name,currency,class_id")
         .eq("school_id", schoolId!)
@@ -1509,7 +1509,7 @@ function GenerateVoucherDialog({
   const { data: classes = [] } = useQuery({
     queryKey: ["classes_for_vouchers", schoolId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await api
         .from("academic_classes")
         .select("id,name,grade_level")
         .eq("school_id", schoolId!)
@@ -1523,7 +1523,7 @@ function GenerateVoucherDialog({
   const { data: sections = [] } = useQuery({
     queryKey: ["sections_for_vouchers", schoolId, classId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await api
         .from("class_sections")
         .select("id,class_id,name")
         .eq("school_id", schoolId!)
@@ -1543,7 +1543,7 @@ function GenerateVoucherDialog({
       else sectionIds = sections.map((s) => s.id);
       if (sectionIds.length === 0) return [] as Student[];
 
-      const { data: enrolls, error: e1 } = await supabase
+      const { data: enrolls, error: e1 } = await api
         .from("student_enrollments")
         .select("student_id")
         .eq("school_id", schoolId!)
@@ -1553,7 +1553,7 @@ function GenerateVoucherDialog({
       const ids = Array.from(new Set((enrolls ?? []).map((r: any) => r.student_id)));
       if (ids.length === 0) return [] as Student[];
 
-      const { data, error } = await supabase
+      const { data, error } = await api
         .from("students")
         .select("id,first_name,last_name,roll_number,student_code,parent_name,parent_phone")
         .in("id", ids)
@@ -1567,7 +1567,7 @@ function GenerateVoucherDialog({
   const planItems = useQuery({
     queryKey: ["plan_items_for_vouchers", feePlanId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await api
         .from("fee_plan_items")
         .select("id,fee_plan_id,label,amount,sort_order")
         .eq("fee_plan_id", feePlanId)
@@ -1598,17 +1598,17 @@ function GenerateVoucherDialog({
   }
 
   async function fetchSchoolMeta() {
-    const { data: school } = await supabase
+    const { data: school } = await api
       .from("schools")
       .select("id,name,address,phone,email,website,motto,logo_url")
       .eq("id", schoolId!)
       .maybeSingle();
-    const { data: branding } = await (supabase as any)
+    const { data: branding } = await (api as any)
       .from("school_branding")
       .select("accent_hue,accent_saturation,accent_lightness")
       .eq("school_id", schoolId!)
       .maybeSingle();
-    const { data: settings } = await (supabase as any)
+    const { data: settings } = await (api as any)
       .from("fee_settings")
       .select("bank_name,bank_account_title,bank_account_number,bank_iban,bank_branch,bank_swift,voucher_footer_note")
       .eq("school_id", schoolId!)
@@ -1640,7 +1640,7 @@ function GenerateVoucherDialog({
     if (studentIds.length === 0) return {};
     const since = new Date();
     since.setDate(since.getDate() - 120);
-    const { data: assess } = await supabase
+    const { data: assess } = await api
       .from("academic_assessments")
       .select("id,max_marks")
       .eq("school_id", schoolId!)
@@ -1648,7 +1648,7 @@ function GenerateVoucherDialog({
     const maxById = new Map<string, number>((assess ?? []).map((a: any) => [a.id, Number(a.max_marks || 100)]));
     const ids = (assess ?? []).map((a: any) => a.id);
     if (ids.length === 0) return {};
-    const { data: marks } = await supabase
+    const { data: marks } = await api
       .from("student_marks")
       .select("student_id,assessment_id,marks")
       .in("student_id", studentIds)
@@ -1825,7 +1825,7 @@ function GenerateVoucherDialog({
       const items = planItems.data ?? [];
       const gradeMap = tiers.length > 0 ? await getStudentAvgGrade(targetStudents.map((s) => s.id)) : {};
 
-      const { data: batch, error: batchErr } = await (supabase as any)
+      const { data: batch, error: batchErr } = await (api as any)
         .from("fee_voucher_batches")
         .insert({
           school_id: schoolId,
@@ -1865,7 +1865,7 @@ function GenerateVoucherDialog({
         const reason = reasonParts.join(" | ") || null;
 
         try {
-          const { data: invId, error: rpcErr } = await (supabase as any).rpc("generate_fee_voucher", {
+          const { data: invId, error: rpcErr } = await (api as any).rpc("generate_fee_voucher", {
             _school_id: schoolId,
             _student_id: st.id,
             _fee_plan_id: feePlanId,
@@ -1879,7 +1879,7 @@ function GenerateVoucherDialog({
           });
           if (rpcErr) throw rpcErr;
 
-          const { data: inv, error: invErr } = await supabase
+          const { data: inv, error: invErr } = await api
             .from("fee_invoices")
             .select("*")
             .eq("id", invId as string)
@@ -1939,7 +1939,7 @@ function GenerateVoucherDialog({
         }
       }
 
-      await (supabase as any)
+      await (api as any)
         .from("fee_voucher_batches")
         .update({ total_students: successCount, total_amount: totalAmount })
         .eq("id", batch.id);

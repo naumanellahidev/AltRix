@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Activity, Database, CheckCircle, Clock, ServerCrash, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 
 export default function PlatformHealthPage() {
   const [loading, setLoading] = useState(false);

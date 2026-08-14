@@ -24,7 +24,7 @@ import {
   ChevronDown,
   ChevronUp,
 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { aiToTextArray } from "@/lib/ai-render";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -74,7 +74,7 @@ export function StudentDigitalTwinCard({ studentId, schoolId, compact = false, s
     setGenerating(true);
     const t = toast.loading("Generating heavy AI profile… analyzing attendance, grades, behavior & predictions");
     try {
-      const { data, error } = await supabase.functions.invoke("ai-student-analyzer", {
+      const { data, error } = await api.functions.invoke("ai-student-analyzer", {
         body: { schoolId, studentId, analysisType: "digital_twin" },
       });
       if (error) throw error;
@@ -91,7 +91,7 @@ export function StudentDigitalTwinCard({ studentId, schoolId, compact = false, s
   const { data: profile, isLoading } = useQuery({
     queryKey: ["ai_student_profile", studentId],
     queryFn: async () => {
-      const { data, error } = await (supabase as any)
+      const { data, error } = await (api as any)
         .from("ai_student_profiles")
         .select("*")
         .eq("student_id", studentId)
@@ -107,7 +107,7 @@ export function StudentDigitalTwinCard({ studentId, schoolId, compact = false, s
   const { data: student } = useQuery({
     queryKey: ["student_info", studentId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await api
         .from("students")
         .select("first_name, last_name, status")
         .eq("id", studentId)

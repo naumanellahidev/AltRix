@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { UserCog } from "lucide-react";
 
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -70,7 +70,7 @@ export function TeacherSubjectAssignmentsCard({
     if (!teacherUserId) return toast.error("Pick a teacher");
     if (!subjectIdsForSection.has(subjectId)) return toast.error("That subject is not added to the selected section yet.");
 
-    const { error } = await supabase
+    const { error } = await api
       .from("teacher_subject_assignments")
       .upsert(
         {

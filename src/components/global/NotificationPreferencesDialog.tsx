@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { useWebPush } from "@/hooks/useWebPush";
 import { apiClient } from "@/lib/api-client";
-import { supabase, USE_FASTAPI } from "@/integrations/supabase/client";
+import { api, USE_FASTAPI } from "@/lib/api";
 import { toast } from "sonner";
 import { 
   Bell, 
@@ -54,7 +54,7 @@ export default function NotificationPreferencesDialog({ open, onOpenChange }: No
           }
         } else {
           // Supabase Fallback
-          const { data, error } = await supabase
+          const { data, error } = await api
             .from("user_notification_preferences")
             .select("preferences")
             .single();
@@ -98,7 +98,7 @@ export default function NotificationPreferencesDialog({ open, onOpenChange }: No
         await apiClient.put("/notifications/preferences", { preferences });
       } else {
         // Supabase Fallback
-        const { data: sessionData } = await supabase.auth.getSession();
+        const { data: sessionData } = await api.auth.getSession();
         const user = sessionData?.session?.user;
         if (!user) throw new Error("No authenticated user session");
 
@@ -118,7 +118,7 @@ export default function NotificationPreferencesDialog({ open, onOpenChange }: No
           }
         }
 
-        const { error } = await supabase
+        const { error } = await api
           .from("user_notification_preferences")
           .upsert({
             user_id: user.id,

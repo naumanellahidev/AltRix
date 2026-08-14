@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { supabase, USE_FASTAPI } from "@/integrations/supabase/client";
+import { api, USE_FASTAPI } from "@/lib/api";
 import { apiClient } from "@/lib/api-client";
 
 type State =
@@ -37,7 +37,7 @@ export function useMyStudentId(schoolId: string | null) {
           setState({ status: "error", studentId: null, error: err.message || "Failed to fetch student ID." });
         }
       } else {
-        const { data, error } = await (supabase as any).rpc("my_student_id", { _school_id: schoolId });
+        const { data, error } = await (api as any).rpc("my_student_id", { _school_id: schoolId });
         if (cancelled) return;
         if (error) {
           setState({ status: "error", studentId: null, error: error.message });

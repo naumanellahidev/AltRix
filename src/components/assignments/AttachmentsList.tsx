@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { FileText, Image, File, Download, ExternalLink, Loader2 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { toast } from "sonner";
 
 interface AttachmentsListProps {
@@ -34,7 +34,7 @@ export function AttachmentsList({ attachmentUrls, compact = false }: Attachments
 
   const openFile = async (path: string) => {
     setLoading(path);
-    const { data, error } = await supabase.storage
+    const { data, error } = await api.storage
       .from(BUCKET_NAME)
       .createSignedUrl(path, 3600);
 

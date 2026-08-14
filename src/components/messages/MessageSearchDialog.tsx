@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { Search, Loader2, MessageCircle, X, Filter, Calendar, User, Eye, EyeOff, ArrowRight } from "lucide-react";
 import { format, parseISO, startOfDay, endOfDay, isAfter, isBefore } from "date-fns";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import {
   Dialog,
   DialogContent,
@@ -67,7 +67,7 @@ export function MessageSearchDialog({ schoolId, currentUserId, profileMap, onSel
     setHasSearched(true);
 
     try {
-      const { data, error } = await (supabase as any).rpc("search_messages", {
+      const { data, error } = await (api as any).rpc("search_messages", {
         _school_id: schoolId,
         _user_id: currentUserId,
         _query: query.trim(),

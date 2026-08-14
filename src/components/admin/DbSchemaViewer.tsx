@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { api } from '@/lib/api';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion';
 import { Loader2 } from 'lucide-react';
@@ -17,7 +17,7 @@ export const DbSchemaViewer = () => {
     const loadSchema = async () => {
       setLoading(true);
       try {
-        const { data, error } = await supabase.rpc('export_table_schema');
+        const { data, error } = await api.rpc('export_table_schema');
         if (error) throw error;
         // Expected data format: [{ table: 'schools', columns: [{name, type, nullable, default}] }, ...]
         const map: Record<string, any[]> = {};

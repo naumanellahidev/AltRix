@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { FileDown, FileText } from "lucide-react";
@@ -25,7 +25,7 @@ export default function ParentDatesheetsCard({ schoolId, studentId }: Props) {
       let targetStudentId = studentId;
 
       if (!targetStudentId) {
-        const { data: auth } = await supabase.auth.getUser();
+        const { data: auth } = await api.auth.getUser();
         const uid = auth?.user?.id;
         if (!uid) {
           setLoading(false);
@@ -34,8 +34,8 @@ export default function ParentDatesheetsCard({ schoolId, studentId }: Props) {
 
         // Find student IDs linked to this user (either as student profile or parent/guardian)
         const [studentProfile, guardianRelations] = await Promise.all([
-          supabase.from("students").select("id").eq("profile_id", uid).maybeSingle(),
-          supabase.from("student_guardians").select("student_id").eq("user_id", uid),
+          api.from("students").select("id").eq("profile_id", uid).maybeSingle(),
+          api.from("student_guardians").select("student_id").eq("user_id", uid),
         ]);
 
         const ids: string[] = [];
@@ -54,7 +54,7 @@ export default function ParentDatesheetsCard({ schoolId, studentId }: Props) {
           return;
         }
 
-        const { data, error } = await supabase
+        const { data, error } = await api
           .from("exam_datesheet_distributions")
           .select("id,exam_id,student_id,file_path,generated_at,exams(name,term_label),students(first_name,last_name)")
           .eq("school_id", schoolId)
@@ -65,7 +65,7 @@ export default function ParentDatesheetsCard({ schoolId, studentId }: Props) {
         return;
       }
 
-      const { data, error } = await supabase
+      const { data, error } = await api
         .from("exam_datesheet_distributions")
         .select("id,exam_id,student_id,file_path,generated_at,exams(name,term_label),students(first_name,last_name)")
         .eq("school_id", schoolId)
@@ -77,7 +77,7 @@ export default function ParentDatesheetsCard({ schoolId, studentId }: Props) {
   }, [schoolId, studentId]);
 
   const download = async (path: string, name: string) => {
-    const { data, error } = await (supabase as any).storage.from("exam-datesheets").createSignedUrl(path, 300);
+    const { data, error } = await (api as any).storage.from("exam-datesheets").createSignedUrl(path, 300);
     if (error || !data?.signedUrl) return toast.error(error?.message || "Could not generate link");
     const a = document.createElement("a");
     a.href = data.signedUrl; a.download = name; a.target = "_blank";

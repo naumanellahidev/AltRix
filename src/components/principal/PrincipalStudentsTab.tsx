@@ -13,7 +13,7 @@ import {
   Users,
   X,
 } from "lucide-react";
-import { supabase, USE_FASTAPI } from "@/integrations/supabase/client";
+import { api, USE_FASTAPI } from "@/lib/api";
 import { apiClient } from "@/lib/api-client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -181,21 +181,21 @@ export function PrincipalStudentsTab({ schoolId }: PrincipalStudentsTabProps) {
           subjectsRes,
           parentRolesRes,
         ] = await Promise.all([
-          (supabase as any)
+          (api as any)
             .from("students")
             .select("id, first_name, last_name, parent_name, student_code, date_of_birth, status, profile_id, created_at, address, phone, parent_phone, parent_email")
             .eq("school_id", schoolId)
             .order("first_name"),
-          supabase.from("academic_classes").select("id, name").eq("school_id", schoolId).order("name"),
-          supabase.from("class_sections").select("id, name, class_id").eq("school_id", schoolId),
-          supabase.from("student_enrollments").select("student_id, class_section_id").eq("school_id", schoolId),
-          supabase
+          api.from("academic_classes").select("id, name").eq("school_id", schoolId).order("name"),
+          api.from("class_sections").select("id, name, class_id").eq("school_id", schoolId),
+          api.from("student_enrollments").select("student_id, class_section_id").eq("school_id", schoolId),
+          api
             .from("attendance_entries")
             .select("student_id, status")
             .eq("school_id", schoolId)
             .gte("created_at", sevenDaysAgo),
-          supabase.from("subjects").select("id, name").eq("school_id", schoolId).order("name"),
-          supabase.from("user_roles").select("user_id").eq("school_id", schoolId).eq("role", "parent"),
+          api.from("subjects").select("id, name").eq("school_id", schoolId).order("name"),
+          api.from("user_roles").select("user_id").eq("school_id", schoolId).eq("role", "parent"),
         ]);
 
         studentsData = studentsRes.data || [];
@@ -208,7 +208,7 @@ export function PrincipalStudentsTab({ schoolId }: PrincipalStudentsTabProps) {
         // Load parent user options via directory RPC, filtered by parent role
         const parentIds = new Set((parentRolesRes.data ?? []).map((r: any) => r.user_id));
         if (parentIds.size > 0) {
-          const { data: dir } = await (supabase as any).rpc("get_school_user_directory", {
+          const { data: dir } = await (api as any).rpc("get_school_user_directory", {
             _school_id: schoolId,
           });
           parentUsersData = ((dir ?? []) as any[])
@@ -383,7 +383,7 @@ export function PrincipalStudentsTab({ schoolId }: PrincipalStudentsTabProps) {
           section_id: formData.section_id,
         });
       } else {
-        const { data: student, error } = await supabase
+        const { data: student, error } = await api
           .from("students")
           .insert({
             school_id: schoolId,
@@ -402,7 +402,7 @@ export function PrincipalStudentsTab({ schoolId }: PrincipalStudentsTabProps) {
 
         if (error) throw error;
 
-        const { error: enrollError } = await supabase.from("student_enrollments").insert({
+        const { error: enrollError } = await api.from("student_enrollments").insert({
           school_id: schoolId,
           student_id: student.id,
           class_section_id: formData.section_id,
@@ -443,7 +443,7 @@ export function PrincipalStudentsTab({ schoolId }: PrincipalStudentsTabProps) {
           section_id: formData.section_id,
         });
       } else {
-        const { error } = await supabase
+        const { error } = await api
           .from("students")
           .update({
             first_name: formData.first_name.trim(),
@@ -464,13 +464,13 @@ export function PrincipalStudentsTab({ schoolId }: PrincipalStudentsTabProps) {
         const currentEnrollment = enrollments.find((e) => e.student_id === editingStudent.id);
         if (formData.section_id && formData.section_id !== currentEnrollment?.class_section_id) {
           if (currentEnrollment) {
-            await supabase
+            await api
               .from("student_enrollments")
               .update({ class_section_id: formData.section_id })
               .eq("school_id", schoolId)
               .eq("student_id", editingStudent.id);
           } else {
-            await supabase.from("student_enrollments").insert({
+            await api.from("student_enrollments").insert({
               school_id: schoolId,
               student_id: editingStudent.id,
               class_section_id: formData.section_id,
@@ -500,7 +500,7 @@ export function PrincipalStudentsTab({ schoolId }: PrincipalStudentsTabProps) {
         await apiClient.delete(`/students/${editingStudent.id}`);
       } else {
         // Delete enrollments first (with school_id filter for RLS)
-        const { error: enrollError } = await supabase
+        const { error: enrollError } = await api
           .from("student_enrollments")
           .delete()
           .eq("school_id", schoolId)
@@ -511,7 +511,7 @@ export function PrincipalStudentsTab({ schoolId }: PrincipalStudentsTabProps) {
         }
 
         // Then delete student (with school_id filter for RLS)
-        const { error } = await supabase
+        const { error } = await api
           .from("students")
           .delete()
           .eq("school_id", schoolId)

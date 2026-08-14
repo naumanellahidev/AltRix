@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -59,7 +59,7 @@ export function ParentBehaviorNotesView({
       setLoading(true);
       try {
         // Fetch students with class/section labels
-        const { data: stu } = await supabase
+        const { data: stu } = await api
           .from("students")
           .select(
             "id, first_name, last_name, student_enrollments!inner(class_section_id, end_date, class_sections(name, academic_classes(name)))"
@@ -82,7 +82,7 @@ export function ParentBehaviorNotesView({
         });
 
         // Fetch all parent_behavior_notes for school (RLS lets staff in)
-        const { data: ns } = await (supabase as any)
+        const { data: ns } = await (api as any)
           .from("parent_behavior_notes")
           .select(
             "id, student_id, note_date, behavior, routine, mood, parent_user_id, created_at"
@@ -97,7 +97,7 @@ export function ParentBehaviorNotesView({
         );
         const parentMap: Record<string, string> = {};
         if (parentIds.length > 0) {
-          const { data: dir } = await supabase.rpc("get_school_user_directory", {
+          const { data: dir } = await api.rpc("get_school_user_directory", {
             _school_id: schoolId,
           });
           (dir ?? []).forEach((d: any) => {

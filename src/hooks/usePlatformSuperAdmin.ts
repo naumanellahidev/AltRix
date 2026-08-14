@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { supabase, USE_FASTAPI } from "@/integrations/supabase/client";
+import { api, USE_FASTAPI } from "@/lib/api";
 import { apiClient } from "@/lib/api-client";
 
 type PlatformAuthz = {
@@ -49,7 +49,7 @@ export function usePlatformSuperAdmin(userId: string | null | undefined): Platfo
             message = "Access denied. Master Super Admin only.";
           }
         } else {
-          const { data: userData } = await supabase.auth.getUser();
+          const { data: userData } = await api.auth.getUser();
           const email = userData.user?.email?.toLowerCase() ?? null;
 
           if (email !== MASTER_SUPER_ADMIN_EMAIL) {
@@ -64,7 +64,7 @@ export function usePlatformSuperAdmin(userId: string | null | undefined): Platfo
             return;
           }
 
-          const { data: psa, error } = await supabase
+          const { data: psa, error } = await api
              .from("platform_super_admins")
              .select("user_id")
              .eq("user_id", userId)

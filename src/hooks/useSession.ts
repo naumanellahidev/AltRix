@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import type { Session, User } from "@supabase/supabase-js";
-import { supabase } from "@/integrations/supabase/client";
+import type { Session, User } from "@/lib/api";
+import { api } from "@/lib/api";
 
 const SESSION_CACHE_KEY = "eduverse_session_cache";
 const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours
@@ -64,13 +64,13 @@ export function useSession() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const { data } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+    const { data } = api.auth.onAuthStateChange((_event, nextSession) => {
       setSession(nextSession);
       setUser(nextSession?.user ?? null);
       cacheUser(nextSession?.user ?? null);
     });
 
-    supabase.auth
+    api.auth
       .getSession()
       .then(({ data: { session: current } }) => {
         setSession(current);

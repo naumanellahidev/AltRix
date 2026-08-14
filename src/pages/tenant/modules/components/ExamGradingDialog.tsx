@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -57,7 +57,7 @@ export default function ExamGradingDialog({
     setLoading(true);
     try {
       // 1. Fetch students in the section
-      const { data: enrolls, error: enrollError } = await supabase
+      const { data: enrolls, error: enrollError } = await api
         .from("student_enrollments")
         .select("student_id, students!inner(id, first_name, last_name, student_code)")
         .eq("class_section_id", classSectionId)
@@ -75,7 +75,7 @@ export default function ExamGradingDialog({
       const studentIds = studentList.map(s => s.id);
       let existingResults: any[] = [];
       if (studentIds.length > 0) {
-        const { data: marksData, error: marksError } = await supabase
+        const { data: marksData, error: marksError } = await api
           .from("exam_results")
           .select("*")
           .eq("exam_id", examId)
@@ -89,7 +89,7 @@ export default function ExamGradingDialog({
       // For safety, we can check if report_cards exist and are published
       let isAnyPublished = false;
       if (studentIds.length > 0) {
-        const { data: rcData } = await supabase
+        const { data: rcData } = await api
           .from("report_cards")
           .select("is_published")
           .eq("exam_id", examId)
@@ -148,7 +148,7 @@ export default function ExamGradingDialog({
         grade = getGradeSymbol(pct);
       }
 
-      const { error } = await supabase
+      const { error } = await api
         .from("exam_results")
         .upsert({
           school_id: schoolId,
@@ -183,7 +183,7 @@ export default function ExamGradingDialog({
         if (row.marks_obtained === null) return;
         
         // Find if report card exists
-        const { data: existingCard } = await supabase
+        const { data: existingCard } = await api
           .from("report_cards")
           .select("id, teacher_remarks, principal_remarks, attendance_percentage, is_published, published_at")
           .eq("school_id", schoolId)
@@ -212,7 +212,7 @@ export default function ExamGradingDialog({
           published_at: existingCard?.published_at || null,
         };
 
-        return supabase.from("report_cards").upsert(payload, { onConflict: "exam_id,student_id" });
+        return api.from("report_cards").upsert(payload, { onConflict: "exam_id,student_id" });
       });
 
       await Promise.all(savePromises);

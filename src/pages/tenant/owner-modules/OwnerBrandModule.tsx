@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Star, MessageSquare, ThumbsUp, TrendingUp, Download, AlertCircle } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { useActiveCampus } from "@/hooks/useActiveCampus";
 import { exportToCSV } from "@/lib/csv";
 import { toast } from "@/hooks/use-toast";
@@ -34,13 +34,13 @@ export function OwnerBrandModule({ schoolId }: Props) {
       if (!schoolId) return null;
       const since90 = subDays(new Date(), 90).toISOString();
 
-      const repQ = supabase
+      const repQ = api
         .from("ai_school_reputation")
         .select("*")
         .eq("school_id", schoolId)
         .maybeSingle();
 
-      let cQ = supabase
+      let cQ = api
         .from("complaints")
         .select("id,status,category,resolved_at,created_at,campus_id")
         .eq("school_id", schoolId)

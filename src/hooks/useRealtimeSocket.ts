@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 
 export function useRealtimeSocket(
   onNewConversation?: (convo: any) => void,
@@ -25,7 +25,7 @@ export function useRealtimeSocket(
 
       try {
         setStatus("connecting");
-        const { data: { session } } = await supabase.auth.getSession();
+        const { data: { session } } = await api.auth.getSession();
         const token = session?.access_token;
         if (!token) {
           console.warn("No Supabase session found for WebSocket auth");

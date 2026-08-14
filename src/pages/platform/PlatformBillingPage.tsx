@@ -36,7 +36,7 @@ import {
   Pencil,
   Download,
 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { toast } from "sonner";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -151,7 +151,7 @@ export default function PlatformBillingPage() {
     setLoading(true);
     try {
       // 1. Fetch schools from Supabase
-      const { data: schoolsData, error: schoolsError } = await supabase
+      const { data: schoolsData, error: schoolsError } = await api
         .from("schools")
         .select("*")
         .order("name", { ascending: true });
@@ -210,7 +210,7 @@ export default function PlatformBillingPage() {
 
       // 2. Fetch platform invoices
       if (!dbSchemaMissing) {
-        const { data: invoicesData, error: invoicesError } = await supabase
+        const { data: invoicesData, error: invoicesError } = await api
           .from("platform_invoices" as any)
           .select("*")
           .order("created_at", { ascending: false });
@@ -303,7 +303,7 @@ export default function PlatformBillingPage() {
     try {
       if (isDbSchemaApplied) {
         // Save to Supabase
-        const { error } = await supabase
+        const { error } = await api
           .from("schools")
           .update({
             plan_tier: newPlan,
@@ -375,7 +375,7 @@ export default function PlatformBillingPage() {
 
     try {
       if (isDbSchemaApplied) {
-        const { error } = await supabase
+        const { error } = await api
           .from("platform_invoices" as any)
           .insert({
             school_id: invoiceSchoolId,
@@ -422,7 +422,7 @@ export default function PlatformBillingPage() {
 
     try {
       if (isDbSchemaApplied) {
-        const { data, error } = await supabase.rpc("cron_generate_platform_invoices" as any);
+        const { data, error } = await api.rpc("cron_generate_platform_invoices" as any);
         if (error) throw error;
 
         const count = Number(data || 0);
@@ -489,7 +489,7 @@ export default function PlatformBillingPage() {
   const handleMarkAsPaid = async (invId: string) => {
     try {
       if (isDbSchemaApplied && !invId.startsWith("local-")) {
-        const { error } = await supabase
+        const { error } = await api
           .from("platform_invoices" as any)
           .update({
             status: "Paid",
@@ -526,7 +526,7 @@ export default function PlatformBillingPage() {
 
     try {
       if (isDbSchemaApplied && !invId.startsWith("local-")) {
-        const { error } = await supabase
+        const { error } = await api
           .from("platform_invoices" as any)
           .delete()
           .eq("id", invId);
@@ -549,7 +549,7 @@ export default function PlatformBillingPage() {
     if (!editingInvoice) return;
     try {
       if (isDbSchemaApplied && !editingInvoice.id.startsWith("local-")) {
-        const { error } = await supabase
+        const { error } = await api
           .from("platform_invoices" as any)
           .update({
             amount: editAmount,

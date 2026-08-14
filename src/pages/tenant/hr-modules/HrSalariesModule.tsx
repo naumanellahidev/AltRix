@@ -3,7 +3,7 @@ import { useParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash2, Edit, Users, Coins, TrendingUp, Calendar, FileText, Download, History } from "lucide-react";
 
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { useTenant } from "@/hooks/useTenant";
 import { openBulkPayslipsPDF, downloadBulkPayslipsHTML, PayslipData } from "@/lib/payslip-pdf";
 import { SalaryHistoryDialog } from "@/components/hr/SalaryHistoryDialog";
@@ -105,7 +105,7 @@ export function HrSalariesModule() {
   const { data: salaryRecords = [], isLoading: loadingSalaries } = useQuery({
     queryKey: ["hr_salary_records", schoolId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await api
         .from("hr_salary_records")
         .select("*")
         .eq("school_id", schoolId!)
@@ -131,7 +131,7 @@ export function HrSalariesModule() {
   const { data: payRuns = [], isLoading: loadingPayRuns } = useQuery({
     queryKey: ["hr_pay_runs", schoolId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await api
         .from("hr_pay_runs")
         .select("*")
         .eq("school_id", schoolId!)
@@ -156,7 +156,7 @@ export function HrSalariesModule() {
   const { data: staffMembers = [] } = useQuery({
     queryKey: ["school_staff_directory", schoolId],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc("get_school_staff_directory", {
+      const { data, error } = await api.rpc("get_school_staff_directory", {
         _school_id: schoolId!,
       });
       if (error) throw error;
@@ -227,7 +227,7 @@ export function HrSalariesModule() {
     };
 
     if (editingRecord) {
-      const { error } = await supabase
+      const { error } = await api
         .from("hr_salary_records")
         .update(salaryData)
         .eq("id", editingRecord.id);
@@ -238,14 +238,14 @@ export function HrSalariesModule() {
       toast.success("Salary record updated");
     } else {
       // Deactivate existing active records for this user
-      await supabase
+      await api
         .from("hr_salary_records")
         .update({ is_active: false, effective_to: formEffectiveFrom })
         .eq("school_id", schoolId)
         .eq("user_id", formUserId)
         .eq("is_active", true);
 
-      const { error } = await supabase.from("hr_salary_records").insert([
+      const { error } = await api.from("hr_salary_records").insert([
         {
           school_id: schoolId,
           ...salaryData,
@@ -265,7 +265,7 @@ export function HrSalariesModule() {
   };
 
   const handleDelete = async (id: string) => {
-    const { error } = await supabase.from("hr_salary_records").delete().eq("id", id);
+    const { error } = await api.from("hr_salary_records").delete().eq("id", id);
     if (error) {
       toast.error(error.message);
       return;
@@ -300,7 +300,7 @@ export function HrSalariesModule() {
       notes: prNotes.trim() || null,
     }));
 
-    const { error } = await supabase.from("hr_pay_runs").insert(payRunRecords);
+    const { error } = await api.from("hr_pay_runs").insert(payRunRecords);
 
     if (error) {
       toast.error(error.message);
@@ -316,7 +316,7 @@ export function HrSalariesModule() {
   };
 
   const handleDeletePayRun = async (id: string) => {
-    const { error } = await supabase.from("hr_pay_runs").delete().eq("id", id);
+    const { error } = await api.from("hr_pay_runs").delete().eq("id", id);
     if (error) {
       toast.error(error.message);
       return;

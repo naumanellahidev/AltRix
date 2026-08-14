@@ -26,7 +26,7 @@ import {
   ChevronDown,
   BarChart3,
 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { GlobalCommandPalette } from "@/components/global/GlobalCommandPalette";
 import { NotificationsBell } from "@/components/global/NotificationsBell";
 import { DashboardNotificationsBanner } from "@/components/global/DashboardNotificationsBanner";
@@ -65,7 +65,7 @@ export function OwnerShell({ title, subtitle, schoolSlug, children }: Props) {
   });
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    await api.auth.signOut();
     window.location.href = `/${schoolSlug}/auth`;
   };
 

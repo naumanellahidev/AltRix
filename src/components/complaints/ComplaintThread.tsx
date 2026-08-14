@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { useSession } from "@/hooks/useSession";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -48,7 +48,7 @@ export function ComplaintThread({
     const source = usePrincipalView
       ? "complaint_feedbacks_principal_view"
       : "complaint_feedbacks";
-    const { data, error } = await (supabase as any)
+    const { data, error } = await (api as any)
       .from(source)
       .select("id, author_user_id, author_role, content, created_at")
       .eq("complaint_id", complaintId)
@@ -67,7 +67,7 @@ export function ComplaintThread({
 
     if (!complaintId) return;
 
-    const channel = supabase
+    const channel = api
       .channel(`complaint_feedbacks_changes:${complaintId}`)
       .on(
         "postgres_changes",
@@ -84,7 +84,7 @@ export function ComplaintThread({
       .subscribe();
 
     return () => {
-      void supabase.removeChannel(channel);
+      void api.removeChannel(channel);
     };
   }, [complaintId]);
 
@@ -99,7 +99,7 @@ export function ComplaintThread({
     const textToSend = text.trim();
     setText(""); // Clear input early for responsive feel
     
-    const { error } = await (supabase as any).from("complaint_feedbacks").insert({
+    const { error } = await (api as any).from("complaint_feedbacks").insert({
       complaint_id: complaintId,
       school_id: schoolId,
       author_user_id: user.id,
@@ -116,7 +116,7 @@ export function ComplaintThread({
 
     // Notify appropriate participants
     try {
-      const { data: complaintData } = await supabase
+      const { data: complaintData } = await api
         .from("complaints")
         .select("sender_user_id, flow, school_id, student_id")
         .eq("id", complaintId)
@@ -126,7 +126,7 @@ export function ComplaintThread({
         const fallbackSchoolId = schoolId || complaintData.school_id;
         
         if (authorRole === "sender") {
-          const { data: staffRoles } = await supabase
+          const { data: staffRoles } = await api
             .from("user_roles")
             .select("user_id")
             .eq("school_id", fallbackSchoolId)
@@ -135,7 +135,7 @@ export function ComplaintThread({
           
           let parentUserIds: string[] = [];
           if (complaintData.flow === "teacher_to_parent" && complaintData.student_id) {
-            const { data: guardians } = await supabase
+            const { data: guardians } = await api
               .from("student_guardians")
               .select("user_id")
               .eq("student_id", complaintData.student_id);
@@ -153,10 +153,10 @@ export function ComplaintThread({
             entity_id: complaintId
           }));
           if (notifs.length > 0) {
-            await supabase.from("app_notifications").insert(notifs);
+            await api.from("app_notifications").insert(notifs);
           }
         } else if (authorRole === "receiver") {
-          const { data: staffRoles } = await supabase
+          const { data: staffRoles } = await api
             .from("user_roles")
             .select("user_id")
             .eq("school_id", fallbackSchoolId)
@@ -178,12 +178,12 @@ export function ComplaintThread({
             entity_id: complaintId
           }));
           if (notifs.length > 0) {
-            await supabase.from("app_notifications").insert(notifs);
+            await api.from("app_notifications").insert(notifs);
           }
         } else if (authorRole === "principal") {
           let parentUserIds: string[] = [];
           if (complaintData.flow === "teacher_to_parent" && complaintData.student_id) {
-            const { data: guardians } = await supabase
+            const { data: guardians } = await api
               .from("student_guardians")
               .select("user_id")
               .eq("student_id", complaintData.student_id);
@@ -205,7 +205,7 @@ export function ComplaintThread({
             entity_id: complaintId
           }));
           if (notifs.length > 0) {
-            await supabase.from("app_notifications").insert(notifs);
+            await api.from("app_notifications").insert(notifs);
           }
         }
       }

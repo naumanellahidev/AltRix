@@ -6,7 +6,7 @@ import { ReportExportMenu } from "@/components/accountant/ReportExportMenu";
 import { BrandedDocument } from "@/components/pdf/BrandedDocument";
 import { useSchoolDocument } from "@/hooks/useSchoolDocument";
 
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { useTenant } from "@/hooks/useTenant";
 import { useRealtimeTable } from "@/hooks/useRealtime";
 
@@ -129,7 +129,7 @@ export function AccountantPaymentsModule() {
   const { data: payments = [], isLoading } = useQuery({
     queryKey: ["fee_payments", schoolId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await api
         .from("fee_payments")
         .select(`
           id,
@@ -166,7 +166,7 @@ export function AccountantPaymentsModule() {
   const { data: invoices = [], isLoading: invoicesLoading } = useQuery({
     queryKey: ["fee_invoices", schoolId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await api
         .from("fee_invoices")
         .select("id, invoice_number, student_id, total_amount, paid_amount, status")
         .eq("school_id", schoolId!)
@@ -187,7 +187,7 @@ export function AccountantPaymentsModule() {
   const { data: students = [] } = useQuery({
     queryKey: ["students", schoolId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await api
         .from("students")
         .select("id, first_name, last_name")
         .eq("school_id", schoolId!);
@@ -200,7 +200,7 @@ export function AccountantPaymentsModule() {
   const { data: staffList = [] } = useQuery({
     queryKey: ["staff_list", schoolId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await api
         .from("hr_staff_directory")
         .select("id, full_name, email, phone")
         .eq("school_id", schoolId!)
@@ -220,7 +220,7 @@ export function AccountantPaymentsModule() {
   const { data: schoolUsers = [] } = useQuery({
     queryKey: ["school_user_directory", schoolId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await api
         .from("school_user_directory")
         .select("user_id, display_name, email")
         .eq("school_id", schoolId!);
@@ -328,7 +328,7 @@ export function AccountantPaymentsModule() {
     }
 
     // Insert Payment into fee_payments
-    const { error: paymentError } = await supabase.from("fee_payments").insert({
+    const { error: paymentError } = await api.from("fee_payments").insert({
       school_id: schoolId,
       invoice_id: formInvoiceId,
       student_id: invoice.student_id,
@@ -354,7 +354,7 @@ export function AccountantPaymentsModule() {
       nextStatus = "pending";
     }
 
-    const { error: invoiceError } = await supabase
+    const { error: invoiceError } = await api
       .from("fee_invoices")
       .update({
         paid_amount: invoice.paid_amount + amount,
@@ -375,7 +375,7 @@ export function AccountantPaymentsModule() {
 
   const handleDeletePayment = async (payment: Payment) => {
     // Delete payment record
-    const { error: deleteError } = await supabase.from("fee_payments").delete().eq("id", payment.id);
+    const { error: deleteError } = await api.from("fee_payments").delete().eq("id", payment.id);
     if (deleteError) {
       toast.error(deleteError.message);
       return;
@@ -393,7 +393,7 @@ export function AccountantPaymentsModule() {
         nextStatus = "paid";
       }
 
-      await supabase
+      await api
         .from("fee_invoices")
         .update({
           paid_amount: nextPaid,

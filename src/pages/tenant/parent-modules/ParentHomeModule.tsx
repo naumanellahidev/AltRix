@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from "react";
 import { Link } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { ChildInfo } from "@/hooks/useMyChildren";
 import { StudentDigitalTwinCard } from "@/components/ai/StudentDigitalTwinCard";
 import { ParentTrustDashboard } from "@/components/ai/ParentTrustDashboard";
@@ -70,7 +70,7 @@ const ParentHomeModule = ({ child, schoolId }: ParentHomeModuleProps) => {
         const thirtyDaysAgo = new Date();
         thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-        const { data: attendance } = await supabase
+        const { data: attendance } = await api
           .from("attendance_entries")
           .select("status")
           .eq("student_id", child.student_id)
@@ -81,28 +81,28 @@ const ParentHomeModule = ({ child, schoolId }: ParentHomeModuleProps) => {
           attendance?.filter((a) => a.status === "present" || a.status === "late").length || 0;
         const attendanceRate = totalDays > 0 ? Math.round((presentDays / totalDays) * 100) : 100;
 
-        const { count: pendingAssignments } = await supabase
+        const { count: pendingAssignments } = await api
           .from("assignments")
           .select("id", { count: "exact", head: true })
           .eq("school_id", schoolId)
           .eq("status", "active")
           .gte("due_date", new Date().toISOString().split("T")[0]);
 
-        const { count: unpaidFees } = await supabase
+        const { count: unpaidFees } = await api
           .from("fee_invoices")
           .select("id", { count: "exact", head: true })
           .eq("student_id", child.student_id)
           .not("status", "eq", "paid")
           .not("status", "eq", "cancelled");
 
-        const { data: u } = await supabase.auth.getUser();
-        const { count: unreadNotifications } = await supabase
+        const { data: u } = await api.auth.getUser();
+        const { count: unreadNotifications } = await api
           .from("app_notifications")
           .select("id", { count: "exact", head: true })
           .eq("user_id", u.user?.id || "")
           .is("read_at", null);
 
-        const { data: recentMarks } = await supabase
+        const { data: recentMarks } = await api
           .from("student_marks")
           .select("marks, academic_assessments!inner(max_marks)")
           .eq("student_id", child.student_id)
@@ -110,7 +110,7 @@ const ParentHomeModule = ({ child, schoolId }: ParentHomeModuleProps) => {
           .limit(1);
 
         // Fetch parent/school-wide notices
-        const { data: noticesData } = await supabase
+        const { data: noticesData } = await api
           .from("notices")
           .select("*")
           .eq("school_id", schoolId)

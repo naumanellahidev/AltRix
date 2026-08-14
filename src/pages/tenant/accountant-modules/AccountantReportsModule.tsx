@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { BarChart3, TrendingUp, TrendingDown, FileText, Calendar, DollarSign, Printer } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
 
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { useTenant } from "@/hooks/useTenant";
 
 import { Button } from "@/components/ui/button";
@@ -26,7 +26,7 @@ export function AccountantReportsModule() {
   const { data: payments = [] } = useQuery({
     queryKey: ["fee_payments", schoolId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await api
         .from("fee_payments")
         .select("amount, paid_at")
         .eq("school_id", schoolId!)
@@ -43,7 +43,7 @@ export function AccountantReportsModule() {
   const { data: expenses = [] } = useQuery({
     queryKey: ["finance_expenses", schoolId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await api
         .from("finance_expenses")
         .select("amount, expense_date, category")
         .eq("school_id", schoolId!)
@@ -61,7 +61,7 @@ export function AccountantReportsModule() {
   const { data: invoices = [] } = useQuery({
     queryKey: ["fee_invoices", schoolId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await api
         .from("fee_invoices")
         .select("total_amount, status, created_at")
         .eq("school_id", schoolId!)
@@ -79,7 +79,7 @@ export function AccountantReportsModule() {
   const { data: payRuns = [] } = useQuery({
     queryKey: ["hr_pay_runs", schoolId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await api
         .from("hr_pay_runs")
         .select("net_amount, paid_at, status, created_at")
         .eq("school_id", schoolId!)

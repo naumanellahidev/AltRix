@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import { supabase, USE_FASTAPI, setUseFastAPI } from "@/integrations/supabase/client";
+import { api, USE_FASTAPI, setUseFastAPI } from "@/lib/api";
 import { apiClient, isNetworkOrProxyError } from "@/lib/api-client";
 
 interface UnreadMessagesResult {
@@ -19,7 +19,7 @@ export function useUnreadMessages(schoolId: string | null): UnreadMessagesResult
     }
 
     try {
-      const { data: user } = await supabase.auth.getUser();
+      const { data: user } = await api.auth.getUser();
       if (!user.user) {
         setLoading(false);
         return;
@@ -28,7 +28,7 @@ export function useUnreadMessages(schoolId: string | null): UnreadMessagesResult
 
       let count = 0;
       const runSupabaseCount = async () => {
-        const { count: c } = await supabase
+        const { count: c } = await api
           .from("admin_message_recipients")
           .select("id, admin_messages!inner(school_id)", { count: "exact", head: true })
           .eq("recipient_user_id", user.user.id)
@@ -73,7 +73,7 @@ export function useUnreadMessages(schoolId: string | null): UnreadMessagesResult
   useEffect(() => {
     if (!schoolId || !userId) return;
 
-    const channel = supabase
+    const channel = api
       .channel(`unread-messages-rt-${schoolId}-${userId}`)
       .on(
         "postgres_changes",
@@ -90,7 +90,7 @@ export function useUnreadMessages(schoolId: string | null): UnreadMessagesResult
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      api.removeChannel(channel);
     };
   }, [schoolId, userId, fetchUnreadCount]);
 

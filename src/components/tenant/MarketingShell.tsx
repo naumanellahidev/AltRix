@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { BarChart3, ClipboardList, Megaphone, PhoneCall, Target, Users, MessageSquare, Sparkles, LogOut, Menu, LayoutGrid, FileText, Settings2 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { GlobalCommandPalette } from "@/components/global/GlobalCommandPalette";
 import { NotificationsBell } from "@/components/global/NotificationsBell";
 import { DashboardNotificationsBanner } from "@/components/global/DashboardNotificationsBanner";
@@ -38,7 +38,7 @@ export function MarketingShell({ title, subtitle, schoolSlug, children }: Props)
   });
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    await api.auth.signOut();
     window.location.href = `/${schoolSlug}/auth`;
   };
 

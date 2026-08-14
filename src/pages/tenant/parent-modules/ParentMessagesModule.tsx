@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { ChildInfo } from "@/hooks/useMyChildren";
 import { format } from "date-fns";
 import { Send, MessageSquarePlus, Inbox, User as UserIcon } from "lucide-react";
@@ -52,7 +52,7 @@ const ParentMessagesModule = ({ child, schoolId }: ParentMessagesModuleProps) =>
   const [showNewMessage, setShowNewMessage] = useState(false);
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
+    api.auth.getUser().then(({ data }) => {
       setCurrentUserId(data.user?.id || null);
     });
   }, []);
@@ -65,7 +65,7 @@ const ParentMessagesModule = ({ child, schoolId }: ParentMessagesModuleProps) =>
     // Show ALL messages where I'm sender or recipient in this school.
     // If a child is selected, scope to that student; otherwise show everything
     // so parents without a linked child can still see messages addressed to them.
-    let query = supabase
+    let query = api
       .from("parent_messages")
       .select("id,subject,content,sender_user_id,recipient_user_id,is_read,created_at,student_id")
       .eq("school_id", schoolId)
@@ -96,7 +96,7 @@ const ParentMessagesModule = ({ child, schoolId }: ParentMessagesModuleProps) =>
   // Fetch directory names for conversation labels
   useEffect(() => {
     if (!schoolId) return;
-    supabase
+    api
       .rpc("get_school_user_directory", { _school_id: schoolId })
       .then(({ data }) => {
         if (!data) return;
@@ -114,7 +114,7 @@ const ParentMessagesModule = ({ child, schoolId }: ParentMessagesModuleProps) =>
   useEffect(() => {
     if (!schoolId) return;
 
-    const channel = supabase
+    const channel = api
       .channel(`parent-messages-${schoolId}`)
       .on(
         "postgres_changes",
@@ -131,7 +131,7 @@ const ParentMessagesModule = ({ child, schoolId }: ParentMessagesModuleProps) =>
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      api.removeChannel(channel);
     };
   }, [schoolId, fetchMessages]);
 
@@ -177,7 +177,7 @@ const ParentMessagesModule = ({ child, schoolId }: ParentMessagesModuleProps) =>
     // Use the conversation's student context, falling back to selected child
     const studentIdForReply = selectedConv.studentId ?? child?.student_id ?? null;
 
-    const { error } = await supabase.from("parent_messages").insert({
+    const { error } = await api.from("parent_messages").insert({
       school_id: schoolId,
       student_id: studentIdForReply,
       sender_user_id: currentUserId,
@@ -203,7 +203,7 @@ const ParentMessagesModule = ({ child, schoolId }: ParentMessagesModuleProps) =>
       .filter((m) => !m.is_read && m.recipient_user_id === currentUserId)
       .map((m) => m.id);
     if (ids.length === 0) return;
-    await supabase.from("parent_messages").update({ is_read: true }).in("id", ids);
+    await api.from("parent_messages").update({ is_read: true }).in("id", ids);
   };
 
   return (

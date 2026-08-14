@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { BookOpen, Clock, MapPin, Users } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
@@ -60,11 +60,11 @@ export function PeriodNotesDialog({
 
     setSaving(true);
     try {
-      const { data: user } = await supabase.auth.getUser();
+      const { data: user } = await api.auth.getUser();
       const userId = user.user?.id;
 
       if (existingNote) {
-        const { error } = await supabase
+        const { error } = await api
           .from("timetable_period_logs" as any)
           .update({
             topic_covered: topic.trim(),
@@ -76,7 +76,7 @@ export function PeriodNotesDialog({
         if (error) throw error;
         toast.success("Period log updated");
       } else {
-        const { error } = await supabase.from("timetable_period_logs" as any).insert({
+        const { error } = await api.from("timetable_period_logs" as any).insert({
           school_id: schoolId,
           timetable_entry_id: entryId,
           teacher_user_id: userId,

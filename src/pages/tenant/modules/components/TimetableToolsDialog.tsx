@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -114,7 +114,7 @@ export function TimetableToolsDialog({
 
     setBusy(true);
     try {
-      let q = supabase
+      let q = api
         .from("timetable_entries")
         .update({ room })
         .eq("school_id", schoolId)
@@ -140,7 +140,7 @@ export function TimetableToolsDialog({
 
     setBusy(true);
     try {
-      const { data: srcEntries, error: srcErr } = await supabase
+      const { data: srcEntries, error: srcErr } = await api
         .from("timetable_entries")
         .select("id,day_of_week,period_id,subject_name,teacher_user_id,room")
         .eq("school_id", schoolId)
@@ -156,7 +156,7 @@ export function TimetableToolsDialog({
 
       // Clear target scope first
       const daysToClear = copyMode === "week" ? [0, 1, 2, 3, 4, 5, 6] : [copyTargetDay];
-      const { error: delErr } = await supabase
+      const { error: delErr } = await api
         .from("timetable_entries")
         .delete()
         .eq("school_id", schoolId)
@@ -189,7 +189,7 @@ export function TimetableToolsDialog({
         return;
       }
 
-      const { error: insErr } = await supabase.from("timetable_entries").insert(rowsToInsert);
+      const { error: insErr } = await api.from("timetable_entries").insert(rowsToInsert);
       if (insErr) return toast.error(insErr.message);
 
       toast.success("Timetable copied");

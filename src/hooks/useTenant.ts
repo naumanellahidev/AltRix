@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { supabase, USE_FASTAPI, setUseFastAPI } from "@/integrations/supabase/client";
+import { api, USE_FASTAPI, setUseFastAPI } from "@/lib/api";
 import { apiClient, isNetworkOrProxyError } from "@/lib/api-client";
 
 type TenantState =
@@ -106,7 +106,7 @@ export function useTenant(schoolSlug: string | undefined) {
     setState({ status: "loading", school: null, schoolId: null, error: null });
 
     const runSupabaseTenant = () => {
-      supabase
+      api
         .rpc("get_school_public_by_slug", { _slug: normalizedSlug })
         .maybeSingle()
         .then(({ data, error }) => {

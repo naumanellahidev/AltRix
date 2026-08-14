@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { useTenant } from "@/hooks/useTenant";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -30,7 +30,7 @@ export function HrReviewsModule() {
     queryKey: ["hr_performance_cycles", schoolId],
     enabled: !!schoolId,
     queryFn: async () => {
-      const { data, error } = await supabase.from("hr_performance_cycles").select("*").eq("school_id", schoolId!).order("period_start", { ascending: false });
+      const { data, error } = await api.from("hr_performance_cycles").select("*").eq("school_id", schoolId!).order("period_start", { ascending: false });
       if (error) throw error;
       return data || [];
     },
@@ -40,7 +40,7 @@ export function HrReviewsModule() {
     queryKey: ["hr_reviews", schoolId],
     enabled: !!schoolId,
     queryFn: async () => {
-      const { data, error } = await supabase.from("hr_reviews").select("*").eq("school_id", schoolId!).order("review_date", { ascending: false });
+      const { data, error } = await api.from("hr_reviews").select("*").eq("school_id", schoolId!).order("review_date", { ascending: false });
       if (error) throw error;
       return data || [];
     },
@@ -50,7 +50,7 @@ export function HrReviewsModule() {
     queryKey: ["hr_staff_dir_reviews", schoolId],
     enabled: !!schoolId,
     queryFn: async () => {
-      const { data, error } = await supabase.rpc("get_school_staff_directory", { _school_id: schoolId! });
+      const { data, error } = await api.rpc("get_school_staff_directory", { _school_id: schoolId! });
       if (error) throw error;
       return data || [];
     },
@@ -64,7 +64,7 @@ export function HrReviewsModule() {
 
   const createCycle = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase.from("hr_performance_cycles").insert({
+      const { error } = await api.from("hr_performance_cycles").insert({
         school_id: schoolId,
         name: cycleForm.name,
         period_start: cycleForm.period_start,
@@ -85,8 +85,8 @@ export function HrReviewsModule() {
 
   const createReview = useMutation({
     mutationFn: async () => {
-      const user = (await supabase.auth.getUser()).data.user;
-      const { error } = await supabase.from("hr_reviews").insert({
+      const user = (await api.auth.getUser()).data.user;
+      const { error } = await api.from("hr_reviews").insert({
         school_id: schoolId,
         user_id: reviewForm.user_id,
         reviewer_id: user?.id,

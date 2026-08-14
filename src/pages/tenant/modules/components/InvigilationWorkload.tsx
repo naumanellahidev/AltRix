@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -33,10 +33,10 @@ export default function InvigilationWorkload({ schoolId, examId, examName, onAll
     setLoading(true);
     try {
       const [dir, ds, secs, subs] = await Promise.all([
-        supabase.rpc("get_school_user_directory", { _school_id: schoolId }),
-        supabase.from("exam_subjects").select("*").eq("exam_id", examId),
-        supabase.from("class_sections").select("id, name, academic_classes(name)").eq("school_id", schoolId),
-        supabase.from("subjects").select("id, name").eq("school_id", schoolId),
+        api.rpc("get_school_user_directory", { _school_id: schoolId }),
+        api.from("exam_subjects").select("*").eq("exam_id", examId),
+        api.from("class_sections").select("id, name, academic_classes(name)").eq("school_id", schoolId),
+        api.from("subjects").select("id, name").eq("school_id", schoolId),
       ]);
 
       setStaff(dir.data || []);
@@ -117,7 +117,7 @@ export default function InvigilationWorkload({ schoolId, examId, examName, onAll
         const selectedTeacher = teachers[i % teachers.length];
         const selectedRoom = roomsList[i % roomsList.length];
 
-        const { error } = await supabase
+        const { error } = await api
           .from("exam_subjects")
           .update({
             invigilator_user_id: selectedTeacher.user_id,

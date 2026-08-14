@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { useSession } from "@/hooks/useSession";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -82,7 +82,7 @@ export default function ExamsModule({ schoolId, canManage: canManageProp = false
     if (!schoolId || !user) return;
     setLoadingRole(true);
     try {
-      const { data: roles } = await supabase
+      const { data: roles } = await api
         .from("user_roles")
         .select("role")
         .eq("school_id", schoolId)
@@ -96,9 +96,9 @@ export default function ExamsModule({ schoolId, canManage: canManageProp = false
       if (!isUserAdmin) {
         // Teacher specific records
         const [ta, ss, tsa] = await Promise.all([
-          supabase.from("teacher_assignments").select("class_section_id").eq("school_id", schoolId).eq("teacher_user_id", user.id),
-          supabase.from("section_subjects").select("class_section_id, subject_id").eq("school_id", schoolId).eq("teacher_user_id", user.id),
-          supabase.from("teacher_subject_assignments").select("class_section_id, subject_id").eq("school_id", schoolId).eq("teacher_user_id", user.id),
+          api.from("teacher_assignments").select("class_section_id").eq("school_id", schoolId).eq("teacher_user_id", user.id),
+          api.from("section_subjects").select("class_section_id, subject_id").eq("school_id", schoolId).eq("teacher_user_id", user.id),
+          api.from("teacher_subject_assignments").select("class_section_id, subject_id").eq("school_id", schoolId).eq("teacher_user_id", user.id),
         ]);
 
         const secIds = new Set<string>();
@@ -121,7 +121,7 @@ export default function ExamsModule({ schoolId, canManage: canManageProp = false
 
   const loadExams = async () => {
     if (!schoolId) return;
-    const { data } = await supabase
+    const { data } = await api
       .from("exams")
       .select("*")
       .eq("school_id", schoolId)
@@ -130,9 +130,9 @@ export default function ExamsModule({ schoolId, canManage: canManageProp = false
 
     // Load static lists
     const [subs, secs, papers] = await Promise.all([
-      supabase.from("subjects").select("id,name").eq("school_id", schoolId).order("name"),
-      supabase.from("class_sections").select("id,name,academic_classes(name)").eq("school_id", schoolId),
-      supabase.from("exam_subjects").select("*").eq("school_id", schoolId)
+      api.from("subjects").select("id,name").eq("school_id", schoolId).order("name"),
+      api.from("class_sections").select("id,name,academic_classes(name)").eq("school_id", schoolId),
+      api.from("exam_subjects").select("*").eq("school_id", schoolId)
     ]);
     setSubjects(subs.data || []);
     setSections((secs.data || []).map((s: any) => ({ id: s.id, name: s.name, class_name: s.academic_classes?.name })));
@@ -158,7 +158,7 @@ export default function ExamsModule({ schoolId, canManage: canManageProp = false
     setForm({ name: "", term_label: "", start_date: today, end_date: today, status: "scheduled" });
 
     try {
-      const { data, error } = await supabase
+      const { data, error } = await api
         .from("exams")
         .insert(payload)
         .select()
@@ -181,7 +181,7 @@ export default function ExamsModule({ schoolId, canManage: canManageProp = false
     toast.success("Exam deleted");
 
     try {
-      const { error } = await supabase
+      const { error } = await api
         .from("exams")
         .delete()
         .eq("id", id);

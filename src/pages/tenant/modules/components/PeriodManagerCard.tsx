@@ -4,7 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { Coffee, Pencil, Plus, Trash2 } from "lucide-react";
 
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -143,8 +143,8 @@ export function PeriodManagerCard({
       } as const;
 
       const q = editing
-        ? supabase.from("timetable_periods").update(payload).eq("id", editing.id).eq("school_id", schoolId)
-        : supabase.from("timetable_periods").insert(payload);
+        ? api.from("timetable_periods").update(payload).eq("id", editing.id).eq("school_id", schoolId)
+        : api.from("timetable_periods").insert(payload);
 
       const { error } = await q;
       if (error) return toast.error(error.message);
@@ -164,7 +164,7 @@ export function PeriodManagerCard({
 
     setBusy(true);
     try {
-      const { count, error: countErr } = await supabase
+      const { count, error: countErr } = await api
         .from("timetable_entries")
         .select("id", { count: "exact", head: true })
         .eq("school_id", schoolId)
@@ -175,7 +175,7 @@ export function PeriodManagerCard({
         return toast.error("This period is used in the timetable grid. Clear those slots first, then delete.");
       }
 
-      const { error } = await supabase.from("timetable_periods").delete().eq("school_id", schoolId).eq("id", p.id);
+      const { error } = await api.from("timetable_periods").delete().eq("school_id", schoolId).eq("id", p.id);
       if (error) return toast.error(error.message);
 
       toast.success("Period deleted");

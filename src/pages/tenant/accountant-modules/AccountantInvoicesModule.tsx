@@ -21,7 +21,7 @@ import { ReportExportMenu } from "@/components/accountant/ReportExportMenu";
 import { BrandedDocument } from "@/components/pdf/BrandedDocument";
 import { useSchoolDocument } from "@/hooks/useSchoolDocument";
 
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { useTenant } from "@/hooks/useTenant";
 import { useRealtimeTable } from "@/hooks/useRealtime";
 
@@ -180,7 +180,7 @@ export function AccountantInvoicesModule() {
   const { data: invoices = [], isLoading } = useQuery({
     queryKey: ["fee_invoices", schoolId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await api
         .from("fee_invoices")
         .select(`
           *,
@@ -203,7 +203,7 @@ export function AccountantInvoicesModule() {
   const { data: students = [] } = useQuery({
     queryKey: ["students", schoolId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await api
         .from("students")
         .select("id, first_name, last_name")
         .eq("school_id", schoolId!)
@@ -217,7 +217,7 @@ export function AccountantInvoicesModule() {
   const { data: staffList = [] } = useQuery({
     queryKey: ["staff_list", schoolId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await api
         .from("hr_staff_directory")
         .select("id, full_name, email, phone, linked_user_id")
         .eq("school_id", schoolId!)
@@ -238,7 +238,7 @@ export function AccountantInvoicesModule() {
   const { data: schoolUsers = [] } = useQuery({
     queryKey: ["school_user_directory", schoolId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await api
         .from("school_user_directory")
         .select("user_id, display_name, email")
         .eq("school_id", schoolId!);
@@ -256,7 +256,7 @@ export function AccountantInvoicesModule() {
     queryKey: ["fee_invoice_items", selectedInvoice?.id],
     queryFn: async () => {
       if (!selectedInvoice?.id) return [];
-      const { data, error } = await supabase
+      const { data, error } = await api
         .from("fee_invoice_items")
         .select("*")
         .eq("invoice_id", selectedInvoice.id);
@@ -341,7 +341,7 @@ export function AccountantInvoicesModule() {
     }
 
     // Fetch items directly to populate form
-    const { data: items, error } = await supabase
+    const { data: items, error } = await api
       .from("fee_invoice_items")
       .select("*")
       .eq("invoice_id", inv.id);
@@ -453,7 +453,7 @@ export function AccountantInvoicesModule() {
 
     if (editingInvoice) {
       // Update Invoice
-      const { error: invoiceError } = await supabase
+      const { error: invoiceError } = await api
         .from("fee_invoices")
         .update(invoicePayload)
         .eq("id", editingInvoice.id);
@@ -464,10 +464,10 @@ export function AccountantInvoicesModule() {
       }
 
       // Recreate items: Delete old first
-      await supabase.from("fee_invoice_items").delete().eq("invoice_id", editingInvoice.id);
+      await api.from("fee_invoice_items").delete().eq("invoice_id", editingInvoice.id);
 
       // Insert new ones
-      const { error: itemsError } = await supabase.from("fee_invoice_items").insert(
+      const { error: itemsError } = await api.from("fee_invoice_items").insert(
         formLineItems.map((item, index) => ({
           school_id: schoolId,
           invoice_id: editingInvoice.id,
@@ -485,7 +485,7 @@ export function AccountantInvoicesModule() {
       }
     } else {
       // Create Invoice
-      const { data: invoiceData, error: invoiceError } = await supabase
+      const { data: invoiceData, error: invoiceError } = await api
         .from("fee_invoices")
         .insert({
           ...invoicePayload,
@@ -501,7 +501,7 @@ export function AccountantInvoicesModule() {
 
       const invoiceId = invoiceData.id;
 
-      const { error: itemsError } = await supabase.from("fee_invoice_items").insert(
+      const { error: itemsError } = await api.from("fee_invoice_items").insert(
         formLineItems.map((item, index) => ({
           school_id: schoolId,
           invoice_id: invoiceId,
@@ -528,7 +528,7 @@ export function AccountantInvoicesModule() {
     // Map internal frontend statuses to the backend allowed invoice statuses
     const dbStatus = newStatus === "unpaid" ? "pending" : newStatus;
 
-    const { error } = await supabase
+    const { error } = await api
       .from("fee_invoices")
       .update({ status: dbStatus })
       .eq("id", id);
@@ -544,8 +544,8 @@ export function AccountantInvoicesModule() {
 
   const handleDelete = async (id: string) => {
     // Delete invoice items first to satisfy foreign keys
-    await supabase.from("fee_invoice_items").delete().eq("invoice_id", id);
-    const { error } = await supabase.from("fee_invoices").delete().eq("id", id);
+    await api.from("fee_invoice_items").delete().eq("invoice_id", id);
+    const { error } = await api.from("fee_invoices").delete().eq("id", id);
     if (error) {
       toast.error(error.message);
       return;
@@ -572,7 +572,7 @@ export function AccountantInvoicesModule() {
       return;
     }
 
-    const { error } = await supabase.from("fee_payments").insert({
+    const { error } = await api.from("fee_payments").insert({
       school_id: schoolId,
       invoice_id: selectedInvoice.id,
       student_id: selectedInvoice.student_id,

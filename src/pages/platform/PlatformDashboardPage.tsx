@@ -17,7 +17,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { useSession } from "@/hooks/useSession";
 import { usePlatformSuperAdmin } from "@/hooks/usePlatformSuperAdmin";
 
@@ -132,7 +132,7 @@ export default function PlatformDashboardPage() {
     try {
       let schoolsData: any[] = [];
       try {
-        const { data, error } = await supabase
+        const { data, error } = await api
           .from("schools")
           .select("id,slug,name,is_active,created_at")
           .order("created_at", { ascending: false })
@@ -148,28 +148,28 @@ export default function PlatformDashboardPage() {
       let sessCount = 0;
 
       try {
-        const { count } = await supabase.from("schools").select("id", { count: "exact", head: true });
+        const { count } = await api.from("schools").select("id", { count: "exact", head: true });
         schCount = count ?? 0;
       } catch (e) {}
 
       try {
-        const { count } = await supabase.from("students").select("id", { count: "exact", head: true });
+        const { count } = await api.from("students").select("id", { count: "exact", head: true });
         stuCount = count ?? 0;
       } catch (e) {}
 
       try {
-        const { count } = await supabase.from("crm_leads").select("id", { count: "exact", head: true });
+        const { count } = await api.from("crm_leads").select("id", { count: "exact", head: true });
         ldCount = count ?? 0;
       } catch (e) {}
 
       try {
-        const { count } = await supabase.from("attendance_sessions").select("id", { count: "exact", head: true });
+        const { count } = await api.from("attendance_sessions").select("id", { count: "exact", head: true });
         sessCount = count ?? 0;
       } catch (e) {}
 
       let auditData: any[] = [];
       try {
-        const { data, error } = await supabase
+        const { data, error } = await api
           .from("audit_logs" as any)
           .select("id, created_at, action, entity_type, school_id")
           .order("created_at", { ascending: false })
@@ -235,7 +235,7 @@ export default function PlatformDashboardPage() {
     }
     setSearchingGlobal(true);
     try {
-      const { data: studentData, error: studentError } = await supabase
+      const { data: studentData, error: studentError } = await api
         .from("students")
         .select("id, first_name, last_name, roll_number, school_id")
         .or(`first_name.ilike.%${globalSearchQuery}%,last_name.ilike.%${globalSearchQuery}%,roll_number.ilike.%${globalSearchQuery}%`)

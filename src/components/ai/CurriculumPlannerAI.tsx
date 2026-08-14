@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useSession } from "@/hooks/useSession";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { apiClient } from "@/lib/api-client";
 import {
   Dialog,
@@ -182,7 +182,7 @@ export function CurriculumPlannerAI({
       const selectedSubjectObj = subjects.find((s) => s.id === subjectId);
       const subjectName = selectedSubjectObj ? selectedSubjectObj.name : "General Subject";
 
-      const token = (await supabase.auth.getSession()).data.session?.access_token;
+      const token = (await api.auth.getSession()).data.session?.access_token;
 
       const response = await fetch(
         `${apiClient.defaults.baseURL || "/api"}/ai/curriculum-planner`,
@@ -255,7 +255,7 @@ export function CurriculumPlannerAI({
         generation_status: "complete",
       };
 
-      const { error } = await supabase.from("lesson_plans").insert(payload);
+      const { error } = await api.from("lesson_plans").insert(payload);
       if (error) throw error;
 
       toast.success("AI Lesson Plan saved to your calendar planner!");

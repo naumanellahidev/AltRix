@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
-import type { RealtimeChannel } from "@supabase/supabase-js";
+import { api } from "@/lib/api";
+import type { RealtimeChannel } from "@/lib/api";
 
 /**
  * Subscribes to every finance-related table for the given school and
@@ -86,7 +86,7 @@ export function useFinanceRealtime(schoolId: string | null) {
 
     const channels: RealtimeChannel[] = [];
     for (const table of FINANCE_TABLES) {
-      const ch = supabase
+      const ch = api
         .channel(`finance-rt-${table}-${schoolId}`)
         .on(
           "postgres_changes",
@@ -98,7 +98,7 @@ export function useFinanceRealtime(schoolId: string | null) {
     }
 
     return () => {
-      channels.forEach((c) => supabase.removeChannel(c));
+      channels.forEach((c) => api.removeChannel(c));
     };
   }, [schoolId, qc]);
 }

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { supabase, USE_FASTAPI } from "@/integrations/supabase/client";
+import { api, USE_FASTAPI } from "@/lib/api";
 import { apiClient } from "@/lib/api-client";
 
 export type SchoolDocumentBranding = {
@@ -42,7 +42,7 @@ export function useSchoolDocument(schoolId: string | null) {
           const resp = await apiClient.get<SchoolDocumentBranding>(`/schools/${schoolId}`);
           schoolData = resp.data;
         } else {
-          const { data } = await supabase
+          const { data } = await api
             .from("schools")
             .select("id,name,slug,logo_url,address,phone,email,website,motto")
             .eq("id", schoolId)

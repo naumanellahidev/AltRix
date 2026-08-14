@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { supabase, USE_FASTAPI, setUseFastAPI } from "@/integrations/supabase/client";
+import { api, USE_FASTAPI, setUseFastAPI } from "@/lib/api";
 import { apiClient, isNetworkOrProxyError } from "@/lib/api-client";
 
 export interface LiveTeacherStatus {
@@ -73,21 +73,21 @@ export function useLiveTeacherPresence(schoolId: string | null) {
     const runSupabaseLoad = async () => {
       const today = new Date().getDay();
       const [ttRes, periodsRes, sectionsRes, dirRes] = await Promise.all([
-        supabase
+        api
           .from("timetable_entries")
           .select("id, subject_name, teacher_user_id, class_section_id, room, period_id, day_of_week, start_time, end_time")
           .eq("school_id", schoolId)
           .eq("day_of_week", today),
-        supabase
+        api
           .from("timetable_periods")
           .select("id, label, start_time, end_time, sort_order, is_break")
           .eq("school_id", schoolId)
           .order("sort_order"),
-        supabase
+        api
           .from("class_sections")
           .select("id, name, class_id, academic_classes(name)")
           .eq("school_id", schoolId),
-        supabase.rpc("get_school_user_directory", { _school_id: schoolId }),
+        api.rpc("get_school_user_directory", { _school_id: schoolId }),
       ]);
 
       setEntries((ttRes.data as TimetableEntry[] | null) ?? []);
@@ -148,7 +148,7 @@ export function useLiveTeacherPresence(schoolId: string | null) {
     if (!schoolId) return;
 
     const runSupabasePresence = async () => {
-      const { data } = await (supabase as any)
+      const { data } = await (api as any)
         .from("teacher_period_presence")
         .select("timetable_entry_id, status, entered_at, left_at, updated_at, reason")
         .eq("school_id", schoolId)
@@ -238,7 +238,7 @@ export function useLiveTeacherPresence(schoolId: string | null) {
   useEffect(() => {
     if (!schoolId) return;
     let backoffTimer: ReturnType<typeof setTimeout> | null = null;
-    const ch = supabase
+    const ch = api
       .channel(`live_presence_${schoolId}_${reconnectVersion}`)
       .on(
         "postgres_changes",
@@ -294,7 +294,7 @@ export function useLiveTeacherPresence(schoolId: string | null) {
       });
     return () => {
       if (backoffTimer) clearTimeout(backoffTimer);
-      supabase.removeChannel(ch);
+      api.removeChannel(ch);
     };
   }, [schoolId, loadPresence, reconnectVersion]);
 

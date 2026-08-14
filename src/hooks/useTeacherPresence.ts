@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { supabase, USE_FASTAPI, setUseFastAPI } from "@/integrations/supabase/client";
+import { api, USE_FASTAPI, setUseFastAPI } from "@/lib/api";
 import { apiClient, isNetworkOrProxyError } from "@/lib/api-client";
 
 export type PresenceStatus = "in_class" | "left" | "late" | "completed";
@@ -41,7 +41,7 @@ export function useTeacherPresence(
     if (!schoolId || !teacherUserId) return;
 
     const runSupabaseLoad = async () => {
-      const { data: res, error } = await (supabase as any)
+      const { data: res, error } = await (api as any)
         .from("teacher_period_presence")
         .select("id, timetable_entry_id, status, entered_at, left_at, period_date")
         .eq("school_id", schoolId)
@@ -114,7 +114,7 @@ export function useTeacherPresence(
   useEffect(() => {
     if (!schoolId || !teacherUserId) return;
     let backoffTimer: ReturnType<typeof setTimeout> | null = null;
-    const ch = supabase
+    const ch = api
       .channel(`teacher_presence_self_${teacherUserId}_${reconnectVersion}`)
       .on(
         "postgres_changes",
@@ -174,7 +174,7 @@ export function useTeacherPresence(
       });
     return () => {
       if (backoffTimer) clearTimeout(backoffTimer);
-      supabase.removeChannel(ch);
+      api.removeChannel(ch);
     };
   }, [schoolId, teacherUserId, load, reconnectVersion, dateStr]);
 
@@ -268,7 +268,7 @@ export function useTeacherPresence(
       }
 
       if (!useFastApiActive) {
-        const { error: upsertErr } = await (supabase as any)
+        const { error: upsertErr } = await (api as any)
           .from("teacher_period_presence")
           .upsert(payload, {
             onConflict: "school_id,teacher_user_id,timetable_entry_id,period_date",

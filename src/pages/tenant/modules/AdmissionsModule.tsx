@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { Plus, CheckCircle2, XCircle, FileText, Upload, Eye, Printer, Check } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { getVPSFileUrl } from "@/lib/vpsStorage";
 import { printStudentCards } from "@/lib/id-card-print";
 import { useTenantOptimized } from "@/hooks/useTenantOptimized";
@@ -65,10 +65,10 @@ export default function AdmissionsModule() {
     if (!schoolId) return;
     (async () => {
       const [aRes, cRes, sRes, dRes] = await Promise.all([
-        supabase.from("admission_applications").select("*").eq("school_id", schoolId).order("created_at", { ascending: false }).limit(500),
-        supabase.from("academic_classes").select("id, name").eq("school_id", schoolId).order("name"),
-        supabase.from("class_sections").select("id, name, class_id").eq("school_id", schoolId).order("name"),
-        supabase.from("admission_application_documents").select("*").eq("school_id", schoolId),
+        api.from("admission_applications").select("*").eq("school_id", schoolId).order("created_at", { ascending: false }).limit(500),
+        api.from("academic_classes").select("id, name").eq("school_id", schoolId).order("name"),
+        api.from("class_sections").select("id, name, class_id").eq("school_id", schoolId).order("name"),
+        api.from("admission_application_documents").select("*").eq("school_id", schoolId),
       ]);
       setApps((aRes.data as App[]) || []);
       setClasses((cRes.data as ClassRow[]) || []);
@@ -79,12 +79,12 @@ export default function AdmissionsModule() {
 
   useEffect(() => {
     if (!schoolId) return;
-    const ch = supabase.channel(`adm-${schoolId}`)
+    const ch = api.channel(`adm-${schoolId}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "admission_applications", filter: `school_id=eq.${schoolId}` }, async () => {
-        const { data } = await supabase.from("admission_applications").select("*").eq("school_id", schoolId).order("created_at", { ascending: false }).limit(500);
+        const { data } = await api.from("admission_applications").select("*").eq("school_id", schoolId).order("created_at", { ascending: false }).limit(500);
         setApps((data as App[]) || []);
       }).subscribe();
-    return () => { supabase.removeChannel(ch); };
+    return () => { api.removeChannel(ch); };
   }, [schoolId]);
 
   const filtered = useMemo(() => filter === "__all" ? apps : apps.filter(a => a.status === filter), [apps, filter]);
@@ -92,7 +92,7 @@ export default function AdmissionsModule() {
 
   const submitApp = async () => {
     if (!schoolId || !form.first_name || !form.last_name) return toast.error("First and last name required");
-    const { data: app, error } = await supabase.from("admission_applications").insert({
+    const { data: app, error } = await api.from("admission_applications").insert({
       school_id: schoolId,
       first_name: form.first_name, last_name: form.last_name,
       date_of_birth: form.date_of_birth || null, gender: form.gender || null,
@@ -111,9 +111,9 @@ export default function AdmissionsModule() {
     // Upload documents
     for (const f of docFiles) {
       const path = `${schoolId}/${app.id}/${Date.now()}_${f.name}`;
-      const { error: upErr } = await supabase.storage.from("admission-documents").upload(path, f);
+      const { error: upErr } = await api.storage.from("admission-documents").upload(path, f);
       if (upErr) { toast.error(`Doc upload failed: ${upErr.message}`); continue; }
-      await supabase.from("admission_application_documents").insert({
+      await api.from("admission_application_documents").insert({
         school_id: schoolId, application_id: app.id, file_path: path, file_name: f.name, doc_type: null,
       });
     }
@@ -126,18 +126,18 @@ export default function AdmissionsModule() {
 
   const approve = async (app: App) => {
     if (!confirm(`Approve ${app.first_name} ${app.last_name}? This will create a student record and generate the first invoice.`)) return;
-    const { data: studentId, error } = await supabase.rpc("convert_admission_to_student", { _application_id: app.id });
+    const { data: studentId, error } = await api.rpc("convert_admission_to_student", { _application_id: app.id });
     if (error) return toast.error(error.message);
 
     // Set default card validity (1 year from now) on the newly created student record
     const defaultValidity = new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString().split('T')[0];
-    await supabase
+    await api
       .from("students")
       .update({ card_valid_until: defaultValidity })
       .eq("id", studentId);
 
     // Fetch the updated student record to display in the card download dialog
-    const { data: studentData } = await supabase
+    const { data: studentData } = await api
       .from("students")
       .select("*")
       .eq("id", studentId)
@@ -160,7 +160,7 @@ export default function AdmissionsModule() {
   };
 
   const setStatus = async (app: App, status: "under_review" | "rejected" | "waitlisted") => {
-    const { error } = await supabase.from("admission_applications").update({
+    const { error } = await api.from("admission_applications").update({
       status, decision_notes: decisionNotes || app.decision_notes, reviewed_at: new Date().toISOString(),
     }).eq("id", app.id);
     if (error) return toast.error(error.message);
@@ -378,7 +378,7 @@ export default function AdmissionsModule() {
                   const schoolLogo = tenant.status === "ready" ? tenant.logoUrl : null;
                   const schoolName = tenant.status === "ready" ? tenant.name : "Our School";
                   void printStudentCards(
-                    supabase,
+                    api,
                     schoolId!,
                     [createdStudentForCard],
                     schoolLogo,

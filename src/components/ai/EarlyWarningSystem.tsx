@@ -17,7 +17,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { format, formatDistanceToNow, parseISO } from "date-fns";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -71,7 +71,7 @@ export function EarlyWarningSystem({ schoolId }: Props) {
   const { data: warnings, isLoading, refetch } = useQuery({
     queryKey: ["ai_early_warnings", schoolId, filterType, filterStatus],
     queryFn: async () => {
-      let query = supabase
+      let query = api
         .from("ai_early_warnings")
         .select(`
           *,
@@ -113,9 +113,9 @@ export function EarlyWarningSystem({ schoolId }: Props) {
 
   const acknowledgeMutation = useMutation({
     mutationFn: async (warningId: string) => {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await api.auth.getUser();
       
-      const { error } = await supabase
+      const { error } = await api
         .from("ai_early_warnings")
         .update({
           status: "acknowledged",
@@ -133,7 +133,7 @@ export function EarlyWarningSystem({ schoolId }: Props) {
 
   const resolveMutation = useMutation({
     mutationFn: async ({ warningId, notes }: { warningId: string; notes: string }) => {
-      const { error } = await supabase
+      const { error } = await api
         .from("ai_early_warnings")
         .update({
           status: "resolved",

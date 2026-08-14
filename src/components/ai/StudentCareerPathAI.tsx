@@ -13,7 +13,7 @@ import {
   TrendingUp,
   Award,
 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { aiToTextArray } from "@/lib/ai-render";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -37,7 +37,7 @@ export function StudentCareerPathAI({ studentId, schoolId }: Props) {
   const { data: career, isLoading } = useQuery({
     queryKey: ["ai_career_suggestions", studentId],
     queryFn: async () => {
-      const { data, error } = await (supabase as any)
+      const { data, error } = await (api as any)
         .from("ai_career_suggestions")
         .select("*")
         .eq("student_id", studentId)
@@ -53,7 +53,7 @@ export function StudentCareerPathAI({ studentId, schoolId }: Props) {
   const { data: student } = useQuery({
     queryKey: ["student_basic_info", studentId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await api
         .from("students")
         .select("first_name, last_name")
         .eq("id", studentId)

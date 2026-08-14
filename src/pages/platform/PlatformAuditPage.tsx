@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollText, Search, RefreshCw, FileSpreadsheet, ShieldAlert } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { toast } from "sonner";
 
 type AuditRow = {
@@ -36,12 +36,12 @@ export default function PlatformAuditPage() {
   const refreshLogs = async () => {
     setLoading(true);
     try {
-      const { data: schoolsData } = await supabase
+      const { data: schoolsData } = await api
         .from("schools")
         .select("id,slug,name");
       setSchools((schoolsData ?? []) as SchoolRow[]);
 
-      const { data: auditData, error } = await (supabase as any)
+      const { data: auditData, error } = await (api as any)
         .from("audit_logs")
         .select("id,created_at,action,entity_type,entity_id,school_id,actor_user_id")
         .order("created_at", { ascending: false })

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { useSession } from "@/hooks/useSession";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,7 +29,7 @@ export default function DiaryModule({ schoolId, canManage = false, studentSectio
 
   const load = async () => {
     if (!schoolId) return;
-    let q = (supabase as any).from("diary_entries").select("*").eq("school_id", schoolId).order("entry_date", { ascending: false });
+    let q = (api as any).from("diary_entries").select("*").eq("school_id", schoolId).order("entry_date", { ascending: false });
     if (studentSectionId) q = q.eq("class_section_id", studentSectionId);
     const { data } = await q;
     setItems(data || []);
@@ -37,8 +37,8 @@ export default function DiaryModule({ schoolId, canManage = false, studentSectio
   const loadMeta = async () => {
     if (!schoolId) return;
     const [s, sub] = await Promise.all([
-      (supabase as any).from("class_sections").select("id,name").eq("school_id", schoolId),
-      (supabase as any).from("subjects").select("id,name").eq("school_id", schoolId),
+      (api as any).from("class_sections").select("id,name").eq("school_id", schoolId),
+      (api as any).from("subjects").select("id,name").eq("school_id", schoolId),
     ]);
     setSections(s.data || []); setSubjects(sub.data || []);
   };
@@ -47,7 +47,7 @@ export default function DiaryModule({ schoolId, canManage = false, studentSectio
   const submit = async () => {
     if (!schoolId || !user) return;
     if (!form.title.trim()) { toast.error("Title required"); return; }
-    const { error } = await (supabase as any).from("diary_entries").insert({
+    const { error } = await (api as any).from("diary_entries").insert({
       school_id: schoolId, teacher_user_id: user.id,
       title: form.title, content: form.content || null, category: form.category, entry_date: form.entry_date,
       class_section_id: form.class_section_id || null, subject_id: form.subject_id || null,
@@ -57,7 +57,7 @@ export default function DiaryModule({ schoolId, canManage = false, studentSectio
     setForm({ title: "", content: "", category: "homework", entry_date: today, class_section_id: "", subject_id: "" });
   };
   const remove = async (id: string) => {
-    const { error } = await (supabase as any).from("diary_entries").delete().eq("id", id);
+    const { error } = await (api as any).from("diary_entries").delete().eq("id", id);
     if (error) return toast.error(error.message);
     load();
   };

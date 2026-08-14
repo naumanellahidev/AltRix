@@ -4,7 +4,7 @@ import { z } from "zod";
 import { motion, useReducedMotion } from "framer-motion";
 import { KeyRound, Mail, ShieldCheck, Eye, EyeOff } from "lucide-react";
 
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { useSession } from "@/hooks/useSession";
 import { MASTER_SUPER_ADMIN_EMAIL } from "@/hooks/usePlatformSuperAdmin";
 import { Button } from "@/components/ui/button";
@@ -61,7 +61,7 @@ export default function PlatformAuth() {
       const emailLower = user.email?.toLowerCase() ?? "";
       if (emailLower !== MASTER_SUPER_ADMIN_EMAIL.toLowerCase()) {
         (async () => {
-          await supabase.auth.signOut();
+          await api.auth.signOut();
           setMessage("Access denied. Master Super Admin only.");
         })();
       } else {
@@ -86,14 +86,14 @@ export default function PlatformAuth() {
 
     setBusy(true);
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      const { error } = await api.auth.signInWithPassword({
         email: parsedEmail.data,
         password,
       });
       if (error) return setMessage(error.message);
       // Hard gate: only the master email may enter the platform territory.
       if (parsedEmail.data.toLowerCase() !== MASTER_SUPER_ADMIN_EMAIL) {
-        await supabase.auth.signOut();
+        await api.auth.signOut();
         return setMessage("Access denied. Master Super Admin only.");
       }
       rememberRecentEmail(parsedEmail.data);

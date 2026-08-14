@@ -25,7 +25,7 @@ import {
   Smile, ThumbsUp, TrendingUp,
 } from "lucide-react";
 
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -67,7 +67,7 @@ export function CounselorBehaviorModule({ schoolId }: Props) {
     queryKey: ["counselor-behavior", schoolId],
     enabled: !!schoolId,
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await api
         .from("behavior_notes")
         .select("id, school_id, student_id, note_type, title, content, is_shared_with_parents, created_at, teacher_user_id, students:student_id(first_name, last_name)")
         .eq("school_id", schoolId!)
@@ -81,12 +81,12 @@ export function CounselorBehaviorModule({ schoolId }: Props) {
   // Realtime sync
   useEffect(() => {
     if (!schoolId) return;
-    const ch = supabase.channel(`behavior-${schoolId}`)
+    const ch = api.channel(`behavior-${schoolId}`)
       .on("postgres_changes",
           { event: "*", schema: "public", table: "behavior_notes", filter: `school_id=eq.${schoolId}` },
           () => qc.invalidateQueries({ queryKey: ["counselor-behavior", schoolId] }))
       .subscribe();
-    return () => { supabase.removeChannel(ch); };
+    return () => { api.removeChannel(ch); };
   }, [schoolId, qc]);
 
   const filtered = useMemo(() => {

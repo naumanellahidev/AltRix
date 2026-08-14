@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -49,7 +49,7 @@ export default function ParentKPIsModule({ child, schoolId }: ParentKPIsModulePr
         : subDays(new Date(), parseInt(timeRange)).toISOString();
 
       // 1. Fetch attendance
-      const { data: attData } = await supabase
+      const { data: attData } = await api
         .from("attendance_entries")
         .select("status, created_at")
         .eq("student_id", child.student_id)
@@ -57,7 +57,7 @@ export default function ParentKPIsModule({ child, schoolId }: ParentKPIsModulePr
       setAttendance(attData || []);
 
       // 2. Fetch behavior logs
-      const { data: behaviorData } = await supabase
+      const { data: behaviorData } = await api
         .from("parent_behavior_notes" as any)
         .select("mood, note_date")
         .eq("student_id", child.student_id)
@@ -65,7 +65,7 @@ export default function ParentKPIsModule({ child, schoolId }: ParentKPIsModulePr
       setBehaviorNotes(behaviorData || []);
 
       // 3. Fetch submissions
-      const { count } = await supabase
+      const { count } = await api
         .from("assignment_submissions")
         .select("id", { count: "exact", head: true })
         .eq("student_id", child.student_id);

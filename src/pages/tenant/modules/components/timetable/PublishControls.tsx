@@ -2,7 +2,7 @@ import { useState } from "react";
 import { CheckCircle2, Globe, Lock, Unlock } from "lucide-react";
 import { toast } from "sonner";
 
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -45,7 +45,7 @@ export function PublishControls({
     if (!schoolId || !canEdit) return;
     setBusy(true);
     try {
-      const { error } = await supabase
+      const { error } = await api
         .from("timetable_entries")
         .update({ is_published: true, published_at: new Date().toISOString() })
         .eq("school_id", schoolId)
@@ -62,7 +62,7 @@ export function PublishControls({
     if (!schoolId || !canEdit) return;
     setBusy(true);
     try {
-      const { error } = await supabase
+      const { error } = await api
         .from("timetable_entries")
         .update({ is_published: false, published_at: null })
         .eq("school_id", schoolId)

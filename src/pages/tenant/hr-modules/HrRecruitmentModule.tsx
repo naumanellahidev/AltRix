@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { useParams } from "react-router-dom";
 import { useTenant } from "@/hooks/useTenant";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -72,12 +72,12 @@ export function HrRecruitmentModule() {
         return;
       }
       const cleanPath = path.replace(/^[^\/]+\//, "");
-      const { data, error } = await supabase.storage
+      const { data, error } = await api.storage
         .from("hr-documents")
         .createSignedUrl(cleanPath, 3600);
       
       if (error || !data?.signedUrl) {
-        const { data: data2, error: error2 } = await supabase.storage
+        const { data: data2, error: error2 } = await api.storage
           .from("hr-documents")
           .createSignedUrl(path, 3600);
         if (error2 || !data2?.signedUrl) {
@@ -99,9 +99,9 @@ export function HrRecruitmentModule() {
     if (!schoolId) return;
     setLoading(true);
     const [p, a, i] = await Promise.all([
-      (supabase as any).from("hr_job_postings").select("*").eq("school_id", schoolId).order("posted_at", { ascending: false }),
-      (supabase as any).from("hr_applicants").select("*").eq("school_id", schoolId).order("applied_at", { ascending: false }),
-      (supabase as any).from("hr_interviews").select("*").eq("school_id", schoolId).order("scheduled_at", { ascending: true }),
+      (api as any).from("hr_job_postings").select("*").eq("school_id", schoolId).order("posted_at", { ascending: false }),
+      (api as any).from("hr_applicants").select("*").eq("school_id", schoolId).order("applied_at", { ascending: false }),
+      (api as any).from("hr_interviews").select("*").eq("school_id", schoolId).order("scheduled_at", { ascending: true }),
     ]);
     if (p.data) setPostings(p.data);
     if (a.data) setApplicants(a.data);
@@ -208,8 +208,8 @@ function PostingsTab({ postings, schoolId, onChange, loading }: { postings: JobP
     if (!form.title.trim()) { toast.error("Title required"); return; }
     const payload = { ...form, school_id: schoolId, openings: Number(form.openings) || 1 };
     const res = edit
-      ? await (supabase as any).from("hr_job_postings").update(payload).eq("id", edit.id)
-      : await (supabase as any).from("hr_job_postings").insert(payload);
+      ? await (api as any).from("hr_job_postings").update(payload).eq("id", edit.id)
+      : await (api as any).from("hr_job_postings").insert(payload);
     if (res.error) { toast.error(res.error.message); return; }
     toast.success(edit ? "Posting updated" : "Posting created");
     setOpen(false); onChange();
@@ -217,7 +217,7 @@ function PostingsTab({ postings, schoolId, onChange, loading }: { postings: JobP
 
   const del = async (id: string) => {
     if (!confirm("Delete this posting?")) return;
-    const { error } = await (supabase as any).from("hr_job_postings").delete().eq("id", id);
+    const { error } = await (api as any).from("hr_job_postings").delete().eq("id", id);
     if (error) toast.error(error.message); else { toast.success("Deleted"); onChange(); }
   };
 
@@ -408,7 +408,7 @@ function PipelineTab({
 
   const add = async () => {
     if (!form.full_name.trim()) { toast.error("Name required"); return; }
-    const { error } = await (supabase as any).from("hr_applicants").insert({
+    const { error } = await (api as any).from("hr_applicants").insert({
       school_id: schoolId, full_name: form.full_name, email: form.email || null,
       phone: form.phone || null, posting_id: form.posting_id || null, notes: form.notes || null,
     });
@@ -416,7 +416,7 @@ function PipelineTab({
   };
 
   const moveStage = async (id: string, stage: string) => {
-    const { error } = await (supabase as any).from("hr_applicants").update({ stage }).eq("id", id);
+    const { error } = await (api as any).from("hr_applicants").update({ stage }).eq("id", id);
     if (error) toast.error(error.message); else onChange();
   };
 
@@ -498,7 +498,7 @@ function InterviewsTab({ interviews, applicants, schoolId, onChange }: { intervi
 
   const add = async () => {
     if (!form.applicant_id || !form.scheduled_at) { toast.error("Applicant and time required"); return; }
-    const { error } = await (supabase as any).from("hr_interviews").insert({
+    const { error } = await (api as any).from("hr_interviews").insert({
       school_id: schoolId, applicant_id: form.applicant_id, scheduled_at: form.scheduled_at,
       duration_minutes: Number(form.duration_minutes), mode: form.mode, location_or_link: form.location_or_link || null,
     });
@@ -506,7 +506,7 @@ function InterviewsTab({ interviews, applicants, schoolId, onChange }: { intervi
   };
 
   const updateStatus = async (id: string, status: string) => {
-    const { error } = await (supabase as any).from("hr_interviews").update({ status }).eq("id", id);
+    const { error } = await (api as any).from("hr_interviews").update({ status }).eq("id", id);
     if (error) toast.error(error.message); else onChange();
   };
 

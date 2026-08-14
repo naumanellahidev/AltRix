@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { fetchStudentLabelMap } from "@/lib/student-display";
@@ -16,7 +16,7 @@ export function StudentSupportModule({ myStudent, schoolId }: { myStudent: any; 
 
   const refresh = async () => {
     if (myStudent.status !== "ready") return;
-    const { data: conv } = await supabase
+    const { data: conv } = await api
       .from("support_conversations")
       .select("id,status")
       .eq("school_id", schoolId)
@@ -30,7 +30,7 @@ export function StudentSupportModule({ myStudent, schoolId }: { myStudent: any; 
       setMessages([]);
       return;
     }
-    const { data: msgs } = await supabase
+    const { data: msgs } = await api
       .from("support_messages")
       .select("id,content,sender_user_id,created_at")
       .eq("school_id", schoolId)
@@ -52,7 +52,7 @@ export function StudentSupportModule({ myStudent, schoolId }: { myStudent: any; 
     }
     let cancelled = false;
     (async () => {
-      const map = await fetchStudentLabelMap(supabase, { schoolId, studentIds: [myStudent.studentId] });
+      const map = await fetchStudentLabelMap(api, { schoolId, studentIds: [myStudent.studentId] });
       if (cancelled) return;
       setStudentLabel(map[myStudent.studentId] ?? null);
     })();
@@ -65,7 +65,7 @@ export function StudentSupportModule({ myStudent, schoolId }: { myStudent: any; 
     if (myStudent.status !== "ready") return;
     if (!conversation?.id) return;
 
-    const channel = supabase
+    const channel = api
       .channel(`support:${conversation.id}`)
       .on(
         "postgres_changes",
@@ -77,7 +77,7 @@ export function StudentSupportModule({ myStudent, schoolId }: { myStudent: any; 
       .subscribe();
 
     return () => {
-      void supabase.removeChannel(channel);
+      void api.removeChannel(channel);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversation?.id, myStudent.status]);
@@ -85,7 +85,7 @@ export function StudentSupportModule({ myStudent, schoolId }: { myStudent: any; 
   const ensureConversation = async () => {
     if (myStudent.status !== "ready") return null;
     if (conversation) return conversation;
-    const { data } = await supabase
+    const { data } = await api
       .from("support_conversations")
       .insert({ school_id: schoolId, student_id: myStudent.studentId })
       .select("id,status")
@@ -102,11 +102,11 @@ export function StudentSupportModule({ myStudent, schoolId }: { myStudent: any; 
     try {
       const conv = await ensureConversation();
       if (!conv) return;
-      const authed = await supabase.auth.getUser();
+      const authed = await api.auth.getUser();
       const senderId = authed.data.user?.id;
       if (!senderId) return;
 
-      await supabase.from("support_messages").insert({
+      await api.from("support_messages").insert({
         school_id: schoolId,
         conversation_id: conv.id,
         sender_user_id: senderId,
@@ -115,7 +115,7 @@ export function StudentSupportModule({ myStudent, schoolId }: { myStudent: any; 
 
       // Notify support staff
       try {
-        const { data: staffRoles } = await supabase
+        const { data: staffRoles } = await api
           .from("user_roles")
           .select("user_id")
           .eq("school_id", schoolId)
@@ -132,7 +132,7 @@ export function StudentSupportModule({ myStudent, schoolId }: { myStudent: any; 
             entity_type: "support_conversations",
             entity_id: conv.id
           }));
-          await supabase.from("app_notifications").insert(notificationRows);
+          await api.from("app_notifications").insert(notificationRows);
         }
       } catch (notifErr) {
         console.warn("Failed to notify staff about support message:", notifErr);

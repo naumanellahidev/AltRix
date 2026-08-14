@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { ChildInfo } from "@/hooks/useMyChildren";
 import { apiClient } from "@/lib/api-client";
 import { format } from "date-fns";
@@ -127,13 +127,13 @@ export default function ParentFeesModule({ child, schoolId }: ParentFeesModulePr
     try {
       // Load invoices & online transaction history from Supabase
       const [{ data: invs }, { data: jcRows }] = await Promise.all([
-        supabase
+        api
           .from("fee_invoices")
           .select("id, invoice_number, period_label, due_date, total_amount, paid_amount, status, subtotal, sibling_discount_amount")
           .eq("school_id", schoolId)
           .eq("student_id", child.student_id)
           .order("due_date", { ascending: false }),
-        supabase
+        api
           .from("jazzcash_transactions")
           .select("id, invoice_id, txn_ref_no, amount, status, jc_response_message, created_at")
           .eq("school_id", schoolId)
@@ -273,11 +273,11 @@ export default function ParentFeesModule({ child, schoolId }: ParentFeesModulePr
         { data: items },
         { data: fullInv },
       ] = await Promise.all([
-        supabase.from("schools").select("id,name,address,phone,email,website,motto,logo_url").eq("id", schoolId).maybeSingle(),
-        (supabase as any).from("school_branding").select("accent_hue,accent_saturation,accent_lightness").eq("school_id", schoolId).maybeSingle(),
-        (supabase as any).from("fee_settings").select("bank_name,bank_account_title,bank_account_number,bank_iban,bank_branch,bank_swift,voucher_footer_note,currency").eq("school_id", schoolId).maybeSingle(),
-        supabase.from("fee_invoice_items").select("label,amount,sort_order").eq("invoice_id", inv.id).order("sort_order"),
-        supabase.from("fee_invoices").select("subtotal,discount_amount,sibling_discount_amount,merit_discount_amount,merit_discount_reason,total_amount").eq("id", inv.id).maybeSingle(),
+        api.from("schools").select("id,name,address,phone,email,website,motto,logo_url").eq("id", schoolId).maybeSingle(),
+        (api as any).from("school_branding").select("accent_hue,accent_saturation,accent_lightness").eq("school_id", schoolId).maybeSingle(),
+        (api as any).from("fee_settings").select("bank_name,bank_account_title,bank_account_number,bank_iban,bank_branch,bank_swift,voucher_footer_note,currency").eq("school_id", schoolId).maybeSingle(),
+        api.from("fee_invoice_items").select("label,amount,sort_order").eq("invoice_id", inv.id).order("sort_order"),
+        api.from("fee_invoices").select("subtotal,discount_amount,sibling_discount_amount,merit_discount_amount,merit_discount_reason,total_amount").eq("id", inv.id).maybeSingle(),
       ]);
 
       const data: VoucherCopyData = {

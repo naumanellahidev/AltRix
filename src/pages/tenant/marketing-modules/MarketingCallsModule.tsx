@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -46,7 +46,7 @@ export function MarketingCallsModule() {
     let cancelled = false;
     (async () => {
       if (!schoolSlug) return;
-      const { data: school } = await supabase.from("schools").select("id").eq("slug", schoolSlug).maybeSingle();
+      const { data: school } = await api.from("schools").select("id").eq("slug", schoolSlug).maybeSingle();
       if (cancelled) return;
       setSchoolId(school?.id ?? null);
     })();
@@ -58,8 +58,8 @@ export function MarketingCallsModule() {
   const refresh = async () => {
     if (!schoolId) return;
     const [{ data: leadsData }, { data: logsData }] = await Promise.all([
-      supabase.from("crm_leads").select("id,full_name,phone,email").eq("school_id", schoolId).order("created_at", { ascending: false }),
-      supabase
+      api.from("crm_leads").select("id,full_name,phone,email").eq("school_id", schoolId).order("created_at", { ascending: false }),
+      api
         .from("crm_call_logs")
         .select("id,lead_id,called_at,duration_seconds,outcome,notes")
         .eq("school_id", schoolId)
@@ -89,7 +89,7 @@ export function MarketingCallsModule() {
     setBusy(true);
     try {
       const durationSeconds = Math.max(0, Number(duration || 0));
-      const { error } = await supabase.from("crm_call_logs").insert({
+      const { error } = await api.from("crm_call_logs").insert({
         school_id: schoolId,
         lead_id: leadId,
         duration_seconds: durationSeconds,

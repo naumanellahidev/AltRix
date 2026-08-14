@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { ArrowRightLeft } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -72,7 +72,7 @@ export function StudentTransferDialog({
 
     try {
       // First, check if student already has an enrollment
-      const { data: existing } = await supabase
+      const { data: existing } = await api
         .from("student_enrollments")
         .select("id, class_section_id")
         .eq("school_id", schoolId)
@@ -81,7 +81,7 @@ export function StudentTransferDialog({
 
       if (existing) {
         // Update existing enrollment
-        const { error } = await supabase
+        const { error } = await api
           .from("student_enrollments")
           .update({ class_section_id: targetSectionId })
           .eq("id", existing.id);
@@ -89,7 +89,7 @@ export function StudentTransferDialog({
         if (error) throw error;
       } else {
         // Create new enrollment
-        const { error } = await supabase
+        const { error } = await api
           .from("student_enrollments")
           .insert({
             school_id: schoolId,

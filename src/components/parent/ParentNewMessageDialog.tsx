@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Send, MessageSquare, Search, GraduationCap, UserCheck, Loader2 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -55,13 +55,13 @@ export function ParentNewMessageDialog({
     const fetchStaff = async () => {
       setLoading(true);
       try {
-        const { data: roles } = await supabase
+        const { data: roles } = await api
           .from("user_roles")
           .select("user_id, role")
           .eq("school_id", schoolId)
           .in("role", STAFF_ROLES);
 
-        const { data: dir } = await supabase.rpc("get_school_user_directory", {
+        const { data: dir } = await api.rpc("get_school_user_directory", {
           _school_id: schoolId,
         });
         const dirMap = new Map<string, string>(
@@ -118,10 +118,10 @@ export function ParentNewMessageDialog({
     }
     setSending(true);
     try {
-      const { data: ud } = await supabase.auth.getUser();
+      const { data: ud } = await api.auth.getUser();
       const senderId = ud.user?.id;
       if (!senderId) throw new Error("Not signed in");
-      const { error } = await supabase.from("parent_messages").insert({
+      const { error } = await api.from("parent_messages").insert({
         school_id: schoolId,
         student_id: studentId,
         sender_user_id: senderId,

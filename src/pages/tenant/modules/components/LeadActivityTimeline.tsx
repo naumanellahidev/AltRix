@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { CheckCircle2, Clock, Filter, Plus } from "lucide-react";
 
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -31,7 +31,7 @@ export function LeadActivityTimeline({ schoolId, leadId }: { schoolId: string; l
   const refresh = async () => {
     setBusy(true);
     try {
-      const { data, error } = await supabase
+      const { data, error } = await api
         .from("crm_activities")
         .select("id,activity_type,summary,due_at,completed_at,created_at")
         .eq("school_id", schoolId)
@@ -56,10 +56,10 @@ export function LeadActivityTimeline({ schoolId, leadId }: { schoolId: string; l
     if (!summary.trim()) return toast.error("Summary is required");
     setBusy(true);
     try {
-      const { data: auth } = await supabase.auth.getUser();
+      const { data: auth } = await api.auth.getUser();
       const userId = auth.user?.id ?? null;
 
-      const { error } = await supabase.from("crm_activities").insert({
+      const { error } = await api.from("crm_activities").insert({
         school_id: schoolId,
         lead_id: leadId,
         activity_type: type,
@@ -81,7 +81,7 @@ export function LeadActivityTimeline({ schoolId, leadId }: { schoolId: string; l
   const markComplete = async (activityId: string) => {
     setBusy(true);
     try {
-      const { error } = await supabase
+      const { error } = await api
         .from("crm_activities")
         .update({ completed_at: new Date().toISOString() })
         .eq("id", activityId)

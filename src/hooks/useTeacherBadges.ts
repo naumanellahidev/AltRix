@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import { supabase, USE_FASTAPI } from "@/integrations/supabase/client";
+import { api, USE_FASTAPI } from "@/lib/api";
 import { apiClient } from "@/lib/api-client";
 import { useRealtimeTable } from "@/hooks/useRealtime";
 
@@ -31,7 +31,7 @@ export function useTeacherBadges(schoolId: string | null, userId: string | null)
         setPendingAssignments(resp.data.pendingAssignments || 0);
       } else {
         // Get unread parent messages
-        const { count: msgCount } = await supabase
+        const { count: msgCount } = await api
           .from("parent_messages")
           .select("id", { count: "exact", head: true })
           .eq("school_id", schoolId)
@@ -41,7 +41,7 @@ export function useTeacherBadges(schoolId: string | null, userId: string | null)
         setUnreadMessages(msgCount || 0);
 
         // Get teacher's assigned sections
-        const { data: assignments } = await supabase
+        const { data: assignments } = await api
           .from("teacher_assignments")
           .select("class_section_id")
           .eq("school_id", schoolId)
@@ -56,7 +56,7 @@ export function useTeacherBadges(schoolId: string | null, userId: string | null)
         if (sectionIds.length > 0) {
           // Get assignment IDs for teacher's sections using filter
           const sectionFilter = sectionIds.map(id => `class_section_id.eq.${id}`).join(",");
-          const { data: assignmentsList } = await supabase
+          const { data: assignmentsList } = await api
             .from("assignments")
             .select("id")
             .eq("school_id", schoolId)
@@ -68,7 +68,7 @@ export function useTeacherBadges(schoolId: string | null, userId: string | null)
             // Count submissions per assignment to avoid deep type issues
             // Submissions without graded_at are considered pending
             for (const assignmentId of assignmentIds.slice(0, 20)) { // Limit to avoid too many queries
-              const result = await supabase
+              const result = await api
                 .from("assignment_submissions")
                 .select("id", { count: "exact", head: true })
                 .eq("assignment_id", assignmentId)

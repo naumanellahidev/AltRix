@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Check, Clock, X } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -59,7 +59,7 @@ export function PeriodLogDialog({
   const handleSave = async () => {
     setSaving(true);
 
-    const { data: user } = await supabase.auth.getUser();
+    const { data: user } = await api.auth.getUser();
     if (!user.user) {
       toast.error("Not authenticated");
       setSaving(false);
@@ -78,7 +78,7 @@ export function PeriodLogDialog({
 
     let error;
     if (existingLog) {
-      const result = await (supabase as any)
+      const result = await (api as any)
         .from("teacher_period_logs")
         .update({
           status,
@@ -88,7 +88,7 @@ export function PeriodLogDialog({
         .eq("id", existingLog.id);
       error = result.error;
     } else {
-      const result = await (supabase as any)
+      const result = await (api as any)
         .from("teacher_period_logs")
         .upsert(logData, { onConflict: "school_id,timetable_entry_id,logged_at" });
       error = result.error;

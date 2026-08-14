@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { toast } from "sonner";
 import {
   cacheConversations,
@@ -265,7 +265,7 @@ export function useOfflineMessaging({
     if (navigator.onLine) {
       // Try to send immediately
       try {
-        const { data: message, error: msgError } = await supabase
+        const { data: message, error: msgError } = await api
           .from("admin_messages")
           .insert({
             school_id: schoolId,
@@ -281,7 +281,7 @@ export function useOfflineMessaging({
         
         if (msgError) throw msgError;
         
-        const { error: recError } = await supabase
+        const { error: recError } = await api
           .from("admin_message_recipients")
           .insert({
             message_id: message.id,
@@ -344,7 +344,7 @@ export function useOfflineMessaging({
         try {
           const { recipient_user_ids, subject, content, priority, local_id } = item.data as any;
           
-          const { data: message, error: msgError } = await supabase
+          const { data: message, error: msgError } = await api
             .from("admin_messages")
             .insert({
               school_id: schoolId,
@@ -364,7 +364,7 @@ export function useOfflineMessaging({
             recipient_user_id: recipientId,
           }));
           
-          const { error: recError } = await supabase
+          const { error: recError } = await api
             .from("admin_message_recipients")
             .insert(recipients);
           

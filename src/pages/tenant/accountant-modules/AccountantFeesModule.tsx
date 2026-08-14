@@ -20,7 +20,7 @@ import {
   RefreshCw
 } from "lucide-react";
 
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { useTenant } from "@/hooks/useTenant";
 import { useRealtimeTable } from "@/hooks/useRealtime";
 import { useOfflineFeePlans } from "@/hooks/useOfflineData";
@@ -166,7 +166,7 @@ export function AccountantFeesModule() {
   const { data: feePlans = [], isLoading: loadingPlans } = useQuery({
     queryKey: ["fee_plans", schoolId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await api
         .from("fee_plans")
         .select("*")
         .eq("school_id", schoolId!)
@@ -180,7 +180,7 @@ export function AccountantFeesModule() {
   const { data: classes = [] } = useQuery({
     queryKey: ["academic_classes", schoolId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await api
         .from("academic_classes")
         .select("id, name")
         .eq("school_id", schoolId!)
@@ -194,7 +194,7 @@ export function AccountantFeesModule() {
   const { data: feeItems = [], isLoading: loadingItems } = useQuery({
     queryKey: ["fee_plan_items", schoolId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await api
         .from("fee_plan_items")
         .select("*")
         .eq("school_id", schoolId!)
@@ -208,7 +208,7 @@ export function AccountantFeesModule() {
   const { data: assignments = [] } = useQuery({
     queryKey: ["student_fee_assignments_summary", schoolId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await api
         .from("student_fee_assignments")
         .select("id, student_id, fee_plan_id")
         .eq("school_id", schoolId!)
@@ -291,7 +291,7 @@ export function AccountantFeesModule() {
     };
 
     if (editingPlan) {
-      const { error } = await supabase
+      const { error } = await api
         .from("fee_plans")
         .update(payload)
         .eq("id", editingPlan.id);
@@ -301,7 +301,7 @@ export function AccountantFeesModule() {
       }
       toast.success("Billing structure updated");
     } else {
-      const { data, error } = await supabase
+      const { data, error } = await api
         .from("fee_plans")
         .insert(payload)
         .select()
@@ -320,7 +320,7 @@ export function AccountantFeesModule() {
   };
 
   const handleDeletePlan = async (id: string) => {
-    const { error } = await supabase.from("fee_plans").delete().eq("id", id);
+    const { error } = await api.from("fee_plans").delete().eq("id", id);
     if (error) {
       toast.error(error.message);
       return;
@@ -343,7 +343,7 @@ export function AccountantFeesModule() {
       return;
     }
 
-    const { error } = await supabase.from("fee_plan_items").insert({
+    const { error } = await api.from("fee_plan_items").insert({
       school_id: schoolId,
       fee_plan_id: selectedPlanId,
       label: newItemLabel.trim(),
@@ -365,7 +365,7 @@ export function AccountantFeesModule() {
 
   // Delete Item
   const handleDeleteItem = async (id: string) => {
-    const { error } = await supabase.from("fee_plan_items").delete().eq("id", id);
+    const { error } = await api.from("fee_plan_items").delete().eq("id", id);
     if (error) {
       toast.error(error.message);
       return;
@@ -379,7 +379,7 @@ export function AccountantFeesModule() {
     if (!schoolId) return;
     try {
       // 1. Insert new plan
-      const { data: clonedPlan, error: planErr } = await supabase
+      const { data: clonedPlan, error: planErr } = await api
         .from("fee_plans")
         .insert({
           school_id: schoolId,
@@ -397,7 +397,7 @@ export function AccountantFeesModule() {
       if (planErr) throw planErr;
 
       // 2. Fetch source plan's items
-      const { data: sourceItems, error: itemsFetchErr } = await supabase
+      const { data: sourceItems, error: itemsFetchErr } = await api
         .from("fee_plan_items")
         .select("*")
         .eq("fee_plan_id", sourcePlan.id);
@@ -415,7 +415,7 @@ export function AccountantFeesModule() {
           sort_order: item.sort_order,
         }));
 
-        const { error: itemsInsertErr } = await supabase
+        const { error: itemsInsertErr } = await api
           .from("fee_plan_items")
           .insert(clonedItemsPayload);
 
@@ -440,7 +440,7 @@ export function AccountantFeesModule() {
     }
     setCounting(true);
     try {
-      const { data: sectionsData } = await supabase
+      const { data: sectionsData } = await api
         .from("class_sections")
         .select("id")
         .eq("class_id", cid);
@@ -451,7 +451,7 @@ export function AccountantFeesModule() {
         return;
       }
 
-      const { count } = await supabase
+      const { count } = await api
         .from("student_enrollments")
         .select("student_id", { count: "exact", head: true })
         .in("class_section_id", sectionIds)
@@ -470,7 +470,7 @@ export function AccountantFeesModule() {
     if (!schoolId || !selectedPlanId || !assignClassId) return;
     try {
       // 1. Get Sections
-      const { data: sectionsData } = await supabase
+      const { data: sectionsData } = await api
         .from("class_sections")
         .select("id")
         .eq("class_id", assignClassId);
@@ -482,7 +482,7 @@ export function AccountantFeesModule() {
       }
 
       // 2. Get Students enrolled
-      const { data: enrollments, error: enrollErr } = await supabase
+      const { data: enrollments, error: enrollErr } = await api
         .from("student_enrollments")
         .select("student_id")
         .in("class_section_id", sectionIds)
@@ -506,7 +506,7 @@ export function AccountantFeesModule() {
         is_active: true
       }));
 
-      const { error: assignErr } = await supabase
+      const { error: assignErr } = await api
         .from("student_fee_assignments")
         .upsert(assignmentsPayload, { onConflict: "student_id,fee_plan_id" });
 

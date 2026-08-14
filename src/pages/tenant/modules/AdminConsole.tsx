@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { ShieldCheck } from "lucide-react";
 
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { useTenant } from "@/hooks/useTenant";
 import { useSession } from "@/hooks/useSession";
 import { Button } from "@/components/ui/button";
@@ -28,7 +28,7 @@ export function AdminConsole() {
 
   useEffect(() => {
     if (!schoolId) return;
-    supabase
+    api
       .from("school_bootstrap")
       .select("locked,bootstrapped_at")
       .eq("school_id", schoolId)
@@ -45,7 +45,7 @@ export function AdminConsole() {
 
     setBusy(true);
     try {
-      const { data, error } = await supabase.functions.invoke("eduverse-bootstrap", {
+      const { data, error } = await api.functions.invoke("eduverse-bootstrap", {
         body: {
           bootstrapSecret: secret.trim(),
           schoolSlug: tenant.slug,
@@ -60,13 +60,13 @@ export function AdminConsole() {
       setStatus(JSON.stringify(data, null, 2));
       // refresh lock state
       if (schoolId) {
-        const { data: bs } = await supabase.from("school_bootstrap").select("locked").eq("school_id", schoolId).maybeSingle();
+        const { data: bs } = await api.from("school_bootstrap").select("locked").eq("school_id", schoolId).maybeSingle();
         setLocked(bs?.locked ?? true);
       }
 
       // audit log
       if (schoolId && user?.id) {
-        await supabase.from("audit_logs").insert({
+        await api.from("audit_logs").insert({
           school_id: schoolId,
           actor_user_id: user.id,
           action: "bootstrap_run",

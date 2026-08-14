@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -208,7 +208,7 @@ export function FeesAnalyticsTab({ schoolId, currency, invoices, payments, stude
     if (amt <= 0) return toast.error("Enter a positive waiver amount");
     const newDiscount = Number(waiverInv.discount_amount || 0) + amt;
     const newTotal = Math.max(Number(waiverInv.total_amount) - amt, Number(waiverInv.paid_amount));
-    const { error } = await supabase
+    const { error } = await api
       .from("fee_invoices")
       .update({
         discount_amount: newDiscount,
@@ -228,7 +228,7 @@ export function FeesAnalyticsTab({ schoolId, currency, invoices, payments, stude
     if (amt <= 0) return toast.error("Enter a positive amount");
     const newLate = Number(lateInv.late_fee || 0) + amt;
     const newTotal = Number(lateInv.total_amount) + amt;
-    const { error } = await supabase
+    const { error } = await api
       .from("fee_invoices")
       .update({ late_fee: newLate, total_amount: newTotal })
       .eq("id", lateInv.id);

@@ -1,4 +1,4 @@
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 
 export const RESET_LINK_TTL_SECONDS = 60 * 60;
 export const RESET_RESEND_COOLDOWN_SECONDS = 60;
@@ -17,7 +17,7 @@ export const buildResetRedirectUrl = (returnTo: string) =>
 
 export const requestPasswordResetLink = async (email: string, returnTo: string) => {
   const redirectTo = buildResetRedirectUrl(returnTo);
-  const { data, error } = await supabase.functions.invoke<PasswordResetRequestResult>("password-reset-request", {
+  const { data, error } = await api.functions.invoke<PasswordResetRequestResult>("password-reset-request", {
     body: { email, redirectTo },
   });
 

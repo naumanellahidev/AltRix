@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { supabase, USE_FASTAPI } from "@/integrations/supabase/client";
+import { api, USE_FASTAPI } from "@/lib/api";
 import { apiClient } from "@/lib/api-client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -88,20 +88,20 @@ export function ParentChildLinkingTab({ schoolId }: Props) {
         }));
       } else {
         // Load guardians with student names
-        const { data: gd } = await (supabase as any)
+        const { data: gd } = await (api as any)
           .from("student_guardians")
           .select("*")
           .order("created_at", { ascending: false });
 
         // Load students
-        const { data: sd } = await supabase
+        const { data: sd } = await api
           .from("students")
           .select("id, first_name, last_name")
           .eq("school_id", schoolId)
           .order("first_name");
 
         // Load parent users from user_roles
-        const { data: parentRoles } = await (supabase as any)
+        const { data: parentRoles } = await (api as any)
           .from("user_roles")
           .select("user_id")
           .eq("school_id", schoolId)
@@ -112,7 +112,7 @@ export function ParentChildLinkingTab({ schoolId }: Props) {
 
         if (parentRoles && parentRoles.length > 0) {
           const parentUserIds = parentRoles.map((p: any) => p.user_id);
-          const { data: profiles } = await (supabase as any)
+          const { data: profiles } = await (api as any)
             .from("profiles")
             .select("id, email, full_name")
             .in("id", parentUserIds);
@@ -173,7 +173,7 @@ export function ParentChildLinkingTab({ schoolId }: Props) {
         toast.error(err?.response?.data?.detail || err.message || "Failed to link guardian");
       }
     } else {
-      const { error } = await (supabase as any)
+      const { error } = await (api as any)
         .from("student_guardians")
         .insert({
           student_id: form.student_id,
@@ -208,7 +208,7 @@ export function ParentChildLinkingTab({ schoolId }: Props) {
         toast.error(err.message || "Failed to remove guardian link");
       }
     } else {
-      const { error } = await (supabase as any)
+      const { error } = await (api as any)
         .from("student_guardians")
         .delete()
         .eq("id", id);
@@ -234,7 +234,7 @@ export function ParentChildLinkingTab({ schoolId }: Props) {
         toast.error(err.message || "Failed to link parent account");
       }
     } else {
-      const { error } = await (supabase as any)
+      const { error } = await (api as any)
         .from("student_guardians")
         .update({ user_id: userId })
         .eq("id", guardianId);

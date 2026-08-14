@@ -18,7 +18,7 @@ import { SubjectsOverviewCard } from "@/components/academic/SubjectsOverviewCard
 import { EditClassDialog } from "@/components/academic/EditClassDialog";
 import { EditSectionDialog } from "@/components/academic/EditSectionDialog";
 
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { useTenant } from "@/hooks/useTenant";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -116,21 +116,21 @@ export function AcademicModule() {
     if (!schoolId) return;
 
     const [c, s, st, enr, ta, dirUsers, roleRows, dir, subj, css, tsa] = await Promise.all([
-      supabase.from("academic_classes").select("id,name,grade_level").eq("school_id", schoolId).order("name"),
-      supabase.from("class_sections").select("id,name,class_id,room").eq("school_id", schoolId).order("name"),
-      supabase
+      api.from("academic_classes").select("id,name,grade_level").eq("school_id", schoolId).order("name"),
+      api.from("class_sections").select("id,name,class_id,room").eq("school_id", schoolId).order("name"),
+      api
         .from("students")
         .select("id,first_name,last_name,parent_name,status,profile_id")
         .eq("school_id", schoolId)
         .order("first_name"),
-      supabase.from("student_enrollments").select("student_id,class_section_id").eq("school_id", schoolId),
-      supabase.from("teacher_assignments").select("teacher_user_id,class_section_id").eq("school_id", schoolId),
-      supabase.rpc("list_school_user_profiles", { _school_id: schoolId }),
-      supabase.from("user_roles").select("user_id").eq("school_id", schoolId).eq("role", "teacher"),
-      supabase.from("school_user_directory").select("user_id,email,display_name").eq("school_id", schoolId).order("email"),
-      supabase.from("subjects").select("id,name,code").eq("school_id", schoolId).order("name"),
-      supabase.from("class_section_subjects").select("id,class_section_id,subject_id").eq("school_id", schoolId),
-      supabase
+      api.from("student_enrollments").select("student_id,class_section_id").eq("school_id", schoolId),
+      api.from("teacher_assignments").select("teacher_user_id,class_section_id").eq("school_id", schoolId),
+      api.rpc("list_school_user_profiles", { _school_id: schoolId }),
+      api.from("user_roles").select("user_id").eq("school_id", schoolId).eq("role", "teacher"),
+      api.from("school_user_directory").select("user_id,email,display_name").eq("school_id", schoolId).order("email"),
+      api.from("subjects").select("id,name,code").eq("school_id", schoolId).order("name"),
+      api.from("class_section_subjects").select("id,class_section_id,subject_id").eq("school_id", schoolId),
+      api
         .from("teacher_subject_assignments")
         .select("id,class_section_id,subject_id,teacher_user_id")
         .eq("school_id", schoolId),
@@ -181,7 +181,7 @@ export function AcademicModule() {
   const createClass = async () => {
     if (!schoolId) return;
     if (!newClassName.trim()) return toast.error("Class name required");
-    const { error } = await supabase.from("academic_classes").insert({ school_id: schoolId, name: newClassName.trim() });
+    const { error } = await api.from("academic_classes").insert({ school_id: schoolId, name: newClassName.trim() });
     if (error) return toast.error(error.message);
     setNewClassName("");
     toast.success("Class created");
@@ -192,7 +192,7 @@ export function AcademicModule() {
     if (!schoolId) return;
     if (!selectedClassId) return toast.error("Pick a class");
     if (!newSectionName.trim()) return toast.error("Section name required");
-    const { error } = await supabase
+    const { error } = await api
       .from("class_sections")
       .insert({ school_id: schoolId, class_id: selectedClassId, name: newSectionName.trim() });
     if (error) return toast.error(error.message);
@@ -207,7 +207,7 @@ export function AcademicModule() {
     if (!studentParentName.trim()) return toast.error("Parent name required for identification");
     if (!selectedSectionId) return toast.error("Pick a section");
 
-    const { data: student, error } = await supabase
+    const { data: student, error } = await api
       .from("students")
       .insert({ 
         school_id: schoolId, 
@@ -220,7 +220,7 @@ export function AcademicModule() {
       .single();
     if (error) return toast.error(error.message);
 
-    const { error: enrErr } = await supabase
+    const { error: enrErr } = await api
       .from("student_enrollments")
       .insert({ school_id: schoolId, student_id: student.id, class_section_id: selectedSectionId });
     if (enrErr) return toast.error(enrErr.message);
@@ -236,7 +236,7 @@ export function AcademicModule() {
     if (!schoolId) return;
     if (!teacherUserId) return toast.error("Pick a teacher");
     if (!assignSectionId) return toast.error("Pick a section");
-    const { error } = await supabase
+    const { error } = await api
       .from("teacher_assignments")
       .upsert({ school_id: schoolId, teacher_user_id: teacherUserId, class_section_id: assignSectionId }, { onConflict: "school_id,teacher_user_id,class_section_id" });
     if (error) return toast.error(error.message);
@@ -250,11 +250,11 @@ export function AcademicModule() {
     if (!linkUserId) return toast.error("Pick a user");
 
     // Ensure a profile row exists for this user (auto-create if missing)
-    await supabase
+    await api
       .from("profiles")
       .upsert({ id: linkUserId }, { onConflict: "id" });
 
-    const { error } = await supabase
+    const { error } = await api
       .from("students")
       .update({ profile_id: linkUserId })
       .eq("school_id", schoolId)
@@ -290,7 +290,7 @@ export function AcademicModule() {
 
     setStudentSubmitting(true);
     try {
-      const { error } = await supabase
+      const { error } = await api
         .from("students")
         .update({
           first_name: editStudentForm.first_name.trim(),
@@ -307,13 +307,13 @@ export function AcademicModule() {
       const currentEnrollment = enrollments.find((e) => e.student_id === editingStudent.id);
       if (editStudentForm.section_id && editStudentForm.section_id !== currentEnrollment?.class_section_id) {
         if (currentEnrollment) {
-          await supabase
+          await api
             .from("student_enrollments")
             .update({ class_section_id: editStudentForm.section_id })
             .eq("school_id", schoolId)
             .eq("student_id", editingStudent.id);
         } else {
-          await supabase.from("student_enrollments").insert({
+          await api.from("student_enrollments").insert({
             school_id: schoolId,
             student_id: editingStudent.id,
             class_section_id: editStudentForm.section_id,
@@ -338,7 +338,7 @@ export function AcademicModule() {
     setStudentSubmitting(true);
     try {
       // Delete enrollments first
-      const { error: enrollError } = await supabase
+      const { error: enrollError } = await api
         .from("student_enrollments")
         .delete()
         .eq("school_id", schoolId)
@@ -349,7 +349,7 @@ export function AcademicModule() {
       }
 
       // Then delete student
-      const { error } = await supabase
+      const { error } = await api
         .from("students")
         .delete()
         .eq("school_id", schoolId)

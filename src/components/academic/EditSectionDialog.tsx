@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Pencil } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -58,7 +58,7 @@ export function EditSectionDialog({ section, classes, schoolId, onSaved }: EditS
 
     setSaving(true);
 
-    const { error } = await supabase
+    const { error } = await api
       .from("class_sections")
       .update({
         name: name.trim(),

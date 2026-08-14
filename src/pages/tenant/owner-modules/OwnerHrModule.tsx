@@ -12,7 +12,7 @@ import {
   Wallet,
 } from "lucide-react";
 import { format, subMonths } from "date-fns";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -64,7 +64,7 @@ export function OwnerHrModule({ schoolId }: Props) {
     enabled: !!schoolId,
     queryFn: async () => {
       if (!schoolId) return [] as any[];
-      const { data } = await (supabase as any).rpc("get_school_user_directory", { _school_id: schoolId });
+      const { data } = await (api as any).rpc("get_school_user_directory", { _school_id: schoolId });
       return (data || []) as any[];
     },
   });
@@ -83,7 +83,7 @@ export function OwnerHrModule({ schoolId }: Props) {
       // Optionally restrict to staff assigned to active campus
       let staffUserIds: string[] | null = null;
       if (activeCampusId) {
-        const { data: sca } = await supabase
+        const { data: sca } = await api
           .from("staff_campus_assignments")
           .select("user_id")
           .eq("campus_id", activeCampusId);
@@ -98,25 +98,25 @@ export function OwnerHrModule({ schoolId }: Props) {
 
       const [staffRes, rolesRes, salariesRes, leavesRes, payRunsRes, contractsRes, reviewsRes] =
         await Promise.all([
-          applyUserFilter(supabase.from("school_memberships").select("*").eq("school_id", schoolId)),
-          applyUserFilter(supabase.from("user_roles").select("*").eq("school_id", schoolId)),
-          applyUserFilter(supabase.from("hr_salary_records").select("*").eq("school_id", schoolId)),
+          applyUserFilter(api.from("school_memberships").select("*").eq("school_id", schoolId)),
+          applyUserFilter(api.from("user_roles").select("*").eq("school_id", schoolId)),
+          applyUserFilter(api.from("hr_salary_records").select("*").eq("school_id", schoolId)),
           applyUserFilter(
-            supabase
+            api
               .from("hr_leave_requests")
               .select("*")
               .eq("school_id", schoolId)
               .order("created_at", { ascending: false })
           ),
-          supabase
+          api
             .from("hr_pay_runs")
             .select("*")
             .eq("school_id", schoolId)
             .order("year", { ascending: false })
             .order("month", { ascending: false }),
-          applyUserFilter(supabase.from("hr_contracts").select("*").eq("school_id", schoolId)),
+          applyUserFilter(api.from("hr_contracts").select("*").eq("school_id", schoolId)),
           applyUserFilter(
-            supabase
+            api
               .from("hr_reviews")
               .select("*")
               .eq("school_id", schoolId)

@@ -3,7 +3,7 @@ import { useParams } from "react-router-dom";
 import {
   Plus, Pencil, Trash2, Search, Link as LinkIcon, FileDown, Users2, UserPlus, Filter,
 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { useTenant } from "@/hooks/useTenant";
 import { useSession } from "@/hooks/useSession";
 import { useSchoolDocument } from "@/hooks/useSchoolDocument";
@@ -108,7 +108,7 @@ export function StaffDirectoryTab() {
   const load = async () => {
     if (!schoolId) return;
     setLoading(true);
-    const { data, error } = await (supabase as any)
+    const { data, error } = await (api as any)
       .from("hr_staff_directory")
       .select("*")
       .eq("school_id", schoolId)
@@ -190,10 +190,10 @@ export function StaffDirectoryTab() {
     };
     let error;
     if (editing.id) {
-      ({ error } = await (supabase as any).from("hr_staff_directory").update(payload).eq("id", editing.id));
+      ({ error } = await (api as any).from("hr_staff_directory").update(payload).eq("id", editing.id));
     } else {
       payload.created_by = user?.id || null;
-      ({ error } = await (supabase as any).from("hr_staff_directory").insert(payload));
+      ({ error } = await (api as any).from("hr_staff_directory").insert(payload));
     }
     if (error) { toast.error(error.message); return; }
     toast.success(editing.id ? "Staff record updated" : "Staff record added");
@@ -202,7 +202,7 @@ export function StaffDirectoryTab() {
 
   const remove = async (row: Row) => {
     if (!confirm(`Delete ${row.full_name}? This cannot be undone.`)) return;
-    const { error } = await (supabase as any).from("hr_staff_directory").delete().eq("id", row.id);
+    const { error } = await (api as any).from("hr_staff_directory").delete().eq("id", row.id);
     if (error) { toast.error(error.message); return; }
     toast.success("Staff record removed");
     load();
@@ -213,7 +213,7 @@ export function StaffDirectoryTab() {
     const ids = Array.from(selectedIds);
     if (ids.length === 0) return;
     if (!confirm(`${active ? "Activate" : "Deactivate"} ${ids.length} record(s)?`)) return;
-    const { error } = await (supabase as any)
+    const { error } = await (api as any)
       .from("hr_staff_directory")
       .update({ is_active: active })
       .in("id", ids);
@@ -227,7 +227,7 @@ export function StaffDirectoryTab() {
     const ids = Array.from(selectedIds);
     if (ids.length === 0) return;
     if (!confirm(`Delete ${ids.length} staff record(s)? This cannot be undone.`)) return;
-    const { error } = await (supabase as any).from("hr_staff_directory").delete().in("id", ids);
+    const { error } = await (api as any).from("hr_staff_directory").delete().in("id", ids);
     if (error) { toast.error(error.message); return; }
     toast.success(`${ids.length} record(s) deleted`);
     setSelectedIds(new Set());
@@ -252,7 +252,7 @@ export function StaffDirectoryTab() {
     }
     setInviting(true);
     try {
-      const { data, error } = await supabase.functions.invoke("eduverse-invite", {
+      const { data, error } = await api.functions.invoke("eduverse-invite", {
         body: {
           schoolSlug,
           email: invite.email.trim().toLowerCase(),
@@ -265,7 +265,7 @@ export function StaffDirectoryTab() {
       const userId = (data as any)?.userId || (data as any)?.user_id;
       // Link the directory row to the freshly-created account
       if (userId) {
-        await (supabase as any)
+        await (api as any)
           .from("hr_staff_directory")
           .update({ linked_user_id: userId, email: invite.email })
           .eq("id", inviteFor.id);

@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { BookOpen, CalendarDays, FileText, GraduationCap, Headphones, LayoutGrid, Megaphone, NotebookPen, ScrollText, MessageSquare, Sparkles, Menu, LogOut, Brain, PartyPopper, ShieldAlert } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { GlobalCommandPalette } from "@/components/global/GlobalCommandPalette";
 import { NotificationsBell } from "@/components/global/NotificationsBell";
 import { DashboardNotificationsBanner } from "@/components/global/DashboardNotificationsBanner";
@@ -39,7 +39,7 @@ export function StudentShell({ title, subtitle, schoolSlug, children }: Props) {
   });
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    await api.auth.signOut();
     navigate(`/${schoolSlug}/auth`);
   };
 

@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
 import { LogOut, Menu, Sparkles, ChevronDown, KeyRound, Loader2, CheckCircle2, AlertTriangle } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import {
   Dialog,
   DialogContent,
@@ -90,7 +90,7 @@ export function RoleAwareShell({ schoolSlug, title, subtitle, children }: Props)
   const { grouped } = useMemo(() => buildMergedNav(roles), [rolesKey]);
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    await api.auth.signOut();
     navigate(`/${schoolSlug}/auth`);
   };
 
@@ -118,7 +118,7 @@ export function RoleAwareShell({ schoolSlug, title, subtitle, children }: Props)
     setOtpError(null);
     setIsBusy(true);
     try {
-      const { error } = await supabase.auth.signInWithOtp({
+      const { error } = await api.auth.signInWithOtp({
         email: user.email,
         options: {
           shouldCreateUser: false,
@@ -142,7 +142,7 @@ export function RoleAwareShell({ schoolSlug, title, subtitle, children }: Props)
     if (!user?.email) return;
     setIsResending(true);
     try {
-      const { error } = await supabase.auth.signInWithOtp({
+      const { error } = await api.auth.signInWithOtp({
         email: user.email,
         options: {
           shouldCreateUser: false,
@@ -165,7 +165,7 @@ export function RoleAwareShell({ schoolSlug, title, subtitle, children }: Props)
     setOtpError(null);
     setIsBusy(true);
     try {
-      const { error } = await supabase.auth.verifyOtp({
+      const { error } = await api.auth.verifyOtp({
         email: user.email,
         token: code,
         type: 'magiclink',
@@ -195,7 +195,7 @@ export function RoleAwareShell({ schoolSlug, title, subtitle, children }: Props)
     }
     setIsBusy(true);
     try {
-      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      const { error } = await api.auth.updateUser({ password: newPassword });
       if (error) {
         toast.error("Failed to update password: " + error.message);
         return;

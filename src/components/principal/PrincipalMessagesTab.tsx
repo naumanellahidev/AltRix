@@ -12,7 +12,7 @@ import {
   User,
   Users,
 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
@@ -53,7 +53,7 @@ export function PrincipalMessagesTab({ schoolId }: Props) {
   const fetchMessages = async () => {
     setLoading(true);
 
-    const { data: user } = await supabase.auth.getUser();
+    const { data: user } = await api.auth.getUser();
     if (!user.user) {
       setLoading(false);
       return;
@@ -61,7 +61,7 @@ export function PrincipalMessagesTab({ schoolId }: Props) {
     setCurrentUserId(user.user.id);
 
     // Fetch all messages for this school where user is sender or recipient
-    const { data: sentMessages } = await supabase
+    const { data: sentMessages } = await api
       .from("admin_messages")
       .select("*")
       .eq("school_id", schoolId)
@@ -69,7 +69,7 @@ export function PrincipalMessagesTab({ schoolId }: Props) {
       .order("created_at", { ascending: false });
 
     // Fetch messages received (via recipients table)
-    const { data: recipientRows } = await supabase
+    const { data: recipientRows } = await api
       .from("admin_message_recipients")
       .select("message_id, is_read, admin_messages(*)")
       .eq("recipient_user_id", user.user.id);
@@ -84,7 +84,7 @@ export function PrincipalMessagesTab({ schoolId }: Props) {
 
     // Fetch profiles
     if (userIds.size > 0) {
-      const { data: profiles } = await supabase
+      const { data: profiles } = await api
         .from("profiles")
         .select("id, display_name")
         .in("id", Array.from(userIds));
@@ -139,7 +139,7 @@ export function PrincipalMessagesTab({ schoolId }: Props) {
 
     // Fetch recipient counts for sent messages
     for (const msg of all.filter((m) => m.is_sent)) {
-      const { count } = await supabase
+      const { count } = await api
         .from("admin_message_recipients")
         .select("*", { count: "exact", head: true })
         .eq("message_id", msg.id);
@@ -153,7 +153,7 @@ export function PrincipalMessagesTab({ schoolId }: Props) {
   const markAsRead = async (message: Message) => {
     if (message.is_sent || message.is_read) return;
 
-    await supabase
+    await api
       .from("admin_message_recipients")
       .update({ is_read: true, read_at: new Date().toISOString() })
       .eq("message_id", message.id)
@@ -184,14 +184,14 @@ export function PrincipalMessagesTab({ schoolId }: Props) {
 
     // Load recipients for sent messages
     if (message.is_sent) {
-      const { data } = await supabase
+      const { data } = await api
         .from("admin_message_recipients")
         .select("recipient_user_id, is_read")
         .eq("message_id", message.id);
 
       if (data) {
         const userIds = data.map((r) => r.recipient_user_id);
-        const { data: profiles } = await supabase
+        const { data: profiles } = await api
           .from("profiles")
           .select("id, display_name")
           .in("id", userIds);

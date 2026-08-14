@@ -12,7 +12,7 @@ import {
   Heart, MessageSquare, NotebookPen, Sparkles, Users,
 } from "lucide-react";
 
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { useTenant } from "@/hooks/useTenant";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -46,26 +46,26 @@ export function CounselorHome() {
     enabled: !!schoolId,
     queryFn: async () => {
       const [queue, behavior, parentNotes, students] = await Promise.all([
-        supabase
+        api
           .from("ai_counseling_queue")
           .select("id, status, priority, reason_type, scheduled_date, created_at, student_id, students:student_id(first_name, last_name)")
           .eq("school_id", schoolId!)
           .order("created_at", { ascending: false })
           .limit(200),
-        supabase
+        api
           .from("behavior_notes")
           .select("id, note_type, title, created_at, student_id, students:student_id(first_name, last_name)")
           .eq("school_id", schoolId!)
           .in("note_type", ["concern", "incident"])
           .order("created_at", { ascending: false })
           .limit(6),
-        supabase
+        api
           .from("parent_behavior_notes")
           .select("id, mood, behavior, note_date, created_at, student_id, students:student_id(first_name,last_name)")
           .eq("school_id", schoolId!)
           .order("created_at", { ascending: false })
           .limit(5),
-        supabase.from("students").select("id", { count: "exact", head: true })
+        api.from("students").select("id", { count: "exact", head: true })
           .eq("school_id", schoolId!).eq("status", "active"),
       ]);
       return {
@@ -80,7 +80,7 @@ export function CounselorHome() {
   // Realtime
   useEffect(() => {
     if (!schoolId) return;
-    const ch = supabase.channel(`counselor-home-${schoolId}`)
+    const ch = api.channel(`counselor-home-${schoolId}`)
       .on("postgres_changes",
           { event: "*", schema: "public", table: "ai_counseling_queue", filter: `school_id=eq.${schoolId}` },
           () => qc.invalidateQueries({ queryKey: ["counselor-home", schoolId] }))
@@ -88,7 +88,7 @@ export function CounselorHome() {
           { event: "*", schema: "public", table: "behavior_notes", filter: `school_id=eq.${schoolId}` },
           () => qc.invalidateQueries({ queryKey: ["counselor-home", schoolId] }))
       .subscribe();
-    return () => { supabase.removeChannel(ch); };
+    return () => { api.removeChannel(ch); };
   }, [schoolId, qc]);
 
   const kpis = useMemo(() => {

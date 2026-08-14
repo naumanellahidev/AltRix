@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, lazy, Suspense } from "react";
 import { Routes, Route, Navigate, useParams, useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { useSession } from "@/hooks/useSession";
 import { useTenantOptimized } from "@/hooks/useTenantOptimized";
 import { useMyChildren, ChildInfo } from "@/hooks/useMyChildren";
@@ -173,7 +173,7 @@ const ParentDashboard = () => {
     const checkAuth = async () => {
       try {
         // Check if user has 'parent' role in this school
-        const { data: roles, error } = await supabase
+        const { data: roles, error } = await api
           .from("user_roles")
           .select("role")
           .eq("school_id", schoolIdVal)
@@ -254,7 +254,7 @@ const ParentDashboard = () => {
   }, [childList, getActiveChildStorageKey]);
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    await api.auth.signOut();
     navigate(`/${schoolSlug}/auth`);
   };
 

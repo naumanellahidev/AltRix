@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -64,7 +64,7 @@ export function MarketingIntakeModule() {
   useEffect(() => {
     if (!schoolId) return;
     (async () => {
-      const { data } = await supabase.from("schools").select("logo_url").eq("id", schoolId).maybeSingle();
+      const { data } = await api.from("schools").select("logo_url").eq("id", schoolId).maybeSingle();
       if (data) setSchoolDetails(data);
     })();
   }, [schoolId]);

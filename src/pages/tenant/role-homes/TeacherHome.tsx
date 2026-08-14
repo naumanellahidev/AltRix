@@ -16,7 +16,7 @@ import {
   ArrowRight,
   Keyboard,
 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { useTenantOptimized } from "@/hooks/useTenantOptimized";
 import { useSession } from "@/hooks/useSession";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -214,7 +214,7 @@ export function TeacherHome() {
       }
 
       // Get assigned sections for this teacher
-      const { data: assignments } = await (supabase as any)
+      const { data: assignments } = await (api as any)
         .from("teacher_assignments")
         .select("class_section_id")
         .eq("school_id", schoolId)
@@ -227,7 +227,7 @@ export function TeacherHome() {
       // Get total students in assigned sections
       let totalStudents = 0;
       if (assignedSectionIds.length > 0) {
-        const { count } = await (supabase as any)
+        const { count } = await (api as any)
           .from("student_enrollments")
           .select("id", { count: "exact", head: true })
           .eq("school_id", schoolId)
@@ -239,7 +239,7 @@ export function TeacherHome() {
       const today = new Date().toISOString().split("T")[0];
       let pendingHomeworkCount = 0;
       if (assignedSectionIds.length > 0) {
-        const { count } = await supabase
+        const { count } = await api
           .from("homework")
           .select("id", { count: "exact", head: true })
           .eq("school_id", schoolId)
@@ -252,7 +252,7 @@ export function TeacherHome() {
       // Get today's attendance sessions - only for THIS teacher's sections
       let todayAttendanceCount = 0;
       if (assignedSectionIds.length > 0) {
-        const { count } = await (supabase as any)
+        const { count } = await (api as any)
           .from("attendance_sessions")
           .select("id", { count: "exact", head: true })
           .eq("school_id", schoolId)
@@ -262,7 +262,7 @@ export function TeacherHome() {
       }
 
       // Get unread messages
-      const { count: unreadMessages } = await supabase
+      const { count: unreadMessages } = await api
         .from("admin_message_recipients")
         .select("id", { count: "exact", head: true })
         .eq("recipient_user_id", user.id)
@@ -271,7 +271,7 @@ export function TeacherHome() {
       // Get recent homework - only for THIS teacher's sections or created by this teacher
       let homework: { id: string; title: string; due_date: string }[] = [];
       if (assignedSectionIds.length > 0) {
-        const { data } = await supabase
+        const { data } = await api
           .from("homework")
           .select("id, title, due_date")
           .eq("school_id", schoolId)
@@ -285,7 +285,7 @@ export function TeacherHome() {
       // Get today's classes + determine current/next class section
       let classesToday = 0;
       const dayOfWeek = new Date().getDay(); // 0-6
-      const { data: timetableData, count: classesCount } = await supabase
+      const { data: timetableData, count: classesCount } = await api
         .from("timetable_entries")
         .select("class_section_id, timetable_periods!inner(label, start_time, end_time, sort_order)", { count: "exact" })
         .eq("school_id", schoolId)

@@ -14,7 +14,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { useTenant } from "@/hooks/useTenant";
 import { useSession } from "@/hooks/useSession";
 import { EDUVERSE_ROLES, roleLabel, type EduverseRole } from "@/lib/eduverse-roles";
@@ -83,7 +83,7 @@ export function UsersModule() {
     if (!schoolId) return;
 
     // Fetch directory data
-    const { data: dir } = await supabase
+    const { data: dir } = await api
       .rpc("get_school_user_directory", { _school_id: schoolId });
 
     // Filter out super master admin details from staff directory
@@ -94,7 +94,7 @@ export function UsersModule() {
     // Fetch phone numbers from profiles
     const userIds = filteredDir.map((d: any) => d.user_id);
     const { data: profiles } = userIds.length > 0
-      ? await supabase
+      ? await api
           .from("profiles")
           .select("id, phone")
           .in("id", userIds)
@@ -114,7 +114,7 @@ export function UsersModule() {
         })) as DirectoryRow[]
     );
 
-    const { data: ur } = await supabase
+    const { data: ur } = await api
       .from("user_roles")
       .select("user_id,role")
       .eq("school_id", schoolId);
@@ -169,7 +169,7 @@ export function UsersModule() {
     setBusy(true);
     setCreatedUserId(null);
     try {
-      const { data, error } = await supabase.functions.invoke("eduverse-invite", {
+      const { data, error } = await api.functions.invoke("eduverse-invite", {
         body: {
           schoolSlug: tenant.slug,
           email: email.trim().toLowerCase(),
@@ -179,7 +179,7 @@ export function UsersModule() {
         },
       });
       if (error) {
-        // supabase-js often collapses non-2xx into a generic message; try to surface function JSON error.
+        // api-js often collapses non-2xx into a generic message; try to surface function JSON error.
         const raw = (error as any)?.context?.body;
         let detail: string | null = null;
         if (typeof raw === "string") {
@@ -196,7 +196,7 @@ export function UsersModule() {
       setCreatedUserId((data as any)?.userId ?? null);
 
       if (schoolId && user?.id) {
-        await supabase.from("audit_logs").insert({
+        await api.from("audit_logs").insert({
           school_id: schoolId,
           actor_user_id: user.id,
           action: "user_invited",
@@ -219,7 +219,7 @@ export function UsersModule() {
   const canGovernStaff = perms.isPlatformSuperAdmin || perms.canManageStaff;
 
   const governanceInvoke = async (body: any) => {
-    const { data, error } = await supabase.functions.invoke("eduverse-staff-governance", { body });
+    const { data, error } = await api.functions.invoke("eduverse-staff-governance", { body });
     if (error) {
       const raw = (error as any)?.context?.body;
       if (typeof raw === "string") {
@@ -236,7 +236,7 @@ export function UsersModule() {
   };
 
   const bulkInvoke = async (body: any) => {
-    const { data, error } = await supabase.functions.invoke("eduverse-bulk-staff-import", { body });
+    const { data, error } = await api.functions.invoke("eduverse-bulk-staff-import", { body });
     if (error) {
       const raw = (error as any)?.context?.body;
       if (typeof raw === "string") {
@@ -719,7 +719,7 @@ export function UsersModule() {
                                         targetUserId: r.user_id,
                                         reason: govReason.trim() || "User deleted by admin",
                                       });
-                                      await supabase
+                                      await api
                                         .from("user_roles")
                                         .delete()
                                         .eq("school_id", schoolId!)

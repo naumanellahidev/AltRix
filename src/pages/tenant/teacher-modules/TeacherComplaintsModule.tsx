@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { useTenant } from "@/hooks/useTenant";
 import { useSession } from "@/hooks/useSession";
 import {
@@ -166,7 +166,7 @@ export function TeacherComplaintsModule() {
 
   const load = async () => {
     if (!schoolId || !user) return;
-    const { data } = await (supabase as any)
+    const { data } = await (api as any)
       .from("complaints")
       .select("id, subject, content, category, status, priority, rating, rating_comment, attachments, created_at, student_id, resolution_note")
       .eq("school_id", schoolId)
@@ -181,7 +181,7 @@ export function TeacherComplaintsModule() {
 
     if (!schoolId || !user?.id) return;
 
-    const complaintsChannel = supabase
+    const complaintsChannel = api
       .channel(`teacher_complaints_changes:${schoolId}:${user.id}`)
       .on(
         "postgres_changes",
@@ -198,7 +198,7 @@ export function TeacherComplaintsModule() {
       .subscribe();
 
     return () => {
-      void supabase.removeChannel(complaintsChannel);
+      void api.removeChannel(complaintsChannel);
     };
   }, [schoolId, user?.id]);
 
@@ -228,7 +228,7 @@ export function TeacherComplaintsModule() {
       return toast.error("Pick a student and add subject + details");
     }
     setSending(true);
-    const { data, error } = await (supabase as any)
+    const { data, error } = await (api as any)
       .from("complaints")
       .insert({
         school_id: schoolId,
@@ -249,14 +249,14 @@ export function TeacherComplaintsModule() {
 
     // Notify guardians & principal
     try {
-      const { data: guardians } = await supabase
+      const { data: guardians } = await api
         .from("student_guardians")
         .select("user_id")
         .eq("student_id", studentId);
 
       const parentUserIds = Array.from(new Set((guardians ?? []).map(g => g.user_id).filter(Boolean)));
       
-      const { data: staffRoles } = await supabase
+      const { data: staffRoles } = await api
         .from("user_roles")
         .select("user_id")
         .eq("school_id", schoolId)
@@ -293,7 +293,7 @@ export function TeacherComplaintsModule() {
       });
 
       if (notifRows.length > 0) {
-        await supabase.from("app_notifications").insert(notifRows);
+        await api.from("app_notifications").insert(notifRows);
       }
     } catch (notifErr) {
       console.warn("Failed to notify parent/principal about teacher complaint:", notifErr);

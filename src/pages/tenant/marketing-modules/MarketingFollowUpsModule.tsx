@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
@@ -56,7 +56,7 @@ export function MarketingFollowUpsModule() {
     let cancelled = false;
     (async () => {
       if (!schoolSlug) return;
-      const { data: school } = await supabase.from("schools").select("id").eq("slug", schoolSlug).maybeSingle();
+      const { data: school } = await api.from("schools").select("id").eq("slug", schoolSlug).maybeSingle();
       if (cancelled) return;
       setSchoolId(school?.id ?? null);
     })();
@@ -69,7 +69,7 @@ export function MarketingFollowUpsModule() {
     if (!schoolId) return;
     
     // Fetch activities joined with lead details
-    const { data: actsData } = await supabase
+    const { data: actsData } = await api
       .from("crm_activities")
       .select(`
         id,
@@ -89,7 +89,7 @@ export function MarketingFollowUpsModule() {
       .order("due_at", { ascending: true });
 
     // Fetch leads for scheduling dropdown
-    const { data: leadsData } = await supabase
+    const { data: leadsData } = await api
       .from("crm_leads")
       .select("id, full_name, email, phone")
       .eq("school_id", schoolId)
@@ -137,7 +137,7 @@ export function MarketingFollowUpsModule() {
   const markComplete = async (id: string) => {
     setBusy(true);
     try {
-      const { error } = await supabase
+      const { error } = await api
         .from("crm_activities")
         .update({ completed_at: new Date().toISOString() })
         .eq("id", id);
@@ -161,7 +161,7 @@ export function MarketingFollowUpsModule() {
 
     setBusy(true);
     try {
-      const { error } = await supabase.from("crm_activities").insert({
+      const { error } = await api.from("crm_activities").insert({
         school_id: schoolId,
         lead_id: newLeadId,
         activity_type: newType,

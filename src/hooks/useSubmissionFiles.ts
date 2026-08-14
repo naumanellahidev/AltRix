@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { toast } from "sonner";
 
 const BUCKET_NAME = "assignment-submissions";
@@ -15,7 +15,7 @@ export function useSubmissionFiles(studentId: string, assignmentId: string) {
     }
 
     const loadedFiles = attachmentUrls.map((path) => {
-      const { data } = supabase.storage.from(BUCKET_NAME).getPublicUrl(path);
+      const { data } = api.storage.from(BUCKET_NAME).getPublicUrl(path);
       const name = path.split("/").pop() || path;
       return { name, url: data.publicUrl };
     });
@@ -31,7 +31,7 @@ export function useSubmissionFiles(studentId: string, assignmentId: string) {
     const filePath = `${studentId}/${assignmentId}/${fileName}`;
 
     setUploading(true);
-    const { error } = await supabase.storage
+    const { error } = await api.storage
       .from(BUCKET_NAME)
       .upload(filePath, file, { upsert: false });
 
@@ -46,7 +46,7 @@ export function useSubmissionFiles(studentId: string, assignmentId: string) {
   };
 
   const deleteFile = async (filePath: string): Promise<boolean> => {
-    const { error } = await supabase.storage.from(BUCKET_NAME).remove([filePath]);
+    const { error } = await api.storage.from(BUCKET_NAME).remove([filePath]);
     if (error) {
       toast.error(`Delete failed: ${error.message}`);
       return false;
@@ -55,7 +55,7 @@ export function useSubmissionFiles(studentId: string, assignmentId: string) {
   };
 
   const getSignedUrl = async (filePath: string): Promise<string | null> => {
-    const { data, error } = await supabase.storage
+    const { data, error } = await api.storage
       .from(BUCKET_NAME)
       .createSignedUrl(filePath, 3600); // 1 hour expiry
 

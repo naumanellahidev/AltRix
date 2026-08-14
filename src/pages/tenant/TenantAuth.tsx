@@ -5,7 +5,7 @@ import { motion, useReducedMotion } from "framer-motion";
 import { Loader2, Sparkles, Shield, Activity, Workflow, Building2, Mail, Lock, Eye, EyeOff, Info, ArrowRight, ArrowLeft, Key } from "lucide-react";
 
 import { apiClient } from "@/lib/api-client";
-import { supabase, rawSupabase } from "@/integrations/supabase/client";
+import { api, api } from "@/lib/api";
 import { useTenant } from "@/hooks/useTenant";
 import { useSchoolPermissions } from "@/hooks/useSchoolPermissions";
 import { MASTER_SUPER_ADMIN_EMAIL } from "@/hooks/usePlatformSuperAdmin";
@@ -79,17 +79,17 @@ const TenantAuth = () => {
     if (tenant.status !== "ready") return;
     const schoolId = tenant.schoolId;
 
-    const { data: authUser } = await supabase.auth.getUser();
+    const { data: authUser } = await api.auth.getUser();
     const signedInEmail = authUser.user?.email?.toLowerCase() ?? null;
     if (signedInEmail === MASTER_SUPER_ADMIN_EMAIL) {
-      const { data: psa } = await supabase
+      const { data: psa } = await api
         .from("platform_super_admins").select("user_id").eq("user_id", userId).maybeSingle();
       if (psa?.user_id) { navigate("/super_admin"); return; }
     }
 
     const [{ data: membership }, { data: rolesData }] = await Promise.all([
-      supabase.from("school_memberships").select("id").eq("school_id", schoolId).eq("user_id", userId).maybeSingle(),
-      supabase.from("user_roles").select("role").eq("school_id", schoolId).eq("user_id", userId)
+      api.from("school_memberships").select("id").eq("school_id", schoolId).eq("user_id", userId).maybeSingle(),
+      api.from("user_roles").select("role").eq("school_id", schoolId).eq("user_id", userId)
     ]);
 
     const roles = (rolesData || []).map((r) => r.role as EduverseRole);
@@ -98,14 +98,14 @@ const TenantAuth = () => {
     if (!isMember) {
       setMessageType("error");
       setMessage("Your account is not a member of this institute.");
-      await supabase.auth.signOut();
+      await api.auth.signOut();
       return;
     }
     const destRole = resolveDestinationRole(roles);
     if (!destRole) {
       setMessageType("error");
       setMessage("No role assigned to your account for this institute. Contact an administrator.");
-      await supabase.auth.signOut();
+      await api.auth.signOut();
       return;
     }
     navigate(`/${tenant.slug}/${roleToPathSegment(destRole)}`);
@@ -126,7 +126,7 @@ const TenantAuth = () => {
           password: password,
         });
         if (resp.data?.access_token) {
-          const { data: sessData } = await rawSupabase.auth.setSession({
+          const { data: sessData } = await api.auth.setSession({
             access_token: resp.data.access_token,
             refresh_token: resp.data.refresh_token,
           });
@@ -143,7 +143,7 @@ const TenantAuth = () => {
       }
 
       // 2. Fallback to Supabase direct auth
-      const { data, error } = await supabase.auth.signInWithPassword({ email: parsedEmail.data, password });
+      const { data, error } = await api.auth.signInWithPassword({ email: parsedEmail.data, password });
       if (error) { setMessageType("error"); setMessage(error.message); return; }
       rememberRecentEmail(parsedEmail.data);
       setRecentEmails(getRecentEmails());

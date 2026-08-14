@@ -3,7 +3,7 @@ import { useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Building2, Search, TrendingDown } from "lucide-react";
 
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { useTenant } from "@/hooks/useTenant";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -34,7 +34,7 @@ export function AccountantVendorsModule() {
     queryKey: ["vendor_expenses", schoolId, from, to],
     enabled: !!schoolId,
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await api
         .from("finance_expenses")
         .select("id, description, amount, category, expense_date, vendor")
         .eq("school_id", schoolId!)

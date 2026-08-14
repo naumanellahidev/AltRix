@@ -23,7 +23,7 @@ import {
   Users,
   Zap,
 } from "lucide-react";
-import { supabase, USE_FASTAPI } from "@/integrations/supabase/client";
+import { api, USE_FASTAPI } from "@/lib/api";
 import { apiClient } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -202,17 +202,17 @@ export function OwnerOverviewModule({ schoolId }: Props) {
         timetableRes,
         teacherAssignRes,
       ] = await Promise.all([
-        supabase.from("students").select("id,status").eq("school_id", schoolId),
-        supabase.from("fee_payments").select("amount,paid_at").eq("school_id", schoolId).eq("status", "success"),
-        supabase.from("finance_expenses").select("amount,expense_date").eq("school_id", schoolId),
-        supabase.from("attendance_entries").select("status").eq("school_id", schoolId).gte("created_at", d7Ago.toISOString()),
-        supabase.from("crm_leads").select("id,status,created_at").eq("school_id", schoolId),
-        supabase.from("fee_invoices").select("id,status,total_amount").eq("school_id", schoolId),
-        supabase.from("school_memberships").select("id").eq("school_id", schoolId),
-        supabase.from("user_roles").select("id").eq("school_id", schoolId).eq("role", "teacher"),
-        supabase.from("student_marks").select("marks,assessment_id").eq("school_id", schoolId).not("marks", "is", null),
-        supabase.from("timetable_entries").select("teacher_id").eq("school_id", schoolId),
-        supabase.from("teacher_subject_assignments").select("teacher_id").eq("school_id", schoolId),
+        api.from("students").select("id,status").eq("school_id", schoolId),
+        api.from("fee_payments").select("amount,paid_at").eq("school_id", schoolId).eq("status", "success"),
+        api.from("finance_expenses").select("amount,expense_date").eq("school_id", schoolId),
+        api.from("attendance_entries").select("status").eq("school_id", schoolId).gte("created_at", d7Ago.toISOString()),
+        api.from("crm_leads").select("id,status,created_at").eq("school_id", schoolId),
+        api.from("fee_invoices").select("id,status,total_amount").eq("school_id", schoolId),
+        api.from("school_memberships").select("id").eq("school_id", schoolId),
+        api.from("user_roles").select("id").eq("school_id", schoolId).eq("role", "teacher"),
+        api.from("student_marks").select("marks,assessment_id").eq("school_id", schoolId).not("marks", "is", null),
+        api.from("timetable_entries").select("teacher_id").eq("school_id", schoolId),
+        api.from("teacher_subject_assignments").select("teacher_id").eq("school_id", schoolId),
       ]);
 
       const students = studentsRes.data || [];
@@ -312,14 +312,14 @@ export function OwnerOverviewModule({ schoolId }: Props) {
         const end = startOfMonth(subMonths(new Date(), i - 1));
 
         const [paymentsRes, expensesRes] = await Promise.all([
-          supabase
+          api
             .from("fee_payments")
             .select("amount")
             .eq("school_id", schoolId)
             .eq("status", "success")
             .gte("paid_at", start.toISOString())
             .lt("paid_at", end.toISOString()),
-          supabase
+          api
             .from("finance_expenses")
             .select("amount")
             .eq("school_id", schoolId)

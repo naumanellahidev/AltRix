@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -36,7 +36,7 @@ export function MarketingSourcesModule() {
     let cancelled = false;
     (async () => {
       if (!schoolSlug) return;
-      const { data: school } = await supabase.from("schools").select("id").eq("slug", schoolSlug).maybeSingle();
+      const { data: school } = await api.from("schools").select("id").eq("slug", schoolSlug).maybeSingle();
       if (cancelled) return;
       setSchoolId(school?.id ?? null);
     })();
@@ -49,7 +49,7 @@ export function MarketingSourcesModule() {
     if (!schoolId) return;
     let cancelled = false;
     (async () => {
-      const { data } = await supabase.from("crm_leads").select("id,source,status,full_name,email,phone,score,created_at").eq("school_id", schoolId);
+      const { data } = await api.from("crm_leads").select("id,source,status,full_name,email,phone,score,created_at").eq("school_id", schoolId);
       if (cancelled) return;
       setLeads((data ?? []) as LeadRow[]);
     })();

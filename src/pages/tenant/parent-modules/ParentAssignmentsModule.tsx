@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { getVPSFileUrl } from "@/lib/vpsStorage";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -291,7 +291,7 @@ export default function ParentAssignmentsModule({ child, schoolId }: ParentAssig
   const refreshSubmissions = async () => {
     if (!child || isOffline || !schoolId) return;
     
-    const { data: subs } = await supabase
+    const { data: subs } = await api
       .from("assignment_submissions")
       .select("id,assignment_id,content,attachment_urls,submitted_at,status,marks,feedback")
       .eq("school_id", schoolId)
@@ -359,7 +359,7 @@ export default function ParentAssignmentsModule({ child, schoolId }: ParentAssig
     const filePath = `${child.student_id}/${selectedAssignment.id}/${fileName}`;
 
     setUploading(true);
-    const { error } = await supabase.storage
+    const { error } = await api.storage
       .from("assignment-submissions")
       .upload(filePath, file, { upsert: false });
 
@@ -423,7 +423,7 @@ export default function ParentAssignmentsModule({ child, schoolId }: ParentAssig
     };
 
     if (existing) {
-      const { error } = await supabase
+      const { error } = await api
         .from("assignment_submissions")
         .update(savePayload)
         .eq("id", existing.id);
@@ -436,7 +436,7 @@ export default function ParentAssignmentsModule({ child, schoolId }: ParentAssig
         refreshSubmissions();
       }
     } else {
-      const { error } = await supabase
+      const { error } = await api
         .from("assignment_submissions")
         .insert({
           school_id: schoolId,

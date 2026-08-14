@@ -16,7 +16,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { useTenant } from "@/hooks/useTenant";
 import { useDashboardAlerts } from "@/hooks/useDashboardAlerts";
 import { Button } from "@/components/ui/button";
@@ -146,48 +146,48 @@ export function VicePrincipalHome() {
         sectionsCount,
         pendingAssignments,
       ] = await Promise.all([
-        supabase.from("students").select("id", { count: "exact", head: true }).eq("school_id", schoolId),
-        supabase.from("user_roles").select("id", { count: "exact", head: true }).eq("school_id", schoolId).eq("role", "teacher"),
-        supabase.from("school_memberships").select("id", { count: "exact", head: true }).eq("school_id", schoolId),
-        supabase.from("crm_leads").select("id", { count: "exact", head: true }).eq("school_id", schoolId),
-        supabase.from("crm_leads").select("id", { count: "exact", head: true }).eq("school_id", schoolId).not("stage_id", "is", null),
-        supabase
+        api.from("students").select("id", { count: "exact", head: true }).eq("school_id", schoolId),
+        api.from("user_roles").select("id", { count: "exact", head: true }).eq("school_id", schoolId).eq("role", "teacher"),
+        api.from("school_memberships").select("id", { count: "exact", head: true }).eq("school_id", schoolId),
+        api.from("crm_leads").select("id", { count: "exact", head: true }).eq("school_id", schoolId),
+        api.from("crm_leads").select("id", { count: "exact", head: true }).eq("school_id", schoolId).not("stage_id", "is", null),
+        api
           .from("attendance_entries")
           .select("id", { count: "exact", head: true })
           .eq("school_id", schoolId)
           .gte("created_at", d7.toISOString()),
-        supabase
+        api
           .from("attendance_entries")
           .select("id", { count: "exact", head: true })
           .eq("school_id", schoolId)
           .eq("status", "present")
           .gte("created_at", d7.toISOString()),
-        supabase
+        api
           .from("attendance_entries")
           .select("id", { count: "exact", head: true })
           .eq("school_id", schoolId)
           .eq("status", "late")
           .gte("created_at", d7.toISOString()),
-        supabase
+        api
           .from("attendance_entries")
           .select("id", { count: "exact", head: true })
           .eq("school_id", schoolId)
           .eq("status", "absent")
           .gte("created_at", d7.toISOString()),
-        supabase
+        api
           .from("fee_payments")
           .select("amount,paid_at,created_at,status")
           .eq("school_id", schoolId)
           .limit(1000),
-        supabase
+        api
           .from("finance_expenses")
           .select("amount,expense_date,created_at")
           .eq("school_id", schoolId)
           .limit(1000),
-        supabase.from("fee_invoices").select("id", { count: "exact", head: true }).eq("school_id", schoolId).not("status", "eq", "paid").not("status", "eq", "cancelled"),
-        supabase.from("academic_classes").select("id", { count: "exact", head: true }).eq("school_id", schoolId),
-        supabase.from("class_sections").select("id", { count: "exact", head: true }).eq("school_id", schoolId),
-        supabase.from("assignment_submissions").select("id", { count: "exact", head: true }).eq("school_id", schoolId).is("marks", null),
+        api.from("fee_invoices").select("id", { count: "exact", head: true }).eq("school_id", schoolId).not("status", "eq", "paid").not("status", "eq", "cancelled"),
+        api.from("academic_classes").select("id", { count: "exact", head: true }).eq("school_id", schoolId),
+        api.from("class_sections").select("id", { count: "exact", head: true }).eq("school_id", schoolId),
+        api.from("assignment_submissions").select("id", { count: "exact", head: true }).eq("school_id", schoolId).is("marks", null),
       ]);
 
       const mtdMonth = monthStart.getMonth();

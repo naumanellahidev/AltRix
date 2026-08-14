@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import { supabase, USE_FASTAPI } from "@/integrations/supabase/client";
+import { api, USE_FASTAPI } from "@/lib/api";
 import { apiClient } from "@/lib/api-client";
 
 interface PushNotificationOptions {
@@ -69,7 +69,7 @@ export function usePushNotifications({ schoolId, userId, enabled = true }: PushN
   useEffect(() => {
     if (!enabled || !schoolId || !userId || permission !== "granted") return;
 
-    const channel = supabase
+    const channel = api
       .channel(`push-notifications-${userId}`)
       .on(
         "postgres_changes",
@@ -95,7 +95,7 @@ export function usePushNotifications({ schoolId, userId, enabled = true }: PushN
               console.error("Failed to fetch notification details from FastAPI", err);
             }
           } else {
-            const { data: msgData } = await supabase
+            const { data: msgData } = await api
               .from("admin_messages")
               .select("content, sender_user_id")
               .eq("id", payload.new.message_id)
@@ -103,7 +103,7 @@ export function usePushNotifications({ schoolId, userId, enabled = true }: PushN
             message = msgData;
 
             if (message) {
-              const { data: senderProfile } = await (supabase as any)
+              const { data: senderProfile } = await (api as any)
                 .from("profiles")
                 .select("display_name")
                 .eq("id", message.sender_user_id)
@@ -130,7 +130,7 @@ export function usePushNotifications({ schoolId, userId, enabled = true }: PushN
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      api.removeChannel(channel);
     };
   }, [enabled, schoolId, userId, permission, showNotification]);
 

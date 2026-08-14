@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { toast } from "sonner";
 import {
   addToOfflineQueue,
@@ -139,7 +139,7 @@ export function useOfflineEnhanced(schoolId: string | null, userId: string | nul
             note?: string;
           };
           
-          const { error } = await supabase.from("attendance_entries").upsert(
+          const { error } = await api.from("attendance_entries").upsert(
             {
               school_id: schoolId,
               session_id,
@@ -164,7 +164,7 @@ export function useOfflineEnhanced(schoolId: string | null, userId: string | nul
             status?: string;
           };
           
-          const { error } = await supabase.from("teacher_period_logs").upsert(
+          const { error } = await api.from("teacher_period_logs").upsert(
             {
               school_id: schoolId,
               timetable_entry_id,
@@ -190,7 +190,7 @@ export function useOfflineEnhanced(schoolId: string | null, userId: string | nul
             is_shared_with_parents: boolean;
           };
           
-          const { error } = await supabase.from("behavior_notes").insert({
+          const { error } = await api.from("behavior_notes").insert({
             school_id: schoolId,
             student_id,
             title,
@@ -214,7 +214,7 @@ export function useOfflineEnhanced(schoolId: string | null, userId: string | nul
             attachment_urls?: string[];
           };
           
-          const { error } = await supabase.from("homework").insert({
+          const { error } = await api.from("homework").insert({
             school_id: schoolId,
             class_section_id,
             title,
@@ -236,7 +236,7 @@ export function useOfflineEnhanced(schoolId: string | null, userId: string | nul
             marks: number;
           };
           
-          const { error } = await supabase.from("student_marks").upsert(
+          const { error } = await api.from("student_marks").upsert(
             {
               school_id: schoolId,
               assessment_id,
@@ -259,7 +259,7 @@ export function useOfflineEnhanced(schoolId: string | null, userId: string | nul
             priority?: string;
           };
           
-          const { data: message, error: msgError } = await supabase
+          const { data: message, error: msgError } = await api
             .from("admin_messages")
             .insert({
               school_id: schoolId,
@@ -279,7 +279,7 @@ export function useOfflineEnhanced(schoolId: string | null, userId: string | nul
             recipient_user_id: recipientId,
           }));
           
-          const { error: recError } = await supabase
+          const { error: recError } = await api
             .from("admin_message_recipients")
             .insert(recipients);
           
@@ -377,7 +377,7 @@ export function useOfflineEnhanced(schoolId: string | null, userId: string | nul
     
     try {
       // Get teacher's assigned sections
-      const { data: assignments } = await supabase
+      const { data: assignments } = await api
         .from("teacher_assignments")
         .select("class_section_id")
         .eq("school_id", schoolId)
@@ -388,7 +388,7 @@ export function useOfflineEnhanced(schoolId: string | null, userId: string | nul
       const sectionIds = assignments.map(a => a.class_section_id);
       
       // Get enrollments for those sections
-      const { data: enrollments } = await supabase
+      const { data: enrollments } = await api
         .from("student_enrollments")
         .select("student_id, class_section_id")
         .eq("school_id", schoolId)
@@ -399,14 +399,14 @@ export function useOfflineEnhanced(schoolId: string | null, userId: string | nul
       const studentIds = [...new Set(enrollments.map(e => e.student_id))];
       
       // Get student details
-      const { data: students } = await supabase
+      const { data: students } = await api
         .from("students")
         .select("id, first_name, last_name")
         .eq("school_id", schoolId)
         .in("id", studentIds);
       
       // Get section details
-      const { data: sections } = await supabase
+      const { data: sections } = await api
         .from("class_sections")
         .select("id, name, class_id, academic_classes(name)")
         .in("id", sectionIds);
@@ -455,7 +455,7 @@ export function useOfflineEnhanced(schoolId: string | null, userId: string | nul
     
     try {
       // Get timetable entries
-      const { data: entries } = await supabase
+      const { data: entries } = await api
         .from("timetable_entries")
         .select(`
           id,
@@ -474,14 +474,14 @@ export function useOfflineEnhanced(schoolId: string | null, userId: string | nul
       
       // Get period details
       const periodIds = [...new Set(entries.map(e => e.period_id).filter(Boolean))];
-      const { data: periods } = await supabase
+      const { data: periods } = await api
         .from("timetable_periods")
         .select("id, label, sort_order")
         .in("id", periodIds);
       
       // Get section details
       const sectionIds = [...new Set(entries.map(e => e.class_section_id).filter(Boolean))];
-      const { data: sections } = await supabase
+      const { data: sections } = await api
         .from("class_sections")
         .select("id, name, academic_classes(name)")
         .in("id", sectionIds);
@@ -528,7 +528,7 @@ export function useOfflineEnhanced(schoolId: string | null, userId: string | nul
     if (!schoolId || !userId) return;
     
     try {
-      const { data: assignments } = await supabase
+      const { data: assignments } = await api
         .from("assignments")
         .select(`
           id,
@@ -546,7 +546,7 @@ export function useOfflineEnhanced(schoolId: string | null, userId: string | nul
       if (!assignments || assignments.length === 0) return;
       
       const sectionIds = [...new Set(assignments.map(a => a.class_section_id))];
-      const { data: sections } = await supabase
+      const { data: sections } = await api
         .from("class_sections")
         .select("id, name, academic_classes(name)")
         .in("id", sectionIds);
@@ -582,7 +582,7 @@ export function useOfflineEnhanced(schoolId: string | null, userId: string | nul
     if (!schoolId || !userId) return;
     
     try {
-      const { data: assignments } = await supabase
+      const { data: assignments } = await api
         .from("teacher_assignments")
         .select("class_section_id")
         .eq("school_id", schoolId)
@@ -592,7 +592,7 @@ export function useOfflineEnhanced(schoolId: string | null, userId: string | nul
       
       const sectionIds = [...new Set(assignments.map(a => a.class_section_id))];
       
-      const { data: sections } = await supabase
+      const { data: sections } = await api
         .from("class_sections")
         .select("id, name, class_id, room, academic_classes(name)")
         .in("id", sectionIds);

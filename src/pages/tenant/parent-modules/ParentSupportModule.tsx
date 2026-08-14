@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { ChildInfo } from "@/hooks/useMyChildren";
 import { format } from "date-fns";
 import { Send, LifeBuoy } from "lucide-react";
@@ -29,7 +29,7 @@ const ParentSupportModule = ({ child, schoolId }: ParentSupportModuleProps) => {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
+    api.auth.getUser().then(({ data }) => {
       setCurrentUserId(data.user?.id || null);
     });
   }, []);
@@ -41,7 +41,7 @@ const ParentSupportModule = ({ child, schoolId }: ParentSupportModuleProps) => {
     setLoading(true);
 
     // Look for existing conversation
-    const { data: existing } = await supabase
+    const { data: existing } = await api
       .from("support_conversations")
       .select("id")
       .eq("school_id", schoolId)
@@ -54,7 +54,7 @@ const ParentSupportModule = ({ child, schoolId }: ParentSupportModuleProps) => {
       setConversationId(existing.id);
     } else {
       // Create new conversation
-      const { data: created, error } = await supabase
+      const { data: created, error } = await api
         .from("support_conversations")
         .insert({ school_id: schoolId, student_id: child.student_id })
         .select("id")
@@ -78,7 +78,7 @@ const ParentSupportModule = ({ child, schoolId }: ParentSupportModuleProps) => {
   const fetchMessages = useCallback(async () => {
     if (!conversationId) return;
 
-    const { data, error } = await supabase
+    const { data, error } = await api
       .from("support_messages")
       .select("id, content, sender_user_id, created_at")
       .eq("conversation_id", conversationId)
@@ -100,7 +100,7 @@ const ParentSupportModule = ({ child, schoolId }: ParentSupportModuleProps) => {
   useEffect(() => {
     if (!conversationId) return;
 
-    const channel = supabase
+    const channel = api
       .channel(`parent-support-${conversationId}`)
       .on(
         "postgres_changes",
@@ -117,7 +117,7 @@ const ParentSupportModule = ({ child, schoolId }: ParentSupportModuleProps) => {
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      api.removeChannel(channel);
     };
   }, [conversationId]);
 
@@ -126,7 +126,7 @@ const ParentSupportModule = ({ child, schoolId }: ParentSupportModuleProps) => {
 
     setSending(true);
 
-    const { error } = await supabase.from("support_messages").insert({
+    const { error } = await api.from("support_messages").insert({
       school_id: schoolId,
       conversation_id: conversationId,
       sender_user_id: currentUserId,
@@ -140,7 +140,7 @@ const ParentSupportModule = ({ child, schoolId }: ParentSupportModuleProps) => {
 
       // Notify support staff
       try {
-        const { data: staffRoles } = await supabase
+        const { data: staffRoles } = await api
           .from("user_roles")
           .select("user_id")
           .eq("school_id", schoolId)
@@ -157,7 +157,7 @@ const ParentSupportModule = ({ child, schoolId }: ParentSupportModuleProps) => {
             entity_type: "support_conversations",
             entity_id: conversationId
           }));
-          await supabase.from("app_notifications").insert(notificationRows);
+          await api.from("app_notifications").insert(notificationRows);
         }
       } catch (notifErr) {
         console.warn("Failed to notify staff about parent support message:", notifErr);

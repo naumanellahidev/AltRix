@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { Building2, Plus } from "lucide-react";
 import { toast } from "sonner";
 
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -41,7 +41,7 @@ export default function CampusCreatorCard({ schools, onCreated }: Props) {
 
     setBusy(true);
     try {
-      const { error } = await supabase.rpc("admin_create_campus", {
+      const { error } = await api.rpc("admin_create_campus", {
         _school_id: schoolId,
         _name: name.trim(),
         _slug: slugPreview,

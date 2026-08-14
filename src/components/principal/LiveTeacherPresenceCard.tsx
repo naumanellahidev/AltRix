@@ -31,7 +31,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { useLiveTeacherPresence, LiveTeacherStatus } from "@/hooks/useLiveTeacherPresence";
 import { exportToCSV } from "@/lib/csv";
 
@@ -161,7 +161,7 @@ export function LiveTeacherPresenceCard({ schoolId }: Props) {
 
   useEffect(() => {
     if (!schoolId) return;
-    const ch = supabase
+    const ch = api
       .channel(`live_presence_toasts_${schoolId}`)
       .on(
         "postgres_changes",
@@ -207,7 +207,7 @@ export function LiveTeacherPresenceCard({ schoolId }: Props) {
     return () => {
       clearTimeout(t);
       initializedRef.current = false;
-      supabase.removeChannel(ch);
+      api.removeChannel(ch);
     };
   }, [schoolId, lookupEntry]);
 

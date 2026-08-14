@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import JSZip from "jszip";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 
 // Bundle all SQL migration files at build time as raw text (lazy)
-const migrationLoaders = import.meta.glob("/supabase/migrations/*.sql", {
+const migrationLoaders = import.meta.glob("/api/migrations/*.sql", {
   query: "?raw",
   import: "default",
 }) as Record<string, () => Promise<string>>;
@@ -50,7 +50,7 @@ export function MigrationsBackupCard() {
   );
 
   const loadRemote = async () => {
-    const { data, error } = await supabase.storage.from(BUCKET).list("", {
+    const { data, error } = await api.storage.from(BUCKET).list("", {
       limit: 1000, sortBy: { column: "name", order: "desc" },
     });
     if (error) {
@@ -85,7 +85,7 @@ export function MigrationsBackupCard() {
     setBusy("Packing all migration files…");
     try {
       const zip = new JSZip();
-      const folder = zip.folder("supabase-migrations");
+      const folder = zip.folder("api-migrations");
       let i = 0;
       for (const m of allMigrations) {
         i++;
@@ -137,7 +137,7 @@ Generated: ${new Date().toISOString()}
     setBusy(`Uploading ${uploadFile.name}…`);
     try {
       const path = `uploads/${new Date().toISOString().replace(/[:.]/g,"-")}_${uploadFile.name}`;
-      const { error } = await supabase.storage.from(BUCKET).upload(path, uploadFile, {
+      const { error } = await api.storage.from(BUCKET).upload(path, uploadFile, {
         upsert: false,
         contentType: uploadFile.type || (uploadFile.name.endsWith(".zip") ? "application/zip" : "application/sql"),
       });
@@ -157,14 +157,14 @@ Generated: ${new Date().toISOString()}
     setBusy("Snapshotting current migrations to cloud storage…");
     try {
       const zip = new JSZip();
-      const folder = zip.folder("supabase-migrations");
+      const folder = zip.folder("api-migrations");
       for (const m of allMigrations) {
         const text = await m.load();
         folder?.file(m.name, text);
       }
       const blob = await zip.generateAsync({ type: "blob", compression: "DEFLATE" });
       const path = `snapshots/altrix-sql-migrations-${new Date().toISOString().replace(/[:.]/g,"-")}.zip`;
-      const { error } = await supabase.storage.from(BUCKET).upload(path, blob, {
+      const { error } = await api.storage.from(BUCKET).upload(path, blob, {
         contentType: "application/zip", upsert: false,
       });
       if (error) throw error;
@@ -177,7 +177,7 @@ Generated: ${new Date().toISOString()}
   };
 
   const downloadRemote = async (name: string) => {
-    const { data, error } = await supabase.storage.from(BUCKET).download(name);
+    const { data, error } = await api.storage.from(BUCKET).download(name);
     if (error || !data) return toast.error("Download failed");
     const url = URL.createObjectURL(data);
     const a = document.createElement("a");

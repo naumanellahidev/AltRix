@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
@@ -133,10 +133,10 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
     if (!schoolId || !canManageProp) { setTeacherSectionIds(null); return; }
     let cancelled = false;
     (async () => {
-      const { data: auth } = await (supabase as any).auth.getUser();
+      const { data: auth } = await (api as any).auth.getUser();
       const uid = auth?.user?.id;
       if (!uid) return;
-      const { data: roles } = await (supabase as any)
+      const { data: roles } = await (api as any)
         .from("user_roles")
         .select("role")
         .eq("school_id", schoolId)
@@ -147,9 +147,9 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
       if (isAdmin) { if (!cancelled) setTeacherSectionIds(null); return; }
       // Gather sections assigned to this teacher
       const [ta, ss, tsa] = await Promise.all([
-        (supabase as any).from("teacher_assignments").select("class_section_id").eq("school_id", schoolId).eq("teacher_user_id", uid),
-        (supabase as any).from("section_subjects").select("class_section_id").eq("school_id", schoolId).eq("teacher_user_id", uid),
-        (supabase as any).from("teacher_subject_assignments").select("class_section_id").eq("school_id", schoolId).eq("teacher_user_id", uid),
+        (api as any).from("teacher_assignments").select("class_section_id").eq("school_id", schoolId).eq("teacher_user_id", uid),
+        (api as any).from("section_subjects").select("class_section_id").eq("school_id", schoolId).eq("teacher_user_id", uid),
+        (api as any).from("teacher_subject_assignments").select("class_section_id").eq("school_id", schoolId).eq("teacher_user_id", uid),
       ]);
       const ids = new Set<string>();
       [...(ta.data || []), ...(ss.data || []), ...(tsa.data || [])].forEach((r: any) => {
@@ -166,13 +166,13 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
     if (!schoolId) return;
     (async () => {
       const [ex, st, sub, sch, cls, sec, enr] = await Promise.all([
-        (supabase as any).from("exams").select("id,name,term_label,start_date,end_date").eq("school_id", schoolId).order("start_date", { ascending: false }),
-        (supabase as any).from("students").select("id,first_name,last_name,student_code").eq("school_id", schoolId).order("first_name"),
-        (supabase as any).from("subjects").select("id,name").eq("school_id", schoolId).order("name"),
-        (supabase as any).from("schools").select("*").eq("id", schoolId).maybeSingle(),
-        (supabase as any).from("academic_classes").select("id,name").eq("school_id", schoolId).order("name"),
-        (supabase as any).from("class_sections").select("id,name,class_id").eq("school_id", schoolId),
-        (supabase as any).from("student_enrollments").select("student_id,class_section_id").eq("school_id", schoolId),
+        (api as any).from("exams").select("id,name,term_label,start_date,end_date").eq("school_id", schoolId).order("start_date", { ascending: false }),
+        (api as any).from("students").select("id,first_name,last_name,student_code").eq("school_id", schoolId).order("first_name"),
+        (api as any).from("subjects").select("id,name").eq("school_id", schoolId).order("name"),
+        (api as any).from("schools").select("*").eq("id", schoolId).maybeSingle(),
+        (api as any).from("academic_classes").select("id,name").eq("school_id", schoolId).order("name"),
+        (api as any).from("class_sections").select("id,name,class_id").eq("school_id", schoolId),
+        (api as any).from("student_enrollments").select("student_id,class_section_id").eq("school_id", schoolId),
       ]);
       setExams(ex.data || []); setStudents(st.data || []); setSubjects(sub.data || []); setSchool(sch.data);
       setClasses(cls.data || []); setSections(sec.data || []); setEnrollments(enr.data || []);
@@ -196,7 +196,7 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
   useEffect(() => {
     if (!isReadOnlyForChild || !schoolId || !studentId) return;
     (async () => {
-      const { data } = await (supabase as any)
+      const { data } = await (api as any)
         .from("report_cards")
         .select("id,exam_id,student_id,period_type,period_label,percentage,overall_grade,is_published,published_at,updated_at")
         .eq("school_id", schoolId)
@@ -233,7 +233,7 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
     if (!studentId || !schoolId) return;
     if (isReadOnlyForChild && !viewingCardId) return; // wait until parent opens a specific card
     (async () => {
-      let rcQuery = (supabase as any).from("report_cards").select("*").eq("school_id", schoolId).eq("student_id", studentId);
+      let rcQuery = (api as any).from("report_cards").select("*").eq("school_id", schoolId).eq("student_id", studentId);
       if (viewingCardId) {
         rcQuery = rcQuery.eq("id", viewingCardId).maybeSingle();
       } else if (periodType === "exam") {
@@ -250,12 +250,12 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
 
       const [res, rc, info, assessments, marks] = await Promise.all([
         examIdForResults
-          ? (supabase as any).from("exam_results").select("*").eq("school_id", schoolId).eq("exam_id", examIdForResults).eq("student_id", studentId)
+          ? (api as any).from("exam_results").select("*").eq("school_id", schoolId).eq("exam_id", examIdForResults).eq("student_id", studentId)
           : Promise.resolve({ data: [] }),
         rcQuery,
-        (supabase as any).from("students").select("*").eq("id", studentId).maybeSingle(),
-        (supabase as any).from("academic_assessments").select("id,subject_id,max_marks,is_published,title,assessment_date,assessment_type,weightage_percent,class_section_id").eq("school_id", schoolId),
-        (supabase as any).from("student_marks").select("assessment_id,marks,computed_grade").eq("school_id", schoolId).eq("student_id", studentId),
+        (api as any).from("students").select("*").eq("id", studentId).maybeSingle(),
+        (api as any).from("academic_assessments").select("id,subject_id,max_marks,is_published,title,assessment_date,assessment_type,weightage_percent,class_section_id").eq("school_id", schoolId),
+        (api as any).from("student_marks").select("assessment_id,marks,computed_grade").eq("school_id", schoolId).eq("student_id", studentId),
       ]);
 
       const loadedCard: any = (rc as any).data || null;
@@ -265,7 +265,7 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
       // If viewing existing saved card and it has exam_id, load its exam_results too
       let savedResults: any[] = res.data || [];
       if (loadedCard?.exam_id && (!savedResults || savedResults.length === 0)) {
-        const { data } = await (supabase as any)
+        const { data } = await (api as any)
           .from("exam_results").select("*")
           .eq("school_id", schoolId).eq("exam_id", loadedCard.exam_id).eq("student_id", studentId);
         savedResults = data || [];
@@ -368,7 +368,7 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
     }
 
     (async () => {
-      let sessionsQ = (supabase as any)
+      let sessionsQ = (api as any)
         .from("attendance_sessions")
         .select("id")
         .eq("school_id", schoolId)
@@ -382,7 +382,7 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
         // (saved on card or computed earlier) rather than blanking it out.
         return;
       }
-      const { data: entries } = await (supabase as any)
+      const { data: entries } = await (api as any)
         .from("attendance_entries")
         .select("status")
         .eq("student_id", studentId)
@@ -536,14 +536,14 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
   const save = async () => {
     if (!schoolId || !studentId) { toast.error("Select a student"); return null; }
     if (periodType === "exam" && !examId) { toast.error("Select an exam"); return null; }
-    const userResp = await (supabase as any).auth.getUser();
+    const userResp = await (api as any).auth.getUser();
     const uid = userResp.data?.user?.id ?? null;
 
     if (periodType === "exam") {
       for (const subjectId of Object.keys(results)) {
         const r = results[subjectId];
         if (r.marks_obtained == null) continue;
-        await (supabase as any).from("exam_results").upsert({
+        await (api as any).from("exam_results").upsert({
           school_id: schoolId, exam_id: examId, student_id: studentId, subject_id: subjectId,
           marks_obtained: r.marks_obtained, max_marks: r.max_marks, grade: r.grade, remarks: r.remarks,
         }, { onConflict: "exam_id,student_id,subject_id" });
@@ -576,7 +576,7 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
       onConflict = "school_id,student_id,period_type,period_label";
     }
 
-    const { data, error } = await (supabase as any)
+    const { data, error } = await (api as any)
       .from("report_cards")
       .upsert(basePayload, { onConflict })
       .select("id,is_published,published_at")
@@ -594,8 +594,8 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
     
     // Resolve recipients: student profile_id + guardians
     const [{ data: studs }, { data: guards }] = await Promise.all([
-      (supabase as any).from("students").select("id,profile_id").in("id", studentIds),
-      (supabase as any).from("student_guardians").select("student_id,user_id").in("student_id", studentIds),
+      (api as any).from("students").select("id,profile_id").in("id", studentIds),
+      (api as any).from("student_guardians").select("student_id,user_id").in("student_id", studentIds),
     ]);
 
     const studentCardMap = new Map<string, string>();
@@ -603,7 +603,7 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
       cardMap.forEach((val, key) => studentCardMap.set(key, val));
     } else {
       // Query card IDs as fallback
-      let cardsQuery = (supabase as any)
+      let cardsQuery = (api as any)
         .from("report_cards")
         .select("id,student_id")
         .eq("school_id", schoolId)
@@ -643,7 +643,7 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
     });
 
     if (notifRows.length > 0) {
-      await (supabase as any).from("app_notifications").insert(notifRows);
+      await (api as any).from("app_notifications").insert(notifRows);
     }
   };
 
@@ -654,7 +654,7 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
       id = await save();
       if (!id) return;
     }
-    const { error } = await (supabase as any)
+    const { error } = await (api as any)
       .from("report_cards")
       .update({ is_published: publish, published_at: publish ? new Date().toISOString() : null })
       .eq("id", id);
@@ -683,7 +683,7 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
         .map((e) => e.student_id);
       if (sectionStudentIds.length === 0) { toast.error("No students in section"); return; }
 
-      let query = (supabase as any)
+      let query = (api as any)
         .from("report_cards")
         .update({ is_published: publish, published_at: publish ? new Date().toISOString() : null })
         .eq("school_id", schoolId)
@@ -739,10 +739,10 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
     if (!addTitle.trim()) return toast.error("Title required");
     const enr = enrollments.find((e) => e.student_id === studentId);
     if (!enr?.class_section_id) return toast.error("Student has no class section");
-    const userResp = await (supabase as any).auth.getUser();
+    const userResp = await (api as any).auth.getUser();
     const uid = userResp.data?.user?.id ?? null;
 
-    const { data: a, error: aErr } = await (supabase as any)
+    const { data: a, error: aErr } = await (api as any)
       .from("academic_assessments")
       .insert({
         school_id: schoolId,
@@ -761,7 +761,7 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
     if (aErr || !a) return toast.error(aErr?.message || "Failed to add");
 
     const pct = addMax > 0 ? (addMarks / addMax) * 100 : 0;
-    const { error: mErr } = await (supabase as any)
+    const { error: mErr } = await (api as any)
       .from("student_marks")
       .upsert({
         school_id: schoolId,
@@ -802,10 +802,10 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
   const submitEditAssessment = async () => {
     if (!schoolId || !studentId || !editAssessmentId) return;
     if (!editTitle.trim()) return toast.error("Title required");
-    const userResp = await (supabase as any).auth.getUser();
+    const userResp = await (api as any).auth.getUser();
     const uid = userResp.data?.user?.id ?? null;
 
-    const { error: aErr } = await (supabase as any)
+    const { error: aErr } = await (api as any)
       .from("academic_assessments")
       .update({
         title: editTitle.trim(),
@@ -818,7 +818,7 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
     if (aErr) return toast.error(aErr.message);
 
     const pct = editMax > 0 ? (editMarks / editMax) * 100 : 0;
-    const { error: mErr } = await (supabase as any)
+    const { error: mErr } = await (api as any)
       .from("student_marks")
       .upsert({
         school_id: schoolId,
@@ -852,8 +852,8 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
     if (!schoolId) return;
     if (!confirm("Delete this assessment? This removes it and all student marks for it.")) return;
     // Delete marks first (in case FK is not cascading), then assessment
-    await (supabase as any).from("student_marks").delete().eq("school_id", schoolId).eq("assessment_id", id);
-    const { error } = await (supabase as any).from("academic_assessments").delete().eq("school_id", schoolId).eq("id", id);
+    await (api as any).from("student_marks").delete().eq("school_id", schoolId).eq("assessment_id", id);
+    const { error } = await (api as any).from("academic_assessments").delete().eq("school_id", schoolId).eq("id", id);
     if (error) return toast.error(error.message);
     setAllAssessments((prev) => prev.filter((a) => a.id !== id));
     setAllMarks((prev) => prev.filter((m) => m.assessment_id !== id));

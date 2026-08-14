@@ -18,7 +18,7 @@ import {
   Users,
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -51,7 +51,7 @@ export function TeacherPerformanceAnalyzer({ schoolId }: Props) {
   const { data: performanceData, isLoading } = useQuery({
     queryKey: ["ai_teacher_performance", schoolId],
     queryFn: async () => {
-      const { data, error } = await (supabase as any)
+      const { data, error } = await (api as any)
         .from("ai_teacher_performance")
         .select(`
           *,

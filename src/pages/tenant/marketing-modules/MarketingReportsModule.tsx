@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -81,7 +81,7 @@ export function MarketingReportsModule() {
     let cancelled = false;
     (async () => {
       if (!schoolSlug) return;
-      const { data: school } = await supabase.from("schools").select("id").eq("slug", schoolSlug).maybeSingle();
+      const { data: school } = await api.from("schools").select("id").eq("slug", schoolSlug).maybeSingle();
       if (cancelled) return;
       setSchoolId(school?.id ?? null);
     })();
@@ -98,11 +98,11 @@ export function MarketingReportsModule() {
       setLoading(true);
       try {
         const [leadsRes, actsRes, campsRes, attribsRes, pipelineRes] = await Promise.all([
-          supabase.from("crm_leads").select("id,status,assigned_to,created_at,source,stage_id").eq("school_id", schoolId),
-          supabase.from("crm_activities").select("id,completed_at,created_by,created_at").eq("school_id", schoolId),
-          supabase.from("crm_campaigns").select("id,name,budget,channel,status").eq("school_id", schoolId),
-          supabase.from("crm_lead_attributions").select("lead_id,campaign_id").eq("school_id", schoolId),
-          supabase.from("crm_pipelines").select("id").eq("school_id", schoolId).eq("is_default", true).maybeSingle(),
+          api.from("crm_leads").select("id,status,assigned_to,created_at,source,stage_id").eq("school_id", schoolId),
+          api.from("crm_activities").select("id,completed_at,created_by,created_at").eq("school_id", schoolId),
+          api.from("crm_campaigns").select("id,name,budget,channel,status").eq("school_id", schoolId),
+          api.from("crm_lead_attributions").select("lead_id,campaign_id").eq("school_id", schoolId),
+          api.from("crm_pipelines").select("id").eq("school_id", schoolId).eq("is_default", true).maybeSingle(),
         ]);
 
         if (cancelled) return;
@@ -120,7 +120,7 @@ export function MarketingReportsModule() {
         // Fetch Pipeline Stages
         const pipelineId = pipelineRes.data?.id;
         if (pipelineId) {
-          const { data: stagesData } = await supabase
+          const { data: stagesData } = await api
             .from("crm_stages")
             .select("id,name,sort_order")
             .eq("school_id", schoolId)
@@ -139,8 +139,8 @@ export function MarketingReportsModule() {
         const uniqueIds = Array.from(counselorIds);
         if (uniqueIds.length > 0) {
           const [dirRes, profRes] = await Promise.all([
-            supabase.from("school_user_directory").select("user_id,display_name,email").eq("school_id", schoolId).in("user_id", uniqueIds),
-            supabase.from("profiles").select("id,display_name").in("id", uniqueIds),
+            api.from("school_user_directory").select("user_id,display_name,email").eq("school_id", schoolId).in("user_id", uniqueIds),
+            api.from("profiles").select("id,display_name").in("id", uniqueIds),
           ]);
 
           if (cancelled) return;

@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { getVPSFileUrl } from "@/lib/vpsStorage";
 import { useTenant } from "@/hooks/useTenant";
 import { Button } from "@/components/ui/button";
@@ -45,7 +45,7 @@ export function HrDocumentsModule() {
     queryKey: ["hr_documents_full", schoolId],
     enabled: !!schoolId,
     queryFn: async () => {
-      const { data, error } = await supabase.from("hr_documents").select("*").eq("school_id", schoolId!).order("created_at", { ascending: false });
+      const { data, error } = await api.from("hr_documents").select("*").eq("school_id", schoolId!).order("created_at", { ascending: false });
       if (error) throw error;
       return data || [];
     },
@@ -55,7 +55,7 @@ export function HrDocumentsModule() {
     queryKey: ["hr_staff_dir_docs", schoolId],
     enabled: !!schoolId,
     queryFn: async () => {
-      const { data, error } = await supabase.rpc("get_school_staff_directory", { _school_id: schoolId! });
+      const { data, error } = await api.rpc("get_school_staff_directory", { _school_id: schoolId! });
       if (error) throw error;
       return data || [];
     },
@@ -67,11 +67,11 @@ export function HrDocumentsModule() {
     setUploading(true);
     try {
       const fileName = `${schoolId}/${form.user_id}/${Date.now()}_${form.file.name}`;
-      const { error: upErr } = await supabase.storage.from("hr-documents").upload(fileName, form.file);
+      const { error: upErr } = await api.storage.from("hr-documents").upload(fileName, form.file);
       if (upErr) throw upErr;
       // Store storage path in file_url; we open via signed URL on demand
       // because hr-documents is a private bucket.
-      const { error: dbErr } = await supabase.from("hr_documents").insert({
+      const { error: dbErr } = await api.from("hr_documents").insert({
         school_id: schoolId, user_id: form.user_id,
         document_type: form.document_type, document_name: form.document_name || form.file.name,
         file_url: fileName,
@@ -111,7 +111,7 @@ export function HrDocumentsModule() {
 
   const del = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("hr_documents").delete().eq("id", id);
+      const { error } = await api.from("hr_documents").delete().eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => { toast.success("Deleted"); qc.invalidateQueries({ queryKey: ["hr_documents_full"] }); },

@@ -13,7 +13,7 @@ import {
   Search,
   User,
 } from "lucide-react";
-import { supabase, USE_FASTAPI } from "@/integrations/supabase/client";
+import { api, USE_FASTAPI } from "@/lib/api";
 import { apiClient } from "@/lib/api-client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -178,19 +178,19 @@ export function PrincipalTeachersTab({ schoolId }: PrincipalTeachersTabProps) {
           timetableRes,
           periodsRes,
         ] = await Promise.all([
-          supabase
+          api
             .from("user_roles")
             .select("user_id")
             .eq("school_id", schoolId)
             .eq("role", "teacher"),
-          supabase.rpc("get_school_user_directory", { _school_id: schoolId }),
-          supabase.from("academic_classes").select("id, name").eq("school_id", schoolId).order("name"),
-          supabase.from("class_sections").select("id, name, class_id").eq("school_id", schoolId),
-          supabase.from("subjects").select("id, name, code").eq("school_id", schoolId),
-          (supabase as any).from("teacher_assignments").select("teacher_user_id, class_section_id").eq("school_id", schoolId),
-          (supabase as any).from("teacher_subject_assignments").select("teacher_user_id, class_section_id, subject_id").eq("school_id", schoolId),
-          supabase.from("timetable_entries").select("id, subject_name, day_of_week, period_id, room, teacher_user_id, class_section_id").eq("school_id", schoolId),
-          supabase.from("timetable_periods").select("id, label, sort_order, start_time, end_time, is_break").eq("school_id", schoolId).order("sort_order"),
+          api.rpc("get_school_user_directory", { _school_id: schoolId }),
+          api.from("academic_classes").select("id, name").eq("school_id", schoolId).order("name"),
+          api.from("class_sections").select("id, name, class_id").eq("school_id", schoolId),
+          api.from("subjects").select("id, name, code").eq("school_id", schoolId),
+          (api as any).from("teacher_assignments").select("teacher_user_id, class_section_id").eq("school_id", schoolId),
+          (api as any).from("teacher_subject_assignments").select("teacher_user_id, class_section_id, subject_id").eq("school_id", schoolId),
+          api.from("timetable_entries").select("id, subject_name, day_of_week, period_id, room, teacher_user_id, class_section_id").eq("school_id", schoolId),
+          api.from("timetable_periods").select("id, label, sort_order, start_time, end_time, is_break").eq("school_id", schoolId).order("sort_order"),
         ]);
 
         teacherRolesData = teacherRolesRes.data || [];

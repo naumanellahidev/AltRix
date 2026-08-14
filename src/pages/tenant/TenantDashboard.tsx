@@ -3,7 +3,7 @@ import { Navigate, Route, Routes, useNavigate, useParams, useLocation } from "re
 import { BarChart3, LogOut, UserRound, Coins, UserPlus, ClipboardList, GraduationCap, FileText, Users } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { supabase, USE_FASTAPI } from "@/integrations/supabase/client";
+import { api, USE_FASTAPI } from "@/lib/api";
 import { apiClient } from "@/lib/api-client";
 import { useSession } from "@/hooks/useSession";
 import { useTenantOptimized } from "@/hooks/useTenantOptimized";
@@ -234,7 +234,7 @@ const TenantDashboard = () => {
           console.warn("FastAPI backend unreachable, using Supabase fallback for TenantDashboard revenue:", fastApiErr);
         }
       }
-      const { data, error } = await supabase
+      const { data, error } = await api
         .from("fee_payments")
         .select("amount, paid_at, created_at, status")
         .eq("school_id", schoolId!)
@@ -272,8 +272,8 @@ const TenantDashboard = () => {
         };
       }
       const [totalRes, openRes] = await Promise.all([
-        supabase.from("crm_leads").select("id", { count: "exact", head: true }).eq("school_id", schoolId!),
-        supabase.from("crm_leads").select("id", { count: "exact", head: true }).eq("school_id", schoolId!).not("stage_id", "is", null),
+        api.from("crm_leads").select("id", { count: "exact", head: true }).eq("school_id", schoolId!),
+        api.from("crm_leads").select("id", { count: "exact", head: true }).eq("school_id", schoolId!).not("stage_id", "is", null),
       ]);
       return {
         total: totalRes.count ?? 0,
@@ -301,12 +301,12 @@ const TenantDashboard = () => {
         };
       }
       const [entriesRes, presentRes] = await Promise.all([
-        supabase
+        api
           .from("attendance_entries")
           .select("id", { count: "exact", head: true })
           .eq("school_id", schoolId!)
           .gte("created_at", d7Ago.toISOString()),
-        supabase
+        api
           .from("attendance_entries")
           .select("id", { count: "exact", head: true })
           .eq("school_id", schoolId!)
@@ -333,7 +333,7 @@ const TenantDashboard = () => {
         const resp = await apiClient.get<any>("/reports/dashboard");
         return resp.data.total_students ?? 0;
       }
-      const { count, error } = await supabase
+      const { count, error } = await api
         .from("students")
         .select("id", { count: "exact", head: true })
         .eq("school_id", schoolId!);
@@ -352,7 +352,7 @@ const TenantDashboard = () => {
         const resp = await apiClient.get<any>("/reports/dashboard");
         return resp.data.pending_payments ?? 0;
       }
-      const { count, error } = await supabase
+      const { count, error } = await api
         .from("fee_invoices")
         .select("id", { count: "exact", head: true })
         .eq("school_id", schoolId!)
@@ -377,8 +377,8 @@ const TenantDashboard = () => {
         };
       }
       const [totalRes, teachersRes] = await Promise.all([
-        supabase.from("school_memberships").select("id", { count: "exact", head: true }).eq("school_id", schoolId!),
-        supabase.from("user_roles").select("id", { count: "exact", head: true }).eq("school_id", schoolId!).eq("role", "teacher"),
+        api.from("school_memberships").select("id", { count: "exact", head: true }).eq("school_id", schoolId!),
+        api.from("user_roles").select("id", { count: "exact", head: true }).eq("school_id", schoolId!).eq("role", "teacher"),
       ]);
       return {
         total: totalRes.count ?? 0,
@@ -579,7 +579,7 @@ const TenantDashboard = () => {
                 <Button
                   variant="hero"
                   onClick={async () => {
-                    await supabase.auth.signOut();
+                    await api.auth.signOut();
                     navigate(`/${tenant.slug}/auth`);
                   }}
                 >

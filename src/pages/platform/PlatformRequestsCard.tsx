@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -33,7 +33,7 @@ export default function PlatformRequestsCard({ schools }: { schools: SchoolLite[
 
   const load = async () => {
     setLoading(true);
-    let q = (supabase as any).from("platform_requests").select("*").order("created_at", { ascending: false }).limit(200);
+    let q = (api as any).from("platform_requests").select("*").order("created_at", { ascending: false }).limit(200);
     if (statusFilter !== "all") q = q.eq("status", statusFilter);
     const { data, error } = await q;
     if (error) {
@@ -46,7 +46,7 @@ export default function PlatformRequestsCard({ schools }: { schools: SchoolLite[
 
     const ids = Array.from(new Set(list.map((r) => r.requester_user_id))).filter(Boolean);
     if (ids.length) {
-      const { data: profs } = await supabase
+      const { data: profs } = await api
         .from("profiles")
         .select("user_id,email,display_name")
         .in("user_id", ids);
@@ -68,7 +68,7 @@ export default function PlatformRequestsCard({ schools }: { schools: SchoolLite[
     const notes = notesById[id];
     const patch: any = { status };
     if (typeof notes === "string") patch.admin_notes = notes;
-    const { error } = await (supabase as any).from("platform_requests").update(patch).eq("id", id);
+    const { error } = await (api as any).from("platform_requests").update(patch).eq("id", id);
     if (error) {
       toast.error(error.message);
       return;

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useCallback } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { api } from '@/lib/api';
 import {
   // Core caches
   cacheStudents, cacheEnrollments, cacheSubjects, cacheClassSections, cacheAcademicClasses,
@@ -183,7 +183,7 @@ async function prefetchAcademicStructure(schoolId: string, cancelled: boolean, o
 
   // Academic Classes
   tasks.push((async () => {
-    const { data } = await supabase
+    const { data } = await api
       .from('academic_classes')
       .select('id, name, grade_level, school_id')
       .eq('school_id', schoolId);
@@ -198,7 +198,7 @@ async function prefetchAcademicStructure(schoolId: string, cancelled: boolean, o
 
   // Class Sections
   tasks.push((async () => {
-    const { data } = await supabase
+    const { data } = await api
       .from('class_sections')
       .select('id, name, class_id, room, school_id, academic_classes(name)')
       .eq('school_id', schoolId);
@@ -214,7 +214,7 @@ async function prefetchAcademicStructure(schoolId: string, cancelled: boolean, o
 
   // Subjects
   tasks.push((async () => {
-    const { data } = await supabase
+    const { data } = await api
       .from('subjects')
       .select('id, name, code, school_id')
       .eq('school_id', schoolId);
@@ -229,7 +229,7 @@ async function prefetchAcademicStructure(schoolId: string, cancelled: boolean, o
 
   // Grade Thresholds
   tasks.push((async () => {
-    const { data } = await supabase
+    const { data } = await api
       .from('grade_thresholds')
       .select('id, grade_label, min_percentage, max_percentage, grade_points, sort_order, school_id')
       .eq('school_id', schoolId);
@@ -252,7 +252,7 @@ async function prefetchStudentsAndEnrollments(schoolId: string, cancelled: boole
 
   // All Students
   tasks.push((async () => {
-    const { data } = await supabase
+    const { data } = await api
       .from('students')
       .select(`
         id, first_name, last_name, school_id, status, profile_id,
@@ -279,7 +279,7 @@ async function prefetchStudentsAndEnrollments(schoolId: string, cancelled: boole
 
   // All Enrollments
   tasks.push((async () => {
-    const { data } = await supabase
+    const { data } = await api
       .from('student_enrollments')
       .select('id, student_id, class_section_id, school_id')
       .eq('school_id', schoolId)
@@ -296,7 +296,7 @@ async function prefetchStudentsAndEnrollments(schoolId: string, cancelled: boole
 
   // Student Guardians
   tasks.push((async () => {
-    const { data } = await supabase
+    const { data } = await api
       .from('student_guardians')
       .select('id, student_id, user_id, relationship, phone, email, students(school_id)')
       .limit(BATCH_SIZE);
@@ -320,7 +320,7 @@ async function prefetchTimetableData(schoolId: string, cancelled: boolean, onPro
 
   // Timetable Periods
   tasks.push((async () => {
-    const { data } = await supabase
+    const { data } = await api
       .from('timetable_periods')
       .select('id, label, start_time, end_time, sort_order, school_id')
       .eq('school_id', schoolId);
@@ -337,7 +337,7 @@ async function prefetchTimetableData(schoolId: string, cancelled: boolean, onPro
 
   // All Timetable Entries
   tasks.push((async () => {
-    const { data } = await supabase
+    const { data } = await api
       .from('timetable_entries')
       .select(`
         id, day_of_week, period_id, subject_name, room, class_section_id, school_id,
@@ -366,7 +366,7 @@ async function prefetchTimetableData(schoolId: string, cancelled: boolean, onPro
 
   // Teacher Assignments
   tasks.push((async () => {
-    const { data } = await supabase
+    const { data } = await api
       .from('teacher_assignments')
       .select(`
         id, teacher_user_id, class_section_id, subject_id, school_id,
@@ -393,7 +393,7 @@ async function prefetchAssignmentsAndHomework(schoolId: string, cancelled: boole
 
   // All Assignments
   tasks.push((async () => {
-    const { data } = await supabase
+    const { data } = await api
       .from('assignments')
       .select(`
         id, title, description, due_date, max_marks, status, teacher_user_id,
@@ -417,7 +417,7 @@ async function prefetchAssignmentsAndHomework(schoolId: string, cancelled: boole
 
   // All Homework
   tasks.push((async () => {
-    const { data } = await supabase
+    const { data } = await api
       .from('homework')
       .select(`
         id, title, description, due_date, status, teacher_user_id,
@@ -448,7 +448,7 @@ async function prefetchAttendanceData(schoolId: string, cancelled: boolean, onPr
 
   // Attendance Sessions
   tasks.push((async () => {
-    const { data } = await supabase
+    const { data } = await api
       .from('attendance_sessions')
       .select('id, session_date, period_label, class_section_id, school_id')
       .eq('school_id', schoolId)
@@ -465,7 +465,7 @@ async function prefetchAttendanceData(schoolId: string, cancelled: boolean, onPr
       // Then fetch entries for these sessions
       if (data.length > 0) {
         const sessionIds = data.map(s => s.id);
-        const { data: entries } = await (supabase as any)
+        const { data: entries } = await (api as any)
           .from('attendance_entries')
           .select('id, student_id, session_id, status, note, school_id')
           .eq('school_id', schoolId)
@@ -496,7 +496,7 @@ async function prefetchAssessmentsAndGrades(schoolId: string, cancelled: boolean
 
   // Assessments
   tasks.push((async () => {
-    const { data } = await supabase
+    const { data } = await api
       .from('academic_assessments')
       .select(`
         id, title, class_section_id, subject_id, assessment_date, max_marks, 
@@ -518,7 +518,7 @@ async function prefetchAssessmentsAndGrades(schoolId: string, cancelled: boolean
 
   // Student Marks
   tasks.push((async () => {
-    const { data } = await supabase
+    const { data } = await api
       .from('student_marks')
       .select('id, student_id, assessment_id, marks, computed_grade, grade_points, school_id')
       .eq('school_id', schoolId)
@@ -536,7 +536,7 @@ async function prefetchAssessmentsAndGrades(schoolId: string, cancelled: boolean
 
   // Behavior Notes
   tasks.push((async () => {
-    const { data } = await supabase
+    const { data } = await api
       .from('behavior_notes')
       .select('id, student_id, teacher_user_id, title, content, note_type, is_shared_with_parents, created_at, school_id')
       .eq('school_id', schoolId)
@@ -562,13 +562,13 @@ async function prefetchHrData(schoolId: string, cancelled: boolean, onProgress: 
   // Staff Members (from directory) — exclude students, parents, owners, super/platform admins
   tasks.push((async () => {
     const [dirRes, rolesRes, ownersRes, platformRes] = await Promise.all([
-      supabase.from('school_user_directory')
+      api.from('school_user_directory')
         .select('user_id, email, display_name')
         .eq('school_id', schoolId)
         .limit(BATCH_SIZE),
-      supabase.from('user_roles').select('user_id, role').eq('school_id', schoolId),
-      supabase.from('school_owner_assignments').select('owner_user_id').eq('school_id', schoolId),
-      supabase.from('platform_super_admins' as any).select('user_id'),
+      api.from('user_roles').select('user_id, role').eq('school_id', schoolId),
+      api.from('school_owner_assignments').select('owner_user_id').eq('school_id', schoolId),
+      api.from('platform_super_admins' as any).select('user_id'),
     ]);
     if (!cancelled && dirRes.data) {
       const NON_STAFF = new Set(['student', 'parent', 'owner', 'school_owner']);
@@ -596,7 +596,7 @@ async function prefetchHrData(schoolId: string, cancelled: boolean, onProgress: 
 
   // Leave Requests
   tasks.push((async () => {
-    const { data } = await supabase
+    const { data } = await api
       .from('hr_leave_requests')
       .select('id, user_id, leave_type_id, start_date, end_date, days_count, status, reason, school_id')
       .eq('school_id', schoolId)
@@ -614,7 +614,7 @@ async function prefetchHrData(schoolId: string, cancelled: boolean, onProgress: 
 
   // Contracts
   tasks.push((async () => {
-    const { data } = await supabase
+    const { data } = await api
       .from('hr_contracts')
       .select('id, user_id, contract_type, start_date, end_date, position, department, status, school_id')
       .eq('school_id', schoolId)
@@ -635,7 +635,7 @@ async function prefetchHrData(schoolId: string, cancelled: boolean, onProgress: 
 
   // HR Documents
   tasks.push((async () => {
-    const { data } = await supabase
+    const { data } = await api
       .from('hr_documents')
       .select('id, user_id, document_name, document_type, file_url, school_id')
       .eq('school_id', schoolId)
@@ -683,7 +683,7 @@ async function prefetchFinanceData(schoolId: string, cancelled: boolean, onProgr
 
   // Fee Plans
   tasks.push((async () => {
-    const { data } = await supabase
+    const { data } = await api
       .from('fee_plans')
       .select('id, name, currency, is_active, school_id')
       .eq('school_id', schoolId);
@@ -699,7 +699,7 @@ async function prefetchFinanceData(schoolId: string, cancelled: boolean, onProgr
 
   // Payment Methods
   tasks.push((async () => {
-    const { data } = await supabase
+    const { data } = await api
       .from('finance_payment_methods')
       .select('id, name, type, is_active, school_id')
       .eq('school_id', schoolId);
@@ -721,7 +721,7 @@ async function prefetchCrmData(schoolId: string, cancelled: boolean, onProgress:
 
   // CRM Pipelines
   tasks.push((async () => {
-    const { data } = await supabase
+    const { data } = await api
       .from('crm_pipelines')
       .select('id, name, is_default, school_id')
       .eq('school_id', schoolId);
@@ -736,7 +736,7 @@ async function prefetchCrmData(schoolId: string, cancelled: boolean, onProgress:
 
   // CRM Stages
   tasks.push((async () => {
-    const { data } = await supabase
+    const { data } = await api
       .from('crm_stages')
       .select('id, pipeline_id, name, sort_order, school_id')
       .eq('school_id', schoolId);
@@ -752,7 +752,7 @@ async function prefetchCrmData(schoolId: string, cancelled: boolean, onProgress:
 
   // Leads
   tasks.push((async () => {
-    const { data } = await supabase
+    const { data } = await api
       .from('crm_leads')
       .select('id, full_name, email, phone, source, status, stage_id, pipeline_id, score, assigned_to, next_follow_up_at, notes, school_id')
       .eq('school_id', schoolId)
@@ -772,7 +772,7 @@ async function prefetchCrmData(schoolId: string, cancelled: boolean, onProgress:
 
   // Campaigns
   tasks.push((async () => {
-    const { data } = await supabase
+    const { data } = await api
       .from('crm_campaigns')
       .select('id, name, channel, status, budget, start_date, end_date, school_id')
       .eq('school_id', schoolId);
@@ -789,7 +789,7 @@ async function prefetchCrmData(schoolId: string, cancelled: boolean, onProgress:
 
   // CRM Activities
   tasks.push((async () => {
-    const { data } = await supabase
+    const { data } = await api
       .from('crm_activities')
       .select('id, lead_id, activity_type, summary, due_at, completed_at, school_id')
       .eq('school_id', schoolId)
@@ -807,7 +807,7 @@ async function prefetchCrmData(schoolId: string, cancelled: boolean, onProgress:
 
   // Call Logs
   tasks.push((async () => {
-    const { data } = await supabase
+    const { data } = await api
       .from('crm_call_logs')
       .select('id, lead_id, called_at, duration_seconds, outcome, notes, school_id')
       .eq('school_id', schoolId)
@@ -831,7 +831,7 @@ async function prefetchMessagingData(schoolId: string, userId: string, cancelled
 
   // Contacts
   tasks.push((async () => {
-    const { data } = await supabase
+    const { data } = await api
       .from('school_user_directory')
       .select('user_id, email, display_name')
       .eq('school_id', schoolId)
@@ -849,7 +849,7 @@ async function prefetchMessagingData(schoolId: string, userId: string, cancelled
 
   // User Notifications
   tasks.push((async () => {
-    const { data } = await supabase
+    const { data } = await api
       .from('app_notifications')
       .select('id, user_id, type, title, body, entity_type, entity_id, read_at, created_at, school_id')
       .eq('school_id', schoolId)
@@ -876,7 +876,7 @@ async function prefetchSupportData(schoolId: string, cancelled: boolean, onProgr
 
   // Admin Messages (Support Tickets)
   tasks.push((async () => {
-    const { data } = await supabase
+    const { data } = await api
       .from('admin_messages')
       .select('id, sender_user_id, subject, content, status, priority, created_at, school_id')
       .eq('school_id', schoolId)
@@ -910,19 +910,19 @@ async function prefetchAllStats(schoolId: string, cancelled: boolean, onProgress
     attendanceRes, presentRes,
     leavesRes, contractsRes, campaignsRes,
   ] = await Promise.all([
-    supabase.from('students').select('id', { count: 'exact', head: true }).eq('school_id', schoolId),
-    supabase.from('school_memberships').select('id', { count: 'exact', head: true }).eq('school_id', schoolId),
-    supabase.from('user_roles').select('id', { count: 'exact', head: true }).eq('school_id', schoolId).eq('role', 'teacher'),
-    supabase.from('crm_leads').select('id', { count: 'exact', head: true }).eq('school_id', schoolId),
-    supabase.from('crm_leads').select('id', { count: 'exact', head: true }).eq('school_id', schoolId).eq('status', 'open'),
-    supabase.from('fee_payments').select('amount').eq('school_id', schoolId).eq('status', 'success').gte('paid_at', monthStart.toISOString()),
-    supabase.from('fee_invoices').select('id', { count: 'exact', head: true }).eq('school_id', schoolId).not('status', 'eq', 'paid').not('status', 'eq', 'cancelled'),
-    supabase.from('finance_expenses').select('amount').eq('school_id', schoolId).gte('expense_date', monthStart.toISOString().split('T')[0]),
-    supabase.from('attendance_entries').select('id', { count: 'exact', head: true }).eq('school_id', schoolId).gte('created_at', d7Ago.toISOString()),
-    supabase.from('attendance_entries').select('id', { count: 'exact', head: true }).eq('school_id', schoolId).eq('status', 'present').gte('created_at', d7Ago.toISOString()),
-    supabase.from('hr_leave_requests').select('id', { count: 'exact', head: true }).eq('school_id', schoolId).eq('status', 'pending'),
-    supabase.from('hr_contracts').select('id', { count: 'exact', head: true }).eq('school_id', schoolId).eq('status', 'active'),
-    supabase.from('crm_campaigns').select('id', { count: 'exact', head: true }).eq('school_id', schoolId).eq('status', 'active'),
+    api.from('students').select('id', { count: 'exact', head: true }).eq('school_id', schoolId),
+    api.from('school_memberships').select('id', { count: 'exact', head: true }).eq('school_id', schoolId),
+    api.from('user_roles').select('id', { count: 'exact', head: true }).eq('school_id', schoolId).eq('role', 'teacher'),
+    api.from('crm_leads').select('id', { count: 'exact', head: true }).eq('school_id', schoolId),
+    api.from('crm_leads').select('id', { count: 'exact', head: true }).eq('school_id', schoolId).eq('status', 'open'),
+    api.from('fee_payments').select('amount').eq('school_id', schoolId).eq('status', 'success').gte('paid_at', monthStart.toISOString()),
+    api.from('fee_invoices').select('id', { count: 'exact', head: true }).eq('school_id', schoolId).not('status', 'eq', 'paid').not('status', 'eq', 'cancelled'),
+    api.from('finance_expenses').select('amount').eq('school_id', schoolId).gte('expense_date', monthStart.toISOString().split('T')[0]),
+    api.from('attendance_entries').select('id', { count: 'exact', head: true }).eq('school_id', schoolId).gte('created_at', d7Ago.toISOString()),
+    api.from('attendance_entries').select('id', { count: 'exact', head: true }).eq('school_id', schoolId).eq('status', 'present').gte('created_at', d7Ago.toISOString()),
+    api.from('hr_leave_requests').select('id', { count: 'exact', head: true }).eq('school_id', schoolId).eq('status', 'pending'),
+    api.from('hr_contracts').select('id', { count: 'exact', head: true }).eq('school_id', schoolId).eq('status', 'active'),
+    api.from('crm_campaigns').select('id', { count: 'exact', head: true }).eq('school_id', schoolId).eq('status', 'active'),
   ]);
 
   if (!cancelled) {

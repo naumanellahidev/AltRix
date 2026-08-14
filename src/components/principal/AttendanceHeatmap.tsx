@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useMemo, useCallback } from "react";
 import { useParams } from "react-router-dom";
-import { supabase, USE_FASTAPI, setUseFastAPI } from "@/integrations/supabase/client";
+import { api, USE_FASTAPI, setUseFastAPI } from "@/lib/api";
 import { apiClient, isNetworkOrProxyError } from "@/lib/api-client";
 import subscribeAttendance from "@/lib/realtime/attendance";
 type AttendanceRecord = any;
@@ -120,7 +120,7 @@ export function AttendanceHeatmap() {
 
       const runSupabaseFetch = async () => {
         // 1. Resolve school from slug via Supabase
-        const { data, error: schoolErr } = await supabase
+        const { data, error: schoolErr } = await api
           .from("schools")
           .select("id, name, latitude, longitude")
           .eq("slug", schoolSlug || "")
@@ -135,7 +135,7 @@ export function AttendanceHeatmap() {
         setSchool(schoolData);
 
         // 2. Fetch today's attendance records
-        const { data: baseData, error: baseErr } = await supabase
+        const { data: baseData, error: baseErr } = await api
           .from("hr_staff_attendance")
           .select("id, user_id, status, created_at, attendance_date, clock_in, clock_out, latitude, longitude")
           .eq("school_id", schoolData.id)
@@ -150,7 +150,7 @@ export function AttendanceHeatmap() {
 
         // Fetch user display names
         const userIds = baseData.map(r => r.user_id);
-        const { data: profiles, error: profErr } = await supabase
+        const { data: profiles, error: profErr } = await api
           .from("profiles")
           .select("id, display_name")
           .in("id", userIds);
@@ -214,7 +214,7 @@ export function AttendanceHeatmap() {
       
       let displayName = `Staff Member (${rec.user_id.slice(0, 6)})`;
       try {
-        const { data: profile } = await supabase
+        const { data: profile } = await api
           .from("profiles")
           .select("display_name")
           .eq("id", rec.user_id)

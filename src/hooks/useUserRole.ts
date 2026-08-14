@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { supabase, USE_FASTAPI } from "@/integrations/supabase/client";
+import { api, USE_FASTAPI } from "@/lib/api";
 import { type EduverseRole } from "@/lib/eduverse-roles";
 import { apiClient } from "@/lib/api-client";
 
@@ -44,7 +44,7 @@ export function useUserRole(schoolId: string | null, userId: string | null): Use
           }
         }
       } else {
-        const { data } = await supabase
+        const { data } = await api
           .from("user_roles")
           .select("role")
           .eq("school_id", schoolId)

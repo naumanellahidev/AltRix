@@ -9,7 +9,7 @@ import {
   Coffee,
   CheckCircle2,
 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { useSession } from "@/hooks/useSession";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -46,7 +46,7 @@ export function TodaysFocusCard({ schoolId, schoolSlug, sectionIds }: Props) {
       const dayOfWeek = today.getDay(); // 0-6
 
       // Get today's timetable entries
-      const { data: timetableEntries } = await supabase
+      const { data: timetableEntries } = await api
         .from("timetable_entries")
         .select("*, timetable_periods!inner(label, start_time, end_time, sort_order)")
         .eq("school_id", schoolId)

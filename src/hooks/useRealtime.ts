@@ -1,6 +1,6 @@
 import { useEffect } from "react";
-import type { RealtimeChannel } from "@supabase/supabase-js";
-import { supabase } from "@/integrations/supabase/client";
+import type { RealtimeChannel } from "@/lib/api";
+import { api } from "@/lib/api";
 
 type PostgresChangeHandler = (payload: unknown) => void;
 
@@ -26,7 +26,7 @@ export function useRealtimeTable({
 
     let ch: RealtimeChannel | null = null;
 
-    ch = supabase
+    ch = api
       .channel(channel)
       .on(
         "postgres_changes",
@@ -41,7 +41,7 @@ export function useRealtimeTable({
       .subscribe();
 
     return () => {
-      if (ch) supabase.removeChannel(ch);
+      if (ch) api.removeChannel(ch);
     };
   }, [channel, enabled, filter, onChange, schema, table]);
 }

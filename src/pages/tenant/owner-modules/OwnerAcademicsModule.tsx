@@ -13,7 +13,7 @@ import {
   Users,
   Zap,
 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -54,14 +54,14 @@ export function OwnerAcademicsModule({ schoolId }: Props) {
       if (!schoolId) return null;
 
       const [classesRes, sectionsRes, studentsRes, marksRes, teachersRes, subjectsRes, assessmentsRes, atRiskRes] = await Promise.all([
-        supabase.from("academic_classes").select("*").eq("school_id", schoolId),
-        campusEq(supabase.from("class_sections").select("*").eq("school_id", schoolId)),
-        campusEq(supabase.from("students").select("id,status,first_name,last_name").eq("school_id", schoolId)),
-        campusEq(supabase.from("student_marks").select("marks,student_id,assessment_id").eq("school_id", schoolId).not("marks", "is", null)),
-        supabase.from("user_roles").select("user_id").eq("school_id", schoolId).eq("role", "teacher"),
-        supabase.from("subjects").select("*").eq("school_id", schoolId),
-        supabase.from("academic_assessments").select("id,max_marks,subject_id").eq("school_id", schoolId),
-        (supabase as any).rpc("get_at_risk_students", { _school_id: schoolId, _class_section_id: null }),
+        api.from("academic_classes").select("*").eq("school_id", schoolId),
+        campusEq(api.from("class_sections").select("*").eq("school_id", schoolId)),
+        campusEq(api.from("students").select("id,status,first_name,last_name").eq("school_id", schoolId)),
+        campusEq(api.from("student_marks").select("marks,student_id,assessment_id").eq("school_id", schoolId).not("marks", "is", null)),
+        api.from("user_roles").select("user_id").eq("school_id", schoolId).eq("role", "teacher"),
+        api.from("subjects").select("*").eq("school_id", schoolId),
+        api.from("academic_assessments").select("id,max_marks,subject_id").eq("school_id", schoolId),
+        (api as any).rpc("get_at_risk_students", { _school_id: schoolId, _class_section_id: null }),
       ]);
 
       const classes = classesRes.data || [];

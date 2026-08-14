@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, useRef } from "react";
 import { useParams } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { getVPSFileUrl, uploadVPSFile } from "@/lib/vpsStorage";
 import { useTenant } from "@/hooks/useTenant";
 import { Button } from "@/components/ui/button";
@@ -429,7 +429,7 @@ export function StudentCardsModule() {
     if (!schoolId) return;
     const fetchSchoolDetails = async () => {
       try {
-        const { data } = await supabase
+        const { data } = await api
           .from("schools")
           .select("logo_url, address, phone, email")
           .eq("id", schoolId)
@@ -520,14 +520,14 @@ export function StudentCardsModule() {
     const fetchMetadata = async () => {
       try {
         // Classes
-        const { data: clsData } = await supabase
+        const { data: clsData } = await api
           .from("academic_classes")
           .select("id, name")
           .eq("school_id", schoolId)
           .order("name");
         
         // Sections
-        const { data: secData } = await supabase
+        const { data: secData } = await api
           .from("class_sections")
           .select("id, name, class_id")
           .eq("school_id", schoolId)
@@ -548,7 +548,7 @@ export function StudentCardsModule() {
     setLoading(true);
     try {
       // 1. Fetch settings from backend API (or Supabase)
-      const { data: settingsData, error: settingsErr } = await supabase
+      const { data: settingsData, error: settingsErr } = await api
         .from("school_id_card_settings")
         .select("*")
         .eq("school_id", schoolId)
@@ -558,7 +558,7 @@ export function StudentCardsModule() {
       setSettings(settingsData ? (settingsData as CardSettings) : DEFAULT_SETTINGS(schoolId));
 
       // 2. Fetch students list
-      const { data: studentsData, error: studentsErr } = await supabase
+      const { data: studentsData, error: studentsErr } = await api
         .from("students")
         .select(`
           id, first_name, last_name, roll_number, registration_number, 
@@ -571,7 +571,7 @@ export function StudentCardsModule() {
       if (studentsErr) throw studentsErr;
 
       // 3. Get enrollments to map class/section names
-      const { data: enrollmentsData } = await supabase
+      const { data: enrollmentsData } = await api
         .from("student_enrollments")
         .select("student_id, class_section_id")
         .eq("school_id", schoolId)
@@ -614,7 +614,7 @@ export function StudentCardsModule() {
     if (!schoolId) return;
 
     // Realtime channel for settings
-    const settingsChannel = supabase
+    const settingsChannel = api
       .channel("id-card-settings-realtime")
       .on(
         "postgres_changes",
@@ -629,7 +629,7 @@ export function StudentCardsModule() {
       .subscribe();
 
     // Realtime channel for student list
-    const studentsChannel = supabase
+    const studentsChannel = api
       .channel("students-realtime")
       .on(
         "postgres_changes",
@@ -641,8 +641,8 @@ export function StudentCardsModule() {
       .subscribe();
 
     return () => {
-      supabase.removeChannel(settingsChannel);
-      supabase.removeChannel(studentsChannel);
+      api.removeChannel(settingsChannel);
+      api.removeChannel(studentsChannel);
     };
   }, [schoolId, classes, sections]);
 
@@ -658,14 +658,14 @@ export function StudentCardsModule() {
       const ext = file.name.split(".").pop();
       const path = `${schoolId}/logo_${Date.now()}.${ext}`;
 
-      const { error: uploadErr } = await supabase.storage
+      const { error: uploadErr } = await api.storage
         .from("student-photos")
         .upload(path, file, { cacheControl: "3600", upsert: true });
 
       const logoUrl = getVPSFileUrl("student-photos", path);
 
       // Save to schools table
-      const { error: dbErr } = await supabase
+      const { error: dbErr } = await api
         .from("schools")
         .update({ logo_url: logoUrl })
         .eq("id", schoolId);
@@ -693,13 +693,13 @@ export function StudentCardsModule() {
 
       let err = null;
       if (updatedSettings.id) {
-        const { error } = await supabase
+        const { error } = await api
           .from("school_id_card_settings")
           .update(payload)
           .eq("id", updatedSettings.id);
         err = error;
       } else {
-        const { error } = await supabase
+        const { error } = await api
           .from("school_id_card_settings")
           .insert(payload);
         err = error;
@@ -708,7 +708,7 @@ export function StudentCardsModule() {
       if (err) throw err;
 
       // Update school details in the database
-      const { error: schoolErr } = await supabase
+      const { error: schoolErr } = await api
         .from("schools")
         .update({
           address: schoolAddress,
@@ -742,13 +742,13 @@ export function StudentCardsModule() {
       const ext = file.name.split(".").pop();
       const path = `${schoolId}/${editingStudent.id}_${Date.now()}.${ext}`;
 
-      const { error: uploadErr } = await supabase.storage
+      const { error: uploadErr } = await api.storage
         .from("student-photos")
         .upload(path, file, { cacheControl: "3600", upsert: true });
 
       if (uploadErr) throw uploadErr;
 
-      const { data: pubUrl } = supabase.storage
+      const { data: pubUrl } = api.storage
         .from("student-photos")
         .getPublicUrl(path);
 
@@ -766,7 +766,7 @@ export function StudentCardsModule() {
     if (!editingStudent || !schoolId) return;
     setSavingStudent(true);
     try {
-      const { error } = await supabase
+      const { error } = await api
         .from("students")
         .update({
           first_name: editingStudent.first_name,
@@ -804,13 +804,13 @@ export function StudentCardsModule() {
       const ext = file.name.split(".").pop();
       const path = `${schoolId}/temp_${Date.now()}.${ext}`;
 
-      const { error: uploadErr } = await supabase.storage
+      const { error: uploadErr } = await api.storage
         .from("student-photos")
         .upload(path, file, { cacheControl: "3600", upsert: true });
 
       if (uploadErr) throw uploadErr;
 
-      const { data: pubUrl } = supabase.storage
+      const { data: pubUrl } = api.storage
         .from("student-photos")
         .getPublicUrl(path);
 
@@ -834,7 +834,7 @@ export function StudentCardsModule() {
     try {
       // 1. Insert student
       const studentCode = newStudent.registration_number.trim() || `STUDENT_${Date.now()}`;
-      const { data: newStud, error: studentErr } = await supabase
+      const { data: newStud, error: studentErr } = await api
         .from("students")
         .insert({
           school_id: schoolId,
@@ -857,7 +857,7 @@ export function StudentCardsModule() {
 
       // 2. Insert enrollment if section is selected
       if (newStudent.class_section_id) {
-        const { error: enrollErr } = await supabase
+        const { error: enrollErr } = await api
           .from("student_enrollments")
           .insert({
             school_id: schoolId,
@@ -976,7 +976,7 @@ export function StudentCardsModule() {
     const selectedStudents = students.filter(s => selectedStudentIds.has(s.id));
     try {
       await printStudentCards(
-        supabase,
+        api,
         schoolId!,
         selectedStudents,
         schoolLogo,
@@ -1902,7 +1902,7 @@ export function StudentCardsModule() {
               onClick={() => {
                 if (createdStudentForCard) {
                   void printStudentCards(
-                    supabase,
+                    api,
                     schoolId!,
                     [createdStudentForCard],
                     schoolLogo,
@@ -1974,7 +1974,7 @@ export function StudentCardsModule() {
               onClick={() => {
                 if (previewStudent) {
                   void printStudentCards(
-                    supabase,
+                    api,
                     schoolId!,
                     [previewStudent],
                     schoolLogo,

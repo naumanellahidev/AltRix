@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Loader2, Upload, Save } from "lucide-react";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 
 interface ExistingProof {
   id: string;
@@ -59,7 +59,7 @@ export function ManualProofUploadDialog({ open, onOpenChange, schoolId, studentI
 
     setSubmitting(true);
     try {
-      const { data: userData } = await supabase.auth.getUser();
+      const { data: userData } = await api.auth.getUser();
       const uid = userData.user?.id;
       if (!uid) throw new Error("Not signed in");
 
@@ -71,7 +71,7 @@ export function ManualProofUploadDialog({ open, onOpenChange, schoolId, studentI
       if (file) {
         const ext = file.name.split(".").pop()?.toLowerCase() || "bin";
         filePath = `${schoolId}/${invoiceId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
-        const { error: upErr } = await supabase.storage.from("fee-payment-proofs").upload(filePath, file, {
+        const { error: upErr } = await api.storage.from("fee-payment-proofs").upload(filePath, file, {
           cacheControl: "3600", upsert: false, contentType: file.type || undefined,
         });
         if (upErr) throw upErr;
@@ -80,7 +80,7 @@ export function ManualProofUploadDialog({ open, onOpenChange, schoolId, studentI
 
         // remove previous file if replacing
         if (isEdit && existingProof?.file_path && existingProof.file_path !== filePath) {
-          const { error: rmErr } = await supabase.storage.from("fee-payment-proofs").remove([existingProof.file_path]);
+          const { error: rmErr } = await api.storage.from("fee-payment-proofs").remove([existingProof.file_path]);
           oldFileRemoved = !rmErr;
         }
       }
@@ -90,7 +90,7 @@ export function ManualProofUploadDialog({ open, onOpenChange, schoolId, studentI
           amount: amt, paid_at: paidAt, method, note,
         };
         if (file) { patch.file_path = filePath; patch.file_name = fileName; patch.mime_type = mimeType; }
-        const { error: upErr } = await (supabase as any).from("fee_payment_proofs")
+        const { error: upErr } = await (api as any).from("fee_payment_proofs")
           .update(patch).eq("id", existingProof!.id);
         if (upErr) throw upErr;
         const desc = file
@@ -100,7 +100,7 @@ export function ManualProofUploadDialog({ open, onOpenChange, schoolId, studentI
           : "Details updated.";
         toast.success("Proof updated", { description: desc });
       } else {
-        const { error: insErr } = await (supabase as any).from("fee_payment_proofs").insert({
+        const { error: insErr } = await (api as any).from("fee_payment_proofs").insert({
           school_id: schoolId, invoice_id: invoiceId, student_id: studentId,
           uploaded_by: uid, file_path: filePath, file_name: fileName, mime_type: mimeType,
           amount: amt, paid_at: paidAt, method, note,

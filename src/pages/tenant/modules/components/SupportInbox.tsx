@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -31,7 +31,7 @@ export function SupportInbox({ schoolId }: { schoolId?: string }) {
   const [searchQuery, setSearchQuery] = useState("");
 
   const refreshConversations = async () => {
-    let q = supabase
+    let q = api
       .from("support_conversations")
       .select("id,school_id,student_id,status,created_at,updated_at")
       .order("updated_at", { ascending: false })
@@ -42,7 +42,7 @@ export function SupportInbox({ schoolId }: { schoolId?: string }) {
     setConversations(next);
 
     const studentIds = next.map((c) => c.student_id);
-    const map = await fetchStudentLabelMap(supabase, {
+    const map = await fetchStudentLabelMap(api, {
       schoolId,
       studentIds,
     });
@@ -50,7 +50,7 @@ export function SupportInbox({ schoolId }: { schoolId?: string }) {
   };
 
   const refreshMessages = async (conversationId: string) => {
-    const { data } = await supabase
+    const { data } = await api
       .from("support_messages")
       .select("id,content,sender_user_id,created_at")
       .eq("conversation_id", conversationId)
@@ -72,7 +72,7 @@ export function SupportInbox({ schoolId }: { schoolId?: string }) {
   useEffect(() => {
     if (!selected?.id) return;
 
-    const channel = supabase
+    const channel = api
       .channel(`support:staff:${selected.id}`)
       .on(
         "postgres_changes",
@@ -85,7 +85,7 @@ export function SupportInbox({ schoolId }: { schoolId?: string }) {
       .subscribe();
 
     return () => {
-      void supabase.removeChannel(channel);
+      void api.removeChannel(channel);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selected?.id]);
@@ -94,7 +94,7 @@ export function SupportInbox({ schoolId }: { schoolId?: string }) {
   useEffect(() => {
     if (!schoolId) return;
 
-    const channel = supabase
+    const channel = api
       .channel(`support:conversations:${schoolId}`)
       .on(
         "postgres_changes",
@@ -106,7 +106,7 @@ export function SupportInbox({ schoolId }: { schoolId?: string }) {
       .subscribe();
 
     return () => {
-      void supabase.removeChannel(channel);
+      void api.removeChannel(channel);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [schoolId]);
@@ -117,10 +117,10 @@ export function SupportInbox({ schoolId }: { schoolId?: string }) {
     if (!selected?.id) return;
     setBusy(true);
     try {
-      const authed = await supabase.auth.getUser();
+      const authed = await api.auth.getUser();
       const senderId = authed.data.user?.id;
       if (!senderId) return;
-      const { error } = await supabase.from("support_messages").insert({
+      const { error } = await api.from("support_messages").insert({
         school_id: selected.school_id,
         conversation_id: selected.id,
         sender_user_id: senderId,
@@ -131,14 +131,14 @@ export function SupportInbox({ schoolId }: { schoolId?: string }) {
 
       // Notify student
       try {
-        const { data: student } = await supabase
+        const { data: student } = await api
           .from("students")
           .select("user_id")
           .eq("id", selected.student_id)
           .maybeSingle();
 
         if (student?.user_id) {
-          await supabase.from("app_notifications").insert({
+          await api.from("app_notifications").insert({
             school_id: selected.school_id,
             user_id: student.user_id,
             type: "support",
@@ -154,7 +154,7 @@ export function SupportInbox({ schoolId }: { schoolId?: string }) {
 
       // Notify guardians
       try {
-        const { data: guardians } = await supabase
+        const { data: guardians } = await api
           .from("student_guardians")
           .select("user_id")
           .eq("student_id", selected.student_id);
@@ -170,7 +170,7 @@ export function SupportInbox({ schoolId }: { schoolId?: string }) {
             entity_type: "support_conversations",
             entity_id: selected.id
           }));
-          await supabase.from("app_notifications").insert(notifs);
+          await api.from("app_notifications").insert(notifs);
         }
       } catch (e) {
         console.warn("Failed to notify guardians:", e);
@@ -190,7 +190,7 @@ export function SupportInbox({ schoolId }: { schoolId?: string }) {
   const updateStatus = async (conversationId: string, newStatus: string) => {
     setBusy(true);
     try {
-      const { error } = await supabase
+      const { error } = await api
         .from("support_conversations")
         .update({ status: newStatus, updated_at: new Date().toISOString() })
         .eq("id", conversationId);

@@ -18,7 +18,7 @@ import {
   Users,
 } from "lucide-react";
 import { format, parseISO, subMonths } from "date-fns";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -45,7 +45,7 @@ export function SchoolReputationDashboard({ schoolId }: Props) {
   const { data: reputationData, isLoading } = useQuery({
     queryKey: ["ai_school_reputation", schoolId],
     queryFn: async () => {
-      const { data, error } = await (supabase as any)
+      const { data, error } = await (api as any)
         .from("ai_school_reputation")
         .select("*")
         .eq("school_id", schoolId)

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { useTenant } from "@/hooks/useTenant";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -77,7 +77,7 @@ export default function PrincipalComplaintsModule() {
 
   const load = async () => {
     if (!schoolId) return;
-    const { data, error } = await (supabase as any)
+    const { data, error } = await (api as any)
       .from("complaints_principal_view")
       .select("*")
       .eq("school_id", schoolId)
@@ -92,7 +92,7 @@ export default function PrincipalComplaintsModule() {
 
     const sids = Array.from(new Set(list.map((c) => c.student_id).filter(Boolean) as string[]));
     if (sids.length) {
-      const { data: stu } = await supabase.from("students").select("id, first_name, last_name").in("id", sids);
+      const { data: stu } = await api.from("students").select("id, first_name, last_name").in("id", sids);
       const m: Record<string, string> = {};
       (stu ?? []).forEach((s: any) => { m[s.id] = `${s.first_name} ${s.last_name ?? ""}`.trim(); });
       setStudentNames(m);
@@ -100,7 +100,7 @@ export default function PrincipalComplaintsModule() {
 
     const senderIds = Array.from(new Set(list.map((c) => c.sender_user_id).filter(Boolean) as string[]));
     if (senderIds.length) {
-      const { data: dir } = await supabase.rpc("get_school_user_directory", { _school_id: schoolId });
+      const { data: dir } = await api.rpc("get_school_user_directory", { _school_id: schoolId });
       const m: Record<string, string> = {};
       (dir ?? []).forEach((d: any) => {
         if (senderIds.includes(d.user_id)) m[d.user_id] = d.display_name || d.email || "Member";
@@ -123,7 +123,7 @@ export default function PrincipalComplaintsModule() {
   useEffect(() => {
     if (!schoolId) return;
 
-    const complaintsChannel = supabase
+    const complaintsChannel = api
       .channel(`principal_complaints_changes:${schoolId}`)
       .on(
         "postgres_changes",
@@ -134,7 +134,7 @@ export default function PrincipalComplaintsModule() {
       )
       .subscribe();
 
-    const feedbacksChannel = supabase
+    const feedbacksChannel = api
       .channel(`principal_feedbacks_changes:${schoolId}`)
       .on(
         "postgres_changes",
@@ -146,13 +146,13 @@ export default function PrincipalComplaintsModule() {
       .subscribe();
 
     return () => {
-      void supabase.removeChannel(complaintsChannel);
-      void supabase.removeChannel(feedbacksChannel);
+      void api.removeChannel(complaintsChannel);
+      void api.removeChannel(feedbacksChannel);
     };
   }, [schoolId]);
 
   const updateStatus = async (id: string, status: string) => {
-    const { error } = await (supabase as any)
+    const { error } = await (api as any)
       .from("complaints")
       .update({
         status,
@@ -167,7 +167,7 @@ export default function PrincipalComplaintsModule() {
     const complaintObj = items.find(c => c.id === id);
     if (complaintObj?.sender_user_id) {
       try {
-        await supabase.from("app_notifications").insert({
+        await api.from("app_notifications").insert({
           school_id: schoolId,
           user_id: complaintObj.sender_user_id,
           type: "complaint",

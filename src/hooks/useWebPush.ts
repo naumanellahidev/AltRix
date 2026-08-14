@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { supabase, USE_FASTAPI } from "@/integrations/supabase/client";
+import { api, USE_FASTAPI } from "@/lib/api";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "sonner";
 
@@ -82,7 +82,7 @@ export function useWebPush() {
       if (!publicKey) {
         try {
           // Supabase Fallback: query from system_settings table
-          const { data, error } = await supabase
+          const { data, error } = await api
             .from("system_settings")
             .select("value")
             .eq("key", "vapid_public_key")
@@ -133,11 +133,11 @@ export function useWebPush() {
         });
       } else {
         // Supabase Fallback
-        const { data: sessionData } = await supabase.auth.getSession();
+        const { data: sessionData } = await api.auth.getSession();
         const user = sessionData?.session?.user;
         if (!user) throw new Error("No authenticated user session");
 
-        const { error } = await supabase
+        const { error } = await api
           .from("user_web_push_subscriptions")
           .upsert({
             user_id: user.id,
@@ -176,7 +176,7 @@ export function useWebPush() {
           await apiClient.post("/notifications/push/unsubscribe", { endpoint });
         } else {
           // Supabase Fallback
-          const { error } = await supabase
+          const { error } = await api
             .from("user_web_push_subscriptions")
             .delete()
             .eq("endpoint", endpoint);

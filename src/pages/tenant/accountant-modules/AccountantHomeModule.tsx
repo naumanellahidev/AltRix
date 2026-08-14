@@ -54,7 +54,7 @@ import {
 } from "recharts";
 import { motion } from "framer-motion";
 
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { useTenant } from "@/hooks/useTenant";
 import { useRealtimeTable } from "@/hooks/useRealtime";
 
@@ -163,7 +163,7 @@ export function AccountantHomeModule() {
   const { data: invoices = [] } = useQuery({
     queryKey: ["finance_invoices_home", schoolId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await api
         .from("fee_invoices")
         .select("id, total:total_amount, status, issue_date:created_at, due_date, student_id")
         .eq("school_id", schoolId!)
@@ -177,7 +177,7 @@ export function AccountantHomeModule() {
   const { data: payments = [] } = useQuery({
     queryKey: ["finance_payments_home", schoolId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await api
         .from("fee_payments")
         .select("id, amount, paid_at, invoice_id")
         .eq("school_id", schoolId!)
@@ -191,7 +191,7 @@ export function AccountantHomeModule() {
   const { data: expenses = [] } = useQuery({
     queryKey: ["finance_expenses_home", schoolId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await api
         .from("finance_expenses")
         .select("id, amount, expense_date, category, description")
         .eq("school_id", schoolId!)
@@ -205,7 +205,7 @@ export function AccountantHomeModule() {
   const { data: payRuns = [] } = useQuery({
     queryKey: ["hr_pay_runs_home", schoolId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await api
         .from("hr_pay_runs")
         .select("id, period_start, period_end, gross_amount, net_amount, status, paid_at, created_at")
         .eq("school_id", schoolId!)
@@ -219,7 +219,7 @@ export function AccountantHomeModule() {
   const { data: salaryRecords = [] } = useQuery({
     queryKey: ["hr_salary_records_home", schoolId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await api
         .from("hr_salary_records")
         .select("id, user_id, base_salary, allowances, deductions, is_active")
         .eq("school_id", schoolId!)
@@ -237,7 +237,7 @@ export function AccountantHomeModule() {
   const { data: students = [] } = useQuery({
     queryKey: ["students_count_home", schoolId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await api
         .from("students")
         .select("id")
         .eq("school_id", schoolId!);

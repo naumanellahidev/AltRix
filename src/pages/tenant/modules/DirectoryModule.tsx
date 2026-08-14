@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Edit, Plus, Search, Printer, Check } from "lucide-react";
 
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { printStudentCards } from "@/lib/id-card-print";
 import { useTenant } from "@/hooks/useTenant";
 import { useQuery } from "@tanstack/react-query";
@@ -92,7 +92,7 @@ export function DirectoryModule() {
     queryKey: ["directory_search", schoolId, tab, needle, statusFilter, pageSize, offset],
     enabled: !!schoolId,
     queryFn: async () => {
-      const { data, error } = await supabase.rpc("directory_search", {
+      const { data, error } = await api.rpc("directory_search", {
         _school_id: schoolId,
         _entity: tab,
         _q: needle || null,
@@ -201,7 +201,7 @@ export function DirectoryModule() {
     if (tab === "students") {
       if (!studentFirst.trim()) return toast.error("First name required");
       const defaultValidity = new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString().split('T')[0];
-      const { data, error } = await supabase.from("students").insert({
+      const { data, error } = await api.from("students").insert({
         school_id: schoolId,
         first_name: studentFirst.trim(),
         last_name: studentLast.trim() || null,
@@ -227,8 +227,8 @@ export function DirectoryModule() {
     if (tab === "leads") {
       if (!leadName.trim()) return toast.error("Lead name required");
       // ensure defaults (same behavior as CRM module)
-      await supabase.rpc("ensure_default_crm_pipeline", { _school_id: schoolId });
-      const { data: p, error: pErr } = await supabase
+      await api.rpc("ensure_default_crm_pipeline", { _school_id: schoolId });
+      const { data: p, error: pErr } = await api
         .from("crm_pipelines")
         .select("id")
         .eq("school_id", schoolId)
@@ -237,7 +237,7 @@ export function DirectoryModule() {
       if (pErr) return toast.error(pErr.message);
       const pipelineId = (p as any)?.id as string | undefined;
       if (!pipelineId) return toast.error("No CRM pipeline found");
-      const { data: s, error: sErr } = await supabase
+      const { data: s, error: sErr } = await api
         .from("crm_stages")
         .select("id")
         .eq("school_id", schoolId)
@@ -249,7 +249,7 @@ export function DirectoryModule() {
       const stageId = (s as any)?.id as string | undefined;
       if (!stageId) return toast.error("No CRM stage found");
 
-      const { error } = await supabase.from("crm_leads").insert({
+      const { error } = await api.from("crm_leads").insert({
         school_id: schoolId,
         pipeline_id: pipelineId,
         stage_id: stageId,
@@ -272,7 +272,7 @@ export function DirectoryModule() {
     if (!schoolId || !editTarget) return;
     if (editTarget.entity === "students") {
       if (!studentFirst.trim()) return toast.error("First name required");
-      const { error } = await supabase
+      const { error } = await api
         .from("students")
         .update({ first_name: studentFirst.trim(), last_name: studentLast.trim() || null, status: studentStatus })
         .eq("school_id", schoolId)
@@ -286,7 +286,7 @@ export function DirectoryModule() {
 
     if (editTarget.entity === "leads") {
       if (!leadName.trim()) return toast.error("Lead name required");
-      const { error } = await supabase
+      const { error } = await api
         .from("crm_leads")
         .update({ full_name: leadName.trim(), status: leadStatus, notes: leadNotes.trim() || null })
         .eq("school_id", schoolId)
@@ -696,7 +696,7 @@ export function DirectoryModule() {
                   const schoolLogo = tenant.status === "ready" ? tenant.logoUrl : null;
                   const schoolName = tenant.status === "ready" ? tenant.name : "Our School";
                   void printStudentCards(
-                    supabase,
+                    api,
                     schoolId!,
                     [createdStudentForCard],
                     schoolLogo,

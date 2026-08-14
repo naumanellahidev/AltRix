@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo } from "react";
 import { useParams } from "react-router-dom";
 import { Plus, Users, CheckCircle, Clock, FileCheck, MessageSquare, Paperclip, AlertTriangle, Check, AlertCircle, Info, Trash2, Search, Filter, Calendar, TrendingUp, Award, FileText, BookOpen } from "lucide-react";
 import { AttachmentsList } from "@/components/assignments/AttachmentsList";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { useTenant } from "@/hooks/useTenant";
 import { useSession } from "@/hooks/useSession";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -286,7 +286,7 @@ export function TeacherAssignmentsModule() {
     setLoading(true);
 
     // Only get assignments for THIS teacher
-    const { data: teacherAssignments } = await supabase
+    const { data: teacherAssignments } = await api
       .from("teacher_assignments")
       .select("class_section_id")
       .eq("school_id", tenant.schoolId)
@@ -299,7 +299,7 @@ export function TeacherAssignmentsModule() {
 
     const sectionIds = teacherAssignments.map((a) => a.class_section_id);
 
-    const { data: sectionData } = await supabase
+    const { data: sectionData } = await api
       .from("class_sections")
       .select("id, name, class_id")
       .in("id", sectionIds);
@@ -310,7 +310,7 @@ export function TeacherAssignmentsModule() {
     }
 
     const classIds = [...new Set(sectionData.map((s) => s.class_id))];
-    const { data: classes } = await supabase
+    const { data: classes } = await api
       .from("academic_classes")
       .select("id, name")
       .in("id", classIds);
@@ -326,7 +326,7 @@ export function TeacherAssignmentsModule() {
     setSections(enrichedSections);
 
     // Fetch assignments
-    const { data: assignmentData } = await supabase
+    const { data: assignmentData } = await api
       .from("assignments")
       .select("*")
       .eq("school_id", tenant.schoolId)
@@ -345,7 +345,7 @@ export function TeacherAssignmentsModule() {
     // Fetch all submissions for these assignments to compute stats
     const assignmentIds = (assignmentData || []).map((a) => a.id);
     if (assignmentIds.length > 0) {
-      const { data: subData } = await supabase
+      const { data: subData } = await api
         .from("assignment_submissions")
         .select("id, assignment_id, status, marks_obtained")
         .in("assignment_id", assignmentIds);
@@ -383,7 +383,7 @@ export function TeacherAssignmentsModule() {
       descriptionValue = `[ALTRIX_TYPE:${newAssignment.type}]:${descriptionValue || ""}`;
     }
 
-    const { error } = await supabase.from("assignments").insert({
+    const { error } = await api.from("assignments").insert({
       school_id: tenant.schoolId,
       class_section_id: newAssignment.class_section_id,
       teacher_user_id: user?.id,
@@ -415,7 +415,7 @@ export function TeacherAssignmentsModule() {
     setDeletingAssignment(true);
     try {
       // 1. Delete student results first (prevent FK issues)
-      const { error: resultsError } = await supabase
+      const { error: resultsError } = await api
         .from("student_results")
         .delete()
         .eq("assignment_id", assignmentId);
@@ -427,7 +427,7 @@ export function TeacherAssignmentsModule() {
       }
 
       // 2. Delete submissions
-      const { error: subsError } = await supabase
+      const { error: subsError } = await api
         .from("assignment_submissions")
         .delete()
         .eq("assignment_id", assignmentId);
@@ -439,7 +439,7 @@ export function TeacherAssignmentsModule() {
       }
 
       // 3. Delete assignment
-      const { error: assignmentError } = await supabase
+      const { error: assignmentError } = await api
         .from("assignments")
         .delete()
         .eq("id", assignmentId);
@@ -479,7 +479,7 @@ export function TeacherAssignmentsModule() {
     setSelectedAssignment(assignment);
 
     // Load students
-    const { data: enrollments } = await supabase
+    const { data: enrollments } = await api
       .from("student_enrollments")
       .select("student_id")
       .eq("school_id", tenant.schoolId)
@@ -492,13 +492,13 @@ export function TeacherAssignmentsModule() {
     }
 
     const studentIds = enrollments.map((e) => e.student_id);
-    const { data: students } = await supabase
+    const { data: students } = await api
       .from("students")
       .select("id, first_name, last_name")
       .in("id", studentIds);
 
     // Load existing results
-    const { data: existingResults } = await (supabase as any)
+    const { data: existingResults } = await (api as any)
       .from("student_results")
       .select("student_id, marks_obtained, grade, remarks")
       .eq("assignment_id", assignment.id);
@@ -532,7 +532,7 @@ export function TeacherAssignmentsModule() {
 
     setSavingResults(true);
 
-    const { data: user } = await supabase.auth.getUser();
+    const { data: user } = await api.auth.getUser();
 
     const payload = results
       .filter((r) => r.marks_obtained !== null)
@@ -547,7 +547,7 @@ export function TeacherAssignmentsModule() {
         graded_at: new Date().toISOString(),
       }));
 
-    const { error } = await (supabase as any).from("student_results").upsert(payload, {
+    const { error } = await (api as any).from("student_results").upsert(payload, {
       onConflict: "school_id,student_id,assignment_id",
     });
 
@@ -566,7 +566,7 @@ export function TeacherAssignmentsModule() {
     setSelectedAssignment(assignment);
     
     // Load enrolled students
-    const { data: enrollments } = await supabase
+    const { data: enrollments } = await api
       .from("student_enrollments")
       .select("student_id")
       .eq("school_id", tenant.schoolId)
@@ -579,13 +579,13 @@ export function TeacherAssignmentsModule() {
     }
 
     const studentIds = enrollments.map((e) => e.student_id);
-    const { data: students } = await supabase
+    const { data: students } = await api
       .from("students")
       .select("id, first_name, last_name")
       .in("id", studentIds);
 
     // Load submissions
-    const { data: subs } = await supabase
+    const { data: subs } = await api
       .from("assignment_submissions")
       .select("*")
       .eq("school_id", tenant.schoolId)
@@ -652,7 +652,7 @@ export function TeacherAssignmentsModule() {
       penaltyApplied = penalty;
     }
     
-    const { error } = await supabase
+    const { error } = await api
       .from("assignment_submissions")
       .update({
         marks_obtained: finalMarks,

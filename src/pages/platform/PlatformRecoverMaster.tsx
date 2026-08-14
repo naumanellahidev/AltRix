@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { z } from "zod";
 import { KeyRound, Mail, ShieldCheck, Eye, EyeOff } from "lucide-react";
 
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -35,7 +35,7 @@ export default function PlatformRecoverMaster() {
 
     setBusy(true);
     try {
-      const { data, error } = await supabase.functions.invoke("eduverse-recover-master", {
+      const { data, error } = await api.functions.invoke("eduverse-recover-master", {
         body: {
           recoverySecret: recoverySecret.trim(),
           newEmail: parsedEmail.data.toLowerCase(),

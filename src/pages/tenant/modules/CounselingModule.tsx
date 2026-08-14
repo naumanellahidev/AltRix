@@ -10,7 +10,7 @@
  *  • Inline filters: search by student, priority, reason type, status.
  *  • Create new counseling request (pick student, priority, reason).
  *  • Schedule with date+time picker, complete with notes + outcome.
- *  • Realtime sync via supabase.channel — list refreshes automatically
+ *  • Realtime sync via api.channel — list refreshes automatically
  *    when any other user updates the queue.
  *  • CSV export of currently filtered list.
  */
@@ -24,7 +24,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -117,7 +117,7 @@ export function CounselingModule({ schoolId }: Props) {
   const { data: queue, isLoading } = useQuery({
     queryKey: ["counseling_queue", schoolId],
     queryFn: async (): Promise<CounselingRow[]> => {
-      const { data, error } = await supabase
+      const { data, error } = await api
         .from("ai_counseling_queue")
         .select("*, students:student_id(first_name,last_name)")
         .eq("school_id", schoolId!)
@@ -132,7 +132,7 @@ export function CounselingModule({ schoolId }: Props) {
   // realtime sync
   useEffect(() => {
     if (!schoolId) return;
-    const channel = supabase
+    const channel = api
       .channel(`counseling-queue-${schoolId}`)
       .on(
         "postgres_changes",
@@ -140,13 +140,13 @@ export function CounselingModule({ schoolId }: Props) {
         () => qc.invalidateQueries({ queryKey: ["counseling_queue", schoolId] }),
       )
       .subscribe();
-    return () => { supabase.removeChannel(channel); };
+    return () => { api.removeChannel(channel); };
   }, [schoolId, qc]);
 
   const { data: students = [] } = useQuery({
     queryKey: ["counseling_students_picker", schoolId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await api
         .from("students")
         .select("id, first_name, last_name")
         .eq("school_id", schoolId!)
@@ -215,7 +215,7 @@ export function CounselingModule({ schoolId }: Props) {
   // ---- mutations ------------------------------------------------------------
   const updateMut = useMutation({
     mutationFn: async (payload: { id: string; patch: Partial<CounselingRow> }) => {
-      const { error } = await supabase
+      const { error } = await api
         .from("ai_counseling_queue")
         .update(payload.patch as never)
         .eq("id", payload.id);
@@ -238,7 +238,7 @@ export function CounselingModule({ schoolId }: Props) {
       reason_details: string;
     }) => {
       if (!schoolId) throw new Error("Missing school");
-      const { error } = await supabase.from("ai_counseling_queue").insert({
+      const { error } = await api.from("ai_counseling_queue").insert({
         school_id: schoolId,
         student_id: payload.student_id,
         priority: payload.priority,

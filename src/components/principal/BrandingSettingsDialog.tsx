@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { supabase, USE_FASTAPI } from "@/integrations/supabase/client";
+import { api, USE_FASTAPI } from "@/lib/api";
 import { apiClient } from "@/lib/api-client";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -66,7 +66,7 @@ export function BrandingSettingsDialog({ schoolId, trigger }: BrandingSettingsDi
             setLightness(data.accent_lightness ?? 50);
           }
         } else {
-          const { data } = await supabase
+          const { data } = await api
             .from("school_branding")
             .select("accent_hue,accent_saturation,accent_lightness")
             .eq("school_id", schoolId)
@@ -93,7 +93,7 @@ export function BrandingSettingsDialog({ schoolId, trigger }: BrandingSettingsDi
             setAltitude(data.altitude !== null && data.altitude !== undefined ? String(data.altitude) : "");
           }
         } else {
-          const { data, error } = await supabase
+          const { data, error } = await api
             .from("schools")
             .select("latitude,longitude,altitude")
             .eq("id", schoolId)
@@ -204,7 +204,7 @@ export function BrandingSettingsDialog({ schoolId, trigger }: BrandingSettingsDi
     // 1. Update branding - Always update Supabase first to ensure database persistent write bypasses any uvicorn reloading delay
     let brandingError = null;
     try {
-      const { error: colorErr } = await supabase
+      const { error: colorErr } = await api
         .from("school_branding")
         .upsert({
           school_id: schoolId,
@@ -254,7 +254,7 @@ export function BrandingSettingsDialog({ schoolId, trigger }: BrandingSettingsDi
       }
     } else {
       try {
-        const { error } = await supabase
+        const { error } = await api
           .from("schools")
           .update({
             latitude: latVal,

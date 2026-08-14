@@ -31,7 +31,7 @@ import {
   Users,
   HeartHandshake,
 } from "lucide-react";
-import { supabase, USE_FASTAPI } from "@/integrations/supabase/client";
+import { api, USE_FASTAPI } from "@/lib/api";
 import { apiClient } from "@/lib/api-client";
 import { DashboardNotificationsBanner } from "@/components/global/DashboardNotificationsBanner";
 import { GlobalCommandPalette } from "@/components/global/GlobalCommandPalette";
@@ -156,7 +156,7 @@ export function TeacherShell({ title, subtitle, schoolSlug, children }: Props) {
         if (USE_FASTAPI) {
           apiClient.post(`/notifications/${notification.id}/read`).catch(console.error);
         } else {
-          supabase
+          api
             .from("app_notifications")
             .update({ read_at: new Date().toISOString() })
             .eq("id", notification.id)
@@ -183,7 +183,7 @@ export function TeacherShell({ title, subtitle, schoolSlug, children }: Props) {
   });
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    await api.auth.signOut();
     window.location.href = `/${schoolSlug}/auth`;
   };
 

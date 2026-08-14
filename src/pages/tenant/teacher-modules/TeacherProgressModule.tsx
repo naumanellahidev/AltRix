@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { format } from "date-fns";
 import { TrendingUp, TrendingDown, Minus, User } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { useTenant } from "@/hooks/useTenant";
 import { useSession } from "@/hooks/useSession";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -67,7 +67,7 @@ export function TeacherProgressModule() {
   }, [selectedStudent, schoolId, selectedSection]);
 
   const loadSections = async () => {
-    const { data: assignments } = await supabase
+    const { data: assignments } = await api
       .from("teacher_assignments")
       .select("class_section_id")
       .eq("school_id", schoolId!)
@@ -79,12 +79,12 @@ export function TeacherProgressModule() {
       return;
     }
 
-    const { data: secs } = await supabase
+    const { data: secs } = await api
       .from("class_sections")
       .select("id, name, class_id")
       .in("id", sectionIds);
 
-    const { data: classes } = await supabase.from("academic_classes").select("id, name");
+    const { data: classes } = await api.from("academic_classes").select("id, name");
     const classMap = new Map(classes?.map((c) => [c.id, c.name]) || []);
 
     const mapped = (secs || []).map((s) => ({
@@ -101,7 +101,7 @@ export function TeacherProgressModule() {
   };
 
   const loadStudents = async () => {
-    const { data: enrollments } = await supabase
+    const { data: enrollments } = await api
       .from("student_enrollments")
       .select("student_id")
       .eq("school_id", schoolId!)
@@ -110,7 +110,7 @@ export function TeacherProgressModule() {
     const studentIds = enrollments?.map((e) => e.student_id) || [];
 
     if (studentIds.length > 0) {
-      const { data } = await supabase
+      const { data } = await api
         .from("students")
         .select("id, first_name, last_name")
         .in("id", studentIds)
@@ -130,7 +130,7 @@ export function TeacherProgressModule() {
     setLoadingStats(true);
 
     // Get attendance stats
-    const { data: entries } = await supabase
+    const { data: entries } = await api
       .from("attendance_entries")
       .select("status, session_id!inner(class_section_id)")
       .eq("school_id", schoolId!)
@@ -148,7 +148,7 @@ export function TeacherProgressModule() {
       : 100;
 
     // Get grade stats
-    const { data: marksData } = await supabase
+    const { data: marksData } = await api
       .from("student_marks")
       .select("marks, assessment_id!inner(id, title, max_marks, assessment_date, class_section_id)")
       .eq("school_id", schoolId!)

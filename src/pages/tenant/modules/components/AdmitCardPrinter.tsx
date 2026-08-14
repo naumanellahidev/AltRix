@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
 import { useParams } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -57,7 +57,7 @@ export default function AdmitCardPrinter({
       localStorage.setItem(`exam_rules_${examId}`, rulesText);
 
       // 1. Fetch enrolled students
-      const { data: enrolls, error: enrollError } = await supabase
+      const { data: enrolls, error: enrollError } = await api
         .from("student_enrollments")
         .select("student_id, students!inner(id, first_name, last_name, student_code)")
         .eq("class_section_id", secId)
@@ -77,7 +77,7 @@ export default function AdmitCardPrinter({
       }
 
       // 2. Fetch exam papers/datesheet for this section
-      const { data: papers, error: papersError } = await supabase
+      const { data: papers, error: papersError } = await api
         .from("exam_subjects")
         .select("*")
         .eq("exam_id", examId)
@@ -95,7 +95,7 @@ export default function AdmitCardPrinter({
       }
 
       // 3. Resolve school name
-      const { data: sch } = await supabase
+      const { data: sch } = await api
         .from("schools")
         .select("name")
         .eq("id", schoolId)

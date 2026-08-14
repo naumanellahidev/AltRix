@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { AlertTriangle, TrendingDown, UserX } from "lucide-react";
@@ -34,7 +34,7 @@ export function AtRiskStudentsCard({ schoolId, sectionIds }: Props) {
   const loadAtRiskStudents = async () => {
     setLoading(true);
     
-    const { data, error } = await (supabase as any).rpc("get_at_risk_students", {
+    const { data, error } = await (api as any).rpc("get_at_risk_students", {
       _school_id: schoolId,
       _class_section_id: null,
     });

@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { useTenant } from "@/hooks/useTenant";
 import { useAttendanceData, StudentRow, AttendanceSession, StudentAttendanceStats } from "@/hooks/useAttendanceData";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -78,7 +78,7 @@ export function TeacherAttendanceModule() {
 
     const fetchSections = async () => {
       // Get current teacher's user id
-      const { data: userData } = await supabase.auth.getUser();
+      const { data: userData } = await api.auth.getUser();
       const userId = userData.user?.id;
       if (!userId) {
         setLoading(false);
@@ -86,7 +86,7 @@ export function TeacherAttendanceModule() {
       }
 
       // Only get assignments for THIS teacher
-      const { data: assignments } = await supabase
+      const { data: assignments } = await api
         .from("teacher_assignments")
         .select("class_section_id")
         .eq("school_id", tenant.schoolId)
@@ -99,7 +99,7 @@ export function TeacherAttendanceModule() {
 
       const sectionIds = assignments.map((a) => a.class_section_id);
 
-      const { data: sectionData } = await supabase
+      const { data: sectionData } = await api
         .from("class_sections")
         .select("id, name, class_id")
         .in("id", sectionIds);
@@ -110,7 +110,7 @@ export function TeacherAttendanceModule() {
       }
 
       const classIds = [...new Set(sectionData.map((s) => s.class_id))];
-      const { data: classes } = await supabase
+      const { data: classes } = await api
         .from("academic_classes")
         .select("id, name")
         .in("id", classIds);

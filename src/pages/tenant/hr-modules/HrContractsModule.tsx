@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { useTenant } from "@/hooks/useTenant";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -69,7 +69,7 @@ export function HrContractsModule() {
     queryKey: ["school_meta", schoolId],
     enabled: !!schoolId,
     queryFn: async () => {
-      const { data } = await supabase.from("schools")
+      const { data } = await api.from("schools")
         .select("id,name,logo_url,address,email,phone,website,motto,slug")
         .eq("id", schoolId!).maybeSingle();
       return data;
@@ -80,7 +80,7 @@ export function HrContractsModule() {
     queryKey: ["hr_contracts_full", schoolId],
     enabled: !!schoolId,
     queryFn: async () => {
-      const { data, error } = await supabase.from("hr_contracts").select("*")
+      const { data, error } = await api.from("hr_contracts").select("*")
         .eq("school_id", schoolId!)
         .order("end_date", { ascending: true, nullsFirst: false });
       if (error) throw error;
@@ -92,7 +92,7 @@ export function HrContractsModule() {
     queryKey: ["hr_staff_dir_contracts", schoolId],
     enabled: !!schoolId,
     queryFn: async () => {
-      const { data, error } = await supabase.rpc("get_school_staff_directory", { _school_id: schoolId! });
+      const { data, error } = await api.rpc("get_school_staff_directory", { _school_id: schoolId! });
       if (error) throw error;
       return data || [];
     },
@@ -130,7 +130,7 @@ export function HrContractsModule() {
 
   const create = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase.from("hr_contracts").insert(toPayload(form));
+      const { error } = await api.from("hr_contracts").insert(toPayload(form));
       if (error) throw error;
     },
     onSuccess: () => {
@@ -144,7 +144,7 @@ export function HrContractsModule() {
 
   const update = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase.from("hr_contracts").update(toPayload(editForm)).eq("id", viewing.id);
+      const { error } = await api.from("hr_contracts").update(toPayload(editForm)).eq("id", viewing.id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -158,7 +158,7 @@ export function HrContractsModule() {
 
   const remove = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("hr_contracts").delete().eq("id", id);
+      const { error } = await api.from("hr_contracts").delete().eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {

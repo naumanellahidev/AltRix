@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { ChildInfo } from "@/hooks/useMyChildren";
 import { format } from "date-fns";
 import { Bell, CheckCheck, Settings, WifiOff, RefreshCw } from "lucide-react";
@@ -30,7 +30,7 @@ const ParentNotificationsModule = ({ child, schoolId }: ParentNotificationsModul
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
+    api.auth.getUser().then(({ data }) => {
       setCurrentUserId(data.user?.id || null);
     });
   }, []);
@@ -59,7 +59,7 @@ const ParentNotificationsModule = ({ child, schoolId }: ParentNotificationsModul
   const markAsRead = async (id: string) => {
     if (isOffline) return;
     
-    await supabase
+    await api
       .from("app_notifications")
       .update({ read_at: new Date().toISOString() })
       .eq("id", id);
@@ -73,7 +73,7 @@ const ParentNotificationsModule = ({ child, schoolId }: ParentNotificationsModul
     const unreadIds = notifications.filter(n => !n.readAt).map(n => n.id);
     if (unreadIds.length === 0) return;
 
-    await supabase
+    await api
       .from("app_notifications")
       .update({ read_at: new Date().toISOString() })
       .in("id", unreadIds);

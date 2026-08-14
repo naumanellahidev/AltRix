@@ -30,7 +30,7 @@ import {
   Calendar,
 } from "lucide-react";
 
-import { supabase, USE_FASTAPI } from "@/integrations/supabase/client";
+import { api, USE_FASTAPI } from "@/lib/api";
 import { apiClient } from "@/lib/api-client";
 import { useTenant } from "@/hooks/useTenant";
 import { usePermissions } from "@/lib/permissions";
@@ -324,39 +324,39 @@ export function PrincipalHome() {
           classesCount,
           sectionsCount,
         ] = await Promise.all([
-          supabase.from("students").select("id", { count: "exact", head: true }).eq("school_id", schoolId),
-          supabase.from("user_roles").select("id", { count: "exact", head: true }).eq("school_id", schoolId).eq("role", "teacher"),
-          supabase.from("school_memberships").select("id", { count: "exact", head: true }).eq("school_id", schoolId),
-          supabase.from("crm_leads").select("id", { count: "exact", head: true }).eq("school_id", schoolId),
-          supabase.from("crm_leads").select("id", { count: "exact", head: true }).eq("school_id", schoolId).not("stage_id", "is", null),
-          supabase
+          api.from("students").select("id", { count: "exact", head: true }).eq("school_id", schoolId),
+          api.from("user_roles").select("id", { count: "exact", head: true }).eq("school_id", schoolId).eq("role", "teacher"),
+          api.from("school_memberships").select("id", { count: "exact", head: true }).eq("school_id", schoolId),
+          api.from("crm_leads").select("id", { count: "exact", head: true }).eq("school_id", schoolId),
+          api.from("crm_leads").select("id", { count: "exact", head: true }).eq("school_id", schoolId).not("stage_id", "is", null),
+          api
             .from("attendance_entries")
             .select("id", { count: "exact", head: true })
             .eq("school_id", schoolId)
             .gte("created_at", d7.toISOString()),
-          supabase
+          api
             .from("attendance_entries")
             .select("id", { count: "exact", head: true })
             .eq("school_id", schoolId)
             .eq("status", "present")
             .gte("created_at", d7.toISOString()),
-          supabase
+          api
             .from("fee_payments")
             .select("amount,paid_at,created_at,status")
             .eq("school_id", schoolId)
             .limit(1000),
-          supabase
+          api
             .from("finance_expenses")
             .select("amount,expense_date,created_at")
             .eq("school_id", schoolId)
             .limit(1000),
-          supabase
+          api
             .from("fee_invoices")
             .select("id,total_amount,paid_amount,status,created_at")
             .eq("school_id", schoolId)
             .limit(1000),
-          supabase.from("academic_classes").select("id", { count: "exact", head: true }).eq("school_id", schoolId),
-          supabase.from("class_sections").select("id", { count: "exact", head: true }).eq("school_id", schoolId),
+          api.from("academic_classes").select("id", { count: "exact", head: true }).eq("school_id", schoolId),
+          api.from("class_sections").select("id", { count: "exact", head: true }).eq("school_id", schoolId),
         ]);
 
         const mtdMonth = monthStart.getMonth();
@@ -446,7 +446,7 @@ export function PrincipalHome() {
     void refresh();
     if (!schoolId) return;
 
-    const channel = supabase
+    const channel = api
       .channel("principal-finance-sync")
       .on(
         "postgres_changes",
@@ -466,7 +466,7 @@ export function PrincipalHome() {
       .subscribe();
 
     return () => {
-      void supabase.removeChannel(channel);
+      void api.removeChannel(channel);
     };
   }, [schoolId]);
 

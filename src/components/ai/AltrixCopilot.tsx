@@ -36,7 +36,7 @@ import {
   Volume2,
   VolumeX,
 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { useSession } from "@/hooks/useSession";
 import { useTenantOptimized } from "@/hooks/useTenantOptimized";
 import { useUserRole } from "@/hooks/useUserRole";
@@ -1085,7 +1085,7 @@ export default function AltrixCopilot() {
         promptToSend = `[Attached File: ${fileToAttach.name} (${fileToAttach.size} bytes)]\n\nContent:\n${fileToAttach.content}\n\nUser Question:\n${textToSend || "Analyze the attached file."}`;
       }
 
-      const session = await supabase.auth.getSession();
+      const session = await api.auth.getSession();
       const token = session.data.session?.access_token || "";
 
       const getModuleFromPath = (path: string): string => {
@@ -1234,26 +1234,26 @@ export default function AltrixCopilot() {
       if (!invoiceId) return toast.error("Missing invoice ID in action context");
       const t = toast.loading("Generating PDF Voucher...");
       try {
-        const { data: invoice, error: invErr } = await supabase
+        const { data: invoice, error: invErr } = await api
           .from("fee_invoices")
           .select("*, fee_invoice_items(*)")
           .eq("id", invoiceId)
           .single();
         if (invErr || !invoice) throw new Error("Invoice not found");
 
-        const { data: student } = await supabase
+        const { data: student } = await api
           .from("students")
           .select("first_name, last_name, roll_number, student_code, parent_name, parent_phone")
           .eq("id", invoice.student_id)
           .single();
 
-        const { data: school } = await supabase
+        const { data: school } = await api
           .from("schools")
           .select("*")
           .eq("id", schoolId!)
           .single();
 
-        const { data: branding } = await supabase
+        const { data: branding } = await api
           .from("school_branding")
           .select("*")
           .eq("school_id", schoolId!)

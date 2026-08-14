@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Award, MessageSquare, TrendingDown, TrendingUp, Users } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -50,7 +50,7 @@ export function StudentPerformanceWidget({ schoolId, sectionIds }: StudentPerfor
 
       try {
         // Fetch section details
-        const { data: sections } = await supabase
+        const { data: sections } = await api
           .from("class_sections")
           .select("id, name, academic_classes(name)")
           .in("id", sectionIds);
@@ -61,7 +61,7 @@ export function StudentPerformanceWidget({ schoolId, sectionIds }: StudentPerfor
         });
 
         // Fetch assessments for these sections
-        const { data: assessments } = await supabase
+        const { data: assessments } = await api
           .from("academic_assessments")
           .select("id, class_section_id, max_marks")
           .eq("school_id", schoolId)
@@ -81,7 +81,7 @@ export function StudentPerformanceWidget({ schoolId, sectionIds }: StudentPerfor
         });
 
         // Fetch student marks - use the actual table name
-        const { data: marks } = await supabase
+        const { data: marks } = await api
           .from("student_marks")
           .select("assessment_id, student_id, marks")
           .in("assessment_id", assessmentIds);
@@ -93,7 +93,7 @@ export function StudentPerformanceWidget({ schoolId, sectionIds }: StudentPerfor
 
         // Fetch student names
         const studentIds = [...new Set(marks.map((r) => r.student_id))];
-        const { data: students } = await supabase
+        const { data: students } = await api
           .from("students")
           .select("id, first_name, last_name")
           .in("id", studentIds);
@@ -104,7 +104,7 @@ export function StudentPerformanceWidget({ schoolId, sectionIds }: StudentPerfor
         });
 
         // Fetch enrollments to map students to sections
-        const { data: enrollments } = await supabase
+        const { data: enrollments } = await api
           .from("student_enrollments")
           .select("student_id, class_section_id")
           .eq("school_id", schoolId)

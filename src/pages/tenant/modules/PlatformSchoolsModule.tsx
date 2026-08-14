@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { ExternalLink, Search, ShieldCheck } from "lucide-react";
 
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { useTenant } from "@/hooks/useTenant";
 import { useSchoolPermissions } from "@/hooks/useSchoolPermissions";
 import { Button } from "@/components/ui/button";
@@ -42,14 +42,14 @@ export function PlatformSchoolsModule() {
   const [auditSchoolId, setAuditSchoolId] = useState<string>("all");
 
   const refresh = async () => {
-    const { data: s, error: sErr } = await supabase
+    const { data: s, error: sErr } = await api
       .from("schools")
       .select("id,slug,name,is_active,created_at")
       .order("created_at", { ascending: false })
       .limit(200);
     if (!sErr) setSchools((s ?? []) as SchoolRow[]);
 
-    const { data: a, error: aErr } = await supabase
+    const { data: a, error: aErr } = await api
       .from("audit_logs")
       .select("id,created_at,action,entity_type,entity_id,school_id,actor_user_id")
       .order("created_at", { ascending: false })

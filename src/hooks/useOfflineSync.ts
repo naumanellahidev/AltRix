@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { format } from "date-fns";
 
 interface OfflineEntry {
@@ -102,7 +102,7 @@ export function useOfflineSync(schoolId: string | null, userId: string | null) {
             note?: string;
           };
 
-          const { error } = await supabase.from("attendance_entries").upsert(
+          const { error } = await api.from("attendance_entries").upsert(
             {
               school_id: schoolId,
               session_id,
@@ -127,7 +127,7 @@ export function useOfflineSync(schoolId: string | null, userId: string | null) {
             };
 
           // Use logged_at instead of log_date based on schema
-          const { error } = await (supabase as any).from("timetable_period_logs").upsert(
+          const { error } = await (api as any).from("timetable_period_logs").upsert(
             {
               school_id: schoolId,
               timetable_entry_id,

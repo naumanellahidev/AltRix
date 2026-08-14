@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { z } from "zod";
 
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -125,9 +125,9 @@ export function AssessmentManagerCard({
   const refreshStatic = async () => {
     if (!schoolId) return;
     const [{ data: c }, { data: s }, { data: subj }] = await Promise.all([
-      supabase.from("academic_classes").select("id,name").eq("school_id", schoolId).order("name"),
-      supabase.from("class_sections").select("id,name,class_id").eq("school_id", schoolId).order("name"),
-      supabase.from("subjects").select("id,name").eq("school_id", schoolId).order("name"),
+      api.from("academic_classes").select("id,name").eq("school_id", schoolId).order("name"),
+      api.from("class_sections").select("id,name,class_id").eq("school_id", schoolId).order("name"),
+      api.from("subjects").select("id,name").eq("school_id", schoolId).order("name"),
     ]);
     setClasses((c ?? []) as ClassRow[]);
     setSections((s ?? []) as Section[]);
@@ -139,7 +139,7 @@ export function AssessmentManagerCard({
       setAllowedSubjectIds(new Set());
       return;
     }
-    const { data } = await supabase
+    const { data } = await api
       .from("class_section_subjects")
       .select("subject_id")
       .eq("school_id", schoolId)
@@ -151,7 +151,7 @@ export function AssessmentManagerCard({
     if (!schoolId) return;
     setBusy(true);
     try {
-      let q = supabase
+      let q = api
         .from("academic_assessments")
         .select("id,title,assessment_date,max_marks,term_label,subject_id,class_section_id,is_published,assessment_type,weightage_percent,passing_marks")
         .eq("school_id", schoolId)
@@ -180,14 +180,14 @@ export function AssessmentManagerCard({
     if (!a) return;
 
     const [{ data: enr }, { data: m, error: mErr }] = await Promise.all([
-      supabase
+      api
         .from("student_enrollments")
         .select("student_id, students(id, first_name, last_name)")
         .eq("school_id", schoolId)
         .eq("class_section_id", a.class_section_id)
         .is("end_date", null)
         .limit(500),
-      supabase
+      api
         .from("student_marks")
         .select("id,student_id,marks,remarks")
         .eq("school_id", schoolId)
@@ -292,8 +292,8 @@ export function AssessmentManagerCard({
       };
 
       const q = editId
-        ? supabase.from("academic_assessments").update(payload).eq("school_id", schoolId).eq("id", editId)
-        : supabase.from("academic_assessments").insert(payload);
+        ? api.from("academic_assessments").update(payload).eq("school_id", schoolId).eq("id", editId)
+        : api.from("academic_assessments").insert(payload);
 
       const { error } = await q;
       if (error) return toast.error(error.message);
@@ -311,7 +311,7 @@ export function AssessmentManagerCard({
     setBusy(true);
     try {
       // Safe delete: block if marks exist.
-      const { data: marksAny } = await supabase
+      const { data: marksAny } = await api
         .from("student_marks")
         .select("id")
         .eq("school_id", schoolId)
@@ -322,7 +322,7 @@ export function AssessmentManagerCard({
         return toast.error("Can't delete: marks already exist for this assessment.");
       }
 
-      const { error } = await supabase.from("academic_assessments").delete().eq("school_id", schoolId).eq("id", id);
+      const { error } = await api.from("academic_assessments").delete().eq("school_id", schoolId).eq("id", id);
       if (error) return toast.error(error.message);
       toast.success("Assessment deleted");
       if (activeAssessmentId === id) setActiveAssessmentId(null);
@@ -335,7 +335,7 @@ export function AssessmentManagerCard({
   const togglePublish = async (a: AssessmentRow) => {
     if (!schoolId) return;
     const next = !a.is_published;
-    const { error } = await supabase
+    const { error } = await api
       .from("academic_assessments")
       .update({ is_published: next, published_at: next ? new Date().toISOString() : null })
       .eq("school_id", schoolId)
@@ -375,7 +375,7 @@ export function AssessmentManagerCard({
         });
       }
 
-      const { error } = await supabase.from("student_marks").upsert(rows, { onConflict: "school_id,assessment_id,student_id" });
+      const { error } = await api.from("student_marks").upsert(rows, { onConflict: "school_id,assessment_id,student_id" });
       if (error) return toast.error(error.message);
       toast.success("Marks saved");
       await refreshMarks(activeAssessment.id);

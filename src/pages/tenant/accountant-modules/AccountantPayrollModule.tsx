@@ -28,7 +28,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { useTenant } from "@/hooks/useTenant";
 import { useRealtimeTable } from "@/hooks/useRealtime";
 import { useOfflineSalaryRecords, useOfflineStaffMembers } from "@/hooks/useOfflineData";
@@ -246,7 +246,7 @@ export function AccountantPayrollModule() {
   const { data: payRuns = [], isLoading: loadingPayRuns } = useQuery({
     queryKey: ["hr_pay_runs", schoolId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await api
         .from("hr_pay_runs")
         .select("*")
         .eq("school_id", schoolId!)
@@ -261,7 +261,7 @@ export function AccountantPayrollModule() {
   const { data: salaryRecords = [], isLoading: loadingSalaries } = useQuery({
     queryKey: ["hr_salary_records", schoolId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await api
         .from("hr_salary_records")
         .select("*")
         .eq("school_id", schoolId!)
@@ -287,7 +287,7 @@ export function AccountantPayrollModule() {
   const { data: staffMembers = [] } = useQuery({
     queryKey: ["school_staff_directory", schoolId],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc("get_school_staff_directory", {
+      const { data, error } = await api.rpc("get_school_staff_directory", {
         _school_id: schoolId!,
       });
       if (error) throw error;
@@ -459,7 +459,7 @@ export function AccountantPayrollModule() {
     };
 
     if (editingSalary) {
-      const { error } = await supabase
+      const { error } = await api
         .from("hr_salary_records")
         .update(payload)
         .eq("id", editingSalary.id);
@@ -467,14 +467,14 @@ export function AccountantPayrollModule() {
       toast.success("Salary record updated");
     } else {
       // Close previous active record
-      await supabase
+      await api
         .from("hr_salary_records")
         .update({ is_active: false, effective_to: formEffectiveFrom })
         .eq("school_id", schoolId)
         .eq("user_id", formUserId)
         .eq("is_active", true);
 
-      const { error } = await supabase.from("hr_salary_records").insert([
+      const { error } = await api.from("hr_salary_records").insert([
         {
           school_id: schoolId,
           user_id: formUserId,
@@ -491,14 +491,14 @@ export function AccountantPayrollModule() {
   };
 
   const handleDeleteSalary = async (id: string) => {
-    const { error } = await supabase.from("hr_salary_records").delete().eq("id", id);
+    const { error } = await api.from("hr_salary_records").delete().eq("id", id);
     if (error) return toast.error(error.message);
     toast.success("Salary record deleted");
     invalidate();
   };
 
   const handleToggleActive = async (rec: SalaryRecord) => {
-    const { error } = await supabase
+    const { error } = await api
       .from("hr_salary_records")
       .update({
         is_active: !rec.is_active,
@@ -518,7 +518,7 @@ export function AccountantPayrollModule() {
 
     if (groupOpType === "deactivate") {
       const ids = targets.map((t) => t.id);
-      const { error } = await supabase
+      const { error } = await api
         .from("hr_salary_records")
         .update({
           is_active: false,
@@ -567,13 +567,13 @@ export function AccountantPayrollModule() {
 
     // Close prior active records for those users
     const ids = targets.map((t) => t.id);
-    const close = await supabase
+    const close = await api
       .from("hr_salary_records")
       .update({ is_active: false, effective_to: groupOpEffective })
       .in("id", ids);
     if (close.error) return toast.error(close.error.message);
 
-    const ins = await supabase.from("hr_salary_records").insert(newRows);
+    const ins = await api.from("hr_salary_records").insert(newRows);
     if (ins.error) return toast.error(ins.error.message);
 
     toast.success(`Applied to ${newRows.length} staff member(s)`);
@@ -623,7 +623,7 @@ export function AccountantPayrollModule() {
       notes: prNotes.trim() || null,
     }));
 
-    const { error } = await supabase.from("hr_pay_runs").insert(rows);
+    const { error } = await api.from("hr_pay_runs").insert(rows);
     if (error) return toast.error(error.message);
 
     toast.success(`Created ${rows.length} pay slip(s) for the period`);
@@ -636,7 +636,7 @@ export function AccountantPayrollModule() {
     const update: Record<string, unknown> = { status };
     if (status === "completed") update.paid_at = new Date().toISOString();
     if (status === "draft") update.paid_at = null;
-    const { error } = await supabase.from("hr_pay_runs").update(update).eq("id", id);
+    const { error } = await api.from("hr_pay_runs").update(update).eq("id", id);
     if (error) return toast.error(error.message);
     toast.success(`Pay slip ${status}`);
     invalidate();
@@ -646,7 +646,7 @@ export function AccountantPayrollModule() {
     const update: Record<string, unknown> = { status };
     if (status === "completed") update.paid_at = new Date().toISOString();
     const ids = batch.runs.map((r) => r.id);
-    const { error } = await supabase
+    const { error } = await api
       .from("hr_pay_runs")
       .update(update)
       .in("id", ids);
@@ -656,7 +656,7 @@ export function AccountantPayrollModule() {
   };
 
   const handleDeleteRun = async (id: string) => {
-    const { error } = await supabase.from("hr_pay_runs").delete().eq("id", id);
+    const { error } = await api.from("hr_pay_runs").delete().eq("id", id);
     if (error) return toast.error(error.message);
     toast.success("Pay slip deleted");
     invalidate();
@@ -664,7 +664,7 @@ export function AccountantPayrollModule() {
 
   const handleDeleteBatch = async (batch: PayRunBatch) => {
     const ids = batch.runs.map((r) => r.id);
-    const { error } = await supabase.from("hr_pay_runs").delete().in("id", ids);
+    const { error } = await api.from("hr_pay_runs").delete().in("id", ids);
     if (error) return toast.error(error.message);
     toast.success(`Deleted ${ids.length} pay slip(s)`);
     invalidate();

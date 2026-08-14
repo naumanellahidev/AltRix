@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { useTenant } from "@/hooks/useTenant";
 import { useRealtimeTable } from "@/hooks/useRealtime";
 import { useOfflineTimetable, useOfflineTimetablePeriods } from "@/hooks/useOfflineData";
@@ -147,7 +147,7 @@ export function TeacherTimetableModule() {
     if (tenant.status !== "ready") return;
     setLoading(true);
 
-    const { data: user } = await supabase.auth.getUser();
+    const { data: user } = await api.auth.getUser();
     const userId = user.user?.id ?? null;
 
     if (!userId) {
@@ -159,17 +159,17 @@ export function TeacherTimetableModule() {
     setCurrentUserId(userId);
 
     const [{ data: p }, { data: dir }, { data: allEntries }, { data: logs }] = await Promise.all([
-      supabase
+      api
         .from("timetable_periods")
         .select("id,label,sort_order,start_time,end_time,is_break")
         .eq("school_id", tenant.schoolId)
         .order("sort_order", { ascending: true }),
-      supabase.from("school_user_directory").select("user_id,display_name,email").eq("school_id", tenant.schoolId),
-      supabase
+      api.from("school_user_directory").select("user_id,display_name,email").eq("school_id", tenant.schoolId),
+      api
         .from("timetable_entries")
         .select("id,subject_name,day_of_week,period_id,room,teacher_user_id,class_section_id")
         .eq("school_id", tenant.schoolId),
-      supabase
+      api
         .from("timetable_period_logs" as any)
         .select("id,timetable_entry_id,topic_covered,notes,logged_at")
         .eq("school_id", tenant.schoolId)
@@ -186,7 +186,7 @@ export function TeacherTimetableModule() {
       setCurrentUserName((currentUserDir as any).display_name || (currentUserDir as any).email || "Teacher");
     }
 
-    const { data: assignments } = await supabase
+    const { data: assignments } = await api
       .from("teacher_assignments")
       .select("class_section_id")
       .eq("school_id", tenant.schoolId)
@@ -202,7 +202,7 @@ export function TeacherTimetableModule() {
     const sectionLabelById = new Map<string, string>();
 
     if (sectionIdsToLabel.length > 0) {
-      const { data: secs } = await supabase
+      const { data: secs } = await api
         .from("class_sections")
         .select("id, name, academic_classes(name)")
         .in("id", sectionIdsToLabel);

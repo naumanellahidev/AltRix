@@ -1,7 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { ShieldAlert, ArrowLeft, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { roleLabel, type EduverseRole } from "@/lib/eduverse-roles";
 
 interface AccessDeniedProps {
@@ -24,7 +24,7 @@ export function AccessDenied({ attemptedPath, roles, homePath, schoolSlug }: Acc
   const navigate = useNavigate();
 
   const handleSignOut = async () => {
-    await supabase.auth.signOut();
+    await api.auth.signOut();
     navigate(`/${schoolSlug}/auth`);
   };
 

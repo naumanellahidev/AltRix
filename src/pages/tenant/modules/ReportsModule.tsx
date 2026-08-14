@@ -23,7 +23,7 @@ import {
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { useTenant } from "@/hooks/useTenant";
 import { useSession } from "@/hooks/useSession";
 import { useSchoolPermissions } from "@/hooks/useSchoolPermissions";
@@ -203,19 +203,19 @@ export function ReportsModule() {
     if (!schoolId) return;
     const loadMasterData = async () => {
       try {
-        const { data: { user: currentUser } } = await supabase.auth.getUser();
+        const { data: { user: currentUser } } = await api.auth.getUser();
         const userId = currentUser?.id ?? null;
 
         const [cl, sec, sub, std, sch, brnd, cmp, prRes, owRes] = await Promise.all([
-          supabase.from("academic_classes").select("id, name").eq("school_id", schoolId),
-          supabase.from("class_sections").select("id, name, class_id").eq("school_id", schoolId),
-          supabase.from("subjects").select("id, name").eq("school_id", schoolId),
-          supabase.from("students").select("id, first_name, last_name, roll_number, campus_id, gender").eq("school_id", schoolId),
-          supabase.from("schools").select("*").eq("id", schoolId).maybeSingle(),
-          supabase.from("school_branding").select("*").eq("school_id", schoolId).maybeSingle(),
-          supabase.from("campuses").select("*").eq("school_id", schoolId),
-          supabase.rpc("has_role", { _school_id: schoolId, _role: "principal" }),
-          supabase.rpc("has_role", { _school_id: schoolId, _role: "school_owner" })
+          api.from("academic_classes").select("id, name").eq("school_id", schoolId),
+          api.from("class_sections").select("id, name, class_id").eq("school_id", schoolId),
+          api.from("subjects").select("id, name").eq("school_id", schoolId),
+          api.from("students").select("id, first_name, last_name, roll_number, campus_id, gender").eq("school_id", schoolId),
+          api.from("schools").select("*").eq("id", schoolId).maybeSingle(),
+          api.from("school_branding").select("*").eq("school_id", schoolId).maybeSingle(),
+          api.from("campuses").select("*").eq("school_id", schoolId),
+          api.rpc("has_role", { _school_id: schoolId, _role: "principal" }),
+          api.rpc("has_role", { _school_id: schoolId, _role: "school_owner" })
         ]);
 
         const allCampuses = cmp.data ?? [];
@@ -458,8 +458,8 @@ export function ReportsModule() {
 
       // 💰 Finance Tab Reports
       if (selectedReportId === "profitability_ledger") {
-        let pQ = supabase.from("fee_payments").select("amount, paid_at").eq("school_id", schoolId);
-        let eQ = supabase.from("finance_expenses").select("amount, expense_date").eq("school_id", schoolId);
+        let pQ = api.from("fee_payments").select("amount, paid_at").eq("school_id", schoolId);
+        let eQ = api.from("finance_expenses").select("amount, expense_date").eq("school_id", schoolId);
 
         if (campusFilter !== "all") {
           pQ = pQ.eq("campus_id", campusFilter);
@@ -514,7 +514,7 @@ export function ReportsModule() {
       }
       
       else if (selectedReportId === "fee_analytics") {
-        let invQ = supabase.from("fee_invoices").select("total_amount, status, due_date").eq("school_id", schoolId);
+        let invQ = api.from("fee_invoices").select("total_amount, status, due_date").eq("school_id", schoolId);
         if (campusFilter !== "all") {
           invQ = invQ.eq("campus_id", campusFilter);
         }
@@ -556,7 +556,7 @@ export function ReportsModule() {
       }
 
       else if (selectedReportId === "fee_defaulters") {
-        let invQ = supabase
+        let invQ = api
           .from("fee_invoices")
           .select("invoice_number, student_id, total_amount, due_date")
           .eq("school_id", schoolId)
@@ -612,7 +612,7 @@ export function ReportsModule() {
 
         const allowedIds = campusStds.map(s => s.id);
 
-        let resultsQ = supabase
+        let resultsQ = api
           .from("student_marks")
           .select("student_id, assessment_id, marks, computed_grade")
           .eq("school_id", schoolId)
@@ -659,7 +659,7 @@ export function ReportsModule() {
       }
 
       else if (selectedReportId === "grade_distribution") {
-        let resultsQ = supabase
+        let resultsQ = api
           .from("student_marks")
           .select("student_id, marks, computed_grade")
           .eq("school_id", schoolId);
@@ -715,7 +715,7 @@ export function ReportsModule() {
           "Last Update Log"
         ];
 
-        let resultsQ = supabase
+        let resultsQ = api
           .from("student_marks")
           .select("student_id, marks, computed_grade, created_at")
           .eq("school_id", schoolId);
@@ -752,7 +752,7 @@ export function ReportsModule() {
           "Publication Status"
         ];
 
-        let assessQ = supabase.from("academic_assessments").select("*").eq("school_id", schoolId);
+        let assessQ = api.from("academic_assessments").select("*").eq("school_id", schoolId);
         if (campusFilter !== "all") {
           assessQ = assessQ.eq("campus_id", campusFilter);
         }
@@ -777,13 +777,13 @@ export function ReportsModule() {
           "Audit logs Activity Counts"
         ];
 
-        let membersQ = supabase.from("user_roles").select("user_id, role").eq("school_id", schoolId);
+        let membersQ = api.from("user_roles").select("user_id, role").eq("school_id", schoolId);
         const { data: members } = await membersQ;
 
         // Optionally restrict by campus staff assignments
         let allowedUserIds = new Set((members ?? []).map(m => m.user_id));
         if (campusFilter !== "all") {
-          const { data: sca } = await supabase
+          const { data: sca } = await api
             .from("staff_campus_assignments")
             .select("user_id")
             .eq("campus_id", campusFilter);
@@ -833,7 +833,7 @@ export function ReportsModule() {
           "Date Intake Logged"
         ];
 
-        let leadsQ = supabase.from("crm_leads").select("*").eq("school_id", schoolId);
+        let leadsQ = api.from("crm_leads").select("*").eq("school_id", schoolId);
         if (campusFilter !== "all") {
           leadsQ = leadsQ.eq("campus_id", campusFilter);
         }
@@ -848,7 +848,7 @@ export function ReportsModule() {
       }
 
       else if (selectedReportId === "system_audit") {
-        const { data: logs } = await supabase
+        const { data: logs } = await api
           .from("audit_logs")
           .select("created_at, user_id, action, resource_type")
           .order("created_at", { ascending: false })

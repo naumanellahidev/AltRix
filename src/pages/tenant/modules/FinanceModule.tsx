@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { DollarSign, Plus, Receipt, Trash2 } from "lucide-react";
 
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { useTenant } from "@/hooks/useTenant";
 import { useSchoolPermissions } from "@/hooks/useSchoolPermissions";
 import { 
@@ -119,12 +119,12 @@ export function FinanceModule() {
     }
 
     const [fp, pm, inv, pay, exp, st] = await Promise.all([
-      supabase.from("fee_plans").select("id,name,currency,is_active").eq("school_id", schoolId).order("created_at", { ascending: false }).limit(200),
-      supabase.from("finance_payment_methods").select("id,name,type,is_active,instructions").eq("school_id", schoolId).order("created_at", { ascending: false }).limit(200),
-      supabase.from("finance_invoices").select("id,invoice_no,student_id,total,status,issue_date").eq("school_id", schoolId).order("created_at", { ascending: false }).limit(200),
-      supabase.from("finance_payments").select("id,invoice_id,amount,paid_at,reference").eq("school_id", schoolId).order("paid_at", { ascending: false }).limit(200),
-      supabase.from("finance_expenses").select("id,description,amount,category,expense_date").eq("school_id", schoolId).order("expense_date", { ascending: false }).limit(200),
-      supabase.from("students").select("id,first_name,last_name").eq("school_id", schoolId).order("created_at", { ascending: false }).limit(200),
+      api.from("fee_plans").select("id,name,currency,is_active").eq("school_id", schoolId).order("created_at", { ascending: false }).limit(200),
+      api.from("finance_payment_methods").select("id,name,type,is_active,instructions").eq("school_id", schoolId).order("created_at", { ascending: false }).limit(200),
+      api.from("finance_invoices").select("id,invoice_no,student_id,total,status,issue_date").eq("school_id", schoolId).order("created_at", { ascending: false }).limit(200),
+      api.from("finance_payments").select("id,invoice_id,amount,paid_at,reference").eq("school_id", schoolId).order("paid_at", { ascending: false }).limit(200),
+      api.from("finance_expenses").select("id,description,amount,category,expense_date").eq("school_id", schoolId).order("expense_date", { ascending: false }).limit(200),
+      api.from("students").select("id,first_name,last_name").eq("school_id", schoolId).order("created_at", { ascending: false }).limit(200),
     ]);
 
     if (fp.error) toast.error(fp.error.message);
@@ -162,7 +162,7 @@ export function FinanceModule() {
   const createFeePlan = async () => {
     if (!schoolId) return;
     if (!feePlanName.trim()) return toast.error("Fee plan name required");
-    const { error } = await supabase.from("fee_plans").insert({
+    const { error } = await api.from("fee_plans").insert({
       school_id: schoolId,
       name: feePlanName.trim(),
       currency: feeCurrency,
@@ -175,7 +175,7 @@ export function FinanceModule() {
   };
 
   const deleteRow = async (table: string, id: string) => {
-    const { error } = await (supabase as any).from(table).delete().eq("id", id);
+    const { error } = await (api as any).from(table).delete().eq("id", id);
     if (error) return toast.error(error.message);
     toast.success("Deleted");
     await refresh();
@@ -184,7 +184,7 @@ export function FinanceModule() {
   const createPaymentMethod = async () => {
     if (!schoolId) return;
     if (!pmName.trim()) return toast.error("Payment method name required");
-    const { error } = await supabase.from("finance_payment_methods").insert({
+    const { error } = await api.from("finance_payment_methods").insert({
       school_id: schoolId,
       name: pmName.trim(),
       type: pmType,
@@ -204,7 +204,7 @@ export function FinanceModule() {
     if (!invoiceNo.trim()) return toast.error("Invoice # required");
     const total = Number(invoiceTotal);
     if (!Number.isFinite(total) || total <= 0) return toast.error("Total must be a positive number");
-    const { error } = await supabase.from("finance_invoices").insert({
+    const { error } = await api.from("finance_invoices").insert({
       school_id: schoolId,
       student_id: invoiceStudentId,
       invoice_no: invoiceNo.trim(),
@@ -228,7 +228,7 @@ export function FinanceModule() {
     if (!Number.isFinite(amount) || amount <= 0) return toast.error("Amount must be a positive number");
     const invoice = invoices.find((i) => i.id === payInvoiceId);
     if (!invoice) return toast.error("Invoice not found");
-    const { error } = await supabase.from("finance_payments").insert({
+    const { error } = await api.from("finance_payments").insert({
       school_id: schoolId,
       invoice_id: payInvoiceId,
       student_id: invoice.student_id,
@@ -248,7 +248,7 @@ export function FinanceModule() {
     if (!expDesc.trim()) return toast.error("Description required");
     const amount = Number(expAmount);
     if (!Number.isFinite(amount) || amount <= 0) return toast.error("Amount must be a positive number");
-    const { error } = await supabase.from("finance_expenses").insert({
+    const { error } = await api.from("finance_expenses").insert({
       school_id: schoolId,
       description: expDesc.trim(),
       amount,

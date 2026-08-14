@@ -1,6 +1,6 @@
 import { useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { supabase, USE_FASTAPI } from "@/integrations/supabase/client";
+import { api, USE_FASTAPI } from "@/lib/api";
 import { apiClient } from "@/lib/api-client";
 import { useRealtimeTable } from "@/hooks/useRealtime";
 
@@ -32,7 +32,7 @@ export function useUnreadMessagesOptimized(
           unreadAdminCount = resp.data.count;
         } catch (e) {
           console.warn("Failed to fetch admin unread count from FastAPI, falling back", e);
-          const { count } = await supabase
+          const { count } = await api
             .from("admin_message_recipients")
             .select("id, admin_messages!inner(school_id)", { count: "exact", head: true })
             .eq("recipient_user_id", userId)
@@ -41,7 +41,7 @@ export function useUnreadMessagesOptimized(
           unreadAdminCount = count || 0;
         }
       } else {
-        const { count } = await supabase
+        const { count } = await api
           .from("admin_message_recipients")
           .select("id, admin_messages!inner(school_id)", { count: "exact", head: true })
           .eq("recipient_user_id", userId)
@@ -51,7 +51,7 @@ export function useUnreadMessagesOptimized(
       }
 
       // 2. Fetch parent messages unread count
-      const { count: parentCount } = await supabase
+      const { count: parentCount } = await api
         .from("parent_messages")
         .select("id", { count: "exact", head: true })
         .eq("school_id", schoolId)

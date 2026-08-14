@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -57,7 +57,7 @@ export function EditComplaintDialog({
     if (!complaint) return;
     if (!subject.trim() || !content.trim()) return toast.error("Subject and details required");
     setSaving(true);
-    const { error } = await (supabase as any)
+    const { error } = await (api as any)
       .from("complaints")
       .update({
         subject: subject.trim(),

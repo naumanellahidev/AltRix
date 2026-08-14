@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
 
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -48,7 +48,7 @@ export function SectionSubjectsCard({
     if (!sectionId) return toast.error("Pick a section");
     if (!subjectId) return toast.error("Pick a subject");
 
-    const { error } = await supabase.from("class_section_subjects").insert({
+    const { error } = await api.from("class_section_subjects").insert({
       school_id: schoolId,
       class_section_id: sectionId,
       subject_id: subjectId,
@@ -61,7 +61,7 @@ export function SectionSubjectsCard({
 
   const remove = async (rowId: string) => {
     if (!schoolId) return;
-    const { error } = await supabase.from("class_section_subjects").delete().eq("school_id", schoolId).eq("id", rowId);
+    const { error } = await api.from("class_section_subjects").delete().eq("school_id", schoolId).eq("id", rowId);
     if (error) return toast.error(error.message);
     toast.success("Subject removed from section");
     await onChanged();

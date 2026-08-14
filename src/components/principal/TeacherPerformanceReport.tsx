@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -107,7 +107,7 @@ export function TeacherPerformanceReport({ schoolId, teacherUserId, teacherName 
 
     try {
       // Get teacher's assigned section IDs
-      const { data: assignments } = await (supabase as any)
+      const { data: assignments } = await (api as any)
         .from("teacher_subject_assignments")
         .select("class_section_id")
         .eq("school_id", schoolId)
@@ -124,8 +124,8 @@ export function TeacherPerformanceReport({ schoolId, teacherUserId, teacherName 
 
       // Fetch sections and classes for labels
       const [{ data: sections }, { data: classes }] = await Promise.all([
-        (supabase as any).from("class_sections").select("id,name,class_id").eq("school_id", schoolId).in("id", sectionIds),
-        (supabase as any).from("academic_classes").select("id,name").eq("school_id", schoolId),
+        (api as any).from("class_sections").select("id,name,class_id").eq("school_id", schoolId).in("id", sectionIds),
+        (api as any).from("academic_classes").select("id,name").eq("school_id", schoolId),
       ]);
 
       const classMap = new Map<string, string>((classes ?? []).map((c: any) => [c.id, c.name]));
@@ -134,7 +134,7 @@ export function TeacherPerformanceReport({ schoolId, teacherUserId, teacherName 
       const getSectionLabel = (secId: string): { name: string; className: string } => sectionMap.get(secId) ?? { name: "Section", className: "Class" };
 
       // 1. Attendance sessions created by this teacher in date range
-      const { data: sessData } = await supabase
+      const { data: sessData } = await api
         .from("attendance_sessions")
         .select("id,session_date,period_label,class_section_id")
         .eq("school_id", schoolId)
@@ -148,7 +148,7 @@ export function TeacherPerformanceReport({ schoolId, teacherUserId, teacherName 
 
       if (sessions.length > 0) {
         const sessionIds = sessions.map((s: any) => s.id);
-        const { data: entries } = await supabase
+        const { data: entries } = await api
           .from("attendance_entries")
           .select("session_id,status")
           .eq("school_id", schoolId)
@@ -181,7 +181,7 @@ export function TeacherPerformanceReport({ schoolId, teacherUserId, teacherName 
       setAttendanceSessions(attendanceRows);
 
       // 2. Homework created in date range
-      const { data: hwData } = await (supabase as any)
+      const { data: hwData } = await (api as any)
         .from("homework")
         .select("id,title,due_date,class_section_id,created_at")
         .eq("school_id", schoolId)
@@ -196,7 +196,7 @@ export function TeacherPerformanceReport({ schoolId, teacherUserId, teacherName 
       }));
 
       // 3. Assignments created in date range
-      const { data: asnData } = await supabase
+      const { data: asnData } = await api
         .from("assignments")
         .select("id,title,due_date,class_section_id,max_marks,created_at")
         .eq("school_id", schoolId)
@@ -210,7 +210,7 @@ export function TeacherPerformanceReport({ schoolId, teacherUserId, teacherName 
 
       if (asnList.length > 0) {
         const asnIds = asnList.map((a: any) => a.id);
-        const { data: results } = await (supabase as any)
+        const { data: results } = await (api as any)
           .from("student_results")
           .select("assignment_id,marks_obtained")
           .in("assignment_id", asnIds);
@@ -243,7 +243,7 @@ export function TeacherPerformanceReport({ schoolId, teacherUserId, teacherName 
       setAssignmentList(assignmentRows);
 
       // 4. Assessments (grades) in date range for teacher's sections
-      const { data: assessData } = await (supabase as any)
+      const { data: assessData } = await (api as any)
         .from("academic_assessments")
         .select("id,title,assessment_date,class_section_id,max_marks,is_published")
         .eq("school_id", schoolId)
@@ -257,7 +257,7 @@ export function TeacherPerformanceReport({ schoolId, teacherUserId, teacherName 
 
       if (assessments.length > 0) {
         const assessIds = assessments.map((a: any) => a.id);
-        const { data: marks } = await supabase
+        const { data: marks } = await api
           .from("student_marks")
           .select("assessment_id,marks")
           .eq("school_id", schoolId)

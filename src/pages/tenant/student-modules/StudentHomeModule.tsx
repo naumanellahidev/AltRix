@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from "react";
 import { Link } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { fetchStudentLabelMap } from "@/lib/student-display";
 import { StudentDigitalTwinCard } from "@/components/ai/StudentDigitalTwinCard";
 import {
@@ -63,11 +63,11 @@ export function StudentHomeModule({ myStudent }: { myStudent: any }) {
     (async () => {
       setLoading(true);
       try {
-        const map = await fetchStudentLabelMap(supabase, { studentIds: [myStudent.studentId] });
+        const map = await fetchStudentLabelMap(api, { studentIds: [myStudent.studentId] });
         if (cancelled) return;
         setLabel(map[myStudent.studentId] ?? myStudent.studentId);
 
-        const { data: student } = await supabase
+        const { data: student } = await api
           .from("students")
           .select("school_id")
           .eq("id", myStudent.studentId)
@@ -77,7 +77,7 @@ export function StudentHomeModule({ myStudent }: { myStudent: any }) {
         setSchoolId(student.school_id);
 
         // Fetch notices
-        const { data: noticesData } = await supabase
+        const { data: noticesData } = await api
           .from("notices")
           .select("*")
           .eq("school_id", student.school_id)
@@ -93,7 +93,7 @@ export function StudentHomeModule({ myStudent }: { myStudent: any }) {
         const thirtyDaysAgo = new Date();
         thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-        const { data: attendance } = await supabase
+        const { data: attendance } = await api
           .from("attendance_entries")
           .select("status")
           .eq("student_id", myStudent.studentId)
@@ -104,7 +104,7 @@ export function StudentHomeModule({ myStudent }: { myStudent: any }) {
           attendance?.filter((a) => a.status === "present" || a.status === "late").length || 0;
         const attendanceRate = totalDays > 0 ? Math.round((presentDays / totalDays) * 100) : 100;
 
-        const { data: assignments } = await supabase
+        const { data: assignments } = await api
           .from("assignments")
           .select("id, status, due_date")
           .eq("school_id", student.school_id);
@@ -115,7 +115,7 @@ export function StudentHomeModule({ myStudent }: { myStudent: any }) {
             (a) => a.status === "active" && a.due_date && new Date(a.due_date) >= new Date(),
           ).length || 0;
 
-        const { data: marks } = await supabase
+        const { data: marks } = await api
           .from("student_marks")
           .select("marks, academic_assessments!inner(max_marks)")
           .eq("student_id", myStudent.studentId);

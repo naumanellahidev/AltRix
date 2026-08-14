@@ -24,7 +24,7 @@ import {
   Download,
   MessageCircle,
 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
@@ -89,7 +89,7 @@ export function WorkspaceMessagesTab({ schoolId, canCompose = true }: Props) {
   const fetchMessages = useCallback(async () => {
     setLoading(true);
 
-    const { data: user } = await supabase.auth.getUser();
+    const { data: user } = await api.auth.getUser();
     if (!user.user) {
       setLoading(false);
       return;
@@ -97,7 +97,7 @@ export function WorkspaceMessagesTab({ schoolId, canCompose = true }: Props) {
     setCurrentUserId(user.user.id);
 
     // Fetch all messages for this school where user is sender or recipient
-    const { data: sentMessages } = await supabase
+    const { data: sentMessages } = await api
       .from("admin_messages")
       .select("*")
       .eq("school_id", schoolId)
@@ -105,7 +105,7 @@ export function WorkspaceMessagesTab({ schoolId, canCompose = true }: Props) {
       .order("created_at", { ascending: false });
 
     // Fetch messages received (via recipients table)
-    const { data: recipientRows } = await supabase
+    const { data: recipientRows } = await api
       .from("admin_message_recipients")
       .select("message_id, is_read, read_at, admin_messages(*)")
       .eq("recipient_user_id", user.user.id);
@@ -120,7 +120,7 @@ export function WorkspaceMessagesTab({ schoolId, canCompose = true }: Props) {
 
     // Fetch profiles from profiles table using user_id
     if (userIds.size > 0) {
-      const { data: profiles } = await (supabase as any)
+      const { data: profiles } = await (api as any)
         .from("profiles")
         .select("id, display_name")
         .in("id", Array.from(userIds));
@@ -135,7 +135,7 @@ export function WorkspaceMessagesTab({ schoolId, canCompose = true }: Props) {
       // If still missing, try school_user_directory
       const missingIds = Array.from(userIds).filter((id) => !map[id]);
       if (missingIds.length > 0) {
-        const { data: directoryEntries } = await supabase
+        const { data: directoryEntries } = await api
           .from("school_user_directory")
           .select("user_id, display_name, email")
           .eq("school_id", schoolId)
@@ -196,7 +196,7 @@ export function WorkspaceMessagesTab({ schoolId, canCompose = true }: Props) {
 
     // Fetch recipient counts for sent messages
     for (const msg of all.filter((m) => m.is_sent)) {
-      const { count } = await supabase
+      const { count } = await api
         .from("admin_message_recipients")
         .select("*", { count: "exact", head: true })
         .eq("message_id", msg.id);
@@ -215,7 +215,7 @@ export function WorkspaceMessagesTab({ schoolId, canCompose = true }: Props) {
   useEffect(() => {
     if (!schoolId || !currentUserId) return;
 
-    const channel = supabase
+    const channel = api
       .channel(`workspace-read-status-${schoolId}-${currentUserId}`)
       .on(
         "postgres_changes",
@@ -286,14 +286,14 @@ export function WorkspaceMessagesTab({ schoolId, canCompose = true }: Props) {
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      api.removeChannel(channel);
     };
   }, [schoolId, currentUserId, fetchMessages]);
 
   const markAsRead = async (message: Message) => {
     if (message.is_sent || message.is_read) return;
 
-    await supabase
+    await api
       .from("admin_message_recipients")
       .update({ is_read: true, read_at: new Date().toISOString() })
       .eq("message_id", message.id)
@@ -367,7 +367,7 @@ export function WorkspaceMessagesTab({ schoolId, canCompose = true }: Props) {
 
     // Load recipients for sent messages
     if (message.is_sent) {
-      const { data } = await supabase
+      const { data } = await api
         .from("admin_message_recipients")
         .select("recipient_user_id, is_read, read_at")
         .eq("message_id", message.id);
@@ -376,7 +376,7 @@ export function WorkspaceMessagesTab({ schoolId, canCompose = true }: Props) {
         const userIds = data.map((r) => r.recipient_user_id);
         
         // Fetch from profiles
-        const { data: profiles } = await (supabase as any)
+        const { data: profiles } = await (api as any)
           .from("profiles")
           .select("id, display_name")
           .in("id", userIds);
@@ -391,7 +391,7 @@ export function WorkspaceMessagesTab({ schoolId, canCompose = true }: Props) {
         // Fallback to directory for missing names
         const missingIds = userIds.filter((id) => !nameMap[id]);
         if (missingIds.length > 0) {
-          const { data: dirEntries } = await supabase
+          const { data: dirEntries } = await api
             .from("school_user_directory")
             .select("user_id, display_name, email")
             .eq("school_id", schoolId)
@@ -421,7 +421,7 @@ export function WorkspaceMessagesTab({ schoolId, canCompose = true }: Props) {
 
     setReplying(true);
     try {
-      const { data: messageData, error: messageError } = await supabase
+      const { data: messageData, error: messageError } = await api
         .from("admin_messages")
         .insert({
           school_id: schoolId,
@@ -436,12 +436,12 @@ export function WorkspaceMessagesTab({ schoolId, canCompose = true }: Props) {
 
       if (messageError) throw messageError;
 
-      await supabase.from("admin_message_recipients").insert({
+      await api.from("admin_message_recipients").insert({
         message_id: messageData.id,
         recipient_user_id: selectedMessage.sender_user_id,
       });
 
-      await supabase.from("app_notifications").insert({
+      await api.from("app_notifications").insert({
         school_id: schoolId,
         user_id: selectedMessage.sender_user_id,
         title: `Reply: ${selectedMessage.subject || "New Message"}`,
@@ -467,7 +467,7 @@ export function WorkspaceMessagesTab({ schoolId, canCompose = true }: Props) {
       if (message.is_sent) {
         // User sent this message - they can delete the message itself
         // The recipients will be cascade deleted due to FK constraint
-        const { error: deleteError } = await supabase
+        const { error: deleteError } = await api
           .from("admin_messages")
           .delete()
           .eq("id", message.id)
@@ -477,7 +477,7 @@ export function WorkspaceMessagesTab({ schoolId, canCompose = true }: Props) {
       } else {
         // User received this message - mark as read and remove from local state only
         // We can't delete recipient records, but we can mark them read
-        await supabase
+        await api
           .from("admin_message_recipients")
           .update({ is_read: true, read_at: new Date().toISOString() })
           .eq("message_id", message.id)
@@ -737,7 +737,7 @@ export function WorkspaceMessagesTab({ schoolId, canCompose = true }: Props) {
                       const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(fileName);
                       
                       const handleDownload = async () => {
-                        const { data } = await supabase.storage
+                        const { data } = await api.storage
                           .from("message-attachments")
                           .createSignedUrl(url, 60);
                         

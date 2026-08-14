@@ -7,7 +7,7 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
 import { LogOut, Menu, Settings, Sparkles, Mic, GraduationCap, MessageSquare, Users, LayoutGrid, CalendarDays, ClipboardCheck, FileSpreadsheet, HeartHandshake, ChevronDown, Activity } from "lucide-react";
 import type { EduverseRole } from "@/lib/eduverse-roles";
-import { supabase, USE_FASTAPI } from "@/integrations/supabase/client";
+import { api, USE_FASTAPI } from "@/lib/api";
 import { apiClient } from "@/lib/api-client";
 import { GlobalCommandPalette } from "@/components/global/GlobalCommandPalette";
 import { NotificationsBell } from "@/components/global/NotificationsBell";
@@ -145,7 +145,7 @@ const [voiceOpen, setVoiceOpen] = useState(false);
   }, [role]);
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    await api.auth.signOut();
     window.location.href = `/${schoolSlug}/auth`;
   };
 
@@ -205,7 +205,7 @@ const [voiceOpen, setVoiceOpen] = useState(false);
         if (USE_FASTAPI) {
           apiClient.post(`/notifications/${notification.id}/read`).catch(console.error);
         } else {
-          supabase
+          api
             .from("app_notifications")
             .update({ read_at: new Date().toISOString() })
             .eq("id", notification.id)

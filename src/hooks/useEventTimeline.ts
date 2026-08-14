@@ -1,6 +1,6 @@
 import { useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { supabase, USE_FASTAPI } from "@/integrations/supabase/client";
+import { api, USE_FASTAPI } from "@/lib/api";
 import { apiClient } from "@/lib/api-client";
 import { useSession } from "@/hooks/useSession";
 import { useRealtimeTable } from "@/hooks/useRealtime";
@@ -52,7 +52,7 @@ export function useEventTimeline(category?: string, page = 1, limit = 20) {
       }
 
       // 2. Fetch via Supabase direct fallback
-      const { data: membership } = await supabase
+      const { data: membership } = await api
         .from("school_memberships")
         .select("school_id")
         .eq("user_id", userId)
@@ -62,14 +62,14 @@ export function useEventTimeline(category?: string, page = 1, limit = 20) {
 
       if (!schoolId) return { data: [], total: 0 };
 
-      const { data: userRoles } = await supabase
+      const { data: userRoles } = await api
         .from("user_roles")
         .select("role")
         .eq("user_id", userId);
 
       const roles = userRoles?.map((r) => r.role) || [];
 
-      let query = supabase
+      let query = api
         .from("activity_timeline")
         .select("*", { count: "exact" })
         .eq("school_id", schoolId);

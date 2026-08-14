@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { format, isPast, parseISO } from "date-fns";
 import { Clock, Trash2, Send, Loader2, CalendarClock, AlertCircle } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
@@ -45,7 +45,7 @@ export function ScheduledMessagesTab({ schoolId, currentUserId, profileMap, onSe
 
   const fetchScheduled = async () => {
     setLoading(true);
-    const { data } = await (supabase as any)
+    const { data } = await (api as any)
       .from("scheduled_messages")
       .select("*")
       .eq("school_id", schoolId)
@@ -66,7 +66,7 @@ export function ScheduledMessagesTab({ schoolId, currentUserId, profileMap, onSe
   const handleCancel = async (msg: ScheduledMessage) => {
     setCancellingId(msg.id);
     try {
-      const { error } = await supabase
+      const { error } = await api
         .from("scheduled_messages")
         .update({ status: "cancelled" })
         .eq("id", msg.id)
@@ -88,7 +88,7 @@ export function ScheduledMessagesTab({ schoolId, currentUserId, profileMap, onSe
     setSendingId(msg.id);
     try {
       // Create the actual message now - use empty string if subject is null (DB requires non-null)
-      const { data: newMsg, error: msgError } = await supabase
+      const { data: newMsg, error: msgError } = await api
         .from("admin_messages")
         .insert({
           school_id: schoolId,
@@ -104,13 +104,13 @@ export function ScheduledMessagesTab({ schoolId, currentUserId, profileMap, onSe
 
       // Create recipients
       for (const recipientId of msg.recipient_user_ids) {
-        await supabase.from("admin_message_recipients").insert({
+        await api.from("admin_message_recipients").insert({
           message_id: newMsg.id,
           recipient_user_id: recipientId,
         });
 
         // Create notification
-        await supabase.from("app_notifications").insert({
+        await api.from("app_notifications").insert({
           school_id: schoolId,
           user_id: recipientId,
           type: "message",
@@ -123,7 +123,7 @@ export function ScheduledMessagesTab({ schoolId, currentUserId, profileMap, onSe
       }
 
       // Mark scheduled message as sent
-      await supabase
+      await api
         .from("scheduled_messages")
         .update({ status: "sent", sent_at: new Date().toISOString() })
         .eq("id", msg.id);

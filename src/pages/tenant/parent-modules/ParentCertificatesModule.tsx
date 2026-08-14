@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,7 +31,7 @@ export default function ParentCertificatesModule({ child, schoolId }: ParentCert
     if (!child || !schoolId) return;
     setLoading(true);
     try {
-      const { data, error } = await supabase
+      const { data, error } = await api
         .from("student_certificates" as any)
         .select("id, title, certificate_type, issued_at, file_url")
         .eq("school_id", schoolId)

@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { supabase, USE_FASTAPI } from "@/integrations/supabase/client";
+import { api, USE_FASTAPI } from "@/lib/api";
 import { apiClient } from "@/lib/api-client";
 
 // LocalStorage cache key builder
@@ -126,7 +126,7 @@ export function useTenantOptimized(schoolSlug: string | undefined): TenantResult
         // Fallback: If FastAPI did not return branding or some color values are missing (e.g. backend schema cache or reloading delay), fetch directly from Supabase
         if (!branding || branding.accent_hue == null || branding.accent_saturation == null || branding.accent_lightness == null) {
           try {
-            const { data: sbBranding } = await supabase
+            const { data: sbBranding } = await api
               .from("school_branding")
               .select("accent_hue,accent_saturation,accent_lightness,radius_scale")
               .eq("school_id", schoolData.id)
@@ -157,7 +157,7 @@ export function useTenantOptimized(schoolSlug: string | undefined): TenantResult
       }
 
       // Get school data
-      const { data: schoolData, error: schoolError } = await supabase
+      const { data: schoolData, error: schoolError } = await api
         .rpc("get_school_public_by_slug", { _slug: normalizedSlug })
         .maybeSingle();
 
@@ -165,7 +165,7 @@ export function useTenantOptimized(schoolSlug: string | undefined): TenantResult
       if (!schoolData) return null;
 
       // Fetch branding in parallel - but don't block on it
-      const { data: branding } = await supabase
+      const { data: branding } = await api
         .from("school_branding")
         .select("accent_hue,accent_saturation,accent_lightness,radius_scale")
         .eq("school_id", schoolData.id)

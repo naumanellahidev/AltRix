@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Pencil, Phone, User, Mail, Loader2 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -55,7 +55,7 @@ export function StaffProfileDialog({
     setLoading(true);
 
     (async () => {
-      const { data, error } = await (supabase as any)
+      const { data, error } = await (api as any)
         .from("profiles")
         .select("display_name, phone")
         .eq("id", userId)
@@ -88,7 +88,7 @@ export function StaffProfileDialog({
     setSaving(true);
     try {
       // Check if profile exists
-      const { data: existing } = await (supabase as any)
+      const { data: existing } = await (api as any)
         .from("profiles")
         .select("id")
         .eq("id", userId)
@@ -96,7 +96,7 @@ export function StaffProfileDialog({
 
       if (existing) {
         // Update existing profile
-        const { error } = await (supabase as any)
+        const { error } = await (api as any)
           .from("profiles")
           .update({
             display_name: name.trim() || null,
@@ -108,7 +108,7 @@ export function StaffProfileDialog({
         if (error) throw error;
       } else {
         // Create new profile
-        const { error } = await (supabase as any).from("profiles").insert({
+        const { error } = await (api as any).from("profiles").insert({
           id: userId,
           display_name: name.trim() || null,
           phone: phone.trim() || null,

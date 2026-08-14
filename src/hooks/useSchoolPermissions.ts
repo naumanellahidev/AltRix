@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 
-import { supabase, USE_FASTAPI } from "@/integrations/supabase/client";
+import { api, USE_FASTAPI } from "@/lib/api";
 import { apiClient } from "@/lib/api-client";
 
 type Permissions = {
@@ -58,14 +58,14 @@ export function useSchoolPermissions(schoolId: string | null) {
         return;
       }
 
-      const { data: auth } = await supabase.auth.getUser();
+      const { data: auth } = await api.auth.getUser();
       const userId = auth.user?.id ?? null;
       if (!userId) {
         if (!cancelled) setState((s) => ({ ...s, loading: false, error: "Not signed in." }));
         return;
       }
 
-      const { data: psa, error: psaErr } = await supabase
+      const { data: psa, error: psaErr } = await api
         .from("platform_super_admins")
         .select("user_id")
         .eq("user_id", userId)
@@ -94,11 +94,11 @@ export function useSchoolPermissions(schoolId: string | null) {
       // - can_manage_staff covers: super_admin, school_owner, principal, vice_principal
       // - HR Managers also need staff governance permissions (role stored in user_roles)
       const [staff, students, crm, hrRole, finance] = await Promise.all([
-        (supabase as any).rpc("can_manage_staff", { _school_id: resolvedSchoolId }),
-        (supabase as any).rpc("can_manage_students", { _school_id: resolvedSchoolId }),
-        (supabase as any).rpc("can_work_crm", { _school_id: resolvedSchoolId }),
-        (supabase as any).rpc("has_role", { _school_id: resolvedSchoolId, _role: "hr_manager" }),
-        (supabase as any).rpc("can_manage_finance", { _school_id: resolvedSchoolId }),
+        (api as any).rpc("can_manage_staff", { _school_id: resolvedSchoolId }),
+        (api as any).rpc("can_manage_students", { _school_id: resolvedSchoolId }),
+        (api as any).rpc("can_work_crm", { _school_id: resolvedSchoolId }),
+        (api as any).rpc("has_role", { _school_id: resolvedSchoolId, _role: "hr_manager" }),
+        (api as any).rpc("can_manage_finance", { _school_id: resolvedSchoolId }),
       ]);
 
       const err = staff.error ?? students.error ?? crm.error ?? hrRole.error ?? finance.error;

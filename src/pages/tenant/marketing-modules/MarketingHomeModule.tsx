@@ -28,7 +28,7 @@ import { format } from "date-fns";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { toast } from "sonner";
 
 export function MarketingHomeModule() {
@@ -138,7 +138,7 @@ export function MarketingHomeModule() {
       let resolvedStageId: string | null = null;
 
       // 1) Find the default pipeline, or fallback to first pipeline
-      const { data: defaultPipeline } = await supabase
+      const { data: defaultPipeline } = await api
         .from("crm_pipelines")
         .select("id")
         .eq("school_id", schoolId)
@@ -148,7 +148,7 @@ export function MarketingHomeModule() {
       resolvedPipelineId = defaultPipeline?.id || null;
 
       if (!resolvedPipelineId) {
-        const { data: firstPipeline } = await supabase
+        const { data: firstPipeline } = await api
           .from("crm_pipelines")
           .select("id")
           .eq("school_id", schoolId)
@@ -159,7 +159,7 @@ export function MarketingHomeModule() {
 
       // 2) Find the first stage under the resolved pipeline
       if (resolvedPipelineId) {
-        const { data: stageData } = await supabase
+        const { data: stageData } = await api
           .from("crm_stages")
           .select("id")
           .eq("school_id", schoolId)
@@ -172,7 +172,7 @@ export function MarketingHomeModule() {
 
       // 3) Final fallback: if stages are empty, try to get any stage
       if (!resolvedStageId) {
-        const { data: anyStage } = await supabase
+        const { data: anyStage } = await api
           .from("crm_stages")
           .select("id, pipeline_id")
           .eq("school_id", schoolId)
@@ -188,7 +188,7 @@ export function MarketingHomeModule() {
         throw new Error("Admissions pipeline stages not configured. Please configure at least one CRM pipeline and stage first.");
       }
 
-      const { error } = await supabase.from("crm_leads").insert({
+      const { error } = await api.from("crm_leads").insert({
         school_id: schoolId,
         pipeline_id: resolvedPipelineId,
         stage_id: resolvedStageId,

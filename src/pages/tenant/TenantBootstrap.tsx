@@ -3,7 +3,7 @@ import { useParams } from "react-router-dom";
 import { motion, useReducedMotion } from "framer-motion";
 import { KeyRound, School } from "lucide-react";
 
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { useTenant } from "@/hooks/useTenant";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -34,7 +34,7 @@ const TenantBootstrap = () => {
 
     setBusy(true);
     try {
-      const { data, error } = await supabase.functions.invoke("eduverse-bootstrap", {
+      const { data, error } = await api.functions.invoke("eduverse-bootstrap", {
         body: {
           bootstrapSecret: bootstrapSecret.trim(),
           schoolSlug: slug,

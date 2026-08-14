@@ -30,7 +30,7 @@ import {
   ReferenceLine,
 } from "recharts";
 
-import { supabase, USE_FASTAPI } from "@/integrations/supabase/client";
+import { api, USE_FASTAPI } from "@/lib/api";
 import { apiClient } from "@/lib/api-client";
 import { useTenant } from "@/hooks/useTenant";
 
@@ -115,7 +115,7 @@ export function SalaryBudgetForecast() {
         const { data } = await apiClient.get(`/finance/budget-targets?school_id=${schoolId}&year=${selectedYear}`);
         return (data || []) as BudgetTarget[];
       } else {
-        const { data, error } = await supabase
+        const { data, error } = await api
           .from("salary_budget_targets")
           .select("*")
           .eq("school_id", schoolId!)
@@ -136,7 +136,7 @@ export function SalaryBudgetForecast() {
         const { data } = await apiClient.get(`/finance/salary-records?school_id=${schoolId}`);
         return (data || []) as SalaryRecord[];
       } else {
-        const { data, error } = await supabase
+        const { data, error } = await api
           .from("hr_salary_records")
           .select("id, user_id, base_salary, allowances, deductions, is_active")
           .eq("school_id", schoolId!)
@@ -160,7 +160,7 @@ export function SalaryBudgetForecast() {
         const { data } = await apiClient.get(`/finance/staff-roles?school_id=${schoolId}`);
         return (data || []) as StaffWithRole[];
       } else {
-        const { data, error } = await supabase
+        const { data, error } = await api
           .from("user_roles")
           .select("user_id, role")
           .eq("school_id", schoolId!);
@@ -306,7 +306,7 @@ export function SalaryBudgetForecast() {
         toast.success(editingBudget ? "Budget updated" : "Budget target added");
       } else {
         if (editingBudget) {
-          const { error } = await supabase
+          const { error } = await api
             .from("salary_budget_targets")
             .update({
               role: formRole || null,
@@ -319,7 +319,7 @@ export function SalaryBudgetForecast() {
           if (error) throw error;
           toast.success("Budget updated");
         } else {
-          const { error } = await supabase.from("salary_budget_targets").insert([
+          const { error } = await api.from("salary_budget_targets").insert([
             {
               school_id: schoolId,
               fiscal_year: selectedYear,
@@ -347,7 +347,7 @@ export function SalaryBudgetForecast() {
       if (USE_FASTAPI) {
         await apiClient.delete(`/finance/budget-targets/${id}`);
       } else {
-        const { error } = await supabase.from("salary_budget_targets").delete().eq("id", id);
+        const { error } = await api.from("salary_budget_targets").delete().eq("id", id);
         if (error) throw error;
       }
       toast.success("Budget target deleted");

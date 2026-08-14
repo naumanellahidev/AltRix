@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { supabase, USE_FASTAPI } from "@/integrations/supabase/client";
+import { api, USE_FASTAPI } from "@/lib/api";
 import { apiClient } from "@/lib/api-client";
 import { useSession } from "@/hooks/useSession";
 import { useRealtimeTable } from "@/hooks/useRealtime";
@@ -96,7 +96,7 @@ export function useNotifications(schoolId: string | null, filters?: Notification
       }
       
       // Supabase Fallback
-      let q = supabase
+      let q = api
         .from("app_notifications")
         .select("*")
         .eq("school_id", schoolId!)
@@ -153,7 +153,7 @@ export function useNotifications(schoolId: string | null, filters?: Notification
       }
       
       // Supabase count fallback
-      const { data: allNotifs, error } = await supabase
+      const { data: allNotifs, error } = await api
         .from("app_notifications")
         .select("read_at, archived_at")
         .eq("school_id", schoolId!)
@@ -216,7 +216,7 @@ export function useNotifications(schoolId: string | null, filters?: Notification
         if (USE_FASTAPI) {
           await apiClient.post(`/notifications/${id}/read`);
         } else {
-          const { error } = await supabase
+          const { error } = await api
             .from("app_notifications")
             .update({ read_at: new Date().toISOString() })
             .eq("id", id);
@@ -237,7 +237,7 @@ export function useNotifications(schoolId: string | null, filters?: Notification
         if (USE_FASTAPI) {
           await apiClient.post(`/notifications/${id}/archive`);
         } else {
-          const { error } = await supabase
+          const { error } = await api
             .from("app_notifications")
             .update({ archived_at: new Date().toISOString() })
             .eq("id", id);
@@ -259,7 +259,7 @@ export function useNotifications(schoolId: string | null, filters?: Notification
         if (USE_FASTAPI) {
           await apiClient.post(`/notifications/${id}/restore`);
         } else {
-          const { error } = await supabase
+          const { error } = await api
             .from("app_notifications")
             .update({ archived_at: null })
             .eq("id", id);
@@ -281,7 +281,7 @@ export function useNotifications(schoolId: string | null, filters?: Notification
         if (USE_FASTAPI) {
           await apiClient.post(`/notifications/${id}/favorite`);
         } else {
-          const { error } = await supabase
+          const { error } = await api
             .from("app_notifications")
             .update({ is_favorite: !currentVal })
             .eq("id", id);
@@ -301,7 +301,7 @@ export function useNotifications(schoolId: string | null, filters?: Notification
         if (USE_FASTAPI) {
           await apiClient.post(`/notifications/${id}/pin`);
         } else {
-          const { error } = await supabase
+          const { error } = await api
             .from("app_notifications")
             .update({ is_pinned: !currentVal })
             .eq("id", id);
@@ -322,7 +322,7 @@ export function useNotifications(schoolId: string | null, filters?: Notification
       if (USE_FASTAPI) {
         await apiClient.post("/notifications/mark-all-read");
       } else {
-        const { error } = await supabase
+        const { error } = await api
           .from("app_notifications")
           .update({ read_at: new Date().toISOString() })
           .eq("school_id", schoolId)
@@ -345,7 +345,7 @@ export function useNotifications(schoolId: string | null, filters?: Notification
         if (USE_FASTAPI) {
           await apiClient.delete(`/notifications/${id}`);
         } else {
-          const { error } = await supabase
+          const { error } = await api
             .from("app_notifications")
             .delete()
             .eq("id", id);
@@ -371,7 +371,7 @@ export function useNotifications(schoolId: string | null, filters?: Notification
             notification_ids: ids
           });
         } else {
-          let q = supabase.from("app_notifications");
+          let q = api.from("app_notifications");
           if (action === "delete") {
             const { error } = await q.delete().in("id", ids);
             if (error) throw error;

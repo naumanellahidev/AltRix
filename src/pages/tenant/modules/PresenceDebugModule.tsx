@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { Activity, Trash2, Pause, Play } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { useTenant } from "@/hooks/useTenant";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -43,7 +43,7 @@ export default function PresenceDebugModule() {
 
   useEffect(() => {
     if (!schoolId) return;
-    const ch = supabase
+    const ch = api
       .channel(`presence_debug_${schoolId}_${Math.random().toString(36).slice(2, 8)}`)
       .on(
         "postgres_changes",
@@ -74,7 +74,7 @@ export default function PresenceDebugModule() {
         setChannelState(status);
       });
     return () => {
-      supabase.removeChannel(ch);
+      api.removeChannel(ch);
     };
   }, [schoolId]);
 

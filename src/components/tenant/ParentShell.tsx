@@ -3,7 +3,7 @@ import { NavLink } from "@/components/NavLink";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useNavigate } from "react-router-dom";
-import { supabase, USE_FASTAPI } from "@/integrations/supabase/client";
+import { api, USE_FASTAPI } from "@/lib/api";
 import { apiClient } from "@/lib/api-client";
 import { DashboardNotificationsBanner } from "@/components/global/DashboardNotificationsBanner";
 
@@ -173,7 +173,7 @@ export function ParentShell({
         if (USE_FASTAPI) {
           apiClient.post(`/notifications/${notification.id}/read`).catch(console.error);
         } else {
-          supabase
+          api
             .from("app_notifications")
             .update({ read_at: new Date().toISOString() })
             .eq("id", notification.id)

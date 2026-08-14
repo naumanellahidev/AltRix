@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Loader2, Sparkles } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { toast } from "@/hooks/use-toast";
 import { TeacherPerformanceAnalyzer } from "@/components/ai/TeacherPerformanceAnalyzer";
 
@@ -19,7 +19,7 @@ export function OwnerTeacherEffectiveness({ schoolId }: Props) {
     queryKey: ["owner_teacher_effectiveness_teachers", schoolId],
     enabled: !!schoolId,
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await api
         .from("user_roles")
         .select("user_id")
         .eq("school_id", schoolId)
@@ -38,7 +38,7 @@ export function OwnerTeacherEffectiveness({ schoolId }: Props) {
     try {
       const results = await Promise.allSettled(
         teachers.map((teacherUserId) =>
-          supabase.functions.invoke("ai-teacher-analyzer", { body: { schoolId, teacherUserId } })
+          api.functions.invoke("ai-teacher-analyzer", { body: { schoolId, teacherUserId } })
         )
       );
       const ok = results.filter((r) => r.status === "fulfilled").length;

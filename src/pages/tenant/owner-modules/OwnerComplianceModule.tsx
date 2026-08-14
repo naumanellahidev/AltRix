@@ -6,7 +6,7 @@ import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { format } from "date-fns";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { useActiveCampus } from "@/hooks/useActiveCampus";
 
 interface Props { schoolId: string | null; }
@@ -19,7 +19,7 @@ export function OwnerComplianceModule({ schoolId }: Props) {
     enabled: !!schoolId,
     queryFn: async () => {
       if (!schoolId) return [] as any[];
-      const { data } = await (supabase as any).rpc("get_school_user_directory", { _school_id: schoolId });
+      const { data } = await (api as any).rpc("get_school_user_directory", { _school_id: schoolId });
       return (data || []) as any[];
     },
   });
@@ -39,13 +39,13 @@ export function OwnerComplianceModule({ schoolId }: Props) {
 
       const [schoolRes, contractsRes, hrDocsRes, complaintsRes, leavesRes, paymentsRes, salariesRes] =
         await Promise.all([
-          supabase.from("schools").select("is_active,name").eq("id", schoolId).maybeSingle(),
-          supabase.from("hr_contracts").select("id,user_id,position,end_date,status").eq("school_id", schoolId),
-          supabase.from("hr_documents").select("id,user_id,document_type,document_name,created_at").eq("school_id", schoolId),
-          supabase.from("complaints").select("id,status,created_at,resolved_at").eq("school_id", schoolId),
-          supabase.from("hr_leave_requests").select("id,status").eq("school_id", schoolId),
-          supabase.from("fee_payments").select("id,status,created_at").eq("school_id", schoolId).limit(1000),
-          supabase.from("hr_salary_records").select("id,user_id,is_active").eq("school_id", schoolId),
+          api.from("schools").select("is_active,name").eq("id", schoolId).maybeSingle(),
+          api.from("hr_contracts").select("id,user_id,position,end_date,status").eq("school_id", schoolId),
+          api.from("hr_documents").select("id,user_id,document_type,document_name,created_at").eq("school_id", schoolId),
+          api.from("complaints").select("id,status,created_at,resolved_at").eq("school_id", schoolId),
+          api.from("hr_leave_requests").select("id,status").eq("school_id", schoolId),
+          api.from("fee_payments").select("id,status,created_at").eq("school_id", schoolId).limit(1000),
+          api.from("hr_salary_records").select("id,user_id,is_active").eq("school_id", schoolId),
         ]);
 
       const contracts = contractsRes.data || [];

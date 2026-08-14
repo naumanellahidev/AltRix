@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { useParams } from "react-router-dom";
 import { useTenant } from "@/hooks/useTenant";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -37,11 +37,11 @@ export function HrOnboardingModule({ kind = "onboarding" as "onboarding" | "offb
   const refresh = useCallback(async () => {
     if (!schoolId) return;
     const [t, tt, a, ts, s] = await Promise.all([
-      (supabase as any).from("hr_onboarding_templates").select("*").eq("school_id", schoolId).eq("kind", kind).order("name"),
-      (supabase as any).from("hr_onboarding_template_tasks").select("*").eq("school_id", schoolId).order("sort_order"),
-      (supabase as any).from("hr_onboarding_assignments").select("*").eq("school_id", schoolId).eq("kind", kind).order("start_date", { ascending: false }),
-      (supabase as any).from("hr_onboarding_task_status").select("*").eq("school_id", schoolId).order("sort_order"),
-      (supabase as any).rpc("get_school_staff_directory", { _school_id: schoolId }),
+      (api as any).from("hr_onboarding_templates").select("*").eq("school_id", schoolId).eq("kind", kind).order("name"),
+      (api as any).from("hr_onboarding_template_tasks").select("*").eq("school_id", schoolId).order("sort_order"),
+      (api as any).from("hr_onboarding_assignments").select("*").eq("school_id", schoolId).eq("kind", kind).order("start_date", { ascending: false }),
+      (api as any).from("hr_onboarding_task_status").select("*").eq("school_id", schoolId).order("sort_order"),
+      (api as any).rpc("get_school_staff_directory", { _school_id: schoolId }),
     ]);
     if (t.data) setTemplates(t.data);
     if (tt.data) setTemplateTasks(tt.data);
@@ -93,7 +93,7 @@ function AssignmentList({ items, staff, tasks, schoolId, templates, templateTask
 
   const start = async () => {
     if (!form.employee_user_id) { toast.error("Pick employee"); return; }
-    const { data: a, error } = await (supabase as any).from("hr_onboarding_assignments").insert({
+    const { data: a, error } = await (api as any).from("hr_onboarding_assignments").insert({
       school_id: schoolId, employee_user_id: form.employee_user_id, template_id: form.template_id || null,
       kind, start_date: form.start_date, notes: form.notes || null,
     }).select().single();
@@ -106,7 +106,7 @@ function AssignmentList({ items, staff, tasks, schoolId, templates, templateTask
           due_date: format(addDays(new Date(form.start_date), t.due_offset_days), "yyyy-MM-dd"),
           sort_order: t.sort_order,
         }));
-        await (supabase as any).from("hr_onboarding_task_status").insert(rows);
+        await (api as any).from("hr_onboarding_task_status").insert(rows);
       }
     }
     toast.success("Started");
@@ -116,14 +116,14 @@ function AssignmentList({ items, staff, tasks, schoolId, templates, templateTask
   };
 
   const toggleTask = async (t: TaskStatus) => {
-    const { error } = await (supabase as any).from("hr_onboarding_task_status").update({
+    const { error } = await (api as any).from("hr_onboarding_task_status").update({
       is_done: !t.is_done, done_at: !t.is_done ? new Date().toISOString() : null,
     }).eq("id", t.id);
     if (error) toast.error(error.message); else onChange();
   };
 
   const complete = async (id: string) => {
-    const { error } = await (supabase as any).from("hr_onboarding_assignments").update({ status: "completed" }).eq("id", id);
+    const { error } = await (api as any).from("hr_onboarding_assignments").update({ status: "completed" }).eq("id", id);
     if (error) toast.error(error.message); else { toast.success("Completed"); onChange(); }
   };
 
@@ -216,9 +216,9 @@ function TemplatesTab({ templates, tasks, schoolId, kind, onChange }: any) {
   const saveTemplate = async () => {
     if (!name.trim()) { toast.error("Name required"); return; }
     if (editing) {
-      await (supabase as any).from("hr_onboarding_templates").update({ name, description: desc || null }).eq("id", editing.id);
+      await (api as any).from("hr_onboarding_templates").update({ name, description: desc || null }).eq("id", editing.id);
     } else {
-      await (supabase as any).from("hr_onboarding_templates").insert({ school_id: schoolId, name, description: desc || null, kind });
+      await (api as any).from("hr_onboarding_templates").insert({ school_id: schoolId, name, description: desc || null, kind });
     }
     toast.success("Saved");
     setOpen(false); setName(""); setDesc(""); setEditing(null); onChange();
@@ -227,15 +227,15 @@ function TemplatesTab({ templates, tasks, schoolId, kind, onChange }: any) {
   const addTask = async (tplId: string) => {
     if (!newTask.title.trim()) return;
     const order = tasks.filter((t: TplTask) => t.template_id === tplId).length;
-    await (supabase as any).from("hr_onboarding_template_tasks").insert({
+    await (api as any).from("hr_onboarding_template_tasks").insert({
       school_id: schoolId, template_id: tplId, title: newTask.title,
       due_offset_days: Number(newTask.due_offset_days) || 0, sort_order: order,
     });
     setNewTask({ title: "", due_offset_days: 0 });
     onChange();
   };
-  const delTask = async (id: string) => { await (supabase as any).from("hr_onboarding_template_tasks").delete().eq("id", id); onChange(); };
-  const delTpl = async (id: string) => { if (confirm("Delete template?")) { await (supabase as any).from("hr_onboarding_templates").delete().eq("id", id); onChange(); } };
+  const delTask = async (id: string) => { await (api as any).from("hr_onboarding_template_tasks").delete().eq("id", id); onChange(); };
+  const delTpl = async (id: string) => { if (confirm("Delete template?")) { await (api as any).from("hr_onboarding_templates").delete().eq("id", id); onChange(); } };
 
   return (
     <div className="space-y-3">

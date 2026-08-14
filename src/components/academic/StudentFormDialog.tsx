@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Loader2, Upload, UserPlus, X } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -158,7 +158,7 @@ export function StudentFormDialog({
     (async () => {
       setLoadingSectionSubjects(true);
       try {
-        const { data, error } = await supabase
+        const { data, error } = await api
           .from("class_section_subjects")
           .select("subject_id")
           .eq("school_id", schoolId)
@@ -211,11 +211,11 @@ export function StudentFormDialog({
     try {
       const ext = file.name.split(".").pop() || "jpg";
       const path = `${schoolId}/${crypto.randomUUID()}.${ext}`;
-      const { error: upErr } = await supabase.storage
+      const { error: upErr } = await api.storage
         .from("student-photos")
         .upload(path, file, { upsert: false, cacheControl: "3600" });
       if (upErr) throw upErr;
-      const { data: pub } = supabase.storage.from("student-photos").getPublicUrl(path);
+      const { data: pub } = api.storage.from("student-photos").getPublicUrl(path);
       update("profile_image_url", pub.publicUrl);
       toast.success("Photo uploaded");
     } catch (e: any) {
@@ -250,7 +250,7 @@ export function StudentFormDialog({
         form.parent_mode === "existing" && form.parent_user_id ? form.parent_user_id : null;
 
       if (!resolvedParentUserId && form.parent_mode === "new" && form.parent_email.trim()) {
-        const { data: foundId } = await (supabase as any).rpc("find_parent_user_by_email", {
+        const { data: foundId } = await (api as any).rpc("find_parent_user_by_email", {
           _school_id: schoolId,
           _email: form.parent_email.trim(),
         });
@@ -284,14 +284,14 @@ export function StudentFormDialog({
 
       let resultStudentId = studentId ?? null;
       if (isEdit && studentId) {
-        const { error } = await supabase
+        const { error } = await api
           .from("students")
           .update(studentPayload)
           .eq("id", studentId)
           .eq("school_id", schoolId);
         if (error) throw error;
       } else {
-        const { data, error } = await supabase
+        const { data, error } = await api
           .from("students")
           .insert(studentPayload)
           .select("id")
@@ -303,7 +303,7 @@ export function StudentFormDialog({
       // Enrollment (upsert latest section)
       if (resultStudentId && form.section_id) {
         // Close any existing open enrollment if section changes
-        const { data: openEnr } = await supabase
+        const { data: openEnr } = await api
           .from("student_enrollments")
           .select("id, class_section_id")
           .eq("school_id", schoolId)
@@ -312,20 +312,20 @@ export function StudentFormDialog({
           .maybeSingle();
 
         if (openEnr && openEnr.class_section_id !== form.section_id) {
-          await supabase
+          await api
             .from("student_enrollments")
             .update({ end_date: new Date().toISOString().slice(0, 10) })
             .eq("id", openEnr.id);
         }
         if (!openEnr) {
-          await supabase.from("student_enrollments").insert({
+          await api.from("student_enrollments").insert({
             school_id: schoolId,
             student_id: resultStudentId,
             class_section_id: form.section_id,
             start_date: new Date().toISOString().slice(0, 10),
           });
         } else if (openEnr.class_section_id !== form.section_id) {
-          await supabase.from("student_enrollments").insert({
+          await api.from("student_enrollments").insert({
             school_id: schoolId,
             student_id: resultStudentId,
             class_section_id: form.section_id,
@@ -347,7 +347,7 @@ export function StudentFormDialog({
           is_primary: true,
         };
         // Avoid duplicate guardians: check by user_id or by email
-        const { data: existing } = await (supabase as any)
+        const { data: existing } = await (api as any)
           .from("student_guardians")
           .select("id")
           .eq("student_id", resultStudentId)
@@ -356,7 +356,7 @@ export function StudentFormDialog({
           )
           .maybeSingle();
         if (!existing) {
-          const { error: gErr } = await (supabase as any)
+          const { error: gErr } = await (api as any)
             .from("student_guardians")
             .insert(guardianPayload);
           if (gErr) console.warn("Guardian link failed:", gErr.message);

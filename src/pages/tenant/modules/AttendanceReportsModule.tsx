@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { Download, Filter } from "lucide-react";
 
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { useTenant } from "@/hooks/useTenant";
 import { useSession } from "@/hooks/useSession";
 import { useSchoolPermissions } from "@/hooks/useSchoolPermissions";
@@ -77,19 +77,19 @@ export function AttendanceReportsModule() {
     const load = async () => {
       if (!schoolId || !user?.id) return;
 
-      const { data: cls } = await supabase.from("academic_classes").select("id,name").eq("school_id", schoolId);
+      const { data: cls } = await api.from("academic_classes").select("id,name").eq("school_id", schoolId);
       setClasses((cls ?? []) as ClassRow[]);
 
       // Admins: can see all sections. Teachers: only assigned sections.
       if (perms.canManageStudents) {
-        const { data: sec } = await supabase
+        const { data: sec } = await api
           .from("class_sections")
           .select("id,name,class_id")
           .eq("school_id", schoolId)
           .order("name");
         setSections((sec ?? []) as Section[]);
       } else {
-        const { data: ta } = await supabase
+        const { data: ta } = await api
           .from("teacher_subject_assignments")
           .select("class_section_id")
           .eq("school_id", schoolId)
@@ -99,7 +99,7 @@ export function AttendanceReportsModule() {
           setSections([]);
           return;
         }
-        const { data: sec } = await supabase.from("class_sections").select("id,name,class_id").eq("school_id", schoolId).in("id", ids);
+        const { data: sec } = await api.from("class_sections").select("id,name,class_id").eq("school_id", schoolId).in("id", ids);
         setSections((sec ?? []) as Section[]);
       }
     };
@@ -110,7 +110,7 @@ export function AttendanceReportsModule() {
     if (!schoolId) return;
     setBusy(true);
     try {
-      let q = supabase
+      let q = api
         .from("attendance_sessions")
         .select("id,session_date,period_label,class_section_id")
         .eq("school_id", schoolId)
@@ -130,7 +130,7 @@ export function AttendanceReportsModule() {
       }
 
       const sessionIds = sessions.map((s) => s.id);
-      const { data: entries, error: eErr } = await supabase
+      const { data: entries, error: eErr } = await api
         .from("attendance_entries")
         .select("session_id,status")
         .eq("school_id", schoolId)

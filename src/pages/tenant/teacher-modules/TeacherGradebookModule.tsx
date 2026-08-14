@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { Save, Download, Plus, Trash2, BarChart3 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { useTenant } from "@/hooks/useTenant";
 import { useSession } from "@/hooks/useSession";
 import { Button } from "@/components/ui/button";
@@ -163,7 +163,7 @@ export function TeacherGradebookModule() {
   }, [selectedSection, schoolId]);
 
   const loadSubjects = async () => {
-    const { data } = await supabase
+    const { data } = await api
       .from("subjects")
       .select("id, name")
       .eq("school_id", schoolId!)
@@ -172,7 +172,7 @@ export function TeacherGradebookModule() {
   };
 
   const loadSections = async () => {
-    const { data: assignments } = await supabase
+    const { data: assignments } = await api
       .from("teacher_assignments")
       .select("class_section_id")
       .eq("school_id", schoolId!)
@@ -184,12 +184,12 @@ export function TeacherGradebookModule() {
       return;
     }
 
-    const { data: secs } = await supabase
+    const { data: secs } = await api
       .from("class_sections")
       .select("id, name, class_id")
       .in("id", sectionIds);
 
-    const { data: classes } = await supabase.from("academic_classes").select("id, name");
+    const { data: classes } = await api.from("academic_classes").select("id, name");
     const classMap = new Map(classes?.map((c) => [c.id, c.name]) || []);
 
     const mapped = (secs || []).map((s) => ({
@@ -209,7 +209,7 @@ export function TeacherGradebookModule() {
     setLoading(true);
 
     // Load assessments for section
-    const { data: assessData } = await supabase
+    const { data: assessData } = await api
       .from("academic_assessments")
       .select("id, title, max_marks, assessment_date, subject_id")
       .eq("school_id", schoolId!)
@@ -219,7 +219,7 @@ export function TeacherGradebookModule() {
     setAssessments((assessData as Assessment[]) || []);
 
     // Load students in section
-    const { data: enrollments } = await supabase
+    const { data: enrollments } = await api
       .from("student_enrollments")
       .select("student_id")
       .eq("school_id", schoolId!)
@@ -228,7 +228,7 @@ export function TeacherGradebookModule() {
     const studentIds = enrollments?.map((e) => e.student_id) || [];
 
     if (studentIds.length > 0) {
-      const { data: studs } = await supabase
+      const { data: studs } = await api
         .from("students")
         .select("id, first_name, last_name")
         .in("id", studentIds)
@@ -239,7 +239,7 @@ export function TeacherGradebookModule() {
       // Load marks
       const assessmentIds = assessData?.map((a) => a.id) || [];
       if (assessmentIds.length > 0) {
-        const { data: marksData } = await supabase
+        const { data: marksData } = await api
           .from("student_marks")
           .select("student_id, assessment_id, marks, computed_grade")
           .eq("school_id", schoolId!)
@@ -269,7 +269,7 @@ export function TeacherGradebookModule() {
     }
 
     setCreatingAssessment(true);
-    const { error } = await supabase.from("academic_assessments").insert({
+    const { error } = await api.from("academic_assessments").insert({
       school_id: schoolId,
       class_section_id: selectedSection,
       teacher_user_id: user?.id,
@@ -299,7 +299,7 @@ export function TeacherGradebookModule() {
     if (!schoolId) return;
     
     // Check if marks exist
-    const { data: existingMarks } = await supabase
+    const { data: existingMarks } = await api
       .from("student_marks")
       .select("id")
       .eq("school_id", schoolId)
@@ -311,7 +311,7 @@ export function TeacherGradebookModule() {
       return;
     }
 
-    const { error } = await supabase
+    const { error } = await api
       .from("academic_assessments")
       .delete()
       .eq("school_id", schoolId)
@@ -365,7 +365,7 @@ export function TeacherGradebookModule() {
       });
     });
 
-    const { error } = await supabase
+    const { error } = await api
       .from("student_marks")
       .upsert(updates, { onConflict: "school_id,student_id,assessment_id" });
 

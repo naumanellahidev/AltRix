@@ -21,7 +21,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -119,7 +119,7 @@ export function StudentFeeTracker({ schoolId }: StudentFeeTrackerProps) {
   const { data: ledgers = [], isLoading } = useQuery({
     queryKey: ["student_fee_ledger", schoolId],
     queryFn: async () => {
-      const { data, error } = await (supabase as any)
+      const { data, error } = await (api as any)
         .from("student_fee_ledger")
         .select("*")
         .eq("school_id", schoolId)
@@ -135,7 +135,7 @@ export function StudentFeeTracker({ schoolId }: StudentFeeTrackerProps) {
     queryKey: ["student_invoices", selectedStudent?.student_id],
     queryFn: async () => {
       if (!selectedStudent) return [];
-      const { data, error } = await supabase
+      const { data, error } = await api
         .from("fee_invoices")
         .select("id, invoice_number, created_at, due_date, total_amount, status")
         .eq("student_id", selectedStudent.student_id)
@@ -160,7 +160,7 @@ export function StudentFeeTracker({ schoolId }: StudentFeeTrackerProps) {
       if (!selectedStudent) return [];
       const invoiceIds = studentInvoices.map((i) => i.id);
       if (invoiceIds.length === 0) return [];
-      const { data, error } = await supabase
+      const { data, error } = await api
         .from("fee_payments")
         .select("id, amount, paid_at, invoice_id")
         .in("invoice_id", invoiceIds)
@@ -176,7 +176,7 @@ export function StudentFeeTracker({ schoolId }: StudentFeeTrackerProps) {
     queryKey: ["fee_reminders", selectedStudent?.student_id],
     queryFn: async () => {
       if (!selectedStudent) return [];
-      const { data, error } = await (supabase as any)
+      const { data, error } = await (api as any)
         .from("fee_reminders")
         .select("*")
         .eq("student_id", selectedStudent.student_id)
@@ -236,7 +236,7 @@ export function StudentFeeTracker({ schoolId }: StudentFeeTrackerProps) {
       return;
     }
 
-    const { error } = await (supabase as any).from("fee_reminders").insert({
+    const { error } = await (api as any).from("fee_reminders").insert({
       school_id: schoolId,
       student_id: selectedStudent.student_id,
       reminder_type: reminderType,

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, lazy, Suspense } from "react";
 import { Navigate, Route, Routes, useParams } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { useSession } from "@/hooks/useSession";
 import { useTenantOptimized } from "@/hooks/useTenantOptimized";
 import { useUniversalPrefetch } from "@/hooks/useUniversalPrefetch";
@@ -166,7 +166,7 @@ export default function OwnerDashboard() {
     let cancelled = false;
 
     (async () => {
-      const { data: ownedSchools, error: ownerErr } = await (supabase as any).rpc("owner_schools_strict");
+      const { data: ownedSchools, error: ownerErr } = await (api as any).rpc("owner_schools_strict");
 
       if (cancelled) return;
       if (ownerErr) {
@@ -240,7 +240,7 @@ export default function OwnerDashboard() {
           <p className="mt-2 text-sm text-muted-foreground">{authzMessage}</p>
           <button
             onClick={async () => {
-              await supabase.auth.signOut();
+              await api.auth.signOut();
               window.location.href = `/${tenant.slug}/auth`;
             }}
             className="mt-6 rounded-xl bg-primary px-6 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"

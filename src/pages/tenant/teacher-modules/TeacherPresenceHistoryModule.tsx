@@ -3,7 +3,7 @@ import { useParams } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { useSession } from "@/hooks/useSession";
 import { useTenantOptimized } from "@/hooks/useTenantOptimized";
 import { CalendarDays, Clock, MessageSquareText } from "lucide-react";
@@ -69,7 +69,7 @@ export function TeacherPresenceHistoryModule() {
     (async () => {
       setLoading(true);
       const since = new Date(Date.now() - 7 * 86400000).toISOString().split("T")[0];
-      const { data: auditData } = await (supabase as any)
+      const { data: auditData } = await (api as any)
         .from("teacher_presence_audit")
         .select("id, timetable_entry_id, period_date, old_status, new_status, reason, created_at")
         .eq("school_id", schoolId)
@@ -82,7 +82,7 @@ export function TeacherPresenceHistoryModule() {
 
       const entryMap = new Map<string, EntryInfo>();
       if (entryIds.length > 0) {
-        const { data: ttData } = await supabase
+        const { data: ttData } = await api
           .from("timetable_entries")
           .select(
             "id, subject_name, room, start_time, end_time, timetable_periods(label, start_time, end_time), class_sections(name, academic_classes(name))",

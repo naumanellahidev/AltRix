@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { useTenantOptimized } from "@/hooks/useTenantOptimized";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -63,7 +63,7 @@ export default function PublicInquiryPage() {
   useEffect(() => {
     if (!schoolId) return;
     (async () => {
-      const { data } = await supabase.from("schools").select("logo_url,email,phone").eq("id", schoolId).maybeSingle();
+      const { data } = await api.from("schools").select("logo_url,email,phone").eq("id", schoolId).maybeSingle();
       if (data) setSchoolDetails(data);
     })();
   }, [schoolId]);
@@ -86,7 +86,7 @@ export default function PublicInquiryPage() {
     if (!schoolId) return;
     (async () => {
       try {
-        const { data } = await supabase
+        const { data } = await api
           .from("school_inquiry_settings")
           .select("*")
           .eq("school_id", schoolId)
@@ -156,7 +156,7 @@ export default function PublicInquiryPage() {
 
     try {
       // 1) First attempt to invoke secure database RPC
-      const { error: rpcError } = await supabase.rpc("create_public_lead", {
+      const { error: rpcError } = await api.rpc("create_public_lead", {
         _school_slug: schoolSlug,
         _full_name: parentName.trim(),
         _email: email.trim() || null,
@@ -172,7 +172,7 @@ export default function PublicInquiryPage() {
         let fallbackStageId: string | null = null;
 
         try {
-          const { data: pipelineData } = await supabase
+          const { data: pipelineData } = await api
             .from("crm_pipelines")
             .select("id")
             .eq("school_id", schoolId)
@@ -182,7 +182,7 @@ export default function PublicInquiryPage() {
           fallbackPipelineId = pipelineData?.id || null;
           
           if (!fallbackPipelineId) {
-            const { data: firstPipeline } = await supabase
+            const { data: firstPipeline } = await api
               .from("crm_pipelines")
               .select("id")
               .eq("school_id", schoolId)
@@ -192,7 +192,7 @@ export default function PublicInquiryPage() {
           }
 
           if (fallbackPipelineId) {
-            const { data: stageData } = await supabase
+            const { data: stageData } = await api
               .from("crm_stages")
               .select("id")
               .eq("school_id", schoolId)
@@ -207,7 +207,7 @@ export default function PublicInquiryPage() {
         }
 
         // 2) Fallback direct insert using anonymous RLS policy
-        const { error: directError } = await supabase.from("crm_leads").insert({
+        const { error: directError } = await api.from("crm_leads").insert({
           school_id: schoolId,
           pipeline_id: fallbackPipelineId,
           stage_id: fallbackStageId,
@@ -227,7 +227,7 @@ export default function PublicInquiryPage() {
 
       // Dispatch in-app notifications to school staff
       try {
-        const { data: staffRoles } = await supabase
+        const { data: staffRoles } = await api
           .from("user_roles")
           .select("user_id")
           .eq("school_id", schoolId)
@@ -244,7 +244,7 @@ export default function PublicInquiryPage() {
             entity_type: "crm_leads",
             entity_id: null
           }));
-          await supabase.from("app_notifications").insert(notificationRows);
+          await api.from("app_notifications").insert(notificationRows);
         }
       } catch (notifErr) {
         console.warn("Failed to dispatch in-app notifications for inquiry:", notifErr);

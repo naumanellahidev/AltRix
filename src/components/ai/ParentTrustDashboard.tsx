@@ -18,7 +18,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { format, formatDistanceToNow, parseISO } from "date-fns";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -36,7 +36,7 @@ export function ParentTrustDashboard({ studentId, schoolId, parentUserId }: Prop
   const { data: updates, isLoading } = useQuery({
     queryKey: ["ai_parent_updates", studentId, parentUserId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await api
         .from("ai_parent_updates")
         .select("*")
         .eq("student_id", studentId)
@@ -54,7 +54,7 @@ export function ParentTrustDashboard({ studentId, schoolId, parentUserId }: Prop
   const { data: student } = useQuery({
     queryKey: ["student_basic", studentId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await api
         .from("students")
         .select("first_name, last_name")
         .eq("id", studentId)

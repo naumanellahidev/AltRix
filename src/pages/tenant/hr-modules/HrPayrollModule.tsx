@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { useParams } from "react-router-dom";
 import { useTenant } from "@/hooks/useTenant";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -46,10 +46,10 @@ export function HrPayrollModule() {
   const refresh = useCallback(async () => {
     if (!schoolId) return;
     const [r, c, st, s] = await Promise.all([
-      (supabase as any).from("hr_payroll_runs").select("*").eq("school_id", schoolId).order("period_year", { ascending: false }).order("period_month", { ascending: false }),
-      (supabase as any).from("hr_salary_components").select("*").eq("school_id", schoolId).eq("is_active", true).order("sort_order"),
-      (supabase as any).from("hr_employee_salary_structure").select("*").eq("school_id", schoolId),
-      (supabase as any).rpc("get_school_staff_directory", { _school_id: schoolId }),
+      (api as any).from("hr_payroll_runs").select("*").eq("school_id", schoolId).order("period_year", { ascending: false }).order("period_month", { ascending: false }),
+      (api as any).from("hr_salary_components").select("*").eq("school_id", schoolId).eq("is_active", true).order("sort_order"),
+      (api as any).from("hr_employee_salary_structure").select("*").eq("school_id", schoolId),
+      (api as any).rpc("get_school_staff_directory", { _school_id: schoolId }),
     ]);
     if (r.data) setRuns(r.data);
     if (c.data) setComps(c.data);
@@ -58,7 +58,7 @@ export function HrPayrollModule() {
   }, [schoolId]);
 
   const loadSlips = useCallback(async (runId: string) => {
-    const { data } = await (supabase as any).from("hr_payslips").select("*").eq("run_id", runId);
+    const { data } = await (api as any).from("hr_payslips").select("*").eq("run_id", runId);
     setSlips(data || []);
   }, []);
 
@@ -117,7 +117,7 @@ function RunsTab({ runs, schoolId, staff, structs, comps, onChange, onSelect, ac
   const [form, setForm] = useState({ year: today.getFullYear(), month: today.getMonth() + 1, label: "" });
 
   const createRun = async () => {
-    const { data: run, error } = await (supabase as any).from("hr_payroll_runs").insert({
+    const { data: run, error } = await (api as any).from("hr_payroll_runs").insert({
       school_id: schoolId, period_year: form.year, period_month: form.month,
       label: form.label || `${MONTHS[form.month - 1]} ${form.year}`, status: "draft",
     }).select().single();
@@ -150,8 +150,8 @@ function RunsTab({ runs, schoolId, staff, structs, comps, onChange, onSelect, ac
         basic, earnings, deductions, tax: 0, bonus: 0, gross, net, breakdown,
       };
     });
-    if (payslipRows.length) await (supabase as any).from("hr_payslips").insert(payslipRows);
-    await (supabase as any).from("hr_payroll_runs").update({
+    if (payslipRows.length) await (api as any).from("hr_payslips").insert(payslipRows);
+    await (api as any).from("hr_payroll_runs").update({
       generated_at: new Date().toISOString(),
       total_gross: totalGross, total_deductions: totalDed, total_net: totalNet,
     }).eq("id", run.id);
@@ -164,7 +164,7 @@ function RunsTab({ runs, schoolId, staff, structs, comps, onChange, onSelect, ac
     const upd: any = { status };
     if (status === "locked") upd.approved_at = new Date().toISOString();
     if (status === "paid") upd.paid_at = new Date().toISOString();
-    const { error } = await (supabase as any).from("hr_payroll_runs").update(upd).eq("id", id);
+    const { error } = await (api as any).from("hr_payroll_runs").update(upd).eq("id", id);
     if (error) toast.error(error.message); else { toast.success(`Run ${status}`); onChange(); }
   };
 
@@ -264,7 +264,7 @@ function ComponentsTab({ comps, schoolId, onChange }: any) {
 
   const add = async () => {
     if (!form.name.trim()) return;
-    const { error } = await (supabase as any).from("hr_salary_components").insert({
+    const { error } = await (api as any).from("hr_salary_components").insert({
       school_id: schoolId, name: form.name, kind: form.kind, calc_type: form.calc_type,
       default_value: Number(form.default_value),
     });

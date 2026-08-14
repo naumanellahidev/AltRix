@@ -3,7 +3,7 @@ import { useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Calculator, Percent, Receipt, Save } from "lucide-react";
 
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { useTenant } from "@/hooks/useTenant";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -81,7 +81,7 @@ export function AccountantTaxModule() {
     queryKey: ["tax_payments", schoolId, from, to],
     enabled: !!schoolId,
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await api
         .from("fee_payments")
         .select("amount, paid_at, status")
         .eq("school_id", schoolId!)
@@ -97,7 +97,7 @@ export function AccountantTaxModule() {
     queryKey: ["tax_expenses", schoolId, from, to],
     enabled: !!schoolId,
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await api
         .from("finance_expenses")
         .select("amount, category, expense_date, description, vendor")
         .eq("school_id", schoolId!)

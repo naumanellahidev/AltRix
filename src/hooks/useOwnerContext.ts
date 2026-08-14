@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { supabase, USE_FASTAPI } from "@/integrations/supabase/client";
+import { api, USE_FASTAPI } from "@/lib/api";
 import { apiClient } from "@/lib/api-client";
 import { useSession } from "@/hooks/useSession";
 
@@ -72,7 +72,7 @@ export function useOwnerContext(currentSchoolId: string | null) {
           if (cancel) return;
           setSchools(resp.data ?? []);
         } else {
-          const { data, error } = await (supabase as any).rpc("owner_schools_strict");
+          const { data, error } = await (api as any).rpc("owner_schools_strict");
           if (cancel) return;
           if (!error && Array.isArray(data)) setSchools(data as OwnerSchool[]);
         }
@@ -103,7 +103,7 @@ export function useOwnerContext(currentSchoolId: string | null) {
           if (cancel) return;
           setCampuses(resp.data ?? []);
         } else {
-          const { data, error } = await (supabase as any).rpc("owner_campuses", {
+          const { data, error } = await (api as any).rpc("owner_campuses", {
             _school_id: currentSchoolId,
           });
           if (cancel) return;
@@ -128,7 +128,7 @@ export function useOwnerContext(currentSchoolId: string | null) {
           const resp = await apiClient.get<{ active_school_id: string | null; active_campus_id: string | null }>("/schools/owner/active-context");
           activeCampusIdVal = resp.data?.active_campus_id ?? null;
         } else {
-          const { data } = await (supabase as any)
+          const { data } = await (api as any)
             .from("owner_active_context")
             .select("active_school_id, active_campus_id")
             .eq("user_id", user.id)
@@ -162,7 +162,7 @@ export function useOwnerContext(currentSchoolId: string | null) {
             active_campus_id: campusId,
           });
         } else {
-          await (supabase as any)
+          await (api as any)
             .from("owner_active_context")
             .upsert(
               {

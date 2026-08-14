@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from "react";
 import { useParams } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -23,7 +23,7 @@ export default function PublicHallTicketVerification() {
       setLoading(true);
       try {
         // Query the public RPC verify function that bypasses RLS securely
-        const { data, error } = await supabase.rpc("verify_exam_hall_ticket", {
+        const { data, error } = await api.rpc("verify_exam_hall_ticket", {
           _exam_id: examId,
           _student_id: studentId
         });

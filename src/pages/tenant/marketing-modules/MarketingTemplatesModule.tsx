@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -82,7 +82,7 @@ export function MarketingTemplatesModule() {
   useEffect(() => {
     (async () => {
       if (!schoolSlug) return;
-      const { data } = await supabase.from("schools").select("id,name").eq("slug", schoolSlug).maybeSingle();
+      const { data } = await api.from("schools").select("id,name").eq("slug", schoolSlug).maybeSingle();
       if (data) {
         setSchoolId(data.id);
         setSchoolName(data.name);
@@ -96,7 +96,7 @@ export function MarketingTemplatesModule() {
 
     // Fetch leads for placeholder replacement preview
     (async () => {
-      const { data } = await supabase
+      const { data } = await api
         .from("crm_leads")
         .select("id,full_name,email,phone")
         .eq("school_id", schoolId)

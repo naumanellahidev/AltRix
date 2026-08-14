@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { Download, FileText } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { useTenant } from "@/hooks/useTenant";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -39,7 +39,7 @@ export function TeacherReportsModule() {
 
     const fetchSections = async () => {
       // Get current teacher's user id
-      const { data: userData } = await supabase.auth.getUser();
+      const { data: userData } = await api.auth.getUser();
       const userId = userData.user?.id;
       if (!userId) {
         setLoading(false);
@@ -47,7 +47,7 @@ export function TeacherReportsModule() {
       }
 
       // Only get assignments for THIS teacher
-      const { data: assignments } = await supabase
+      const { data: assignments } = await api
         .from("teacher_assignments")
         .select("class_section_id")
         .eq("school_id", tenant.schoolId)
@@ -60,7 +60,7 @@ export function TeacherReportsModule() {
 
       const sectionIds = assignments.map((a) => a.class_section_id);
 
-      const { data: sectionData } = await supabase
+      const { data: sectionData } = await api
         .from("class_sections")
         .select("id, name, class_id")
         .in("id", sectionIds);
@@ -71,7 +71,7 @@ export function TeacherReportsModule() {
       }
 
       const classIds = [...new Set(sectionData.map((s) => s.class_id))];
-      const { data: classes } = await supabase
+      const { data: classes } = await api
         .from("academic_classes")
         .select("id, name")
         .in("id", classIds);
@@ -100,7 +100,7 @@ export function TeacherReportsModule() {
     setGenerating(true);
 
     // Get students
-    const { data: enrollments } = await supabase
+    const { data: enrollments } = await api
       .from("student_enrollments")
       .select("student_id")
       .eq("school_id", tenant.schoolId)
@@ -113,13 +113,13 @@ export function TeacherReportsModule() {
     }
 
     const studentIds = enrollments.map((e) => e.student_id);
-    const { data: students } = await supabase
+    const { data: students } = await api
       .from("students")
       .select("id, first_name, last_name")
       .in("id", studentIds);
 
     // Get assignments for this section
-    const { data: assignmentData } = await supabase
+    const { data: assignmentData } = await api
       .from("assignments")
       .select("id, title, max_marks")
       .eq("school_id", tenant.schoolId)
@@ -127,13 +127,13 @@ export function TeacherReportsModule() {
 
     // Get all results
     const assignmentIds = assignmentData?.map((a) => a.id) || [];
-    const { data: resultsData } = await (supabase as any)
+    const { data: resultsData } = await (api as any)
       .from("student_results")
       .select("student_id, assignment_id, marks_obtained, grade")
       .in("assignment_id", assignmentIds);
 
     // Get attendance sessions
-    const { data: sessions } = await supabase
+    const { data: sessions } = await api
       .from("attendance_sessions")
       .select("id")
       .eq("school_id", tenant.schoolId)
@@ -142,7 +142,7 @@ export function TeacherReportsModule() {
     const sessionIds = sessions?.map((s) => s.id) || [];
 
     // Get attendance entries
-    const { data: attendanceData } = await supabase
+    const { data: attendanceData } = await api
       .from("attendance_entries")
       .select("student_id, status")
       .in("session_id", sessionIds);

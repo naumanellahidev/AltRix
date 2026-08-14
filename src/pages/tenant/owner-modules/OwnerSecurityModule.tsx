@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Shield, Lock, Activity, AlertTriangle, Users, CheckCircle2, XCircle } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { format } from "date-fns";
 
 interface Props {
@@ -24,18 +24,18 @@ export function OwnerSecurityModule({ schoolId }: Props) {
         brandingRes,
         ownersRes,
       ] = await Promise.all([
-        supabase.from("user_roles").select("user_id,role").eq("school_id", schoolId),
-        supabase.from("school_memberships").select("user_id,created_at").eq("school_id", schoolId),
-        supabase
+        api.from("user_roles").select("user_id,role").eq("school_id", schoolId),
+        api.from("school_memberships").select("user_id,created_at").eq("school_id", schoolId),
+        api
           .from("ai_early_warnings")
           .select("id,severity,status,created_at,warning_type,title")
           .eq("school_id", schoolId)
           .order("created_at", { ascending: false })
           .limit(20),
-        supabase.from("jazzcash_settings").select("is_enabled").eq("school_id", schoolId).maybeSingle(),
-        supabase.from("easypaisa_settings").select("is_enabled").eq("school_id", schoolId).maybeSingle(),
-        supabase.from("school_branding").select("school_id").eq("school_id", schoolId).maybeSingle(),
-        supabase.from("school_owner_assignments").select("owner_user_id").eq("school_id", schoolId),
+        api.from("jazzcash_settings").select("is_enabled").eq("school_id", schoolId).maybeSingle(),
+        api.from("easypaisa_settings").select("is_enabled").eq("school_id", schoolId).maybeSingle(),
+        api.from("school_branding").select("school_id").eq("school_id", schoolId).maybeSingle(),
+        api.from("school_owner_assignments").select("owner_user_id").eq("school_id", schoolId),
       ]);
 
       return {

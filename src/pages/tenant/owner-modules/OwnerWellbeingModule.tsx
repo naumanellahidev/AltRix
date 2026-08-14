@@ -11,7 +11,7 @@ import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, PieChart, Pie, Cell,
 } from "recharts";
 import { format, subDays } from "date-fns";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { useActiveCampus } from "@/hooks/useActiveCampus";
 
 interface Props { schoolId: string | null; }
@@ -30,19 +30,19 @@ export function OwnerWellbeingModule({ schoolId }: Props) {
       const since = subDays(new Date(), 90).toISOString();
       const [behaviorRes, complaintsRes, studentsRes] = await Promise.all([
         campusEq(
-          supabase.from("behavior_notes")
+          api.from("behavior_notes")
             .select("id,title,note_type,is_shared_with_parents,student_id,created_at")
             .eq("school_id", schoolId)
             .gte("created_at", since)
             .order("created_at", { ascending: false })
         ),
         campusEq(
-          supabase.from("complaints")
+          api.from("complaints")
             .select("id,subject,category,status,flow,created_at,resolved_at")
             .eq("school_id", schoolId)
             .order("created_at", { ascending: false })
         ),
-        campusEq(supabase.from("students").select("id,first_name,last_name").eq("school_id", schoolId)),
+        campusEq(api.from("students").select("id,first_name,last_name").eq("school_id", schoolId)),
       ]);
       const behavior = behaviorRes.data || [];
       const complaints = complaintsRes.data || [];

@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import { supabase, USE_FASTAPI } from "@/integrations/supabase/client";
+import { api, USE_FASTAPI } from "@/lib/api";
 import { apiClient, isNetworkOrProxyError } from "@/lib/api-client";
 import { toast } from "@/hooks/use-toast";
 
@@ -65,7 +65,7 @@ export function useAttendanceData(schoolId: string | null) {
         }
 
         // Get or create session
-        const { data: existingSession } = await supabase
+        const { data: existingSession } = await api
           .from("attendance_sessions")
           .select("id")
           .eq("school_id", schoolId)
@@ -79,14 +79,14 @@ export function useAttendanceData(schoolId: string | null) {
         if (!sid) {
           if (options?.readOnly) {
             // Viewer cannot create sessions — just return an empty roster
-            const { data: enrollments } = await supabase
+            const { data: enrollments } = await api
               .from("student_enrollments")
               .select("student_id")
               .eq("school_id", schoolId)
               .eq("class_section_id", sectionId);
             const studentIds = (enrollments ?? []).map((e) => e.student_id);
             const { data: students } = studentIds.length
-              ? await supabase.from("students").select("id, first_name, last_name").in("id", studentIds)
+              ? await api.from("students").select("id, first_name, last_name").in("id", studentIds)
               : { data: [] as any[] };
             const rows: StudentRow[] = (students ?? []).map((s: any) => ({
               student_id: s.id,
@@ -97,8 +97,8 @@ export function useAttendanceData(schoolId: string | null) {
             return { sessionId: null, rows };
           }
 
-          const { data: user } = await supabase.auth.getUser();
-          const { data: newSession, error } = await supabase
+          const { data: user } = await api.auth.getUser();
+          const { data: newSession, error } = await api
             .from("attendance_sessions")
             .insert({
               school_id: schoolId,
@@ -118,7 +118,7 @@ export function useAttendanceData(schoolId: string | null) {
         }
 
         // Load students
-        const { data: enrollments } = await supabase
+        const { data: enrollments } = await api
           .from("student_enrollments")
           .select("student_id")
           .eq("school_id", schoolId)
@@ -129,13 +129,13 @@ export function useAttendanceData(schoolId: string | null) {
         }
 
         const studentIds = enrollments.map((e) => e.student_id);
-        const { data: students } = await supabase
+        const { data: students } = await api
           .from("students")
           .select("id, first_name, last_name")
           .in("id", studentIds);
 
         // Load existing entries
-        const { data: entries } = await supabase
+        const { data: entries } = await api
           .from("attendance_entries")
           .select("student_id, status")
           .eq("session_id", sid);
@@ -183,7 +183,7 @@ export function useAttendanceData(schoolId: string | null) {
         status: r.status,
       }));
 
-      const { error } = await supabase.from("attendance_entries").upsert(payload, {
+      const { error } = await api.from("attendance_entries").upsert(payload, {
         onConflict: "school_id,session_id,student_id",
       });
 
@@ -218,7 +218,7 @@ export function useAttendanceData(schoolId: string | null) {
         }
       }
 
-      const { data } = await supabase
+      const { data } = await api
         .from("attendance_sessions")
         .select("id, session_date, period_label, created_at")
         .eq("school_id", schoolId)
@@ -251,7 +251,7 @@ export function useAttendanceData(schoolId: string | null) {
       }
 
       // Get all sessions for this section
-      const { data: sessions } = await supabase
+      const { data: sessions } = await api
         .from("attendance_sessions")
         .select("id")
         .eq("school_id", schoolId)
@@ -262,13 +262,13 @@ export function useAttendanceData(schoolId: string | null) {
       const sessionIds = sessions.map((s) => s.id);
 
       // Get all entries for these sessions
-      const { data: entries } = await supabase
+      const { data: entries } = await api
         .from("attendance_entries")
         .select("student_id, status")
         .in("session_id", sessionIds);
 
       // Get enrolled students
-      const { data: enrollments } = await supabase
+      const { data: enrollments } = await api
         .from("student_enrollments")
         .select("student_id")
         .eq("school_id", schoolId)
@@ -277,7 +277,7 @@ export function useAttendanceData(schoolId: string | null) {
       if (!enrollments?.length) return [];
 
       const studentIds = enrollments.map((e) => e.student_id);
-      const { data: students } = await supabase
+      const { data: students } = await api
         .from("students")
         .select("id, first_name, last_name")
         .in("id", studentIds);
@@ -339,7 +339,7 @@ export function useAttendanceData(schoolId: string | null) {
       }
 
       // Get session info to find the section
-      const { data: session } = await supabase
+      const { data: session } = await api
         .from("attendance_sessions")
         .select("class_section_id")
         .eq("id", sessionId)
@@ -348,7 +348,7 @@ export function useAttendanceData(schoolId: string | null) {
       if (!session) return [];
 
       // Load students
-      const { data: enrollments } = await supabase
+      const { data: enrollments } = await api
         .from("student_enrollments")
         .select("student_id")
         .eq("school_id", schoolId)
@@ -357,13 +357,13 @@ export function useAttendanceData(schoolId: string | null) {
       if (!enrollments?.length) return [];
 
       const studentIds = enrollments.map((e) => e.student_id);
-      const { data: students } = await supabase
+      const { data: students } = await api
         .from("students")
         .select("id, first_name, last_name")
         .in("id", studentIds);
 
       // Load entries
-      const { data: entries } = await supabase
+      const { data: entries } = await api
         .from("attendance_entries")
         .select("student_id, status")
         .eq("session_id", sessionId);

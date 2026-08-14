@@ -3,7 +3,7 @@ import { DndContext, type DragEndEvent, useDraggable, useDroppable, TouchSensor,
 import { useParams } from "react-router-dom";
 import { CalendarDays, Coffee, Download, Pencil, Plus, Printer, Trash2, Wrench, User, MapPin, Sparkles, BookOpen } from "lucide-react";
 
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { useTenant } from "@/hooks/useTenant";
 import { useSession } from "@/hooks/useSession";
 import { useSchoolPermissions } from "@/hooks/useSchoolPermissions";
@@ -251,14 +251,14 @@ export function TimetableBuilderModule() {
   const refreshStatic = useCallback(async () => {
     if (!schoolId) return;
     const [{ data: c }, { data: s }, { data: p }, { data: dir }] = await Promise.all([
-      supabase.from("academic_classes").select("id,name").eq("school_id", schoolId).order("name"),
-      supabase.from("class_sections").select("id,name,class_id").eq("school_id", schoolId).order("name"),
-      supabase
+      api.from("academic_classes").select("id,name").eq("school_id", schoolId).order("name"),
+      api.from("class_sections").select("id,name,class_id").eq("school_id", schoolId).order("name"),
+      api
         .from("timetable_periods")
         .select("id,label,sort_order,start_time,end_time,is_break")
         .eq("school_id", schoolId)
         .order("sort_order", { ascending: true }),
-      supabase.from("school_user_directory").select("user_id,display_name,email").eq("school_id", schoolId),
+      api.from("school_user_directory").select("user_id,display_name,email").eq("school_id", schoolId),
     ]);
 
     setClasses((c ?? []) as ClassRow[]);
@@ -269,7 +269,7 @@ export function TimetableBuilderModule() {
 
   const refreshAllEntries = useCallback(async () => {
     if (!schoolId) return;
-    const { data } = await supabase
+    const { data } = await api
       .from("timetable_entries")
       .select("id,day_of_week,period_id,subject_name,teacher_user_id,room,class_section_id,is_published")
       .eq("school_id", schoolId);
@@ -279,18 +279,18 @@ export function TimetableBuilderModule() {
   const refreshSection = useCallback(async () => {
     if (!schoolId || !sectionId) return;
     const [{ data: css }, { data: subj }, { data: tsa }, { data: tte }] = await Promise.all([
-      supabase
+      api
         .from("class_section_subjects")
         .select("class_section_id,subject_id")
         .eq("school_id", schoolId)
         .eq("class_section_id", sectionId),
-      supabase.from("subjects").select("id,name").eq("school_id", schoolId).order("name"),
-      supabase
+      api.from("subjects").select("id,name").eq("school_id", schoolId).order("name"),
+      api
         .from("teacher_subject_assignments")
         .select("class_section_id,subject_id,teacher_user_id")
         .eq("school_id", schoolId)
         .eq("class_section_id", sectionId),
-      supabase
+      api
         .from("timetable_entries")
         .select("id,day_of_week,period_id,subject_name,teacher_user_id,room,is_published")
         .eq("school_id", schoolId)
@@ -412,7 +412,7 @@ export function TimetableBuilderModule() {
 
     setBusy(true);
     try {
-      const { error: delErr } = await supabase
+      const { error: delErr } = await api
         .from("timetable_entries")
         .delete()
         .eq("school_id", schoolId)
@@ -421,7 +421,7 @@ export function TimetableBuilderModule() {
         .eq("period_id", periodId);
       if (delErr) return toast.error(delErr.message);
 
-      const { error: insErr } = await supabase.from("timetable_entries").insert({
+      const { error: insErr } = await api.from("timetable_entries").insert({
         school_id: schoolId,
         class_section_id: sectionId,
         day_of_week: day,
@@ -445,7 +445,7 @@ export function TimetableBuilderModule() {
     if (!canEdit) return toast.error("Read-only: you don't have permission to edit timetables.");
     setBusy(true);
     try {
-      const { error } = await supabase
+      const { error } = await api
         .from("timetable_entries")
         .delete()
         .eq("school_id", schoolId)
@@ -762,7 +762,7 @@ export function TimetableBuilderModule() {
               onClick={async () => {
                 if (!schoolId || !sectionId || !editEntryId) return;
                 if (!canEdit) return toast.error("Read-only: you don't have permission to edit timetables.");
-                const { error } = await supabase
+                const { error } = await api
                   .from("timetable_entries")
                   .update({
                     teacher_user_id: editTeacherUserId || null,

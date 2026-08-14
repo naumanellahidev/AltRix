@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { useTenantOptimized } from "@/hooks/useTenantOptimized";
 import { useSession } from "@/hooks/useSession";
 import { useOfflineLeaveRequests } from "@/hooks/useOfflineData";
@@ -52,7 +52,7 @@ export function TeacherLeavesModule() {
   const { data: leaveTypes = [] } = useQuery({
     queryKey: ["hr_leave_types", schoolId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await api
         .from("hr_leave_types")
         .select("id, name, max_days")
         .eq("school_id", schoolId!)
@@ -71,7 +71,7 @@ export function TeacherLeavesModule() {
   const { data: myRequests = [], isLoading } = useQuery({
     queryKey: ["my_leave_requests", schoolId, user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await api
         .from("hr_leave_requests")
         .select(`
           id, leave_type_id, start_date, end_date, days_count, status, reason, 
@@ -132,7 +132,7 @@ export function TeacherLeavesModule() {
     mutationFn: async () => {
       if (!schoolId || !user) throw new Error("Not authenticated");
       
-      const { error } = await supabase.from("hr_leave_requests").insert({
+      const { error } = await api.from("hr_leave_requests").insert({
         school_id: schoolId,
         user_id: user.id,
         leave_type_id: newRequest.leave_type_id,

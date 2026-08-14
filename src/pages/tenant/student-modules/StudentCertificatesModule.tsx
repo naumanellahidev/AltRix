@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
@@ -10,7 +10,7 @@ export function StudentCertificatesModule({ myStudent, schoolId }: { myStudent: 
 
   const refresh = async () => {
     if (myStudent.status !== "ready") return;
-    const { data } = await supabase
+    const { data } = await api
       .from("student_certificates")
       .select("id,title,certificate_type,issued_at,file_url")
       .eq("school_id", schoolId)

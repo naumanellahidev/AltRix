@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { useSession } from "@/hooks/useSession";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -107,7 +107,7 @@ export default function StudentComplaintsModule({ schoolId }: { schoolId: string
 
   const load = async () => {
     if (!schoolId || !user) return;
-    const { data, error } = await (supabase as any)
+    const { data, error } = await (api as any)
       .from("complaints")
       .select("id, subject, content, category, status, priority, anonymous, rating, rating_comment, attachments, created_at, resolution_note")
       .eq("school_id", schoolId)
@@ -127,7 +127,7 @@ export default function StudentComplaintsModule({ schoolId }: { schoolId: string
 
     if (!schoolId || !user?.id) return;
 
-    const complaintsChannel = supabase
+    const complaintsChannel = api
       .channel(`student_complaints_changes:${schoolId}:${user.id}`)
       .on(
         "postgres_changes",
@@ -144,7 +144,7 @@ export default function StudentComplaintsModule({ schoolId }: { schoolId: string
       .subscribe();
 
     return () => {
-      void supabase.removeChannel(complaintsChannel);
+      void api.removeChannel(complaintsChannel);
     };
   }, [schoolId, user?.id]);
 
@@ -175,7 +175,7 @@ export default function StudentComplaintsModule({ schoolId }: { schoolId: string
     if (!subject.trim() || !content.trim()) return toast.error("Subject and details required");
     setSending(true);
     
-    const { data, error } = await (supabase as any)
+    const { data, error } = await (api as any)
       .from("complaints")
       .insert({
         school_id: schoolId,
@@ -196,7 +196,7 @@ export default function StudentComplaintsModule({ schoolId }: { schoolId: string
 
     // Notify the principal and school admins
     try {
-      const { data: staffRoles } = await supabase
+      const { data: staffRoles } = await api
         .from("user_roles")
         .select("user_id")
         .eq("school_id", schoolId)
@@ -213,7 +213,7 @@ export default function StudentComplaintsModule({ schoolId }: { schoolId: string
           entity_type: "complaints",
           entity_id: data?.id || null
         }));
-        await supabase.from("app_notifications").insert(notificationRows);
+        await api.from("app_notifications").insert(notificationRows);
       }
     } catch (notifErr) {
       console.warn("Failed to notify principal/staff:", notifErr);
@@ -234,7 +234,7 @@ export default function StudentComplaintsModule({ schoolId }: { schoolId: string
     if (rating === 0) return toast.error("Please select a star rating first");
     setSubmittingFeedback(complaintId);
     
-    const { error } = await supabase
+    const { error } = await api
       .from("complaints")
       .update({
         rating: rating,

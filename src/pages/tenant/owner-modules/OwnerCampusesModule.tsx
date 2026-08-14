@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Building2, Users, GraduationCap, MapPin, Download, Send } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -53,7 +53,7 @@ export function OwnerCampusesModule({ schoolId }: Props) {
     queryKey: ["owner_school_name", schoolId],
     queryFn: async () => {
       if (!schoolId) return null;
-      const { data } = await supabase.from("schools").select("name,slug").eq("id", schoolId).maybeSingle();
+      const { data } = await api.from("schools").select("name,slug").eq("id", schoolId).maybeSingle();
       return data;
     },
     enabled: !!schoolId,
@@ -63,7 +63,7 @@ export function OwnerCampusesModule({ schoolId }: Props) {
     queryKey: ["owner_campuses_list", schoolId],
     queryFn: async () => {
       if (!schoolId) return [];
-      const { data } = await supabase
+      const { data } = await api
         .from("campuses")
         .select("*")
         .eq("school_id", schoolId)
@@ -78,10 +78,10 @@ export function OwnerCampusesModule({ schoolId }: Props) {
     queryFn: async () => {
       if (!schoolId) return {};
       const [schoolRes, campusesRes, studentsRes, staffRolesRes] = await Promise.all([
-        supabase.from("schools").select("slug").eq("id", schoolId).maybeSingle(),
-        supabase.from("campuses").select("id,slug").eq("school_id", schoolId),
-        supabase.from("students").select("campus_id").eq("school_id", schoolId),
-        supabase.from("user_roles").select("user_id,role").eq("school_id", schoolId).in("role", STAFF_ROLES),
+        api.from("schools").select("slug").eq("id", schoolId).maybeSingle(),
+        api.from("campuses").select("id,slug").eq("school_id", schoolId),
+        api.from("students").select("campus_id").eq("school_id", schoolId),
+        api.from("user_roles").select("user_id,role").eq("school_id", schoolId).in("role", STAFF_ROLES),
       ]);
       const campusRows = campusesRes.data || [];
       const campusIds = new Set(campusRows.map((c: any) => c.id));
@@ -89,7 +89,7 @@ export function OwnerCampusesModule({ schoolId }: Props) {
         campusRows.find((c: any) => c.slug === schoolRes.data?.slug)?.id || campusRows[0]?.id || null;
       const staffUserIds = new Set<string>((staffRolesRes.data || []).map((r: any) => r.user_id));
       const staffAssignmentsRes = campusRows.length
-        ? await supabase
+        ? await api
             .from("staff_campus_assignments")
             .select("user_id,campus_id")
             .in("campus_id", Array.from(campusIds))
@@ -157,13 +157,13 @@ export function OwnerCampusesModule({ schoolId }: Props) {
       return;
     }
     setSubmitting(true);
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { user } } = await api.auth.getUser();
     if (!user) {
       toast({ title: "Not signed in", variant: "destructive" });
       setSubmitting(false);
       return;
     }
-    const { error } = await supabase.from("platform_requests" as any).insert({
+    const { error } = await api.from("platform_requests" as any).insert({
       requester_user_id: user.id,
       school_id: schoolId,
       request_type: reqType,

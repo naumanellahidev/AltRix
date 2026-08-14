@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { Plus, CheckCircle } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { useTenant } from "@/hooks/useTenant";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -44,9 +44,9 @@ export function TeacherAdminInboxModule() {
   const fetchMessages = async () => {
     setLoading(true);
 
-    const { data: user } = await supabase.auth.getUser();
+    const { data: user } = await api.auth.getUser();
 
-    const { data } = await supabase
+    const { data } = await api
       .from("admin_messages")
       .select("*")
       .eq("school_id", tenant.schoolId)
@@ -63,9 +63,9 @@ export function TeacherAdminInboxModule() {
       return;
     }
 
-    const { data: user } = await supabase.auth.getUser();
+    const { data: user } = await api.auth.getUser();
 
-    const { error } = await supabase.from("admin_messages").insert({
+    const { error } = await api.from("admin_messages").insert({
       school_id: tenant.schoolId,
       sender_user_id: user.user?.id,
       subject: newMessage.subject.trim(),

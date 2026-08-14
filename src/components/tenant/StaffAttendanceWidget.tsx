@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { supabase, USE_FASTAPI } from "@/integrations/supabase/client";
+import { api, USE_FASTAPI } from "@/lib/api";
 import { apiClient } from "@/lib/api-client";
 import { useSession } from "@/hooks/useSession";
 import { Button } from "@/components/ui/button";
@@ -112,7 +112,7 @@ export function StaffAttendanceWidget({ schoolId }: StaffAttendanceWidgetProps) 
         }
       } else {
         try {
-          const { data: schoolData, error: schoolErr } = await supabase
+          const { data: schoolData, error: schoolErr } = await api
             .from("schools")
             .select("latitude,longitude,altitude")
             .eq("id", schoolId)
@@ -132,7 +132,7 @@ export function StaffAttendanceWidget({ schoolId }: StaffAttendanceWidgetProps) 
 
       // 2. Fetch today's attendance for the logged-in staff
       if (user?.id) {
-        const { data: attData, error: attErr } = await supabase
+        const { data: attData, error: attErr } = await api
           .from("hr_staff_attendance")
           .select("id, status, clock_in, clock_out, attendance_date")
           .eq("school_id", schoolId)
@@ -278,7 +278,7 @@ export function StaffAttendanceWidget({ schoolId }: StaffAttendanceWidgetProps) 
         payload.altitude = userCoords.altitude;
       }
 
-      const { error } = await supabase
+      const { error } = await api
         .from("hr_staff_attendance")
         .upsert(payload, { onConflict: "school_id,user_id,attendance_date" });
 
@@ -325,7 +325,7 @@ export function StaffAttendanceWidget({ schoolId }: StaffAttendanceWidgetProps) 
         updates.altitude = userCoords.altitude;
       }
 
-      const { error } = await supabase
+      const { error } = await api
         .from("hr_staff_attendance")
         .update(updates)
         .eq("id", attendance.id);

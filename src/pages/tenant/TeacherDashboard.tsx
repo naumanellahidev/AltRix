@@ -2,7 +2,7 @@ import { Navigate, Route, Routes, useNavigate, useParams } from "react-router-do
 import { useMemo, lazy, Suspense } from "react";
 import { LogOut, UserRound } from "lucide-react";
 
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { useSession } from "@/hooks/useSession";
 import { useTenantOptimized } from "@/hooks/useTenantOptimized";
 import { useAuthz } from "@/hooks/useAuthz";

@@ -35,7 +35,7 @@ import {
 } from "recharts";
 import { motion } from "framer-motion";
 
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -95,7 +95,7 @@ export function FinancialReportGenerator({ schoolId, schoolName }: FinancialRepo
   const { data: payments = [] } = useQuery({
     queryKey: ["report_payments", schoolId, selectedMonth],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await api
         .from("fee_payments")
         .select("id, amount, paid_at, method")
         .eq("school_id", schoolId)
@@ -110,7 +110,7 @@ export function FinancialReportGenerator({ schoolId, schoolName }: FinancialRepo
   const { data: expenses = [] } = useQuery({
     queryKey: ["report_expenses", schoolId, selectedMonth],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await api
         .from("finance_expenses")
         .select("id, amount, expense_date, category, description")
         .eq("school_id", schoolId)
@@ -125,7 +125,7 @@ export function FinancialReportGenerator({ schoolId, schoolName }: FinancialRepo
   const { data: invoices = [] } = useQuery({
     queryKey: ["report_invoices", schoolId, selectedMonth],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await api
         .from("fee_invoices")
         .select("id, total_amount, status, created_at, due_date")
         .eq("school_id", schoolId)
@@ -146,7 +146,7 @@ export function FinancialReportGenerator({ schoolId, schoolName }: FinancialRepo
   const { data: payRuns = [] } = useQuery({
     queryKey: ["report_payruns", schoolId, selectedMonth],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await api
         .from("hr_pay_runs")
         .select("id, gross_amount, net_amount, status, period_start, period_end")
         .eq("school_id", schoolId)

@@ -3,7 +3,7 @@ import { useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowDownCircle, ArrowUpCircle, Wallet, TrendingUp, TrendingDown, Search } from "lucide-react";
 
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { useTenant } from "@/hooks/useTenant";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -46,7 +46,7 @@ export function AccountantLedgerModule() {
     queryKey: ["ledger_payments", schoolId, from, to],
     enabled: !!schoolId,
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await api
         .from("fee_payments")
         .select("id, amount, method, status, transaction_ref, paid_at, notes, created_at")
         .eq("school_id", schoolId!)
@@ -63,7 +63,7 @@ export function AccountantLedgerModule() {
     queryKey: ["ledger_expenses", schoolId, from, to],
     enabled: !!schoolId,
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await api
         .from("finance_expenses")
         .select("id, description, amount, category, expense_date, vendor")
         .eq("school_id", schoolId!)

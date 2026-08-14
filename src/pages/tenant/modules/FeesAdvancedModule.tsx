@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { Plus, Trash2, Receipt, Settings as SettingsIcon, Wallet, FileText, Users as UsersIcon, CreditCard, Send, BarChart3, Search, X, Edit2, Eye, Download, Printer, SlidersHorizontal, Filter, RefreshCw } from "lucide-react";
 import { FeesAnalyticsTab } from "@/components/fees/FeesAnalyticsTab";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { useTenantOptimized } from "@/hooks/useTenantOptimized";
 import { useSchoolPermissions } from "@/hooks/useSchoolPermissions";
 import { Button } from "@/components/ui/button";
@@ -114,17 +114,17 @@ export default function FeesAdvancedModule() {
     if (!silent) setRefreshing(true);
     try {
       const [cRes, sRes, stRes, settRes, pRes, iRes, aRes, invRes, payRes, expRes, pmRes] = await Promise.all([
-        supabase.from("academic_classes").select("id, name").eq("school_id", schoolId).order("name"),
-        supabase.from("class_sections").select("id, name, class_id").eq("school_id", schoolId).order("name"),
-        supabase.from("students").select("id, first_name, last_name, parent_phone, parent_email").eq("school_id", schoolId).order("first_name").limit(2000),
-        supabase.from("fee_settings").select("*").eq("school_id", schoolId).maybeSingle(),
-        supabase.from("fee_plans").select("*").eq("school_id", schoolId).order("created_at", { ascending: false }),
-        supabase.from("fee_plan_items").select("*").eq("school_id", schoolId),
-        supabase.from("student_fee_assignments").select("id, student_id, fee_plan_id, discount_pct, scholarship_amount").eq("school_id", schoolId),
-        supabase.from("fee_invoices").select("*").eq("school_id", schoolId).order("created_at", { ascending: false }).limit(500),
-        supabase.from("fee_payments").select("*").eq("school_id", schoolId).order("paid_at", { ascending: false }).limit(500),
-        supabase.from("finance_expenses").select("*").eq("school_id", schoolId).order("expense_date", { ascending: false }).limit(500),
-        supabase.from("finance_payment_methods").select("id, name, type").eq("school_id", schoolId).eq("is_active", true),
+        api.from("academic_classes").select("id, name").eq("school_id", schoolId).order("name"),
+        api.from("class_sections").select("id, name, class_id").eq("school_id", schoolId).order("name"),
+        api.from("students").select("id, first_name, last_name, parent_phone, parent_email").eq("school_id", schoolId).order("first_name").limit(2000),
+        api.from("fee_settings").select("*").eq("school_id", schoolId).maybeSingle(),
+        api.from("fee_plans").select("*").eq("school_id", schoolId).order("created_at", { ascending: false }),
+        api.from("fee_plan_items").select("*").eq("school_id", schoolId),
+        api.from("student_fee_assignments").select("id, student_id, fee_plan_id, discount_pct, scholarship_amount").eq("school_id", schoolId),
+        api.from("fee_invoices").select("*").eq("school_id", schoolId).order("created_at", { ascending: false }).limit(500),
+        api.from("fee_payments").select("*").eq("school_id", schoolId).order("paid_at", { ascending: false }).limit(500),
+        api.from("finance_expenses").select("*").eq("school_id", schoolId).order("expense_date", { ascending: false }).limit(500),
+        api.from("finance_payment_methods").select("id, name, type").eq("school_id", schoolId).eq("is_active", true),
       ]);
       setClasses((cRes.data as ClassRow[]) || []);
       setSections((sRes.data as SectionRow[]) || []);
@@ -153,34 +153,34 @@ export default function FeesAdvancedModule() {
   // realtime
   useEffect(() => {
     if (!schoolId) return;
-    const ch = supabase
+    const ch = api
       .channel(`fees-${schoolId}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "fee_invoices", filter: `school_id=eq.${schoolId}` }, async () => {
-        const { data } = await supabase.from("fee_invoices").select("*").eq("school_id", schoolId).order("created_at", { ascending: false }).limit(500);
+        const { data } = await api.from("fee_invoices").select("*").eq("school_id", schoolId).order("created_at", { ascending: false }).limit(500);
         setInvoices((data as FeeInvoice[]) || []);
       })
       .on("postgres_changes", { event: "*", schema: "public", table: "fee_payments", filter: `school_id=eq.${schoolId}` }, async () => {
-        const { data } = await supabase.from("fee_payments").select("*").eq("school_id", schoolId).order("paid_at", { ascending: false }).limit(500);
+        const { data } = await api.from("fee_payments").select("*").eq("school_id", schoolId).order("paid_at", { ascending: false }).limit(500);
         setPayments((data as FeePayment[]) || []);
       })
       .on("postgres_changes", { event: "*", schema: "public", table: "finance_expenses", filter: `school_id=eq.${schoolId}` }, async () => {
-        const { data } = await supabase.from("finance_expenses").select("*").eq("school_id", schoolId).order("expense_date", { ascending: false }).limit(500);
+        const { data } = await api.from("finance_expenses").select("*").eq("school_id", schoolId).order("expense_date", { ascending: false }).limit(500);
         setExpenses(data || []);
       })
       .on("postgres_changes", { event: "*", schema: "public", table: "student_fee_assignments", filter: `school_id=eq.${schoolId}` }, async () => {
-        const { data } = await supabase.from("student_fee_assignments").select("id, student_id, fee_plan_id, discount_pct, scholarship_amount").eq("school_id", schoolId);
+        const { data } = await api.from("student_fee_assignments").select("id, student_id, fee_plan_id, discount_pct, scholarship_amount").eq("school_id", schoolId);
         setAssignments((data as StudentAssignment[]) || []);
       })
       .on("postgres_changes", { event: "*", schema: "public", table: "fee_plans", filter: `school_id=eq.${schoolId}` }, async () => {
-        const { data } = await supabase.from("fee_plans").select("*").eq("school_id", schoolId).order("created_at", { ascending: false });
+        const { data } = await api.from("fee_plans").select("*").eq("school_id", schoolId).order("created_at", { ascending: false });
         setPlans((data as FeePlanRow[]) || []);
       })
       .on("postgres_changes", { event: "*", schema: "public", table: "fee_plan_items", filter: `school_id=eq.${schoolId}` }, async () => {
-        const { data } = await supabase.from("fee_plan_items").select("*").eq("school_id", schoolId);
+        const { data } = await api.from("fee_plan_items").select("*").eq("school_id", schoolId);
         setItems((data as FeePlanItem[]) || []);
       })
       .subscribe();
-    return () => { supabase.removeChannel(ch); };
+    return () => { api.removeChannel(ch); };
   }, [schoolId]);
 
   const studentsById = useMemo(() => Object.fromEntries(students.map(s => [s.id, s])), [students]);
@@ -219,7 +219,7 @@ export default function FeesAdvancedModule() {
     };
 
     if (editExpenseId) {
-      const { data, error } = await supabase
+      const { data, error } = await api
         .from("finance_expenses")
         .update(payload)
         .eq("id", editExpenseId)
@@ -240,7 +240,7 @@ export default function FeesAdvancedModule() {
         reference: "",
       });
     } else {
-      const { data, error } = await supabase
+      const { data, error } = await api
         .from("finance_expenses")
         .insert(payload)
         .select("*")
@@ -263,7 +263,7 @@ export default function FeesAdvancedModule() {
 
   const deleteExpense = async (id: string) => {
     if (!confirm("Delete this expense?")) return;
-    const { error } = await supabase.from("finance_expenses").delete().eq("id", id);
+    const { error } = await api.from("finance_expenses").delete().eq("id", id);
     if (error) return toast.error(error.message);
     setExpenses(expenses.filter(e => e.id !== id));
     toast.success("Expense deleted");
@@ -500,7 +500,7 @@ export default function FeesAdvancedModule() {
   const saveSettings = async () => {
     if (!schoolId) return;
     const payload = { ...settings, school_id: schoolId };
-    const { error } = await supabase.from("fee_settings").upsert(payload as any, { onConflict: "school_id" });
+    const { error } = await api.from("fee_settings").upsert(payload as any, { onConflict: "school_id" });
     if (error) return toast.error(error.message);
     toast.success("Settings saved");
   };
@@ -508,7 +508,7 @@ export default function FeesAdvancedModule() {
   // ---------- PLANS ----------
   const createPlan = async () => {
     if (!schoolId || !newPlan.name) return toast.error("Name required");
-    const { data, error } = await supabase.from("fee_plans").insert({
+    const { data, error } = await api.from("fee_plans").insert({
       school_id: schoolId, name: newPlan.name, class_id: newPlan.class_id || null,
       school_year: newPlan.school_year || null, billing_frequency: newPlan.billing_frequency as any,
       currency: settings.currency, is_active: true,
@@ -521,14 +521,14 @@ export default function FeesAdvancedModule() {
   };
 
   const togglePlanActive = async (p: FeePlanRow) => {
-    const { error } = await supabase.from("fee_plans").update({ is_active: !p.is_active }).eq("id", p.id);
+    const { error } = await api.from("fee_plans").update({ is_active: !p.is_active }).eq("id", p.id);
     if (error) return toast.error(error.message);
     setPlans(plans.map(x => x.id === p.id ? { ...x, is_active: !p.is_active } : x));
   };
 
   const deletePlan = async (id: string) => {
     if (!confirm("Delete this plan and all its items?")) return;
-    const { error } = await supabase.from("fee_plans").delete().eq("id", id);
+    const { error } = await api.from("fee_plans").delete().eq("id", id);
     if (error) return toast.error(error.message);
     setPlans(plans.filter(p => p.id !== id));
     if (selectedPlanId === id) setSelectedPlanId(null);
@@ -536,7 +536,7 @@ export default function FeesAdvancedModule() {
 
   const addItem = async () => {
     if (!schoolId || !selectedPlanId || !newItem.label || !newItem.amount) return toast.error("Label and amount required");
-    const { data, error } = await supabase.from("fee_plan_items").insert({
+    const { data, error } = await api.from("fee_plan_items").insert({
       school_id: schoolId, fee_plan_id: selectedPlanId, label: newItem.label,
       category: newItem.category as any, amount: Number(newItem.amount), sort_order: planItems.length,
     }).select("*").single();
@@ -546,7 +546,7 @@ export default function FeesAdvancedModule() {
   };
 
   const removeItem = async (id: string) => {
-    const { error } = await supabase.from("fee_plan_items").delete().eq("id", id);
+    const { error } = await api.from("fee_plan_items").delete().eq("id", id);
     if (error) return toast.error(error.message);
     setItems(items.filter(i => i.id !== id));
   };
@@ -603,7 +603,7 @@ export default function FeesAdvancedModule() {
 
     const tId = toast.loading("Assigning plan in bulk...");
     try {
-      const { data: enrolls, error: enrollsError } = await supabase
+      const { data: enrolls, error: enrollsError } = await api
         .from("student_enrollments")
         .select("student_id")
         .eq("school_id", schoolId)
@@ -619,7 +619,7 @@ export default function FeesAdvancedModule() {
       }
 
       // Fetch existing assignments for these students
-      const { data: existingAssignments } = await supabase
+      const { data: existingAssignments } = await api
         .from("student_fee_assignments")
         .select("id, student_id")
         .eq("school_id", schoolId)
@@ -641,7 +641,7 @@ export default function FeesAdvancedModule() {
         return payload;
       });
 
-      const { error: upsertError } = await supabase
+      const { error: upsertError } = await api
         .from("student_fee_assignments")
         .upsert(upsertPayload);
 
@@ -651,7 +651,7 @@ export default function FeesAdvancedModule() {
       setBulkAssignOpen(false);
 
       // Refresh assignments
-      const { data: refreshed } = await supabase
+      const { data: refreshed } = await api
         .from("student_fee_assignments")
         .select("id, student_id, fee_plan_id, discount_pct, scholarship_amount")
         .eq("school_id", schoolId);
@@ -666,7 +666,7 @@ export default function FeesAdvancedModule() {
     const existing = assignments.find(a => a.student_id === studentId);
     if (!planId) {
       if (existing) {
-        await supabase.from("student_fee_assignments").delete().eq("id", existing.id);
+        await api.from("student_fee_assignments").delete().eq("id", existing.id);
         setAssignments(assignments.filter(a => a.id !== existing.id));
       }
       return;
@@ -677,11 +677,11 @@ export default function FeesAdvancedModule() {
       scholarship_amount: opts?.scholarship_amount ?? existing?.scholarship_amount ?? 0,
     };
     if (existing) {
-      const { data, error } = await supabase.from("student_fee_assignments").update(payload).eq("id", existing.id).select("*").single();
+      const { data, error } = await api.from("student_fee_assignments").update(payload).eq("id", existing.id).select("*").single();
       if (error) { toast.error(error.message); return; }
       setAssignments(assignments.map(a => a.id === existing.id ? (data as any) : a));
     } else {
-      const { data, error } = await supabase.from("student_fee_assignments").insert(payload).select("*").single();
+      const { data, error } = await api.from("student_fee_assignments").insert(payload).select("*").single();
       if (error) { toast.error(error.message); return; }
       setAssignments([...assignments, data as any]);
     }
@@ -691,13 +691,13 @@ export default function FeesAdvancedModule() {
   const generateBatchInvoices = async () => {
     if (!schoolId || !genForm.class_id || !genForm.fee_plan_id) return toast.error("Select class & plan");
     const sectionIds = sections.filter(s => s.class_id === genForm.class_id).map(s => s.id);
-    const { data: enrolls } = await supabase.from("student_enrollments").select("student_id").eq("school_id", schoolId).is("end_date", null).in("class_section_id", sectionIds);
+    const { data: enrolls } = await api.from("student_enrollments").select("student_id").eq("school_id", schoolId).is("end_date", null).in("class_section_id", sectionIds);
     const studentIds = Array.from(new Set((enrolls || []).map((e: any) => e.student_id)));
     if (studentIds.length === 0) return toast.error("No enrolled students for this class");
 
     let success = 0, failed = 0;
     for (const sid of studentIds) {
-      const { error } = await supabase.rpc("generate_invoice_for_student", {
+      const { error } = await api.rpc("generate_invoice_for_student", {
         _school_id: schoolId, _student_id: sid, _fee_plan_id: genForm.fee_plan_id,
         _period_label: genForm.period_label, _due_date: genForm.due_date,
       });
@@ -705,7 +705,7 @@ export default function FeesAdvancedModule() {
     }
     toast.success(`Generated ${success} invoice(s)${failed ? ` (${failed} failed)` : ""}`);
     setGenerateOpen(false);
-    const { data } = await supabase.from("fee_invoices").select("*").eq("school_id", schoolId).order("created_at", { ascending: false }).limit(500);
+    const { data } = await api.from("fee_invoices").select("*").eq("school_id", schoolId).order("created_at", { ascending: false }).limit(500);
     setInvoices((data as FeeInvoice[]) || []);
   };
 
@@ -769,7 +769,7 @@ export default function FeesAdvancedModule() {
       return toast.error(`Payment amount exceeds the remaining balance of Rs. ${remainingBalance.toLocaleString()}`);
     }
 
-    const { error: paymentError } = await supabase.from("fee_payments").insert({
+    const { error: paymentError } = await api.from("fee_payments").insert({
       school_id: schoolId, invoice_id: inv.id, student_id: inv.student_id,
       amount, method: payForm.method as any, status: "success",
       transaction_ref: payForm.transaction_ref || null, notes: payForm.notes || null,
@@ -786,7 +786,7 @@ export default function FeesAdvancedModule() {
       nextStatus = "pending";
     }
 
-    const { error: invoiceError } = await supabase
+    const { error: invoiceError } = await api
       .from("fee_invoices")
       .update({
         paid_amount: inv.paid_amount + amount,
@@ -1173,9 +1173,9 @@ export default function FeesAdvancedModule() {
             expenses={expenses}
             onRefresh={async () => {
               const [invRes, payRes, expRes] = await Promise.all([
-                supabase.from("fee_invoices").select("*").eq("school_id", schoolId).order("created_at", { ascending: false }).limit(500),
-                supabase.from("fee_payments").select("*").eq("school_id", schoolId).order("paid_at", { ascending: false }).limit(500),
-                supabase.from("finance_expenses").select("*").eq("school_id", schoolId).order("expense_date", { ascending: false }).limit(500),
+                api.from("fee_invoices").select("*").eq("school_id", schoolId).order("created_at", { ascending: false }).limit(500),
+                api.from("fee_payments").select("*").eq("school_id", schoolId).order("paid_at", { ascending: false }).limit(500),
+                api.from("finance_expenses").select("*").eq("school_id", schoolId).order("expense_date", { ascending: false }).limit(500),
               ]);
               setInvoices((invRes.data as FeeInvoice[]) || []);
               setPayments((payRes.data as FeePayment[]) || []);
@@ -1577,10 +1577,10 @@ function JazzCashSettingsCard({ schoolId }: { schoolId: string }) {
   const [s, setS] = useState({ is_enabled: false, environment: "sandbox" as "sandbox" | "production", merchant_id: "", merchant_password: "", integrity_salt: "", return_url: "" });
   useEffect(() => {
     if (!schoolId) return;
-    supabase.from("jazzcash_settings").select("*").eq("school_id", schoolId).maybeSingle().then(({ data }) => { if (data) setS(data as any); });
+    api.from("jazzcash_settings").select("*").eq("school_id", schoolId).maybeSingle().then(({ data }) => { if (data) setS(data as any); });
   }, [schoolId]);
   const save = async () => {
-    const { error } = await supabase.from("jazzcash_settings").upsert({ ...s, school_id: schoolId } as any, { onConflict: "school_id" });
+    const { error } = await api.from("jazzcash_settings").upsert({ ...s, school_id: schoolId } as any, { onConflict: "school_id" });
     if (error) return toast.error(error.message);
     toast.success("JazzCash settings saved");
   };
@@ -1610,10 +1610,10 @@ function EasypaisaSettingsCard({ schoolId }: { schoolId: string }) {
   const [s, setS] = useState({ is_enabled: false, environment: "sandbox" as "sandbox" | "live", store_id: "", hash_key: "", account_number: "", return_url: "" });
   useEffect(() => {
     if (!schoolId) return;
-    supabase.from("easypaisa_settings").select("*").eq("school_id", schoolId).maybeSingle().then(({ data }) => { if (data) setS(data as any); });
+    api.from("easypaisa_settings").select("*").eq("school_id", schoolId).maybeSingle().then(({ data }) => { if (data) setS(data as any); });
   }, [schoolId]);
   const save = async () => {
-    const { error } = await supabase.from("easypaisa_settings").upsert({ ...s, school_id: schoolId } as any, { onConflict: "school_id" });
+    const { error } = await api.from("easypaisa_settings").upsert({ ...s, school_id: schoolId } as any, { onConflict: "school_id" });
     if (error) return toast.error(error.message);
     toast.success("Easypaisa settings saved");
   };

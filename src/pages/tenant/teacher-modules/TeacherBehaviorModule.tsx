@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { Plus, Trash2, Share2 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { useTenant } from "@/hooks/useTenant";
 import { useOfflineBehaviorNotes, useOfflineStudents, useOfflineSections, useOfflineTeacherAssignments, useOfflineClasses, useOfflineEnrollments } from "@/hooks/useOfflineData";
 import { OfflineModuleWrapper } from "@/components/offline/OfflineModuleWrapper";
@@ -122,9 +122,9 @@ export function TeacherBehaviorModule() {
       return;
     }
 
-    const { data: user } = await supabase.auth.getUser();
+    const { data: user } = await api.auth.getUser();
 
-    const { error } = await supabase.from("behavior_notes").insert({
+    const { error } = await api.from("behavior_notes").insert({
       school_id: schoolId,
       student_id: newNote.student_id,
       teacher_user_id: user.user?.id,
@@ -152,7 +152,7 @@ export function TeacherBehaviorModule() {
   };
 
   const deleteNote = async (id: string) => {
-    const { error } = await supabase.from("behavior_notes").delete().eq("id", id);
+    const { error } = await api.from("behavior_notes").delete().eq("id", id);
     if (error) {
       toast({ title: "Failed to delete", description: error.message, variant: "destructive" });
       return;
@@ -162,7 +162,7 @@ export function TeacherBehaviorModule() {
   };
 
   const toggleShare = async (note: BehaviorNote) => {
-    const { error } = await supabase
+    const { error } = await api
       .from("behavior_notes")
       .update({ is_shared_with_parents: !note.is_shared_with_parents })
       .eq("id", note.id);

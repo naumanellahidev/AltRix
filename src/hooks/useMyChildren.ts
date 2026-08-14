@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import { supabase, USE_FASTAPI } from "@/integrations/supabase/client";
+import { api, USE_FASTAPI } from "@/lib/api";
 import { apiClient } from "@/lib/api-client";
 
 export interface ChildInfo {
@@ -47,7 +47,7 @@ export function useMyChildren(schoolId: string | null) {
           class_section_id: row.class_section_id,
         }));
       } else {
-        const { data, error: rpcError } = await (supabase as any).rpc(
+        const { data, error: rpcError } = await (api as any).rpc(
           "my_children_detailed",
           { _school_id: schoolId },
         );

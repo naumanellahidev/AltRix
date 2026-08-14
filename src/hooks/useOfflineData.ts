@@ -111,8 +111,8 @@ export function useOfflineStudents(schoolId: string | null, enabled = true) {
   return useOfflineData<offlineDb.CachedStudent[]> (
     async () => {
       if (!schoolId) return [];
-      const { supabase } = await import('@/integrations/supabase/client');
-      const { data } = await supabase
+      const { api } = await import('@/lib/api');
+      const { data } = await api
         .from('students')
         .select('id, first_name, last_name, status, profile_id')
         .eq('school_id', schoolId)
@@ -140,8 +140,8 @@ export function useOfflineClasses(schoolId: string | null, enabled = true) {
   return useOfflineData<offlineDb.CachedAcademicClass[]> (
     async () => {
       if (!schoolId) return [];
-      const { supabase } = await import('@/integrations/supabase/client');
-      const { data } = await supabase
+      const { api } = await import('@/lib/api');
+      const { data } = await api
         .from('academic_classes')
         .select('id, name, grade_level')
         .eq('school_id', schoolId)
@@ -164,8 +164,8 @@ export function useOfflineSections(schoolId: string | null, enabled = true) {
   return useOfflineData<offlineDb.CachedClassSection[]> (
     async () => {
       if (!schoolId) return [];
-      const { supabase } = await import('@/integrations/supabase/client');
-      const { data } = await supabase
+      const { api } = await import('@/lib/api');
+      const { data } = await api
         .from('class_sections')
         .select('id, name, class_id, room')
         .eq('school_id', schoolId)
@@ -190,8 +190,8 @@ export function useOfflineSubjects(schoolId: string | null, enabled = true) {
   return useOfflineData<offlineDb.CachedSubject[]> (
     async () => {
       if (!schoolId) return [];
-      const { supabase } = await import('@/integrations/supabase/client');
-      const { data } = await supabase
+      const { api } = await import('@/lib/api');
+      const { data } = await api
         .from('subjects')
         .select('id, name, code')
         .eq('school_id', schoolId)
@@ -214,8 +214,8 @@ export function useOfflineFeePlans(schoolId: string | null, enabled = true) {
   return useOfflineData<offlineDb.CachedFeePlan[]> (
     async () => {
       if (!schoolId) return [];
-      const { supabase } = await import('@/integrations/supabase/client');
-      const { data } = await supabase
+      const { api } = await import('@/lib/api');
+      const { data } = await api
         .from('fee_plans')
         .select('id, name, currency, is_active')
         .eq('school_id', schoolId)
@@ -239,8 +239,8 @@ export function useOfflineInvoices(schoolId: string | null, enabled = true) {
   return useOfflineData<offlineDb.CachedInvoice[]> (
     async () => {
       if (!schoolId) return [];
-      const { supabase } = await import('@/integrations/supabase/client');
-      const { data } = await supabase
+      const { api } = await import('@/lib/api');
+      const { data } = await api
         .from('fee_invoices')
         .select('id, invoice_number, student_id, total_amount, subtotal, status, created_at, due_date')
         .eq('school_id', schoolId)
@@ -269,8 +269,8 @@ export function useOfflinePayments(schoolId: string | null, enabled = true) {
   return useOfflineData<offlineDb.CachedPayment[]> (
     async () => {
       if (!schoolId) return [];
-      const { supabase } = await import('@/integrations/supabase/client');
-      const { data } = await supabase
+      const { api } = await import('@/lib/api');
+      const { data } = await api
         .from('fee_payments')
         .select('id, invoice_id, student_id, amount, paid_at, transaction_ref, method')
         .eq('school_id', schoolId)
@@ -298,8 +298,8 @@ export function useOfflineExpenses(schoolId: string | null, enabled = true) {
   return useOfflineData<offlineDb.CachedExpense[]> (
     async () => {
       if (!schoolId) return [];
-      const { supabase } = await import('@/integrations/supabase/client');
-      const { data } = await supabase
+      const { api } = await import('@/lib/api');
+      const { data } = await api
         .from('finance_expenses')
         .select('id, description, amount, category, expense_date, vendor')
         .eq('school_id', schoolId)
@@ -326,8 +326,8 @@ export function useOfflinePaymentMethods(schoolId: string | null, enabled = true
   return useOfflineData<offlineDb.CachedPaymentMethod[]> (
     async () => {
       if (!schoolId) return [];
-      const { supabase } = await import('@/integrations/supabase/client');
-      const { data } = await supabase
+      const { api } = await import('@/lib/api');
+      const { data } = await api
         .from('finance_payment_methods')
         .select('id, name, type, is_active')
         .eq('school_id', schoolId)
@@ -351,8 +351,8 @@ export function useOfflineLeads(schoolId: string | null, enabled = true) {
   return useOfflineData<offlineDb.CachedLead[]> (
     async () => {
       if (!schoolId) return [];
-      const { supabase } = await import('@/integrations/supabase/client');
-      const { data } = await supabase
+      const { api } = await import('@/lib/api');
+      const { data } = await api
         .from('crm_leads')
         .select('id, full_name, email, phone, source, status, stage_id, pipeline_id, score, assigned_to, next_follow_up_at, notes')
         .eq('school_id', schoolId)
@@ -384,8 +384,8 @@ export function useOfflineCrmStages(schoolId: string | null, enabled = true) {
   return useOfflineData<offlineDb.CachedCrmStage[]> (
     async () => {
       if (!schoolId) return [];
-      const { supabase } = await import('@/integrations/supabase/client');
-      const { data } = await supabase
+      const { api } = await import('@/lib/api');
+      const { data } = await api
         .from('crm_stages')
         .select('id, pipeline_id, name, sort_order')
         .eq('school_id', schoolId)
@@ -409,8 +409,8 @@ export function useOfflineTimetable(schoolId: string | null, enabled = true) {
   return useOfflineData<offlineDb.CachedTimetableEntry[]> (
     async () => {
       if (!schoolId) return [];
-      const { supabase } = await import('@/integrations/supabase/client');
-      const { data } = await supabase
+      const { api } = await import('@/lib/api');
+      const { data } = await api
         .from('timetable_entries')
         .select('id, day_of_week, period_id, subject_name, teacher_user_id, room, class_section_id, start_time, end_time')
         .eq('school_id', schoolId);
@@ -441,8 +441,8 @@ export function useOfflineTimetablePeriods(schoolId: string | null, enabled = tr
   return useOfflineData<offlineDb.CachedTimetablePeriod[]> (
     async () => {
       if (!schoolId) return [];
-      const { supabase } = await import('@/integrations/supabase/client');
-      const { data } = await supabase
+      const { api } = await import('@/lib/api');
+      const { data } = await api
         .from('timetable_periods')
         .select('id, label, sort_order, start_time, end_time, is_break')
         .eq('school_id', schoolId)
@@ -468,15 +468,15 @@ export function useOfflineStaffMembers(schoolId: string | null, enabled = true) 
   return useOfflineData<offlineDb.CachedStaffMember[]> (
     async () => {
       if (!schoolId) return [];
-      const { supabase } = await import('@/integrations/supabase/client');
+      const { api } = await import('@/lib/api');
       const [dirRes, rolesRes, ownersRes, platformRes] = await Promise.all([
-        supabase.from('school_user_directory')
+        api.from('school_user_directory')
           .select('user_id, email, display_name')
           .eq('school_id', schoolId)
           .order('email', { ascending: true }),
-        supabase.from('user_roles').select('user_id, role').eq('school_id', schoolId),
-        supabase.from('school_owner_assignments').select('owner_user_id').eq('school_id', schoolId),
-        supabase.from('platform_super_admins' as any).select('user_id'),
+        api.from('user_roles').select('user_id, role').eq('school_id', schoolId),
+        api.from('school_owner_assignments').select('owner_user_id').eq('school_id', schoolId),
+        api.from('platform_super_admins' as any).select('user_id'),
       ]);
 
       // Exclude users with a non-staff role: student, parent, owner. Per-school super_admin IS staff;
@@ -523,8 +523,8 @@ export function useOfflineEnrollments(schoolId: string | null, enabled = true) {
   return useOfflineData<offlineDb.CachedEnrollment[]> (
     async () => {
       if (!schoolId) return [];
-      const { supabase } = await import('@/integrations/supabase/client');
-      const { data } = await supabase
+      const { api } = await import('@/lib/api');
+      const { data } = await api
         .from('student_enrollments')
         .select('id, student_id, class_section_id')
         .eq('school_id', schoolId);
@@ -546,8 +546,8 @@ export function useOfflineTeacherAssignments(schoolId: string | null, enabled = 
   return useOfflineData<offlineDb.CachedTeacherAssignment[]> (
     async () => {
       if (!schoolId) return [];
-      const { supabase } = await import('@/integrations/supabase/client');
-      const { data } = await supabase
+      const { api } = await import('@/lib/api');
+      const { data } = await api
         .from('teacher_assignments')
         .select('id, teacher_user_id, class_section_id')
         .eq('school_id', schoolId);
@@ -581,8 +581,8 @@ export function useOfflineAssignments(schoolId: string | null, enabled = true) {
   return useOfflineData<offlineDb.CachedAssignment[]> (
     async () => {
       if (!schoolId) return [];
-      const { supabase } = await import('@/integrations/supabase/client');
-      const { data } = await supabase
+      const { api } = await import('@/lib/api');
+      const { data } = await api
         .from('assignments')
         .select('id, title, description, due_date, max_marks, status, teacher_user_id, class_section_id')
         .eq('school_id', schoolId)
@@ -612,8 +612,8 @@ export function useOfflineHomework(schoolId: string | null, enabled = true) {
   return useOfflineData<offlineDb.CachedHomework[]> (
     async () => {
       if (!schoolId) return [];
-      const { supabase } = await import('@/integrations/supabase/client');
-      const { data } = await supabase
+      const { api } = await import('@/lib/api');
+      const { data } = await api
         .from('homework')
         .select('id, title, description, due_date, status, teacher_user_id, class_section_id')
         .eq('school_id', schoolId)
@@ -642,9 +642,9 @@ export function useOfflineAttendanceSessions(schoolId: string | null, enabled = 
   return useOfflineData<offlineDb.CachedAttendanceSession[]> (
     async () => {
       if (!schoolId) return [];
-      const { supabase } = await import('@/integrations/supabase/client');
+      const { api } = await import('@/lib/api');
       const cutoff = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-      const { data } = await supabase
+      const { data } = await api
         .from('attendance_sessions')
         .select('id, session_date, period_label, class_section_id')
         .eq('school_id', schoolId)
@@ -669,9 +669,9 @@ export function useOfflineAttendanceEntries(schoolId: string | null, enabled = t
   return useOfflineData<offlineDb.CachedAttendance[]> (
     async () => {
       if (!schoolId) return [];
-      const { supabase } = await import('@/integrations/supabase/client');
+      const { api } = await import('@/lib/api');
       const cutoff = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-      const { data } = await supabase
+      const { data } = await api
         .from('attendance_entries')
         .select('id, student_id, session_id, status, note, attendance_sessions!inner(session_date, period_label, class_section_id)')
         .eq('school_id', schoolId)
@@ -700,8 +700,8 @@ export function useOfflineLeaveRequests(schoolId: string | null, enabled = true)
   return useOfflineData<offlineDb.CachedLeaveRequest[]> (
     async () => {
       if (!schoolId) return [];
-      const { supabase } = await import('@/integrations/supabase/client');
-      const { data } = await supabase
+      const { api } = await import('@/lib/api');
+      const { data } = await api
         .from('hr_leave_requests')
         .select('id, user_id, leave_type_id, start_date, end_date, days_count, status, reason')
         .eq('school_id', schoolId)
@@ -730,8 +730,8 @@ export function useOfflineContracts(schoolId: string | null, enabled = true) {
   return useOfflineData<offlineDb.CachedContract[]> (
     async () => {
       if (!schoolId) return [];
-      const { supabase } = await import('@/integrations/supabase/client');
-      const { data } = await supabase
+      const { api } = await import('@/lib/api');
+      const { data } = await api
         .from('hr_contracts')
         .select('id, user_id, contract_type, start_date, end_date, position, department, status')
         .eq('school_id', schoolId)
@@ -759,8 +759,8 @@ export function useOfflineSalaryRecords(schoolId: string | null, enabled = true)
   return useOfflineData<offlineDb.CachedSalaryRecord[]> (
     async () => {
       if (!schoolId) return [];
-      const { supabase } = await import('@/integrations/supabase/client');
-      const { data } = await supabase
+      const { api } = await import('@/lib/api');
+      const { data } = await api
         .from('hr_salary_records')
         .select('id, user_id, base_salary, month, year, status')
         .eq('school_id', schoolId)
@@ -788,8 +788,8 @@ export function useOfflineCampaigns(schoolId: string | null, enabled = true) {
   return useOfflineData<offlineDb.CachedCampaign[]> (
     async () => {
       if (!schoolId) return [];
-      const { supabase } = await import('@/integrations/supabase/client');
-      const { data } = await supabase
+      const { api } = await import('@/lib/api');
+      const { data } = await api
         .from('crm_campaigns')
         .select('id, name, channel, status, budget, start_date, end_date')
         .eq('school_id', schoolId)
@@ -816,8 +816,8 @@ export function useOfflineNotifications(schoolId: string | null, userId: string 
   return useOfflineData<offlineDb.CachedNotification[]> (
     async () => {
       if (!schoolId || !userId) return [];
-      const { supabase } = await import('@/integrations/supabase/client');
-      const { data } = await supabase
+      const { api } = await import('@/lib/api');
+      const { data } = await api
         .from('app_notifications')
         .select('id, type, title, body, entity_type, entity_id, read_at, created_at')
         .eq('school_id', schoolId)
@@ -848,8 +848,8 @@ export function useOfflineAdminMessages(schoolId: string | null, enabled = true)
   return useOfflineData<offlineDb.CachedAdminMessage[]> (
     async () => {
       if (!schoolId) return [];
-      const { supabase } = await import('@/integrations/supabase/client');
-      const { data } = await supabase
+      const { api } = await import('@/lib/api');
+      const { data } = await api
         .from('admin_messages')
         .select('id, sender_user_id, subject, content, status, priority, created_at')
         .eq('school_id', schoolId)
@@ -877,8 +877,8 @@ export function useOfflineCrmPipelines(schoolId: string | null, enabled = true) 
   return useOfflineData<offlineDb.CachedCrmPipeline[]> (
     async () => {
       if (!schoolId) return [];
-      const { supabase } = await import('@/integrations/supabase/client');
-      const { data } = await supabase
+      const { api } = await import('@/lib/api');
+      const { data } = await api
         .from('crm_pipelines')
         .select('id, name, is_default')
         .eq('school_id', schoolId);
@@ -902,8 +902,8 @@ export function useOfflineBehaviorNotes(schoolId: string | null, enabled = true)
   return useOfflineData<offlineDb.CachedBehaviorNote[]>(
     async () => {
       if (!schoolId) return [];
-      const { supabase } = await import('@/integrations/supabase/client');
-      const { data } = await supabase
+      const { api } = await import('@/lib/api');
+      const { data } = await api
         .from('behavior_notes')
         .select('id, student_id, teacher_user_id, title, content, note_type, is_shared_with_parents, created_at')
         .eq('school_id', schoolId)
@@ -932,8 +932,8 @@ export function useOfflineAssessments(schoolId: string | null, enabled = true) {
   return useOfflineData<offlineDb.CachedAssessment[]>(
     async () => {
       if (!schoolId) return [];
-      const { supabase } = await import('@/integrations/supabase/client');
-      const { data } = await supabase
+      const { api } = await import('@/lib/api');
+      const { data } = await api
         .from('academic_assessments')
         .select('id, title, class_section_id, subject_id, assessment_date, max_marks, is_published, term_label')
         .eq('school_id', schoolId)
@@ -962,8 +962,8 @@ export function useOfflineStudentMarks(schoolId: string | null, enabled = true) 
   return useOfflineData<offlineDb.CachedStudentMark[]>(
     async () => {
       if (!schoolId) return [];
-      const { supabase } = await import('@/integrations/supabase/client');
-      const { data } = await supabase
+      const { api } = await import('@/lib/api');
+      const { data } = await api
         .from('student_marks')
         .select('id, student_id, assessment_id, marks, computed_grade, grade_points')
         .eq('school_id', schoolId)
@@ -989,8 +989,8 @@ export function useOfflineStudentGuardians(schoolId: string | null, enabled = tr
   return useOfflineData<offlineDb.CachedStudentGuardian[]>(
     async () => {
       if (!schoolId) return [];
-      const { supabase } = await import('@/integrations/supabase/client');
-      const { data } = await supabase
+      const { api } = await import('@/lib/api');
+      const { data } = await api
         .from('student_guardians')
         .select('id, student_id, user_id, relationship, phone, email')
         .limit(500);
@@ -1015,8 +1015,8 @@ export function useOfflineCallLogs(schoolId: string | null, enabled = true) {
   return useOfflineData<offlineDb.CachedCallLog[]>(
     async () => {
       if (!schoolId) return [];
-      const { supabase } = await import('@/integrations/supabase/client');
-      const { data } = await supabase
+      const { api } = await import('@/lib/api');
+      const { data } = await api
         .from('crm_call_logs')
         .select('id, lead_id, called_at, duration_seconds, outcome, notes')
         .eq('school_id', schoolId)
@@ -1043,8 +1043,8 @@ export function useOfflineCrmActivities(schoolId: string | null, enabled = true)
   return useOfflineData<offlineDb.CachedCrmActivity[]>(
     async () => {
       if (!schoolId) return [];
-      const { supabase } = await import('@/integrations/supabase/client');
-      const { data } = await supabase
+      const { api } = await import('@/lib/api');
+      const { data } = await api
         .from('crm_activities')
         .select('id, lead_id, activity_type, summary, due_at, completed_at')
         .eq('school_id', schoolId)
@@ -1071,8 +1071,8 @@ export function useOfflineHrDocuments(schoolId: string | null, enabled = true) {
   return useOfflineData<offlineDb.CachedHrDocument[]>(
     async () => {
       if (!schoolId) return [];
-      const { supabase } = await import('@/integrations/supabase/client');
-      const { data } = await supabase
+      const { api } = await import('@/lib/api');
+      const { data } = await api
         .from('hr_documents')
         .select('id, user_id, document_name, document_type, file_url')
         .eq('school_id', schoolId)
@@ -1098,8 +1098,8 @@ export function useOfflineGradeThresholds(schoolId: string | null, enabled = tru
   return useOfflineData<offlineDb.CachedGradeThreshold[]>(
     async () => {
       if (!schoolId) return [];
-      const { supabase } = await import('@/integrations/supabase/client');
-      const { data } = await supabase
+      const { api } = await import('@/lib/api');
+      const { data } = await api
         .from('grade_thresholds')
         .select('id, grade_label, min_percentage, max_percentage, grade_points, sort_order')
         .eq('school_id', schoolId)

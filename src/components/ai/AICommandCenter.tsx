@@ -27,7 +27,7 @@ import {
   Zap,
 } from "lucide-react";
 import { format } from "date-fns";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -64,29 +64,29 @@ export function AICommandCenter({ schoolId, onNavigate }: Props) {
         predictionsRes,
       ] = await Promise.all([
         // Student profiles with risk
-        (supabase as any)
+        (api as any)
           .from("ai_student_profiles")
           .select("risk_score, needs_counseling, needs_extra_support")
           .eq("school_id", schoolId),
         // Active early warnings
-        supabase
+        api
           .from("ai_early_warnings")
           .select("severity, status")
           .eq("school_id", schoolId)
           .is("resolved_at", null),
         // Counseling queue
-        supabase
+        api
           .from("ai_counseling_queue")
           .select("status, priority")
           .eq("school_id", schoolId)
           .in("status", ["pending", "scheduled"]),
         // Teacher performance
-        supabase
+        api
           .from("ai_teacher_performance")
           .select("overall_score, needs_training")
           .eq("school_id", schoolId),
         // Latest reputation
-        (supabase as any)
+        (api as any)
           .from("ai_school_reputation")
           .select("reputation_score, parent_satisfaction_index, nps_score")
           .eq("school_id", schoolId)
@@ -94,7 +94,7 @@ export function AICommandCenter({ schoolId, onNavigate }: Props) {
           .limit(1)
           .maybeSingle(),
         // Academic predictions
-        supabase
+        api
           .from("ai_academic_predictions")
           .select("failure_risk, promotion_probability")
           .eq("school_id", schoolId),

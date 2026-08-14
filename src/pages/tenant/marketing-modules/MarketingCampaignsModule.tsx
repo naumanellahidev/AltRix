@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -34,7 +34,7 @@ export function MarketingCampaignsModule() {
     let cancelled = false;
     (async () => {
       if (!schoolSlug) return;
-      const { data: school } = await supabase.from("schools").select("id").eq("slug", schoolSlug).maybeSingle();
+      const { data: school } = await api.from("schools").select("id").eq("slug", schoolSlug).maybeSingle();
       if (cancelled) return;
       setSchoolId(school?.id ?? null);
     })();
@@ -46,9 +46,9 @@ export function MarketingCampaignsModule() {
   const refresh = async () => {
     if (!schoolId) return;
     const [{ data: c }, { data: l }, { data: a }] = await Promise.all([
-      supabase.from("crm_campaigns").select("id,name,channel,status,budget").eq("school_id", schoolId).order("created_at", { ascending: false }),
-      supabase.from("crm_leads").select("id,full_name").eq("school_id", schoolId).order("created_at", { ascending: false }),
-      supabase.from("crm_lead_attributions").select("lead_id,campaign_id").eq("school_id", schoolId),
+      api.from("crm_campaigns").select("id,name,channel,status,budget").eq("school_id", schoolId).order("created_at", { ascending: false }),
+      api.from("crm_leads").select("id,full_name").eq("school_id", schoolId).order("created_at", { ascending: false }),
+      api.from("crm_lead_attributions").select("lead_id,campaign_id").eq("school_id", schoolId),
     ]);
     setCampaigns((c ?? []) as Campaign[]);
     setLeads((l ?? []) as Lead[]);
@@ -66,7 +66,7 @@ export function MarketingCampaignsModule() {
     
     setBusy(true);
     try {
-      await supabase.from("crm_campaigns").insert({
+      await api.from("crm_campaigns").insert({
         school_id: schoolId,
         name: name.trim(),
         channel,
@@ -86,7 +86,7 @@ export function MarketingCampaignsModule() {
     if (!schoolId || !leadId || !campaignId) return;
     setBusy(true);
     try {
-      await supabase.from("crm_lead_attributions").upsert({
+      await api.from("crm_lead_attributions").upsert({
         school_id: schoolId,
         lead_id: leadId,
         campaign_id: campaignId,

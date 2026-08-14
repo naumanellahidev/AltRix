@@ -27,7 +27,7 @@ import {
   FileText,
   Loader2,
 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 
 type Props = {
   basePath: string; // e.g. "/acme/principal" or "/acme/teacher"
@@ -70,7 +70,7 @@ export function GlobalCommandPalette({ basePath }: Props) {
   useEffect(() => {
     if (!schoolSlug) return;
     (async () => {
-      const { data } = await supabase
+      const { data } = await api
         .from("schools")
         .select("id")
         .eq("slug", schoolSlug)
@@ -116,7 +116,7 @@ export function GlobalCommandPalette({ basePath }: Props) {
     try {
       // Search all three entity types in parallel
       const [studentsRes, staffRes, leadsRes] = await Promise.all([
-        (supabase as any).rpc("directory_search", {
+        (api as any).rpc("directory_search", {
           _school_id: schoolId,
           _entity: "students",
           _q: debouncedQuery,
@@ -124,7 +124,7 @@ export function GlobalCommandPalette({ basePath }: Props) {
           _limit: 5,
           _offset: 0,
         }),
-        (supabase as any).rpc("directory_search", {
+        (api as any).rpc("directory_search", {
           _school_id: schoolId,
           _entity: "staff",
           _q: debouncedQuery,
@@ -132,7 +132,7 @@ export function GlobalCommandPalette({ basePath }: Props) {
           _limit: 5,
           _offset: 0,
         }),
-        (supabase as any).rpc("directory_search", {
+        (api as any).rpc("directory_search", {
           _school_id: schoolId,
           _entity: "leads",
           _q: debouncedQuery,

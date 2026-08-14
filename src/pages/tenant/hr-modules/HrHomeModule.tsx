@@ -5,7 +5,7 @@ import {
   Wallet, BarChart3, ClipboardCheck, AlertTriangle, TrendingUp, Megaphone,
 } from "lucide-react";
 import { useTenant } from "@/hooks/useTenant";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -46,15 +46,15 @@ export function HrHomeModule() {
     const in30 = new Date(); in30.setDate(in30.getDate() + 30);
 
     const [roles, leaves, contracts, postings, applicants, payroll, interviews, onboarding, regs] = await Promise.all([
-      (supabase as any).from("user_roles").select("user_id", { count: "exact", head: true }).eq("school_id", schoolId),
-      (supabase as any).from("hr_leave_requests").select("id", { count: "exact", head: true }).eq("school_id", schoolId).eq("status", "pending"),
-      (supabase as any).from("hr_contracts").select("id, user_id, end_date, status").eq("school_id", schoolId),
-      (supabase as any).from("hr_job_postings").select("id, openings", { count: "exact" }).eq("school_id", schoolId).eq("status", "open"),
-      (supabase as any).from("hr_applicants").select("id", { count: "exact", head: true }).eq("school_id", schoolId).in("stage", ["applied", "screening"]),
-      (supabase as any).from("hr_payroll_runs").select("id", { count: "exact", head: true }).eq("school_id", schoolId).eq("status", "draft"),
-      (supabase as any).from("hr_interviews").select("id", { count: "exact", head: true }).eq("school_id", schoolId).gte("scheduled_at", now.toISOString()).lte("scheduled_at", in30.toISOString()).eq("status", "scheduled"),
-      (supabase as any).from("hr_onboarding_assignments").select("id, employee_user_id, start_date, kind, status").eq("school_id", schoolId).eq("kind", "onboarding").order("start_date", { ascending: false }).limit(5),
-      (supabase as any).from("hr_attendance_regularizations").select("id", { count: "exact", head: true }).eq("school_id", schoolId).eq("status", "pending"),
+      (api as any).from("user_roles").select("user_id", { count: "exact", head: true }).eq("school_id", schoolId),
+      (api as any).from("hr_leave_requests").select("id", { count: "exact", head: true }).eq("school_id", schoolId).eq("status", "pending"),
+      (api as any).from("hr_contracts").select("id, user_id, end_date, status").eq("school_id", schoolId),
+      (api as any).from("hr_job_postings").select("id, openings", { count: "exact" }).eq("school_id", schoolId).eq("status", "open"),
+      (api as any).from("hr_applicants").select("id", { count: "exact", head: true }).eq("school_id", schoolId).in("stage", ["applied", "screening"]),
+      (api as any).from("hr_payroll_runs").select("id", { count: "exact", head: true }).eq("school_id", schoolId).eq("status", "draft"),
+      (api as any).from("hr_interviews").select("id", { count: "exact", head: true }).eq("school_id", schoolId).gte("scheduled_at", now.toISOString()).lte("scheduled_at", in30.toISOString()).eq("status", "scheduled"),
+      (api as any).from("hr_onboarding_assignments").select("id, employee_user_id, start_date, kind, status").eq("school_id", schoolId).eq("kind", "onboarding").order("start_date", { ascending: false }).limit(5),
+      (api as any).from("hr_attendance_regularizations").select("id", { count: "exact", head: true }).eq("school_id", schoolId).eq("status", "pending"),
     ]);
 
     const contractsData = contracts.data || [];

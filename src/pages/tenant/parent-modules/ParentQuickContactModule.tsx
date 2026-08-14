@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { ChildInfo } from "@/hooks/useMyChildren";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -42,7 +42,7 @@ export default function ParentQuickContactModule({ child, schoolId }: ParentQuic
     try {
       // Fetch child's class and subject teachers
       // We retrieve teachers assigned to subjects in the child's class section
-      const { data, error } = await supabase.rpc("get_child_teachers_detailed", {
+      const { data, error } = await api.rpc("get_child_teachers_detailed", {
         _school_id: schoolId,
         _student_id: child.student_id
       });

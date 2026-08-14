@@ -16,7 +16,7 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { format, parseISO, formatDistanceToNow } from "date-fns";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -70,7 +70,7 @@ export function AICounselorMode({ schoolId }: Props) {
   const { data: queue, isLoading } = useQuery({
     queryKey: ["ai_counseling_queue", schoolId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await api
         .from("ai_counseling_queue")
         .select(`
           *,
@@ -118,7 +118,7 @@ export function AICounselorMode({ schoolId }: Props) {
       if (notes) updates.session_notes = notes;
       if (outcome) updates.outcome = outcome;
 
-      const { error } = await supabase
+      const { error } = await api
         .from("ai_counseling_queue")
         .update(updates)
         .eq("id", id);

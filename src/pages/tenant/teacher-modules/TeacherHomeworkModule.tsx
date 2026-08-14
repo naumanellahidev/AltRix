@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { Plus, Trash2 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { useTenant } from "@/hooks/useTenant";
 import { useOfflineHomework, useOfflineSections, useOfflineTeacherAssignments, useOfflineClasses } from "@/hooks/useOfflineData";
 import { OfflineModuleWrapper } from "@/components/offline/OfflineModuleWrapper";
@@ -92,9 +92,9 @@ export function TeacherHomeworkModule() {
       return;
     }
 
-    const { data: user } = await supabase.auth.getUser();
+    const { data: user } = await api.auth.getUser();
 
-    const { error } = await supabase.from("homework").insert({
+    const { error } = await api.from("homework").insert({
       school_id: schoolId,
       class_section_id: newHomework.class_section_id,
       teacher_user_id: user.user?.id,
@@ -115,7 +115,7 @@ export function TeacherHomeworkModule() {
   };
 
   const markCompleted = async (id: string) => {
-    const { error } = await supabase.from("homework").update({ status: "completed" }).eq("id", id);
+    const { error } = await api.from("homework").update({ status: "completed" }).eq("id", id);
     if (error) {
       toast({ title: "Failed to update", description: error.message, variant: "destructive" });
       return;
@@ -125,7 +125,7 @@ export function TeacherHomeworkModule() {
   };
 
   const deleteHomework = async (id: string) => {
-    const { error } = await supabase.from("homework").delete().eq("id", id);
+    const { error } = await api.from("homework").delete().eq("id", id);
     if (error) {
       toast({ title: "Failed to delete", description: error.message, variant: "destructive" });
       return;

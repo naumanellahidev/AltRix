@@ -17,7 +17,7 @@ import {
   Loader2,
 } from "lucide-react";
 
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { useSession } from "@/hooks/useSession";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -114,7 +114,7 @@ export default function PlatformSchoolsPage() {
     setAuthzMessage(null);
 
     (async () => {
-      const { data: psa, error: psaErr } = await supabase
+      const { data: psa, error: psaErr } = await api
         .from("platform_super_admins")
         .select("user_id")
         .eq("user_id", user.id)
@@ -141,7 +141,7 @@ export default function PlatformSchoolsPage() {
   }, [user]);
 
   const refresh = async () => {
-    const { data: s, error: sErr } = await supabase
+    const { data: s, error: sErr } = await api
       .from("schools")
       .select("id,slug,name,is_active,created_at")
       .order("created_at", { ascending: false })
@@ -151,7 +151,7 @@ export default function PlatformSchoolsPage() {
       setSchools(schoolList);
     }
 
-    const { data: a, error: aErr } = await (supabase as any)
+    const { data: a, error: aErr } = await (api as any)
       .from("audit_logs")
       .select("id,created_at,action,entity_type,entity_id,school_id,actor_user_id")
       .order("created_at", { ascending: false })
@@ -160,7 +160,7 @@ export default function PlatformSchoolsPage() {
 
     setOwnersLoading(true);
     setOwnersError(null);
-    const { data: owners, error: ownersErr } = await (supabase as any).rpc("list_existing_school_owners");
+    const { data: owners, error: ownersErr } = await (api as any).rpc("list_existing_school_owners");
     if (ownersErr) {
       setOwnersError(ownersErr.message || "Failed to load owners");
     } else {
@@ -207,7 +207,7 @@ export default function PlatformSchoolsPage() {
 
     setCreatingSchool(true);
     try {
-      const { data, error } = await supabase.functions.invoke("eduverse-admin-create-school", {
+      const { data, error } = await api.functions.invoke("eduverse-admin-create-school", {
         body: {
           slug: newSlug.trim(),
           name: newName.trim(),
@@ -272,7 +272,7 @@ export default function PlatformSchoolsPage() {
 
     setCreatingStaff(true);
     try {
-      const { error } = await supabase.functions.invoke("eduverse-admin-create-user", {
+      const { error } = await api.functions.invoke("eduverse-admin-create-user", {
         body: {
           schoolSlug: s.slug,
           email: staffEmail.trim().toLowerCase(),
@@ -301,7 +301,7 @@ export default function PlatformSchoolsPage() {
     if (!s) return toast.error("Select a school");
     setUnlocking(true);
     try {
-      const { error } = await supabase.functions.invoke("eduverse-admin-unlock-bootstrap", {
+      const { error } = await api.functions.invoke("eduverse-admin-unlock-bootstrap", {
         body: { schoolSlug: s.slug },
       });
       if (error) {
@@ -337,7 +337,7 @@ export default function PlatformSchoolsPage() {
     setImpBusy(true);
     setImpLink(null);
     try {
-      const { data, error } = await supabase.functions.invoke("eduverse-admin-impersonate", {
+      const { data, error } = await api.functions.invoke("eduverse-admin-impersonate", {
         body: {
           targetEmail: impEmail.trim().toLowerCase(),
           schoolSlug: s.slug,

@@ -26,7 +26,7 @@ import {
   TrendingUpIcon,
   HelpCircle,
 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { exportToCSV } from "@/lib/csv";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -113,18 +113,18 @@ export function OwnerFinanceModule({ schoolId, role = "school_owner" }: Props) {
         studentsRes,
         salaryTargetsRes
       ] = await Promise.all([
-        supabase.from("finance_payments").select("*").eq("school_id", schoolId),
-        campusEq(supabase.from("fee_payments").select("*").eq("school_id", schoolId).eq("status", "success")),
-        supabase.from("finance_expenses").select("*").eq("school_id", schoolId),
-        supabase.from("finance_invoices").select("*").eq("school_id", schoolId),
-        campusEq(supabase.from("fee_invoices").select("*").eq("school_id", schoolId)),
-        supabase.from("hr_pay_runs").select("*").eq("school_id", schoolId),
-        supabase.from("hr_salary_records").select("*").eq("school_id", schoolId).eq("is_active", true),
-        supabase.from("finance_payment_methods").select("*").eq("school_id", schoolId),
-        supabase.from("student_fee_assignments").select("*").eq("school_id", schoolId).eq("is_active", true),
-        supabase.from("fee_plan_items").select("*").eq("school_id", schoolId),
-        supabase.from("students").select("id,first_name,last_name").eq("school_id", schoolId),
-        supabase.from("salary_budget_targets").select("*").eq("school_id", schoolId)
+        api.from("finance_payments").select("*").eq("school_id", schoolId),
+        campusEq(api.from("fee_payments").select("*").eq("school_id", schoolId).eq("status", "success")),
+        api.from("finance_expenses").select("*").eq("school_id", schoolId),
+        api.from("finance_invoices").select("*").eq("school_id", schoolId),
+        campusEq(api.from("fee_invoices").select("*").eq("school_id", schoolId)),
+        api.from("hr_pay_runs").select("*").eq("school_id", schoolId),
+        api.from("hr_salary_records").select("*").eq("school_id", schoolId).eq("is_active", true),
+        api.from("finance_payment_methods").select("*").eq("school_id", schoolId),
+        api.from("student_fee_assignments").select("*").eq("school_id", schoolId).eq("is_active", true),
+        api.from("fee_plan_items").select("*").eq("school_id", schoolId),
+        api.from("students").select("id,first_name,last_name").eq("school_id", schoolId),
+        api.from("salary_budget_targets").select("*").eq("school_id", schoolId)
       ]);
 
       const finPayments = finPaymentsRes.data || [];
@@ -329,7 +329,7 @@ export function OwnerFinanceModule({ schoolId, role = "school_owner" }: Props) {
         (generalExpenses.filter((e) => e.expense_date >= subMonths(new Date(), 6)).reduce((sum, e) => sum + e.amount, 0) / 6);
 
       // Budget targets vs salaries actual
-      const staffRolesRes = await supabase.from("user_roles").select("user_id, role").eq("school_id", schoolId);
+      const staffRolesRes = await api.from("user_roles").select("user_id, role").eq("school_id", schoolId);
       const staffRoles = staffRolesRes.data || [];
       const roleMap = new Map<string, string>();
       staffRoles.forEach((sr) => roleMap.set(sr.user_id, sr.role));

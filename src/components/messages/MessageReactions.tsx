@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { Smile, Pin, PinOff, Heart, ThumbsUp, ThumbsDown, Star, Laugh, Loader2 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import {
   Popover,
   PopoverContent,
@@ -41,11 +41,11 @@ export function MessageReactions({ messageId, schoolId, currentUserId, isMine = 
     if (!messageId || !currentUserId) return;
 
     const [{ data: reactionsData }, { data: pinData }] = await Promise.all([
-      (supabase as any)
+      (api as any)
         .from("admin_message_reactions")
         .select("emoji, user_id")
         .eq("message_id", messageId),
-      (supabase as any)
+      (api as any)
         .from("admin_message_pins")
         .select("id")
         .eq("message_id", messageId)
@@ -81,7 +81,7 @@ export function MessageReactions({ messageId, schoolId, currentUserId, isMine = 
   useEffect(() => {
     if (!messageId) return;
 
-    const channel = supabase
+    const channel = api
       .channel(`reactions-${messageId}`)
       .on(
         "postgres_changes",
@@ -99,7 +99,7 @@ export function MessageReactions({ messageId, schoolId, currentUserId, isMine = 
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      api.removeChannel(channel);
     };
   }, [messageId, fetchReactionsAndPin]);
 
@@ -107,7 +107,7 @@ export function MessageReactions({ messageId, schoolId, currentUserId, isMine = 
   useEffect(() => {
     if (!messageId || !currentUserId) return;
 
-    const channel = supabase
+    const channel = api
       .channel(`pins-${messageId}-${currentUserId}`)
       .on(
         "postgres_changes",
@@ -132,7 +132,7 @@ export function MessageReactions({ messageId, schoolId, currentUserId, isMine = 
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      api.removeChannel(channel);
     };
   }, [messageId, currentUserId]);
 
@@ -145,7 +145,7 @@ export function MessageReactions({ messageId, schoolId, currentUserId, isMine = 
 
       if (existing) {
         // Remove reaction
-        await (supabase as any)
+        await (api as any)
           .from("admin_message_reactions")
           .delete()
           .eq("message_id", messageId)
@@ -153,7 +153,7 @@ export function MessageReactions({ messageId, schoolId, currentUserId, isMine = 
           .eq("emoji", emoji);
       } else {
         // Add reaction
-        await (supabase as any).from("admin_message_reactions").insert({
+        await (api as any).from("admin_message_reactions").insert({
           message_id: messageId,
           user_id: currentUserId,
           school_id: schoolId,
@@ -176,14 +176,14 @@ export function MessageReactions({ messageId, schoolId, currentUserId, isMine = 
 
     try {
       if (isPinned) {
-        await (supabase as any)
+        await (api as any)
           .from("admin_message_pins")
           .delete()
           .eq("message_id", messageId)
           .eq("user_id", currentUserId);
         toast({ title: "Message unpinned" });
       } else {
-        await (supabase as any).from("admin_message_pins").insert({
+        await (api as any).from("admin_message_pins").insert({
           message_id: messageId,
           user_id: currentUserId,
           school_id: schoolId,
@@ -309,7 +309,7 @@ export function PinnedMessagesCount({ schoolId, currentUserId }: { schoolId: str
   const fetchCount = useCallback(async () => {
     if (!schoolId || !currentUserId) return;
     
-    const { count: pinnedCount } = await (supabase as any)
+    const { count: pinnedCount } = await (api as any)
       .from("admin_message_pins")
       .select("*", { count: "exact", head: true })
       .eq("school_id", schoolId)
@@ -326,7 +326,7 @@ export function PinnedMessagesCount({ schoolId, currentUserId }: { schoolId: str
   useEffect(() => {
     if (!schoolId || !currentUserId) return;
 
-    const channel = supabase
+    const channel = api
       .channel(`user-pins-count-${currentUserId}`)
       .on(
         "postgres_changes",
@@ -350,7 +350,7 @@ export function PinnedMessagesCount({ schoolId, currentUserId }: { schoolId: str
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      api.removeChannel(channel);
     };
   }, [schoolId, currentUserId]);
 

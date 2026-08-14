@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { Send, MessageSquare, Search, Users, GraduationCap, Briefcase, UserCheck, Paperclip, X, FileText, Image, Loader2, AlertCircle } from "lucide-react";
-import { supabase, USE_FASTAPI } from "@/integrations/supabase/client";
+import { api, USE_FASTAPI } from "@/lib/api";
 import { apiClient } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -65,7 +65,7 @@ export function SendMessageDialog({ schoolId, trigger, onMessageSent }: SendMess
           setUsers((response.data ?? []) as User[]);
         } else {
           // Fetch all users with their roles in this school
-          const { data: roles } = await supabase
+          const { data: roles } = await api
             .from("user_roles")
             .select("user_id, role")
             .eq("school_id", schoolId);
@@ -79,7 +79,7 @@ export function SendMessageDialog({ schoolId, trigger, onMessageSent }: SendMess
           const userIds = [...new Set(roles.map((r) => r.user_id))];
 
           // Fetch profiles for these users
-          const { data: profiles } = await (supabase as any)
+          const { data: profiles } = await (api as any)
             .from("profiles")
             .select("id, display_name")
             .in("id", userIds);
@@ -254,7 +254,7 @@ export function SendMessageDialog({ schoolId, trigger, onMessageSent }: SendMess
       const fileExt = attachment.name.split(".").pop();
       const filePath = `${senderId}/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
 
-      const { error } = await supabase.storage
+      const { error } = await api.storage
         .from("message-attachments")
         .upload(filePath, attachment.file);
 
@@ -294,7 +294,7 @@ export function SendMessageDialog({ schoolId, trigger, onMessageSent }: SendMess
     setSending(true);
 
     try {
-      const { data: userData } = await supabase.auth.getUser();
+      const { data: userData } = await api.auth.getUser();
       const senderId = userData.user?.id;
 
       if (!senderId) {
@@ -328,7 +328,7 @@ export function SendMessageDialog({ schoolId, trigger, onMessageSent }: SendMess
         });
       } else {
         // Create a single admin message with attachments
-        const { data: messageData, error: messageError } = await supabase
+        const { data: messageData, error: messageError } = await api
           .from("admin_messages")
           .insert({
             school_id: schoolId,
@@ -352,7 +352,7 @@ export function SendMessageDialog({ schoolId, trigger, onMessageSent }: SendMess
           recipient_user_id: user.user_id,
         }));
 
-        await supabase.from("admin_message_recipients").insert(recipientRecords);
+        await api.from("admin_message_recipients").insert(recipientRecords);
 
         // Also create notifications for each recipient
         const notifications = selectedUsers.map((user) => ({
@@ -363,7 +363,7 @@ export function SendMessageDialog({ schoolId, trigger, onMessageSent }: SendMess
           type: "admin_message",
         }));
 
-        await supabase.from("app_notifications").insert(notifications);
+        await api.from("app_notifications").insert(notifications);
       }
 
       toast({

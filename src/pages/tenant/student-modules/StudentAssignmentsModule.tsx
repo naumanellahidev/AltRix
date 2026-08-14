@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -288,7 +288,7 @@ export function StudentAssignmentsModule({ myStudent, schoolId }: { myStudent: a
   const refreshSubmissions = async () => {
     if (myStudent.status !== "ready" || isOffline) return;
     
-    const { data: subs } = await supabase
+    const { data: subs } = await api
       .from("assignment_submissions")
       .select("id,assignment_id,content,attachment_urls,submitted_at,status,marks,feedback")
       .eq("school_id", schoolId)
@@ -343,7 +343,7 @@ export function StudentAssignmentsModule({ myStudent, schoolId }: { myStudent: a
     const filePath = `${myStudent.studentId}/${selectedAssignment.id}/${fileName}`;
 
     setUploading(true);
-    const { error } = await supabase.storage
+    const { error } = await api.storage
       .from(BUCKET_NAME)
       .upload(filePath, file, { upsert: false });
 
@@ -408,7 +408,7 @@ export function StudentAssignmentsModule({ myStudent, schoolId }: { myStudent: a
     };
 
     if (existing) {
-      const { error } = await supabase
+      const { error } = await api
         .from("assignment_submissions")
         .update(savePayload)
         .eq("id", existing.id);
@@ -421,7 +421,7 @@ export function StudentAssignmentsModule({ myStudent, schoolId }: { myStudent: a
         refreshSubmissions();
       }
     } else {
-      const { error } = await supabase
+      const { error } = await api
         .from("assignment_submissions")
         .insert({
           school_id: schoolId,

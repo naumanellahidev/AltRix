@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import JSZip from "jszip";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -72,7 +72,7 @@ const fmtBytes = (b: number) => {
 
 async function listBucketRecursive(bucket: string, prefix = ""): Promise<FileRow[]> {
   const out: FileRow[] = [];
-  const { data, error } = await supabase.storage.from(bucket).list(prefix, {
+  const { data, error } = await api.storage.from(bucket).list(prefix, {
     limit: 1000,
     sortBy: { column: "name", order: "asc" },
   });
@@ -134,7 +134,7 @@ export function PlatformFilesAndBackup() {
   }));
 
   const downloadSingle = async (row: FileRow) => {
-    const { data, error } = await supabase.storage.from(row.bucket).download(row.path);
+    const { data, error } = await api.storage.from(row.bucket).download(row.path);
     if (error || !data) return toast.error("Download failed: " + (error?.message ?? "no data"));
     const url = URL.createObjectURL(data);
     const a = document.createElement("a");
@@ -153,7 +153,7 @@ export function PlatformFilesAndBackup() {
       for (const f of files) {
         i++;
         setProgress(`Packing ${i}/${files.length}: ${f.bucket}/${f.path}`);
-        const { data, error } = await supabase.storage.from(f.bucket).download(f.path);
+        const { data, error } = await api.storage.from(f.bucket).download(f.path);
         if (error || !data) continue;
         const buf = await data.arrayBuffer();
         zip.folder(f.bucket)?.file(f.path, buf);
@@ -181,7 +181,7 @@ export function PlatformFilesAndBackup() {
       let total = 0;
       for (const t of PLATFORM_TABLES) {
         try {
-          const { data, error } = await supabase.from(t as any).select("*");
+          const { data, error } = await api.from(t as any).select("*");
           if (!error && Array.isArray(data)) {
             dump[t] = data;
             total += data.length;
@@ -231,7 +231,7 @@ export function PlatformFilesAndBackup() {
         const chunkSize = 200;
         for (let i = 0; i < rows.length; i += chunkSize) {
           const chunk = rows.slice(i, i + chunkSize);
-          const { error } = await supabase.from(t as any).upsert(chunk as any, { onConflict: "id" });
+          const { error } = await api.from(t as any).upsert(chunk as any, { onConflict: "id" });
           if (error) { fail++; }
           else { ok++; }
         }

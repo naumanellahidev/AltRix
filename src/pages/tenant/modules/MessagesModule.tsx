@@ -24,7 +24,7 @@ import {
   WifiOff,
   CloudOff,
 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { getVPSFileUrl } from "@/lib/vpsStorage";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -170,7 +170,7 @@ export function MessagesModule({ schoolId, isStudentPortal = false }: Props) {
 
   const fetchConversations = useCallback(async () => {
     setLoading(true);
-    const { data: user } = await supabase.auth.getUser();
+    const { data: user } = await api.auth.getUser();
     if (!user.user) {
       setLoading(false);
       return;
@@ -178,7 +178,7 @@ export function MessagesModule({ schoolId, isStudentPortal = false }: Props) {
     setCurrentUserId(user.user.id);
 
     // Fetch current user's display name for typing indicator
-    const { data: profile } = await supabase
+    const { data: profile } = await api
       .from("profiles")
       .select("display_name")
       .eq("user_id", user.user.id)
@@ -186,7 +186,7 @@ export function MessagesModule({ schoolId, isStudentPortal = false }: Props) {
     setCurrentUserName(profile?.display_name || user.user.email || "User");
 
     // Fetch cleared conversations for this user (with timestamp to filter old messages)
-    const { data: clearedRows } = await supabase
+    const { data: clearedRows } = await api
       .from("cleared_conversations")
       .select("partner_user_id, cleared_at")
       .eq("school_id", schoolId)
@@ -202,7 +202,7 @@ export function MessagesModule({ schoolId, isStudentPortal = false }: Props) {
     setClearedConversations(clearedMap);
 
     // Fetch scheduled messages count
-    const { count: schedCount } = await supabase
+    const { count: schedCount } = await api
       .from("scheduled_messages")
       .select("id", { count: "exact", head: true })
       .eq("school_id", schoolId)
@@ -211,7 +211,7 @@ export function MessagesModule({ schoolId, isStudentPortal = false }: Props) {
     setScheduledCount(schedCount || 0);
 
     // Fetch all messages where user is sender
-    const { data: sentMessages } = await supabase
+    const { data: sentMessages } = await api
       .from("admin_messages")
       .select("*, admin_message_recipients(recipient_user_id, is_read)")
       .eq("school_id", schoolId)
@@ -219,7 +219,7 @@ export function MessagesModule({ schoolId, isStudentPortal = false }: Props) {
       .order("created_at", { ascending: false });
 
     // Fetch messages received
-    const { data: receivedRows } = await supabase
+    const { data: receivedRows } = await api
       .from("admin_message_recipients")
       .select("message_id, is_read, admin_messages!inner(*)")
       .eq("recipient_user_id", user.user.id)
@@ -238,7 +238,7 @@ export function MessagesModule({ schoolId, isStudentPortal = false }: Props) {
     // Fetch profiles
     const map: Record<string, string> = {};
     if (userIds.size > 0) {
-      const { data: profiles } = await supabase
+      const { data: profiles } = await api
         .from("profiles")
         .select("user_id, display_name")
         .in("user_id", Array.from(userIds));
@@ -249,7 +249,7 @@ export function MessagesModule({ schoolId, isStudentPortal = false }: Props) {
 
       const missingIds = Array.from(userIds).filter((id) => !map[id]);
       if (missingIds.length > 0) {
-        const { data: directoryEntries } = await supabase
+        const { data: directoryEntries } = await api
           .from("school_user_directory")
           .select("user_id, display_name, email")
           .eq("school_id", schoolId)
@@ -352,7 +352,7 @@ export function MessagesModule({ schoolId, isStudentPortal = false }: Props) {
 
   const fetchAllUsers = useCallback(async () => {
     // Fetch all users in the school
-    const { data } = await supabase
+    const { data } = await api
       .from("school_user_directory")
       .select("user_id, display_name, email")
       .eq("school_id", schoolId);
@@ -363,7 +363,7 @@ export function MessagesModule({ schoolId, isStudentPortal = false }: Props) {
     
     let roleData: { user_id: string; role: string }[] = [];
     if (userIds.length > 0) {
-      const { data: roles } = await supabase
+      const { data: roles } = await api
         .from("user_roles")
         .select("user_id, role")
         .eq("school_id", schoolId)
@@ -416,7 +416,7 @@ export function MessagesModule({ schoolId, isStudentPortal = false }: Props) {
     
     try {
       // Fetch the message to get the sender_user_id
-      const { data: message } = await supabase
+      const { data: message } = await api
         .from("admin_messages")
         .select("sender_user_id")
         .eq("id", messageId)
@@ -433,7 +433,7 @@ export function MessagesModule({ schoolId, isStudentPortal = false }: Props) {
       
       if (!targetPartnerId) {
         // We sent this message, find the recipient
-        const { data: recipient } = await supabase
+        const { data: recipient } = await api
           .from("admin_message_recipients")
           .select("recipient_user_id")
           .eq("message_id", messageId)
@@ -445,7 +445,7 @@ export function MessagesModule({ schoolId, isStudentPortal = false }: Props) {
       if (!targetPartnerId) return;
       
       // Get partner's name
-      const { data: profile } = await supabase
+      const { data: profile } = await api
         .from("profiles")
         .select("display_name")
         .eq("user_id", targetPartnerId)
@@ -552,7 +552,7 @@ export function MessagesModule({ schoolId, isStudentPortal = false }: Props) {
   useEffect(() => {
     if (!schoolId || !currentUserId) return;
 
-    const channel = supabase
+    const channel = api
       .channel(`messages-realtime-${schoolId}-${currentUserId}`)
       .on(
         "postgres_changes",
@@ -606,7 +606,7 @@ export function MessagesModule({ schoolId, isStudentPortal = false }: Props) {
           const newRow = payload.new as { message_id: string; recipient_user_id: string };
           
           // Fetch the new message details
-          const { data: newMessage } = await supabase
+          const { data: newMessage } = await api
             .from("admin_messages")
             .select("id, content, sender_user_id, created_at, attachment_urls, subject, reply_to_id")
             .eq("id", newRow.message_id)
@@ -658,7 +658,7 @@ export function MessagesModule({ schoolId, isStudentPortal = false }: Props) {
             });
             
             // Mark as read since we're viewing it
-            supabase
+            api
               .from("admin_message_recipients")
               .update({ is_read: true, read_at: new Date().toISOString() })
               .eq("message_id", newMessage.id)
@@ -670,7 +670,7 @@ export function MessagesModule({ schoolId, isStudentPortal = false }: Props) {
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      api.removeChannel(channel);
     };
   }, [schoolId, currentUserId, selectedConversation, clearedConversations, updateConversationInList]);
 
@@ -682,7 +682,7 @@ export function MessagesModule({ schoolId, isStudentPortal = false }: Props) {
     const clearedAt = clearedConversations.get(partnerId);
 
     // Get messages sent by me to this partner (with read_at timestamps)
-    const { data: sent } = await supabase
+    const { data: sent } = await api
       .from("admin_messages")
       .select("*, admin_message_recipients!inner(recipient_user_id, is_read, read_at)")
       .eq("school_id", schoolId)
@@ -691,7 +691,7 @@ export function MessagesModule({ schoolId, isStudentPortal = false }: Props) {
       .order("created_at", { ascending: true });
 
     // Get messages received from this partner
-    const { data: receivedRows } = await supabase
+    const { data: receivedRows } = await api
       .from("admin_message_recipients")
       .select("message_id, is_read, read_at, admin_messages!inner(*)")
       .eq("recipient_user_id", currentUserId)
@@ -747,7 +747,7 @@ export function MessagesModule({ schoolId, isStudentPortal = false }: Props) {
 
     // Mark received messages as read
     for (const msg of chatMessages.filter((m) => !m.is_mine && !m.is_read)) {
-      await supabase
+      await api
         .from("admin_message_recipients")
         .update({ is_read: true, read_at: new Date().toISOString() })
         .eq("message_id", msg.id)
@@ -783,7 +783,7 @@ export function MessagesModule({ schoolId, isStudentPortal = false }: Props) {
       if (attachments.length > 0) {
         for (const file of attachments) {
           const fileName = `${currentUserId}/${Date.now()}-${file.name}`;
-          const { error: uploadError } = await supabase.storage
+          const { error: uploadError } = await api.storage
             .from("message-attachments")
             .upload(fileName, file);
           if (!uploadError) {
@@ -792,7 +792,7 @@ export function MessagesModule({ schoolId, isStudentPortal = false }: Props) {
         }
       }
 
-      const { data: messageData, error: messageError } = await supabase
+      const { data: messageData, error: messageError } = await api
         .from("admin_messages")
         .insert({
           school_id: schoolId,
@@ -809,13 +809,13 @@ export function MessagesModule({ schoolId, isStudentPortal = false }: Props) {
 
       if (messageError) throw messageError;
 
-      await supabase.from("admin_message_recipients").insert({
+      await api.from("admin_message_recipients").insert({
         message_id: messageData.id,
         recipient_user_id: selectedConversation.recipientId,
       });
 
       // Add notification
-      await supabase.from("app_notifications").insert({
+      await api.from("app_notifications").insert({
         school_id: schoolId,
         user_id: selectedConversation.recipientId,
         title: replyingTo ? "New Reply" : "New Message",
@@ -920,7 +920,7 @@ export function MessagesModule({ schoolId, isStudentPortal = false }: Props) {
       if (mode === "clear_for_me") {
         // "Clear for me" - just mark this conversation as cleared for the current user
         // The conversation will be hidden from their view but preserved for the other party
-        const { error } = await supabase
+        const { error } = await api
           .from("cleared_conversations")
           .upsert({
             school_id: schoolId,
@@ -936,7 +936,7 @@ export function MessagesModule({ schoolId, isStudentPortal = false }: Props) {
         setClearedConversations((prev) => new Map([...prev, [conv.recipientId, clearedAt]]));
       } else {
         // "Delete for everyone" - permanently delete messages I sent
-        const { data: sentRows, error: sentRowsError } = await supabase
+        const { data: sentRows, error: sentRowsError } = await api
           .from("admin_messages")
           .select("id, admin_message_recipients!inner(recipient_user_id)")
           .eq("school_id", schoolId)
@@ -947,7 +947,7 @@ export function MessagesModule({ schoolId, isStudentPortal = false }: Props) {
 
         const sentIds = (sentRows || []).map((r) => r.id).filter(Boolean);
         if (sentIds.length > 0) {
-          const { error: deleteSentError } = await supabase
+          const { error: deleteSentError } = await api
             .from("admin_messages")
             .delete()
             .in("id", sentIds)
@@ -956,7 +956,7 @@ export function MessagesModule({ schoolId, isStudentPortal = false }: Props) {
         }
 
         // Also delete received message links (clears from my view)
-        const { data: receivedLinks, error: receivedLinksError } = await supabase
+        const { data: receivedLinks, error: receivedLinksError } = await api
           .from("admin_message_recipients")
           .select("id, message_id, admin_messages!inner(sender_user_id, school_id)")
           .eq("recipient_user_id", currentUserId)
@@ -967,7 +967,7 @@ export function MessagesModule({ schoolId, isStudentPortal = false }: Props) {
 
         const receivedLinkIds = (receivedLinks || []).map((r) => r.id).filter(Boolean);
         if (receivedLinkIds.length > 0) {
-          const { error: deleteReceivedError } = await supabase
+          const { error: deleteReceivedError } = await api
             .from("admin_message_recipients")
             .delete()
             .in("id", receivedLinkIds)
@@ -996,7 +996,7 @@ export function MessagesModule({ schoolId, isStudentPortal = false }: Props) {
       throw new Error("Missing message content or recipient");
     }
 
-    const { error } = await supabase
+    const { error } = await api
       .from("scheduled_messages")
       .insert({
         school_id: schoolId,
@@ -1104,7 +1104,7 @@ export function MessagesModule({ schoolId, isStudentPortal = false }: Props) {
       const cleanContent = forwardingMessage.content.replace(/^(📤 Forwarded message:\n\n)+/g, "");
       const forwardedContent = `📤 Forwarded message:\n\n${cleanContent}`;
       
-      const { data: newMsg, error } = await supabase
+      const { data: newMsg, error } = await api
         .from("admin_messages")
         .insert({
           school_id: schoolId,
@@ -1118,13 +1118,13 @@ export function MessagesModule({ schoolId, isStudentPortal = false }: Props) {
 
       if (error) throw error;
 
-      await supabase.from("admin_message_recipients").insert({
+      await api.from("admin_message_recipients").insert({
         message_id: newMsg.id,
         recipient_user_id: recipientId,
       });
 
       // Create notification
-      await supabase.from("app_notifications").insert({
+      await api.from("app_notifications").insert({
         school_id: schoolId,
         user_id: recipientId,
         type: "message",

@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { useTenant } from "@/hooks/useTenant";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,7 +27,7 @@ export function HrLeavesModule() {
     queryKey: ["hr_leave_requests_full", schoolId],
     enabled: !!schoolId,
     queryFn: async () => {
-      const { data, error } = await supabase.from("hr_leave_requests").select("*").eq("school_id", schoolId!).order("created_at", { ascending: false });
+      const { data, error } = await api.from("hr_leave_requests").select("*").eq("school_id", schoolId!).order("created_at", { ascending: false });
       if (error) throw error;
       return data || [];
     },
@@ -37,7 +37,7 @@ export function HrLeavesModule() {
     queryKey: ["school_staff_directory_leaves", schoolId],
     enabled: !!schoolId,
     queryFn: async () => {
-      const { data, error } = await supabase.rpc("get_school_staff_directory", { _school_id: schoolId! });
+      const { data, error } = await api.rpc("get_school_staff_directory", { _school_id: schoolId! });
       if (error) throw error;
       return data || [];
     },
@@ -47,7 +47,7 @@ export function HrLeavesModule() {
     queryKey: ["hr_leave_types_full", schoolId],
     enabled: !!schoolId,
     queryFn: async () => {
-      const { data, error } = await supabase.from("hr_leave_types").select("*").eq("school_id", schoolId!).order("name");
+      const { data, error } = await api.from("hr_leave_types").select("*").eq("school_id", schoolId!).order("name");
       if (error) throw error;
       return data || [];
     },
@@ -58,7 +58,7 @@ export function HrLeavesModule() {
 
   const approveMutation = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
-      const { error } = await supabase.from("hr_leave_requests").update({ status, reviewed_by: (await supabase.auth.getUser()).data.user?.id }).eq("id", id);
+      const { error } = await api.from("hr_leave_requests").update({ status, reviewed_by: (await api.auth.getUser()).data.user?.id }).eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["hr_leave_requests_full"] }); toast.success("Updated"); },
@@ -66,7 +66,7 @@ export function HrLeavesModule() {
 
   const createType = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase.from("hr_leave_types").insert({
+      const { error } = await api.from("hr_leave_types").insert({
         school_id: schoolId, name: typeForm.name, max_days: Number(typeForm.max_days) || 0, is_paid: typeForm.is_paid,
       });
       if (error) throw error;
@@ -77,7 +77,7 @@ export function HrLeavesModule() {
 
   const deleteType = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("hr_leave_types").delete().eq("id", id);
+      const { error } = await api.from("hr_leave_types").delete().eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => { toast.success("Removed"); qc.invalidateQueries({ queryKey: ["hr_leave_types_full"] }); },

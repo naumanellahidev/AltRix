@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { z } from "zod";
 import { KeyRound, Eye, EyeOff } from "lucide-react";
 
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { useSession } from "@/hooks/useSession";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,7 +33,7 @@ export default function PlatformUpdatePassword() {
     if (!parsed.success) return setMessage("Password must be at least 8 characters.");
     setBusy(true);
     try {
-      const { error } = await supabase.auth.updateUser({ password: parsed.data });
+      const { error } = await api.auth.updateUser({ password: parsed.data });
       if (error) return setMessage(error.message);
       navigate("/platform", { replace: true });
     } finally {

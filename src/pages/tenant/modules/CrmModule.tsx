@@ -4,7 +4,7 @@ import { DndContext, DragEndEvent, PointerSensor, useSensor, useSensors } from "
 import { SortableContext, arrayMove, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { KanbanSquare, Plus, Star, Search, Filter } from "lucide-react";
 
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { useTenant } from "@/hooks/useTenant";
 import { useOfflineLeads, useOfflineCrmStages } from "@/hooks/useOfflineData";
 import { OfflineDataBanner } from "@/components/offline/OfflineDataBanner";
@@ -97,7 +97,7 @@ export function CrmModule() {
     if (!schoolId) return;
 
     // Fetch users with 'counselor' role to filter directory
-    const { data: counselorRoles } = await supabase
+    const { data: counselorRoles } = await api
       .from("user_roles")
       .select("user_id")
       .eq("school_id", schoolId)
@@ -106,7 +106,7 @@ export function CrmModule() {
     const counselorUserIds = new Set((counselorRoles ?? []).map((r) => r.user_id));
 
     // Fetch counselor staff directory
-    const { data: staffData } = await supabase
+    const { data: staffData } = await api
       .from("school_user_directory")
       .select("user_id, display_name, email")
       .eq("school_id", schoolId);
@@ -149,12 +149,12 @@ export function CrmModule() {
 
     // ensure defaults
     try {
-      await supabase.rpc("ensure_default_crm_pipeline", { _school_id: schoolId });
+      await api.rpc("ensure_default_crm_pipeline", { _school_id: schoolId });
     } catch (err) {
       console.warn("Failed to ensure default CRM pipeline:", err);
     }
 
-    const { data: p } = await supabase
+    const { data: p } = await api
       .from("crm_pipelines")
       .select("id")
       .eq("school_id", schoolId)
@@ -165,7 +165,7 @@ export function CrmModule() {
     
     if (!pid) {
       // Fallback: take any pipeline if default is missing
-      const { data: firstP } = await supabase
+      const { data: firstP } = await api
         .from("crm_pipelines")
         .select("id")
         .eq("school_id", schoolId)
@@ -177,7 +177,7 @@ export function CrmModule() {
     if (!pid) {
       // Client-side bootstrap fallback for authorized users
       try {
-        const { data: newP } = await supabase
+        const { data: newP } = await api
           .from("crm_pipelines")
           .insert({ school_id: schoolId, name: "Admissions", is_default: true })
           .select("id")
@@ -185,7 +185,7 @@ export function CrmModule() {
         
         if (newP?.id) {
           pid = newP.id;
-          await supabase.from("crm_stages").insert([
+          await api.from("crm_stages").insert([
             { school_id: schoolId, pipeline_id: pid, name: "New", sort_order: 10 },
             { school_id: schoolId, pipeline_id: pid, name: "Contacted", sort_order: 20 },
             { school_id: schoolId, pipeline_id: pid, name: "Tour Scheduled", sort_order: 30 },
@@ -206,7 +206,7 @@ export function CrmModule() {
     }
     setPipelineId(pid);
 
-    const { data: s } = await supabase
+    const { data: s } = await api
       .from("crm_stages")
       .select("id,name,sort_order")
       .eq("school_id", schoolId)
@@ -218,7 +218,7 @@ export function CrmModule() {
     const firstStageId = s?.[0]?.id;
     if (firstStageId) {
       try {
-        await supabase
+        await api
           .from("crm_leads")
           .update({ pipeline_id: pid, stage_id: firstStageId })
           .eq("school_id", schoolId)
@@ -228,7 +228,7 @@ export function CrmModule() {
       }
     }
 
-    const { data: l } = await supabase
+    const { data: l } = await api
       .from("crm_leads")
       .select("id,full_name,score,stage_id,notes,email,phone,assigned_to,source,status")
       .eq("school_id", schoolId)
@@ -246,7 +246,7 @@ export function CrmModule() {
   useEffect(() => {
     if (!schoolId) return;
 
-    const channel = supabase
+    const channel = api
       .channel(`crm_leads_changes:${schoolId}`)
       .on(
         "postgres_changes",
@@ -258,14 +258,14 @@ export function CrmModule() {
       .subscribe();
 
     return () => {
-      void supabase.removeChannel(channel);
+      void api.removeChannel(channel);
     };
   }, [schoolId]);
 
   const createLead = async (stageId: string) => {
     if (!schoolId || !pipelineId) return;
     if (!newLeadName.trim()) return toast.error("Lead name required");
-    const { error } = await supabase.from("crm_leads").insert({
+    const { error } = await api.from("crm_leads").insert({
       school_id: schoolId,
       pipeline_id: pipelineId,
       stage_id: stageId,
@@ -285,7 +285,7 @@ export function CrmModule() {
     if (!openLead) return;
     setSavingLead(true);
     try {
-      const { error } = await supabase
+      const { error } = await api
         .from("crm_leads")
         .update({
           full_name: editName.trim(),
@@ -323,7 +323,7 @@ export function CrmModule() {
       if (!lead || lead.stage_id === stageId) return;
 
       setLeads((prev) => prev.map((l) => (l.id === lead.id ? { ...l, stage_id: stageId } : l)));
-      const { error } = await supabase.from("crm_leads").update({ stage_id: stageId }).eq("id", lead.id);
+      const { error } = await api.from("crm_leads").update({ stage_id: stageId }).eq("id", lead.id);
       if (error) {
         toast.error(error.message);
         await refresh();
@@ -549,7 +549,7 @@ export function CrmModule() {
                           onBumpScore={async () => {
                             const next = Math.min(100, (l.score ?? 0) + 5);
                             setLeads((prev) => prev.map((x) => (x.id === l.id ? { ...x, score: next } : x)));
-                            const { error } = await supabase.from("crm_leads").update({ score: next }).eq("id", l.id);
+                            const { error } = await api.from("crm_leads").update({ score: next }).eq("id", l.id);
                             if (error) {
                               toast.error(error.message);
                               await refresh();

@@ -14,7 +14,7 @@ import {
   Users,
   Zap,
 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -67,16 +67,16 @@ export function OwnerAdmissionsModule({ schoolId }: Props) {
       if (!schoolId) return null;
       const since = periodCutoff(periodFilter).toISOString();
 
-      const baseLeads = supabase.from("crm_leads").select("*").eq("school_id", schoolId).gte("created_at", since);
+      const baseLeads = api.from("crm_leads").select("*").eq("school_id", schoolId).gte("created_at", since);
       const leadsQuery = activeCampusId ? baseLeads.eq("campus_id", activeCampusId) : baseLeads;
 
       const [leadsRes, stagesRes, activitiesRes, campaignsRes, callsRes, dirRes] = await Promise.all([
         leadsQuery,
-        supabase.from("crm_stages").select("*").eq("school_id", schoolId).order("sort_order"),
-        supabase.from("crm_activities").select("*").eq("school_id", schoolId).gte("created_at", since),
-        supabase.from("crm_campaigns").select("*").eq("school_id", schoolId),
-        supabase.from("crm_call_logs").select("*").eq("school_id", schoolId).gte("created_at", since),
-        supabase.rpc("get_school_user_directory", { _school_id: schoolId }),
+        api.from("crm_stages").select("*").eq("school_id", schoolId).order("sort_order"),
+        api.from("crm_activities").select("*").eq("school_id", schoolId).gte("created_at", since),
+        api.from("crm_campaigns").select("*").eq("school_id", schoolId),
+        api.from("crm_call_logs").select("*").eq("school_id", schoolId).gte("created_at", since),
+        api.rpc("get_school_user_directory", { _school_id: schoolId }),
       ]);
 
       const leads = leadsRes.data || [];

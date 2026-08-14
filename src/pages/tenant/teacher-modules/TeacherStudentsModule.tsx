@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useMemo } from "react";
 import { useParams } from "react-router-dom";
 import { Plus, Search, UserPlus, WifiOff } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { useTenant } from "@/hooks/useTenant";
 import { useOfflineStudents, useOfflineSections, useOfflineEnrollments, useOfflineTeacherAssignments } from "@/hooks/useOfflineData";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -101,7 +101,7 @@ export function TeacherStudentsModule() {
 
     const fetchSections = async () => {
       // Get current teacher's user id
-      const { data: userData } = await supabase.auth.getUser();
+      const { data: userData } = await api.auth.getUser();
       const userId = userData.user?.id;
       if (!userId) {
         setLoading(false);
@@ -109,7 +109,7 @@ export function TeacherStudentsModule() {
       }
 
       // Only get assignments for THIS teacher
-      const { data: assignments } = await supabase
+      const { data: assignments } = await api
         .from("teacher_assignments")
         .select("class_section_id")
         .eq("school_id", tenant.schoolId)
@@ -122,7 +122,7 @@ export function TeacherStudentsModule() {
 
       const sectionIds = assignments.map((a) => a.class_section_id);
 
-      const { data: sectionData } = await supabase
+      const { data: sectionData } = await api
         .from("class_sections")
         .select("id, name, class_id")
         .in("id", sectionIds);
@@ -133,7 +133,7 @@ export function TeacherStudentsModule() {
       }
 
       const classIds = [...new Set(sectionData.map((s) => s.class_id))];
-      const { data: classes } = await supabase
+      const { data: classes } = await api
         .from("academic_classes")
         .select("id, name")
         .in("id", classIds);
@@ -160,7 +160,7 @@ export function TeacherStudentsModule() {
     if (!selectedSection || tenant.status !== "ready") return;
 
     const fetchStudents = async () => {
-      const { data: enrollments } = await supabase
+      const { data: enrollments } = await api
         .from("student_enrollments")
         .select("student_id, class_section_id")
         .eq("school_id", tenant.schoolId)
@@ -172,7 +172,7 @@ export function TeacherStudentsModule() {
       }
 
       const studentIds = enrollments.map((e) => e.student_id);
-      let query = (supabase as any)
+      let query = (api as any)
         .from("students")
         .select(
           "id, first_name, last_name, parent_name, student_code, status, date_of_birth, gender, roll_number, registration_number, admission_date, address, city, area, phone, parent_phone, parent_email, emergency_contact, medical_notes, notes, profile_image_url",
@@ -199,7 +199,7 @@ export function TeacherStudentsModule() {
   // Refetch students for the currently selected section (used after StudentFormDialog save)
   const refreshStudents = async () => {
     if (!selectedSection || tenant.status !== "ready") return;
-    const { data: enrollments } = await supabase
+    const { data: enrollments } = await api
       .from("student_enrollments")
       .select("student_id")
       .eq("school_id", tenant.schoolId)
@@ -209,7 +209,7 @@ export function TeacherStudentsModule() {
       setStudents([]);
       return;
     }
-    let query = (supabase as any)
+    let query = (api as any)
       .from("students")
       .select(
         "id, first_name, last_name, parent_name, student_code, status, date_of_birth, gender, roll_number, registration_number, admission_date, address, city, area, phone, parent_phone, parent_email, emergency_contact, medical_notes, notes, profile_image_url",
@@ -234,15 +234,15 @@ export function TeacherStudentsModule() {
     const load = async () => {
       const [{ data: classesData }, { data: subjectsData }, { data: parentRolesData }] =
         await Promise.all([
-          supabase.from("academic_classes").select("id, name").eq("school_id", schoolIdLocal).order("name"),
-          supabase.from("subjects").select("id, name").eq("school_id", schoolIdLocal).order("name"),
-          supabase.from("user_roles").select("user_id").eq("school_id", schoolIdLocal).eq("role", "parent"),
+          api.from("academic_classes").select("id, name").eq("school_id", schoolIdLocal).order("name"),
+          api.from("subjects").select("id, name").eq("school_id", schoolIdLocal).order("name"),
+          api.from("user_roles").select("user_id").eq("school_id", schoolIdLocal).eq("role", "parent"),
         ]);
       setClasses((classesData ?? []) as ClassOption[]);
       setSubjects((subjectsData ?? []) as SubjectOption[]);
       const parentIds = new Set((parentRolesData ?? []).map((r: any) => r.user_id));
       if (parentIds.size > 0) {
-        const { data: dir } = await (supabase as any).rpc("get_school_user_directory", {
+        const { data: dir } = await (api as any).rpc("get_school_user_directory", {
           _school_id: schoolIdLocal,
         });
         const opts: ParentUserOption[] = ((dir ?? []) as any[])
@@ -266,7 +266,7 @@ export function TeacherStudentsModule() {
       return;
     }
 
-    const { error } = await supabase.from("student_guardians").insert({
+    const { error } = await api.from("student_guardians").insert({
       student_id: selectedStudentId,
       full_name: newParent.full_name.trim(),
       relationship: newParent.relationship,
@@ -292,7 +292,7 @@ export function TeacherStudentsModule() {
 
   const viewStudentGuardians = async (studentId: string) => {
     setSelectedStudentId(studentId);
-    const { data } = await supabase
+    const { data } = await api
       .from("student_guardians")
       .select("*")
       .eq("student_id", studentId)

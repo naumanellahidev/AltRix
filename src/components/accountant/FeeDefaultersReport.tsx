@@ -32,7 +32,7 @@ import {
   CartesianGrid,
 } from "recharts";
 
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -132,7 +132,7 @@ export function FeeDefaultersReport({ schoolId }: FeeDefaultersReportProps) {
   const { data: ledgers = [], isLoading: ledgersLoading } = useQuery({
     queryKey: ["student_fee_ledger_defaulters", schoolId],
     queryFn: async () => {
-      const { data, error } = await (supabase as any)
+      const { data, error } = await (api as any)
         .from("student_fee_ledger")
         .select("*")
         .eq("school_id", schoolId)
@@ -148,7 +148,7 @@ export function FeeDefaultersReport({ schoolId }: FeeDefaultersReportProps) {
   const { data: overdueInvoices = [] } = useQuery({
     queryKey: ["overdue_invoices", schoolId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await api
         .from("fee_invoices")
         .select("id, invoice_number, student_id, total_amount, status, created_at, due_date")
         .eq("school_id", schoolId)
@@ -173,7 +173,7 @@ export function FeeDefaultersReport({ schoolId }: FeeDefaultersReportProps) {
   const { data: enrollments = [] } = useQuery({
     queryKey: ["student_enrollments_defaulters", schoolId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await api
         .from("student_enrollments")
         .select("student_id, class_section_id")
         .eq("school_id", schoolId)
@@ -188,7 +188,7 @@ export function FeeDefaultersReport({ schoolId }: FeeDefaultersReportProps) {
   const { data: classSections = [] } = useQuery({
     queryKey: ["class_sections_defaulters", schoolId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await api
         .from("class_sections")
         .select("id, name, class_id")
         .eq("school_id", schoolId);

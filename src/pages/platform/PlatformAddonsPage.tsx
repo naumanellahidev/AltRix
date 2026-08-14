@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { apiClient } from "@/lib/api-client";
 import { SuperAdminShell } from "@/components/super-admin/SuperAdminShell";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -99,7 +99,7 @@ export default function PlatformAddonsPage() {
 
   const loadSchools = async () => {
     setLoading(true);
-    const { data, error } = await supabase
+    const { data, error } = await api
       .from("schools")
       .select("id,slug,name")
       .order("name", { ascending: true });
@@ -188,7 +188,7 @@ export default function PlatformAddonsPage() {
     setBusy(true);
     try {
       await apiClient.patch(`/feature-flags/${school.id}`, flags);
-      const session = await supabase.auth.getSession();
+      const session = await api.auth.getSession();
       const token = session.data.session?.access_token || "";
       await apiClient.post(
         `/ai/settings/school/${school.id}`,

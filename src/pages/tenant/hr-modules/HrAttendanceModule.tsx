@@ -3,7 +3,7 @@ import { useParams } from "react-router-dom";
 import { useTenant } from "@/hooks/useTenant";
 import { useOfflineStaffMembers } from "@/hooks/useOfflineData";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -48,7 +48,7 @@ export function HrAttendanceModule() {
   const { data: attendance = [], isLoading, refetch } = useQuery({
     queryKey: ["hr_staff_attendance", schoolId, selectedDate],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await api
         .from("hr_staff_attendance").select("*")
         .eq("school_id", schoolId!).eq("attendance_date", selectedDate);
       if (error) throw error;
@@ -71,7 +71,7 @@ export function HrAttendanceModule() {
     queryKey: ["hr_staff_attendance_month", schoolId, monthStart, monthEnd],
     enabled: !!schoolId,
     queryFn: async () => {
-      const { data, error } = await supabase.from("hr_staff_attendance").select("user_id,status,attendance_date")
+      const { data, error } = await api.from("hr_staff_attendance").select("user_id,status,attendance_date")
         .eq("school_id", schoolId!).gte("attendance_date", monthStart).lte("attendance_date", monthEnd);
       if (error) throw error;
       return data || [];
@@ -82,7 +82,7 @@ export function HrAttendanceModule() {
     queryKey: ["hr_attendance_regs", schoolId],
     enabled: !!schoolId,
     queryFn: async () => {
-      const { data, error } = await supabase.from("hr_attendance_regularizations").select("*").eq("school_id", schoolId!).order("created_at", { ascending: false });
+      const { data, error } = await api.from("hr_attendance_regularizations").select("*").eq("school_id", schoolId!).order("created_at", { ascending: false });
       if (error) throw error;
       return data || [];
     },
@@ -90,9 +90,9 @@ export function HrAttendanceModule() {
 
   const markMutation = useMutation({
     mutationFn: async ({ userId, status }: { userId: string; status: Status }) => {
-      const { error } = await supabase.from("hr_staff_attendance").upsert({
+      const { error } = await api.from("hr_staff_attendance").upsert({
         school_id: schoolId, user_id: userId, attendance_date: selectedDate, status,
-        recorded_by: (await supabase.auth.getUser()).data.user?.id,
+        recorded_by: (await api.auth.getUser()).data.user?.id,
       }, { onConflict: "school_id,user_id,attendance_date" });
       if (error) throw error;
     },
@@ -105,11 +105,11 @@ export function HrAttendanceModule() {
 
   const bulkMarkMutation = useMutation({
     mutationFn: async (status: Status) => {
-      const uid = (await supabase.auth.getUser()).data.user?.id;
+      const uid = (await api.auth.getUser()).data.user?.id;
       const rows = filteredStaff.map((s) => ({
         school_id: schoolId, user_id: s.userId, attendance_date: selectedDate, status, recorded_by: uid,
       }));
-      const { error } = await supabase.from("hr_staff_attendance").upsert(rows, { onConflict: "school_id,user_id,attendance_date" });
+      const { error } = await api.from("hr_staff_attendance").upsert(rows, { onConflict: "school_id,user_id,attendance_date" });
       if (error) throw error;
     },
     onSuccess: () => {
@@ -122,13 +122,13 @@ export function HrAttendanceModule() {
 
   const reviewReg = useMutation({
     mutationFn: async ({ id, status, reg }: { id: string; status: "approved" | "rejected"; reg: any }) => {
-      const user = (await supabase.auth.getUser()).data.user;
-      const { error } = await supabase.from("hr_attendance_regularizations").update({
+      const user = (await api.auth.getUser()).data.user;
+      const { error } = await api.from("hr_attendance_regularizations").update({
         status, reviewed_by: user?.id, reviewed_at: new Date().toISOString(),
       }).eq("id", id);
       if (error) throw error;
       if (status === "approved") {
-        await supabase.from("hr_staff_attendance").upsert({
+        await api.from("hr_staff_attendance").upsert({
           school_id: schoolId, user_id: reg.employee_user_id, attendance_date: reg.attendance_date,
           status: reg.requested_status, recorded_by: user?.id,
         }, { onConflict: "school_id,user_id,attendance_date" });

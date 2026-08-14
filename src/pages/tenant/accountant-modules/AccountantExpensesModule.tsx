@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, TrendingDown, Trash2, Edit, Filter, WifiOff, RefreshCw } from "lucide-react";
 import { ReportExportMenu } from "@/components/accountant/ReportExportMenu";
 
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { useTenant } from "@/hooks/useTenant";
 import { useOfflineExpenses, useOfflinePaymentMethods } from "@/hooks/useOfflineData";
 import { OfflineDataBanner } from "@/components/offline/OfflineDataBanner";
@@ -96,7 +96,7 @@ export function AccountantExpensesModule() {
   const { data: expenses = [], isLoading } = useQuery({
     queryKey: ["finance_expenses", schoolId],
     queryFn: async () => {
-      const { data, error } = await (supabase as any)
+      const { data, error } = await (api as any)
         .from("finance_expenses")
         .select("*")
         .eq("school_id", schoolId!)
@@ -110,7 +110,7 @@ export function AccountantExpensesModule() {
   const { data: paymentMethods = [] } = useQuery({
     queryKey: ["finance_payment_methods", schoolId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await api
         .from("finance_payment_methods")
         .select("id, name")
         .eq("school_id", schoolId!)
@@ -172,7 +172,7 @@ export function AccountantExpensesModule() {
     };
 
     if (editingExpense) {
-      const { error } = await supabase
+      const { error } = await api
         .from("finance_expenses")
         .update(expenseData)
         .eq("id", editingExpense.id);
@@ -182,7 +182,7 @@ export function AccountantExpensesModule() {
       }
       toast.success("Expense updated");
     } else {
-      const { error } = await supabase.from("finance_expenses").insert({
+      const { error } = await api.from("finance_expenses").insert({
         school_id: schoolId,
         ...expenseData,
       });
@@ -199,7 +199,7 @@ export function AccountantExpensesModule() {
   };
 
   const handleDelete = async (id: string) => {
-    const { error } = await supabase.from("finance_expenses").delete().eq("id", id);
+    const { error } = await api.from("finance_expenses").delete().eq("id", id);
     if (error) {
       toast.error(error.message);
       return;

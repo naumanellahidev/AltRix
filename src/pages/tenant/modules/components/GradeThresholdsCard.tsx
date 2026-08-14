@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -39,7 +39,7 @@ export function GradeThresholdsCard({ schoolId }: { schoolId: string }) {
   const [saving, setSaving] = useState(false);
 
   const refresh = async () => {
-    const { data } = await supabase
+    const { data } = await api
       .from("grade_thresholds")
       .select("*")
       .eq("school_id", schoolId)
@@ -57,7 +57,7 @@ export function GradeThresholdsCard({ schoolId }: { schoolId: string }) {
       return;
     }
     setSaving(true);
-    const { error } = await supabase.from("grade_thresholds").insert({
+    const { error } = await api.from("grade_thresholds").insert({
       school_id: schoolId,
       grade_label: newThreshold.grade_label.trim(),
       min_percentage: newThreshold.min_percentage,
@@ -84,7 +84,7 @@ export function GradeThresholdsCard({ schoolId }: { schoolId: string }) {
   const saveAllThresholds = async () => {
     setSaving(true);
     for (const t of thresholds) {
-      await supabase
+      await api
         .from("grade_thresholds")
         .update({
           grade_label: t.grade_label,
@@ -101,7 +101,7 @@ export function GradeThresholdsCard({ schoolId }: { schoolId: string }) {
   };
 
   const deleteThreshold = async (id: string) => {
-    const { error } = await supabase.from("grade_thresholds").delete().eq("id", id);
+    const { error } = await api.from("grade_thresholds").delete().eq("id", id);
     if (error) {
       toast.error(error.message);
     } else {
@@ -113,7 +113,7 @@ export function GradeThresholdsCard({ schoolId }: { schoolId: string }) {
   const loadDefaults = async () => {
     setSaving(true);
     for (const t of DEFAULT_THRESHOLDS) {
-      await supabase.from("grade_thresholds").upsert({
+      await api.from("grade_thresholds").upsert({
         school_id: schoolId,
         grade_label: t.grade_label,
         min_percentage: t.min_percentage,

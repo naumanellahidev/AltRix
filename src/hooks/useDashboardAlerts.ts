@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { supabase, USE_FASTAPI } from "@/integrations/supabase/client";
+import { api, USE_FASTAPI } from "@/lib/api";
 import { apiClient } from "@/lib/api-client";
 import { useRealtimeTable } from "@/hooks/useRealtime";
 import { toast } from "@/components/ui/sonner";
@@ -73,7 +73,7 @@ export function useDashboardAlerts(schoolId: string | null) {
 
         // Fetch settings first
         let currentThresholds = DEFAULT_THRESHOLDS;
-        const { data: settingsData } = await (supabase as any)
+        const { data: settingsData } = await (api as any)
           .from("school_alert_settings")
           .select("*")
           .eq("school_id", schoolId)
@@ -96,25 +96,25 @@ export function useDashboardAlerts(schoolId: string | null) {
           present7d,
           pendingInvoices,
         ] = await Promise.all([
-          supabase
+          api
             .from("support_conversations")
             .select("id,student_id,status,created_at")
             .eq("school_id", schoolId)
             .eq("status", "open")
             .order("created_at", { ascending: false })
             .limit(20),
-          supabase
+          api
             .from("attendance_entries")
             .select("id", { count: "exact", head: true })
             .eq("school_id", schoolId)
             .gte("created_at", d7.toISOString()),
-          supabase
+          api
             .from("attendance_entries")
             .select("id", { count: "exact", head: true })
             .eq("school_id", schoolId)
             .eq("status", "present")
             .gte("created_at", d7.toISOString()),
-          supabase
+          api
             .from("fee_invoices")
             .select("id", { count: "exact", head: true })
             .eq("school_id", schoolId)

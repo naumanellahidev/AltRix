@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef, useMemo } from "react";
 import { useParams } from "react-router-dom";
-import { supabase, USE_FASTAPI } from "@/integrations/supabase/client";
+import { api, USE_FASTAPI } from "@/lib/api";
 import { apiClient } from "@/lib/api-client";
 import { useSession } from "@/hooks/useSession";
 import { encryptMessage, decryptMessage } from "@/lib/crypto/ptEncryption";
@@ -121,7 +121,7 @@ export function CollaborationHub() {
     if (!schoolSlug) return;
     const fetchSchoolId = async () => {
       try {
-        const { data, error } = await supabase
+        const { data, error } = await api
           .from("schools")
           .select("id")
           .eq("slug", schoolSlug)
@@ -143,12 +143,12 @@ export function CollaborationHub() {
     if (!schoolId) return;
     const fetchDirectory = async () => {
       try {
-        const { data: dirData, error: dirError } = await supabase.rpc("get_school_user_directory", {
+        const { data: dirData, error: dirError } = await api.rpc("get_school_user_directory", {
           _school_id: schoolId
         });
         if (dirError) throw dirError;
 
-        const { data: roleData } = await supabase
+        const { data: roleData } = await api
           .from("user_roles")
           .select("user_id, role")
           .eq("school_id", schoolId);
@@ -203,7 +203,7 @@ export function CollaborationHub() {
         const resp = await apiClient.get(`/collaboration/conversations?school_id=${schoolId}`);
         data = resp.data || [];
       } else {
-        const { data: dbData, error } = await supabase
+        const { data: dbData, error } = await api
           .from("pt_conversations")
           .select("id, title, type, participants, created_at")
           .eq("school_id", schoolId)
@@ -275,7 +275,7 @@ export function CollaborationHub() {
         const resp = await apiClient.get(`/collaboration/messages?convo_id=${activeConvo}`);
         data = resp.data || [];
       } else {
-        const { data: dbData, error } = await supabase
+        const { data: dbData, error } = await api
           .from("pt_messages")
           .select("id, convo_id, sender_id, encrypted_body, created_at")
           .eq("convo_id", activeConvo)
@@ -403,7 +403,7 @@ export function CollaborationHub() {
           encrypted_body: encrypted,
         });
       } else {
-        const { error } = await supabase.from("pt_messages").insert({
+        const { error } = await api.from("pt_messages").insert({
           convo_id: activeConvo,
           sender_id: user.id,
           encrypted_body: encrypted,
@@ -484,7 +484,7 @@ export function CollaborationHub() {
         });
         newId = resp.data?.id;
       } else {
-        const { data, error } = await supabase
+        const { data, error } = await api
           .from("pt_conversations")
           .insert({
             school_id: schoolId,

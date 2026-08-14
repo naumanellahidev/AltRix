@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, Cell, PieChart, Pie } from "recharts";
 import { Users, TrendingUp, TrendingDown, DollarSign, Award } from "lucide-react";
 
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { useTenant } from "@/hooks/useTenant";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -43,7 +43,7 @@ export function SalaryComparisonChart() {
   const { data: salaryRecords = [] } = useQuery({
     queryKey: ["hr_salary_records_active", schoolId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await api
         .from("hr_salary_records")
         .select("id, user_id, base_salary, allowances, deductions, is_active")
         .eq("school_id", schoolId!)
@@ -63,7 +63,7 @@ export function SalaryComparisonChart() {
   const { data: staffWithRoles = [] } = useQuery({
     queryKey: ["staff_with_roles", schoolId],
     queryFn: async () => {
-      const { data: roles, error: rolesError } = await supabase
+      const { data: roles, error: rolesError } = await api
         .from("user_roles")
         .select("user_id, role")
         .eq("school_id", schoolId!);
@@ -72,7 +72,7 @@ export function SalaryComparisonChart() {
       const userIds = [...new Set((roles || []).map((r) => r.user_id))];
       if (userIds.length === 0) return [];
 
-      const { data: profiles, error: profilesError } = await (supabase as any)
+      const { data: profiles, error: profilesError } = await (api as any)
         .from("profiles")
         .select("id, display_name")
         .in("id", userIds);

@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase, USE_FASTAPI } from "@/integrations/supabase/client";
+import { api, USE_FASTAPI } from "@/lib/api";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "@/components/ui/sonner";
 
@@ -37,7 +37,7 @@ export function useAlertSettings(schoolId: string | null) {
         }
       }
 
-      const { data, error } = await (supabase as any)
+      const { data, error } = await (api as any)
         .from("school_alert_settings")
         .select("*")
         .eq("school_id", schoolId)
@@ -72,7 +72,7 @@ export function useAlertSettings(schoolId: string | null) {
       if (USE_FASTAPI) {
         await apiClient.post("/schools/alert-settings", payload);
       } else {
-        const { error } = await (supabase as any)
+        const { error } = await (api as any)
           .from("school_alert_settings")
           .upsert(payload, { onConflict: "school_id" });
 

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { useSession } from "@/hooks/useSession";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -53,7 +53,7 @@ export default function NoticesModule({ schoolId, canManage = false }: Props) {
   const load = async () => {
     if (!schoolId) return;
     setLoading(true);
-    const { data, error } = await (supabase as any)
+    const { data, error } = await (api as any)
       .from("notices")
       .select("*")
       .eq("school_id", schoolId)
@@ -69,7 +69,7 @@ export default function NoticesModule({ schoolId, canManage = false }: Props) {
   const submit = async () => {
     if (!schoolId || !user) return;
     if (!form.title.trim()) { toast.error("Title required"); return; }
-    const { error } = await (supabase as any).from("notices").insert({
+    const { error } = await (api as any).from("notices").insert({
       school_id: schoolId,
       title: form.title,
       body: form.body || null,
@@ -86,14 +86,14 @@ export default function NoticesModule({ schoolId, canManage = false }: Props) {
   };
 
   const remove = async (id: string) => {
-    const { error } = await (supabase as any).from("notices").delete().eq("id", id);
+    const { error } = await (api as any).from("notices").delete().eq("id", id);
     if (error) { toast.error(error.message); return; }
     toast.success("Deleted");
     load();
   };
 
   const togglePin = async (n: Notice) => {
-    const { error } = await (supabase as any).from("notices").update({ pinned: !n.pinned }).eq("id", n.id);
+    const { error } = await (api as any).from("notices").update({ pinned: !n.pinned }).eq("id", n.id);
     if (error) { toast.error(error.message); return; }
     load();
   };

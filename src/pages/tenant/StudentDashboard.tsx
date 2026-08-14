@@ -1,7 +1,7 @@
 import { useEffect, useState, lazy, Suspense } from "react";
 import { Navigate, Route, Routes, useParams } from "react-router-dom";
 
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { useSession } from "@/hooks/useSession";
 import { useTenantOptimized } from "@/hooks/useTenantOptimized";
 import { useMyStudentId } from "@/hooks/useMyStudentId";
@@ -143,7 +143,7 @@ const StudentDashboard = () => {
 
     (async () => {
       try {
-        const { data: psa } = await supabase
+        const { data: psa } = await api
           .from("platform_super_admins")
           .select("user_id")
           .eq("user_id", userId)
@@ -155,7 +155,7 @@ const StudentDashboard = () => {
           return;
         }
 
-        const { data: roleRow } = await supabase
+        const { data: roleRow } = await api
           .from("user_roles")
           .select("id")
           .eq("school_id", schoolIdVal)

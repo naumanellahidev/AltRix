@@ -20,7 +20,7 @@ import {
   Radio,
   Zap,
 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { useSession } from "@/hooks/useSession";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -78,7 +78,7 @@ export function SuperAdminShell({ title, subtitle, actions, children }: Props) {
   }, []);
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    await api.auth.signOut();
     navigate("/auth", { replace: true });
   };
 

@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from "react";
-import { supabase } from "@/integrations/supabase/client";
-import { RealtimeChannel } from "@supabase/supabase-js";
+import { api } from "@/lib/api";
+import { RealtimeChannel } from "@/lib/api";
 
 interface TypingUser {
   user_id: string;
@@ -39,7 +39,7 @@ export function useTypingIndicator({
     // Create a unique channel for this conversation pair
     const channelName = `typing:${schoolId}:${[currentUserId, conversationPartnerId].sort().join("-")}`;
     
-    const channel = supabase.channel(channelName, {
+    const channel = api.channel(channelName, {
       config: { presence: { key: currentUserId } },
     });
 

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ExternalLink, LogOut, Search, ShieldCheck } from "lucide-react";
 
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { useSession } from "@/hooks/useSession";
 import { usePlatformSuperAdmin } from "@/hooks/usePlatformSuperAdmin";
 
@@ -46,7 +46,7 @@ type DirRow = { id: string; school_id: string; email: string; display_name: stri
     setBusy(true);
     try {
       if (tab === "schools") {
-        const query = supabase
+        const query = api
           .from("schools")
           .select("id,slug,name,is_active,created_at")
           .order("created_at", { ascending: false })
@@ -59,7 +59,7 @@ type DirRow = { id: string; school_id: string; email: string; display_name: stri
       }
 
       if (tab === "users") {
-        const query = (supabase as any)
+        const query = (api as any)
           .from("school_user_directory")
           .select("id,school_id,email,display_name,user_id,created_at")
           .order("created_at", { ascending: false })
@@ -72,7 +72,7 @@ type DirRow = { id: string; school_id: string; email: string; display_name: stri
       }
 
       if (tab === "students") {
-        const query = supabase
+        const query = api
           .from("students")
           .select("id,school_id,first_name,last_name,status,created_at")
           .order("created_at", { ascending: false })
@@ -85,7 +85,7 @@ type DirRow = { id: string; school_id: string; email: string; display_name: stri
       }
 
       if (tab === "leads") {
-        const query = supabase
+        const query = api
           .from("crm_leads")
           .select("id,school_id,full_name,email,phone,status,created_at")
           .order("created_at", { ascending: false })

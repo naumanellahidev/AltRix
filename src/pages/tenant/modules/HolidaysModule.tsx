@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { useSession } from "@/hooks/useSession";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -54,7 +54,7 @@ export default function HolidaysModule({ schoolId, canManage = false }: Props) {
 
   const load = async () => {
     if (!schoolId) return;
-    const { data } = await (supabase as any)
+    const { data } = await (api as any)
       .from("holidays")
       .select("*")
       .eq("school_id", schoolId)
@@ -82,9 +82,9 @@ export default function HolidaysModule({ schoolId, canManage = false }: Props) {
     if (form.end_date < form.start_date) { toast.error("End date must be after start date"); return; }
     let error;
     if (editing) {
-      ({ error } = await (supabase as any).from("holidays").update(form).eq("id", editing.id));
+      ({ error } = await (api as any).from("holidays").update(form).eq("id", editing.id));
     } else {
-      ({ error } = await (supabase as any).from("holidays").insert({ school_id: schoolId, ...form, created_by: user.id }));
+      ({ error } = await (api as any).from("holidays").insert({ school_id: schoolId, ...form, created_by: user.id }));
     }
     if (error) { toast.error(error.message); return; }
     toast.success(editing ? "Holiday updated" : "Holiday added");
@@ -93,7 +93,7 @@ export default function HolidaysModule({ schoolId, canManage = false }: Props) {
 
   const remove = async (id: string) => {
     if (!confirm("Delete this holiday?")) return;
-    const { error } = await (supabase as any).from("holidays").delete().eq("id", id);
+    const { error } = await (api as any).from("holidays").delete().eq("id", id);
     if (error) { toast.error(error.message); return; }
     toast.success("Removed");
     load();

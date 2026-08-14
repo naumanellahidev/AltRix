@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -55,12 +55,12 @@ export function ClassPerformanceChart({ schoolId, sectionIds }: Props) {
     setLoading(true);
 
     // Get section details
-    const { data: sections } = await supabase
+    const { data: sections } = await api
       .from("class_sections")
       .select("id, name, class_id")
       .in("id", sectionIds);
 
-    const { data: classes } = await supabase
+    const { data: classes } = await api
       .from("academic_classes")
       .select("id, name");
 
@@ -70,14 +70,14 @@ export function ClassPerformanceChart({ schoolId, sectionIds }: Props) {
     const stats: SectionStats[] = [];
     for (const section of sections || []) {
       // Get student count
-      const { count: studentCount } = await supabase
+      const { count: studentCount } = await api
         .from("student_enrollments")
         .select("id", { count: "exact", head: true })
         .eq("school_id", schoolId)
         .eq("class_section_id", section.id);
 
       // Get attendance rate
-      const { data: entries } = await supabase
+      const { data: entries } = await api
         .from("attendance_entries")
         .select("status, session_id!inner(class_section_id)")
         .eq("school_id", schoolId);
@@ -94,7 +94,7 @@ export function ClassPerformanceChart({ schoolId, sectionIds }: Props) {
         : 100;
 
       // Get average grade
-      const { data: marks } = await supabase
+      const { data: marks } = await api
         .from("student_marks")
         .select("marks, assessment_id!inner(class_section_id, max_marks)")
         .eq("school_id", schoolId);
@@ -121,12 +121,12 @@ export function ClassPerformanceChart({ schoolId, sectionIds }: Props) {
     setSectionStats(stats);
 
     // Get grade distribution
-    const { data: allMarks } = await supabase
+    const { data: allMarks } = await api
       .from("student_marks")
       .select("computed_grade")
       .eq("school_id", schoolId)
       .in("assessment_id", 
-        (await supabase
+        (await api
           .from("academic_assessments")
           .select("id")
           .in("class_section_id", sectionIds)

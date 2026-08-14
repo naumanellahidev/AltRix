@@ -1,7 +1,7 @@
 import { useEffect, useState, ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { Mail, MessageSquare, Phone, TrendingDown, TrendingUp, User } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -41,7 +41,7 @@ export function StudentQuickViewPopover({ studentId, schoolId, schoolSlug, child
     setLoading(true);
     try {
       // Fetch student basic info
-      const { data: student } = await supabase
+      const { data: student } = await api
         .from("students")
         .select("id, first_name, last_name")
         .eq("id", studentId)
@@ -54,7 +54,7 @@ export function StudentQuickViewPopover({ studentId, schoolId, schoolSlug, child
       }
 
       // Fetch attendance rate
-      const { data: attendanceData } = await supabase
+      const { data: attendanceData } = await api
         .from("attendance_entries")
         .select("status")
         .eq("student_id", studentId)
@@ -69,7 +69,7 @@ export function StudentQuickViewPopover({ studentId, schoolId, schoolSlug, child
       }
 
       // Fetch average grade - use separate queries
-      const { data: marksData } = await (supabase as any)
+      const { data: marksData } = await (api as any)
         .from("student_marks")
         .select("marks, assessment_id")
         .eq("student_id", studentId)
@@ -81,7 +81,7 @@ export function StudentQuickViewPopover({ studentId, schoolId, schoolSlug, child
       if (marksData && marksData.length > 0) {
         // Fetch assessments for max_marks
         const assessmentIds = marksData.map(m => m.assessment_id);
-        const { data: assessments } = await supabase
+        const { data: assessments } = await api
           .from("academic_assessments")
           .select("id, max_marks")
           .in("id", assessmentIds);
@@ -113,7 +113,7 @@ export function StudentQuickViewPopover({ studentId, schoolId, schoolSlug, child
       }
 
       // Fetch guardians
-      const { data: guardianData } = await supabase
+      const { data: guardianData } = await api
         .from("student_guardians")
         .select("full_name, phone, email")
         .eq("student_id", studentId);

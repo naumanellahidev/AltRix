@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { apiClient } from "@/lib/api-client";
 import { SuperAdminShell } from "@/components/super-admin/SuperAdminShell";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -132,7 +132,7 @@ export default function PlatformDomainsPage() {
   const loadSchools = async () => {
     setLoadingSchools(true);
     try {
-      const { data, error } = await supabase.from("schools").select("id,slug,name");
+      const { data, error } = await api.from("schools").select("id,slug,name");
       if (!error && data && data.length > 0) {
         setSchools(data as SchoolRow[]);
         setNewSlug(data[0].slug);
@@ -166,7 +166,7 @@ export default function PlatformDomainsPage() {
     // 2. Fallback: Fetch directly from Supabase Cloud database
     if (!loadedSuccess) {
       try {
-        const { data } = await supabase.from("custom_domains").select("*").order("created_at", { ascending: false });
+        const { data } = await api.from("custom_domains").select("*").order("created_at", { ascending: false });
         if (data) {
           loadedDomains = data.map((d: any) => ({
             id: String(d.id),
@@ -247,7 +247,7 @@ export default function PlatformDomainsPage() {
 
     void Promise.allSettled([
       apiClient.post("/super_admin/domains", { domain: clean, slug: targetSlug }, { timeout: 3000 }),
-      supabase.from("custom_domains").insert({
+      api.from("custom_domains").insert({
         id: tempDomain.id,
         domain: clean,
         school_slug: targetSlug,
@@ -269,8 +269,8 @@ export default function PlatformDomainsPage() {
     void Promise.allSettled([
       apiClient.delete(`/super_admin/domains/${encodeURIComponent(clean)}`, { timeout: 3000 }),
       apiClient.delete(`/super_admin/domains/${encodeURIComponent(domainObj.id)}`, { timeout: 3000 }),
-      supabase.from("custom_domains").delete().eq("domain", clean),
-      supabase.from("custom_domains").delete().eq("id", domainObj.id)
+      api.from("custom_domains").delete().eq("domain", clean),
+      api.from("custom_domains").delete().eq("id", domainObj.id)
     ]);
   };
 
@@ -282,7 +282,7 @@ export default function PlatformDomainsPage() {
 
     void Promise.allSettled([
       apiClient.delete("/super_admin/domains/purge/all", { timeout: 3000 }),
-      supabase.from("custom_domains").delete().neq("domain", "")
+      api.from("custom_domains").delete().neq("domain", "")
     ]);
   };
 

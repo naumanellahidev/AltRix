@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -73,7 +73,7 @@ export default function ParentCounselingModule({ child, schoolId }: ParentCounse
     if (!child || !schoolId) return;
     setLoading(true);
     try {
-      const { data, error } = await supabase
+      const { data, error } = await api
         .from("ai_counseling_queue")
         .select("*")
         .eq("school_id", schoolId)
@@ -104,7 +104,7 @@ export default function ParentCounselingModule({ child, schoolId }: ParentCounse
 
     setSubmitting(true);
     try {
-      const { error } = await supabase.from("ai_counseling_queue").insert({
+      const { error } = await api.from("ai_counseling_queue").insert({
         school_id: schoolId,
         student_id: child.student_id,
         priority: priority,

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { useSession } from "@/hooks/useSession";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -26,7 +26,7 @@ export default function ParentBehaviorModule({ child, schoolId }: Props) {
 
   const load = async () => {
     if (!schoolId || !child) return;
-    const { data } = await (supabase as any).from("parent_behavior_notes")
+    const { data } = await (api as any).from("parent_behavior_notes")
       .select("*").eq("school_id", schoolId).eq("student_id", child.student_id)
       .order("note_date", { ascending: false }).limit(50);
     setItems(data || []);
@@ -36,7 +36,7 @@ export default function ParentBehaviorModule({ child, schoolId }: Props) {
   const submit = async () => {
     if (!schoolId || !child || !user) return;
     if (!form.behavior.trim() && !form.routine.trim()) return toast.error("Add behavior or routine details");
-    const { error } = await (supabase as any).from("parent_behavior_notes").insert({
+    const { error } = await (api as any).from("parent_behavior_notes").insert({
       school_id: schoolId, student_id: child.student_id, parent_user_id: user.id,
       note_date: form.note_date, behavior: form.behavior || null, routine: form.routine || null, mood: form.mood,
     });
@@ -46,7 +46,7 @@ export default function ParentBehaviorModule({ child, schoolId }: Props) {
     load();
   };
   const remove = async (id: string) => {
-    const { error } = await (supabase as any).from("parent_behavior_notes").delete().eq("id", id);
+    const { error } = await (api as any).from("parent_behavior_notes").delete().eq("id", id);
     if (error) return toast.error(error.message);
     load();
   };

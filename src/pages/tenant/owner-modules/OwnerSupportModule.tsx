@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { useRealtimeTable } from "@/hooks/useRealtime";
 import { format } from "date-fns";
 import { toast } from "@/components/ui/sonner";
@@ -28,7 +28,7 @@ export function OwnerSupportModule({ schoolId }: Props) {
     queryFn: async () => {
       if (!schoolId) return null;
 
-      const { data: messages } = await supabase
+      const { data: messages } = await api
         .from("admin_messages")
         .select("id,status,priority,created_at")
         .eq("school_id", schoolId);

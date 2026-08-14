@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Check, X, Clock, FileCheck, Coffee, Calendar, ChevronLeft, Keyboard } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { toast } from "sonner";
 
 export type StaffStatus = "present" | "absent" | "late" | "half_day" | "leave";
@@ -49,7 +49,7 @@ export function StaffAttendanceHistoryDialog({
     if (!schoolId) return;
     setLoadingDates(true);
     try {
-      const { data, error } = await supabase
+      const { data, error } = await api
         .from("hr_staff_attendance")
         .select("attendance_date")
         .eq("school_id", schoolId);
@@ -77,7 +77,7 @@ export function StaffAttendanceHistoryDialog({
     setLoadingAttendance(true);
     setSelectedDate(date);
     try {
-      const { data, error } = await supabase
+      const { data, error } = await api
         .from("hr_staff_attendance")
         .select("user_id, status")
         .eq("school_id", schoolId!)
@@ -111,7 +111,7 @@ export function StaffAttendanceHistoryDialog({
     if (!selectedDate || !schoolId) return;
     setSaving(true);
     try {
-      const userRes = await supabase.auth.getUser();
+      const userRes = await api.auth.getUser();
       const recordedBy = userRes.data.user?.id;
 
       const payload = Object.entries(attendanceRows).map(([userId, status]) => ({
@@ -123,7 +123,7 @@ export function StaffAttendanceHistoryDialog({
       }));
 
       if (payload.length > 0) {
-        const { error } = await supabase
+        const { error } = await api
           .from("hr_staff_attendance")
           .upsert(payload, { onConflict: "school_id,user_id,attendance_date" });
         if (error) throw error;

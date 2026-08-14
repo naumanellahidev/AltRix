@@ -1,4 +1,4 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { SupabaseClient } from "@/lib/api";
 
 export type StudentForCard = {
   id: string;
@@ -56,7 +56,7 @@ export const DEFAULT_CARD_SETTINGS = (schoolId: string): CardSettings => ({
  * Fetch card settings and print card(s) for the given student(s).
  */
 export async function printStudentCards(
-  supabase: SupabaseClient,
+  api: SupabaseClient,
   schoolId: string,
   students: StudentForCard[],
   schoolLogo: string | null,
@@ -65,13 +65,13 @@ export async function printStudentCards(
   if (students.length === 0) return;
 
   // 1. Fetch settings and school details
-  const { data: settingsData } = await supabase
+  const { data: settingsData } = await api
     .from("school_id_card_settings")
     .select("*")
     .eq("school_id", schoolId)
     .maybeSingle();
 
-  const { data: schoolData } = await supabase
+  const { data: schoolData } = await api
     .from("schools")
     .select("name, logo_url, address, phone, email")
     .eq("id", schoolId)

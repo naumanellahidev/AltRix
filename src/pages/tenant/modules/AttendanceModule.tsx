@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import { useParams } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { useTenant } from "@/hooks/useTenant";
 import { useSession } from "@/hooks/useSession";
 import { useSchoolPermissions } from "@/hooks/useSchoolPermissions";
@@ -44,7 +44,7 @@ export function AttendanceModule() {
     if (!schoolId) { setCanEditLoading(false); return; }
     let cancelled = false;
     (async () => {
-      const { data } = await (supabase as any).rpc("can_edit_attendance", { _school_id: schoolId });
+      const { data } = await (api as any).rpc("can_edit_attendance", { _school_id: schoolId });
       if (!cancelled) { setCanEdit(!!data); setCanEditLoading(false); }
     })();
     return () => { cancelled = true; };
@@ -100,8 +100,8 @@ export function AttendanceModule() {
 
     const loadAll = async () => {
       const [{ data: sec }, { data: cls }] = await Promise.all([
-        supabase.from("class_sections").select("id,name,class_id").eq("school_id", schoolId).order("name"),
-        supabase.from("academic_classes").select("id,name").eq("school_id", schoolId),
+        api.from("class_sections").select("id,name,class_id").eq("school_id", schoolId).order("name"),
+        api.from("academic_classes").select("id,name").eq("school_id", schoolId),
       ]);
       const classMap = new Map((cls ?? []).map((c: any) => [c.id, c.name]));
       return (sec ?? []).map((s: any) => ({
@@ -123,7 +123,7 @@ export function AttendanceModule() {
       }
 
       // Teacher: only assigned sections
-      const { data: ta } = await supabase
+      const { data: ta } = await api
         .from("teacher_subject_assignments")
         .select("class_section_id")
         .eq("school_id", schoolId)
@@ -134,8 +134,8 @@ export function AttendanceModule() {
         return;
       }
       const [{ data: sec }, { data: cls }] = await Promise.all([
-        supabase.from("class_sections").select("id,name,class_id").eq("school_id", schoolId).in("id", ids),
-        supabase.from("academic_classes").select("id,name").eq("school_id", schoolId),
+        api.from("class_sections").select("id,name,class_id").eq("school_id", schoolId).in("id", ids),
+        api.from("academic_classes").select("id,name").eq("school_id", schoolId),
       ]);
       const classMap = new Map((cls ?? []).map((c: any) => [c.id, c.name]));
       const enriched = (sec ?? []).map((s: any) => ({

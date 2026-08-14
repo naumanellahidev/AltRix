@@ -7,7 +7,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowRight, Bell, LayoutGrid, MessageSquare, Settings, Users } from "lucide-react";
 
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { useTenant } from "@/hooks/useTenant";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -22,7 +22,7 @@ export function DashboardHome() {
     queryKey: ["school-name", schoolId],
     enabled: !!schoolId,
     queryFn: async () => {
-      const { data } = await supabase.from("schools").select("name").eq("id", schoolId!).maybeSingle();
+      const { data } = await api.from("schools").select("name").eq("id", schoolId!).maybeSingle();
       return data;
     },
   });

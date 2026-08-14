@@ -26,7 +26,7 @@ import {
   Edit3,
   Loader2,
 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { CurriculumPlannerAI } from "@/components/ai";
 import { useTenant } from "@/hooks/useTenant";
 import { useSession } from "@/hooks/useSession";
@@ -132,7 +132,7 @@ export function TeacherLessonPlannerModule() {
   }, [selectedSection, weekStart, schoolId]);
 
   const loadSections = async () => {
-    const { data: assignments } = await supabase
+    const { data: assignments } = await api
       .from("teacher_assignments")
       .select("class_section_id")
       .eq("school_id", schoolId!)
@@ -144,12 +144,12 @@ export function TeacherLessonPlannerModule() {
       return;
     }
 
-    const { data: secs } = await supabase
+    const { data: secs } = await api
       .from("class_sections")
       .select("id, name, class_id")
       .in("id", sectionIds);
 
-    const { data: classes } = await supabase.from("academic_classes").select("id, name");
+    const { data: classes } = await api.from("academic_classes").select("id, name");
     const classMap = new Map(classes?.map((c) => [c.id, c.name]) || []);
 
     const mapped = (secs || []).map((s) => ({
@@ -166,7 +166,7 @@ export function TeacherLessonPlannerModule() {
   };
 
   const loadSubjects = async () => {
-    const { data } = await supabase
+    const { data } = await api
       .from("class_section_subjects")
       .select("subject_id, subjects(id, name)")
       .eq("school_id", schoolId!)
@@ -177,7 +177,7 @@ export function TeacherLessonPlannerModule() {
 
   const loadPlans = async () => {
     const weekEnd = addDays(weekStart, 5);
-    const { data } = await supabase
+    const { data } = await api
       .from("lesson_plans")
       .select("*")
       .eq("school_id", schoolId!)
@@ -260,7 +260,7 @@ export function TeacherLessonPlannerModule() {
     };
 
     if (editingPlan) {
-      const { error } = await supabase
+      const { error } = await api
         .from("lesson_plans")
         .update(payload)
         .eq("id", editingPlan.id);
@@ -272,7 +272,7 @@ export function TeacherLessonPlannerModule() {
         loadPlans();
       }
     } else {
-      const { error } = await supabase.from("lesson_plans").insert(payload);
+      const { error } = await api.from("lesson_plans").insert(payload);
       if (error) {
         toast.error(error.message);
       } else {
@@ -285,7 +285,7 @@ export function TeacherLessonPlannerModule() {
   };
 
   const deletePlan = async (id: string) => {
-    const { error } = await supabase.from("lesson_plans").delete().eq("id", id);
+    const { error } = await api.from("lesson_plans").delete().eq("id", id);
     if (error) {
       toast.error(error.message);
     } else {

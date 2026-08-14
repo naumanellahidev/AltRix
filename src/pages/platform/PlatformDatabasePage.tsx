@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { SuperAdminShell } from "@/components/super-admin/SuperAdminShell";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -196,7 +196,7 @@ const [activeTab, setActiveTab] = useState<"global" | "schedules" | "hub" | "fil
   const loadSchoolsAndConfig = async () => {
     setSchoolsLoading(true);
     try {
-      const { data, error } = await supabase
+      const { data, error } = await api
         .from("schools")
         .select("id,slug,name,is_active")
         .order("name", { ascending: true });
@@ -362,7 +362,7 @@ const [activeTab, setActiveTab] = useState<"global" | "schedules" | "hub" | "fil
   const fetchTableRows = async (tableName: string, schoolId: string) => {
     try {
       const col = tableName === "schools" ? "id" : "school_id";
-      const { data, error } = await supabase
+      const { data, error } = await api
         .from(tableName as any)
         .select("*")
         .eq(col, schoolId);
@@ -616,7 +616,7 @@ const [activeTab, setActiveTab] = useState<"global" | "schedules" | "hub" | "fil
             logToTerminal(`[CLEANING] Purging records from ${table}...`);
             try {
               const col = table === "schools" ? "id" : "school_id";
-              const { error } = await supabase
+              const { error } = await api
                 .from(table as any)
                 .delete()
                 .eq(col, parsed.schoolId);
@@ -639,7 +639,7 @@ const [activeTab, setActiveTab] = useState<"global" | "schedules" | "hub" | "fil
           if (rows && rows.length > 0) {
             logToTerminal(`[RESTORING] Restoring ${rows.length} records into ${table}...`);
             try {
-              const { error } = await supabase
+              const { error } = await api
                 .from(table as any)
                 .insert(rows);
 
@@ -735,7 +735,7 @@ const [activeTab, setActiveTab] = useState<"global" | "schedules" | "hub" | "fil
           if (table in parsed.tables) {
             logToTerminal(`[CLEANING] Purging ${table}...`);
             const col = table === "schools" ? "id" : "school_id";
-            await supabase.from(table as any).delete().eq(col, parsed.schoolId);
+            await api.from(table as any).delete().eq(col, parsed.schoolId);
           }
         }
 
@@ -744,7 +744,7 @@ const [activeTab, setActiveTab] = useState<"global" | "schedules" | "hub" | "fil
           const rows = parsed.tables[table];
           if (rows && rows.length > 0) {
             logToTerminal(`[RESTORING] Restoring ${rows.length} records into ${table}...`);
-            await supabase.from(table as any).insert(rows);
+            await api.from(table as any).insert(rows);
           }
         }
 

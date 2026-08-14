@@ -13,7 +13,7 @@ import {
   AlertTriangle,
   CheckCircle2,
 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { aiToTextArray } from "@/lib/ai-render";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -38,7 +38,7 @@ export function PredictiveAcademicModel({ studentId, schoolId }: Props) {
   const { data: prediction, isLoading } = useQuery({
     queryKey: ["ai_academic_predictions", studentId],
     queryFn: async () => {
-      const { data, error } = await (supabase as any)
+      const { data, error } = await (api as any)
         .from("ai_academic_predictions")
         .select("*")
         .eq("student_id", studentId)
@@ -55,7 +55,7 @@ export function PredictiveAcademicModel({ studentId, schoolId }: Props) {
   const { data: student } = useQuery({
     queryKey: ["student_name", studentId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await api
         .from("students")
         .select("first_name, last_name")
         .eq("id", studentId)

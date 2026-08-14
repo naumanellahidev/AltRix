@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState, useMemo } from "react";
-import { supabase, USE_FASTAPI } from "@/integrations/supabase/client";
+import { api, USE_FASTAPI } from "@/lib/api";
 import { apiClient } from "@/lib/api-client";
 import type { EduverseRole } from "@/lib/eduverse-roles";
 
@@ -190,7 +190,7 @@ export function useAuthz({ schoolId, userId, role, requiredRoles }: AuthzOptions
       // Run all checks in parallel for speed
       const [psaResult, membershipResult, roleResult] = await Promise.all([
         // Check platform super admin
-        supabase
+        api
           .from("platform_super_admins")
           .select("user_id")
           .eq("user_id", userId)
@@ -198,7 +198,7 @@ export function useAuthz({ schoolId, userId, role, requiredRoles }: AuthzOptions
         
         // Check school membership
         schoolId
-          ? supabase
+          ? api
               .from("school_memberships")
               .select("id")
               .eq("school_id", schoolId)
@@ -208,7 +208,7 @@ export function useAuthz({ schoolId, userId, role, requiredRoles }: AuthzOptions
         
         // Check specific role or any of required roles
         schoolId && (role || requiredRoles?.length)
-          ? supabase
+          ? api
               .from("user_roles")
               .select("role")
               .eq("school_id", schoolId)
