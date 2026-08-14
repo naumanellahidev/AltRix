@@ -1284,6 +1284,10 @@ async def resolve_escalation(esc_id: UUID, current_user: CurrentUser, db: DbSess
         raise HTTPException(status_code=400, detail=str(e))
 
 
+from pydantic import BaseModel
+from fastapi.responses import Response
+
+
 class PaymentProofsExportPayload(BaseModel):
     schoolId: str
     status: Optional[str] = "pending"
@@ -1293,10 +1297,6 @@ class PaymentProofsExportPayload(BaseModel):
     minAmount: Optional[float] = None
     maxAmount: Optional[float] = None
     search: Optional[str] = ""
-
-
-from pydantic import BaseModel
-from fastapi.responses import Response
 
 @router.post("/export-payment-proofs")
 async def export_payment_proofs(
