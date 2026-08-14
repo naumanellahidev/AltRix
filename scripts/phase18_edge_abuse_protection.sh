@@ -123,8 +123,7 @@ server {
     include /etc/letsencrypt/options-ssl-nginx.conf;
     ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
 
-    # Security Headers
-    include /etc/altrix/proxy/headers/security_headers.conf;
+
 
     # Backend API reverse proxy (with Edge Abuse & Connection Limits)
     location /api/ {
@@ -140,7 +139,6 @@ server {
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_read_timeout 3600s;
-        include /etc/altrix/proxy/headers/security_headers.conf;
     }
 
     # Health Check Endpoint Proxy (Exempt from strict rate limits for monitoring)
