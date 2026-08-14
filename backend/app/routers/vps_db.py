@@ -128,6 +128,12 @@ async def execute_rpc(payload: RpcPayload, current_user: CurrentUser, db: DbSess
     if not is_valid_identifier(fn):
         raise HTTPException(status_code=400, detail="Invalid function name")
         
+    try:
+        await db.execute(text("SELECT set_config('request.jwt.claim.sub', :user_id, true)"), {"user_id": str(current_user.id)})
+        await db.execute(text("SELECT set_config('request.jwt.claim.role', :role, true)"), {"role": "authenticated"})
+    except Exception as setting_err:
+        logger.warning(f"Failed to set database proxy JWT claim parameters: {setting_err}")
+        
     params = payload.params or {}
     
     # Enforce tenant isolation for school-scoped functions
@@ -177,6 +183,12 @@ async def execute_rpc(payload: RpcPayload, current_user: CurrentUser, db: DbSess
 async def execute_query(query: QueryPayload, current_user: CurrentUser, db: DbSession):
     if not is_valid_identifier(query.table):
         raise HTTPException(status_code=400, detail="Invalid table name")
+
+    try:
+        await db.execute(text("SELECT set_config('request.jwt.claim.sub', :user_id, true)"), {"user_id": str(current_user.id)})
+        await db.execute(text("SELECT set_config('request.jwt.claim.role', :role, true)"), {"role": "authenticated"})
+    except Exception as setting_err:
+        logger.warning(f"Failed to set database proxy JWT claim parameters: {setting_err}")
 
     try:
         col_query = text("""
