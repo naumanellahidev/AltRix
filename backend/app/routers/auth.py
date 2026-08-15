@@ -8,7 +8,7 @@ Production-hardened with:
 """
 import logging
 from datetime import datetime, timezone
-from typing import List
+from typing import List, Any, Dict
 from uuid import UUID
 
 import httpx
@@ -84,7 +84,7 @@ async def login(request: Request, body: LoginRequest, db: DbSession):
             logger.warning(f"Bcrypt check failed: {e}")
             is_valid = False
 
-    if not is_valid:
+    if not is_valid or user is None:
         # Record failed login attempt (brute force and persistent SQL table)
         await record_failed_attempt(request, body.email, db=db)
         
@@ -119,8 +119,8 @@ async def login(request: Request, body: LoginRequest, db: DbSession):
             detail="Invalid credentials",
         )
 
-    user_id = str(user.id)
-    email = user.email
+    user_id: str = str(user.id)
+    email: str = str(user.email or body.email)
     
     # Generate local tokens
     access_token = create_access_token(user_id=user_id, email=email)
@@ -313,31 +313,32 @@ async def refresh_token(body: dict, request: Request):
         )
 
     from app.utils.jwt import decode_supabase_token, create_access_token
-    from jose import JWTError
     try:
         payload = await decode_supabase_token(token)
-        user_id = payload.get("sub")
-        email = payload.get("email")
-        if not user_id:
+        user_id_raw = payload.get("sub")
+        email_raw = payload.get("email")
+        if not user_id_raw or not email_raw:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid or expired refresh token",
             )
-    except JWTError:
+        user_id_str: str = str(user_id_raw)
+        email_str: str = str(email_raw)
+    except Exception:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired refresh token",
         )
 
     # Generate new local tokens
-    access_token = create_access_token(user_id=user_id, email=email)
-    new_refresh_token = create_access_token(user_id=user_id, email=email)
+    access_token = create_access_token(user_id=user_id_str, email=email_str)
+    new_refresh_token = create_access_token(user_id=user_id_str, email=email_str)
     
     return LoginResponse(
         access_token=access_token,
         refresh_token=new_refresh_token,
-        user_id=user_id,
-        email=email,
+        user_id=user_id_str,
+        email=email_str,
         roles=[],
     )
 
@@ -535,7 +536,7 @@ async def get_user_profile(user_id: UUID, current_user: CurrentUser, db: DbSessi
 async def debug_deploy_log():
     import glob
     import os
-    result_dict = {}
+    result_dict: dict[str, Any] = {}
     try:
         log_files = glob.glob("/opt/altrix/logs/deployments/deploy_*.log")
         if log_files:
