@@ -1,17 +1,15 @@
-// PWA Service Worker for AltRix Parent Portal
+// PWA Service Worker for AltRix Application
 // Handles offline caching strategy, push notifications, click handlers, and app badges.
 
-const CACHE_NAME = 'altrix-parent-cache-v2';
+const CACHE_NAME = 'altrix-cache-v3';
 const ASSETS_TO_CACHE = [
-  '/',
-  '/index.html',
   '/favicon.ico',
   '/pwa-512.png',
   '/placeholder.svg',
   '/robots.txt'
 ];
 
-// Install: Cache essential assets
+// Install: Cache essential static assets
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
@@ -20,13 +18,14 @@ self.addEventListener('install', (event) => {
   );
 });
 
-// Activate: Cleanup old caches
+// Activate: Cleanup ALL old caches and immediately claim clients
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
         cacheNames.map((cache) => {
           if (cache !== CACHE_NAME) {
+            console.log('[Service Worker] Deleting outdated cache:', cache);
             return caches.delete(cache);
           }
         })
@@ -35,28 +34,53 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Fetch: Stale-While-Revalidate pattern for cached assets, network-only for APIs
+// Message handler to allow instant manual cache purges from web client
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
+  if (event.data && event.data.type === 'CLEAR_CACHE') {
+    caches.keys().then((keys) => {
+      return Promise.all(keys.map((k) => caches.delete(k)));
+    }).then(() => {
+      if (event.ports && event.ports[0]) {
+        event.ports[0].postMessage({ success: true });
+      }
+    });
+  }
+});
+
+// Fetch: Network-First for HTML/Navigation, Stale-While-Revalidate for static assets, network-only for APIs
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
 
-  // Skip caching for API requests or Supabase traffic
+  // Skip caching for API requests, non-GET, or external providers
   if (
     url.pathname.startsWith('/api') ||
-    url.hostname.includes('supabase.co') ||
     event.request.method !== 'GET'
   ) {
     return;
   }
 
+  // 1. Navigation requests (HTML / SPA routing): ALWAYS Network-First
+  if (event.request.mode === 'navigate' || url.pathname === '/' || url.pathname.endsWith('.html')) {
+    event.respondWith(
+      fetch(event.request)
+        .catch(() => caches.match('/index.html') || caches.match('/'))
+    );
+    return;
+  }
+
+  // 2. Static Assets: Cache with Network Update
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
       if (cachedResponse) {
         // Fetch new version in background to update cache
         fetch(event.request).then((networkResponse) => {
-          if (networkResponse.status === 200) {
+          if (networkResponse && networkResponse.status === 200) {
             caches.open(CACHE_NAME).then((cache) => cache.put(event.request, networkResponse));
           }
-        }).catch(() => {/* Ignore backend fetch errors when offline */});
+        }).catch(() => {/* Offline fallback */});
         return cachedResponse;
       }
       return fetch(event.request);
@@ -89,96 +113,75 @@ self.addEventListener('push', (event) => {
     }
 
     const options = {
-      body: payload.body || '',
+      body: payload.body || 'You have a new update in AltRix.',
       icon: icon,
       badge: badge,
-      tag: payload.category || 'general',
-      data: {
-        id: payload.id,
-        action_url: payload.action_url || '',
-        category: payload.category
-      },
       vibrate: vibrate,
-      requireInteraction: payload.category === 'fees' || payload.category === 'attendance',
-      actions: []
-    };
-
-    // Add contextual action buttons
-    if (payload.category === 'fees') {
-      options.actions = [
-        { action: 'pay', title: 'Pay Fee Now' },
+      data: {
+        url: payload.url || '/',
+        notificationId: payload.id || null,
+        category: payload.category || 'general'
+      },
+      tag: payload.tag || 'altrix-notification',
+      renotify: true,
+      actions: [
+        { action: 'open', title: 'Open AltRix' },
         { action: 'dismiss', title: 'Dismiss' }
-      ];
-    } else if (payload.category === 'attendance') {
-      options.actions = [
-        { action: 'view_attendance', title: 'View Attendance' }
-      ];
-    } else if (payload.category === 'messages') {
-      options.actions = [
-        { action: 'reply', title: 'View Messages' }
-      ];
-    }
-
-    // Set badge count on the PWA icon if supported
-    if ('setAppBadge' in self.navigator) {
-      // Increment app badge count asynchronously
-      self.navigator.setAppBadge().catch(err => console.warn('Failed to set badge count:', err));
-    }
+      ]
+    };
 
     event.waitUntil(
       self.registration.showNotification(title, options)
     );
-  } catch (e) {
-    console.error('[Service Worker] Failed to parse push payload:', e);
+  } catch (err) {
+    console.error('[Service Worker] Push notification parse error:', err);
+    event.waitUntil(
+      self.registration.showNotification('AltRix Update', {
+        body: event.data.text() || 'New alert received.',
+        icon: '/pwa-512.png',
+        badge: '/pwa-512.png'
+      })
+    );
   }
 });
 
-// Click: Handle clicking on notifications or their action buttons
+// Notification Click: Navigate to target URL
 self.addEventListener('notificationclick', (event) => {
-  const notification = event.notification;
-  notification.close();
+  event.notification.close();
 
-  // Clear app badge if clicked
-  if ('clearAppBadge' in self.navigator) {
-    self.navigator.clearAppBadge().catch(() => {});
+  if (event.action === 'dismiss') {
+    return;
   }
 
-  const action = event.action;
-  const data = notification.data || {};
-  let actionUrl = data.action_url || '';
-
-  // Override url if specific action buttons were clicked
-  if (action === 'pay') {
-    actionUrl = actionUrl.includes('/fees') ? actionUrl : `${actionUrl}/fees`;
-  } else if (action === 'view_attendance') {
-    actionUrl = actionUrl.includes('/attendance') ? actionUrl : `${actionUrl}/attendance`;
-  }
-
-  const targetUrl = actionUrl ? `${self.location.origin}${actionUrl}` : self.location.origin;
+  const targetUrl = (event.notification.data && event.notification.data.url) ? event.notification.data.url : '/';
 
   event.waitUntil(
-    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
-      // Focus existing window or open a new one
-      for (let i = 0; i < clientList.length; i++) {
-        const client = clientList[i];
-        if (client.url === targetUrl && 'focus' in client) {
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+      // If a window is already open, focus it and navigate
+      for (const client of clientList) {
+        if (client.url.includes(self.location.origin) && 'focus' in client) {
+          client.navigate(targetUrl);
           return client.focus();
         }
       }
-      
-      // If window isn't on the exact page but exists, navigate it
-      for (let i = 0; i < clientList.length; i++) {
-        const client = clientList[i];
-        if ('focus' in client && 'navigate' in client) {
-          client.focus();
-          return client.navigate(targetUrl);
-        }
-      }
-
-      // If no window is open, open a new one
-      if (self.clients.openWindow) {
-        return self.clients.openWindow(targetUrl);
+      // Otherwise open a new window
+      if (clients.openWindow) {
+        return clients.openWindow(targetUrl);
       }
     })
   );
+});
+
+// Set App Badges for unread counter (if supported)
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SET_BADGE') {
+    const count = event.data.count || 0;
+    if (navigator.setAppBadge) {
+      if (count > 0) {
+        navigator.setAppBadge(count).catch(console.error);
+      } else {
+        navigator.clearAppBadge().catch(console.error);
+      }
+    }
+  }
 });
