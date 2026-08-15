@@ -60,12 +60,19 @@ async def build_health_response(include_deps: bool = False) -> dict:
     from app.config import settings
     
     commit_sha = get_commit_sha()
+    
+    # Redact database URL for diagnostics
+    db_url = settings.database_url
+    import re
+    redacted_db_url = re.sub(r'://[^:]+:[^@]+@', '://USER:***@', db_url) if db_url else "empty"
+
     response = {
         "status": "healthy",
         "version": settings.app_version,
         "commit": commit_sha,
         "environment": settings.app_env,
         "vps_database_connected": True,
+        "database_url_configured": redacted_db_url,
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "uptime_seconds": round(get_uptime_seconds(), 1),
     }
