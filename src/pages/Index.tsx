@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { SpotlightBackdrop } from "@/components/visual/SpotlightBackdrop";
 import { AltrixLogo } from "@/components/AltrixLogo";
+import altrixLogo from "@/assets/altrix-logo.png";
 import { api } from "@/lib/api";
 import { useTenant } from "@/hooks/useTenant";
 import { MASTER_SUPER_ADMIN_EMAIL } from "@/hooks/usePlatformSuperAdmin";
@@ -396,7 +397,7 @@ const Index = () => {
       <header className="w-full pt-2 pb-2 sm:pb-3 px-6 flex flex-col items-center justify-center relative z-10">
         <div className="flex items-center justify-center p-1 transition-transform duration-300 hover:scale-[1.02]">
           <img
-            src="/altrix-logo.png"
+            src={altrixLogo}
             alt="AltRix Operating System"
             className="h-14 sm:h-16 md:h-18 lg:h-20 w-auto max-w-[280px] sm:max-w-[340px] md:max-w-[380px] object-contain filter drop-shadow-md transition-all"
           />

@@ -143,4 +143,7 @@ export default defineConfig(({ mode }) => ({
     },
     chunkSizeWarningLimit: 2000,
   },
+  define: {
+    __APP_BUILD_ID__: JSON.stringify(Date.now().toString()),
+  },
 }));
