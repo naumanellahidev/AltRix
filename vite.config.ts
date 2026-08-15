@@ -69,6 +69,7 @@ export default defineConfig(({ mode }) => ({
       registerType: "autoUpdate",
       includeAssets: ["favicon.ico", "altrix-icon.png", "altrix-logo.png", "robots.txt", "pwa-512.png"],
       workbox: {
+        globPatterns: ["favicon.ico", "altrix-icon.png", "altrix-logo.png", "robots.txt", "pwa-512.png"],
         globIgnores: ["**/index.html"],
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 5 MiB
         cleanupOutdatedCaches: true,
