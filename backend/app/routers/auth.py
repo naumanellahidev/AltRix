@@ -534,7 +534,23 @@ async def get_user_profile(user_id: UUID, current_user: CurrentUser, db: DbSessi
 @router.get("/debug-db")
 async def debug_db(db: DbSession):
     import traceback
+    import os
     result_dict = {}
+    
+    # Check .env keys
+    try:
+        from dotenv import dotenv_values
+        if os.path.exists('/app/.env'):
+            env_vals = dotenv_values('/app/.env')
+            result_dict["env_keys"] = list(env_vals.keys())
+        elif os.path.exists('.env'):
+            env_vals = dotenv_values('.env')
+            result_dict["env_keys"] = list(env_vals.keys())
+        else:
+            result_dict["env_keys"] = []
+    except Exception as e:
+        result_dict["env_keys_error"] = str(e)
+        
     try:
         # 1. Check current connection info
         res = await db.execute(text("SELECT current_user, current_database(), version()"))
