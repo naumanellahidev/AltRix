@@ -529,3 +529,23 @@ async def get_user_profile(user_id: UUID, current_user: CurrentUser, db: DbSessi
     except Exception as e:
         logger.warning(f"DB exception querying profile {user_id}: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@router.get("/debug-deploy-log")
+async def debug_deploy_log():
+    import glob
+    import os
+    result_dict = {}
+    try:
+        log_files = glob.glob("/opt/altrix/logs/deployments/deploy_*.log")
+        if log_files:
+            latest_log = max(log_files, key=os.path.getctime)
+            with open(latest_log, "r") as f:
+                lines = f.readlines()
+                result_dict["log_file"] = os.path.basename(latest_log)
+                result_dict["log_lines"] = lines[-100:]
+        else:
+            result_dict["log_lines"] = "No log files found"
+    except Exception as e:
+        result_dict["error"] = str(e)
+    return result_dict
