@@ -191,6 +191,10 @@ docker run -d \
 docker exec -u 0 altrix_backend apt-get update >/dev/null 2>&1 || true
 docker exec -u 0 altrix_backend apt-get install -y curl >/dev/null 2>&1 || true
 
+# Run database schema privileges patcher inside the container
+echo "[INFO] Running database schema permissions patcher inside the container..."
+docker exec altrix_backend python -m app.scripts.db_permission_patcher || echo "[WARNING] Database permission patcher failed"
+
 echo "[INFO] Waiting for backend container startup and health probe response..."
 PROBE_FAIL=true
 
