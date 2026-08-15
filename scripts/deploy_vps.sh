@@ -142,7 +142,7 @@ docker build \
 # 5. Swap Backend & Celery Containers
 echo "[INFO] Guaranteeing database schema permissions for app user..."
 # Try connecting via local postgres user first (if script runs as root)
-sudo -u postgres psql -d altrix -c "GRANT USAGE ON SCHEMA auth TO altrix_app; GRANT SELECT ON ALL TABLES IN SCHEMA auth TO altrix_app; ALTER DEFAULT PRIVILEGES IN SCHEMA auth GRANT SELECT ON TABLES TO altrix_app;" 2>/dev/null || true
+sudo -u postgres psql -d altrix -c "GRANT USAGE ON SCHEMA auth TO altrix_app; GRANT SELECT ON ALL TABLES IN SCHEMA auth TO altrix_app; ALTER DEFAULT PRIVILEGES IN SCHEMA auth GRANT SELECT ON TABLES TO altrix_app;" || true
 
 # Try using the admin database URL from vps_postgresql.env or production.env directly (works without passwordless sudo)
 for config_file in "/opt/altrix/shared/config/vps_postgresql.env" "/opt/altrix/shared/config/production.env"; do
@@ -150,7 +150,7 @@ for config_file in "/opt/altrix/shared/config/vps_postgresql.env" "/opt/altrix/s
         ADMIN_URL=$(grep '^VPS_ADMIN_DATABASE_URL=' "${config_file}" | cut -d '=' -f2-)
         if [ -n "${ADMIN_URL}" ]; then
             echo "[INFO] Running schema grants via admin URL from $(basename ${config_file})..."
-            psql "${ADMIN_URL}" -c "GRANT USAGE ON SCHEMA auth TO altrix_app; GRANT SELECT ON ALL TABLES IN SCHEMA auth TO altrix_app; ALTER DEFAULT PRIVILEGES IN SCHEMA auth GRANT SELECT ON TABLES TO altrix_app;" 2>/dev/null || true
+            psql "${ADMIN_URL}" -c "GRANT USAGE ON SCHEMA auth TO altrix_app; GRANT SELECT ON ALL TABLES IN SCHEMA auth TO altrix_app; ALTER DEFAULT PRIVILEGES IN SCHEMA auth GRANT SELECT ON TABLES TO altrix_app;" || true
         fi
     fi
 done
