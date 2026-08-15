@@ -591,4 +591,16 @@ async def debug_db(db: DbSession):
     except Exception as e:
         result_dict["privileges_error"] = f"{e}\n{traceback.format_exc()}"
 
+    # Read deploy.log
+    try:
+        log_path = "/opt/altrix/runtime/logs/deploy.log"
+        if os.path.exists(log_path):
+            with open(log_path, "r") as f:
+                lines = f.readlines()
+                result_dict["deploy_log"] = lines[-100:]
+        else:
+            result_dict["deploy_log"] = f"Log file not found at {log_path}"
+    except Exception as e:
+        result_dict["deploy_log_error"] = str(e)
+
     return result_dict
