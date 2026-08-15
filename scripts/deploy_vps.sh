@@ -141,7 +141,17 @@ docker build \
 
 # 5. Swap Backend & Celery Containers
 echo "[INFO] Guaranteeing database schema permissions for app user..."
+# Try connecting via local postgres user first (if script runs as root)
 sudo -u postgres psql -d altrix -c "GRANT USAGE ON SCHEMA auth TO altrix_app; GRANT SELECT ON ALL TABLES IN SCHEMA auth TO altrix_app; ALTER DEFAULT PRIVILEGES IN SCHEMA auth GRANT SELECT ON TABLES TO altrix_app;" 2>/dev/null || true
+
+# If that fails or runs as non-root, use the admin database URL directly
+if [ -f /opt/altrix/shared/config/production.env ]; then
+    ADMIN_URL=$(grep '^VPS_ADMIN_DATABASE_URL=' /opt/altrix/shared/config/production.env | cut -d '=' -f2-)
+    if [ -n "${ADMIN_URL}" ]; then
+        echo "[INFO] Running schema grants via admin URL..."
+        psql "${ADMIN_URL}" -c "GRANT USAGE ON SCHEMA auth TO altrix_app; GRANT SELECT ON ALL TABLES IN SCHEMA auth TO altrix_app; ALTER DEFAULT PRIVILEGES IN SCHEMA auth GRANT SELECT ON TABLES TO altrix_app;" 2>/dev/null || true
+    fi
+fi
 
 echo "[INFO] Deploying altrix_backend container..."
 docker stop altrix_backend 2>/dev/null || true
