@@ -253,9 +253,9 @@ docker image prune -f >/dev/null 2>&1 || true
 
 # 9b. Export deployment and container logs to web-accessible location for diagnostics
 echo "[INFO] Exporting diagnostics logs to shared assets..."
-cp "${LOG_FILE}" /opt/altrix/shared/frontend/assets/deploy.txt 2>/dev/null || true
-docker logs altrix_backend > /opt/altrix/shared/frontend/assets/docker.txt 2>&1 || true
-chmod 644 /opt/altrix/shared/frontend/assets/deploy.txt /opt/altrix/shared/frontend/assets/docker.txt 2>/dev/null || true
+cp "${LOG_FILE}" "${RELEASE_DIR}/frontend/assets/deploy.txt" 2>/dev/null || true
+docker logs altrix_backend > "${RELEASE_DIR}/frontend/assets/docker.txt" 2>&1 || true
+chmod 644 "${RELEASE_DIR}/frontend/assets/deploy.txt" "${RELEASE_DIR}/frontend/assets/docker.txt" 2>/dev/null || true
 
 echo "================================================="
 echo " AUTOMATED DEPLOYMENT SUCCESSFUL!"
