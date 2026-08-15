@@ -104,6 +104,10 @@ cp -rp "${RELEASE_DIR}/dist/assets/"* /opt/altrix/shared/assets/ 2>/dev/null || 
 rm -rf "${RELEASE_DIR}/dist/assets"
 ln -s /opt/altrix/shared/assets "${RELEASE_DIR}/dist/assets"
 
+# Ensure Nginx/www-data has read permissions to the shared assets folder and symlinks
+chmod -R 755 /opt/altrix/shared
+find /opt/altrix/shared/assets -type f -exec chmod 644 {} + 2>/dev/null || true
+
 # 4. Copy Environment & Build Docker Backend
 echo "[INFO] Preparing Backend Docker Image..."
 if [ -f /opt/altrix/shared/config/production.env ]; then

@@ -35,6 +35,12 @@ def build_engine(database_url: str | None = None):
         url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
     elif url.startswith("postgres://"):
         url = url.replace("postgres://", "postgresql+asyncpg://", 1)
+        
+    # Auto-rewrite Docker gateway IPs to localhost (127.0.0.1) when running in host network mode,
+    # since PostgreSQL on the host listens on 127.0.0.1 and iptables blocks docker bridge traffic.
+    for gw in ["172.17.0.1", "172.18.0.1", "172.19.0.1", "172.20.0.1"]:
+        if f"@{gw}" in url:
+            url = url.replace(f"@{gw}", "@127.0.0.1")
     
     # Configure pooling strategy based on configuration settings
     poolclass = NullPool if settings.db_pool_type.lower() == "null" else None
