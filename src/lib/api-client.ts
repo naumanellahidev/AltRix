@@ -110,6 +110,22 @@ apiClient.interceptors.request.use(
       }
     }
 
+    // 3. Resolve and inject the X-Campus-Id header if present in the owner context
+    if (!isSystemRoute && !config.headers["X-Campus-Id"]) {
+      try {
+        const rawCtx = localStorage.getItem("eduverse_owner_active_context");
+        if (rawCtx) {
+          const parsed = JSON.parse(rawCtx);
+          // Only send the campus ID if it belongs to the current active school
+          if (parsed?.campusId && parsed?.schoolId === config.headers["X-School-Id"]) {
+            config.headers["X-Campus-Id"] = parsed.campusId;
+          }
+        }
+      } catch (e) {
+        console.error("Error scanning localStorage for campus context:", e);
+      }
+    }
+
     return config;
   },
   (error) => {

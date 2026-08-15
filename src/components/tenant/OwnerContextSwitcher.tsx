@@ -33,8 +33,9 @@ export function OwnerContextSwitcher({ schoolId, schoolSlug, compact }: Props) {
     navigate(`/${slug}/school_owner`);
   };
 
-  const handleCampus = (id: string) => {
-    ctx.setActiveCampus(id === ALL_CAMPUSES ? null : id);
+  const handleCampus = async (id: string) => {
+    await ctx.setActiveCampus(id === ALL_CAMPUSES ? null : id);
+    window.location.reload();
   };
 
   const label = ctx.activeSchool?.name ?? "Select school";

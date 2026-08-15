@@ -38,9 +38,23 @@ async def list_exams(
 ):
     if not current_user.school_id:
         return []
+
+    if current_user.campus_id and not campus_id:
+        try:
+            campus_id = UUID(current_user.campus_id)
+        except (ValueError, TypeError):
+            pass
+
     query = select(Exam).where(Exam.school_id == current_user.school_id)
     if campus_id:
-        query = query.where(sa_false())
+        from app.models.academic import ClassSection
+        query = query.where(
+            Exam.id.in_(
+                select(ExamDatesheet.exam_id)
+                .join(ClassSection, ClassSection.id == ExamDatesheet.class_section_id)
+                .where(ClassSection.campus_id == campus_id)
+            )
+        )
     if academic_year:
         query = query.where(Exam.academic_year == academic_year)
     result = await db.execute(query.order_by(Exam.start_date.desc()))

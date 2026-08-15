@@ -95,6 +95,7 @@ async def get_current_user(
 async def get_current_user_with_roles(
     authorization: Annotated[Optional[str], Header()] = None,
     x_school_id: Annotated[Optional[str], Header()] = None,
+    x_campus_id: Annotated[Optional[str], Header()] = None,
     db: AsyncSession = Depends(get_db),
 ) -> AuthenticatedUser:
     """
@@ -151,6 +152,11 @@ async def get_current_user_with_roles(
                 import logging
                 logging.getLogger("app.dependencies").warning(f"Error resolving school slug {x_school_id}: {e}")
 
+        # Resolve campus parameter
+        resolved_campus_id = None
+        if x_campus_id:
+            resolved_campus_id = str(x_campus_id).strip()
+
         # Load roles from user_roles and school_owner_assignments tables scoped to school
         if sid_obj:
             try:
@@ -158,41 +164,78 @@ async def get_current_user_with_roles(
                     school_id=sid_str,
                     base_key=f"auth:roles:{user.id}"
                 )
-                cached_roles = await cache.get(cache_key)
-                if cached_roles:
-                    user.roles = cached_roles
+                cached_data = await cache.get(cache_key)
+                if cached_data:
+                    if isinstance(cached_data, dict):
+                        user.roles = cached_data.get("roles", [])
+                        db_campus_id = cached_data.get("campus_id")
+                    else:
+                        user.roles = cached_data
+                        db_campus_id = None
                     user.school_id = sid_str
                 else:
                     result = await db.execute(
                         text(
                             """
-                            SELECT role FROM user_roles
+                            SELECT role, campus_id FROM user_roles
                             WHERE user_id = :uid AND (school_id = :sid OR school_id IS NULL)
                             UNION
-                            SELECT 'school_owner' FROM school_owner_assignments
+                            SELECT 'school_owner', NULL FROM school_owner_assignments
                             WHERE owner_user_id = :uid AND school_id = :sid
                             """
                         ),
                         {"uid": uid_obj, "sid": sid_obj},
                     )
-                    roles = [row[0] for row in result.fetchall()]
+                    rows = result.fetchall()
+                    roles = [row[0] for row in rows]
+                    
+                    # Find any non-null campus_id assigned in user_roles
+                    db_campus_ids = [row[1] for row in rows if row[1]]
+                    db_campus_id = str(db_campus_ids[0]) if db_campus_ids else None
+                    
                     if roles:
                         user.roles = roles
                         user.school_id = sid_str
-                        await cache.set(cache_key, roles, ttl=TTL_USER_ROLES)
+                        await cache.set(cache_key, {"roles": roles, "campus_id": db_campus_id}, ttl=TTL_USER_ROLES)
                     else:
                         # Fallback check if user has roles under any school
                         res_any = await db.execute(
-                            text("SELECT role, school_id FROM user_roles WHERE user_id = :uid LIMIT 5"),
+                            text("SELECT role, school_id, campus_id FROM user_roles WHERE user_id = :uid LIMIT 5"),
                             {"uid": uid_obj}
                         )
                         any_rows = res_any.fetchall()
                         if any_rows:
                             user.roles = [r[0] for r in any_rows]
                             user.school_id = str(any_rows[0][1]) if any_rows[0][1] else sid_str
+                            db_campus_id = str(any_rows[0][2]) if any_rows[0][2] else None
                         else:
                             user.roles = []
                             user.school_id = sid_str
+                            db_campus_id = None
+
+                # Determine active campus
+                if resolved_campus_id:
+                    user.campus_id = resolved_campus_id
+                else:
+                    owner_campus_id = None
+                    if "school_owner" in user.roles or user.is_super_admin:
+                        try:
+                            res_context = await db.execute(
+                                text("SELECT active_campus_id FROM owner_active_context WHERE user_id = :uid AND active_school_id = :sid"),
+                                {"uid": uid_obj, "sid": sid_obj}
+                            )
+                            row_context = res_context.fetchone()
+                            if row_context and row_context[0]:
+                                owner_campus_id = str(row_context[0])
+                        except Exception as e_ctx:
+                            import logging
+                            logging.getLogger("app.dependencies").warning(f"Error resolving owner active context: {e_ctx}")
+                    
+                    if owner_campus_id:
+                        user.campus_id = owner_campus_id
+                    elif db_campus_id:
+                        user.campus_id = db_campus_id
+
             except Exception as e:
                 import logging
                 logging.getLogger("app.dependencies").warning(f"DB exception loading roles for school {x_school_id}: {e}")

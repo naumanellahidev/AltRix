@@ -125,7 +125,16 @@ async def list_infirmary_visit_logs(
     current_user: CurrentUser,
 ):
     school_id = current_user.school_id or UUID("00000000-0000-0000-0000-000000000000")
-    stmt = select(InfirmaryVisitLog).where(InfirmaryVisitLog.school_id == school_id).order_by(InfirmaryVisitLog.visit_date.desc())
+    stmt = select(InfirmaryVisitLog).where(InfirmaryVisitLog.school_id == school_id)
+    if current_user.campus_id:
+        from app.models.people import Student
+        try:
+            stmt = stmt.where(InfirmaryVisitLog.student_id.in_(
+                select(Student.id).where(Student.campus_id == UUID(current_user.campus_id))
+            ))
+        except (ValueError, TypeError):
+            pass
+    stmt = stmt.order_by(InfirmaryVisitLog.visit_date.desc())
     try:
         res = await db.execute(stmt)
         return list(res.scalars().all())

@@ -174,6 +174,13 @@ async def list_notices(
 ):
     if not current_user.school_id:
         return []
+
+    if current_user.campus_id and not campus_id:
+        try:
+            campus_id = UUID(current_user.campus_id)
+        except (ValueError, TypeError):
+            pass
+
     query = select(Notice).where(Notice.school_id == current_user.school_id)
     if campus_id:
         query = query.where(Notice.campus_id == campus_id)
@@ -252,6 +259,12 @@ async def list_diary(
     query = select(DiaryEntry).where(DiaryEntry.school_id == current_user.school_id)
     if section_id:
         query = query.where(DiaryEntry.class_section_id == section_id)
+    elif current_user.campus_id:
+        from app.models.academic import ClassSection
+        try:
+            query = query.join(ClassSection, ClassSection.id == DiaryEntry.class_section_id).where(ClassSection.campus_id == UUID(current_user.campus_id))
+        except (ValueError, TypeError):
+            pass
     if teacher_user_id:
         query = query.where(DiaryEntry.teacher_user_id == teacher_user_id)
     if from_date:

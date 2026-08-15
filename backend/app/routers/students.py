@@ -43,6 +43,12 @@ async def list_students(
     if not current_user.school_id:
         return PaginatedResponse.create([], 0, page, page_size)
 
+    if current_user.campus_id and not campus_id:
+        try:
+            campus_id = UUID(current_user.campus_id)
+        except (ValueError, TypeError):
+            pass
+
     query = select(Student).where(Student.school_id == current_user.school_id)
 
     from app.utils.security import get_allowed_student_ids

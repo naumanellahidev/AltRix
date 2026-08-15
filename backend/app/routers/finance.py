@@ -171,6 +171,11 @@ async def list_vouchers(
         student_ids_filter = [student_id] if student_id else None
 
     query = select(FeeVoucher).where(FeeVoucher.school_id == current_user.school_id)
+    if current_user.campus_id:
+        try:
+            query = query.where(FeeVoucher.campus_id == UUID(current_user.campus_id))
+        except (ValueError, TypeError):
+            pass
     if student_ids_filter is not None:
         query = query.where(FeeVoucher.student_id.in_(student_ids_filter))
     if status_filter:
@@ -297,6 +302,11 @@ async def list_payments(
         return PaginatedResponse.create([], 0, page, page_size)
 
     query = select(FeePayment).where(FeePayment.school_id == current_user.school_id)
+    if current_user.campus_id:
+        try:
+            query = query.where(FeePayment.campus_id == UUID(current_user.campus_id))
+        except (ValueError, TypeError):
+            pass
     if student_id:
         query = query.where(FeePayment.student_id == student_id)
     if from_date:
@@ -386,10 +396,16 @@ async def finance_summary(
     if not current_user.school_id:
         raise ForbiddenError("No school context")
 
+    if current_user.campus_id and not campus_id:
+        try:
+            campus_id = UUID(current_user.campus_id)
+        except (ValueError, TypeError):
+            pass
+
     params = {"school_id": current_user.school_id}
     conditions = "school_id = :school_id"
     if campus_id:
-        conditions += " AND student_id IN (SELECT id FROM students WHERE campus_id = :campus_id)"
+        conditions += " AND (campus_id = :campus_id OR student_id IN (SELECT id FROM students WHERE campus_id = :campus_id))"
         params["campus_id"] = str(campus_id)
 
     result = await db.execute(
@@ -588,7 +604,11 @@ async def get_salary_records(
         raise ForbiddenError("No school context")
     try:
         sql = "SELECT id, user_id, base_salary, allowances, deductions, is_active FROM hr_salary_records WHERE school_id = :sid AND is_active = true"
-        res = await db.execute(text(sql), {"sid": str(target_sid)})
+        params = {"sid": str(target_sid)}
+        if current_user.campus_id:
+            sql += " AND user_id IN (SELECT user_id FROM user_roles WHERE school_id = :sid AND campus_id = :campus_id)"
+            params["campus_id"] = current_user.campus_id
+        res = await db.execute(text(sql), params)
         rows = res.fetchall()
         return [
             {
@@ -621,7 +641,11 @@ async def get_staff_roles(
         raise ForbiddenError("No school context")
     try:
         sql = "SELECT user_id, role FROM user_roles WHERE school_id = :sid"
-        res = await db.execute(text(sql), {"sid": str(target_sid)})
+        params = {"sid": str(target_sid)}
+        if current_user.campus_id:
+            sql += " AND campus_id = :campus_id"
+            params["campus_id"] = current_user.campus_id
+        res = await db.execute(text(sql), params)
         rows = res.fetchall()
         return [{"user_id": str(r[0]), "role": r[1]} for r in rows]
     except Exception as e:
@@ -983,6 +1007,14 @@ async def list_escalations(
     if not current_user.school_id:
         return []
     query = select(FeeEscalation).where(FeeEscalation.school_id == current_user.school_id)
+    if current_user.campus_id:
+        from app.models.people import Student
+        try:
+            query = query.where(FeeEscalation.student_id.in_(
+                select(Student.id).where(Student.campus_id == UUID(current_user.campus_id))
+            ))
+        except (ValueError, TypeError):
+            pass
     if resolved is not None:
         query = query.where(FeeEscalation.resolved == resolved)
     result = await db.execute(query.order_by(FeeEscalation.escalation_level.desc(), FeeEscalation.created_at.desc()))
@@ -1255,7 +1287,16 @@ async def list_escalations(current_user: CurrentUser, db: DbSession):
         return []
     try:
         from app.models.finance import FeeEscalation
-        res = await db.execute(select(FeeEscalation).where(FeeEscalation.school_id == current_user.school_id).order_by(FeeEscalation.created_at.desc()))
+        query = select(FeeEscalation).where(FeeEscalation.school_id == current_user.school_id)
+        if current_user.campus_id:
+            from app.models.people import Student
+            try:
+                query = query.where(FeeEscalation.student_id.in_(
+                    select(Student.id).where(Student.campus_id == UUID(current_user.campus_id))
+                ))
+            except (ValueError, TypeError):
+                pass
+        res = await db.execute(query.order_by(FeeEscalation.created_at.desc()))
         return list(res.scalars().all())
     except Exception:
         return []

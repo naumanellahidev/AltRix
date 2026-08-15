@@ -87,6 +87,13 @@ async def list_sections(
 ):
     if not current_user.school_id:
         return []
+
+    if current_user.campus_id and not campus_id:
+        try:
+            campus_id = UUID(current_user.campus_id)
+        except (ValueError, TypeError):
+            pass
+
     query = select(ClassSection).where(ClassSection.school_id == current_user.school_id)
     if class_id:
         query = query.where(ClassSection.class_id == class_id)
@@ -197,6 +204,13 @@ async def get_timetable(
 ):
     if not current_user.school_id:
         return []
+
+    if current_user.campus_id and not campus_id:
+        try:
+            campus_id = UUID(current_user.campus_id)
+        except (ValueError, TypeError):
+            pass
+
     query = select(TimetableSlot).where(
         TimetableSlot.school_id == current_user.school_id,
         TimetableSlot.is_active == True,
@@ -273,9 +287,13 @@ async def get_timetable_periods(current_user: CurrentUser, db: DbSession):
 async def list_holidays(current_user: CurrentUser, db: DbSession):
     if not current_user.school_id:
         return []
-    result = await db.execute(
-        select(Holiday).where(Holiday.school_id == current_user.school_id).order_by(Holiday.start_date)
-    )
+    query = select(Holiday).where(Holiday.school_id == current_user.school_id)
+    if current_user.campus_id:
+        try:
+            query = query.where(Holiday.campus_id == UUID(current_user.campus_id))
+        except (ValueError, TypeError):
+            pass
+    result = await db.execute(query.order_by(Holiday.start_date))
     return result.scalars().all()
 
 
@@ -330,6 +348,8 @@ async def list_section_subjects(
     query = select(ClassSectionSubject).where(ClassSectionSubject.school_id == current_user.school_id)
     if class_section_id:
         query = query.where(ClassSectionSubject.class_section_id == class_section_id)
+    elif current_user.campus_id:
+        query = query.join(ClassSection, ClassSection.id == ClassSectionSubject.class_section_id).where(ClassSection.campus_id == UUID(current_user.campus_id))
     result = await db.execute(query)
     return result.scalars().all()
 

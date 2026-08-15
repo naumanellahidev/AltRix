@@ -38,6 +38,9 @@ async def get_recent_entries(
     try:
         query = "SELECT student_id, status FROM attendance_entries WHERE school_id = :school_id"
         params = {"school_id": current_user.school_id}
+        if current_user.campus_id:
+            query += " AND campus_id = CAST(:campus_id AS UUID)"
+            params["campus_id"] = current_user.campus_id
         if allowed_student_ids is not None:
             if not allowed_student_ids:
                 return []
@@ -70,6 +73,13 @@ async def list_sessions(
 ):
     if not current_user.school_id:
         return []
+
+    if current_user.campus_id and not campus_id:
+        try:
+            campus_id = UUID(current_user.campus_id)
+        except (ValueError, TypeError):
+            pass
+
     query = select(AttendanceSession).where(AttendanceSession.school_id == current_user.school_id)
     if section_id:
         query = query.where(AttendanceSession.class_section_id == section_id)
@@ -231,6 +241,10 @@ async def attendance_report(
 
     conditions = ["ae.school_id = :school_id"]
     params: dict = {"school_id": current_user.school_id}
+
+    if current_user.campus_id:
+        conditions.append("ae.campus_id = CAST(:campus_id AS UUID)")
+        params["campus_id"] = current_user.campus_id
 
     if student_id:
         conditions.append("ae.student_id = :student_id")
