@@ -529,3 +529,50 @@ async def get_user_profile(user_id: UUID, current_user: CurrentUser, db: DbSessi
     except Exception as e:
         logger.warning(f"DB exception querying profile {user_id}: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@router.get("/debug-db")
+async def debug_db(db: DbSession):
+    import traceback
+    result_dict = {}
+    try:
+        # 1. Check current connection info
+        res = await db.execute(text("SELECT current_user, current_database(), version()"))
+        row = res.fetchone()
+        result_dict["connection"] = {
+            "current_user": row[0],
+            "current_database": row[1],
+            "postgres_version": row[2]
+        }
+    except Exception as e:
+        result_dict["connection_error"] = f"{e}\n{traceback.format_exc()}"
+
+    try:
+        # 2. Try querying auth.users
+        res_users = await db.execute(text("SELECT id, email FROM auth.users LIMIT 1"))
+        row_user = res_users.fetchone()
+        result_dict["query_users"] = {
+            "success": True,
+            "sample_user": {
+                "id": str(row_user[0]) if row_user else None,
+                "email": row_user[1] if row_user else None
+            }
+        }
+    except Exception as e:
+        result_dict["query_users_error"] = f"{e}\n{traceback.format_exc()}"
+        
+    try:
+        # 3. Check schema privileges info
+        res_privs = await db.execute(text("""
+            SELECT has_schema_privilege(current_user, 'auth', 'usage') as has_usage,
+                   has_table_privilege(current_user, 'auth.users', 'select') as has_select
+        """))
+        row_privs = res_privs.fetchone()
+        result_dict["privileges"] = {
+            "has_usage_on_auth_schema": row_privs[0],
+            "has_select_on_auth_users": row_privs[1]
+        }
+    except Exception as e:
+        result_dict["privileges_error"] = f"{e}\n{traceback.format_exc()}"
+
+    return result_dict
