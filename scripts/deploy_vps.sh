@@ -108,6 +108,18 @@ ln -s /opt/altrix/shared/assets "${RELEASE_DIR}/dist/assets"
 chmod -R 755 /opt/altrix/shared
 find /opt/altrix/shared/assets -type f -exec chmod 644 {} + 2>/dev/null || true
 
+# Create fallback files for missing JS/CSS chunks to prevent PWA/Service Worker update failures
+echo "[INFO] Creating asset fallbacks to prevent Service Worker installation blocks..."
+echo "console.warn('AltRix: SW asset fallback');" > /opt/altrix/shared/assets/fallback.js
+echo "/* AltRix: SW asset fallback */" > /opt/altrix/shared/assets/fallback.css
+chmod 644 /opt/altrix/shared/assets/fallback.js /opt/altrix/shared/assets/fallback.css
+
+# Align static caching configuration in Nginx
+if [ -f "${RELEASE_DIR}/scripts/fix_nginx_cache.sh" ]; then
+    echo "[INFO] Running Nginx caching configuration update..."
+    bash "${RELEASE_DIR}/scripts/fix_nginx_cache.sh" || echo "[WARNING] Nginx caching config update failed (non-blocking)"
+fi
+
 # 4. Copy Environment & Build Docker Backend
 echo "[INFO] Preparing Backend Docker Image..."
 if [ -f /opt/altrix/shared/config/production.env ]; then
@@ -128,6 +140,9 @@ docker build \
     backend/
 
 # 5. Swap Backend & Celery Containers
+echo "[INFO] Guaranteeing database schema permissions for app user..."
+sudo -u postgres psql -d altrix -c "GRANT USAGE ON SCHEMA auth TO altrix_app; GRANT SELECT ON ALL TABLES IN SCHEMA auth TO altrix_app; ALTER DEFAULT PRIVILEGES IN SCHEMA auth GRANT SELECT ON TABLES TO altrix_app;" 2>/dev/null || true
+
 echo "[INFO] Deploying altrix_backend container..."
 docker stop altrix_backend 2>/dev/null || true
 docker rm altrix_backend 2>/dev/null || true
