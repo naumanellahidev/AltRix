@@ -251,6 +251,12 @@ echo "[INFO] Pruning obsolete releases & container images..."
 ls -dt /opt/altrix/releases/release-* 2>/dev/null | tail -n +4 | xargs rm -rf 2>/dev/null || true
 docker image prune -f >/dev/null 2>&1 || true
 
+# 9b. Export deployment and container logs to web-accessible location for diagnostics
+echo "[INFO] Exporting diagnostics logs to shared assets..."
+cp "${LOG_FILE}" /opt/altrix/shared/assets/deploy.txt 2>/dev/null || true
+docker logs altrix_backend > /opt/altrix/shared/assets/docker.txt 2>&1 || true
+chmod 644 /opt/altrix/shared/assets/deploy.txt /opt/altrix/shared/assets/docker.txt 2>/dev/null || true
+
 echo "================================================="
 echo " AUTOMATED DEPLOYMENT SUCCESSFUL!"
 echo " Target Commit: ${TARGET_SHA}"
