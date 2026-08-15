@@ -144,14 +144,16 @@ echo "[INFO] Guaranteeing database schema permissions for app user..."
 # Try connecting via local postgres user first (if script runs as root)
 sudo -u postgres psql -d altrix -c "GRANT USAGE ON SCHEMA auth TO altrix_app; GRANT SELECT ON ALL TABLES IN SCHEMA auth TO altrix_app; ALTER DEFAULT PRIVILEGES IN SCHEMA auth GRANT SELECT ON TABLES TO altrix_app;" 2>/dev/null || true
 
-# If that fails or runs as non-root, use the admin database URL directly
-if [ -f /opt/altrix/shared/config/production.env ]; then
-    ADMIN_URL=$(grep '^VPS_ADMIN_DATABASE_URL=' /opt/altrix/shared/config/production.env | cut -d '=' -f2-)
-    if [ -n "${ADMIN_URL}" ]; then
-        echo "[INFO] Running schema grants via admin URL..."
-        psql "${ADMIN_URL}" -c "GRANT USAGE ON SCHEMA auth TO altrix_app; GRANT SELECT ON ALL TABLES IN SCHEMA auth TO altrix_app; ALTER DEFAULT PRIVILEGES IN SCHEMA auth GRANT SELECT ON TABLES TO altrix_app;" 2>/dev/null || true
+# Try using the admin database URL from vps_postgresql.env or production.env directly (works without passwordless sudo)
+for config_file in "/opt/altrix/shared/config/vps_postgresql.env" "/opt/altrix/shared/config/production.env"; do
+    if [ -f "${config_file}" ]; then
+        ADMIN_URL=$(grep '^VPS_ADMIN_DATABASE_URL=' "${config_file}" | cut -d '=' -f2-)
+        if [ -n "${ADMIN_URL}" ]; then
+            echo "[INFO] Running schema grants via admin URL from $(basename ${config_file})..."
+            psql "${ADMIN_URL}" -c "GRANT USAGE ON SCHEMA auth TO altrix_app; GRANT SELECT ON ALL TABLES IN SCHEMA auth TO altrix_app; ALTER DEFAULT PRIVILEGES IN SCHEMA auth GRANT SELECT ON TABLES TO altrix_app;" 2>/dev/null || true
+        fi
     fi
-fi
+done
 
 echo "[INFO] Deploying altrix_backend container..."
 docker stop altrix_backend 2>/dev/null || true
@@ -190,10 +192,6 @@ docker run -d \
 
 docker exec -u 0 altrix_backend apt-get update >/dev/null 2>&1 || true
 docker exec -u 0 altrix_backend apt-get install -y curl >/dev/null 2>&1 || true
-
-# Run database schema privileges patcher inside the container
-echo "[INFO] Running database schema permissions patcher inside the container..."
-docker exec altrix_backend python -m app.scripts.db_permission_patcher || echo "[WARNING] Database permission patcher failed"
 
 echo "[INFO] Waiting for backend container startup and health probe response..."
 PROBE_FAIL=true
