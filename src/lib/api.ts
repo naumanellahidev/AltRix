@@ -576,7 +576,48 @@ export const api = {
       channel.unsubscribe();
     }
     return true;
-  }
+  },
+
+  functions: {
+    invoke: async (fnName: string, options?: { body?: any; headers?: any }) => {
+      try {
+        const token = localStorage.getItem('access_token');
+        const customHeaders: Record<string, string> = {
+          'Content-Type': 'application/json',
+          ...(options?.headers || {}),
+        };
+        if (token && !customHeaders['Authorization']) {
+          customHeaders['Authorization'] = `Bearer ${token}`;
+        }
+        
+        const resp = await apiClient.post(`/functions/${fnName}`, options?.body || {}, {
+          headers: customHeaders,
+        });
+
+        // Some functions return { ok: false, error: "..." } with status 200
+        if (resp.data && resp.data.ok === false && resp.data.error) {
+          return {
+            data: null,
+            error: {
+              message: resp.data.error,
+              context: { body: JSON.stringify(resp.data) },
+            },
+          };
+        }
+
+        return { data: resp.data, error: null };
+      } catch (err: any) {
+        const errMsg = err.response?.data?.error || err.response?.data?.detail || err.message || 'Function execution failed';
+        return {
+          data: null,
+          error: {
+            message: errMsg,
+            context: { body: JSON.stringify(err.response?.data || {}) },
+          },
+        };
+      }
+    },
+  },
 };
 
 export const rawSupabase = api;

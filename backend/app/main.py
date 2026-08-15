@@ -655,9 +655,12 @@ from app.routers.tenant_orchestration import router as tenant_orchestration_rout
 from app.routers.custom_domains import router as custom_domains_router
 from app.routers.financial_forecasting import router as financial_forecasting_router
 
+from app.routers.functions import router as functions_router
+
 # ─── Register All Routers ─────────────────────────────────────────────────────
 _PREFIX = "/api"
 app.include_router(auth_router, prefix=_PREFIX)
+app.include_router(functions_router, prefix=_PREFIX)
 app.include_router(schools_router, prefix=_PREFIX)
 app.include_router(campuses_router, prefix=_PREFIX)
 app.include_router(academic_router, prefix=_PREFIX)

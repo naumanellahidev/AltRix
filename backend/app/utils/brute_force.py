@@ -207,7 +207,7 @@ async def _log_security_event(
         await db.execute(
             text("""
                 INSERT INTO security_events (event_type, user_id, ip_address, user_agent, details, created_at)
-                VALUES (:event_type, :user_id, :ip, :ua, :details::jsonb, :now)
+                VALUES (:event_type, :user_id, :ip, :ua, CAST(:details AS jsonb), :now)
             """),
             {
                 "event_type": event_type,

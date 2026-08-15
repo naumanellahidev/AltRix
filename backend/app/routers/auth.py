@@ -57,23 +57,18 @@ async def login(request: Request, body: LoginRequest, db: DbSession):
     import bcrypt
     from app.utils.jwt import create_access_token
 
-    # Query auth.users directly on the VPS
+    # Query auth.users directly on the VPS (case-insensitive & whitespace trimmed)
     result = await db.execute(
-        text("SELECT id, email, encrypted_password FROM auth.users WHERE email = :email LIMIT 1"),
+        text("SELECT id, email, encrypted_password FROM auth.users WHERE LOWER(TRIM(email)) = LOWER(TRIM(:email)) LIMIT 1"),
         {"email": body.email}
     )
     user = result.fetchone()
 
     is_valid = False
     if user and user.encrypted_password:
-        # Some older Supabase hashes start with $argon2i$ or similar, bcrypt handles $2b$ and $2y$ (sometimes $2a$)
-        # Supabase uses standard bcrypt, but just in case, wrap in try-except
         try:
-            # Bcrypt checkpw requires bytes
-            # Ensure the hash has standard bcrypt prefix if necessary, but passlib handles it better.
-            # Using raw bcrypt for speed and simplicity.
             hash_bytes = user.encrypted_password.encode('utf-8')
-            if hash_bytes.startswith(b"$2a$"):
+            if hash_bytes.startswith(b"$2a$") or hash_bytes.startswith(b"$2y$"):
                 hash_bytes = b"$2b$" + hash_bytes[4:]
             
             is_valid = bcrypt.checkpw(
@@ -83,6 +78,19 @@ async def login(request: Request, body: LoginRequest, db: DbSession):
         except Exception as e:
             logger.warning(f"Bcrypt check failed: {e}")
             is_valid = False
+
+        # Native PostgreSQL pgcrypto crypt fallback if bcrypt returned False or failed
+        if not is_valid:
+            try:
+                crypt_check = await db.execute(
+                    text("SELECT (encrypted_password = crypt(:password, encrypted_password)) AS is_ok FROM auth.users WHERE id = :user_id"),
+                    {"password": body.password, "user_id": user.id}
+                )
+                row = crypt_check.fetchone()
+                if row and row.is_ok:
+                    is_valid = True
+            except Exception as db_e:
+                logger.warning(f"DB pgcrypto check fallback failed: {db_e}")
 
     if not is_valid or user is None:
         # Record failed login attempt (brute force and persistent SQL table)
