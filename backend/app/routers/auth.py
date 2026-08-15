@@ -593,13 +593,16 @@ async def debug_db(db: DbSession):
 
     # Read deploy.log
     try:
-        log_path = "/opt/altrix/runtime/logs/deploy.log"
-        if os.path.exists(log_path):
-            with open(log_path, "r") as f:
+        import glob
+        log_files = glob.glob("/opt/altrix/logs/deployments/deploy_*.log")
+        if log_files:
+            latest_log = max(log_files, key=os.path.getctime)
+            with open(latest_log, "r") as f:
                 lines = f.readlines()
+                result_dict["deploy_log_file"] = os.path.basename(latest_log)
                 result_dict["deploy_log"] = lines[-100:]
         else:
-            result_dict["deploy_log"] = f"Log file not found at {log_path}"
+            result_dict["deploy_log"] = "No deploy log files found in /opt/altrix/logs/deployments/"
     except Exception as e:
         result_dict["deploy_log_error"] = str(e)
 
