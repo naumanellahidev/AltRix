@@ -5,7 +5,7 @@ import { motion, useReducedMotion } from "framer-motion";
 import { Loader2, Sparkles, Shield, Activity, Workflow, Building2, Mail, Lock, Eye, EyeOff, Info, ArrowRight, ArrowLeft, Key } from "lucide-react";
 
 import { apiClient } from "@/lib/api-client";
-import { api, api } from "@/lib/api";
+import { api } from "@/lib/api";
 import { useTenant } from "@/hooks/useTenant";
 import { useSchoolPermissions } from "@/hooks/useSchoolPermissions";
 import { MASTER_SUPER_ADMIN_EMAIL } from "@/hooks/usePlatformSuperAdmin";
@@ -119,36 +119,30 @@ const TenantAuth = () => {
     if (!parsedPassword.success) { setMessageType("error"); setMessage("Password must be at least 8 characters."); return; }
     setBusy(true);
     try {
-      // 1. Try FastAPI login endpoint first (/api/auth/login)
-      try {
-        const resp = await apiClient.post("/auth/login", {
-          email: parsedEmail.data,
-          password: password,
+      const resp = await apiClient.post("/auth/login", {
+        email: parsedEmail.data,
+        password: password,
+      });
+      if (resp.data?.access_token) {
+        const { data: sessData } = await api.auth.setSession({
+          access_token: resp.data.access_token,
+          refresh_token: resp.data.refresh_token,
         });
-        if (resp.data?.access_token) {
-          const { data: sessData } = await api.auth.setSession({
-            access_token: resp.data.access_token,
-            refresh_token: resp.data.refresh_token,
-          });
-          rememberRecentEmail(parsedEmail.data);
-          setRecentEmails(getRecentEmails());
-          const userId = resp.data.user?.id || sessData?.user?.id;
-          if (userId) {
-            await routeUserAfterLogin(userId);
-            return;
-          }
+        rememberRecentEmail(parsedEmail.data);
+        setRecentEmails(getRecentEmails());
+        const userId = resp.data.user_id || resp.data.user?.id || sessData?.user?.id;
+        if (userId) {
+          await routeUserAfterLogin(userId);
+          return;
         }
-      } catch (fastApiErr: any) {
-        console.warn("FastAPI login fallback to Supabase direct auth:", fastApiErr);
       }
-
-      // 2. Fallback to Supabase direct auth
-      const { data, error } = await api.auth.signInWithPassword({ email: parsedEmail.data, password });
-      if (error) { setMessageType("error"); setMessage(error.message); return; }
-      rememberRecentEmail(parsedEmail.data);
-      setRecentEmails(getRecentEmails());
-      if (data.user) await routeUserAfterLogin(data.user.id);
-    } finally { setBusy(false); }
+    } catch (err: any) {
+      const errMsg = err.response?.data?.detail || err.message || "Invalid email or password.";
+      setMessageType("error");
+      setMessage(errMsg);
+    } finally {
+      setBusy(false);
+    }
   };
 
   const doForgotPassword = async () => {

@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { SpotlightBackdrop } from "@/components/visual/SpotlightBackdrop";
 import { AltrixLogo } from "@/components/AltrixLogo";
-import { api, api } from "@/lib/api";
+import { api } from "@/lib/api";
 import { useTenant } from "@/hooks/useTenant";
 import { MASTER_SUPER_ADMIN_EMAIL } from "@/hooks/usePlatformSuperAdmin";
 import { type EduverseRole } from "@/lib/eduverse-roles";
@@ -246,49 +246,26 @@ const Index = () => {
 
     setBusy(true);
     try {
-      // 1. Try FastAPI login endpoint first (/api/auth/login)
-      try {
-        const resp = await apiClient.post("/auth/login", {
-          email: parsedEmail.data,
-          password: password,
-        });
-        if (resp.data?.access_token) {
-          const { data: sessData } = await api.auth.setSession({
-            access_token: resp.data.access_token,
-            refresh_token: resp.data.refresh_token,
-          });
-          rememberRecentEmail(parsedEmail.data);
-          setRecentEmails(getRecentEmails());
-          const userId = resp.data.user?.id || sessData?.user?.id;
-          if (userId) {
-            await routeUserAfterLogin(userId);
-            return;
-          }
-        }
-      } catch (fastApiErr: any) {
-        console.warn("FastAPI login fallback to Supabase direct auth:", fastApiErr);
-      }
-
-      // 2. Fallback to Supabase direct auth
-      const { data, error } = await api.auth.signInWithPassword({
+      const resp = await apiClient.post("/auth/login", {
         email: parsedEmail.data,
-        password,
+        password: password,
       });
-      if (error) {
-        const isUnconfirmed = error.message.toLowerCase().includes("email not confirmed") ||
-                              (error as any).code === "email_not_confirmed" ||
-                              error.message.toLowerCase().includes("confirm your email");
-        if (isUnconfirmed) {
-          setAuthMode('verify_email');
-          void handleResendVerifyEmailOtp(parsedEmail.data);
+      if (resp.data?.access_token) {
+        const { data: sessData } = await api.auth.setSession({
+          access_token: resp.data.access_token,
+          refresh_token: resp.data.refresh_token,
+        });
+        rememberRecentEmail(parsedEmail.data);
+        setRecentEmails(getRecentEmails());
+        const userId = resp.data.user_id || resp.data.user?.id || sessData?.user?.id;
+        if (userId) {
+          await routeUserAfterLogin(userId);
           return;
         }
-        showError(error.message);
-        return;
       }
-      rememberRecentEmail(parsedEmail.data);
-      setRecentEmails(getRecentEmails());
-      if (data.user) await routeUserAfterLogin(data.user.id);
+    } catch (err: any) {
+      const errMsg = err.response?.data?.detail || err.message || "Invalid credentials";
+      showError(errMsg);
     } finally {
       setBusy(false);
     }
