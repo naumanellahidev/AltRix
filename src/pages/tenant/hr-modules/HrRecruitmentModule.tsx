@@ -185,11 +185,6 @@ function StatCard({ label, value, icon: Icon, tone }: { label: string; value: nu
     </Card>
   );
 }
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
 
 function PostingsTab({ postings, schoolId, onChange, loading }: { postings: JobPosting[]; schoolId: string; onChange: () => void; loading: boolean }) {
   const [open, setOpen] = useState(false);

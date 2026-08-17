@@ -880,27 +880,6 @@ export function AccountantHomeModule() {
               </div>
             </CardContent>
           </Card>
-                {quickActions.map((action) => (
-                  <div key={action.label} className="group">
-                    <button
-                      className="flex h-full w-full flex-col justify-between items-start text-left border bg-card p-5 rounded-2xl hover:border-primary hover:shadow-md transition-all duration-300 relative overflow-hidden"
-                      onClick={() => navigate(action.path)}
-                    >
-                      <div className="flex justify-between items-center w-full mb-4">
-                        <div className={`rounded-xl p-2.5 ${action.color}`}>
-                          <action.icon className="h-4.5 w-4.5" />
-                        </div>
-                        <ArrowUpRight className="h-3.5 w-3.5 text-muted-foreground/60 group-hover:text-primary group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all duration-200" />
-                      </div>
-                      <div>
-                        <span className="text-xs font-semibold text-foreground tracking-tight block uppercase">{action.label}</span>
-                      </div>
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
 
           {/* Insights + Alerts */}
           {insights.length > 0 && (
