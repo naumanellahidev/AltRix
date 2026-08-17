@@ -378,43 +378,43 @@ export default function ParentFeesModule({ child, schoolId }: ParentFeesModulePr
       </div>
 
       {/* Balance Dashboard block */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Card className="border-l-4 border-l-destructive bg-gradient-to-r from-destructive/5 to-transparent">
-          <CardContent className="pt-6">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-4">
+        <Card className="border-l-4 border-l-destructive bg-gradient-to-r from-destructive/5 to-transparent rounded-2xl shadow-sm">
+          <CardContent className="p-4 sm:p-6">
             <div className="flex justify-between items-start">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Total Pending</p>
-                <h3 className="text-2xl font-bold font-display tracking-tight text-foreground mt-2">
+                <p className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-muted-foreground">Total Pending</p>
+                <h3 className="text-xl sm:text-2xl font-bold font-display tracking-tight text-foreground mt-1 sm:mt-2">
                   PKR {outstandingVal.toLocaleString()}
                 </h3>
               </div>
-              <Badge variant="destructive" className="font-semibold">Pending</Badge>
+              <Badge variant="destructive" className="font-semibold text-xs">Pending</Badge>
             </div>
           </CardContent>
         </Card>
-        <Card className="border-l-4 border-l-primary bg-gradient-to-r from-primary/5 to-transparent">
-          <CardContent className="pt-6">
+        <Card className="border-l-4 border-l-primary bg-gradient-to-r from-primary/5 to-transparent rounded-2xl shadow-sm">
+          <CardContent className="p-4 sm:p-6">
             <div className="flex justify-between items-start">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Total Paid</p>
-                <h3 className="text-2xl font-bold font-display tracking-tight text-foreground mt-2">
+                <p className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-muted-foreground">Total Paid</p>
+                <h3 className="text-xl sm:text-2xl font-bold font-display tracking-tight text-foreground mt-1 sm:mt-2">
                   PKR {totalPaidVal.toLocaleString()}
                 </h3>
               </div>
-              <Badge variant="default" className="font-semibold bg-primary">Completed</Badge>
+              <Badge variant="default" className="font-semibold bg-primary text-xs">Completed</Badge>
             </div>
           </CardContent>
         </Card>
-        <Card className="border-l-4 border-l-amber-500 bg-gradient-to-r from-amber-500/5 to-transparent">
-          <CardContent className="pt-6">
+        <Card className="border-l-4 border-l-amber-500 bg-gradient-to-r from-amber-500/5 to-transparent rounded-2xl shadow-sm">
+          <CardContent className="p-4 sm:p-6">
             <div className="flex justify-between items-start">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Overdue Amount</p>
-                <h3 className="text-2xl font-bold font-display tracking-tight text-amber-600 mt-2">
+                <p className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-muted-foreground">Overdue Amount</p>
+                <h3 className="text-xl sm:text-2xl font-bold font-display tracking-tight text-amber-600 mt-1 sm:mt-2">
                   PKR {overdueVal.toLocaleString()}
                 </h3>
               </div>
-              <Badge className="font-semibold bg-amber-500 hover:bg-amber-600 text-white">Overdue</Badge>
+              <Badge className="font-semibold bg-amber-500 hover:bg-amber-600 text-white text-xs">Overdue</Badge>
             </div>
           </CardContent>
         </Card>
@@ -431,9 +431,9 @@ export default function ParentFeesModule({ child, schoolId }: ParentFeesModulePr
       )}
 
       {/* Main Billing Table */}
-      <Card className="shadow-soft">
-        <CardHeader className="pb-3 border-b flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-          <CardTitle className="text-lg font-bold font-display">Invoices & Challans</CardTitle>
+      <Card className="shadow-soft rounded-2xl sm:rounded-3xl overflow-hidden">
+        <CardHeader className="pb-3 border-b flex flex-col md:flex-row justify-between items-start md:items-center gap-4 p-4 sm:p-6">
+          <CardTitle className="text-base sm:text-lg font-bold font-display">Invoices & Challans</CardTitle>
           <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
             <div className="relative flex-1 sm:w-64">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -441,13 +441,13 @@ export default function ParentFeesModule({ child, schoolId }: ParentFeesModulePr
                 placeholder="Search invoices..."
                 value={invSearch}
                 onChange={(e) => setInvSearch(e.target.value)}
-                className="pl-9 h-9"
+                className="pl-9 h-9 text-xs rounded-xl"
               />
             </div>
             <select
               value={invStatus}
               onChange={(e) => setInvStatus(e.target.value)}
-              className="h-9 px-3 border border-input rounded-md text-sm bg-background text-foreground"
+              className="h-9 px-3 border border-input rounded-xl text-xs bg-background text-foreground"
             >
               <option value="__all">All Statuses</option>
               <option value="paid">Paid</option>
@@ -457,7 +457,7 @@ export default function ParentFeesModule({ child, schoolId }: ParentFeesModulePr
             </select>
           </div>
         </CardHeader>
-        <CardContent className="p-0">
+        <CardContent className="p-0 overflow-x-auto">
           <Table>
             <TableHeader className="bg-muted/40">
               <TableRow>

@@ -535,62 +535,64 @@ export function StudentAssignmentsModule({ myStudent, schoolId }: { myStudent: a
       <OfflineDataBanner isOffline={isOffline} isUsingCache={isUsingCache} />
       
       {/* Student Analytics Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-        <Card className="bg-gradient-to-br from-blue-50/40 to-indigo-50/10 border-slate-200/80 shadow-sm relative overflow-hidden transition-all duration-200 hover:shadow-md">
-          <CardContent className="p-5 flex items-center justify-between">
-            <div className="space-y-1">
-              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Assigned Tasks</span>
-              <p className="text-3xl font-extrabold text-slate-800">{stats.total}</p>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-4">
+        <Card className="bg-gradient-to-br from-blue-50/40 to-indigo-50/10 border-slate-200/80 shadow-sm relative overflow-hidden transition-all duration-200 hover:shadow-md rounded-2xl">
+          <CardContent className="p-3.5 sm:p-5 flex items-center justify-between">
+            <div className="min-w-0 pr-1 space-y-0.5 sm:space-y-1">
+              <span className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider block truncate">Assigned Tasks</span>
+              <p className="text-xl sm:text-3xl font-extrabold text-slate-800 truncate">{stats.total}</p>
             </div>
-            <div className="h-12 w-12 rounded-xl bg-blue-100/80 flex items-center justify-center text-blue-700">
-              <BookOpen className="h-5 w-5" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-amber-50/40 to-orange-50/10 border-slate-200/80 shadow-sm relative overflow-hidden transition-all duration-200 hover:shadow-md">
-          <CardContent className="p-5 flex items-center justify-between">
-            <div className="space-y-1">
-              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block">To Do / Pending</span>
-              <p className="text-3xl font-extrabold text-slate-800">{stats.todo}</p>
-            </div>
-            <div className="h-12 w-12 rounded-xl bg-amber-100/80 flex items-center justify-center text-amber-700">
-              <Clock className="h-5 w-5" />
+            <div className="h-9 w-9 sm:h-12 sm:w-12 rounded-xl bg-blue-100/80 flex items-center justify-center text-blue-700 shrink-0">
+              <BookOpen className="h-4 w-4 sm:h-5 sm:w-5" />
             </div>
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-emerald-50/40 to-teal-50/10 border-slate-200/80 shadow-sm relative overflow-hidden transition-all duration-200 hover:shadow-md">
-          <CardContent className="p-5 flex items-center justify-between">
-            <div className="space-y-1">
-              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Average Grade</span>
-              <p className="text-3xl font-extrabold text-slate-800">{stats.avgScore}</p>
+        <Card className="bg-gradient-to-br from-amber-50/40 to-orange-50/10 border-slate-200/80 shadow-sm relative overflow-hidden transition-all duration-200 hover:shadow-md rounded-2xl">
+          <CardContent className="p-3.5 sm:p-5 flex items-center justify-between">
+            <div className="min-w-0 pr-1 space-y-0.5 sm:space-y-1">
+              <span className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider block truncate">To Do</span>
+              <p className="text-xl sm:text-3xl font-extrabold text-slate-800 truncate">{stats.todo}</p>
             </div>
-            <div className="h-12 w-12 rounded-xl bg-emerald-100/80 flex items-center justify-center text-emerald-700">
-              <TrendingUp className="h-5 w-5" />
+            <div className="h-9 w-9 sm:h-12 sm:w-12 rounded-xl bg-amber-100/80 flex items-center justify-center text-amber-700 shrink-0">
+              <Clock className="h-4 w-4 sm:h-5 sm:w-5" />
             </div>
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-rose-50/40 to-red-50/10 border-slate-200/80 shadow-sm relative overflow-hidden transition-all duration-200 hover:shadow-md">
-          <CardContent className="p-5 flex items-center justify-between">
-            <div className="space-y-1">
-              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Overdue Tasks</span>
-              <p className="text-3xl font-extrabold text-slate-800 text-rose-700">{stats.overdue}</p>
+        <Card className="bg-gradient-to-br from-emerald-50/40 to-teal-50/10 border-slate-200/80 shadow-sm relative overflow-hidden transition-all duration-200 hover:shadow-md rounded-2xl">
+          <CardContent className="p-3.5 sm:p-5 flex items-center justify-between">
+            <div className="min-w-0 pr-1 space-y-0.5 sm:space-y-1">
+              <span className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider block truncate">Avg Grade</span>
+              <p className="text-xl sm:text-3xl font-extrabold text-slate-800 truncate">{stats.avgScore}</p>
             </div>
-            <div className="h-12 w-12 rounded-xl bg-rose-100/80 flex items-center justify-center text-rose-700">
-              <AlertCircle className="h-5 w-5" />
+            <div className="h-9 w-9 sm:h-12 sm:w-12 rounded-xl bg-emerald-100/80 flex items-center justify-center text-emerald-700 shrink-0">
+              <TrendingUp className="h-4 w-4 sm:h-5 sm:w-5" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-gradient-to-br from-rose-50/40 to-red-50/10 border-slate-200/80 shadow-sm relative overflow-hidden transition-all duration-200 hover:shadow-md rounded-2xl">
+          <CardContent className="p-3.5 sm:p-5 flex items-center justify-between">
+            <div className="min-w-0 pr-1 space-y-0.5 sm:space-y-1">
+              <span className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider block truncate">Overdue</span>
+              <p className="text-xl sm:text-3xl font-extrabold text-slate-800 text-rose-700 truncate">{stats.overdue}</p>
+            </div>
+            <div className="h-9 w-9 sm:h-12 sm:w-12 rounded-xl bg-rose-100/80 flex items-center justify-center text-rose-700 shrink-0">
+              <AlertCircle className="h-4 w-4 sm:h-5 sm:w-5" />
             </div>
           </CardContent>
         </Card>
       </div>
 
-      <Tabs defaultValue="assignments" className="w-full">
+      <Tabs defaultValue="assignments" className="w-full space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-3">
-          <TabsList className="bg-slate-100/80">
-            <TabsTrigger value="assignments" className="data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm text-slate-600">Assignments</TabsTrigger>
-            <TabsTrigger value="homework" className="data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm text-slate-600">Homework</TabsTrigger>
-          </TabsList>
+          <div className="overflow-x-auto no-scrollbar -mx-1 px-1">
+            <TabsList className="inline-flex w-max min-w-full sm:w-auto p-1 rounded-xl bg-slate-100/80">
+              <TabsTrigger value="assignments" className="data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm text-slate-600 rounded-lg text-xs font-semibold whitespace-nowrap">Assignments</TabsTrigger>
+              <TabsTrigger value="homework" className="data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm text-slate-600 rounded-lg text-xs font-semibold whitespace-nowrap">Homework</TabsTrigger>
+            </TabsList>
+          </div>
 
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:w-[480px]">
             <div className="relative flex-1">

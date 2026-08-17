@@ -61,44 +61,46 @@ export function StudentAttendanceModule({ myStudent, schoolId }: { myStudent: an
         )}
       </div>
       
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Date</TableHead>
-            <TableHead>Period</TableHead>
-            <TableHead>Status</TableHead>
-            <TableHead>Note</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {studentAttendance.map((r) => (
-            <TableRow key={r.id}>
-              <TableCell className="text-muted-foreground">
-                {new Date(r.sessionDate).toLocaleDateString()}
-              </TableCell>
-              <TableCell className="text-muted-foreground">
-                {r.periodLabel || "—"}
-              </TableCell>
-              <TableCell>{getStatusBadge(r.status)}</TableCell>
-              <TableCell className="text-muted-foreground">{r.note ?? "—"}</TableCell>
-            </TableRow>
-          ))}
-          {studentAttendance.length === 0 && (
+      <div className="w-full overflow-x-auto rounded-xl border border-muted/30">
+        <Table>
+          <TableHeader>
             <TableRow>
-              <TableCell colSpan={4} className="text-center text-sm text-muted-foreground py-8">
-                {isOffline ? (
-                  <div className="flex flex-col items-center gap-2">
-                    <WifiOff className="h-6 w-6" />
-                    <span>No cached attendance available</span>
-                  </div>
-                ) : (
-                  "No attendance found."
-                )}
-              </TableCell>
+              <TableHead>Date</TableHead>
+              <TableHead>Period</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>Note</TableHead>
             </TableRow>
-          )}
-        </TableBody>
-      </Table>
+          </TableHeader>
+          <TableBody>
+            {studentAttendance.map((r) => (
+              <TableRow key={r.id}>
+                <TableCell className="text-muted-foreground whitespace-nowrap">
+                  {new Date(r.sessionDate).toLocaleDateString()}
+                </TableCell>
+                <TableCell className="text-muted-foreground whitespace-nowrap">
+                  {r.periodLabel || "—"}
+                </TableCell>
+                <TableCell>{getStatusBadge(r.status)}</TableCell>
+                <TableCell className="text-muted-foreground">{r.note ?? "—"}</TableCell>
+              </TableRow>
+            ))}
+            {studentAttendance.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={4} className="text-center text-sm text-muted-foreground py-8">
+                  {isOffline ? (
+                    <div className="flex flex-col items-center gap-2">
+                      <WifiOff className="h-6 w-6" />
+                      <span>No cached attendance available</span>
+                    </div>
+                  ) : (
+                    "No attendance found."
+                  )}
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </div>
     </div>
   );
 }

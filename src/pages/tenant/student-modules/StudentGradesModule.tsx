@@ -82,71 +82,73 @@ export function StudentGradesModule({ myStudent, schoolId }: { myStudent: any; s
         )}
       </div>
 
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Assessment</TableHead>
-            <TableHead>Subject</TableHead>
-            <TableHead>Date</TableHead>
-            <TableHead>Marks</TableHead>
-            <TableHead>Grade</TableHead>
-            <TableHead>Remarks</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {publishedAssessments.map((a) => {
-            const m = markByAssessment.get(a.id);
-            const percentage = m?.marks != null ? ((m.marks / a.maxMarks) * 100).toFixed(1) : null;
-            return (
-              <TableRow key={a.id}>
-                <TableCell className="font-medium">{a.title}</TableCell>
-                <TableCell className="text-muted-foreground">
-                  {a.subjectId ? subjectNameById.get(a.subjectId) ?? "—" : "—"}
-                </TableCell>
-                <TableCell className="text-muted-foreground">
-                  {new Date(a.assessmentDate).toLocaleDateString()}
-                </TableCell>
-                <TableCell>
-                  {m?.marks != null ? (
-                    <span>
-                      {m.marks} / {a.maxMarks}
-                      <span className="ml-1 text-xs text-muted-foreground">({percentage}%)</span>
-                    </span>
+      <div className="w-full overflow-x-auto rounded-xl border border-muted/30">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Assessment</TableHead>
+              <TableHead>Subject</TableHead>
+              <TableHead>Date</TableHead>
+              <TableHead>Marks</TableHead>
+              <TableHead>Grade</TableHead>
+              <TableHead>Remarks</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {publishedAssessments.map((a) => {
+              const m = markByAssessment.get(a.id);
+              const percentage = m?.marks != null ? ((m.marks / a.maxMarks) * 100).toFixed(1) : null;
+              return (
+                <TableRow key={a.id}>
+                  <TableCell className="font-medium whitespace-nowrap">{a.title}</TableCell>
+                  <TableCell className="text-muted-foreground whitespace-nowrap">
+                    {a.subjectId ? subjectNameById.get(a.subjectId) ?? "—" : "—"}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground whitespace-nowrap">
+                    {new Date(a.assessmentDate).toLocaleDateString()}
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap">
+                    {m?.marks != null ? (
+                      <span>
+                        {m.marks} / {a.maxMarks}
+                        <span className="ml-1 text-xs text-muted-foreground">({percentage}%)</span>
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap">
+                    {m?.computedGrade ? (
+                      <span className="inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+                        {m.computedGrade}
+                      </span>
+                    ) : (
+                      "—"
+                    )}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground max-w-[200px] truncate">
+                    —
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+            {publishedAssessments.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={6} className="text-center text-sm text-muted-foreground py-8">
+                  {isOffline ? (
+                    <div className="flex flex-col items-center gap-2">
+                      <WifiOff className="h-6 w-6" />
+                      <span>No cached assessments available</span>
+                    </div>
                   ) : (
-                    <span className="text-muted-foreground">—</span>
+                    "No published assessments found yet."
                   )}
-                </TableCell>
-                <TableCell>
-                  {m?.computedGrade ? (
-                    <span className="inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
-                      {m.computedGrade}
-                    </span>
-                  ) : (
-                    "—"
-                  )}
-                </TableCell>
-                <TableCell className="text-muted-foreground max-w-[200px] truncate">
-                  —
                 </TableCell>
               </TableRow>
-            );
-          })}
-          {publishedAssessments.length === 0 && (
-            <TableRow>
-              <TableCell colSpan={6} className="text-center text-sm text-muted-foreground py-8">
-                {isOffline ? (
-                  <div className="flex flex-col items-center gap-2">
-                    <WifiOff className="h-6 w-6" />
-                    <span>No cached assessments available</span>
-                  </div>
-                ) : (
-                  "No published assessments found yet."
-                )}
-              </TableCell>
-            </TableRow>
-          )}
-        </TableBody>
-      </Table>
+            )}
+          </TableBody>
+        </Table>
+      </div>
     </div>
   );
 }

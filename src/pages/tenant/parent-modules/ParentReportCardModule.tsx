@@ -170,34 +170,34 @@ export default function ParentReportCardModule({ child, schoolId }: ParentReport
   }
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto p-4 md:p-6">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gradient-to-r from-primary/10 via-accent/5 to-transparent p-6 rounded-2xl border border-primary/20 backdrop-blur-md">
+    <div className="space-y-4 sm:space-y-6 max-w-5xl mx-auto p-3 sm:p-6">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gradient-to-r from-primary/10 via-accent/5 to-transparent p-4 sm:p-6 rounded-2xl sm:rounded-3xl border border-primary/20 backdrop-blur-md">
         <div>
-          <h1 className="text-3xl font-display font-bold tracking-tight">Academic Report Cards</h1>
-          <p className="text-muted-foreground mt-1">
+          <h1 className="text-2xl sm:text-3xl font-display font-bold tracking-tight">Academic Report Cards</h1>
+          <p className="text-xs sm:text-sm text-muted-foreground mt-0.5 sm:mt-1">
             Official performance records and learning feedback for{" "}
             <span className="font-semibold text-primary">{child.first_name} {child.last_name || ""}</span>
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {detail && (
             <>
-              <Button onClick={handlePrint} variant="outline" className="gap-2 border-primary/30 hover:border-primary">
-                <Download className="h-4 w-4" /> Download PDF
+              <Button size="sm" onClick={handlePrint} variant="outline" className="gap-1.5 border-primary/30 hover:border-primary rounded-xl text-xs h-9">
+                <Download className="h-3.5 w-3.5" /> Download PDF
               </Button>
-              <Button onClick={handleShare} variant="default" className="gap-2 bg-gradient-primary-strong">
-                <Share2 className="h-4 w-4" /> Share Record
+              <Button size="sm" onClick={handleShare} variant="default" className="gap-1.5 bg-gradient-primary-strong rounded-xl text-xs h-9">
+                <Share2 className="h-3.5 w-3.5" /> Share Record
               </Button>
             </>
           )}
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 sm:gap-6">
         <div className="lg:col-span-1 space-y-4">
-          <Card className="shadow-soft border-border/60">
-            <CardHeader className="pb-3 border-b">
-              <CardTitle className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+          <Card className="shadow-soft border-border/60 rounded-2xl">
+            <CardHeader className="pb-3 border-b p-4">
+              <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 Terms & Eras
               </CardTitle>
             </CardHeader>
@@ -214,19 +214,19 @@ export default function ParentReportCardModule({ child, schoolId }: ParentReport
                   <button
                     key={c.id}
                     onClick={() => setSelectedCardId(c.id)}
-                    className={`w-full text-left px-4 py-3 rounded-lg transition-all flex items-center justify-between ${
+                    className={`w-full text-left px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl transition-all flex items-center justify-between ${
                       selectedCardId === c.id
                         ? "bg-primary text-primary-foreground font-semibold shadow-glow"
                         : "hover:bg-muted/80 text-foreground"
                     }`}
                   >
                     <div>
-                      <div className="text-sm">{c.period_label}</div>
-                      <div className={`text-xs ${selectedCardId === c.id ? "text-primary-foreground/80" : "text-muted-foreground"}`}>
+                      <div className="text-xs sm:text-sm font-bold">{c.period_label}</div>
+                      <div className={`text-[10px] sm:text-xs ${selectedCardId === c.id ? "text-primary-foreground/80" : "text-muted-foreground"}`}>
                         {c.academic_year || "Academic Record"}
                       </div>
                     </div>
-                    <ChevronRight className="h-4 w-4 opacity-70" />
+                    <ChevronRight className="h-4 w-4 opacity-70 shrink-0" />
                   </button>
                 ))
               )}
@@ -239,15 +239,15 @@ export default function ParentReportCardModule({ child, schoolId }: ParentReport
             <div className="space-y-6">
               <div
                 ref={reportRef}
-                className="bg-card text-card-foreground border-2 border-primary/20 shadow-elevated rounded-3xl p-6 md:p-10 space-y-8 relative overflow-hidden"
+                className="bg-card text-card-foreground border-2 border-primary/20 shadow-elevated rounded-2xl sm:rounded-3xl p-4 sm:p-6 md:p-10 space-y-6 sm:space-y-8 relative overflow-hidden"
               >
                 <div className="absolute top-0 right-0 w-48 h-48 bg-primary/5 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none" />
                 <div className="absolute bottom-0 left-0 w-64 h-64 bg-accent/5 rounded-full blur-3xl -ml-24 -mb-24 pointer-events-none" />
 
                 <div className="flex flex-col md:flex-row justify-between items-center pb-6 border-b border-border/80 gap-4">
                   <div className="text-center md:text-left">
-                    <h2 className="text-2xl font-bold font-display tracking-tight text-primary">ALTRIX ACADEMY</h2>
-                    <p className="text-xs tracking-widest text-muted-foreground uppercase font-semibold">
+                    <h2 className="text-xl sm:text-2xl font-bold font-display tracking-tight text-primary">ALTRIX ACADEMY</h2>
+                    <p className="text-[10px] sm:text-xs tracking-widest text-muted-foreground uppercase font-semibold">
                       Inspiring Excellence, Nurturing Potential
                     </p>
                   </div>
@@ -263,28 +263,28 @@ export default function ParentReportCardModule({ child, schoolId }: ParentReport
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 bg-muted/40 p-4 rounded-xl text-sm">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 bg-muted/40 p-3 sm:p-4 rounded-xl text-xs sm:text-sm">
                   <div>
-                    <span className="text-xs text-muted-foreground block">Student Name</span>
-                    <span className="font-semibold text-foreground">
+                    <span className="text-[10px] sm:text-xs text-muted-foreground block">Student Name</span>
+                    <span className="font-semibold text-foreground truncate block">
                       {detail.student?.first_name} {detail.student?.last_name || ""}
                     </span>
                   </div>
                   <div>
-                    <span className="text-xs text-muted-foreground block">Roll Number</span>
-                    <span className="font-semibold text-foreground">{detail.student?.roll_number || "N/A"}</span>
+                    <span className="text-[10px] sm:text-xs text-muted-foreground block">Roll Number</span>
+                    <span className="font-semibold text-foreground truncate block">{detail.student?.roll_number || "N/A"}</span>
                   </div>
                   <div>
-                    <span className="text-xs text-muted-foreground block">Academic Period</span>
-                    <span className="font-semibold text-foreground">{detail.report_card.period_label}</span>
+                    <span className="text-[10px] sm:text-xs text-muted-foreground block">Academic Period</span>
+                    <span className="font-semibold text-foreground truncate block">{detail.report_card.period_label}</span>
                   </div>
                   <div>
-                    <span className="text-xs text-muted-foreground block">Class Position</span>
-                    <span className="font-semibold text-primary">
+                    <span className="text-[10px] sm:text-xs text-muted-foreground block">Class Position</span>
+                    <span className="font-semibold text-primary truncate block">
                       {detail.report_card.position_in_class ? (
                         <>
                           {detail.report_card.position_in_class}
-                          <span className="text-xs text-muted-foreground font-normal">
+                          <span className="text-[10px] sm:text-xs text-muted-foreground font-normal">
                             {" "}
                             out of {detail.report_card.total_students_in_class || 1}
                           </span>
@@ -297,10 +297,10 @@ export default function ParentReportCardModule({ child, schoolId }: ParentReport
                 </div>
 
                 <div className="space-y-3">
-                  <h3 className="text-lg font-bold font-display tracking-tight flex items-center gap-2">
-                    <FileText className="h-5 w-5 text-primary" /> Subject-Wise Academic Achievement
+                  <h3 className="text-base sm:text-lg font-bold font-display tracking-tight flex items-center gap-2">
+                    <FileText className="h-4 w-4 sm:h-5 sm:w-5 text-primary" /> Subject-Wise Academic Achievement
                   </h3>
-                  <div className="border border-border/80 rounded-xl overflow-hidden shadow-soft">
+                  <div className="border border-border/80 rounded-xl overflow-x-auto shadow-soft">
                     <Table>
                       <TableHeader className="bg-muted/60">
                         <TableRow>

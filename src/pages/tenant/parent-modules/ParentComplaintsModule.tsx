@@ -238,10 +238,10 @@ export default function ParentComplaintsModule({ child, schoolId }: Props) {
       {/* Header section */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b pb-4">
         <div>
-          <h2 className="font-display text-2xl font-bold tracking-tight flex items-center gap-2">
-            <AlertTriangle className="h-6 w-6 text-amber-500" /> Complaints from Teachers
+          <h2 className="font-display text-xl sm:text-2xl font-bold tracking-tight flex items-center gap-2">
+            <AlertTriangle className="h-5 w-5 sm:h-6 sm:w-6 text-amber-500 shrink-0" /> Complaints from Teachers
           </h2>
-          <p className="text-sm text-muted-foreground mt-0.5">
+          <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
             View formal observations filed by teachers regarding {child.first_name}. You can review notes and discuss resolution steps.
           </p>
         </div>
@@ -249,11 +249,11 @@ export default function ParentComplaintsModule({ child, schoolId }: Props) {
 
       {/* Critical Alerts Banner */}
       {urgentCount > 0 && (
-        <Card className="border bg-red-500/10 border-red-200 shadow-sm animate-pulse">
-          <CardContent className="flex items-start gap-3 p-4">
+        <Card className="border bg-red-500/10 border-red-200 shadow-sm animate-pulse rounded-2xl">
+          <CardContent className="flex items-start gap-3 p-3.5 sm:p-4">
             <AlertTriangle className="h-5 w-5 text-red-600 shrink-0 mt-0.5" />
             <div className="space-y-1">
-              <h4 className="font-bold text-red-950 text-sm">Urgent Attention Required</h4>
+              <h4 className="font-bold text-red-950 text-xs sm:text-sm">Urgent Attention Required</h4>
               <p className="text-red-900 text-xs">
                 There are {urgentCount} critical flags posted by teachers concerning {child.first_name}. Please review details and coordinate with the classroom staff.
               </p>
@@ -270,16 +270,18 @@ export default function ParentComplaintsModule({ child, schoolId }: Props) {
             placeholder="Search subject, category, description, or teacher..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="pl-9 h-10 border-slate-200/80 rounded-xl"
+            className="pl-9 h-9 text-xs border-slate-200/80 rounded-xl"
           />
         </div>
-        <Tabs value={statusFilter} onValueChange={(v) => setStatusFilter(v as any)} className="bg-muted/50 p-1 rounded-xl">
-          <TabsList className="bg-transparent border-0">
-            <TabsTrigger value="all" className="rounded-lg text-xs font-semibold">All Flags</TabsTrigger>
-            <TabsTrigger value="open" className="rounded-lg text-xs font-semibold">Active</TabsTrigger>
-            <TabsTrigger value="resolved" className="rounded-lg text-xs font-semibold">Closed</TabsTrigger>
-          </TabsList>
-        </Tabs>
+        <div className="overflow-x-auto no-scrollbar -mx-1 px-1">
+          <Tabs value={statusFilter} onValueChange={(v) => setStatusFilter(v as any)} className="bg-muted/50 p-1 rounded-xl">
+            <TabsList className="inline-flex w-max min-w-full sm:w-auto bg-transparent border-0">
+              <TabsTrigger value="all" className="rounded-lg text-xs font-semibold whitespace-nowrap">All Flags</TabsTrigger>
+              <TabsTrigger value="open" className="rounded-lg text-xs font-semibold whitespace-nowrap">Active</TabsTrigger>
+              <TabsTrigger value="resolved" className="rounded-lg text-xs font-semibold whitespace-nowrap">Closed</TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </div>
       </div>
 
       {/* Main Container */}
