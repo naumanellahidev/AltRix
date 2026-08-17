@@ -109,6 +109,7 @@ export function UsersModule() {
   const activeCampusId = useActiveCampus(schoolId);
 
   const isOwnerShell = location.pathname.includes("/school_owner");
+  const [campuses, setCampuses] = useState<{ id: string; name: string }[]>([]);
 
   // Form states
   const [email, setEmail] = useState("");
@@ -154,7 +155,6 @@ export function UsersModule() {
   const [directory, setDirectory] = useState<DirectoryRow[]>([]);
   const [rolesByUser, setRolesByUser] = useState<Record<string, EduverseRole[]>>({});
   const [campusByUser, setCampusByUser] = useState<Record<string, { id: string; name: string }>>({});
-  const [campuses, setCampuses] = useState<{ id: string; name: string }[]>([]);
 
   const [govReason, setGovReason] = useState<string>("");
   const [profileDialogUserId, setProfileDialogUserId] = useState<string | null>(null);
