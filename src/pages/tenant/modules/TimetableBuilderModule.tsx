@@ -209,6 +209,7 @@ export function TimetableBuilderModule() {
   const { schoolSlug } = useParams();
   const tenant = useTenant(schoolSlug);
   const schoolId = useMemo(() => (tenant.status === "ready" ? tenant.schoolId : null), [tenant.status, tenant.schoolId]);
+  const activeCampusId = useActiveCampus(schoolId);
   const { user } = useSession();
   const perms = useSchoolPermissions(schoolId);
   const canEdit = perms.canManageStudents;
@@ -218,7 +219,7 @@ export function TimetableBuilderModule() {
     activationConstraint: { distance: 5 },
   });
   const touchSensor = useSensor(TouchSensor, {
-    activationConstraint: { delay: 150, tolerance: 5 },
+    activationConstraint: { delay: 250, tolerance: 5 },
   });
   const pointerSensor = useSensor(PointerSensor, {
     activationConstraint: { distance: 5 },
@@ -230,13 +231,15 @@ export function TimetableBuilderModule() {
   const [periods, setPeriods] = useState<PeriodRow[]>([]);
   const [directory, setDirectory] = useState<DirectoryRow[]>([]);
 
+  const [classId, setClassId] = useState<string>("");
   const [sectionId, setSectionId] = useState<string>("");
+
   const [subjects, setSubjects] = useState<SubjectRow[]>([]);
   const [teacherAssignments, setTeacherAssignments] = useState<TeacherSubjectAssignmentRow[]>([]);
   const [entries, setEntries] = useState<EntryRow[]>([]);
   const [allSchoolEntries, setAllSchoolEntries] = useState<AllEntryRow[]>([]);
-  const [busy, setBusy] = useState(false);
 
+  const [editOpen, setEditOpen] = useState(false);
   const [editEntryId, setEditEntryId] = useState<string | null>(null);
   const [editTeacherUserId, setEditTeacherUserId] = useState<string>("");
   const [editRoom, setEditRoom] = useState<string>("");
@@ -250,14 +253,19 @@ export function TimetableBuilderModule() {
 
   const refreshStatic = useCallback(async () => {
     if (!schoolId) return;
+    let classQuery = api.from("academic_classes").select("id,name").eq("school_id", schoolId).order("name");
+    if (activeCampusId) classQuery = classQuery.eq("campus_id", activeCampusId);
+
+    let secQuery = api.from("class_sections").select("id,name,class_id").eq("school_id", schoolId).order("name");
+    if (activeCampusId) secQuery = secQuery.eq("campus_id", activeCampusId);
+
+    let periodQuery = api.from("timetable_periods").select("id,label,sort_order,start_time,end_time,is_break").eq("school_id", schoolId).order("sort_order", { ascending: true });
+    if (activeCampusId) periodQuery = periodQuery.eq("campus_id", activeCampusId);
+
     const [{ data: c }, { data: s }, { data: p }, { data: dir }] = await Promise.all([
-      api.from("academic_classes").select("id,name").eq("school_id", schoolId).order("name"),
-      api.from("class_sections").select("id,name,class_id").eq("school_id", schoolId).order("name"),
-      api
-        .from("timetable_periods")
-        .select("id,label,sort_order,start_time,end_time,is_break")
-        .eq("school_id", schoolId)
-        .order("sort_order", { ascending: true }),
+      classQuery,
+      secQuery,
+      periodQuery,
       api.from("school_user_directory").select("user_id,display_name,email").eq("school_id", schoolId),
     ]);
 
@@ -265,16 +273,18 @@ export function TimetableBuilderModule() {
     setSections((s ?? []) as SectionRow[]);
     setPeriods((p ?? []) as PeriodRow[]);
     setDirectory((dir ?? []) as DirectoryRow[]);
-  }, [schoolId]);
+  }, [schoolId, activeCampusId]);
 
   const refreshAllEntries = useCallback(async () => {
     if (!schoolId) return;
-    const { data } = await api
+    let query = api
       .from("timetable_entries")
       .select("id,day_of_week,period_id,subject_name,teacher_user_id,room,class_section_id,is_published")
       .eq("school_id", schoolId);
+    if (activeCampusId) query = query.eq("campus_id", activeCampusId);
+    const { data } = await query;
     setAllSchoolEntries((data ?? []) as AllEntryRow[]);
-  }, [schoolId]);
+  }, [schoolId, activeCampusId]);
 
   const refreshSection = useCallback(async () => {
     if (!schoolId || !sectionId) return;

@@ -43,6 +43,7 @@ import { toast } from "sonner";
 
 interface Props {
   schoolId: string;
+  campusId?: string | null;
 }
 
 const SEVERITY_CONFIG = {
@@ -61,7 +62,7 @@ const WARNING_TYPES = [
   { value: "engagement", label: "Engagement" },
 ];
 
-export function EarlyWarningSystem({ schoolId }: Props) {
+export function EarlyWarningSystem({ schoolId, campusId }: Props) {
   const qc = useQueryClient();
   const [filterType, setFilterType] = useState("__all");
   const [filterStatus, setFilterStatus] = useState("active");
@@ -69,7 +70,7 @@ export function EarlyWarningSystem({ schoolId }: Props) {
   const [resolutionNotes, setResolutionNotes] = useState("");
 
   const { data: warnings, isLoading, refetch } = useQuery({
-    queryKey: ["ai_early_warnings", schoolId, filterType, filterStatus],
+    queryKey: ["ai_early_warnings", schoolId, campusId, filterType, filterStatus],
     queryFn: async () => {
       let query = api
         .from("ai_early_warnings")
@@ -82,6 +83,10 @@ export function EarlyWarningSystem({ schoolId }: Props) {
         `)
         .eq("school_id", schoolId)
         .order("created_at", { ascending: false });
+
+      if (campusId) {
+        query = query.eq("campus_id", campusId);
+      }
 
       if (filterType && filterType !== "__all") {
         query = query.eq("warning_type", filterType);

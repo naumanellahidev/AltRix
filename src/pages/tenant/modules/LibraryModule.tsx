@@ -12,6 +12,8 @@ import { SearchableSelect } from "@/components/ui/SearchableSelect";
 import { Progress } from "@/components/ui/progress";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "sonner";
+import { useActiveCampus } from "@/hooks/useActiveCampus";
+import { useSession } from "@/hooks/useSession";
 import {
   BookOpen, Plus, Search, RefreshCw, BookmarkCheck, Clock, CheckCircle2,
   AlertTriangle, UserCheck, ShieldAlert, Library, LayoutGrid, List,
@@ -31,6 +33,7 @@ interface Book {
   available_copies: number;
   shelf_location?: string;
   cover_image_url?: string;
+  campus_id?: string;
 }
 
 interface Issue {
@@ -43,6 +46,7 @@ interface Issue {
   return_date?: string;
   fine_amount: number;
   status: string;
+  campus_id?: string;
 }
 
 interface BookReservation {
@@ -51,6 +55,7 @@ interface BookReservation {
   student_id: string;
   reserved_at: string;
   status: string;
+  campus_id?: string;
 }
 
 interface BorrowerOption {
@@ -61,6 +66,9 @@ interface BorrowerOption {
 }
 
 export function LibraryModule() {
+  const { user } = useSession();
+  const activeCampusId = useActiveCampus(user?.school_id ?? null) || user?.campus_id || null;
+
   const [books, setBooks] = useState<Book[]>([]);
   const [issues, setIssues] = useState<Issue[]>([]);
   const [borrowers, setBorrowers] = useState<BorrowerOption[]>([]);
@@ -95,7 +103,9 @@ export function LibraryModule() {
   const loadBooks = async (silent = false) => {
     if (!silent) setLoading(true);
     try {
-      const res = await apiClient.get("/library/books");
+      const res = await apiClient.get("/library/books", {
+        params: { ...(activeCampusId ? { campus_id: activeCampusId } : {}) }
+      });
       setBooks(Array.isArray(res.data) ? res.data : []);
     } catch { 
       if (!silent) setBooks([]); 
@@ -107,7 +117,9 @@ export function LibraryModule() {
   const loadIssues = async (silent = false) => {
     if (!silent) setLoading(true);
     try {
-      const res = await apiClient.get("/library/issues");
+      const res = await apiClient.get("/library/issues", {
+        params: { ...(activeCampusId ? { campus_id: activeCampusId } : {}) }
+      });
       setIssues(Array.isArray(res.data) ? res.data : []);
     } catch { 
       if (!silent) setIssues([]); 
@@ -119,7 +131,9 @@ export function LibraryModule() {
   const loadReservations = async (silent = false) => {
     if (!silent) setLoading(true);
     try {
-      const res = await apiClient.get("/library/reservations");
+      const res = await apiClient.get("/library/reservations", {
+        params: { ...(activeCampusId ? { campus_id: activeCampusId } : {}) }
+      });
       setReservations(Array.isArray(res.data) ? res.data : []);
     } catch { 
       if (!silent) setReservations([]); 
@@ -130,9 +144,10 @@ export function LibraryModule() {
 
   const loadBorrowers = async () => {
     try {
+      const campusParam = activeCampusId ? `&campus_id=${activeCampusId}` : "";
       const [resStu, resTeach] = await Promise.all([
-        apiClient.get("/students?page_size=1000").catch(() => ({ data: [] })),
-        apiClient.get("/teachers?page_size=1000").catch(() => ({ data: [] }))
+        apiClient.get(`/students?page_size=1000${campusParam}`).catch(() => ({ data: [] })),
+        apiClient.get(`/teachers?page_size=1000${campusParam}`).catch(() => ({ data: [] }))
       ]);
 
       const rawStu = resStu.data;
@@ -159,13 +174,13 @@ export function LibraryModule() {
           id: s.id,
           name: s.full_name || `${s.first_name || ''} ${s.last_name || ''}`.trim() || 'Student Borrower',
           type: "student",
-          code: s.roll_number || s.registration_number || s.admission_number || "STU"
+          code: s.admission_number || s.student_id || s.roll_number || ""
         })),
         ...teachList.map((t: any) => ({
           id: t.id,
-          name: t.full_name || `${t.first_name || ''} ${t.last_name || ''}`.trim() || "Faculty Staff",
-          type: "staff",
-          code: t.employee_id || t.designation || "Faculty"
+          name: t.full_name || t.name || `${t.first_name || ''} ${t.last_name || ''}`.trim() || 'Teacher Borrower',
+          type: "teacher",
+          code: t.employee_id || t.code || ""
         }))
       ];
 
@@ -187,7 +202,7 @@ export function LibraryModule() {
     loadIssues();
     loadReservations();
     loadBorrowers();
-  }, []);
+  }, [activeCampusId]);
 
   useEffect(() => {
     if (showIssueModal) {
@@ -216,7 +231,8 @@ export function LibraryModule() {
       ...newBook,
       barcode: generatedBarcode,
       isbn: generatedISBN,
-      available_copies: newBook.total_copies
+      available_copies: newBook.total_copies,
+      ...(activeCampusId ? { campus_id: activeCampusId } : {})
     };
 
     // Optimistic UI Update
@@ -279,7 +295,10 @@ export function LibraryModule() {
       toast.error("Select a book and borrower");
       return;
     }
-    const issuePayload = { ...newIssue };
+    const issuePayload = { 
+      ...newIssue,
+      ...(activeCampusId ? { campus_id: activeCampusId } : {})
+    };
     setShowIssueModal(false);
 
     // Optimistic UI Update: decrement available copies instantly
@@ -301,7 +320,11 @@ export function LibraryModule() {
 
   const handleReserveBook = async (bookId: string) => {
     try {
-      await apiClient.post("/library/reserve", { book_id: bookId, student_id: borrowers[0]?.id || "student-1" });
+      await apiClient.post("/library/reservations", { 
+        book_id: bookId, 
+        student_id: borrowers[0]?.id || "student-1",
+        ...(activeCampusId ? { campus_id: activeCampusId } : {})
+      });
       toast.success("Book reserved successfully!");
       loadReservations(true);
     } catch (err: any) {

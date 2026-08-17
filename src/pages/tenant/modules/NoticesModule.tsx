@@ -41,8 +41,11 @@ const AUDIENCE_LABEL: Record<string, string> = {
   all: "Everyone", teachers: "Teachers", students: "Students", parents: "Parents", staff: "Staff",
 };
 
+import { useActiveCampus } from "@/hooks/useActiveCampus";
+
 export default function NoticesModule({ schoolId, canManage = false }: Props) {
   const { user } = useSession();
+  const activeCampusId = useActiveCampus(schoolId);
   const [notices, setNotices] = useState<Notice[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
@@ -53,10 +56,12 @@ export default function NoticesModule({ schoolId, canManage = false }: Props) {
   const load = async () => {
     if (!schoolId) return;
     setLoading(true);
-    const { data, error } = await (api as any)
+    let query = (api as any)
       .from("notices")
       .select("*")
-      .eq("school_id", schoolId)
+      .eq("school_id", schoolId);
+    if (activeCampusId) query = query.eq("campus_id", activeCampusId);
+    const { data, error } = await query
       .order("pinned", { ascending: false })
       .order("created_at", { ascending: false });
     if (error) toast.error("Failed to load notices");
@@ -64,13 +69,14 @@ export default function NoticesModule({ schoolId, canManage = false }: Props) {
     setLoading(false);
   };
 
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, [schoolId]);
+  useEffect(() => { load(); }, [schoolId, activeCampusId]);
 
   const submit = async () => {
     if (!schoolId || !user) return;
     if (!form.title.trim()) { toast.error("Title required"); return; }
     const { error } = await (api as any).from("notices").insert({
       school_id: schoolId,
+      ...(activeCampusId ? { campus_id: activeCampusId } : {}),
       title: form.title,
       body: form.body || null,
       audience: form.audience,

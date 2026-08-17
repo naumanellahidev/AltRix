@@ -37,6 +37,7 @@ import {
 
 interface Props {
   schoolId: string;
+  campusId?: string | null;
 }
 
 const TIER_CONFIG = {
@@ -47,11 +48,11 @@ const TIER_CONFIG = {
   needs_improvement: { color: "text-red-600 bg-red-500/10", icon: TrendingDown },
 };
 
-export function TeacherPerformanceAnalyzer({ schoolId }: Props) {
+export function TeacherPerformanceAnalyzer({ schoolId, campusId }: Props) {
   const { data: performanceData, isLoading } = useQuery({
-    queryKey: ["ai_teacher_performance", schoolId],
+    queryKey: ["ai_teacher_performance", schoolId, campusId],
     queryFn: async () => {
-      const { data, error } = await (api as any)
+      let query = (api as any)
         .from("ai_teacher_performance")
         .select(`
           *,
@@ -59,8 +60,13 @@ export function TeacherPerformanceAnalyzer({ schoolId }: Props) {
             display_name
           )
         `)
-        .eq("school_id", schoolId)
-        .order("overall_score", { ascending: false });
+        .eq("school_id", schoolId);
+
+      if (campusId) {
+        query = query.eq("campus_id", campusId);
+      }
+
+      const { data, error } = await query.order("overall_score", { ascending: false });
 
       if (error) throw error;
       return data as any[];

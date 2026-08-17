@@ -9,6 +9,7 @@ import {
   AICounselorMode,
 } from "@/components/ai";
 import { Brain, Shield, Award, Calendar, Heart, BarChart3 } from "lucide-react";
+import { useActiveCampus } from "@/hooks/useActiveCampus";
 
 interface Props {
   schoolId: string | null;
@@ -17,6 +18,7 @@ interface Props {
 export type AITabValue = "overview" | "warnings" | "reputation" | "teachers" | "timetable" | "counseling";
 
 export function OwnerAIModule({ schoolId }: Props) {
+  const activeCampusId = useActiveCampus(schoolId);
   const [tab, setTab] = useState<AITabValue>("overview");
 
   if (!schoolId) {
@@ -53,19 +55,19 @@ export function OwnerAIModule({ schoolId }: Props) {
       </TabsList>
 
       <TabsContent value="overview">
-        <AICommandCenter schoolId={schoolId} onNavigate={setTab} />
+        <AICommandCenter schoolId={schoolId} campusId={activeCampusId} onNavigate={setTab} />
       </TabsContent>
 
       <TabsContent value="warnings">
-        <EarlyWarningSystem schoolId={schoolId} />
+        <EarlyWarningSystem schoolId={schoolId} campusId={activeCampusId} />
       </TabsContent>
 
       <TabsContent value="reputation">
-        <SchoolReputationDashboard schoolId={schoolId} />
+        <SchoolReputationDashboard schoolId={schoolId} campusId={activeCampusId} />
       </TabsContent>
 
       <TabsContent value="teachers">
-        <TeacherPerformanceAnalyzer schoolId={schoolId} />
+        <TeacherPerformanceAnalyzer schoolId={schoolId} campusId={activeCampusId} />
       </TabsContent>
 
       <TabsContent value="timetable">
@@ -73,7 +75,7 @@ export function OwnerAIModule({ schoolId }: Props) {
       </TabsContent>
 
       <TabsContent value="counseling">
-        <AICounselorMode schoolId={schoolId} />
+        <AICounselorMode schoolId={schoolId} campusId={activeCampusId} />
       </TabsContent>
     </Tabs>
   );

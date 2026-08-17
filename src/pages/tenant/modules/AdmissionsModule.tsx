@@ -26,7 +26,7 @@ type App = {
   applying_for_class_id: string | null; applying_for_section_id: string | null;
   previous_school: string | null; registration_number: string | null; roll_number: string | null;
   status: string; decision_notes: string | null; notes: string | null;
-  converted_student_id: string | null; created_at: string;
+  converted_student_id: string | null; created_at: string; campus_id: string | null;
 };
 type ClassRow = { id: string; name: string };
 type SectionRow = { id: string; name: string; class_id: string };
@@ -36,6 +36,7 @@ export default function AdmissionsModule() {
   const { schoolSlug } = useParams();
   const tenant = useTenantOptimized(schoolSlug);
   const schoolId = tenant.status === "ready" ? tenant.schoolId : null;
+  const activeCampusId = useActiveCampus(schoolId);
   const perms = useSchoolPermissions(schoolId);
   const canManage = !perms.loading;
 
@@ -64,18 +65,27 @@ export default function AdmissionsModule() {
   useEffect(() => {
     if (!schoolId) return;
     (async () => {
+      let appQuery = api.from("admission_applications").select("*").eq("school_id", schoolId).order("created_at", { ascending: false }).limit(500);
+      if (activeCampusId) appQuery = appQuery.eq("campus_id", activeCampusId);
+
+      let classQuery = api.from("academic_classes").select("id, name").eq("school_id", schoolId).order("name");
+      if (activeCampusId) classQuery = classQuery.eq("campus_id", activeCampusId);
+
+      let secQuery = api.from("class_sections").select("id, name, class_id").eq("school_id", schoolId).order("name");
+      if (activeCampusId) secQuery = secQuery.eq("campus_id", activeCampusId);
+
       const [aRes, cRes, sRes, dRes] = await Promise.all([
-        api.from("admission_applications").select("*").eq("school_id", schoolId).order("created_at", { ascending: false }).limit(500),
-        api.from("academic_classes").select("id, name").eq("school_id", schoolId).order("name"),
-        api.from("class_sections").select("id, name, class_id").eq("school_id", schoolId).order("name"),
+        appQuery,
+        classQuery,
+        secQuery,
         api.from("admission_application_documents").select("*").eq("school_id", schoolId),
       ]);
-      setApps((aRes.data as App[]) || []);
-      setClasses((cRes.data as ClassRow[]) || []);
-      setSections((sRes.data as SectionRow[]) || []);
-      setDocs((dRes.data as DocRow[]) || []);
+      setApps((aRes.data as any) ?? []);
+      setClasses((cRes.data as any) ?? []);
+      setSections((sRes.data as any) ?? []);
+      setDocs((dRes.data as any) ?? []);
     })();
-  }, [schoolId]);
+  }, [schoolId, activeCampusId]);
 
   useEffect(() => {
     if (!schoolId) return;
@@ -94,6 +104,7 @@ export default function AdmissionsModule() {
     if (!schoolId || !form.first_name || !form.last_name) return toast.error("First and last name required");
     const { data: app, error } = await api.from("admission_applications").insert({
       school_id: schoolId,
+      ...(activeCampusId ? { campus_id: activeCampusId } : {}),
       first_name: form.first_name, last_name: form.last_name,
       date_of_birth: form.date_of_birth || null, gender: form.gender || null,
       parent_name: form.parent_name || null, parent_email: form.parent_email || null,
@@ -114,7 +125,9 @@ export default function AdmissionsModule() {
       const { error: upErr } = await api.storage.from("admission-documents").upload(path, f);
       if (upErr) { toast.error(`Doc upload failed: ${upErr.message}`); continue; }
       await api.from("admission_application_documents").insert({
-        school_id: schoolId, application_id: app.id, file_path: path, file_name: f.name, doc_type: null,
+        school_id: schoolId,
+        ...(activeCampusId ? { campus_id: activeCampusId } : {}),
+        application_id: app.id, file_path: path, file_name: f.name, doc_type: null,
       });
     }
 

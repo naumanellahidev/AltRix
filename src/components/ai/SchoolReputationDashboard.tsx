@@ -39,16 +39,23 @@ import {
 
 interface Props {
   schoolId: string;
+  campusId?: string | null;
 }
 
-export function SchoolReputationDashboard({ schoolId }: Props) {
+export function SchoolReputationDashboard({ schoolId, campusId }: Props) {
   const { data: reputationData, isLoading } = useQuery({
-    queryKey: ["ai_school_reputation", schoolId],
+    queryKey: ["ai_school_reputation", schoolId, campusId],
     queryFn: async () => {
-      const { data, error } = await (api as any)
+      let query = (api as any)
         .from("ai_school_reputation")
         .select("*")
-        .eq("school_id", schoolId)
+        .eq("school_id", schoolId);
+      
+      if (campusId) {
+        query = query.eq("campus_id", campusId);
+      }
+
+      const { data, error } = await query
         .order("created_at", { ascending: false })
         .limit(12);
 

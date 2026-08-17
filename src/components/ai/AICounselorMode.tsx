@@ -43,6 +43,7 @@ import { toast } from "sonner";
 
 interface Props {
   schoolId: string | null;
+  campusId?: string | null;
 }
 
 const PRIORITY_CONFIG = {
@@ -60,7 +61,7 @@ const STATUS_CONFIG = {
   cancelled: { color: "bg-slate-500/10 text-slate-600", label: "Cancelled" },
 };
 
-export function AICounselorMode({ schoolId }: Props) {
+export function AICounselorMode({ schoolId, campusId }: Props) {
   const qc = useQueryClient();
   const [activeTab, setActiveTab] = useState("queue");
   const [selectedSession, setSelectedSession] = useState<any>(null);
@@ -68,9 +69,9 @@ export function AICounselorMode({ schoolId }: Props) {
   const [sessionOutcome, setSessionOutcome] = useState("");
 
   const { data: queue, isLoading } = useQuery({
-    queryKey: ["ai_counseling_queue", schoolId],
+    queryKey: ["ai_counseling_queue", schoolId, campusId],
     queryFn: async () => {
-      const { data, error } = await api
+      let query = api
         .from("ai_counseling_queue")
         .select(`
           *,
@@ -79,8 +80,13 @@ export function AICounselorMode({ schoolId }: Props) {
             last_name
           )
         `)
-        .eq("school_id", schoolId)
-        .order("created_at", { ascending: false });
+        .eq("school_id", schoolId);
+
+      if (campusId) {
+        query = query.eq("campus_id", campusId);
+      }
+
+      const { data, error } = await query.order("created_at", { ascending: false });
 
       if (error) throw error;
       return data;

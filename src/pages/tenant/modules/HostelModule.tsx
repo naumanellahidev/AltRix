@@ -43,7 +43,13 @@ interface StudentOption {
   class_name?: string;
 }
 
+import { useActiveCampus } from "@/hooks/useActiveCampus";
+import { useSession } from "@/hooks/useSession";
+
 export function HostelModule() {
+  const { user } = useSession();
+  const activeCampusId = useActiveCampus(user?.school_id ?? null) || user?.campus_id || null;
+
   const [activeTab, setActiveTab] = useState("rooms");
   const [rooms, setRooms] = useState<HostelRoom[]>([]);
   const [messMenu, setMessMenu] = useState<MessMenu[]>([]);
@@ -65,14 +71,16 @@ export function HostelModule() {
   const loadHostelData = async () => {
     setLoading(true);
     try {
+      const campusParam = activeCampusId ? `?campus_id=${activeCampusId}` : "";
       const [resRooms, resMess, resStudents] = await Promise.all([
-        apiClient.get("/hostel/rooms"),
-        apiClient.get("/hostel/mess-menu"),
-        apiClient.get("/students?page_size=1000").catch(() => ({ data: [] }))
+        apiClient.get(`/hostel/rooms${campusParam}`),
+        apiClient.get(`/hostel/mess-menu${campusParam}`),
+        apiClient.get(`/students?page_size=500${activeCampusId ? `&campus_id=${activeCampusId}` : ""}`)
       ]);
-      setRooms(resRooms.data ?? []);
-      setMessMenu(resMess.data ?? []);
-      const rawStudents = resStudents.data;
+      setRooms(Array.isArray(resRooms?.data) ? resRooms.data : []);
+      setMessMenu(Array.isArray(resMess?.data) ? resMess.data : []);
+
+      const rawStudents = resStudents?.data;
       const stuList = Array.isArray(rawStudents?.data)
         ? rawStudents.data
         : Array.isArray(rawStudents?.items)
@@ -80,18 +88,25 @@ export function HostelModule() {
         : Array.isArray(rawStudents)
         ? rawStudents
         : [];
-      setStudents(stuList);
+      setStudents(stuList.map((s: any) => ({
+        id: s.id,
+        full_name: s.full_name || `${s.first_name || ''} ${s.last_name || ''}`.trim() || 'Student',
+        roll_number: s.roll_number || '',
+        admission_number: s.admission_number || '',
+        class_name: s.class_name || ''
+      })));
     } catch {
       setRooms([]);
       setMessMenu([]);
       setStudents([]);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   useEffect(() => {
     loadHostelData();
-  }, []);
+  }, [activeCampusId]);
 
   useEffect(() => {
     if (showAllocateModal || showAttendanceModal) {

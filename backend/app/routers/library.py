@@ -27,6 +27,7 @@ class BookCreateSchema(BaseModel):
     available_copies: int = 1
     shelf_location: Optional[str] = None
     cover_image_url: Optional[str] = None
+    campus_id: Optional[UUID] = None
 
 class BookUpdateSchema(BaseModel):
     title: Optional[str] = None
@@ -40,10 +41,12 @@ class BookUpdateSchema(BaseModel):
     available_copies: Optional[int] = None
     shelf_location: Optional[str] = None
     cover_image_url: Optional[str] = None
+    campus_id: Optional[UUID] = None
 
 class BookOutSchema(BookCreateSchema):
     id: UUID
     school_id: UUID
+    campus_id: Optional[UUID] = None
     created_at: Optional[datetime]
     model_config = ConfigDict(from_attributes=True)
 
@@ -52,10 +55,12 @@ class IssueCreateSchema(BaseModel):
     borrower_id: str
     borrower_type: Optional[str] = "student"
     due_days: Optional[int] = 14
+    campus_id: Optional[UUID] = None
 
 class IssueOutSchema(BaseModel):
     id: UUID
     school_id: UUID
+    campus_id: Optional[UUID] = None
     book_id: UUID
     borrower_id: UUID
     borrower_type: str
@@ -70,10 +75,12 @@ class IssueOutSchema(BaseModel):
 class ReservationCreateSchema(BaseModel):
     book_id: UUID
     student_id: str
+    campus_id: Optional[UUID] = None
 
 class ReservationOutSchema(BaseModel):
     id: UUID
     school_id: UUID
+    campus_id: Optional[UUID] = None
     book_id: UUID
     student_id: UUID
     reserved_at: Optional[datetime]
@@ -88,11 +95,15 @@ async def list_books(
     db: DbSession,
     search: Optional[str] = Query(None),
     category: Optional[str] = Query(None),
+    campus_id: Optional[UUID] = Query(None),
 ):
     if not current_user.school_id:
         return []
+    effective_cid = campus_id if isinstance(campus_id, (UUID, str)) else current_user.campus_id
     stmt = select(LibraryBook).where(LibraryBook.school_id == current_user.school_id)
-    if category:
+    if effective_cid:
+        stmt = stmt.where(LibraryBook.campus_id == effective_cid)
+    if category and category != "All":
         stmt = stmt.where(LibraryBook.category == category)
     if search:
         stmt = stmt.where(
@@ -111,7 +122,13 @@ async def list_books(
 async def create_book(payload: BookCreateSchema, current_user: CurrentUser, db: DbSession):
     if not current_user.school_id:
         raise HTTPException(status_code=400, detail="User has no associated school")
-    book = LibraryBook(school_id=current_user.school_id, **payload.model_dump())
+    effective_cid = payload.campus_id if isinstance(payload.campus_id, (UUID, str)) else current_user.campus_id
+    book_data = payload.model_dump(exclude={"campus_id"})
+    book = LibraryBook(
+        school_id=current_user.school_id,
+        campus_id=effective_cid,
+        **book_data
+    )
     db.add(book)
     await db.commit()
     await db.refresh(book)
@@ -124,10 +141,14 @@ async def list_issues(
     current_user: CurrentUser,
     db: DbSession,
     status_filter: Optional[str] = Query(None),
+    campus_id: Optional[UUID] = Query(None),
 ):
     if not current_user.school_id:
         return []
+    effective_cid = campus_id if isinstance(campus_id, (UUID, str)) else current_user.campus_id
     stmt = select(BookIssue).where(BookIssue.school_id == current_user.school_id)
+    if effective_cid:
+        stmt = stmt.where(BookIssue.campus_id == effective_cid)
     if status_filter:
         stmt = stmt.where(BookIssue.status == status_filter)
     try:
@@ -164,9 +185,11 @@ async def issue_book(payload: IssueCreateSchema, current_user: CurrentUser, db: 
     today = date.today()
     due_date = today + timedelta(days=payload.due_days or 14)
     borrower_uuid = _parse_or_generate_uuid(payload.borrower_id)
+    effective_cid = payload.campus_id if getattr(payload, "campus_id", None) else (current_user.campus_id or book.campus_id)
     
     issue = BookIssue(
         school_id=current_user.school_id,
+        campus_id=effective_cid,
         book_id=payload.book_id,
         borrower_id=borrower_uuid,
         borrower_type=payload.borrower_type or "student",
@@ -199,12 +222,13 @@ async def return_book(issue_id: UUID, current_user: CurrentUser, db: DbSession):
 
     if today > issue.due_date:
         days_overdue = (today - issue.due_date).days
-        issue.fine_amount = days_overdue * 10.0
+        issue.fine_amount = days_overdue * 5.0
 
+    # Increment available copies
     stmt_book = select(LibraryBook).where(LibraryBook.id == issue.book_id)
     res_book = await db.execute(stmt_book)
     book = res_book.scalar_one_or_none()
-    if book:
+    if book and book.available_copies < book.total_copies:
         book.available_copies += 1
 
     await db.commit()
@@ -214,15 +238,48 @@ async def return_book(issue_id: UUID, current_user: CurrentUser, db: DbSession):
 
 # --- Reservations Endpoints ---
 @router.get("/reservations", response_model=List[ReservationOutSchema])
-async def list_reservations(current_user: CurrentUser, db: DbSession):
+async def list_reservations(
+    current_user: CurrentUser,
+    db: DbSession,
+    campus_id: Optional[UUID] = Query(None),
+):
     if not current_user.school_id:
         return []
+    effective_cid = campus_id if isinstance(campus_id, (UUID, str)) else current_user.campus_id
     stmt = select(BookReservation).where(BookReservation.school_id == current_user.school_id)
+    if effective_cid:
+        stmt = stmt.where(BookReservation.campus_id == effective_cid)
     try:
         res = await db.execute(stmt)
         return list(res.scalars().all())
     except Exception:
         return []
+
+@router.post("/reservations", response_model=ReservationOutSchema)
+async def reserve_book(payload: ReservationCreateSchema, current_user: CurrentUser, db: DbSession):
+    if not current_user.school_id:
+        raise HTTPException(status_code=400, detail="User has no associated school")
+    
+    stmt = select(LibraryBook).where(LibraryBook.id == payload.book_id, LibraryBook.school_id == current_user.school_id)
+    res = await db.execute(stmt)
+    book = res.scalar_one_or_none()
+    if not book:
+        raise HTTPException(status_code=404, detail="Book not found")
+        
+    student_uuid = _parse_or_generate_uuid(payload.student_id)
+    effective_cid = payload.campus_id if getattr(payload, "campus_id", None) else (current_user.campus_id or book.campus_id)
+    
+    reservation = BookReservation(
+        school_id=current_user.school_id,
+        campus_id=effective_cid,
+        book_id=payload.book_id,
+        student_id=student_uuid,
+        status="pending"
+    )
+    db.add(reservation)
+    await db.commit()
+    await db.refresh(reservation)
+    return reservation
 
 @router.put("/books/{book_id}", response_model=BookOutSchema)
 async def update_book(book_id: UUID, payload: BookUpdateSchema, current_user: CurrentUser, db: DbSession):
@@ -234,15 +291,16 @@ async def update_book(book_id: UUID, payload: BookUpdateSchema, current_user: Cu
     if not book:
         raise HTTPException(status_code=404, detail="Book not found")
     
-    for key, value in payload.model_dump(exclude_unset=True).items():
-        setattr(book, key, value)
-    
+    update_data = payload.model_dump(exclude_unset=True)
+    for field, val in update_data.items():
+        setattr(book, field, val)
+        
     await db.commit()
     await db.refresh(book)
     return book
 
 
-@router.delete("/books/{book_id}")
+@router.delete("/books/{book_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_book(book_id: UUID, current_user: CurrentUser, db: DbSession):
     if not current_user.school_id:
         raise HTTPException(status_code=400, detail="User has no associated school")

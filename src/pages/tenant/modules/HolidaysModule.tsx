@@ -44,6 +44,7 @@ const typeTone: Record<string, string> = {
 
 export default function HolidaysModule({ schoolId, canManage = false }: Props) {
   const { user } = useSession();
+  const activeCampusId = useActiveCampus(schoolId);
   const [items, setItems] = useState<Holiday[]>([]);
   const [open, setOpen] = useState(false);
   const today = startOfToday();
@@ -54,14 +55,15 @@ export default function HolidaysModule({ schoolId, canManage = false }: Props) {
 
   const load = async () => {
     if (!schoolId) return;
-    const { data } = await (api as any)
+    let query = (api as any)
       .from("holidays")
       .select("*")
-      .eq("school_id", schoolId)
-      .order("start_date", { ascending: true });
+      .eq("school_id", schoolId);
+    if (activeCampusId) query = query.eq("campus_id", activeCampusId);
+    const { data } = await query.order("start_date", { ascending: true });
     setItems(data || []);
   };
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, [schoolId]);
+  useEffect(() => { load(); }, [schoolId, activeCampusId]);
 
   const { upcoming, past } = useMemo(() => {
     const up: Holiday[] = [];
@@ -80,6 +82,14 @@ export default function HolidaysModule({ schoolId, canManage = false }: Props) {
     if (!schoolId || !user) return;
     if (!form.title.trim()) { toast.error("Title required"); return; }
     if (form.end_date < form.start_date) { toast.error("End date must be after start date"); return; }
+    
+    const payload = { 
+      school_id: schoolId, 
+      ...(activeCampusId ? { campus_id: activeCampusId } : {}),
+      ...form,
+      ...(!editing && { created_by: user.id })
+    };
+
     let error;
     if (editing) {
       ({ error } = await (api as any).from("holidays").update(form).eq("id", editing.id));

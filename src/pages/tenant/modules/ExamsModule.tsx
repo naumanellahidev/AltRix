@@ -58,11 +58,12 @@ interface Props {
 
 export default function ExamsModule({ schoolId, canManage: canManageProp = false, studentId }: Props) {
   const { user } = useSession();
+  const activeCampusId = useActiveCampus(schoolId);
   const [items, setItems] = useState<Exam[]>([]);
   const [open, setOpen] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [loadingRole, setLoadingRole] = useState(true);
-  const today = new Date().toISOString().slice(0, 10);
+  const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
   const [form, setForm] = useState({ name: "", term_label: "", start_date: today, end_date: today, status: "scheduled" });
 
   // Evaluation details
@@ -75,7 +76,7 @@ export default function ExamsModule({ schoolId, canManage: canManageProp = false
   // Dialog control
   const [datesheetExam, setDatesheetExam] = useState<Exam | null>(null);
   const [publishExam, setPublishExam] = useState<Exam | null>(null);
-  const [gradingPaper, setGradingPaper] = useState<ExamSubject | null>(null);
+  const [gradingExam, setGradingExam] = useState<Exam | null>(null);
   const [admitCardExam, setAdmitCardExam] = useState<Exam | null>(null);
 
   const checkRole = async () => {
@@ -121,18 +122,25 @@ export default function ExamsModule({ schoolId, canManage: canManageProp = false
 
   const loadExams = async () => {
     if (!schoolId) return;
-    const { data } = await api
-      .from("exams")
-      .select("*")
-      .eq("school_id", schoolId)
-      .order("start_date", { ascending: false });
+    let examQuery = api.from("exams").select("*").eq("school_id", schoolId).order("start_date", { ascending: false });
+    if (activeCampusId) examQuery = examQuery.eq("campus_id", activeCampusId);
+    const { data } = await examQuery;
     setItems(data || []);
 
     // Load static lists
+    let subsQuery = api.from("subjects").select("id,name").eq("school_id", schoolId).order("name");
+    if (activeCampusId) subsQuery = subsQuery.eq("campus_id", activeCampusId);
+
+    let secsQuery = api.from("class_sections").select("id,name,academic_classes(name)").eq("school_id", schoolId);
+    if (activeCampusId) secsQuery = secsQuery.eq("campus_id", activeCampusId);
+
+    let papersQuery = api.from("exam_subjects").select("*").eq("school_id", schoolId);
+    if (activeCampusId) papersQuery = papersQuery.eq("campus_id", activeCampusId);
+
     const [subs, secs, papers] = await Promise.all([
-      api.from("subjects").select("id,name").eq("school_id", schoolId).order("name"),
-      api.from("class_sections").select("id,name,academic_classes(name)").eq("school_id", schoolId),
-      api.from("exam_subjects").select("*").eq("school_id", schoolId)
+      subsQuery,
+      secsQuery,
+      papersQuery
     ]);
     setSubjects(subs.data || []);
     setSections((secs.data || []).map((s: any) => ({ id: s.id, name: s.name, class_name: s.academic_classes?.name })));
@@ -142,12 +150,17 @@ export default function ExamsModule({ schoolId, canManage: canManageProp = false
   useEffect(() => {
     checkRole();
     loadExams();
-  }, [schoolId, user]);
+  }, [schoolId, user, activeCampusId]);
 
   const submit = async () => {
     if (!schoolId || !user) return;
     if (!form.name.trim()) return toast.error("Name required");
-    const payload = { school_id: schoolId, ...form, created_by: user.id };
+    const payload = { 
+      school_id: schoolId, 
+      ...(activeCampusId ? { campus_id: activeCampusId } : {}),
+      ...form, 
+      created_by: user.id 
+    };
 
     // Optimistic UI Update
     const tempId = `temp-${Date.now()}`;

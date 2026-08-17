@@ -38,12 +38,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface Props {
   schoolId: string;
+  campusId?: string | null;
   onNavigate?: (tab: "overview" | "warnings" | "reputation" | "teachers" | "timetable" | "counseling") => void;
 }
 
 const MotionCard = motion.create(Card);
 
-export function AICommandCenter({ schoolId, onNavigate }: Props) {
+export function AICommandCenter({ schoolId, campusId, onNavigate }: Props) {
   const { schoolSlug } = useParams();
   const navigate = useNavigate();
   const [refreshing, setRefreshing] = useState(false);
@@ -53,8 +54,47 @@ export function AICommandCenter({ schoolId, onNavigate }: Props) {
 
   // Fetch AI metrics
   const { data: metrics, refetch, isLoading } = useQuery({
-    queryKey: ["ai_command_center_metrics", schoolId],
+    queryKey: ["ai_command_center_metrics", schoolId, campusId],
     queryFn: async () => {
+      let studentProfilesQuery = (api as any)
+        .from("ai_student_profiles")
+        .select("risk_score, needs_counseling, needs_extra_support")
+        .eq("school_id", schoolId);
+      if (campusId) studentProfilesQuery = studentProfilesQuery.eq("campus_id", campusId);
+
+      let earlyWarningsQuery = api
+        .from("ai_early_warnings")
+        .select("severity, status")
+        .eq("school_id", schoolId)
+        .is("resolved_at", null);
+      if (campusId) earlyWarningsQuery = earlyWarningsQuery.eq("campus_id", campusId);
+
+      let counselingQueueQuery = api
+        .from("ai_counseling_queue")
+        .select("status, priority")
+        .eq("school_id", schoolId)
+        .in("status", ["pending", "scheduled"]);
+      if (campusId) counselingQueueQuery = counselingQueueQuery.eq("campus_id", campusId);
+
+      let teacherPerfQuery = api
+        .from("ai_teacher_performance")
+        .select("overall_score, needs_training")
+        .eq("school_id", schoolId);
+      if (campusId) teacherPerfQuery = teacherPerfQuery.eq("campus_id", campusId);
+
+      let reputationQuery = (api as any)
+        .from("ai_school_reputation")
+        .select("reputation_score, parent_satisfaction_index, nps_score")
+        .eq("school_id", schoolId);
+      if (campusId) reputationQuery = reputationQuery.eq("campus_id", campusId);
+      reputationQuery = reputationQuery.order("created_at", { ascending: false }).limit(1).maybeSingle();
+
+      let predictionsQuery = api
+        .from("ai_academic_predictions")
+        .select("failure_risk, promotion_probability")
+        .eq("school_id", schoolId);
+      if (campusId) predictionsQuery = predictionsQuery.eq("campus_id", campusId);
+
       const [
         studentProfilesRes,
         earlyWarningsRes,
@@ -63,41 +103,12 @@ export function AICommandCenter({ schoolId, onNavigate }: Props) {
         reputationRes,
         predictionsRes,
       ] = await Promise.all([
-        // Student profiles with risk
-        (api as any)
-          .from("ai_student_profiles")
-          .select("risk_score, needs_counseling, needs_extra_support")
-          .eq("school_id", schoolId),
-        // Active early warnings
-        api
-          .from("ai_early_warnings")
-          .select("severity, status")
-          .eq("school_id", schoolId)
-          .is("resolved_at", null),
-        // Counseling queue
-        api
-          .from("ai_counseling_queue")
-          .select("status, priority")
-          .eq("school_id", schoolId)
-          .in("status", ["pending", "scheduled"]),
-        // Teacher performance
-        api
-          .from("ai_teacher_performance")
-          .select("overall_score, needs_training")
-          .eq("school_id", schoolId),
-        // Latest reputation
-        (api as any)
-          .from("ai_school_reputation")
-          .select("reputation_score, parent_satisfaction_index, nps_score")
-          .eq("school_id", schoolId)
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle(),
-        // Academic predictions
-        api
-          .from("ai_academic_predictions")
-          .select("failure_risk, promotion_probability")
-          .eq("school_id", schoolId),
+        studentProfilesQuery,
+        earlyWarningsQuery,
+        counselingQueueQuery,
+        teacherPerfQuery,
+        reputationQuery,
+        predictionsQuery,
       ]);
 
       const studentProfiles = studentProfilesRes.data || [];

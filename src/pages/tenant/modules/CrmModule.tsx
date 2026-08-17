@@ -38,6 +38,7 @@ export function CrmModule() {
   const { schoolSlug } = useParams();
   const tenant = useTenant(schoolSlug);
   const schoolId = useMemo(() => (tenant.status === "ready" ? tenant.schoolId : null), [tenant.status, tenant.schoolId]);
+  const activeCampusId = useActiveCampus(schoolId);
 
   const perms = useSchoolPermissions(schoolId);
 
@@ -179,23 +180,20 @@ export function CrmModule() {
       try {
         const { data: newP } = await api
           .from("crm_pipelines")
-          .insert({ school_id: schoolId, name: "Admissions", is_default: true })
+          .insert({ school_id: schoolId, name: "Admissions Pipeline", is_default: true })
           .select("id")
-          .maybeSingle();
-        
-        if (newP?.id) {
-          pid = newP.id;
+          .single();
+        pid = (newP as any)?.id;
+        if (pid) {
           await api.from("crm_stages").insert([
-            { school_id: schoolId, pipeline_id: pid, name: "New", sort_order: 10 },
-            { school_id: schoolId, pipeline_id: pid, name: "Contacted", sort_order: 20 },
-            { school_id: schoolId, pipeline_id: pid, name: "Tour Scheduled", sort_order: 30 },
-            { school_id: schoolId, pipeline_id: pid, name: "Applied", sort_order: 40 },
-            { school_id: schoolId, pipeline_id: pid, name: "Won", sort_order: 50 },
-            { school_id: schoolId, pipeline_id: pid, name: "Lost", sort_order: 60 }
+            { school_id: schoolId, pipeline_id: pid, name: "New Inquiries", sort_order: 1 },
+            { school_id: schoolId, pipeline_id: pid, name: "Contacted", sort_order: 2 },
+            { school_id: schoolId, pipeline_id: pid, name: "Campus Tour", sort_order: 3 },
+            { school_id: schoolId, pipeline_id: pid, name: "Enrolled", sort_order: 4 },
           ]);
         }
-      } catch (err) {
-        console.warn("Client-side fallback pipeline creation failed:", err);
+      } catch (insertErr) {
+        console.warn("Could not client-bootstrap pipeline:", insertErr);
       }
     }
 
@@ -228,19 +226,21 @@ export function CrmModule() {
       }
     }
 
-    const { data: l } = await api
+    let leadQuery = api
       .from("crm_leads")
       .select("id,full_name,score,stage_id,notes,email,phone,assigned_to,source,status")
       .eq("school_id", schoolId)
-      .eq("pipeline_id", pid)
-      .order("updated_at", { ascending: false });
+      .eq("pipeline_id", pid);
+    if (activeCampusId) {
+      leadQuery = leadQuery.eq("campus_id", activeCampusId);
+    }
+    const { data: l } = await leadQuery.order("updated_at", { ascending: false });
     setLeads((l ?? []) as Lead[]);
   };
 
   useEffect(() => {
     void refresh();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [schoolId, offlineLeads.data, offlineStages.data]);
+  }, [schoolId, activeCampusId, offlineLeads.data, offlineStages.data]);
 
   // Real-time synchronization for inquiry/CRM leads
   useEffect(() => {
@@ -267,6 +267,7 @@ export function CrmModule() {
     if (!newLeadName.trim()) return toast.error("Lead name required");
     const { error } = await api.from("crm_leads").insert({
       school_id: schoolId,
+      ...(activeCampusId ? { campus_id: activeCampusId } : {}),
       pipeline_id: pipelineId,
       stage_id: stageId,
       full_name: newLeadName.trim(),
