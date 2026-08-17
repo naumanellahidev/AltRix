@@ -35,7 +35,16 @@ if (typeof window !== "undefined") {
       }).catch((e) => console.warn("[AltRix] CacheStorage purge warning:", e));
     }
 
-    // 3. Set updated build version
+    // 3. Unregister stale Service Workers to prevent 404 precache errors
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.getRegistrations().then((registrations) => {
+        for (const registration of registrations) {
+          registration.unregister();
+        }
+      }).catch((e) => console.warn("[AltRix] ServiceWorker unregister warning:", e));
+    }
+
+    // 4. Set updated build version
     localStorage.setItem("altrix:build_version", currentBuild);
   } else if (!lastKnownBuild) {
     localStorage.setItem("altrix:build_version", currentBuild);
