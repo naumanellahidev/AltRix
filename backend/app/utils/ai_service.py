@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import json
 import logging
 import re
@@ -215,6 +216,47 @@ class OllamaAIService:
         """
         ctx = cls._parse_context_metrics(system_prompt)
         q = user_message.lower().strip()
+        # ─────────────────────────────────────────────────────────────────────
+        # INTENT 0.0: DIRECT WRITE / MUTATION REQUEST ATTEMPTS (STRICT READ-ONLY SAFETY)
+        # ─────────────────────────────────────────────────────────────────────
+        mutation_keywords = [
+            "create invoice", "generate invoice", "make invoice", "delete invoice", "edit invoice",
+            "mark attendance", "change attendance", "update attendance", "delete attendance",
+            "approve leave", "reject leave", "create student", "delete student", "update student",
+            "create teacher", "delete teacher", "add teacher", "create notice", "delete notice",
+            "record payment", "create payment", "delete payment", "change salary", "update fee",
+            "modify", "insert into", "delete from", "drop table", "alter table", "update table"
+        ]
+        if any(w in q for w in mutation_keywords) or (("create " in q or "add " in q or "delete " in q or "update " in q or "mark " in q or "approve " in q) and any(m in q for m in ["student", "invoice", "fee", "payment", "attendance", "leave", "voucher", "notice", "salary"])):
+            target_route = "/finance/invoices"
+            target_label = "Invoices & Fees"
+            if "attendance" in q:
+                target_route = "/attendance"
+                target_label = "Attendance Register"
+            elif "leave" in q:
+                target_route = "/leaves"
+                target_label = "Leave Management"
+            elif "student" in q:
+                target_route = "/students"
+                target_label = "Student Records"
+            elif "teacher" in q or "staff" in q or "salary" in q:
+                target_route = "/users"
+                target_label = "Staff & Faculty Directory"
+            elif "notice" in q:
+                target_route = "/notices"
+                target_label = "Broadcast Notices"
+            elif "exam" in q or "mark" in q or "grade" in q:
+                target_route = "/exams"
+                target_label = "Exam & Gradebook"
+
+            return (
+                f"### 🛡️ Read-Only Assistant Security Policy\n\n"
+                f"I am a read-only analytical AI Copilot designed to provide insights, reports, and guided navigation. "
+                f"For system security and data integrity, I cannot modify, create, or delete ERP records directly.\n\n"
+                f"You can securely perform this action directly in the **{target_label}** module:\n\n"
+                f"- Secure Direct Route: `{target_route}`\n\n"
+                f'<altrix_action>{{"type": "NAVIGATE_TO", "route": "{target_route}", "label": "Go to {target_label}"}}</altrix_action>'
+            )
 
         # ─────────────────────────────────────────────────────────────────────
         # INTENT 0: NOTIFICATIONS / NOTICES / BROADCASTS / ALERTS
