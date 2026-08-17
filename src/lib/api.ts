@@ -83,6 +83,7 @@ export class VpsQueryBuilder {
   ilike(column: string, pattern: string) { this.context.filters.push({ method: 'ilike', args: [column, pattern] }); return this; }
   or(conditions: string) { this.context.filters.push({ method: 'or', args: [conditions] }); return this; }
   range(from: number, to: number) { this.context.filters.push({ method: 'range', args: [from, to] }); return this; }
+  not(column: string, operator: string, value: any) { this.context.filters.push({ method: 'not', args: [column, operator, value] }); return this; }
   
   match(filter: Record<string, any>) {
     Object.entries(filter).forEach(([k, v]) => this.eq(k, v));

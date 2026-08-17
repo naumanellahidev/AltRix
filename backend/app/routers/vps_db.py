@@ -331,8 +331,11 @@ async def execute_query(query: QueryPayload, current_user: CurrentUser, db: DbSe
                     or_clauses.append(f'"{col}" = :{param_name}')
                     params[param_name] = cast_value(raw_val, columns_types[col])
                 elif op == "neq":
-                    or_clauses.append(f'"{col}" != :{param_name}')
-                    params[param_name] = cast_value(raw_val, columns_types[col])
+                    if raw_val is None or (isinstance(raw_val, str) and raw_val.lower() == "null"):
+                        or_clauses.append(f'"{col}" IS NOT NULL')
+                    else:
+                        or_clauses.append(f'"{col}" != :{param_name}')
+                        params[param_name] = cast_value(raw_val, columns_types[col])
                 elif op == "gt":
                     or_clauses.append(f'"{col}" > :{param_name}')
                     params[param_name] = cast_value(raw_val, columns_types[col])
@@ -375,8 +378,11 @@ async def execute_query(query: QueryPayload, current_user: CurrentUser, db: DbSe
             where_clauses.append(f'"{col}" = :{param_name}')
             params[param_name] = cast_value(raw_val, columns_types[col])
         elif f.method == "neq":
-            where_clauses.append(f'"{col}" != :{param_name}')
-            params[param_name] = cast_value(raw_val, columns_types[col])
+            if raw_val is None or (isinstance(raw_val, str) and raw_val.lower() == "null"):
+                where_clauses.append(f'"{col}" IS NOT NULL')
+            else:
+                where_clauses.append(f'"{col}" != :{param_name}')
+                params[param_name] = cast_value(raw_val, columns_types[col])
         elif f.method == "gt":
             where_clauses.append(f'"{col}" > :{param_name}')
             params[param_name] = cast_value(raw_val, columns_types[col])
@@ -405,6 +411,39 @@ async def execute_query(query: QueryPayload, current_user: CurrentUser, db: DbSe
             op = "ILIKE" if f.method == "ilike" else "LIKE"
             where_clauses.append(f'"{col}" {op} :{param_name}')
             params[param_name] = raw_val
+        elif f.method == "not":
+            op_filter = f.args[1] if len(f.args) > 1 else "eq"
+            val_filter = f.args[2] if len(f.args) > 2 else None
+            
+            if op_filter == "is":
+                if val_filter is None or (isinstance(val_filter, str) and val_filter.lower() == "null"):
+                    where_clauses.append(f'"{col}" IS NOT NULL')
+                else:
+                    where_clauses.append(f'"{col}" != :{param_name}')
+                    params[param_name] = cast_value(val_filter, columns_types[col])
+            elif op_filter == "eq":
+                if val_filter is None or (isinstance(val_filter, str) and val_filter.lower() == "null"):
+                    where_clauses.append(f'"{col}" IS NOT NULL')
+                else:
+                    where_clauses.append(f'"{col}" != :{param_name}')
+                    params[param_name] = cast_value(val_filter, columns_types[col])
+            elif op_filter in ("in", "in_"):
+                if isinstance(val_filter, list):
+                    where_clauses.append(f'NOT ("{col}" = ANY(:{param_name}))')
+                    params[param_name] = [cast_value(item, columns_types[col]) for item in val_filter]
+                elif isinstance(val_filter, str):
+                    where_clauses.append(f'NOT ("{col}" = ANY(:{param_name}))')
+                    clean_val = val_filter
+                    if clean_val.startswith('(') and clean_val.endswith(')'):
+                        clean_val = clean_val[1:-1]
+                    items_list = [item.strip() for item in clean_val.split(",")]
+                    params[param_name] = [cast_value(item, columns_types[col]) for item in items_list]
+                else:
+                    where_clauses.append(f'"{col}" != :{param_name}')
+                    params[param_name] = cast_value(val_filter, columns_types[col])
+            else:
+                where_clauses.append(f'"{col}" != :{param_name}')
+                params[param_name] = cast_value(val_filter, columns_types[col])
 
     where_sql = (" WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
 
