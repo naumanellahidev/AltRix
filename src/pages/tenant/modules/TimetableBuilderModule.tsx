@@ -508,33 +508,33 @@ export function TimetableBuilderModule() {
           <p className="text-xs text-muted-foreground">Drag subjects into the grid to build a section timetable.</p>
         </CardHeader>
         <CardContent className="space-y-6 pt-6 px-6">
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3">
             <Select value={sectionId} onValueChange={setSectionId}>
-              <SelectTrigger className="rounded-2xl border-primary/10 bg-background/50 hover:bg-background/80 transition-colors focus:ring-primary/30 h-10">
+              <SelectTrigger className="rounded-xl sm:rounded-2xl border-primary/10 bg-background/50 hover:bg-background/80 transition-colors focus:ring-primary/30 h-10 text-xs sm:text-sm">
                 <SelectValue placeholder="Choose section" />
               </SelectTrigger>
-              <SelectContent className="rounded-2xl border-primary/10">
+              <SelectContent className="rounded-xl border-primary/10">
                 {sections.map((s) => (
-                  <SelectItem key={s.id} value={s.id}>
+                  <SelectItem key={s.id} value={s.id} className="text-xs">
                     {sectionLabelById.get(s.id) ?? s.name}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
 
-            <Button variant="soft" onClick={refreshSection} disabled={!sectionId || busy} className="rounded-2xl h-10 border border-primary/10 hover:bg-primary/10">
-              <CalendarDays className="mr-2 h-4 w-4" /> Refresh
+            <Button variant="soft" onClick={refreshSection} disabled={!sectionId || busy} className="rounded-xl sm:rounded-2xl h-10 border border-primary/10 hover:bg-primary/10 text-xs sm:text-sm">
+              <CalendarDays className="mr-1.5 h-3.5 w-3.5" /> Refresh
             </Button>
 
-            <div className="flex flex-wrap gap-2 md:justify-self-end">
-              <Button variant="outline" onClick={exportCsv} disabled={!sectionId || entries.length === 0} className="rounded-2xl h-10 border-primary/10">
-                <Download className="mr-2 h-4 w-4" /> Export CSV
+            <div className="flex flex-wrap gap-2 w-full sm:col-span-2 md:col-span-1 md:justify-self-end">
+              <Button size="sm" variant="outline" onClick={exportCsv} disabled={!sectionId || entries.length === 0} className="rounded-xl h-9 sm:h-10 border-primary/10 text-xs flex-1 sm:flex-none">
+                <Download className="mr-1 h-3.5 w-3.5" /> Export
               </Button>
-              <Button variant="outline" onClick={() => setToolsOpen(true)} disabled={!sectionId} className="rounded-2xl h-10 border-primary/10">
-                <Wrench className="mr-2 h-4 w-4" /> Tools
+              <Button size="sm" variant="outline" onClick={() => setToolsOpen(true)} disabled={!sectionId} className="rounded-xl h-9 sm:h-10 border-primary/10 text-xs flex-1 sm:flex-none">
+                <Wrench className="mr-1 h-3.5 w-3.5" /> Tools
               </Button>
-              <Button variant="outline" onClick={() => setPrintPreviewOpen(true)} disabled={!sectionId} className="rounded-2xl h-10 border-primary/10">
-                <Printer className="mr-2 h-4 w-4" /> Print
+              <Button size="sm" variant="outline" onClick={() => setPrintPreviewOpen(true)} disabled={!sectionId} className="rounded-xl h-9 sm:h-10 border-primary/10 text-xs flex-1 sm:flex-none">
+                <Printer className="mr-1 h-3.5 w-3.5" /> Print
               </Button>
             </div>
           </div>

@@ -439,31 +439,31 @@ export function TeacherGradebookModule() {
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-border/40 pb-4">
         <Select value={selectedSection} onValueChange={setSelectedSection}>
-          <SelectTrigger className="w-[200px]">
+          <SelectTrigger className="w-full sm:w-[220px] text-xs rounded-xl">
             <SelectValue placeholder="Select section" />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent className="rounded-xl">
             {sections.map((s) => (
-              <SelectItem key={s.id} value={s.id}>
+              <SelectItem key={s.id} value={s.id} className="text-xs">
                 {s.class_name} • {s.name}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
 
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2 w-full sm:w-auto">
           <Dialog open={showNewAssessment} onOpenChange={setShowNewAssessment}>
             <DialogTrigger asChild>
-              <Button variant="outline">
-                <Plus className="h-4 w-4 mr-1" /> New Assessment
+              <Button variant="outline" size="sm" className="rounded-xl text-xs flex-1 sm:flex-none justify-center">
+                <Plus className="h-3.5 w-3.5 mr-1" /> New Assessment
               </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="max-w-lg w-[calc(100%-2rem)] max-h-[90vh] overflow-y-auto p-4 sm:p-6 rounded-2xl">
               <DialogHeader>
                 <DialogTitle>Create Assessment</DialogTitle>
-                <DialogDescription>
+                <DialogDescription className="text-xs">
                   Add a new assessment for this section. Students will be graded on this.
                 </DialogDescription>
               </DialogHeader>

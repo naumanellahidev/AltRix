@@ -243,27 +243,29 @@ export default function ExamsModule({ schoolId, canManage: canManageProp = false
 
       {canManageProp && (
         <Tabs defaultValue={isAdmin ? "exams" : "invigilations"} className="space-y-4">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
             <div>
-              <h2 className="font-display text-2xl font-bold tracking-tight text-slate-800">Exam Portal</h2>
-              <p className="text-xs text-slate-455 mt-0.5">Exam schedules, datesheets, duties, and result evaluations</p>
+              <h2 className="font-display text-xl sm:text-2xl font-bold tracking-tight text-slate-800">Exam Portal</h2>
+              <p className="text-xs text-slate-500 mt-0.5">Exam schedules, datesheets, duties, and result evaluations</p>
             </div>
             
-            <TabsList className="bg-slate-50 border border-slate-100 p-1 rounded-xl w-fit">
-              {isAdmin ? (
-                <>
-                  <TabsTrigger value="exams" className="rounded-lg text-xs font-semibold">Active Exams</TabsTrigger>
-                  <TabsTrigger value="workload" className="rounded-lg text-xs font-semibold">Duty Workloads</TabsTrigger>
-                  <TabsTrigger value="school_analytics" className="rounded-lg text-xs font-semibold">Analytics</TabsTrigger>
-                </>
-              ) : (
-                <>
-                  <TabsTrigger value="invigilations" className="rounded-lg text-xs font-semibold">My Duties</TabsTrigger>
-                  <TabsTrigger value="grading" className="rounded-lg text-xs font-semibold">Grading Workspace</TabsTrigger>
-                  <TabsTrigger value="my_analytics" className="rounded-lg text-xs font-semibold">Analytics</TabsTrigger>
-                </>
-              )}
-            </TabsList>
+            <div className="overflow-x-auto no-scrollbar -mx-1 px-1">
+              <TabsList className="inline-flex w-max min-w-full bg-slate-50 border border-slate-100 p-1 rounded-xl">
+                {isAdmin ? (
+                  <>
+                    <TabsTrigger value="exams" className="rounded-lg text-xs font-semibold whitespace-nowrap">Active Exams</TabsTrigger>
+                    <TabsTrigger value="workload" className="rounded-lg text-xs font-semibold whitespace-nowrap">Duty Workloads</TabsTrigger>
+                    <TabsTrigger value="school_analytics" className="rounded-lg text-xs font-semibold whitespace-nowrap">Analytics</TabsTrigger>
+                  </>
+                ) : (
+                  <>
+                    <TabsTrigger value="invigilations" className="rounded-lg text-xs font-semibold whitespace-nowrap">My Duties</TabsTrigger>
+                    <TabsTrigger value="grading" className="rounded-lg text-xs font-semibold whitespace-nowrap">Grading Workspace</TabsTrigger>
+                    <TabsTrigger value="my_analytics" className="rounded-lg text-xs font-semibold whitespace-nowrap">Analytics</TabsTrigger>
+                  </>
+                )}
+              </TabsList>
+            </div>
           </div>
 
           {/* ADMIN TABS */}

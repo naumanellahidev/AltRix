@@ -742,79 +742,79 @@ export function TeacherAssignmentsModule() {
 
   return (
     <div className="space-y-6">
-      {/* Dashboard KPI cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-        <Card className="bg-gradient-to-br from-blue-50/40 to-indigo-50/10 border-slate-200/80 shadow-sm relative overflow-hidden transition-all duration-200 hover:shadow-md">
-          <CardContent className="p-5 flex items-center justify-between">
-            <div className="space-y-1">
-              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Total Assignments</span>
-              <p className="text-3xl font-extrabold text-slate-800">{stats.total}</p>
+      {/* Top Metric Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
+        <Card className="bg-gradient-to-br from-blue-50/40 to-indigo-50/10 border-slate-200/80 shadow-sm relative overflow-hidden transition-all duration-200 hover:shadow-md rounded-2xl">
+          <CardContent className="p-3 sm:p-5 flex items-center justify-between">
+            <div className="space-y-0.5 sm:space-y-1">
+              <span className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider block">Total Tasks</span>
+              <p className="text-xl sm:text-3xl font-extrabold text-slate-800 truncate">{stats.total}</p>
             </div>
-            <div className="h-12 w-12 rounded-xl bg-blue-100/80 flex items-center justify-center text-blue-700">
-              <BookOpen className="h-5 w-5" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-amber-50/40 to-orange-50/10 border-slate-200/80 shadow-sm relative overflow-hidden transition-all duration-200 hover:shadow-md">
-          <CardContent className="p-5 flex items-center justify-between">
-            <div className="space-y-1">
-              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block">To Grade</span>
-              <p className="text-3xl font-extrabold text-slate-800">{stats.toGrade}</p>
-            </div>
-            <div className="h-12 w-12 rounded-xl bg-amber-100/80 flex items-center justify-center text-amber-700">
-              <Clock className="h-5 w-5" />
+            <div className="h-9 w-9 sm:h-12 sm:w-12 rounded-xl bg-blue-100/80 flex items-center justify-center text-blue-700 shrink-0">
+              <BookOpen className="h-4 w-4 sm:h-5 sm:w-5" />
             </div>
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-emerald-50/40 to-teal-50/10 border-slate-200/80 shadow-sm relative overflow-hidden transition-all duration-200 hover:shadow-md">
-          <CardContent className="p-5 flex items-center justify-between">
-            <div className="space-y-1">
-              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Class Avg Score</span>
-              <p className="text-3xl font-extrabold text-slate-800">{stats.classAvg}</p>
+        <Card className="bg-gradient-to-br from-amber-50/40 to-orange-50/10 border-slate-200/80 shadow-sm relative overflow-hidden transition-all duration-200 hover:shadow-md rounded-2xl">
+          <CardContent className="p-3 sm:p-5 flex items-center justify-between">
+            <div className="space-y-0.5 sm:space-y-1">
+              <span className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider block">To Grade</span>
+              <p className="text-xl sm:text-3xl font-extrabold text-slate-800 truncate">{stats.toGrade}</p>
             </div>
-            <div className="h-12 w-12 rounded-xl bg-emerald-100/80 flex items-center justify-center text-emerald-700">
-              <TrendingUp className="h-5 w-5" />
+            <div className="h-9 w-9 sm:h-12 sm:w-12 rounded-xl bg-amber-100/80 flex items-center justify-center text-amber-700 shrink-0">
+              <Clock className="h-4 w-4 sm:h-5 sm:w-5" />
             </div>
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-indigo-50/40 to-violet-50/10 border-slate-200/80 shadow-sm relative overflow-hidden transition-all duration-200 hover:shadow-md">
-          <CardContent className="p-5 flex items-center justify-between">
-            <div className="space-y-1">
-              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Active Tasks</span>
-              <p className="text-3xl font-extrabold text-slate-800">{stats.active}</p>
+        <Card className="bg-gradient-to-br from-emerald-50/40 to-teal-50/10 border-slate-200/80 shadow-sm relative overflow-hidden transition-all duration-200 hover:shadow-md rounded-2xl">
+          <CardContent className="p-3 sm:p-5 flex items-center justify-between">
+            <div className="space-y-0.5 sm:space-y-1">
+              <span className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider block">Class Avg</span>
+              <p className="text-xl sm:text-3xl font-extrabold text-slate-800 truncate">{stats.classAvg}</p>
             </div>
-            <div className="h-12 w-12 rounded-xl bg-indigo-100/80 flex items-center justify-center text-indigo-700">
-              <Calendar className="h-5 w-5" />
+            <div className="h-9 w-9 sm:h-12 sm:w-12 rounded-xl bg-emerald-100/80 flex items-center justify-center text-emerald-700 shrink-0">
+              <TrendingUp className="h-4 w-4 sm:h-5 sm:w-5" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-gradient-to-br from-indigo-50/40 to-violet-50/10 border-slate-200/80 shadow-sm relative overflow-hidden transition-all duration-200 hover:shadow-md rounded-2xl">
+          <CardContent className="p-3 sm:p-5 flex items-center justify-between">
+            <div className="space-y-0.5 sm:space-y-1">
+              <span className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider block">Active</span>
+              <p className="text-xl sm:text-3xl font-extrabold text-slate-800 truncate">{stats.active}</p>
+            </div>
+            <div className="h-9 w-9 sm:h-12 sm:w-12 rounded-xl bg-indigo-100/80 flex items-center justify-center text-indigo-700 shrink-0">
+              <Calendar className="h-4 w-4 sm:h-5 sm:w-5" />
             </div>
           </CardContent>
         </Card>
       </div>
 
       {/* Filters Toolbar */}
-      <Card className="bg-white border-slate-200 shadow-sm">
-        <CardContent className="p-4 flex flex-col lg:flex-row lg:items-center gap-3">
+      <Card className="bg-white border-slate-200 shadow-sm rounded-2xl">
+        <CardContent className="p-3 sm:p-4 flex flex-col gap-2.5 sm:gap-3">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
             <Input
               placeholder="Search assignments by title or description..."
-              className="pl-9"
+              className="pl-9 text-xs rounded-xl"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2">
             <Select value={filterSection} onValueChange={setFilterSection}>
-              <SelectTrigger className="w-[160px]">
+              <SelectTrigger className="w-full sm:w-[160px] text-xs rounded-xl">
                 <SelectValue placeholder="All Sections" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="rounded-xl">
                 <SelectItem value="all">All Sections</SelectItem>
                 {sections.map((s) => (
-                  <SelectItem key={s.id} value={s.id}>
+                  <SelectItem key={s.id} value={s.id} className="text-xs">
                     {s.class_name} - {s.name}
                   </SelectItem>
                 ))}
@@ -822,10 +822,10 @@ export function TeacherAssignmentsModule() {
             </Select>
 
             <Select value={filterType} onValueChange={setFilterType}>
-              <SelectTrigger className="w-[150px]">
+              <SelectTrigger className="w-full sm:w-[150px] text-xs rounded-xl">
                 <SelectValue placeholder="All Types" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="rounded-xl">
                 <SelectItem value="all">All Types</SelectItem>
                 <SelectItem value="mcq">MCQ Quiz</SelectItem>
                 <SelectItem value="written_test">Written Test</SelectItem>
@@ -836,10 +836,10 @@ export function TeacherAssignmentsModule() {
             </Select>
 
             <Select value={filterStatus} onValueChange={setFilterStatus}>
-              <SelectTrigger className="w-[140px]">
+              <SelectTrigger className="w-full sm:w-[140px] text-xs rounded-xl">
                 <SelectValue placeholder="All Statuses" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="rounded-xl">
                 <SelectItem value="all">All Statuses</SelectItem>
                 <SelectItem value="active">Active</SelectItem>
                 <SelectItem value="past_due">Past Due</SelectItem>
@@ -848,11 +848,11 @@ export function TeacherAssignmentsModule() {
 
             <Dialog open={addOpen} onOpenChange={setAddOpen}>
               <DialogTrigger asChild>
-                <Button className="bg-blue-700 hover:bg-blue-600">
-                  <Plus className="mr-1.5 h-4 w-4" /> Create
+                <Button size="sm" className="bg-blue-700 hover:bg-blue-600 rounded-xl text-xs w-full sm:w-auto justify-center">
+                  <Plus className="mr-1.5 h-3.5 w-3.5" /> Create
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-md">
+              <DialogContent className="max-w-md w-[calc(100%-2rem)] max-h-[90vh] overflow-y-auto p-4 sm:p-6 rounded-2xl">
                 <DialogHeader>
                   <DialogTitle>Create Assignment</DialogTitle>
                 </DialogHeader>

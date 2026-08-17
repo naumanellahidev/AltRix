@@ -318,36 +318,37 @@ export function TeacherAttendanceModule() {
   return (
     <div className="space-y-4">
       {/* Session Selection */}
-      <Card>
-        <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <CardTitle>Mark Attendance</CardTitle>
+      <Card className="rounded-2xl sm:rounded-3xl">
+        <CardHeader className="p-4 sm:p-6 pb-2 sm:pb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <CardTitle className="text-base sm:text-lg">Mark Attendance</CardTitle>
           <div className="flex gap-2">
             <Button
               size="sm"
               variant="outline"
               onClick={() => setShowStats(!showStats)}
               disabled={!selectedSection}
+              className="rounded-xl text-xs"
             >
-              <BarChart3 className="h-4 w-4 mr-1" />
+              <BarChart3 className="h-3.5 w-3.5 mr-1" />
               {showStats ? "Hide Stats" : "View Stats"}
             </Button>
-            <Button size="sm" variant="outline" onClick={handleOpenHistory} disabled={!selectedSection}>
-              <History className="h-4 w-4 mr-1" />
+            <Button size="sm" variant="outline" onClick={handleOpenHistory} disabled={!selectedSection} className="rounded-xl text-xs">
+              <History className="h-3.5 w-3.5 mr-1" />
               History
             </Button>
           </div>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
+        <CardContent className="p-4 sm:p-6 pt-0 space-y-4">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <div>
-              <Label>Section</Label>
+              <Label className="text-xs">Section</Label>
               <Select value={selectedSection} onValueChange={setSelectedSection}>
-                <SelectTrigger>
+                <SelectTrigger className="text-xs rounded-xl mt-1">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="rounded-xl">
                   {sections.map((s) => (
-                    <SelectItem key={s.id} value={s.id}>
+                    <SelectItem key={s.id} value={s.id} className="text-xs">
                       {s.class_name} - {s.name}
                     </SelectItem>
                   ))}
@@ -355,15 +356,15 @@ export function TeacherAttendanceModule() {
               </Select>
             </div>
             <div>
-              <Label>Date</Label>
-              <Input type="date" value={sessionDate} onChange={(e) => setSessionDate(e.target.value)} />
+              <Label className="text-xs">Date</Label>
+              <Input type="date" value={sessionDate} onChange={(e) => setSessionDate(e.target.value)} className="text-xs rounded-xl mt-1" />
             </div>
             <div>
-              <Label>Period</Label>
-              <Input value={periodLabel} onChange={(e) => setPeriodLabel(e.target.value)} />
+              <Label className="text-xs">Period</Label>
+              <Input value={periodLabel} onChange={(e) => setPeriodLabel(e.target.value)} className="text-xs rounded-xl mt-1" />
             </div>
             <div className="flex items-end">
-              <Button onClick={loadSession} className="w-full">
+              <Button onClick={loadSession} className="w-full text-xs rounded-xl">
                 Load Session
               </Button>
             </div>
@@ -378,45 +379,45 @@ export function TeacherAttendanceModule() {
 
       {/* Attendance Table */}
       {sessionId && (
-        <Card>
-          <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <CardTitle>Students ({rows.length})</CardTitle>
+        <Card className="rounded-2xl sm:rounded-3xl">
+          <CardHeader className="p-4 sm:p-6 pb-2 sm:pb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <CardTitle className="text-base sm:text-lg">Students ({rows.length})</CardTitle>
             <div className="flex flex-wrap gap-2">
-              <Button size="sm" variant="outline" onClick={() => markAll("present")}>
+              <Button size="sm" variant="outline" onClick={() => markAll("present")} className="rounded-xl text-xs">
                 All Present
               </Button>
-              <Button size="sm" variant="outline" onClick={() => markAll("absent")}>
+              <Button size="sm" variant="outline" onClick={() => markAll("absent")} className="rounded-xl text-xs">
                 All Absent
               </Button>
             </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-3 sm:p-6 pt-0">
             {rows.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No students enrolled in this section.</p>
+              <p className="text-sm text-muted-foreground py-6 text-center">No students enrolled in this section.</p>
             ) : (
               <>
                 {/* Summary Stats */}
-                <div className="mb-4 flex flex-wrap gap-3 rounded-lg border bg-muted/30 p-3">
-                  <Badge variant="outline" className="gap-1.5 border-green-500/50 bg-green-500/10 text-green-700 dark:text-green-400">
-                    <Check className="h-3.5 w-3.5" />
+                <div className="mb-4 flex flex-wrap gap-2 rounded-xl border bg-muted/30 p-2.5 sm:p-3">
+                  <Badge variant="outline" className="gap-1.5 border-green-500/50 bg-green-500/10 text-green-700 dark:text-green-400 text-xs">
+                    <Check className="h-3 w-3" />
                     Present: {stats.present}
                   </Badge>
-                  <Badge variant="outline" className="gap-1.5 border-red-500/50 bg-red-500/10 text-red-700 dark:text-red-400">
-                    <X className="h-3.5 w-3.5" />
+                  <Badge variant="outline" className="gap-1.5 border-red-500/50 bg-red-500/10 text-red-700 dark:text-red-400 text-xs">
+                    <X className="h-3 w-3" />
                     Absent: {stats.absent}
                   </Badge>
-                  <Badge variant="outline" className="gap-1.5 border-amber-500/50 bg-amber-500/10 text-amber-700 dark:text-amber-400">
-                    <Clock className="h-3.5 w-3.5" />
+                  <Badge variant="outline" className="gap-1.5 border-amber-500/50 bg-amber-500/10 text-amber-700 dark:text-amber-400 text-xs">
+                    <Clock className="h-3 w-3" />
                     Late: {stats.late}
                   </Badge>
-                  <Badge variant="outline" className="gap-1.5 border-blue-500/50 bg-blue-500/10 text-blue-700 dark:text-blue-400">
-                    <FileCheck className="h-3.5 w-3.5" />
+                  <Badge variant="outline" className="gap-1.5 border-blue-500/50 bg-blue-500/10 text-blue-700 dark:text-blue-400 text-xs">
+                    <FileCheck className="h-3 w-3" />
                     Excused: {stats.excused}
                   </Badge>
                 </div>
 
                 {/* Keyboard Shortcuts Help */}
-                <div className="mb-4 flex items-center gap-2 text-xs text-muted-foreground">
+                <div className="mb-3 hidden sm:flex items-center gap-2 text-xs text-muted-foreground">
                   <Keyboard className="h-4 w-4" />
                   <span>
                     Shortcuts: <kbd className="rounded bg-muted px-1">↑↓</kbd> navigate, <kbd className="rounded bg-muted px-1">←→</kbd> change status,{" "}
@@ -430,7 +431,7 @@ export function TeacherAttendanceModule() {
                 <div
                   tabIndex={0}
                   onKeyDown={handleKeyDown}
-                  className="focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 rounded-md overflow-x-auto"
+                  className="focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 rounded-xl overflow-x-auto border border-muted/30"
                 >
                   <Table ref={tableRef}>
                     <TableHeader>

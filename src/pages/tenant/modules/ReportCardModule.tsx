@@ -970,14 +970,16 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
 
       {/* Period selector — staff or "create" mode */}
       {!isReadOnlyForChild && (
-        <div className="rounded-2xl border bg-card p-3 print:hidden">
-          <Tabs value={periodType} onValueChange={(v) => setPeriodType(v as PeriodType)}>
-            <TabsList>
-              <TabsTrigger value="exam"><FileText className="mr-1 h-4 w-4" />Exam</TabsTrigger>
-              <TabsTrigger value="monthly"><Calendar className="mr-1 h-4 w-4" />Monthly</TabsTrigger>
-              <TabsTrigger value="annual"><CalendarRange className="mr-1 h-4 w-4" />Annual</TabsTrigger>
-            </TabsList>
-          </Tabs>
+        <div className="rounded-2xl border bg-card p-3 sm:p-4 print:hidden">
+          <div className="overflow-x-auto no-scrollbar -mx-1 px-1">
+            <Tabs value={periodType} onValueChange={(v) => setPeriodType(v as PeriodType)}>
+              <TabsList className="inline-flex w-max min-w-full rounded-xl">
+                <TabsTrigger value="exam" className="rounded-lg text-xs font-semibold whitespace-nowrap"><FileText className="mr-1 h-3.5 w-3.5" />Exam</TabsTrigger>
+                <TabsTrigger value="monthly" className="rounded-lg text-xs font-semibold whitespace-nowrap"><Calendar className="mr-1 h-3.5 w-3.5" />Monthly</TabsTrigger>
+                <TabsTrigger value="annual" className="rounded-lg text-xs font-semibold whitespace-nowrap"><CalendarRange className="mr-1 h-3.5 w-3.5" />Annual</TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </div>
           <div className="mt-3 grid gap-2 md:grid-cols-3">
             {periodType === "exam" && (
               <Select value={examId} onValueChange={setExamId}>

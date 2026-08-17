@@ -536,28 +536,28 @@ export function TeacherLessonPlannerModule() {
       </div>
 
       {/* Week Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-3">
         {weekDays.map((day) => {
           const dayPlans = getPlansForDay(day);
           const isToday = isSameDay(day, new Date());
 
           return (
-            <Card key={day.toISOString()} className={isToday ? "ring-2 ring-primary" : ""}>
-              <CardHeader className="p-3 pb-2">
-                <CardTitle className="text-sm flex items-center justify-between">
-                  <span>{format(day, "EEE")}</span>
-                  <span className="text-muted-foreground font-normal">{format(day, "d")}</span>
+            <Card key={day.toISOString()} className={`rounded-xl sm:rounded-2xl transition-all ${isToday ? "ring-2 ring-primary bg-primary/[0.02]" : ""}`}>
+              <CardHeader className="p-2.5 sm:p-3 pb-1 sm:pb-2">
+                <CardTitle className="text-xs sm:text-sm flex items-center justify-between">
+                  <span className="font-semibold">{format(day, "EEE")}</span>
+                  <span className="text-muted-foreground font-normal text-[11px] sm:text-xs">{format(day, "d")}</span>
                 </CardTitle>
               </CardHeader>
-              <CardContent className="p-3 pt-0 space-y-2">
+              <CardContent className="p-2.5 sm:p-3 pt-0 space-y-1.5 sm:space-y-2">
                 {dayPlans.map((plan) => (
                   <div
                     key={plan.id}
-                    className="rounded-lg bg-accent p-2 cursor-pointer hover:bg-accent/80 transition-colors"
+                    className="rounded-lg bg-accent/70 p-2 cursor-pointer hover:bg-accent transition-colors border border-border/40"
                     onClick={() => openEditPlan(plan)}
                   >
                     {plan.period_label && (
-                      <Badge variant="secondary" className="text-xs mb-1">
+                      <Badge variant="secondary" className="text-[10px] px-1.5 py-0 mb-1">
                         {plan.period_label}
                       </Badge>
                     )}
@@ -567,7 +567,7 @@ export function TeacherLessonPlannerModule() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="w-full h-8 text-xs"
+                  className="w-full h-7 sm:h-8 text-xs rounded-lg"
                   onClick={() => openNewPlan(day)}
                 >
                   <Plus className="h-3 w-3 mr-1" /> Add
@@ -580,7 +580,7 @@ export function TeacherLessonPlannerModule() {
 
       {/* Plan Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-5xl lg:max-w-6xl w-[92vw] max-h-[90vh] h-[88vh] flex flex-col p-0 overflow-hidden bg-slate-50 border-slate-200 text-slate-900 rounded-2xl shadow-[0_20px_50px_rgba(15,23,42,0.15)]">
+        <DialogContent className="max-w-5xl lg:max-w-6xl w-[calc(100%-1.5rem)] max-h-[92vh] h-[88vh] flex flex-col p-0 overflow-hidden bg-slate-50 border-slate-200 text-slate-900 rounded-2xl shadow-xl">
           <DialogHeader className="p-6 pb-4 border-b border-slate-200 bg-white flex flex-row items-center justify-between shrink-0">
             <div>
               <DialogTitle className="text-xl font-bold bg-gradient-to-r from-blue-700 to-indigo-600 bg-clip-text text-transparent">
