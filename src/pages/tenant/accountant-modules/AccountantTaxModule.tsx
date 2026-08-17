@@ -197,55 +197,57 @@ export function AccountantTaxModule() {
         />
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardContent className="p-4">
-            <p className="text-xs text-muted-foreground">Taxable Income</p>
-            <p className="text-2xl font-semibold tabular-nums">{fmt(totals.taxable)}</p>
-            <p className="mt-1 text-xs text-muted-foreground">Revenue − Expenses</p>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
+        <Card className="rounded-2xl shadow-sm">
+          <CardContent className="p-3.5 sm:p-5">
+            <p className="text-[10px] sm:text-xs text-muted-foreground uppercase font-semibold">Taxable Income</p>
+            <p className="text-xl sm:text-2xl font-bold tabular-nums mt-0.5 sm:mt-1 truncate">{fmt(totals.taxable)}</p>
+            <p className="mt-0.5 sm:mt-1 text-[10px] sm:text-xs text-muted-foreground truncate">Revenue − Expenses</p>
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="flex items-center justify-between p-4">
+        <Card className="rounded-2xl shadow-sm">
+          <CardContent className="flex items-center justify-between p-3.5 sm:p-5">
             <div className="min-w-0">
-              <p className="text-xs text-muted-foreground">Tax Liability</p>
-              <p className="truncate text-2xl font-semibold tabular-nums">{fmt(totals.liability)}</p>
-              <p className="mt-1 text-xs text-muted-foreground">@ {settings.ratePct}%</p>
+              <p className="text-[10px] sm:text-xs text-muted-foreground uppercase font-semibold">Tax Liability</p>
+              <p className="truncate text-xl sm:text-2xl font-bold tabular-nums mt-0.5 sm:mt-1">{fmt(totals.liability)}</p>
+              <p className="mt-0.5 sm:mt-1 text-[10px] sm:text-xs text-muted-foreground truncate">@ {settings.ratePct}%</p>
             </div>
-            <Calculator className="h-8 w-8 shrink-0 text-primary/60" />
+            <Calculator className="h-6 w-6 sm:h-8 sm:w-8 shrink-0 text-primary/60" />
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="p-4">
-            <p className="text-xs text-muted-foreground">Tax Paid</p>
-            <p className="text-2xl font-semibold tabular-nums text-emerald-600">{fmt(totals.taxPaid)}</p>
-            <p className="mt-1 text-xs text-muted-foreground">Recorded as expense</p>
+        <Card className="rounded-2xl shadow-sm">
+          <CardContent className="p-3.5 sm:p-5">
+            <p className="text-[10px] sm:text-xs text-muted-foreground uppercase font-semibold">Tax Paid</p>
+            <p className="text-xl sm:text-2xl font-bold tabular-nums text-emerald-600 mt-0.5 sm:mt-1 truncate">{fmt(totals.taxPaid)}</p>
+            <p className="mt-0.5 sm:mt-1 text-[10px] sm:text-xs text-muted-foreground truncate">Recorded as expense</p>
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="flex items-center justify-between p-4">
+        <Card className="rounded-2xl shadow-sm">
+          <CardContent className="flex items-center justify-between p-3.5 sm:p-5">
             <div className="min-w-0">
-              <p className="text-xs text-muted-foreground">Outstanding</p>
+              <p className="text-[10px] sm:text-xs text-muted-foreground uppercase font-semibold">Outstanding</p>
               <p
-                className={`truncate text-2xl font-semibold tabular-nums ${
+                className={`truncate text-xl sm:text-2xl font-bold tabular-nums mt-0.5 sm:mt-1 ${
                   totals.due > 0 ? "text-rose-600" : "text-emerald-600"
                 }`}
               >
                 {fmt(totals.due)}
               </p>
             </div>
-            <Receipt className="h-8 w-8 shrink-0 text-rose-500/60" />
+            <Receipt className="h-6 w-6 sm:h-8 sm:w-8 shrink-0 text-rose-500/60" />
           </CardContent>
         </Card>
       </div>
 
-      <Tabs defaultValue="summary">
-        <TabsList>
-          <TabsTrigger value="summary">Monthly</TabsTrigger>
-          <TabsTrigger value="quarterly">Quarterly</TabsTrigger>
-          <TabsTrigger value="payments">Tax Payments</TabsTrigger>
-          <TabsTrigger value="settings">Settings</TabsTrigger>
-        </TabsList>
+      <Tabs defaultValue="summary" className="space-y-4">
+        <div className="overflow-x-auto no-scrollbar -mx-1 px-1">
+          <TabsList className="inline-flex w-max min-w-full sm:w-auto p-1 rounded-xl">
+            <TabsTrigger value="summary" className="rounded-lg text-xs font-semibold whitespace-nowrap">Monthly</TabsTrigger>
+            <TabsTrigger value="quarterly" className="rounded-lg text-xs font-semibold whitespace-nowrap">Quarterly</TabsTrigger>
+            <TabsTrigger value="payments" className="rounded-lg text-xs font-semibold whitespace-nowrap">Tax Payments</TabsTrigger>
+            <TabsTrigger value="settings" className="rounded-lg text-xs font-semibold whitespace-nowrap">Settings</TabsTrigger>
+          </TabsList>
+        </div>
 
         <TabsContent value="summary">
           <Card>

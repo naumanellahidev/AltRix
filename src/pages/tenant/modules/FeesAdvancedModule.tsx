@@ -812,10 +812,10 @@ export default function FeesAdvancedModule() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div>
-          <h1 className="font-display text-2xl font-bold tracking-tight">Fees</h1>
-          <p className="text-muted-foreground">Manage fee plans, student assignments, invoices, and payments.</p>
+          <h1 className="font-display text-xl sm:text-2xl font-bold tracking-tight">Fees</h1>
+          <p className="text-xs sm:text-sm text-muted-foreground">Manage fee plans, student assignments, invoices, and payments.</p>
         </div>
         <Button
           variant="outline"
@@ -823,20 +823,22 @@ export default function FeesAdvancedModule() {
           onClick={() => reloadData()}
           disabled={refreshing}
           title="Refresh Operations"
-          className="h-9 w-9 rounded-xl border-blue-100 text-slate-500 hover:text-blue-600 hover:bg-blue-50/50"
+          className="h-9 w-9 rounded-xl border-blue-100 text-slate-500 hover:text-blue-600 hover:bg-blue-50/50 shrink-0"
         >
           <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
         </Button>
       </div>
 
-      <Tabs defaultValue="assignments" value={tab} onValueChange={setTab}>
-        <TabsList className="grid grid-cols-2 md:grid-cols-5 w-full max-w-5xl h-auto gap-1">
-          <TabsTrigger value="assignments"><UsersIcon className="h-4 w-4 mr-1" />Assignments</TabsTrigger>
-          <TabsTrigger value="payments"><CreditCard className="h-4 w-4 mr-1" />Payments</TabsTrigger>
-          <TabsTrigger value="expenses"><Receipt className="h-4 w-4 mr-1" />Expenses</TabsTrigger>
-          <TabsTrigger value="analytics"><BarChart3 className="h-4 w-4 mr-1" />Analytics</TabsTrigger>
-          <TabsTrigger value="settings"><SettingsIcon className="h-4 w-4 mr-1" />Settings</TabsTrigger>
-        </TabsList>
+      <Tabs defaultValue="assignments" value={tab} onValueChange={setTab} className="space-y-4">
+        <div className="overflow-x-auto no-scrollbar -mx-1 px-1">
+          <TabsList className="inline-flex w-max min-w-full sm:w-auto p-1 rounded-xl gap-1">
+            <TabsTrigger value="assignments" className="rounded-lg text-xs font-semibold whitespace-nowrap"><UsersIcon className="h-3.5 w-3.5 mr-1" />Assignments</TabsTrigger>
+            <TabsTrigger value="payments" className="rounded-lg text-xs font-semibold whitespace-nowrap"><CreditCard className="h-3.5 w-3.5 mr-1" />Payments</TabsTrigger>
+            <TabsTrigger value="expenses" className="rounded-lg text-xs font-semibold whitespace-nowrap"><Receipt className="h-3.5 w-3.5 mr-1" />Expenses</TabsTrigger>
+            <TabsTrigger value="analytics" className="rounded-lg text-xs font-semibold whitespace-nowrap"><BarChart3 className="h-3.5 w-3.5 mr-1" />Analytics</TabsTrigger>
+            <TabsTrigger value="settings" className="rounded-lg text-xs font-semibold whitespace-nowrap"><SettingsIcon className="h-3.5 w-3.5 mr-1" />Settings</TabsTrigger>
+          </TabsList>
+        </div>
 
         {/* ASSIGNMENTS */}
         <TabsContent value="assignments" className="space-y-4">

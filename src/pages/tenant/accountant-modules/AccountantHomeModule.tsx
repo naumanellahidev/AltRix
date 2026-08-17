@@ -640,21 +640,21 @@ export function AccountantHomeModule() {
           </TabsList>
         </div>
 
-        <TabsContent value="overview" className="space-y-6">
+        <TabsContent value="overview" className="space-y-4 sm:space-y-6">
           {/* Financial Health Score + Quick Stats */}
-          <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,270px)_minmax(0,1fr)]">
+          <div className="grid items-start gap-3 sm:gap-4 lg:grid-cols-[minmax(0,270px)_minmax(0,1fr)]">
             {/* Health Score Card */}
-            <Card className="relative overflow-hidden bg-surface shadow-elevated border hover:shadow-md hover:border-primary/40 cursor-pointer transition-all duration-300 group/kpi flex flex-col justify-between">
-              <CardContent className="p-5 flex flex-col justify-between h-full">
+            <Card className="relative overflow-hidden bg-surface shadow-elevated border hover:shadow-md hover:border-primary/40 cursor-pointer transition-all duration-300 group/kpi flex flex-col justify-between rounded-2xl sm:rounded-3xl">
+              <CardContent className="p-3.5 sm:p-5 flex flex-col justify-between h-full">
                 <div>
                   <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-muted-foreground group-hover/kpi:text-primary transition-colors">Financial Health</span>
-                    <div className="p-2 rounded-xl bg-primary/10 text-primary">
-                      <Shield className="h-5 w-5" />
+                    <span className="text-xs sm:text-sm font-medium text-muted-foreground group-hover/kpi:text-primary transition-colors truncate">Financial Health</span>
+                    <div className="p-1.5 sm:p-2 rounded-xl bg-primary/10 text-primary">
+                      <Shield className="h-4 w-4 sm:h-5 sm:w-5" />
                     </div>
                   </div>
-                  <div className="flex flex-col items-center justify-center mt-4">
-                    <div className="relative h-[110px] w-[180px] flex items-center justify-center">
+                  <div className="flex flex-col items-center justify-center mt-2 sm:mt-4">
+                    <div className="relative h-[95px] sm:h-[110px] w-[150px] sm:w-[180px] flex items-center justify-center">
                       <svg viewBox="0 0 120 70" className="w-full h-full">
                         <defs>
                           <linearGradient id="healthGaugeGradient" x1="0%" y1="0%" x2="100%" y2="0%">
@@ -685,16 +685,16 @@ export function AccountantHomeModule() {
                         />
                       </svg>
                       <div className="absolute inset-x-0 bottom-2 flex flex-col items-center justify-center">
-                        <span className={`text-3xl font-extrabold tracking-tight ${getHealthColor(financialHealth)}`}>
+                        <span className={`text-2xl sm:text-3xl font-extrabold tracking-tight ${getHealthColor(financialHealth)}`}>
                           {financialHealth}
                         </span>
-                        <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest mt-0.5">{getHealthLabel(financialHealth)}</span>
+                        <span className="text-[8px] sm:text-[9px] font-bold text-muted-foreground uppercase tracking-widest mt-0.5">{getHealthLabel(financialHealth)}</span>
                       </div>
                     </div>
                   </div>
                 </div>
 
-                <div className="mt-4 space-y-2">
+                <div className="mt-3 sm:mt-4 space-y-1.5 sm:space-y-2">
                   <div className="flex justify-between items-center gap-2 text-xs border-b pb-1.5">
                     <div className="flex items-center gap-1.5 truncate">
                       <div className="h-1.5 w-1.5 rounded-full bg-primary" />
@@ -725,33 +725,33 @@ export function AccountantHomeModule() {
             </Card>
 
             {/* Key Metrics Grid */}
-            <div className="grid auto-rows-fr grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 min-w-0 w-full">
+            <div className="grid auto-rows-fr grid-cols-2 xl:grid-cols-4 gap-2.5 sm:gap-4 min-w-0 w-full">
               {/* Card 1: Total Revenue */}
               <Card 
-                className="relative overflow-hidden bg-surface shadow-elevated border hover:shadow-md hover:border-primary/40 cursor-pointer transition-all duration-300 group/kpi flex flex-col justify-between"
+                className="relative overflow-hidden bg-surface shadow-elevated border hover:shadow-md hover:border-primary/40 cursor-pointer transition-all duration-300 group/kpi flex flex-col justify-between rounded-2xl sm:rounded-3xl"
                 onClick={() => navigate(`/${schoolSlug}/accountant/reports`)}
               >
-                <CardContent className="p-5 flex flex-col justify-between h-full">
+                <CardContent className="p-3 sm:p-5 flex flex-col justify-between h-full">
                   <div>
                     <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium text-muted-foreground group-hover/kpi:text-primary transition-colors">Total Revenue</span>
-                      <div className="p-2 rounded-xl bg-primary/10 text-primary">
-                        <TrendingUp className="h-5 w-5" />
+                      <span className="text-xs sm:text-sm font-medium text-muted-foreground group-hover/kpi:text-primary transition-colors truncate">Total Revenue</span>
+                      <div className="p-1.5 sm:p-2 rounded-xl bg-primary/10 text-primary">
+                        <TrendingUp className="h-4 w-4 sm:h-5 sm:w-5" />
                       </div>
                     </div>
-                    <div className="mt-4">
-                      <h3 className="text-3xl font-bold tracking-tight font-display text-foreground flex items-baseline gap-1">
-                        <span>{formatCompact(stats.totalRevenue)}</span>
-                        <ArrowRight className="h-4 w-4 text-primary opacity-0 -translate-x-1 group-hover/kpi:opacity-100 group-hover/kpi:translate-x-0 transition-all duration-200" />
+                    <div className="mt-2.5 sm:mt-4">
+                      <h3 className="text-xl sm:text-3xl font-bold tracking-tight font-display text-foreground flex items-baseline gap-1">
+                        <span className="truncate">{formatCompact(stats.totalRevenue)}</span>
+                        <ArrowRight className="h-3.5 w-3.5 text-primary opacity-0 -translate-x-1 group-hover/kpi:opacity-100 group-hover/kpi:translate-x-0 transition-all duration-200" />
                       </h3>
                       {stats.revenueGrowth !== 0 && (
-                        <p className="mt-1 text-xs text-muted-foreground flex items-center gap-1">
+                        <p className="mt-0.5 sm:mt-1 text-[10px] sm:text-xs text-muted-foreground flex items-center gap-1 truncate">
                           {stats.revenueGrowth > 0 ? (
                             <ArrowUpRight className="h-3 w-3 text-emerald-500" />
                           ) : (
                             <ArrowDownRight className="h-3 w-3 text-rose-500" />
                           )}
-                          <span>{Math.abs(stats.revenueGrowth).toFixed(1)}% vs last month</span>
+                          <span>{Math.abs(stats.revenueGrowth).toFixed(1)}% vs last mo</span>
                         </p>
                       )}
                     </div>
@@ -761,30 +761,30 @@ export function AccountantHomeModule() {
 
               {/* Card 2: Total Expenses */}
               <Card 
-                className="relative overflow-hidden bg-surface shadow-elevated border hover:shadow-md hover:border-primary/40 cursor-pointer transition-all duration-300 group/kpi flex flex-col justify-between"
+                className="relative overflow-hidden bg-surface shadow-elevated border hover:shadow-md hover:border-primary/40 cursor-pointer transition-all duration-300 group/kpi flex flex-col justify-between rounded-2xl sm:rounded-3xl"
                 onClick={() => navigate(`/${schoolSlug}/accountant/expenses`)}
               >
-                <CardContent className="p-5 flex flex-col justify-between h-full">
+                <CardContent className="p-3 sm:p-5 flex flex-col justify-between h-full">
                   <div>
                     <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium text-muted-foreground group-hover/kpi:text-primary transition-colors">Total Expenses</span>
-                      <div className="p-2 rounded-xl bg-rose-500/10 text-rose-500">
-                        <TrendingDown className="h-5 w-5" />
+                      <span className="text-xs sm:text-sm font-medium text-muted-foreground group-hover/kpi:text-primary transition-colors truncate">Total Expenses</span>
+                      <div className="p-1.5 sm:p-2 rounded-xl bg-rose-500/10 text-rose-500">
+                        <TrendingDown className="h-4 w-4 sm:h-5 sm:w-5" />
                       </div>
                     </div>
-                    <div className="mt-4">
-                      <h3 className="text-3xl font-bold tracking-tight font-display text-foreground flex items-baseline gap-1">
-                        <span>{formatCompact(stats.totalExpenses)}</span>
-                        <ArrowRight className="h-4 w-4 text-rose-500 opacity-0 -translate-x-1 group-hover/kpi:opacity-100 group-hover/kpi:translate-x-0 transition-all duration-200" />
+                    <div className="mt-2.5 sm:mt-4">
+                      <h3 className="text-xl sm:text-3xl font-bold tracking-tight font-display text-foreground flex items-baseline gap-1">
+                        <span className="truncate">{formatCompact(stats.totalExpenses)}</span>
+                        <ArrowRight className="h-3.5 w-3.5 text-rose-500 opacity-0 -translate-x-1 group-hover/kpi:opacity-100 group-hover/kpi:translate-x-0 transition-all duration-200" />
                       </h3>
                       {stats.expenseGrowth !== 0 && (
-                        <p className="mt-1 text-xs text-muted-foreground flex items-center gap-1">
+                        <p className="mt-0.5 sm:mt-1 text-[10px] sm:text-xs text-muted-foreground flex items-center gap-1 truncate">
                           {stats.expenseGrowth > 0 ? (
                             <ArrowUpRight className="h-3 w-3 text-rose-500" />
                           ) : (
                             <ArrowDownRight className="h-3 w-3 text-emerald-500" />
                           )}
-                          <span>{Math.abs(stats.expenseGrowth).toFixed(1)}% vs last month</span>
+                          <span>{Math.abs(stats.expenseGrowth).toFixed(1)}% vs last mo</span>
                         </p>
                       )}
                     </div>
@@ -794,23 +794,23 @@ export function AccountantHomeModule() {
 
               {/* Card 3: Monthly Payroll */}
               <Card 
-                className="relative overflow-hidden bg-surface shadow-elevated border hover:shadow-md hover:border-primary/40 cursor-pointer transition-all duration-300 group/kpi flex flex-col justify-between"
+                className="relative overflow-hidden bg-surface shadow-elevated border hover:shadow-md hover:border-primary/40 cursor-pointer transition-all duration-300 group/kpi flex flex-col justify-between rounded-2xl sm:rounded-3xl"
                 onClick={() => navigate(`/${schoolSlug}/accountant/payroll`)}
               >
-                <CardContent className="p-5 flex flex-col justify-between h-full">
+                <CardContent className="p-3 sm:p-5 flex flex-col justify-between h-full">
                   <div>
                     <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium text-muted-foreground group-hover/kpi:text-primary transition-colors">Monthly Payroll</span>
-                      <div className="p-2 rounded-xl bg-violet-500/10 text-violet-500">
-                        <Coins className="h-5 w-5" />
+                      <span className="text-xs sm:text-sm font-medium text-muted-foreground group-hover/kpi:text-primary transition-colors truncate">Monthly Payroll</span>
+                      <div className="p-1.5 sm:p-2 rounded-xl bg-violet-500/10 text-violet-500">
+                        <Coins className="h-4 w-4 sm:h-5 sm:w-5" />
                       </div>
                     </div>
-                    <div className="mt-4">
-                      <h3 className="text-3xl font-bold tracking-tight font-display text-foreground flex items-baseline gap-1">
-                        <span>{formatCompact(stats.monthlyPayroll)}</span>
-                        <ArrowRight className="h-4 w-4 text-violet-500 opacity-0 -translate-x-1 group-hover/kpi:opacity-100 group-hover/kpi:translate-x-0 transition-all duration-200" />
+                    <div className="mt-2.5 sm:mt-4">
+                      <h3 className="text-xl sm:text-3xl font-bold tracking-tight font-display text-foreground flex items-baseline gap-1">
+                        <span className="truncate">{formatCompact(stats.monthlyPayroll)}</span>
+                        <ArrowRight className="h-3.5 w-3.5 text-violet-500 opacity-0 -translate-x-1 group-hover/kpi:opacity-100 group-hover/kpi:translate-x-0 transition-all duration-200" />
                       </h3>
-                      <p className="mt-1 text-xs text-muted-foreground">
+                      <p className="mt-0.5 sm:mt-1 text-[10px] sm:text-xs text-muted-foreground truncate">
                         {stats.activeEmployees} active staff
                       </p>
                     </div>
@@ -820,24 +820,24 @@ export function AccountantHomeModule() {
 
               {/* Card 4: Net Profit */}
               <Card 
-                className="relative overflow-hidden bg-surface shadow-elevated border hover:shadow-md hover:border-primary/40 cursor-pointer transition-all duration-300 group/kpi flex flex-col justify-between"
+                className="relative overflow-hidden bg-surface shadow-elevated border hover:shadow-md hover:border-primary/40 cursor-pointer transition-all duration-300 group/kpi flex flex-col justify-between rounded-2xl sm:rounded-3xl"
                 onClick={() => navigate(`/${schoolSlug}/accountant/reports`)}
               >
-                <CardContent className="p-5 flex flex-col justify-between h-full">
+                <CardContent className="p-3 sm:p-5 flex flex-col justify-between h-full">
                   <div>
                     <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium text-muted-foreground group-hover/kpi:text-primary transition-colors">Net Profit</span>
-                      <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-500">
-                        <PiggyBank className="h-5 w-5" />
+                      <span className="text-xs sm:text-sm font-medium text-muted-foreground group-hover/kpi:text-primary transition-colors truncate">Net Profit</span>
+                      <div className="p-1.5 sm:p-2 rounded-xl bg-emerald-500/10 text-emerald-500">
+                        <PiggyBank className="h-4 w-4 sm:h-5 sm:w-5" />
                       </div>
                     </div>
-                    <div className="mt-4">
-                      <h3 className="text-3xl font-bold tracking-tight font-display text-foreground flex items-baseline gap-1">
-                        <span>{stats.netProfit >= 0 ? "+" : ""}{formatCompact(stats.netProfit)}</span>
-                        <ArrowRight className="h-4 w-4 text-emerald-500 opacity-0 -translate-x-1 group-hover/kpi:opacity-100 group-hover/kpi:translate-x-0 transition-all duration-200" />
+                    <div className="mt-2.5 sm:mt-4">
+                      <h3 className="text-xl sm:text-3xl font-bold tracking-tight font-display text-foreground flex items-baseline gap-1">
+                        <span className="truncate">{stats.netProfit >= 0 ? "+" : ""}{formatCompact(stats.netProfit)}</span>
+                        <ArrowRight className="h-3.5 w-3.5 text-emerald-500 opacity-0 -translate-x-1 group-hover/kpi:opacity-100 group-hover/kpi:translate-x-0 transition-all duration-200" />
                       </h3>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        Profit margin: {stats.profitMargin.toFixed(1)}%
+                      <p className="mt-0.5 sm:mt-1 text-[10px] sm:text-xs text-muted-foreground truncate">
+                        Margin: {stats.profitMargin.toFixed(1)}%
                       </p>
                     </div>
                   </div>
@@ -847,18 +847,39 @@ export function AccountantHomeModule() {
           </div>
 
           {/* Quick Actions */}
-          <Card className="bg-surface shadow-elevated border overflow-hidden rounded-3xl relative">
-            <div className="px-6 py-4.5 border-b flex items-center justify-between">
+          <Card className="bg-surface shadow-elevated border overflow-hidden rounded-2xl sm:rounded-3xl relative">
+            <div className="px-4 sm:px-6 py-3 sm:py-4.5 border-b flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
                   <Zap className="h-4 w-4" />
                 </div>
-                <span className="font-semibold text-sm text-foreground">Quick Actions Console</span>
+                <span className="font-semibold text-xs sm:text-sm text-foreground">Quick Actions Console</span>
               </div>
-              <Badge variant="outline" className="text-[10px] font-bold text-primary bg-primary/5 border-primary/20">OPERATIONAL</Badge>
+              <Badge variant="outline" className="text-[9px] sm:text-[10px] font-bold text-primary bg-primary/5 border-primary/20">OPERATIONAL</Badge>
             </div>
-            <CardContent className="p-6">
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-6">
+            <CardContent className="p-3 sm:p-6">
+              <div className="grid grid-cols-2 gap-2.5 sm:gap-4 sm:grid-cols-3 lg:grid-cols-6">
+                {quickActions.map((action) => (
+                  <div key={action.label} className="group">
+                    <button
+                      className="flex h-full w-full flex-col justify-between items-start text-left border bg-card p-3.5 sm:p-5 rounded-xl sm:rounded-2xl hover:border-primary hover:shadow-md transition-all duration-300 relative overflow-hidden"
+                      onClick={() => navigate(action.path)}
+                    >
+                      <div className="flex justify-between items-center w-full mb-2 sm:mb-4">
+                        <div className={`rounded-xl p-2 sm:p-2.5 ${action.color}`}>
+                          <action.icon className="h-4 w-4 sm:h-4.5 sm:w-4.5" />
+                        </div>
+                        <ArrowUpRight className="h-3.5 w-3.5 text-muted-foreground/60 group-hover:text-primary group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all duration-200" />
+                      </div>
+                      <div>
+                        <span className="text-[10px] sm:text-xs font-semibold text-foreground tracking-tight block uppercase">{action.label}</span>
+                      </div>
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
                 {quickActions.map((action) => (
                   <div key={action.label} className="group">
                     <button

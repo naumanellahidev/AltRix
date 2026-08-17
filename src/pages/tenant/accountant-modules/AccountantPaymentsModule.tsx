@@ -559,55 +559,55 @@ export function AccountantPaymentsModule() {
         </div>
       )}
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Card className="border-blue-100 bg-gradient-to-br from-white to-blue-50/20 shadow-sm">
-          <CardContent className="p-4 flex items-center justify-between">
-            <div className="space-y-1">
-              <p className="text-xs text-blue-600 uppercase tracking-wider font-semibold">Total Deposits</p>
-              <h3 className="text-xl font-bold text-slate-800">{stats.totalPayments} Deposits</h3>
-              <p className="text-[10px] text-muted-foreground">Today: Rs. {stats.todayAmount.toLocaleString()}</p>
+      {/* Summary KPI Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
+        <Card className="border-blue-100 bg-gradient-to-br from-white to-blue-50/20 shadow-sm rounded-2xl">
+          <CardContent className="p-3 sm:p-4 flex items-center justify-between">
+            <div className="space-y-0.5 sm:space-y-1">
+              <p className="text-[10px] sm:text-xs text-blue-600 uppercase tracking-wider font-semibold">Today's Collections</p>
+              <h3 className="text-lg sm:text-xl font-bold text-slate-800 truncate">Rs. {stats.todayAmount.toLocaleString()}</h3>
+              <p className="text-[9px] sm:text-[10px] text-muted-foreground truncate">{payments.filter(p => new Date(p.paid_at).toDateString() === new Date().toDateString()).length} recorded today</p>
             </div>
-            <div className="p-3 rounded-2xl bg-blue-50 text-blue-600">
-              <Receipt className="h-5 w-5" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-blue-100 bg-gradient-to-br from-white to-blue-50/20 shadow-sm">
-          <CardContent className="p-4 flex items-center justify-between">
-            <div className="space-y-1">
-              <p className="text-xs text-blue-600 uppercase tracking-wider font-semibold">Total Collected</p>
-              <h3 className="text-xl font-bold text-slate-800">Rs. {stats.totalAmount.toLocaleString()}</h3>
-              <p className="text-[10px] text-muted-foreground">Overall revenue register</p>
-            </div>
-            <div className="p-3 rounded-2xl bg-blue-50 text-blue-600">
-              <CreditCard className="h-5 w-5" />
+            <div className="p-2 sm:p-3 rounded-2xl bg-blue-50 text-blue-600 shrink-0">
+              <Coins className="h-4 w-4 sm:h-5 sm:w-5" />
             </div>
           </CardContent>
         </Card>
 
-        <Card className="border-blue-100 bg-gradient-to-br from-white to-blue-50/20 shadow-sm">
-          <CardContent className="p-4 flex items-center justify-between">
-            <div className="space-y-1">
-              <p className="text-xs text-blue-600 uppercase tracking-wider font-semibold">Digital Payments</p>
-              <h3 className="text-xl font-bold text-emerald-600">Rs. {stats.digitalTotal.toLocaleString()}</h3>
-              <p className="text-[10px] text-muted-foreground">Bank, Cards & Mobile wallets</p>
+        <Card className="border-blue-100 bg-gradient-to-br from-white to-blue-50/20 shadow-sm rounded-2xl">
+          <CardContent className="p-3 sm:p-4 flex items-center justify-between">
+            <div className="space-y-0.5 sm:space-y-1">
+              <p className="text-[10px] sm:text-xs text-blue-600 uppercase tracking-wider font-semibold">Total Collected</p>
+              <h3 className="text-lg sm:text-xl font-bold text-slate-800 truncate">Rs. {stats.totalAmount.toLocaleString()}</h3>
+              <p className="text-[9px] sm:text-[10px] text-muted-foreground truncate">Overall revenue</p>
             </div>
-            <div className="p-3 rounded-2xl bg-emerald-50 text-emerald-600">
-              <CreditCard className="h-5 w-5" />
+            <div className="p-2 sm:p-3 rounded-2xl bg-blue-50 text-blue-600 shrink-0">
+              <CreditCard className="h-4 w-4 sm:h-5 sm:w-5" />
             </div>
           </CardContent>
         </Card>
 
-        <Card className="border-blue-100 bg-gradient-to-br from-white to-blue-50/20 shadow-sm">
-          <CardContent className="p-4 flex flex-col justify-between h-full min-h-[90px]">
-            <p className="text-xs text-blue-600 uppercase tracking-wider font-semibold">Methods Breakdown</p>
-            <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-[10px] font-medium text-slate-600 mt-1">
-              <div>Cash: Rs. {(stats.breakdown.cash || 0).toLocaleString()}</div>
-              <div>Bank: Rs. {(stats.breakdown.bank || 0).toLocaleString()}</div>
-              <div>Easypaisa: Rs. {(stats.breakdown.easypaisa || 0).toLocaleString()}</div>
-              <div>JazzCash: Rs. {(stats.breakdown.jazzcash || 0).toLocaleString()}</div>
+        <Card className="border-blue-100 bg-gradient-to-br from-white to-blue-50/20 shadow-sm rounded-2xl">
+          <CardContent className="p-3 sm:p-4 flex items-center justify-between">
+            <div className="space-y-0.5 sm:space-y-1">
+              <p className="text-[10px] sm:text-xs text-blue-600 uppercase tracking-wider font-semibold">Digital Payments</p>
+              <h3 className="text-lg sm:text-xl font-bold text-emerald-600 truncate">Rs. {stats.digitalTotal.toLocaleString()}</h3>
+              <p className="text-[9px] sm:text-[10px] text-muted-foreground truncate">Bank, Cards & Wallets</p>
+            </div>
+            <div className="p-2 sm:p-3 rounded-2xl bg-emerald-50 text-emerald-600 shrink-0">
+              <CreditCard className="h-4 w-4 sm:h-5 sm:w-5" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-blue-100 bg-gradient-to-br from-white to-blue-50/20 shadow-sm rounded-2xl">
+          <CardContent className="p-3 sm:p-4 flex flex-col justify-between h-full min-h-[90px]">
+            <p className="text-[10px] sm:text-xs text-blue-600 uppercase tracking-wider font-semibold">Breakdown</p>
+            <div className="grid grid-cols-2 gap-x-2 gap-y-0.5 text-[9px] sm:text-[10px] font-medium text-slate-600 mt-1">
+              <div className="truncate">Cash: Rs. {(stats.breakdown.cash || 0).toLocaleString()}</div>
+              <div className="truncate">Bank: Rs. {(stats.breakdown.bank || 0).toLocaleString()}</div>
+              <div className="truncate">Easypaisa: Rs. {(stats.breakdown.easypaisa || 0).toLocaleString()}</div>
+              <div className="truncate">JazzCash: Rs. {(stats.breakdown.jazzcash || 0).toLocaleString()}</div>
             </div>
           </CardContent>
         </Card>

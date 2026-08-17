@@ -175,78 +175,80 @@ export function AccountantLedgerModule() {
         />
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-3">
-        <Card>
-          <CardContent className="flex items-center justify-between p-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-4">
+        <Card className="rounded-2xl shadow-sm">
+          <CardContent className="flex items-center justify-between p-3.5 sm:p-5">
             <div className="min-w-0">
-              <p className="text-xs text-muted-foreground">Total Inflows</p>
-              <p className="truncate text-2xl font-semibold tabular-nums text-emerald-600">{fmt(totals.inflow)}</p>
+              <p className="text-[10px] sm:text-xs text-muted-foreground uppercase font-semibold">Total Inflows</p>
+              <p className="truncate text-xl sm:text-2xl font-bold tabular-nums text-emerald-600 mt-0.5 sm:mt-1">{fmt(totals.inflow)}</p>
             </div>
-            <ArrowDownCircle className="h-8 w-8 shrink-0 text-emerald-500/60" />
+            <ArrowDownCircle className="h-6 w-6 sm:h-8 sm:w-8 shrink-0 text-emerald-500/60" />
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="flex items-center justify-between p-4">
+        <Card className="rounded-2xl shadow-sm">
+          <CardContent className="flex items-center justify-between p-3.5 sm:p-5">
             <div className="min-w-0">
-              <p className="text-xs text-muted-foreground">Total Outflows</p>
-              <p className="truncate text-2xl font-semibold tabular-nums text-rose-600">{fmt(totals.outflow)}</p>
+              <p className="text-[10px] sm:text-xs text-muted-foreground uppercase font-semibold">Total Outflows</p>
+              <p className="truncate text-xl sm:text-2xl font-bold tabular-nums text-rose-600 mt-0.5 sm:mt-1">{fmt(totals.outflow)}</p>
             </div>
-            <ArrowUpCircle className="h-8 w-8 shrink-0 text-rose-500/60" />
+            <ArrowUpCircle className="h-6 w-6 sm:h-8 sm:w-8 shrink-0 text-rose-500/60" />
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="flex items-center justify-between p-4">
+        <Card className="rounded-2xl shadow-sm">
+          <CardContent className="flex items-center justify-between p-3.5 sm:p-5">
             <div className="min-w-0">
-              <p className="text-xs text-muted-foreground">Net Position</p>
+              <p className="text-[10px] sm:text-xs text-muted-foreground uppercase font-semibold">Net Position</p>
               <p
-                className={`truncate text-2xl font-semibold tabular-nums ${
+                className={`truncate text-xl sm:text-2xl font-bold tabular-nums mt-0.5 sm:mt-1 ${
                   totals.net >= 0 ? "text-emerald-600" : "text-rose-600"
                 }`}
               >
                 {fmt(totals.net)}
               </p>
             </div>
-            <Wallet className="h-8 w-8 shrink-0 text-primary/60" />
+            <Wallet className="h-6 w-6 sm:h-8 sm:w-8 shrink-0 text-primary/60" />
           </CardContent>
         </Card>
       </div>
 
-      <Card>
-        <CardContent className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-4">
+      <Card className="rounded-2xl shadow-sm">
+        <CardContent className="grid gap-3 p-3.5 sm:p-4 sm:grid-cols-2 lg:grid-cols-4">
           <div>
             <Label className="text-xs">From</Label>
-            <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
+            <Input type="date" className="rounded-xl h-9 text-xs" value={from} onChange={(e) => setFrom(e.target.value)} />
           </div>
           <div>
             <Label className="text-xs">To</Label>
-            <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
+            <Input type="date" className="rounded-xl h-9 text-xs" value={to} onChange={(e) => setTo(e.target.value)} />
           </div>
           <div>
             <Label className="text-xs">Type</Label>
             <Select value={typeFilter} onValueChange={setTypeFilter}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__all">All</SelectItem>
-                <SelectItem value="inflow">Inflows only</SelectItem>
-                <SelectItem value="outflow">Outflows only</SelectItem>
+              <SelectTrigger className="rounded-xl h-9 text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent className="rounded-xl">
+                <SelectItem value="__all" className="text-xs">All</SelectItem>
+                <SelectItem value="inflow" className="text-xs">Inflows only</SelectItem>
+                <SelectItem value="outflow" className="text-xs">Outflows only</SelectItem>
               </SelectContent>
             </Select>
           </div>
           <div>
             <Label className="text-xs">Search</Label>
             <div className="relative">
-              <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input className="pl-8" placeholder="Description, ref, category" value={search} onChange={(e) => setSearch(e.target.value)} />
+              <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+              <Input className="pl-8 rounded-xl h-9 text-xs" placeholder="Description, ref, category" value={search} onChange={(e) => setSearch(e.target.value)} />
             </div>
           </div>
         </CardContent>
       </Card>
 
-      <Tabs value={tab} onValueChange={setTab}>
-        <TabsList>
-          <TabsTrigger value="journal">Journal</TabsTrigger>
-          <TabsTrigger value="breakdown">Breakdown</TabsTrigger>
-        </TabsList>
+      <Tabs value={tab} onValueChange={setTab} className="space-y-4">
+        <div className="overflow-x-auto no-scrollbar -mx-1 px-1">
+          <TabsList className="inline-flex w-max min-w-full sm:w-auto p-1 rounded-xl">
+            <TabsTrigger value="journal" className="rounded-lg text-xs font-semibold whitespace-nowrap">Journal</TabsTrigger>
+            <TabsTrigger value="breakdown" className="rounded-lg text-xs font-semibold whitespace-nowrap">Breakdown</TabsTrigger>
+          </TabsList>
+        </div>
 
         <TabsContent value="journal">
           <Card>

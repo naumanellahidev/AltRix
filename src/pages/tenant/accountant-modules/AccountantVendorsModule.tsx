@@ -115,60 +115,62 @@ export function AccountantVendorsModule() {
         />
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-3">
-        <Card>
-          <CardContent className="flex items-center justify-between p-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-4">
+        <Card className="rounded-2xl shadow-sm">
+          <CardContent className="flex items-center justify-between p-3.5 sm:p-5">
             <div className="min-w-0">
-              <p className="text-xs text-muted-foreground">Active Vendors</p>
-              <p className="text-2xl font-semibold tabular-nums">{totals.vendors}</p>
+              <p className="text-[10px] sm:text-xs text-muted-foreground uppercase font-semibold">Active Vendors</p>
+              <p className="text-xl sm:text-2xl font-bold tabular-nums mt-0.5 sm:mt-1">{totals.vendors}</p>
             </div>
-            <Building2 className="h-8 w-8 shrink-0 text-primary/60" />
+            <Building2 className="h-6 w-6 sm:h-8 sm:w-8 shrink-0 text-primary/60" />
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="p-4">
-            <p className="text-xs text-muted-foreground">Transactions</p>
-            <p className="text-2xl font-semibold tabular-nums">{totals.transactions}</p>
+        <Card className="rounded-2xl shadow-sm">
+          <CardContent className="p-3.5 sm:p-5">
+            <p className="text-[10px] sm:text-xs text-muted-foreground uppercase font-semibold">Transactions</p>
+            <p className="text-xl sm:text-2xl font-bold tabular-nums mt-0.5 sm:mt-1">{totals.transactions}</p>
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="flex items-center justify-between p-4">
+        <Card className="rounded-2xl shadow-sm">
+          <CardContent className="flex items-center justify-between p-3.5 sm:p-5">
             <div className="min-w-0">
-              <p className="text-xs text-muted-foreground">Total Spend</p>
-              <p className="truncate text-2xl font-semibold tabular-nums text-rose-600">{fmt(totals.spend)}</p>
+              <p className="text-[10px] sm:text-xs text-muted-foreground uppercase font-semibold">Total Spend</p>
+              <p className="truncate text-xl sm:text-2xl font-bold tabular-nums text-rose-600 mt-0.5 sm:mt-1">{fmt(totals.spend)}</p>
             </div>
-            <TrendingDown className="h-8 w-8 shrink-0 text-rose-500/60" />
+            <TrendingDown className="h-6 w-6 sm:h-8 sm:w-8 shrink-0 text-rose-500/60" />
           </CardContent>
         </Card>
       </div>
 
-      <Card>
-        <CardContent className="grid gap-3 p-4 sm:grid-cols-3">
+      <Card className="rounded-2xl shadow-sm">
+        <CardContent className="grid gap-3 p-3.5 sm:p-4 sm:grid-cols-3">
           <div>
             <Label className="text-xs">From</Label>
-            <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
+            <Input type="date" className="rounded-xl h-9 text-xs" value={from} onChange={(e) => setFrom(e.target.value)} />
           </div>
           <div>
             <Label className="text-xs">To</Label>
-            <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
+            <Input type="date" className="rounded-xl h-9 text-xs" value={to} onChange={(e) => setTo(e.target.value)} />
           </div>
           <div>
             <Label className="text-xs">Search vendor</Label>
             <div className="relative">
-              <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input className="pl-8" placeholder="Vendor name…" value={search} onChange={(e) => setSearch(e.target.value)} />
+              <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+              <Input className="pl-8 rounded-xl h-9 text-xs" placeholder="Vendor name…" value={search} onChange={(e) => setSearch(e.target.value)} />
             </div>
           </div>
         </CardContent>
       </Card>
 
-      <Tabs defaultValue="list">
-        <TabsList>
-          <TabsTrigger value="list">Vendors</TabsTrigger>
-          <TabsTrigger value="details" disabled={!selected}>
-            Details {selected ? `(${selected})` : ""}
-          </TabsTrigger>
-        </TabsList>
+      <Tabs defaultValue="list" className="space-y-4">
+        <div className="overflow-x-auto no-scrollbar -mx-1 px-1">
+          <TabsList className="inline-flex w-max min-w-full sm:w-auto p-1 rounded-xl">
+            <TabsTrigger value="list" className="rounded-lg text-xs font-semibold whitespace-nowrap">Vendors</TabsTrigger>
+            <TabsTrigger value="details" disabled={!selected} className="rounded-lg text-xs font-semibold whitespace-nowrap">
+              Details {selected ? `(${selected})` : ""}
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
         <TabsContent value="list">
           <Card>

@@ -262,39 +262,39 @@ export function AccountantExpensesModule() {
   return (
     <div className="space-y-6">
       <OfflineDataBanner isOffline={isOffline} isUsingCache={isUsingCache} onRefresh={refreshOffline} />
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        <Card className="shadow-elevated">
-          <CardContent className="pt-4">
-            <p className="text-sm text-muted-foreground">Total Expenses</p>
-            <p className="text-2xl font-semibold text-destructive">Rs. {stats.total.toLocaleString()}</p>
+      {/* Stats */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-4">
+        <Card className="shadow-elevated rounded-2xl">
+          <CardContent className="p-3.5 sm:p-5">
+            <p className="text-xs text-muted-foreground">Total Expenses</p>
+            <p className="text-xl sm:text-2xl font-semibold text-destructive mt-0.5 sm:mt-1 truncate">Rs. {stats.total.toLocaleString()}</p>
           </CardContent>
         </Card>
-        <Card className="shadow-elevated">
-          <CardContent className="pt-4">
-            <p className="text-sm text-muted-foreground">This Month</p>
-            <p className="text-2xl font-semibold">Rs. {stats.thisMonth.toLocaleString()}</p>
+        <Card className="shadow-elevated rounded-2xl">
+          <CardContent className="p-3.5 sm:p-5">
+            <p className="text-xs text-muted-foreground">This Month</p>
+            <p className="text-xl sm:text-2xl font-semibold mt-0.5 sm:mt-1 truncate">Rs. {stats.thisMonth.toLocaleString()}</p>
           </CardContent>
         </Card>
-        <Card className="shadow-elevated">
-          <CardContent className="pt-4">
-            <p className="text-sm text-muted-foreground">Top Category</p>
-            <p className="text-2xl font-semibold">
+        <Card className="shadow-elevated rounded-2xl">
+          <CardContent className="p-3.5 sm:p-5">
+            <p className="text-xs text-muted-foreground">Top Category</p>
+            <p className="text-xl sm:text-2xl font-semibold mt-0.5 sm:mt-1 truncate">
               {stats.byCategory[0]?.category ? formatCategory(stats.byCategory[0].category) : "—"}
             </p>
           </CardContent>
         </Card>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-3">
+      <div className="grid gap-4 sm:gap-6 lg:grid-cols-3">
         {/* Expenses List */}
-        <Card className="shadow-elevated lg:col-span-2">
-          <CardHeader className="flex flex-row items-center justify-between">
+        <Card className="shadow-elevated lg:col-span-2 rounded-2xl sm:rounded-3xl">
+          <CardHeader className="p-4 sm:p-6 pb-2 sm:pb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div>
-              <CardTitle className="font-display text-xl">Expenses</CardTitle>
-              <p className="text-sm text-muted-foreground">Track and manage all expenses</p>
+              <CardTitle className="font-display text-lg sm:text-xl">Expenses</CardTitle>
+              <p className="text-xs text-muted-foreground">Track and manage all expenses</p>
             </div>
-            <div className="flex flex-wrap items-center gap-3">
+            <div className="flex flex-wrap items-center gap-2">
               {(() => {
                 const exportRows = filteredExpenses.map((e) => ({
                   date: e.expense_date,
@@ -322,14 +322,14 @@ export function AccountantExpensesModule() {
                 );
               })()}
               <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-                <SelectTrigger className="w-[160px]">
-                  <Filter className="mr-2 h-4 w-4" />
+                <SelectTrigger className="w-full sm:w-[150px] text-xs rounded-xl h-9">
+                  <Filter className="mr-1.5 h-3.5 w-3.5" />
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="rounded-xl">
                   <SelectItem value="all">All Categories</SelectItem>
                   {EXPENSE_CATEGORIES.map((cat) => (
-                    <SelectItem key={cat} value={cat}>
+                    <SelectItem key={cat} value={cat} className="text-xs">
                       {formatCategory(cat)}
                     </SelectItem>
                   ))}
@@ -337,11 +337,11 @@ export function AccountantExpensesModule() {
               </Select>
               <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
                 <DialogTrigger asChild>
-                  <Button variant="hero" onClick={openCreate}>
-                    <Plus className="mr-2 h-4 w-4" /> Add Expense
+                  <Button size="sm" variant="hero" onClick={openCreate} className="rounded-xl text-xs h-9">
+                    <Plus className="mr-1.5 h-3.5 w-3.5" /> Add
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="max-w-lg">
+                <DialogContent className="max-w-lg w-[calc(100%-2rem)] max-h-[90vh] overflow-y-auto p-4 sm:p-6 rounded-2xl">
                   <DialogHeader>
                     <DialogTitle>{editingExpense ? "Edit Expense" : "Add Expense"}</DialogTitle>
                     <DialogDescription>Record a new expense transaction</DialogDescription>

@@ -822,29 +822,29 @@ export function AccountantInvoicesModule() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="border-blue-100 bg-gradient-to-br from-white to-blue-50/20 shadow-sm">
-          <CardContent className="pt-4">
-            <p className="text-xs text-blue-600 uppercase font-semibold">Total Invoices</p>
-            <p className="text-2xl font-bold text-slate-800 mt-1">{stats.total}</p>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
+        <Card className="border-blue-100 bg-gradient-to-br from-white to-blue-50/20 shadow-sm rounded-2xl">
+          <CardContent className="p-3 sm:p-4">
+            <p className="text-[10px] sm:text-xs text-blue-600 uppercase font-semibold">Total Invoices</p>
+            <p className="text-lg sm:text-2xl font-bold text-slate-800 mt-0.5 sm:mt-1 truncate">{stats.total}</p>
           </CardContent>
         </Card>
-        <Card className="border-blue-100 bg-gradient-to-br from-white to-blue-50/20 shadow-sm">
-          <CardContent className="pt-4">
-            <p className="text-xs text-blue-600 uppercase font-semibold">Paid</p>
-            <p className="text-2xl font-bold text-blue-600 mt-1">{stats.paid}</p>
+        <Card className="border-blue-100 bg-gradient-to-br from-white to-blue-50/20 shadow-sm rounded-2xl">
+          <CardContent className="p-3 sm:p-4">
+            <p className="text-[10px] sm:text-xs text-blue-600 uppercase font-semibold">Paid</p>
+            <p className="text-lg sm:text-2xl font-bold text-blue-600 mt-0.5 sm:mt-1 truncate">{stats.paid}</p>
           </CardContent>
         </Card>
-        <Card className="border-blue-100 bg-gradient-to-br from-white to-blue-50/20 shadow-sm">
-          <CardContent className="pt-4">
-            <p className="text-xs text-blue-600 uppercase font-semibold">Unpaid</p>
-            <p className="text-2xl font-bold text-slate-800 mt-1">{stats.unpaid}</p>
+        <Card className="border-blue-100 bg-gradient-to-br from-white to-blue-50/20 shadow-sm rounded-2xl">
+          <CardContent className="p-3 sm:p-4">
+            <p className="text-[10px] sm:text-xs text-blue-600 uppercase font-semibold">Unpaid</p>
+            <p className="text-lg sm:text-2xl font-bold text-slate-800 mt-0.5 sm:mt-1 truncate">{stats.unpaid}</p>
           </CardContent>
         </Card>
-        <Card className="border-blue-100 bg-gradient-to-br from-white to-blue-50/20 shadow-sm">
-          <CardContent className="pt-4">
-            <p className="text-xs text-blue-600 uppercase font-semibold">Total Outstanding</p>
-            <p className="text-2xl font-bold text-slate-800 mt-1">Rs. {stats.totalOutstanding.toLocaleString()}</p>
+        <Card className="border-blue-100 bg-gradient-to-br from-white to-blue-50/20 shadow-sm rounded-2xl">
+          <CardContent className="p-3 sm:p-4">
+            <p className="text-[10px] sm:text-xs text-blue-600 uppercase font-semibold">Outstanding</p>
+            <p className="text-lg sm:text-2xl font-bold text-slate-800 mt-0.5 sm:mt-1 truncate">Rs. {stats.totalOutstanding.toLocaleString()}</p>
           </CardContent>
         </Card>
       </div>

@@ -257,41 +257,41 @@ export function AccountantReportsModule() {
       </Card>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-        <Card className="border-blue-100 bg-gradient-to-br from-white to-blue-50/20 shadow-sm">
-          <CardContent className="p-5">
-            <div className="flex items-center gap-2">
-              <TrendingUp className="h-4 w-4 text-blue-600" />
-              <p className="text-xs font-semibold text-blue-600 uppercase tracking-wider">Revenue</p>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
+        <Card className="border-blue-100 bg-gradient-to-br from-white to-blue-50/20 shadow-sm rounded-2xl">
+          <CardContent className="p-3 sm:p-5">
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              <TrendingUp className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-blue-600 shrink-0" />
+              <p className="text-[10px] sm:text-xs font-semibold text-blue-600 uppercase tracking-wider truncate">Revenue</p>
             </div>
-            <p className="mt-2 text-2xl font-bold text-slate-800">Rs. {totalRevenue.toLocaleString()}</p>
+            <p className="mt-1.5 sm:mt-2 text-lg sm:text-2xl font-bold text-slate-800 truncate">Rs. {totalRevenue.toLocaleString()}</p>
           </CardContent>
         </Card>
-        <Card className="border-blue-100 bg-gradient-to-br from-white to-rose-50/20 shadow-sm">
-          <CardContent className="p-5">
-            <div className="flex items-center gap-2">
-              <TrendingDown className="h-4 w-4 text-rose-600" />
-              <p className="text-xs font-semibold text-rose-600 uppercase tracking-wider">Expenses</p>
+        <Card className="border-blue-100 bg-gradient-to-br from-white to-rose-50/20 shadow-sm rounded-2xl">
+          <CardContent className="p-3 sm:p-5">
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              <TrendingDown className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-rose-600 shrink-0" />
+              <p className="text-[10px] sm:text-xs font-semibold text-rose-600 uppercase tracking-wider truncate">Expenses</p>
             </div>
-            <p className="mt-2 text-2xl font-bold text-slate-800">Rs. {totalExpenses.toLocaleString()}</p>
+            <p className="mt-1.5 sm:mt-2 text-lg sm:text-2xl font-bold text-slate-800 truncate">Rs. {totalExpenses.toLocaleString()}</p>
           </CardContent>
         </Card>
-        <Card className="border-blue-100 bg-gradient-to-br from-white to-blue-50/20 shadow-sm">
-          <CardContent className="p-5">
-            <div className="flex items-center gap-2">
-              <DollarSign className="h-4 w-4 text-slate-500" />
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Payroll</p>
+        <Card className="border-blue-100 bg-gradient-to-br from-white to-blue-50/20 shadow-sm rounded-2xl">
+          <CardContent className="p-3 sm:p-5">
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              <DollarSign className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-slate-500 shrink-0" />
+              <p className="text-[10px] sm:text-xs font-semibold text-slate-500 uppercase tracking-wider truncate">Payroll</p>
             </div>
-            <p className="mt-2 text-2xl font-bold text-slate-800">Rs. {totalPayroll.toLocaleString()}</p>
+            <p className="mt-1.5 sm:mt-2 text-lg sm:text-2xl font-bold text-slate-800 truncate">Rs. {totalPayroll.toLocaleString()}</p>
           </CardContent>
         </Card>
-        <Card className={`border-blue-100 bg-gradient-to-br shadow-sm ${netProfit >= 0 ? "from-white to-blue-50/20" : "from-white to-rose-50/20"}`}>
-          <CardContent className="p-5">
-            <div className="flex items-center gap-2">
-              <BarChart3 className={`h-4 w-4 ${netProfit >= 0 ? "text-blue-600" : "text-rose-600"}`} />
-              <p className={`text-xs font-semibold uppercase tracking-wider ${netProfit >= 0 ? "text-blue-600" : "text-rose-600"}`}>Net Profit</p>
+        <Card className={`border-blue-100 bg-gradient-to-br shadow-sm rounded-2xl ${netProfit >= 0 ? "from-white to-blue-50/20" : "from-white to-rose-50/20"}`}>
+          <CardContent className="p-3 sm:p-5">
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              <BarChart3 className={`h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0 ${netProfit >= 0 ? "text-blue-600" : "text-rose-600"}`} />
+              <p className={`text-[10px] sm:text-xs font-semibold uppercase tracking-wider truncate ${netProfit >= 0 ? "text-blue-600" : "text-rose-600"}`}>Net Profit</p>
             </div>
-            <p className={`mt-2 text-2xl font-bold ${netProfit >= 0 ? "text-blue-600" : "text-rose-600"}`}>
+            <p className={`mt-1.5 sm:mt-2 text-lg sm:text-2xl font-bold truncate ${netProfit >= 0 ? "text-blue-600" : "text-rose-600"}`}>
               Rs. {netProfit.toLocaleString()}
             </p>
           </CardContent>

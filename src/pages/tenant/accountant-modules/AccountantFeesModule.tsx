@@ -543,39 +543,39 @@ export function AccountantFeesModule() {
       <OfflineDataBanner isOffline={isOffline} isUsingCache={isUsingCache} onRefresh={refreshOffline} />
 
       {/* Summary KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Card className="border-blue-100 bg-gradient-to-br from-white to-blue-50/30 shadow-sm relative overflow-hidden group hover:shadow-md transition-all duration-300">
-          <CardContent className="p-5 flex items-center justify-between">
-            <div className="space-y-1">
-              <p className="text-xs text-blue-600 uppercase tracking-wider font-semibold">Active Structures</p>
-              <h3 className="text-2xl font-bold text-slate-800">{feePlans.filter(p => p.is_active).length} Templates</h3>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-4">
+        <Card className="border-blue-100 bg-gradient-to-br from-white to-blue-50/30 shadow-sm relative overflow-hidden group hover:shadow-md transition-all duration-300 rounded-2xl sm:rounded-3xl">
+          <CardContent className="p-3.5 sm:p-5 flex items-center justify-between">
+            <div className="space-y-0.5 sm:space-y-1">
+              <p className="text-[10px] sm:text-xs text-blue-600 uppercase tracking-wider font-semibold">Active Structures</p>
+              <h3 className="text-xl sm:text-2xl font-bold text-slate-800">{feePlans.filter(p => p.is_active).length} Templates</h3>
             </div>
-            <div className="p-3 rounded-2xl bg-blue-50 text-blue-600">
-              <Layers className="h-5 w-5" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-blue-100 bg-gradient-to-br from-white to-blue-50/30 shadow-sm relative overflow-hidden group hover:shadow-md transition-all duration-300">
-          <CardContent className="p-5 flex items-center justify-between">
-            <div className="space-y-1">
-              <p className="text-xs text-blue-600 uppercase tracking-wider font-semibold">Configured Items</p>
-              <h3 className="text-2xl font-bold text-slate-800">{feeItems.length} Components</h3>
-            </div>
-            <div className="p-3 rounded-2xl bg-blue-50 text-blue-600">
-              <Sparkles className="h-5 w-5" />
+            <div className="p-2 sm:p-3 rounded-2xl bg-blue-50 text-blue-600 shrink-0">
+              <Layers className="h-4 w-4 sm:h-5 sm:w-5" />
             </div>
           </CardContent>
         </Card>
 
-        <Card className="border-blue-100 bg-gradient-to-br from-white to-blue-50/30 shadow-sm relative overflow-hidden group hover:shadow-md transition-all duration-300">
-          <CardContent className="p-5 flex items-center justify-between">
-            <div className="space-y-1">
-              <p className="text-xs text-blue-600 uppercase tracking-wider font-semibold">Assigned Students</p>
-              <h3 className="text-2xl font-bold text-slate-800">{assignments.length} Enrolled</h3>
+        <Card className="border-blue-100 bg-gradient-to-br from-white to-blue-50/30 shadow-sm relative overflow-hidden group hover:shadow-md transition-all duration-300 rounded-2xl sm:rounded-3xl">
+          <CardContent className="p-3.5 sm:p-5 flex items-center justify-between">
+            <div className="space-y-0.5 sm:space-y-1">
+              <p className="text-[10px] sm:text-xs text-blue-600 uppercase tracking-wider font-semibold">Configured Items</p>
+              <h3 className="text-xl sm:text-2xl font-bold text-slate-800">{feeItems.length} Components</h3>
             </div>
-            <div className="p-3 rounded-2xl bg-blue-50 text-blue-600">
-              <CheckCircle2 className="h-5 w-5" />
+            <div className="p-2 sm:p-3 rounded-2xl bg-blue-50 text-blue-600 shrink-0">
+              <Sparkles className="h-4 w-4 sm:h-5 sm:w-5" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-blue-100 bg-gradient-to-br from-white to-blue-50/30 shadow-sm relative overflow-hidden group hover:shadow-md transition-all duration-300 rounded-2xl sm:rounded-3xl">
+          <CardContent className="p-3.5 sm:p-5 flex items-center justify-between">
+            <div className="space-y-0.5 sm:space-y-1">
+              <p className="text-[10px] sm:text-xs text-blue-600 uppercase tracking-wider font-semibold">Assigned Students</p>
+              <h3 className="text-xl sm:text-2xl font-bold text-slate-800">{assignments.length} Enrolled</h3>
+            </div>
+            <div className="p-2 sm:p-3 rounded-2xl bg-blue-50 text-blue-600 shrink-0">
+              <CheckCircle2 className="h-4 w-4 sm:h-5 sm:w-5" />
             </div>
           </CardContent>
         </Card>

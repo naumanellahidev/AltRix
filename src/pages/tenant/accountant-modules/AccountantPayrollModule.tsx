@@ -803,7 +803,7 @@ export function AccountantPayrollModule() {
       />
 
       {/* KPI cards */}
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-4">
         <StatCard
           icon={<Users className="h-4 w-4 text-primary" />}
           label="Active Staff"
@@ -827,21 +827,23 @@ export function AccountantPayrollModule() {
         />
       </div>
 
-      <Tabs value={tab} onValueChange={setTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-3 sm:inline-grid sm:w-auto">
-          <TabsTrigger value="salaries" className="gap-1.5">
-            <Users className="h-4 w-4" />
-            <span className="hidden sm:inline">Salaries</span>
-          </TabsTrigger>
-          <TabsTrigger value="payruns" className="gap-1.5">
-            <Layers className="h-4 w-4" />
-            <span className="hidden sm:inline">Pay Runs</span>
-          </TabsTrigger>
-          <TabsTrigger value="analytics" className="gap-1.5">
-            <PiggyBank className="h-4 w-4" />
-            <span className="hidden sm:inline">Analytics</span>
-          </TabsTrigger>
-        </TabsList>
+      <Tabs value={tab} onValueChange={setTab} className="w-full space-y-4">
+        <div className="overflow-x-auto no-scrollbar -mx-1 px-1">
+          <TabsList className="inline-flex w-max min-w-full sm:w-auto p-1 rounded-xl">
+            <TabsTrigger value="salaries" className="gap-1.5 rounded-lg text-xs font-semibold whitespace-nowrap">
+              <Users className="h-3.5 w-3.5" />
+              <span>Salaries</span>
+            </TabsTrigger>
+            <TabsTrigger value="payruns" className="gap-1.5 rounded-lg text-xs font-semibold whitespace-nowrap">
+              <Layers className="h-3.5 w-3.5" />
+              <span>Pay Runs</span>
+            </TabsTrigger>
+            <TabsTrigger value="analytics" className="gap-1.5 rounded-lg text-xs font-semibold whitespace-nowrap">
+              <PiggyBank className="h-3.5 w-3.5" />
+              <span>Analytics</span>
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
         {/* ============================== SALARIES ============================== */}
         <TabsContent value="salaries" className="mt-4">
