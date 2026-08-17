@@ -469,10 +469,35 @@ async def get_dashboard_alerts(current_user: CurrentUser, db: DbSession):
     }
 
 
+@schools_router.get("/by-slug/{slug}/branding", response_model=BrandingOut)
+async def get_branding_by_slug(slug: str, db: DbSession):
+    s_res = await db.execute(select(School.id).where(School.slug == slug))
+    school_id = s_res.scalar_one_or_none()
+    if not school_id:
+        raise NotFoundError("School", slug)
+
+    result = await db.execute(select(SchoolBranding).where(SchoolBranding.school_id == school_id))
+    branding = result.scalar_one_or_none()
+    if not branding:
+        import uuid
+        return BrandingOut(
+            id=uuid.uuid4(),
+            school_id=school_id,
+            primary_color="#2563eb",
+            secondary_color="#1e40af",
+            accent_color="#3b82f6",
+            accent_hue=217.0,
+            accent_saturation=91.0,
+            accent_lightness=60.0,
+            radius_scale=1.0,
+        )
+    return branding
+
+
 # ─── INDIVIDUAL SCHOOL CRUD (path-parameter routes — must be after all static) ─
 
 @schools_router.get("/{school_id}", response_model=SchoolOut)
-async def get_school(school_id: UUID, current_user: CurrentUser, db: DbSession):
+async def get_school(school_id: UUID, db: DbSession):
     result = await db.execute(select(School).where(School.id == school_id))
     school = result.scalar_one_or_none()
     if not school:
@@ -501,7 +526,7 @@ async def update_school(school_id: UUID, body: SchoolUpdate, current_user: Curre
 # ─── SCHOOL BRANDING ──────────────────────────────────────────────────────────
 
 @schools_router.get("/{school_id}/branding", response_model=BrandingOut)
-async def get_branding(school_id: str, current_user: CurrentUser, db: DbSession):
+async def get_branding(school_id: str, db: DbSession):
     # Resolve UUID or slug
     resolved_uuid = None
     try:

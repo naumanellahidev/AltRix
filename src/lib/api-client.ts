@@ -153,20 +153,16 @@ apiClient.interceptors.response.use(
       console.warn("VPS API Proxy Warning:", error);
     }
 
-    if (error.response?.status === 401) {
-      console.warn("Unauthorized API call. Attempting token refresh...");
+    if (error.response?.status === 401 && error.config && !error.config._retry) {
+      error.config._retry = true;
       try {
-        // Triggering any auth operation on api will auto-refresh if possible
         const { data } = await api.auth.getSession();
         if (data.session?.access_token) {
-          // Retry the failed request with the new token
           error.config.headers.Authorization = `Bearer ${data.session.access_token}`;
           return apiClient.request(error.config);
         }
       } catch (refreshError) {
-        console.error("Token refresh failed, logging out:", refreshError);
-        await api.auth.signOut();
-        window.location.href = "/auth";
+        console.error("Token refresh failed:", refreshError);
       }
     }
     return Promise.reject(error);
