@@ -207,15 +207,15 @@ export function OwnerOverviewModule({ schoolId }: Props) {
       ] = await Promise.all([
         campusEq(api.from("students").select("id,status,campus_id").eq("school_id", schoolId)),
         campusEq(api.from("fee_payments").select("amount,paid_at,campus_id").eq("school_id", schoolId).eq("status", "success")),
-        campusEq(api.from("finance_expenses").select("amount,expense_date,campus_id").eq("school_id", schoolId)),
+        api.from("finance_expenses").select("amount,expense_date").eq("school_id", schoolId),
         campusEq(api.from("attendance_entries").select("status,campus_id").eq("school_id", schoolId).gte("created_at", d7Ago.toISOString())),
-        campusEq(api.from("crm_leads").select("id,status,created_at,campus_id").eq("school_id", schoolId)),
+        api.from("crm_leads").select("id,status,created_at").eq("school_id", schoolId),
         campusEq(api.from("fee_invoices").select("id,status,total_amount,campus_id").eq("school_id", schoolId)),
-        campusEq(api.from("user_roles").select("id,campus_id").eq("school_id", schoolId).in("role", ["teacher", "principal", "vice_principal", "accountant", "academic_coordinator", "counselor", "hr_manager", "school_admin", "librarian", "transport_manager", "receptionist", "security_guard", "staff", "admin", "school_owner"])),
-        campusEq(api.from("user_roles").select("id,campus_id").eq("school_id", schoolId).eq("role", "teacher")),
+        campusEq(api.from("user_roles").select("id,campus_id,role").eq("school_id", schoolId).in("role", ["teacher", "principal", "vice_principal", "accountant", "academic_coordinator", "counselor", "hr_manager", "school_admin", "librarian", "transport_manager", "receptionist", "security_guard", "staff", "admin", "school_owner"])),
+        campusEq(api.from("user_roles").select("id,campus_id,role").eq("school_id", schoolId).eq("role", "teacher")),
         campusEq(api.from("student_marks").select("marks,assessment_id,campus_id").eq("school_id", schoolId).not("marks", "is", null)),
-        campusEq(api.from("timetable_entries").select("teacher_id,campus_id").eq("school_id", schoolId)),
-        campusEq(api.from("teacher_subject_assignments").select("teacher_id,campus_id").eq("school_id", schoolId)),
+        api.from("timetable_entries").select("teacher_user_id,teacher_id").eq("school_id", schoolId),
+        api.from("teacher_subject_assignments").select("teacher_user_id,teacher_id").eq("school_id", schoolId),
       ]);
 
       const students = studentsRes.data || [];
@@ -267,8 +267,8 @@ export function OwnerOverviewModule({ schoolId }: Props) {
       const collectionRate = invoices.length > 0 ? Math.round((paidInvoices / invoices.length) * 100) : 0;
 
       const scheduledTeacherIds = new Set<string>([
-        ...timetable.map((t: any) => t.teacher_id).filter(Boolean),
-        ...teacherAssignments.map((t: any) => t.teacher_id).filter(Boolean),
+        ...timetable.map((t: any) => t.teacher_user_id || t.teacher_id).filter(Boolean),
+        ...teacherAssignments.map((t: any) => t.teacher_user_id || t.teacher_id).filter(Boolean),
       ]);
       const teacherUtilization = teachers.length > 0 ? Math.round((scheduledTeacherIds.size / teachers.length) * 100) : 0;
 
@@ -321,14 +321,12 @@ export function OwnerOverviewModule({ schoolId }: Props) {
               .gte("paid_at", start.toISOString())
               .lt("paid_at", end.toISOString())
           ),
-          campusEq(
-            api
-              .from("finance_expenses")
-              .select("amount,campus_id")
-              .eq("school_id", schoolId)
-              .gte("expense_date", start.toISOString())
-              .lt("expense_date", end.toISOString())
-          ),
+          api
+            .from("finance_expenses")
+            .select("amount")
+            .eq("school_id", schoolId)
+            .gte("expense_date", start.toISOString().split("T")[0])
+            .lt("expense_date", end.toISOString().split("T")[0]),
         ]);
 
         const revenue = (paymentsRes.data || []).reduce((sum, p) => sum + Number(p.amount || 0), 0);

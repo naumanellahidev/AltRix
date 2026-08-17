@@ -276,9 +276,33 @@ async def execute_query(query: QueryPayload, current_user: CurrentUser, db: DbSe
     params: Dict[str, Any] = {}
     where_clauses = []
     
+    async def resolve_school_id_val(val: Any) -> Optional[uuid.UUID]:
+        if val is None:
+            return None
+        if isinstance(val, uuid.UUID):
+            return val
+        val_str = str(val).strip()
+        if not val_str:
+            return None
+        try:
+            return uuid.UUID(val_str)
+        except ValueError:
+            try:
+                s_res = await db.execute(
+                    text("SELECT id FROM public.schools WHERE slug = :s OR id::text = :s LIMIT 1"),
+                    {"s": val_str}
+                )
+                s_row = s_res.fetchone()
+                if s_row:
+                    return s_row[0]
+            except Exception:
+                pass
+        return None
+
     if has_school_id and not current_user.is_super_admin:
+        resolved_tenant_id = await resolve_school_id_val(current_user.school_id) or current_user.school_id
         where_clauses.append("school_id = :__tenant_id")
-        params["__tenant_id"] = cast_value(current_user.school_id, columns_types["school_id"])
+        params["__tenant_id"] = cast_value(resolved_tenant_id, columns_types["school_id"])
 
     order_by_clauses = []
     limit_clause = ""
@@ -327,6 +351,12 @@ async def execute_query(query: QueryPayload, current_user: CurrentUser, db: DbSe
                     
                 param_name = f"or_{i}_{j}"
                 
+                if col == "school_id" and "uuid" in columns_types.get(col, "").lower():
+                    if isinstance(raw_val, str) and not is_uuid(raw_val):
+                        resolved = await resolve_school_id_val(raw_val)
+                        if resolved:
+                            raw_val = resolved
+
                 if op == "eq":
                     or_clauses.append(f'"{col}" = :{param_name}')
                     params[param_name] = cast_value(raw_val, columns_types[col])
@@ -369,10 +399,17 @@ async def execute_query(query: QueryPayload, current_user: CurrentUser, db: DbSe
 
         col = f.args[0]
         if not is_valid_identifier(col) or col not in valid_columns:
-            raise HTTPException(status_code=400, detail=f"Invalid column {col}")
+            logger.debug(f"Skipping filter for column '{col}' not in table '{query.table}'")
+            continue
             
         param_name = f"p_{i}"
         raw_val = f.args[1] if len(f.args) > 1 else None
+
+        if col == "school_id" and "uuid" in columns_types.get(col, "").lower():
+            if isinstance(raw_val, str) and not is_uuid(raw_val):
+                resolved = await resolve_school_id_val(raw_val)
+                if resolved:
+                    raw_val = resolved
         
         if f.method == "eq":
             where_clauses.append(f'"{col}" = :{param_name}')
@@ -451,6 +488,25 @@ async def execute_query(query: QueryPayload, current_user: CurrentUser, db: DbSe
         select_clause = query.select if query.select and query.select != "" else "*"
         if "(" in select_clause: 
             select_clause = "*"
+        elif select_clause != "*":
+            parsed_cols = []
+            for col_item in select_clause.split(","):
+                col_item = col_item.strip()
+                if not col_item:
+                    continue
+                if ":" in col_item:
+                    parts = col_item.split(":", 1)
+                    alias, actual_col = parts[0].strip(), parts[1].strip()
+                    if is_valid_identifier(actual_col) and actual_col in valid_columns:
+                        parsed_cols.append(f'"{actual_col}" AS "{alias}"')
+                    elif is_valid_identifier(alias) and alias in valid_columns:
+                        parsed_cols.append(f'"{alias}" AS "{actual_col}"')
+                elif is_valid_identifier(col_item) and col_item in valid_columns:
+                    parsed_cols.append(f'"{col_item}"')
+            if parsed_cols:
+                select_clause = ", ".join(parsed_cols)
+            else:
+                select_clause = "*"
             
         order_sql = (" ORDER BY " + ", ".join(order_by_clauses)) if order_by_clauses else ""
         sql = f'SELECT {select_clause} FROM "{query.table}"{where_sql}{order_sql}{limit_clause}'
