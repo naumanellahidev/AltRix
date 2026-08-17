@@ -273,17 +273,17 @@ export function MarketingCallsModule() {
       </Card>
 
       {/* List Search & Control */}
-      <div className="flex justify-between items-center">
-        <div className="relative w-full md:w-72">
+      <div className="flex items-center gap-2 w-full">
+        <div className="relative flex-1 sm:w-72 sm:flex-initial">
           <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search logs by lead, notes, or outcome..."
-            className="pl-9 h-9 text-xs"
+            className="pl-9 h-9 text-xs w-full"
           />
         </div>
-        <Button variant="outline" size="sm" className="h-9 px-3" onClick={refresh}>
+        <Button variant="outline" size="sm" className="h-9 px-3 shrink-0" onClick={refresh}>
           <RefreshCw className="h-4 w-4" />
         </Button>
       </div>
@@ -291,16 +291,17 @@ export function MarketingCallsModule() {
       {/* Logs Table */}
       <Card className="shadow-sm">
         <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-1/4">Lead Profile</TableHead>
-                <TableHead>Logged Time</TableHead>
-                <TableHead>Outcome</TableHead>
-                <TableHead>Duration</TableHead>
-                <TableHead className="w-1/3">Notes & Details</TableHead>
-              </TableRow>
-            </TableHeader>
+          <div className="overflow-x-auto no-scrollbar">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-1/4 whitespace-nowrap">Lead Profile</TableHead>
+                  <TableHead className="whitespace-nowrap">Logged Time</TableHead>
+                  <TableHead className="whitespace-nowrap">Outcome</TableHead>
+                  <TableHead className="whitespace-nowrap">Duration</TableHead>
+                  <TableHead className="w-1/3 min-w-[200px]">Notes & Details</TableHead>
+                </TableRow>
+              </TableHeader>
             <TableBody>
               {filteredLogs.map((l) => (
                 <TableRow key={l.id}>
@@ -349,6 +350,7 @@ export function MarketingCallsModule() {
               )}
             </TableBody>
           </Table>
+          </div>
         </CardContent>
       </Card>
 

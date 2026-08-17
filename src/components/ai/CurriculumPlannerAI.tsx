@@ -634,7 +634,7 @@ export function CurriculumPlannerAI({
                     {LOADING_PHASES[loadingPhase].label}
                   </p>
                 </div>
-                <div className="w-64">
+                <div className="w-full max-w-xs px-4">
                   <Progress
                     value={LOADING_PHASES[loadingPhase].progress}
                     className="h-2 bg-slate-100 [&>div]:bg-blue-600"
@@ -1088,7 +1088,7 @@ export function CurriculumPlannerAI({
                                       newSlides[i].title = e.target.value;
                                       updateAiField(["slideScript"], newSlides);
                                     }}
-                                    className="bg-white border-slate-200 text-slate-900 text-sm w-72 focus:border-blue-500 focus:ring-blue-200 h-8 font-bold"
+                                    className="bg-white border-slate-200 text-slate-900 text-sm w-full sm:w-72 flex-1 focus:border-blue-500 focus:ring-blue-200 h-8 font-bold"
                                   />
                                 ) : (
                                   <span className="text-base font-bold text-slate-850">

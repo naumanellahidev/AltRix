@@ -265,7 +265,7 @@ export function ExamSeatingPlanModule() {
             <div className="space-y-6">
               {/* Plan Picker & Controls */}
               <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm print:hidden">
-                <div className="flex items-center gap-3 w-full md:w-auto">
+                <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
                   <Select value={selectedPlan?.id ? String(selectedPlan.id) : ""} onValueChange={id => setSelectedPlan(plans.find(p => String(p.id) === String(id)) || null)}>
                     <SelectTrigger className="w-full md:w-80 font-bold text-slate-800 dark:text-slate-200">
                       <SelectValue placeholder="Select Seating Plan" />
@@ -281,12 +281,12 @@ export function ExamSeatingPlanModule() {
                   </Badge>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <Button onClick={() => window.print()} variant="outline" className="border-slate-200 font-semibold">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button onClick={() => window.print()} variant="outline" className="border-slate-200 font-semibold text-xs h-9">
                     <Printer className="h-4 w-4 mr-2" /> Print Door Sheet
                   </Button>
                   {selectedPlan && (
-                    <Button onClick={() => handleDeletePlan(selectedPlan.id)} variant="ghost" className="text-rose-600 hover:text-rose-700 hover:bg-rose-50">
+                    <Button onClick={() => handleDeletePlan(selectedPlan.id)} variant="ghost" className="text-rose-600 hover:text-rose-700 hover:bg-rose-50 text-xs h-9">
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   )}

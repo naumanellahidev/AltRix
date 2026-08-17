@@ -239,23 +239,22 @@ export function MarketingFollowUpsModule() {
           </Button>
         </div>
 
-        <div className="flex items-center gap-2">
-          
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
           {/* Search bar */}
-          <div className="relative w-full md:w-64">
+          <div className="relative flex-1 sm:w-64">
             <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search summary or lead name..."
-              className="pl-9 h-9 text-xs"
+              className="pl-9 h-9 text-xs w-full"
             />
           </div>
 
           {/* Schedule dialog */}
           <Dialog open={openScheduleDialog} onOpenChange={setOpenScheduleDialog}>
             <DialogTrigger asChild>
-              <Button variant="hero" className="gap-1.5 text-xs h-9">
+              <Button variant="hero" className="gap-1.5 text-xs h-9 shrink-0">
                 <Plus className="h-4 w-4" /> Schedule Action
               </Button>
             </DialogTrigger>

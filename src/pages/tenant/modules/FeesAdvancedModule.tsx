@@ -866,7 +866,7 @@ export default function FeesAdvancedModule() {
                   )}
                 </div>
                 <Select value={assignFilterClass} onValueChange={handleClassFilterChange}>
-                  <SelectTrigger className="w-[200px] rounded-xl border-blue-100 h-9 text-xs"><SelectValue placeholder="Filter by class" /></SelectTrigger>
+                  <SelectTrigger className="w-full sm:w-[180px] rounded-xl border-blue-100 h-9 text-xs"><SelectValue placeholder="Filter by class" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="__all">All classes</SelectItem>
                     {classes.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
@@ -874,7 +874,7 @@ export default function FeesAdvancedModule() {
                 </Select>
                 {assignFilterClass !== "__all" && (
                   <Select value={assignFilterSection} onValueChange={setAssignFilterSection}>
-                    <SelectTrigger className="w-[200px] rounded-xl border-blue-100 h-9 text-xs"><SelectValue placeholder="Filter by section" /></SelectTrigger>
+                    <SelectTrigger className="w-full sm:w-[180px] rounded-xl border-blue-100 h-9 text-xs"><SelectValue placeholder="Filter by section" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="__all">All sections</SelectItem>
                       {filteredSectionsForAssignment.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
@@ -915,20 +915,18 @@ export default function FeesAdvancedModule() {
           </Card>
         </TabsContent>
 
-
-
         {/* PAYMENTS */}
         <TabsContent value="payments" className="space-y-4">
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
+            <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <CardTitle>Payments ({filteredPayments.length})</CardTitle>
-              <Button onClick={() => setPayOpen(true)}><Plus className="h-4 w-4 mr-1" />Record Payment</Button>
+              <Button onClick={() => setPayOpen(true)} className="self-start sm:self-auto"><Plus className="h-4 w-4 mr-1" />Record Payment</Button>
             </CardHeader>
             <CardContent className="space-y-3">
-              <div className="flex flex-wrap items-center gap-2">
-                <div className="relative flex-1 min-w-[220px]">
+              <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-2">
+                <div className="relative flex-1 min-w-[200px]">
                   <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input value={paySearch} onChange={e => setPaySearch(e.target.value)} placeholder="Search student, invoice #, reference…" className="pl-8 pr-8" />
+                  <Input value={paySearch} onChange={e => setPaySearch(e.target.value)} placeholder="Search student, invoice #, reference…" className="pl-8 pr-8 w-full" />
                   {paySearch && (
                     <button type="button" onClick={() => setPaySearch("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
                       <X className="h-4 w-4" />
@@ -936,7 +934,7 @@ export default function FeesAdvancedModule() {
                   )}
                 </div>
                 <Select value={payMethod} onValueChange={setPayMethod}>
-                  <SelectTrigger className="w-[160px]"><SelectValue placeholder="Method" /></SelectTrigger>
+                  <SelectTrigger className="w-full sm:w-[160px]"><SelectValue placeholder="Method" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="__all">All methods</SelectItem>
                     <SelectItem value="cash">Cash</SelectItem>
@@ -948,38 +946,46 @@ export default function FeesAdvancedModule() {
                     <SelectItem value="other">Other</SelectItem>
                   </SelectContent>
                 </Select>
-                <div className="flex items-center gap-1">
+                <div className="flex flex-wrap items-center gap-1.5">
                   <Label className="text-xs text-muted-foreground">From</Label>
-                  <Input type="date" className="w-[150px]" value={payFromDate} onChange={e => setPayFromDate(e.target.value)} />
+                  <Input type="date" className="w-full sm:w-[140px]" value={payFromDate} onChange={e => setPayFromDate(e.target.value)} />
                   <Label className="text-xs text-muted-foreground">to</Label>
-                  <Input type="date" className="w-[150px]" value={payToDate} onChange={e => setPayToDate(e.target.value)} />
+                  <Input type="date" className="w-full sm:w-[140px]" value={payToDate} onChange={e => setPayToDate(e.target.value)} />
                 </div>
-                {(paySearch || payMethod !== "__all" || payFromDate || payToDate) && (
-                  <Button size="sm" variant="ghost" onClick={() => { setPaySearch(""); setPayMethod("__all"); setPayFromDate(""); setPayToDate(""); }}>
-                    <X className="h-3 w-3 mr-1" /> Clear
-                  </Button>
-                )}
-              </div>
-              <Table>
-                <TableHeader><TableRow>
-                  <TableHead>Date</TableHead><TableHead>Student</TableHead><TableHead>Invoice</TableHead>
-                  <TableHead className="text-right">Amount</TableHead><TableHead>Method</TableHead>
-                  <TableHead>Reference</TableHead><TableHead>Status</TableHead>
-                </TableRow></TableHeader>
-                <TableBody>
-                  {filteredPayments.slice(0, 200).map(p => (
-                    <TableRow key={p.id}>
-                      <TableCell>{format(new Date(p.paid_at), "MMM d, yyyy")}</TableCell>
-                      <TableCell>{studentName(p.student_id)}</TableCell>
-                      <TableCell>{invoices.find(i => i.id === p.invoice_id)?.invoice_number || p.invoice_id.slice(0, 8)}</TableCell>
-                      <TableCell className="text-right">{settings.currency} {Number(p.amount).toLocaleString()}</TableCell>
-                      <TableCell><Badge variant="outline">{p.method}</Badge></TableCell>
-                      <TableCell className="text-xs">{p.transaction_ref || "—"}</TableCell>
-                      <TableCell><Badge variant={p.status === "success" ? "default" : p.status === "failed" ? "destructive" : "secondary"}>{p.status}</Badge></TableCell>
+              </div>      
+              {(paySearch || payMethod !== "__all" || payFromDate || payToDate) && (
+                <Button size="sm" variant="ghost" onClick={() => { setPaySearch(""); setPayMethod("__all"); setPayFromDate(""); setPayToDate(""); }}>
+                  <X className="h-3 w-3 mr-1" /> Clear
+                </Button>
+              )}
+              <div className="overflow-x-auto no-scrollbar -mx-2 px-2">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="whitespace-nowrap">Date</TableHead>
+                      <TableHead className="whitespace-nowrap">Student</TableHead>
+                      <TableHead className="whitespace-nowrap">Invoice</TableHead>
+                      <TableHead className="text-right whitespace-nowrap">Amount</TableHead>
+                      <TableHead className="whitespace-nowrap">Method</TableHead>
+                      <TableHead className="whitespace-nowrap">Reference</TableHead>
+                      <TableHead className="whitespace-nowrap">Status</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredPayments.slice(0, 200).map(p => (
+                      <TableRow key={p.id}>
+                        <TableCell className="whitespace-nowrap">{format(new Date(p.paid_at), "MMM d, yyyy")}</TableCell>
+                        <TableCell className="whitespace-nowrap font-medium">{studentName(p.student_id)}</TableCell>
+                        <TableCell className="whitespace-nowrap font-mono text-xs">{invoices.find(i => i.id === p.invoice_id)?.invoice_number || p.invoice_id.slice(0, 8)}</TableCell>
+                        <TableCell className="text-right whitespace-nowrap font-mono font-semibold">{settings.currency} {Number(p.amount).toLocaleString()}</TableCell>
+                        <TableCell className="whitespace-nowrap"><Badge variant="outline">{p.method}</Badge></TableCell>
+                        <TableCell className="text-xs whitespace-nowrap">{p.transaction_ref || "—"}</TableCell>
+                        <TableCell className="whitespace-nowrap"><Badge variant={p.status === "success" ? "default" : p.status === "failed" ? "destructive" : "secondary"}>{p.status}</Badge></TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>

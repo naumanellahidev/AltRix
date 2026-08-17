@@ -1343,8 +1343,8 @@ export default function AltrixCopilot() {
 
   // ── Panel Dimensions ──────────────────────────────────────────────────────
   const panelClass = isExpanded
-    ? "fixed inset-4 sm:inset-6 z-[60]"
-    : "fixed bottom-24 right-4 sm:right-6 w-[calc(100vw-2rem)] sm:w-96 max-h-[75vh] sm:max-h-[600px] z-50";
+    ? "fixed inset-2 sm:inset-6 z-[60]"
+    : "fixed bottom-24 right-2 sm:right-6 w-[calc(100vw-1rem)] sm:w-96 max-h-[75vh] sm:max-h-[600px] z-50";
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
@@ -1384,9 +1384,9 @@ export default function AltrixCopilot() {
       `}</style>
 
       {/* ── Floating Button ──────────────────────────────────────────────── */}
-      <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-2">
+      <div className="fixed bottom-20 right-4 sm:bottom-6 sm:right-6 z-50 flex flex-col items-end gap-2 pointer-events-auto">
         {!isOpen && (
-          <div className="flex items-center gap-2 animate-in fade-in slide-in-from-right-4 duration-300">
+          <div className="hidden sm:flex items-center gap-2 animate-in fade-in slide-in-from-right-4 duration-300">
             <span className="bg-white/95 backdrop-blur text-slate-700 text-[10px] font-medium px-2.5 py-1 rounded-full border border-slate-200 shadow-sm whitespace-nowrap">
               <Keyboard className="inline h-3 w-3 mr-1 text-primary" />
               Alt+K
@@ -1397,15 +1397,15 @@ export default function AltrixCopilot() {
         <button
           id="altrix-copilot-btn"
           onClick={() => setIsOpen((o) => !o)}
-          className="relative flex h-14 w-14 items-center justify-center rounded-full bg-primary shadow-[0_8px_30px_hsl(var(--primary)/0.35)] transition-all duration-300 hover:scale-110 hover:shadow-[0_8px_35px_hsl(var(--primary)/0.6)] cursor-pointer active:scale-95 border-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+          className="relative flex h-12 w-12 sm:h-14 sm:w-14 items-center justify-center rounded-full bg-primary shadow-[0_8px_30px_hsl(var(--primary)/0.35)] transition-all duration-300 hover:scale-110 hover:shadow-[0_8px_35px_hsl(var(--primary)/0.6)] cursor-pointer active:scale-95 border-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
           aria-label="Toggle AI Copilot (Alt+K)"
-          title="AltRix AI Copilot — Alt+K"
+          title="AltRix AI Copilot"
         >
           <div className="copilot-pulse-ring" />
           {isOpen ? (
-            <X className="h-6 w-6 text-primary-foreground" />
+            <X className="h-5 w-5 sm:h-6 sm:w-6 text-primary-foreground" />
           ) : (
-            <Brain className="h-6 w-6 text-primary-foreground" />
+            <Brain className="h-5 w-5 sm:h-6 sm:w-6 text-primary-foreground" />
           )}
         </button>
       </div>

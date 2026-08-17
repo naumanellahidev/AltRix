@@ -138,17 +138,17 @@ export function InventoryModule() {
 
       {/* Main Table Card */}
       <Card className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm">
-        <CardHeader className="flex flex-row items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
+        <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-4">
           <CardTitle className="text-lg font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
             <Package className="h-5 w-5 text-blue-600" /> Master Asset Inventory Catalog
           </CardTitle>
-          <div className="flex items-center gap-2">
-            <div className="relative">
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <div className="relative flex-1 sm:w-64">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
               <Input placeholder="Search Asset, Category..." value={search} onChange={e => setSearch(e.target.value)}
-                className="pl-9 w-64 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 focus-visible:ring-blue-500" />
+                className="pl-9 w-full bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 focus-visible:ring-blue-500" />
             </div>
-            <Button variant="outline" onClick={loadInventory} className="border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+            <Button variant="outline" onClick={loadInventory} className="border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shrink-0">
               <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
             </Button>
           </div>
@@ -161,39 +161,41 @@ export function InventoryModule() {
               <p className="text-xs text-slate-500 mt-1">Click "Add New Asset Item" to track school store items.</p>
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-slate-50 dark:bg-slate-800/50">
-                  <TableHead>Asset Name</TableHead>
-                  <TableHead>Category</TableHead>
-                  <TableHead>Location</TableHead>
-                  <TableHead>Available Stock</TableHead>
-                  <TableHead>Unit Cost</TableHead>
-                  <TableHead>Status</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredItems.map(i => {
-                  const isLow = i.available_quantity <= i.min_reorder_threshold;
-                  return (
-                    <TableRow key={i.id} className="hover:bg-blue-50/50 dark:hover:bg-slate-800/50">
-                      <TableCell className="font-bold text-slate-900 dark:text-slate-100">{i.item_name}</TableCell>
-                      <TableCell><Badge variant="outline" className="border-blue-200 bg-blue-50 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300">{i.category_name}</Badge></TableCell>
-                      <TableCell className="text-slate-600 dark:text-slate-400">{i.room_location || "Store"}</TableCell>
-                      <TableCell className="font-semibold">{i.available_quantity} / {i.total_quantity}</TableCell>
-                      <TableCell className="font-mono text-slate-700 dark:text-slate-300">PKR {i.unit_price?.toLocaleString() || "N/A"}</TableCell>
-                      <TableCell>
-                        {isLow ? (
-                          <Badge className="bg-amber-100 text-amber-800 border-amber-200">Reorder Required</Badge>
-                        ) : (
-                          <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200">In Stock</Badge>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
+            <div className="overflow-x-auto no-scrollbar -mx-2 px-2">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-slate-50 dark:bg-slate-800/50">
+                    <TableHead>Asset Name</TableHead>
+                    <TableHead>Category</TableHead>
+                    <TableHead>Location</TableHead>
+                    <TableHead>Available Stock</TableHead>
+                    <TableHead>Unit Cost</TableHead>
+                    <TableHead>Status</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredItems.map(i => {
+                    const isLow = i.available_quantity <= i.min_reorder_threshold;
+                    return (
+                      <TableRow key={i.id} className="hover:bg-blue-50/50 dark:hover:bg-slate-800/50">
+                        <TableCell className="font-bold text-slate-900 dark:text-slate-100 whitespace-nowrap">{i.item_name}</TableCell>
+                        <TableCell><Badge variant="outline" className="border-blue-200 bg-blue-50 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300 whitespace-nowrap">{i.category_name}</Badge></TableCell>
+                        <TableCell className="text-slate-600 dark:text-slate-400 whitespace-nowrap">{i.room_location || "Store"}</TableCell>
+                        <TableCell className="font-semibold whitespace-nowrap">{i.available_quantity} / {i.total_quantity}</TableCell>
+                        <TableCell className="font-mono text-slate-700 dark:text-slate-300 whitespace-nowrap">PKR {i.unit_price?.toLocaleString() || "N/A"}</TableCell>
+                        <TableCell className="whitespace-nowrap">
+                          {isLow ? (
+                            <Badge className="bg-amber-100 text-amber-800 border-amber-200">Reorder Required</Badge>
+                          ) : (
+                            <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200">In Stock</Badge>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
           )}
         </CardContent>
       </Card>

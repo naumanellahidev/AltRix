@@ -378,9 +378,9 @@ export function TeacherStudentsModule() {
       )}
 
       {/* Controls */}
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-3">
         <Select value={selectedSection} onValueChange={setSelectedSection}>
-          <SelectTrigger className="w-[200px]">
+          <SelectTrigger className="w-full sm:w-[200px]">
             <SelectValue placeholder="Select section" />
           </SelectTrigger>
           <SelectContent>
@@ -393,7 +393,7 @@ export function TeacherStudentsModule() {
         </Select>
 
         <Select value={filterStatus} onValueChange={setFilterStatus}>
-          <SelectTrigger className="w-[150px]">
+          <SelectTrigger className="w-full sm:w-[150px]">
             <SelectValue placeholder="Status" />
           </SelectTrigger>
           <SelectContent>
@@ -411,23 +411,25 @@ export function TeacherStudentsModule() {
             placeholder="Search by name, parent, code, roll, phone, email..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9"
+            className="pl-9 w-full"
           />
         </div>
 
-        {(searchQuery || filterStatus !== "enrolled") && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => { setSearchQuery(""); setFilterStatus("enrolled"); }}
-          >
-            Clear
-          </Button>
-        )}
+        <div className="flex items-center gap-2 self-start sm:self-auto">
+          {(searchQuery || filterStatus !== "enrolled") && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => { setSearchQuery(""); setFilterStatus("enrolled"); }}
+            >
+              Clear
+            </Button>
+          )}
 
-        <Button onClick={() => setAddStudentOpen(true)}>
-          <Plus className="mr-2 h-4 w-4" /> Add Student
-        </Button>
+          <Button onClick={() => setAddStudentOpen(true)}>
+            <Plus className="mr-2 h-4 w-4" /> Add Student
+          </Button>
+        </div>
 
         <StudentFormDialog
           open={addStudentOpen}

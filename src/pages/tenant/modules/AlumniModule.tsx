@@ -199,23 +199,25 @@ export function AlumniModule() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
-          <TabsList className="bg-slate-100 dark:bg-slate-800 p-1 border border-slate-200 dark:border-slate-700">
-            <TabsTrigger value="directory" className="data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-sm font-medium">
-              <GraduationCap className="h-4 w-4 mr-2" /> Alumni Directory
-            </TabsTrigger>
-            <TabsTrigger value="events" className="data-[state=active]:bg-white data-[state=active]:text-indigo-700 data-[state=active]:shadow-sm font-medium">
-              <Calendar className="h-4 w-4 mr-2" /> Reunions & Events
-            </TabsTrigger>
-          </TabsList>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+          <div className="overflow-x-auto no-scrollbar -mx-1 px-1">
+            <TabsList className="inline-flex w-full sm:w-auto bg-slate-100 dark:bg-slate-800 p-1 border border-slate-200 dark:border-slate-700">
+              <TabsTrigger value="directory" className="flex-1 sm:flex-initial data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-sm font-medium text-xs whitespace-nowrap">
+                <GraduationCap className="h-4 w-4 mr-2" /> Alumni Directory
+              </TabsTrigger>
+              <TabsTrigger value="events" className="flex-1 sm:flex-initial data-[state=active]:bg-white data-[state=active]:text-indigo-700 data-[state=active]:shadow-sm font-medium text-xs whitespace-nowrap">
+                <Calendar className="h-4 w-4 mr-2" /> Reunions & Events
+              </TabsTrigger>
+            </TabsList>
+          </div>
 
-          <div className="flex items-center gap-2">
-            <div className="relative">
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <div className="relative flex-1 sm:w-64">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
               <Input placeholder="Search Name, University, Company..." value={search} onChange={e => setSearch(e.target.value)}
-                className="pl-9 w-64 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 focus-visible:ring-blue-500" />
+                className="pl-9 w-full bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 focus-visible:ring-blue-500" />
             </div>
-            <Button variant="outline" onClick={loadData} className="border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+            <Button variant="outline" onClick={loadData} className="border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shrink-0">
               <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
             </Button>
           </div>
@@ -224,11 +226,11 @@ export function AlumniModule() {
         {/* ─── Directory Tab ──────────────────────────────── */}
         <TabsContent value="directory">
           <Card className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm">
-            <CardHeader className="flex flex-row items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
+            <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-4">
               <CardTitle className="text-lg font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
                 <GraduationCap className="h-5 w-5 text-blue-600" /> Master Alumni Graduate Roster
               </CardTitle>
-              <Button onClick={() => setShowAddModal(true)} className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-semibold">
+              <Button onClick={() => setShowAddModal(true)} className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-semibold text-xs h-9 self-start sm:self-auto">
                 <Plus className="h-4 w-4 mr-2" /> Register Alumni
               </Button>
             </CardHeader>
@@ -240,31 +242,33 @@ export function AlumniModule() {
                   <p className="text-xs text-slate-500 mt-1">Click "Register Alumni" to populate your graduate directory.</p>
                 </div>
               ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow className="bg-slate-50 dark:bg-slate-800/50">
-                      <TableHead>Full Name</TableHead>
-                      <TableHead>Class Of</TableHead>
-                      <TableHead>University</TableHead>
-                      <TableHead>Company & Role</TableHead>
-                      <TableHead>Contact</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredAlumni.map(a => (
-                      <TableRow key={a.id} className="hover:bg-blue-50/50 dark:hover:bg-slate-800/50">
-                        <TableCell className="font-bold text-slate-900 dark:text-slate-100">{a.full_name}</TableCell>
-                        <TableCell><Badge variant="outline" className="border-blue-200 bg-blue-50 text-blue-700">{a.graduation_year}</Badge></TableCell>
-                        <TableCell className="text-slate-700 dark:text-slate-300">{a.higher_education_uni || "N/A"}</TableCell>
-                        <TableCell>
-                          <p className="font-semibold text-slate-900 dark:text-slate-100">{a.current_company || "N/A"}</p>
-                          <p className="text-xs text-slate-500">{a.designation}</p>
-                        </TableCell>
-                        <TableCell className="text-xs text-blue-600">{a.email || a.phone || "N/A"}</TableCell>
+                <div className="overflow-x-auto no-scrollbar -mx-2 px-2">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-slate-50 dark:bg-slate-800/50">
+                        <TableHead>Full Name</TableHead>
+                        <TableHead>Class Of</TableHead>
+                        <TableHead>University</TableHead>
+                        <TableHead>Company & Role</TableHead>
+                        <TableHead>Contact</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredAlumni.map(a => (
+                        <TableRow key={a.id} className="hover:bg-blue-50/50 dark:hover:bg-slate-800/50">
+                          <TableCell className="font-bold text-slate-900 dark:text-slate-100 whitespace-nowrap">{a.full_name}</TableCell>
+                          <TableCell className="whitespace-nowrap"><Badge variant="outline" className="border-blue-200 bg-blue-50 text-blue-700">{a.graduation_year}</Badge></TableCell>
+                          <TableCell className="text-slate-700 dark:text-slate-300 whitespace-nowrap">{a.higher_education_uni || "N/A"}</TableCell>
+                          <TableCell className="whitespace-nowrap">
+                            <p className="font-semibold text-slate-900 dark:text-slate-100">{a.current_company || "N/A"}</p>
+                            <p className="text-xs text-slate-500">{a.designation}</p>
+                          </TableCell>
+                          <TableCell className="text-xs text-blue-600 whitespace-nowrap">{a.email || a.phone || "N/A"}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
               )}
             </CardContent>
           </Card>

@@ -142,25 +142,25 @@ export function TransportModule() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="overflow-x-auto no-scrollbar -mx-1 px-1">
-            <TabsList className="inline-flex w-max min-w-full sm:w-auto p-1 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
-              <TabsTrigger value="fleet" className="data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-sm font-semibold text-xs rounded-lg whitespace-nowrap">
+            <TabsList className="inline-flex w-full sm:w-auto p-1 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+              <TabsTrigger value="fleet" className="flex-1 sm:flex-initial data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-sm font-semibold text-xs rounded-lg whitespace-nowrap">
                 <Bus className="h-3.5 w-3.5 mr-1.5" /> Vehicle Fleet
               </TabsTrigger>
-              <TabsTrigger value="routes" className="data-[state=active]:bg-white data-[state=active]:text-indigo-700 data-[state=active]:shadow-sm font-semibold text-xs rounded-lg whitespace-nowrap">
+              <TabsTrigger value="routes" className="flex-1 sm:flex-initial data-[state=active]:bg-white data-[state=active]:text-indigo-700 data-[state=active]:shadow-sm font-semibold text-xs rounded-lg whitespace-nowrap">
                 <MapPin className="h-3.5 w-3.5 mr-1.5" /> Transport Routes
               </TabsTrigger>
             </TabsList>
           </div>
 
-          <div className="flex items-center gap-2">
-            <div className="relative">
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <div className="relative flex-1 sm:w-64">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
               <Input placeholder="Search Bus, Route..." value={search} onChange={e => setSearch(e.target.value)}
-                className="pl-9 w-64 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 focus-visible:ring-blue-500" />
+                className="pl-9 w-full bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 focus-visible:ring-blue-500" />
             </div>
-            <Button variant="outline" onClick={loadTransportData} className="border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+            <Button variant="outline" onClick={loadTransportData} className="border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shrink-0">
               <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
             </Button>
           </div>
@@ -169,11 +169,11 @@ export function TransportModule() {
         {/* ─── Fleet Tab ──────────────────────────── */}
         <TabsContent value="fleet">
           <Card className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm">
-            <CardHeader className="flex flex-row items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
+            <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-4">
               <CardTitle className="text-lg font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
                 <Bus className="h-5 w-5 text-blue-600" /> School Bus Fleet Roster
               </CardTitle>
-              <Button onClick={() => setShowAddBus(true)} className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-semibold">
+              <Button onClick={() => setShowAddBus(true)} className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-semibold text-xs h-9 self-start sm:self-auto">
                 <Plus className="h-4 w-4 mr-2" /> Add Bus
               </Button>
             </CardHeader>
@@ -185,28 +185,30 @@ export function TransportModule() {
                   <p className="text-xs text-slate-500 mt-1">Click "Register Bus" to add buses and drivers to your transport fleet.</p>
                 </div>
               ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow className="bg-slate-50 dark:bg-slate-800/50">
-                      <TableHead>Bus Number</TableHead>
-                      <TableHead>License Plate</TableHead>
-                      <TableHead>Assigned Driver</TableHead>
-                      <TableHead>Seating Capacity</TableHead>
-                      <TableHead>Status</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {fleet.map(v => (
-                      <TableRow key={v.id} className="hover:bg-blue-50/50 dark:hover:bg-slate-800/50">
-                        <TableCell className="font-bold text-blue-700 dark:text-blue-400">{v.bus_number}</TableCell>
-                        <TableCell className="font-mono text-slate-600 dark:text-slate-400">{v.registration_no || "N/A"}</TableCell>
-                        <TableCell>{v.driver_name || "Unassigned"}</TableCell>
-                        <TableCell>{v.seating_capacity} Seats</TableCell>
-                        <TableCell><Badge className="bg-emerald-100 text-emerald-800 border-emerald-200">Active</Badge></TableCell>
+                <div className="overflow-x-auto no-scrollbar -mx-2 px-2">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-slate-50 dark:bg-slate-800/50">
+                        <TableHead>Bus Number</TableHead>
+                        <TableHead>License Plate</TableHead>
+                        <TableHead>Assigned Driver</TableHead>
+                        <TableHead>Seating Capacity</TableHead>
+                        <TableHead>Status</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {fleet.map(v => (
+                        <TableRow key={v.id} className="hover:bg-blue-50/50 dark:hover:bg-slate-800/50">
+                          <TableCell className="font-bold text-slate-900 dark:text-slate-100 whitespace-nowrap">{v.bus_number}</TableCell>
+                          <TableCell className="font-mono text-xs whitespace-nowrap">{v.registration_no || "N/A"}</TableCell>
+                          <TableCell className="text-slate-600 dark:text-slate-400 whitespace-nowrap">{v.driver_name || "Unassigned"}</TableCell>
+                          <TableCell className="whitespace-nowrap">{v.seating_capacity} Seats</TableCell>
+                          <TableCell className="whitespace-nowrap"><Badge className="bg-emerald-100 text-emerald-800 border-emerald-200">Active</Badge></TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
               )}
             </CardContent>
           </Card>
@@ -215,39 +217,41 @@ export function TransportModule() {
         {/* ─── Routes Tab ─────────────────────────── */}
         <TabsContent value="routes">
           <Card className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm">
-            <CardHeader>
+            <CardHeader className="flex flex-row items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
               <CardTitle className="text-lg font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
                 <MapPin className="h-5 w-5 text-blue-600" /> Transport Routes & Designated Stops
               </CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="pt-4">
               {routes.length === 0 ? (
                 <div className="text-center py-10 text-slate-500">
                   <p>No transport routes configured yet.</p>
                 </div>
               ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow className="bg-slate-50 dark:bg-slate-800/50">
-                      <TableHead>Route Code</TableHead>
-                      <TableHead>Route Name</TableHead>
-                      <TableHead>Start - End Point</TableHead>
-                      <TableHead>Total Stops</TableHead>
-                      <TableHead>Monthly Fare</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {routes.map(r => (
-                      <TableRow key={r.id} className="hover:bg-blue-50/50 dark:hover:bg-slate-800/50">
-                        <TableCell className="font-bold text-blue-700 dark:text-blue-400">{r.route_code}</TableCell>
-                        <TableCell className="font-semibold text-slate-900 dark:text-slate-100">{r.route_name}</TableCell>
-                        <TableCell className="text-slate-600 dark:text-slate-400">{r.start_point} ➔ {r.end_point}</TableCell>
-                        <TableCell>{r.total_stops} Stops</TableCell>
-                        <TableCell className="font-mono">PKR {r.monthly_fare?.toLocaleString() || 0}</TableCell>
+                <div className="overflow-x-auto no-scrollbar -mx-2 px-2">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-slate-50 dark:bg-slate-800/50">
+                        <TableHead>Route Code</TableHead>
+                        <TableHead>Route Name</TableHead>
+                        <TableHead>Start - End Point</TableHead>
+                        <TableHead>Total Stops</TableHead>
+                        <TableHead>Monthly Fare</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {routes.map(r => (
+                        <TableRow key={r.id} className="hover:bg-blue-50/50 dark:hover:bg-slate-800/50">
+                          <TableCell className="font-bold text-blue-700 dark:text-blue-400 whitespace-nowrap">{r.route_code}</TableCell>
+                          <TableCell className="font-semibold text-slate-900 dark:text-slate-100 whitespace-nowrap">{r.route_name}</TableCell>
+                          <TableCell className="text-slate-600 dark:text-slate-400 whitespace-nowrap">{r.start_point} ➔ {r.end_point}</TableCell>
+                          <TableCell className="whitespace-nowrap">{r.total_stops} Stops</TableCell>
+                          <TableCell className="font-mono whitespace-nowrap">PKR {r.monthly_fare?.toLocaleString() || 0}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
               )}
             </CardContent>
           </Card>

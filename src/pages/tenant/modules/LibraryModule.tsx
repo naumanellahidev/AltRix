@@ -458,21 +458,21 @@ export function LibraryModule() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="overflow-x-auto no-scrollbar -mx-1 px-1">
-            <TabsList className="inline-flex w-max min-w-full sm:w-auto p-1 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
-              <TabsTrigger value="catalog" className="data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-sm font-semibold text-xs rounded-lg whitespace-nowrap">
+            <TabsList className="inline-flex w-full sm:w-auto p-1 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+              <TabsTrigger value="catalog" className="flex-1 sm:flex-initial data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-sm font-semibold text-xs rounded-lg whitespace-nowrap">
                 <BookOpen className="h-3.5 w-3.5 mr-1.5" /> Book Catalog
               </TabsTrigger>
-              <TabsTrigger value="issues" className="data-[state=active]:bg-white data-[state=active]:text-indigo-700 data-[state=active]:shadow-sm font-semibold text-xs rounded-lg whitespace-nowrap">
+              <TabsTrigger value="issues" className="flex-1 sm:flex-initial data-[state=active]:bg-white data-[state=active]:text-indigo-700 data-[state=active]:shadow-sm font-semibold text-xs rounded-lg whitespace-nowrap">
                 <Clock className="h-3.5 w-3.5 mr-1.5" /> Loans & Returns Log
               </TabsTrigger>
             </TabsList>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
             {activeTab === "catalog" && (
-              <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-lg border border-slate-200 dark:border-slate-700 mr-2">
+              <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-lg border border-slate-200 dark:border-slate-700 shrink-0">
                 <Button
                   size="sm"
                   variant={viewMode === "grid" ? "white" : "ghost"}
@@ -491,12 +491,12 @@ export function LibraryModule() {
                 </Button>
               </div>
             )}
-            <div className="relative">
+            <div className="relative flex-1 min-w-[180px] sm:w-64 sm:flex-initial">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
               <Input placeholder="Search Title, Author, ISBN, Barcode..." value={search} onChange={e => setSearch(e.target.value)}
-                className="pl-9 w-64 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 focus-visible:ring-blue-500" />
+                className="pl-9 w-full bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 focus-visible:ring-blue-500" />
             </div>
-            <Button variant="outline" onClick={() => { loadBooks(); loadIssues(); }} className="border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+            <Button variant="outline" onClick={() => { loadBooks(); loadIssues(); }} className="border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shrink-0">
               <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
             </Button>
           </div>

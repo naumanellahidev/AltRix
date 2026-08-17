@@ -233,28 +233,28 @@ export function HostelModule() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="overflow-x-auto no-scrollbar -mx-1 px-1">
-            <TabsList className="inline-flex w-max min-w-full sm:w-auto p-1 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
-              <TabsTrigger value="rooms" className="data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-sm font-semibold text-xs rounded-lg whitespace-nowrap">
+            <TabsList className="inline-flex w-full sm:w-auto p-1 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+              <TabsTrigger value="rooms" className="flex-1 sm:flex-initial data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-sm font-semibold text-xs rounded-lg whitespace-nowrap">
                 <Bed className="h-3.5 w-3.5 mr-1.5" /> Rooms & Beds
               </TabsTrigger>
-              <TabsTrigger value="night-check" className="data-[state=active]:bg-white data-[state=active]:text-indigo-700 data-[state=active]:shadow-sm font-semibold text-xs rounded-lg whitespace-nowrap">
+              <TabsTrigger value="night-check" className="flex-1 sm:flex-initial data-[state=active]:bg-white data-[state=active]:text-indigo-700 data-[state=active]:shadow-sm font-semibold text-xs rounded-lg whitespace-nowrap">
                 <Moon className="h-3.5 w-3.5 mr-1.5" /> Nightly Roll Call
               </TabsTrigger>
-              <TabsTrigger value="mess" className="data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-sm font-semibold text-xs rounded-lg whitespace-nowrap">
+              <TabsTrigger value="mess" className="flex-1 sm:flex-initial data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-sm font-semibold text-xs rounded-lg whitespace-nowrap">
                 <Utensils className="h-3.5 w-3.5 mr-1.5" /> Mess Menu
               </TabsTrigger>
             </TabsList>
           </div>
 
-          <div className="flex items-center gap-2">
-            <div className="relative">
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <div className="relative flex-1 sm:w-64">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
               <Input placeholder="Search Room, Block..." value={search} onChange={e => setSearch(e.target.value)}
-                className="pl-9 w-64 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 focus-visible:ring-blue-500" />
+                className="pl-9 w-full bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 focus-visible:ring-blue-500" />
             </div>
-            <Button variant="outline" onClick={loadHostelData} className="border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+            <Button variant="outline" onClick={loadHostelData} className="border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shrink-0">
               <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
             </Button>
           </div>
@@ -263,15 +263,15 @@ export function HostelModule() {
         {/* ─── Rooms Tab ──────────────────────────────────── */}
         <TabsContent value="rooms">
           <Card className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm">
-            <CardHeader className="flex flex-row items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
+            <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-4">
               <CardTitle className="text-lg font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
                 <Bed className="h-5 w-5 text-blue-600" /> Hostel Room Master Allocation Grid
               </CardTitle>
-              <div className="flex gap-2">
-                <Button onClick={() => setShowAllocateModal(true)} variant="outline" className="border-slate-300 text-slate-700 dark:text-slate-200">
+              <div className="flex flex-wrap gap-2">
+                <Button onClick={() => setShowAllocateModal(true)} variant="outline" className="border-slate-300 text-slate-700 dark:text-slate-200 text-xs h-9">
                   <UserCheck className="h-4 w-4 mr-2 text-blue-600" /> Assign Student to Room
                 </Button>
-                <Button onClick={() => setShowAddRoomModal(true)} className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold shadow-md">
+                <Button onClick={() => setShowAddRoomModal(true)} className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold shadow-md text-xs h-9">
                   <Plus className="h-4 w-4 mr-2" /> Add Hostel Room
                 </Button>
               </div>
