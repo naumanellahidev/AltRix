@@ -211,11 +211,11 @@ export function OwnerOverviewModule({ schoolId }: Props) {
         campusEq(api.from("attendance_entries").select("status,campus_id").eq("school_id", schoolId).gte("created_at", d7Ago.toISOString())),
         campusEq(api.from("crm_leads").select("id,status,created_at,campus_id").eq("school_id", schoolId)),
         campusEq(api.from("fee_invoices").select("id,status,total_amount,campus_id").eq("school_id", schoolId)),
-        api.from("school_memberships").select("id").eq("school_id", schoolId),
+        campusEq(api.from("user_roles").select("id,campus_id").eq("school_id", schoolId).in("role", ["teacher", "principal", "vice_principal", "accountant", "academic_coordinator", "counselor", "hr_manager", "school_admin", "librarian", "transport_manager", "receptionist", "security_guard", "staff", "admin", "school_owner"])),
         campusEq(api.from("user_roles").select("id,campus_id").eq("school_id", schoolId).eq("role", "teacher")),
         campusEq(api.from("student_marks").select("marks,assessment_id,campus_id").eq("school_id", schoolId).not("marks", "is", null)),
-        api.from("timetable_entries").select("teacher_id").eq("school_id", schoolId),
-        api.from("teacher_subject_assignments").select("teacher_id").eq("school_id", schoolId),
+        campusEq(api.from("timetable_entries").select("teacher_id,campus_id").eq("school_id", schoolId)),
+        campusEq(api.from("teacher_subject_assignments").select("teacher_id,campus_id").eq("school_id", schoolId)),
       ]);
 
       const students = studentsRes.data || [];
