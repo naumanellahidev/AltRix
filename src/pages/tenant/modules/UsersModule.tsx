@@ -84,13 +84,8 @@ const STAFF_ROLES: EduverseRole[] = [
   "counselor",
   "hr_manager",
   "school_admin",
-  "librarian",
-  "transport_manager",
-  "receptionist",
-  "security_guard",
-  "staff",
-  "admin",
   "school_owner",
+  "marketing_staff",
 ];
 
 const STUDENT_PARENT_ROLES: EduverseRole[] = ["student", "parent"];

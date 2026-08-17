@@ -146,7 +146,7 @@ async def execute_rpc(payload: RpcPayload, current_user: CurrentUser, db: DbSess
         raise HTTPException(status_code=400, detail="Invalid function name")
         
     try:
-        await db.execute(text("SELECT set_config('request.jwt.claim.sub', :user_id, true)"), {"user_id": str(current_user.id)})
+        await db.execute(text("SELECT set_config('request.jwt.claim.sub', :user_id, true)"), {"user_id": current_user.id})
         await db.execute(text("SELECT set_config('request.jwt.claim.role', :role, true)"), {"role": "authenticated"})
     except Exception as setting_err:
         logger.warning(f"Failed to set database proxy JWT claim parameters: {setting_err}")
@@ -242,7 +242,7 @@ async def execute_query(query: QueryPayload, current_user: CurrentUser, db: DbSe
         raise HTTPException(status_code=400, detail="Invalid table name")
 
     try:
-        await db.execute(text("SELECT set_config('request.jwt.claim.sub', :user_id, true)"), {"user_id": str(current_user.id)})
+        await db.execute(text("SELECT set_config('request.jwt.claim.sub', :user_id, true)"), {"user_id": current_user.id})
         await db.execute(text("SELECT set_config('request.jwt.claim.role', :role, true)"), {"role": "authenticated"})
     except Exception as setting_err:
         logger.warning(f"Failed to set database proxy JWT claim parameters: {setting_err}")
@@ -495,7 +495,9 @@ async def execute_query(query: QueryPayload, current_user: CurrentUser, db: DbSe
             sql = f'INSERT INTO "{query.table}" ({cols}) VALUES ({vals}) RETURNING *'
             try:
                 res = await db.execute(text(sql), casted_item)
-                inserted_rows.append(dict(res.fetchone()._mapping))
+                row = res.fetchone()
+                if row:
+                    inserted_rows.append(dict(row._mapping))
             except Exception as e:
                 logger.error(f"DB Proxy Insert Error: {e}")
                 return {"data": None, "error": {"message": str(e)}}
