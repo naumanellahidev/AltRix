@@ -37,6 +37,7 @@ import {
 import { api } from "@/lib/api";
 import { useTenant } from "@/hooks/useTenant";
 import { useSession } from "@/hooks/useSession";
+import { useActiveCampus } from "@/hooks/useActiveCampus";
 import { EDUVERSE_ROLES, roleLabel, type EduverseRole } from "@/lib/eduverse-roles";
 import { parseCsv, toCsv } from "@/lib/csv";
 import { useSchoolPermissions } from "@/hooks/useSchoolPermissions";
@@ -104,6 +105,7 @@ export function UsersModule() {
     [tenant.status, tenant.schoolId]
   );
   const perms = useSchoolPermissions(schoolId);
+  const activeCampusId = useActiveCampus(schoolId);
 
   // Form states
   const [email, setEmail] = useState("");
@@ -118,6 +120,15 @@ export function UsersModule() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedRoleFilter, setSelectedRoleFilter] = useState<string>("all");
   const [selectedCampusFilter, setSelectedCampusFilter] = useState<string>("all");
+
+  // Sync with activeCampusId from top header
+  useEffect(() => {
+    if (activeCampusId) {
+      setSelectedCampusFilter(activeCampusId);
+    } else {
+      setSelectedCampusFilter("all");
+    }
+  }, [activeCampusId]);
 
   // Bulk import
   const [bulkRows, setBulkRows] = useState<BulkRow[]>([]);
@@ -165,11 +176,16 @@ export function UsersModule() {
         })) as DirectoryRow[]
     );
 
-    // 3. Fetch user roles & campus assignments
-    const [rolesRes, campusesRes] = await Promise.all([
-      api.from("user_roles").select("user_id, role, campus_id, campuses(name)").eq("school_id", schoolId),
+    // 3. Fetch user roles, school memberships & campus assignments
+    const [rolesRes, membershipsRes, campusesRes] = await Promise.all([
+      api.from("user_roles").select("user_id, role, campus_id").eq("school_id", schoolId),
+      api.from("school_memberships").select("user_id, campus_id").eq("school_id", schoolId),
       api.from("campuses").select("id, name").eq("school_id", schoolId).order("name"),
     ]);
+
+    const campusList = campusesRes.data || [];
+    const campusMap = new Map<string, string>();
+    campusList.forEach((c: any) => campusMap.set(c.id, c.name));
 
     const nextRoles: Record<string, EduverseRole[]> = {};
     const nextCampusMap: Record<string, { id: string; name: string }> = {};
@@ -178,14 +194,21 @@ export function UsersModule() {
       const key = r.user_id as string;
       const val = r.role as EduverseRole;
       nextRoles[key] = nextRoles[key] ? [...nextRoles[key], val] : [val];
-      if (r.campus_id && r.campuses) {
-        nextCampusMap[key] = { id: r.campus_id, name: r.campuses.name };
+      if (r.campus_id && campusMap.has(r.campus_id)) {
+        nextCampusMap[key] = { id: r.campus_id, name: campusMap.get(r.campus_id)! };
+      }
+    });
+
+    (membershipsRes.data ?? []).forEach((m: any) => {
+      const key = m.user_id as string;
+      if (!nextCampusMap[key] && m.campus_id && campusMap.has(m.campus_id)) {
+        nextCampusMap[key] = { id: m.campus_id, name: campusMap.get(m.campus_id)! };
       }
     });
 
     setRolesByUser(nextRoles);
     setCampusByUser(nextCampusMap);
-    setCampuses(campusesRes.data || []);
+    setCampuses(campusList);
   };
 
   useEffect(() => {
@@ -342,13 +365,22 @@ export function UsersModule() {
   const userCategories = useMemo(() => {
     const staffList: DirectoryRow[] = [];
     const studentsParentsList: DirectoryRow[] = [];
-    const allList = directory;
+    const allList: DirectoryRow[] = [];
 
     directory.forEach((row) => {
+      // If campus filter is set and user's campus does not match, skip
+      if (selectedCampusFilter !== "all") {
+        const userCampus = campusByUser[row.user_id];
+        if (userCampus?.id !== selectedCampusFilter) {
+          return;
+        }
+      }
+
       const userRoles = rolesByUser[row.user_id] ?? [];
       const isStaffUser = userRoles.some((r) => STAFF_ROLES.includes(r));
       const isStudentParent = userRoles.some((r) => STUDENT_PARENT_ROLES.includes(r));
 
+      allList.push(row);
       if (isStaffUser) {
         staffList.push(row);
       } else if (isStudentParent) {
@@ -364,7 +396,7 @@ export function UsersModule() {
       students_parents: studentsParentsList,
       all: allList,
     };
-  }, [directory, rolesByUser]);
+  }, [directory, rolesByUser, campusByUser, selectedCampusFilter]);
 
   // Filtered List based on Active Tab, Search, Role, and Campus
   const filteredUsers = useMemo(() => {
@@ -394,17 +426,9 @@ export function UsersModule() {
         }
       }
 
-      // 3. Campus Filter
-      if (selectedCampusFilter !== "all") {
-        const userCampus = campusByUser[row.user_id];
-        if (userCampus?.id !== selectedCampusFilter) {
-          return false;
-        }
-      }
-
       return true;
     });
-  }, [userCategories, activeTab, searchQuery, selectedRoleFilter, selectedCampusFilter, rolesByUser, campusByUser]);
+  }, [userCategories, activeTab, searchQuery, selectedRoleFilter, rolesByUser, campusByUser]);
 
   const activeRolesInCurrentTab = useMemo(() => {
     const list = userCategories[activeTab] || userCategories.all;
