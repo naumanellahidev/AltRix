@@ -36,6 +36,7 @@ class InviteRequest(BaseModel):
     password: str
     role: str
     displayName: Optional[str] = None
+    campusId: Optional[str] = None
 
 
 class BulkStaffImportRequest(BaseModel):
@@ -298,6 +299,44 @@ async def invite_user(
     except ValueError:
         actor_uid = current_user.id
 
+    # Determine the campus_id for the invited user
+    target_campus_id = None
+    is_owner_or_psa = False
+
+    res_psa = await db.execute(
+        text("SELECT user_id FROM public.platform_super_admins WHERE user_id = :uid LIMIT 1"),
+        {"uid": actor_uid}
+    )
+    if res_psa.fetchone():
+        is_owner_or_psa = True
+
+    if not is_owner_or_psa:
+        res_owner = await db.execute(
+            text("SELECT owner_user_id FROM public.school_owner_assignments WHERE school_id = :sid AND owner_user_id = :uid LIMIT 1"),
+            {"sid": school_id, "uid": actor_uid}
+        )
+        if res_owner.fetchone():
+            is_owner_or_psa = True
+
+    if is_owner_or_psa:
+        if body.campusId and body.campusId.strip() != "":
+            try:
+                target_campus_id = uuid.UUID(body.campusId.strip())
+            except ValueError:
+                target_campus_id = None
+    else:
+        res_caller_campus = await db.execute(
+            text("""
+                SELECT campus_id FROM public.user_roles
+                WHERE school_id = :sid AND user_id = :uid AND campus_id IS NOT NULL
+                LIMIT 1
+            """),
+            {"sid": school_id, "uid": actor_uid}
+        )
+        row = res_caller_campus.fetchone()
+        if row:
+            target_campus_id = row.campus_id
+
     # Check if user exists in auth.users
     res_u = await db.execute(
         text("SELECT id FROM auth.users WHERE LOWER(TRIM(email)) = :email LIMIT 1"),
@@ -356,11 +395,11 @@ async def invite_user(
     # Upsert User Role
     await db.execute(
         text("""
-            INSERT INTO public.user_roles (school_id, user_id, role, created_by)
-            VALUES (:sid, :uid, :role, :aid)
-            ON CONFLICT (school_id, user_id, role) DO NOTHING
+            INSERT INTO public.user_roles (school_id, user_id, role, campus_id, created_by)
+            VALUES (:sid, :uid, :role, :cid, :aid)
+            ON CONFLICT (school_id, user_id, role) DO UPDATE SET campus_id = COALESCE(:cid, user_roles.campus_id)
         """),
-        {"sid": school_id, "uid": user_id, "role": body.role, "aid": actor_uid}
+        {"sid": school_id, "uid": user_id, "role": body.role, "cid": target_campus_id, "aid": actor_uid}
     )
 
     # Audit log
@@ -373,7 +412,7 @@ async def invite_user(
             "sid": school_id,
             "aid": actor_uid,
             "email": invite_email,
-            "meta": json.dumps({"role": body.role}),
+            "meta": json.dumps({"role": body.role, "campus_id": str(target_campus_id) if target_campus_id else None}),
         }
     )
 
