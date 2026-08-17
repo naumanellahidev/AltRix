@@ -270,16 +270,16 @@ export function MarketingCampaignsModule() {
             </div>
 
             {/* Campaigns table */}
-            <div className="pt-2 border-t">
+            <div className="pt-2 border-t overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="text-xs font-semibold">Campaign Name</TableHead>
-                    <TableHead className="text-xs font-semibold">Channel</TableHead>
-                    <TableHead className="text-xs font-semibold">Status</TableHead>
-                    <TableHead className="text-xs font-semibold">Budget</TableHead>
-                    <TableHead className="text-xs font-semibold">Leads Attributed</TableHead>
-                    <TableHead className="text-xs font-semibold text-right">Cost Per Lead (CPL)</TableHead>
+                    <TableHead className="text-xs font-semibold whitespace-nowrap">Campaign Name</TableHead>
+                    <TableHead className="text-xs font-semibold whitespace-nowrap">Channel</TableHead>
+                    <TableHead className="text-xs font-semibold whitespace-nowrap">Status</TableHead>
+                    <TableHead className="text-xs font-semibold whitespace-nowrap">Budget</TableHead>
+                    <TableHead className="text-xs font-semibold whitespace-nowrap">Leads Attributed</TableHead>
+                    <TableHead className="text-xs font-semibold text-right whitespace-nowrap">Cost Per Lead (CPL)</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -288,24 +288,26 @@ export function MarketingCampaignsModule() {
                     const cpl = leadsCount > 0 ? Math.round(c.budget / leadsCount) : 0;
                     return (
                       <TableRow key={c.id} className="hover:bg-muted/30">
-                        <TableCell className="font-medium text-xs">{c.name}</TableCell>
-                        <TableCell className="text-muted-foreground text-xs uppercase font-semibold">{c.channel}</TableCell>
-                        <TableCell>
+                        <TableCell className="font-medium text-xs whitespace-nowrap">{c.name}</TableCell>
+                        <TableCell className="text-muted-foreground text-xs uppercase font-semibold whitespace-nowrap">{c.channel}</TableCell>
+                        <TableCell className="whitespace-nowrap">
                           <Badge variant="outline" className={`text-[9px] py-0.5 px-2 uppercase font-semibold border ${
                             c.status === "active" ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20" : c.status === "paused" ? "bg-amber-500/10 text-amber-600 border-amber-500/20" : "bg-secondary text-secondary-foreground border-transparent"
                           }`}>
                             {c.status}
                           </Badge>
                         </TableCell>
-                        <TableCell className="text-muted-foreground text-xs font-mono">${c.budget}</TableCell>
-                        <TableCell className="text-muted-foreground text-xs">{leadsCount} leads</TableCell>
-                        <TableCell className="text-xs font-mono text-right font-semibold">${cpl}</TableCell>
+                        <TableCell className="text-muted-foreground text-xs font-mono whitespace-nowrap">${c.budget}</TableCell>
+                        <TableCell className="text-muted-foreground text-xs whitespace-nowrap font-medium">{leadsCount} leads</TableCell>
+                        <TableCell className="text-right text-xs font-mono whitespace-nowrap font-semibold">${cpl}</TableCell>
                       </TableRow>
                     );
                   })}
                   {campaigns.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-xs text-center py-6 text-muted-foreground">No campaigns registered yet.</TableCell>
+                      <TableCell colSpan={6} className="text-center text-xs text-muted-foreground py-6">
+                        No campaigns tracked yet. Create one on the left to start attributing leads.
+                      </TableCell>
                     </TableRow>
                   )}
                 </TableBody>

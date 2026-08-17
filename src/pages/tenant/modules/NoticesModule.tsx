@@ -128,15 +128,15 @@ export default function NoticesModule({ schoolId, canManage = false }: Props) {
   return (
     <div className="space-y-6">
       {/* Hero */}
-      <div className="relative overflow-hidden rounded-2xl border bg-gradient-to-br from-primary/10 via-background to-background p-6 md:p-7">
+      <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl border bg-gradient-to-br from-primary/10 via-background to-background p-4 sm:p-6 md:p-7">
         <div className="absolute -top-24 -right-16 h-56 w-56 rounded-full bg-primary/15 blur-3xl pointer-events-none" />
         <div className="relative flex flex-col md:flex-row md:items-end md:justify-between gap-4">
           <div>
             <div className="flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-primary/80 font-semibold">
               <Sparkles className="h-3.5 w-3.5" /> Broadcast
             </div>
-            <h2 className="font-display text-3xl font-bold tracking-tight mt-1.5">Notices</h2>
-            <p className="text-sm text-muted-foreground mt-1">
+            <h2 className="font-display text-2xl sm:text-3xl font-bold tracking-tight mt-1">Notices</h2>
+            <p className="text-xs sm:text-sm text-muted-foreground mt-0.5 sm:mt-1">
               School-wide announcements · {counts.total} total
               {counts.pinned > 0 && <> · <span className="text-primary font-medium">{counts.pinned} pinned</span></>}
               {counts.urgent > 0 && <> · <span className="text-amber-600 dark:text-amber-400 font-medium">{counts.urgent} urgent</span></>}
@@ -145,18 +145,18 @@ export default function NoticesModule({ schoolId, canManage = false }: Props) {
           {canManage && (
             <Dialog open={open} onOpenChange={setOpen}>
               <DialogTrigger asChild>
-                <Button size="lg" className="shadow-sm">
-                  <Plus className="mr-2 h-4 w-4" /> New notice
+                <Button size="sm" className="shadow-sm rounded-xl text-xs h-9">
+                  <Plus className="mr-1.5 h-3.5 w-3.5" /> New notice
                 </Button>
               </DialogTrigger>
-              <DialogContent className="sm:max-w-lg">
+              <DialogContent className="max-w-lg w-[calc(100%-2rem)] max-h-[90vh] overflow-y-auto p-4 sm:p-6 rounded-2xl">
                 <DialogHeader><DialogTitle>Post a notice</DialogTitle></DialogHeader>
                 <div className="space-y-3">
-                  <Input placeholder="Title" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
-                  <Textarea placeholder="Notice body..." rows={6} value={form.body} onChange={(e) => setForm({ ...form, body: e.target.value })} />
-                  <div className="grid grid-cols-2 gap-2">
+                  <Input placeholder="Title" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} className="rounded-xl text-xs h-9" />
+                  <Textarea placeholder="Notice body..." rows={5} value={form.body} onChange={(e) => setForm({ ...form, body: e.target.value })} className="rounded-xl text-xs" />
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     <Select value={form.audience} onValueChange={(v) => setForm({ ...form, audience: v })}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectTrigger className="rounded-xl text-xs h-9"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         {Object.entries(AUDIENCE_LABEL).map(([k, v]) => (
                           <SelectItem key={k} value={k}>{v}</SelectItem>
@@ -164,7 +164,7 @@ export default function NoticesModule({ schoolId, canManage = false }: Props) {
                       </SelectContent>
                     </Select>
                     <Select value={form.priority} onValueChange={(v) => setForm({ ...form, priority: v })}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectTrigger className="rounded-xl text-xs h-9"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="low">Low</SelectItem>
                         <SelectItem value="normal">Normal</SelectItem>
@@ -173,7 +173,7 @@ export default function NoticesModule({ schoolId, canManage = false }: Props) {
                       </SelectContent>
                     </Select>
                   </div>
-                  <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+                  <label className="flex items-center gap-2 text-xs font-semibold cursor-pointer select-none">
                     <input
                       type="checkbox"
                       className="h-4 w-4 rounded border-input"
@@ -183,9 +183,9 @@ export default function NoticesModule({ schoolId, canManage = false }: Props) {
                     <Pin className="h-3.5 w-3.5 text-primary" /> Pin to top
                   </label>
                 </div>
-                <DialogFooter>
-                  <Button variant="ghost" onClick={() => setOpen(false)}>Cancel</Button>
-                  <Button onClick={submit}>Post notice</Button>
+                <DialogFooter className="gap-2">
+                  <Button variant="ghost" onClick={() => setOpen(false)} className="rounded-xl text-xs h-9">Cancel</Button>
+                  <Button onClick={submit} className="rounded-xl text-xs h-9">Post notice</Button>
                 </DialogFooter>
               </DialogContent>
             </Dialog>
@@ -196,25 +196,27 @@ export default function NoticesModule({ schoolId, canManage = false }: Props) {
       {/* Filter bar */}
       <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
           <Input
             placeholder="Search notices…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="pl-9 h-10"
+            className="pl-8 rounded-xl h-9 text-xs"
           />
         </div>
-        <Tabs value={tab} onValueChange={(v) => setTab(v as any)}>
-          <TabsList>
-            <TabsTrigger value="all">All ({counts.total})</TabsTrigger>
-            <TabsTrigger value="pinned">
-              <Pin className="h-3.5 w-3.5 mr-1" /> Pinned ({counts.pinned})
-            </TabsTrigger>
-            <TabsTrigger value="urgent">
-              <AlertTriangle className="h-3.5 w-3.5 mr-1" /> Urgent ({counts.urgent})
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
+        <div className="overflow-x-auto no-scrollbar -mx-1 px-1">
+          <Tabs value={tab} onValueChange={(v) => setTab(v as any)} className="space-y-0">
+            <TabsList className="inline-flex w-max min-w-full sm:w-auto p-1 rounded-xl">
+              <TabsTrigger value="all" className="rounded-lg text-xs font-semibold whitespace-nowrap">All ({counts.total})</TabsTrigger>
+              <TabsTrigger value="pinned" className="rounded-lg text-xs font-semibold whitespace-nowrap">
+                <Pin className="h-3 w-3 mr-1" /> Pinned ({counts.pinned})
+              </TabsTrigger>
+              <TabsTrigger value="urgent" className="rounded-lg text-xs font-semibold whitespace-nowrap">
+                <AlertTriangle className="h-3 w-3 mr-1" /> Urgent ({counts.urgent})
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </div>
       </div>
 
       {/* List */}

@@ -250,50 +250,50 @@ export default function EventsModule() {
   }, [currentMonth]);
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto p-4 md:p-6">
+    <div className="space-y-4 sm:space-y-6 max-w-7xl mx-auto p-3 sm:p-6">
       {/* Header Banner */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-gradient-to-r from-blue-700 via-indigo-600 to-purple-700 text-white p-6 rounded-2xl shadow-lg border border-blue-400/20">
-        <div className="space-y-1.5">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-gradient-to-r from-blue-700 via-indigo-600 to-purple-700 text-white p-4 sm:p-6 rounded-2xl sm:rounded-3xl shadow-lg border border-blue-400/20">
+        <div className="space-y-1 sm:space-y-1.5">
           <div className="flex items-center gap-2">
-            <CalendarIcon className="h-7 w-7 text-blue-200" />
-            <h1 className="text-3xl font-bold tracking-tight">School Events & Sports Calendar</h1>
+            <CalendarIcon className="h-6 w-6 sm:h-7 sm:w-7 text-blue-200 shrink-0" />
+            <h1 className="text-xl sm:text-3xl font-bold tracking-tight">Events & Sports Calendar</h1>
           </div>
-          <p className="text-blue-100 font-medium text-sm">
+          <p className="text-blue-100 font-medium text-xs sm:text-sm">
             Interactive month calendar, instant event publisher, house sports leaderboards, and gallery photo uploads.
           </p>
         </div>
-        <Button onClick={() => setShowCreateEvent(true)} className="bg-white text-blue-700 hover:bg-blue-50 font-bold shadow-md">
-          <Plus className="h-4 w-4 mr-2" /> Add New Event
+        <Button size="sm" onClick={() => setShowCreateEvent(true)} className="bg-white text-blue-700 hover:bg-blue-50 font-bold shadow-md rounded-xl text-xs h-9">
+          <Plus className="h-3.5 w-3.5 mr-1.5" /> Add New Event
         </Button>
       </div>
 
       {/* 🌟 INTERACTIVE MONTH CALENDAR GRID */}
-      <Card className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm">
-        <CardHeader className="flex flex-row items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
-          <div className="flex items-center gap-3">
-            <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100">
+      <Card className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm rounded-2xl sm:rounded-3xl overflow-hidden">
+        <CardHeader className="flex flex-row items-center justify-between border-b border-slate-100 dark:border-slate-800 p-4 sm:p-6 pb-3 sm:pb-4">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <h2 className="text-base sm:text-xl font-bold text-slate-900 dark:text-slate-100">
               {format(currentMonth, "MMMM yyyy")}
             </h2>
-            <Badge variant="secondary" className="font-semibold bg-blue-50 text-blue-700 border-blue-200">
-              {events.length} Events Scheduled
+            <Badge variant="secondary" className="font-semibold bg-blue-50 text-blue-700 border-blue-200 text-[10px] sm:text-xs">
+              {events.length} Events
             </Badge>
           </div>
-          <div className="flex items-center gap-2">
-            <Button onClick={() => setCurrentMonth(subMonths(currentMonth, 1))} variant="outline" size="sm" className="h-9 w-9 p-0">
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            <Button onClick={() => setCurrentMonth(subMonths(currentMonth, 1))} variant="outline" size="sm" className="h-8 w-8 sm:h-9 sm:w-9 p-0 rounded-lg">
               <ChevronLeft className="h-4 w-4" />
             </Button>
-            <Button onClick={() => setCurrentMonth(new Date())} variant="outline" size="sm" className="font-semibold">
+            <Button onClick={() => setCurrentMonth(new Date())} variant="outline" size="sm" className="font-semibold text-xs h-8 sm:h-9 px-2.5 sm:px-3 rounded-lg">
               Today
             </Button>
-            <Button onClick={() => setCurrentMonth(addMonths(currentMonth, 1))} variant="outline" size="sm" className="h-9 w-9 p-0">
+            <Button onClick={() => setCurrentMonth(addMonths(currentMonth, 1))} variant="outline" size="sm" className="h-8 w-8 sm:h-9 sm:w-9 p-0 rounded-lg">
               <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
         </CardHeader>
 
-        <CardContent className="p-4">
+        <CardContent className="p-2 sm:p-4 overflow-x-auto">
           {/* Day of Week Headers */}
-          <div className="grid grid-cols-7 text-center font-bold text-xs text-slate-500 uppercase tracking-wider py-2 border-b border-slate-100 dark:border-slate-800">
+          <div className="grid grid-cols-7 text-center font-bold text-[10px] sm:text-xs text-slate-500 uppercase tracking-wider py-2 border-b border-slate-100 dark:border-slate-800 min-w-[320px]">
             <span>Sun</span>
             <span>Mon</span>
             <span>Tue</span>
@@ -304,7 +304,7 @@ export default function EventsModule() {
           </div>
 
           {/* Calendar 7x5 Days Cells Grid */}
-          <div className="grid grid-cols-7 gap-1 pt-1">
+          <div className="grid grid-cols-7 gap-1 pt-1 min-w-[320px]">
             {calendarDays.map((day, idx) => {
               const dayStr = format(day, "yyyy-MM-dd");
               const isCurrentMonth = isSameMonth(day, currentMonth);
@@ -322,7 +322,7 @@ export default function EventsModule() {
                       setShowCreateEvent(true);
                     }
                   }}
-                  className={`min-h-[90px] p-2 rounded-xl border transition-all cursor-pointer flex flex-col justify-between ${
+                  className={`min-h-[60px] sm:min-h-[90px] p-1 sm:p-2 rounded-xl border transition-all cursor-pointer flex flex-col justify-between ${
                     !isCurrentMonth 
                       ? "bg-slate-50/50 dark:bg-slate-900/30 border-slate-100 text-slate-300 dark:border-slate-800/50" 
                       : isToday 
@@ -331,8 +331,8 @@ export default function EventsModule() {
                   }`}
                 >
                   <div className="flex justify-between items-center">
-                    <span className={`text-xs font-bold ${
-                      isToday ? "h-6 w-6 rounded-full bg-blue-600 text-white flex items-center justify-center shadow-xs" : "text-slate-700 dark:text-slate-300"
+                    <span className={`text-[10px] sm:text-xs font-bold ${
+                      isToday ? "h-5 w-5 sm:h-6 sm:w-6 rounded-full bg-blue-600 text-white flex items-center justify-center shadow-xs" : "text-slate-700 dark:text-slate-300"
                     }`}>
                       {format(day, "d")}
                     </span>
@@ -346,14 +346,10 @@ export default function EventsModule() {
                           evt.stopPropagation();
                           setSelectedEventId(e.id);
                         }}
-                        className={`text-[10px] font-bold px-1.5 py-0.5 rounded truncate transition-all ${
+                        className={`text-[8px] sm:text-[10px] font-bold px-1 sm:px-1.5 py-0.5 rounded truncate transition-all ${
                           selectedEventId === e.id
-                            ? "bg-blue-600 text-white shadow-xs"
-                            : e.event_type === "sports"
-                            ? "bg-amber-100 text-amber-900 border border-amber-200"
-                            : e.event_type === "ptm"
-                            ? "bg-purple-100 text-purple-900 border border-purple-200"
-                            : "bg-emerald-100 text-emerald-900 border border-emerald-200"
+                            ? "bg-blue-600 text-white"
+                            : "bg-blue-100 dark:bg-blue-950 text-blue-800 dark:text-blue-200"
                         }`}
                       >
                         {e.title}
@@ -367,63 +363,67 @@ export default function EventsModule() {
         </CardContent>
       </Card>
 
-      {/* Main Selected Event Hub & Details */}
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        {/* Events Sidebar list */}
-        <Card className="lg:col-span-1 border border-slate-200/80 dark:border-slate-800 shadow-sm bg-white dark:bg-slate-900">
-          <CardHeader className="pb-3 border-b">
-            <CardTitle className="text-sm font-semibold uppercase tracking-wider text-slate-500">
-              Upcoming Events
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-2 space-y-1">
-            {events.map((ev) => (
-              <button
-                key={ev.id}
-                onClick={() => setSelectedEventId(ev.id)}
-                className={`w-full text-left px-3 py-2.5 rounded-xl transition-all flex flex-col gap-1 ${
-                  selectedEventId === ev.id
-                    ? "bg-blue-600 text-white font-bold shadow-sm"
-                    : "hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200"
-                }`}
-              >
-                <span className="text-sm line-clamp-1">{ev.title}</span>
-                <span className={`text-[10px] ${selectedEventId === ev.id ? "text-blue-100" : "text-slate-500"}`}>
-                  📅 {ev.event_date} ({ev.start_time || "09:00 AM"})
-                </span>
-              </button>
-            ))}
-          </CardContent>
-        </Card>
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 sm:gap-6">
+        {/* Sidebar Event Selector */}
+        <div className="lg:col-span-1 space-y-4">
+          <Card className="border border-slate-200/80 dark:border-slate-800 shadow-sm rounded-2xl overflow-hidden">
+            <CardHeader className="p-4 border-b">
+              <CardTitle className="text-xs sm:text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+                All Events
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-2 space-y-1 max-h-[300px] lg:max-h-[500px] overflow-y-auto">
+              {events.map((e) => (
+                <button
+                  key={e.id}
+                  onClick={() => setSelectedEventId(e.id)}
+                  className={`w-full text-left px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl transition-all flex items-center justify-between ${
+                    selectedEventId === e.id
+                      ? "bg-blue-600 text-white font-semibold shadow-sm"
+                      : "hover:bg-muted/80 text-foreground"
+                  }`}
+                >
+                  <div className="min-w-0 pr-2">
+                    <div className="text-xs sm:text-sm font-bold truncate">{e.title}</div>
+                    <div className={`text-[10px] sm:text-xs ${selectedEventId === e.id ? "text-blue-100" : "text-muted-foreground"}`}>
+                      {e.event_date}
+                    </div>
+                  </div>
+                  <ChevronRight className="h-4 w-4 opacity-70 shrink-0" />
+                </button>
+              ))}
+            </CardContent>
+          </Card>
+        </div>
 
-        {/* Detailed Center Card */}
+        {/* Selected Event Details Container */}
         <div className="lg:col-span-3 space-y-6">
           {selectedEvent ? (
             <div className="space-y-6">
-              <Card className="relative overflow-hidden border border-slate-200/80 dark:border-slate-800 shadow-sm bg-white dark:bg-slate-900">
+              <Card className="relative overflow-hidden border border-slate-200/80 dark:border-slate-800 shadow-sm bg-white dark:bg-slate-900 rounded-2xl sm:rounded-3xl">
                 {selectedEvent.cover_image_url && (
-                  <div className="h-48 w-full overflow-hidden relative">
+                  <div className="h-36 sm:h-48 w-full overflow-hidden relative">
                     <img
                       src={selectedEvent.cover_image_url}
                       alt={selectedEvent.title}
                       className="w-full h-full object-cover"
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-slate-900/80 to-transparent" />
-                    <div className="absolute bottom-4 left-6 text-white">
-                      <Badge className="capitalize mb-1 bg-blue-600">{selectedEvent.event_type} event</Badge>
-                      <h2 className="text-2xl font-bold">{selectedEvent.title}</h2>
+                    <div className="absolute bottom-3 sm:bottom-4 left-4 sm:left-6 text-white pr-4">
+                      <Badge className="capitalize mb-1 bg-blue-600 text-[10px]">{selectedEvent.event_type} event</Badge>
+                      <h2 className="text-lg sm:text-2xl font-bold truncate">{selectedEvent.title}</h2>
                     </div>
                   </div>
                 )}
                 
-                <CardContent className="p-6 space-y-4">
-                  <div className="flex flex-wrap gap-4 text-xs font-semibold text-slate-600 dark:text-slate-400">
-                    <span className="flex items-center gap-1.5"><Clock className="h-4 w-4 text-blue-600" /> Date: {selectedEvent.event_date} ({selectedEvent.start_time} - {selectedEvent.end_time})</span>
-                    <span className="flex items-center gap-1.5"><MapPin className="h-4 w-4 text-rose-600" /> Location: {selectedEvent.location || "Campus Hall"}</span>
-                    <span className="flex items-center gap-1.5"><Users className="h-4 w-4 text-emerald-600" /> Audience: {selectedEvent.audience.toUpperCase()}</span>
+                <CardContent className="p-4 sm:p-6 space-y-4">
+                  <div className="flex flex-wrap gap-3 sm:gap-4 text-[10px] sm:text-xs font-semibold text-slate-600 dark:text-slate-400">
+                    <span className="flex items-center gap-1.5"><Clock className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-blue-600" /> Date: {selectedEvent.event_date} ({selectedEvent.start_time} - {selectedEvent.end_time})</span>
+                    <span className="flex items-center gap-1.5"><MapPin className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-rose-600" /> Location: {selectedEvent.location || "Campus Hall"}</span>
+                    <span className="flex items-center gap-1.5"><Users className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-emerald-600" /> Audience: {selectedEvent.audience.toUpperCase()}</span>
                   </div>
 
-                  <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
+                  <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
                     {selectedEvent.description || "No full event description provided."}
                   </p>
                 </CardContent>
@@ -431,17 +431,19 @@ export default function EventsModule() {
 
               {/* Event Modules Tabs */}
               <Tabs defaultValue="gallery" className="space-y-4">
-                <TabsList className="bg-muted p-1 rounded-xl">
-                  <TabsTrigger value="gallery" className="gap-2 rounded-lg font-semibold">
-                    <Camera className="h-4 w-4 text-blue-600" /> Photo Gallery ({photos.length})
-                  </TabsTrigger>
-                  <TabsTrigger value="scorecard" className="gap-2 rounded-lg font-semibold">
-                    <Award className="h-4 w-4 text-amber-600" /> Sports Leaderboard ({scores.length})
-                  </TabsTrigger>
-                  <TabsTrigger value="planning" className="gap-2 rounded-lg font-semibold">
-                    <ListTodo className="h-4 w-4 text-emerald-600" /> Planning Tasks ({tasks.length})
-                  </TabsTrigger>
-                </TabsList>
+                <div className="overflow-x-auto no-scrollbar -mx-1 px-1">
+                  <TabsList className="inline-flex w-max min-w-full sm:w-auto p-1 rounded-xl bg-muted">
+                    <TabsTrigger value="gallery" className="gap-1.5 rounded-lg text-xs font-semibold whitespace-nowrap">
+                      <Camera className="h-3.5 w-3.5 text-blue-600" /> Photo Gallery ({photos.length})
+                    </TabsTrigger>
+                    <TabsTrigger value="scorecard" className="gap-1.5 rounded-lg text-xs font-semibold whitespace-nowrap">
+                      <Award className="h-3.5 w-3.5 text-amber-600" /> Sports Leaderboard ({scores.length})
+                    </TabsTrigger>
+                    <TabsTrigger value="planning" className="gap-1.5 rounded-lg text-xs font-semibold whitespace-nowrap">
+                      <ListTodo className="h-3.5 w-3.5 text-emerald-600" /> Planning Tasks ({tasks.length})
+                    </TabsTrigger>
+                  </TabsList>
+                </div>
 
                 {/* Gallery Tab */}
                 <TabsContent value="gallery" className="space-y-4">

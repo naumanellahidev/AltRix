@@ -245,7 +245,7 @@ export function MarketingHomeModule() {
                 <Plus className="h-4 w-4" /> Quick Add Lead
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-md">
+            <DialogContent className="max-w-md w-[calc(100%-2rem)] max-h-[90vh] overflow-y-auto p-4 sm:p-6 rounded-2xl">
               <DialogHeader>
                 <DialogTitle className="font-display text-lg">Create Admissions Lead</DialogTitle>
                 <CardDescription>Manually enter lead contact details for pipeline tracking.</CardDescription>
@@ -253,25 +253,25 @@ export function MarketingHomeModule() {
               <form onSubmit={handleAddLeadSubmit} className="space-y-4 pt-2">
                 <div className="space-y-1">
                   <label className="text-xs font-semibold">Lead Full Name *</label>
-                  <Input required value={newLeadName} onChange={e => setNewLeadName(e.target.value)} placeholder="e.g. Sarah Connor" />
+                  <Input required value={newLeadName} onChange={e => setNewLeadName(e.target.value)} placeholder="e.g. Sarah Connor" className="rounded-xl h-9 text-xs" />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                   <div className="space-y-1">
                     <label className="text-xs font-semibold">Email Address</label>
-                    <Input type="email" value={newLeadEmail} onChange={e => setNewLeadEmail(e.target.value)} placeholder="name@domain.com" />
+                    <Input type="email" value={newLeadEmail} onChange={e => setNewLeadEmail(e.target.value)} placeholder="name@domain.com" className="rounded-xl h-9 text-xs" />
                   </div>
                   <div className="space-y-1">
                     <label className="text-xs font-semibold">Phone Number</label>
-                    <Input type="tel" value={newLeadPhone} onChange={e => setNewLeadPhone(e.target.value)} placeholder="+1..." />
+                    <Input type="tel" value={newLeadPhone} onChange={e => setNewLeadPhone(e.target.value)} placeholder="+1..." className="rounded-xl h-9 text-xs" />
                   </div>
                 </div>
                 <div className="space-y-1">
                   <label className="text-xs font-semibold">Initial Notes</label>
-                  <Textarea value={newLeadNotes} onChange={e => setNewLeadNotes(e.target.value)} placeholder="Add any background info or context..." rows={3} />
+                  <Textarea value={newLeadNotes} onChange={e => setNewLeadNotes(e.target.value)} placeholder="Add any background info or context..." rows={3} className="rounded-xl text-xs" />
                 </div>
                 <div className="flex justify-end gap-2 pt-2">
-                  <Button type="button" variant="outline" onClick={() => setOpenAddDialog(false)}>Cancel</Button>
-                  <Button type="submit" disabled={busy} variant="hero">
+                  <Button type="button" variant="outline" onClick={() => setOpenAddDialog(false)} className="rounded-xl text-xs h-9">Cancel</Button>
+                  <Button type="submit" disabled={busy} variant="hero" className="rounded-xl text-xs h-9">
                     {busy ? "Saving..." : "Save Lead"}
                   </Button>
                 </div>
@@ -280,7 +280,7 @@ export function MarketingHomeModule() {
           </Dialog>
 
           {!isOffline && (
-            <Button variant="outline" size="sm" className="h-9 px-3" onClick={handleRefresh}>
+            <Button variant="outline" size="sm" className="h-9 px-3 rounded-xl" onClick={handleRefresh}>
               <RefreshCw className="h-4 w-4" />
             </Button>
           )}
@@ -288,63 +288,63 @@ export function MarketingHomeModule() {
       </div>
 
       {/* Premium KPI Cards */}
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-4">
         
         {/* Total Leads */}
-        <Card className="cursor-pointer hover:shadow-md transition-all h-full" onClick={() => navigate(`${basePath}/leads`)}>
-          <CardContent className="p-5 relative">
+        <Card className="cursor-pointer hover:shadow-md transition-all h-full rounded-2xl" onClick={() => navigate(`${basePath}/leads`)}>
+          <CardContent className="p-3.5 sm:p-5 relative">
             <div className="flex items-center justify-between">
-              <div className="p-2 rounded-xl bg-primary/10 border border-primary/20 text-primary">
-                <Users className="h-5 w-5" />
+              <div className="p-1.5 sm:p-2 rounded-xl bg-primary/10 border border-primary/20 text-primary shrink-0">
+                <Users className="h-4 w-4 sm:h-5 sm:w-5" />
               </div>
-              <Badge variant="secondary" className="text-[10px]">{metrics.openLeads} active</Badge>
+              <Badge variant="secondary" className="text-[9px] sm:text-[10px]">{metrics.openLeads} active</Badge>
             </div>
-            <p className="mt-4 font-display text-3xl font-bold tracking-tight text-foreground">{metrics.totalLeads}</p>
-            <p className="text-xs text-muted-foreground font-semibold mt-1">Total Admissions Leads</p>
+            <p className="mt-2 sm:mt-4 font-display text-xl sm:text-3xl font-bold tracking-tight text-foreground truncate">{metrics.totalLeads}</p>
+            <p className="text-[10px] sm:text-xs text-muted-foreground font-semibold mt-0.5 sm:mt-1 truncate">Total Admissions Leads</p>
           </CardContent>
         </Card>
 
         {/* Pending Follow ups */}
-        <Card className="cursor-pointer hover:shadow-md transition-all h-full" onClick={() => navigate(`${basePath}/follow-ups`)}>
-          <CardContent className="p-5 relative">
+        <Card className="cursor-pointer hover:shadow-md transition-all h-full rounded-2xl" onClick={() => navigate(`${basePath}/follow-ups`)}>
+          <CardContent className="p-3.5 sm:p-5 relative">
             <div className="flex items-center justify-between">
-              <div className="p-2 rounded-xl bg-orange-500/10 border border-orange-500/20 text-orange-500">
-                <PhoneCall className="h-5 w-5" />
+              <div className="p-1.5 sm:p-2 rounded-xl bg-orange-500/10 border border-orange-500/20 text-orange-500 shrink-0">
+                <PhoneCall className="h-4 w-4 sm:h-5 sm:w-5" />
               </div>
-              <Badge variant={metrics.needsFollowUp > 0 ? "destructive" : "secondary"} className="text-[10px]">
+              <Badge variant={metrics.needsFollowUp > 0 ? "destructive" : "secondary"} className="text-[9px] sm:text-[10px]">
                 {metrics.needsFollowUp} pending
               </Badge>
             </div>
-            <p className="mt-4 font-display text-3xl font-bold tracking-tight text-foreground">{metrics.openActivities}</p>
-            <p className="text-xs text-muted-foreground font-semibold mt-1">Scheduled Activities</p>
+            <p className="mt-2 sm:mt-4 font-display text-xl sm:text-3xl font-bold tracking-tight text-foreground truncate">{metrics.openActivities}</p>
+            <p className="text-[10px] sm:text-xs text-muted-foreground font-semibold mt-0.5 sm:mt-1 truncate">Scheduled Activities</p>
           </CardContent>
         </Card>
 
         {/* Active Campaigns */}
-        <Card className="cursor-pointer hover:shadow-md transition-all h-full" onClick={() => navigate(`${basePath}/campaigns`)}>
-          <CardContent className="p-5 relative">
+        <Card className="cursor-pointer hover:shadow-md transition-all h-full rounded-2xl" onClick={() => navigate(`${basePath}/campaigns`)}>
+          <CardContent className="p-3.5 sm:p-5 relative">
             <div className="flex items-center justify-between">
-              <div className="p-2 rounded-xl bg-sky-500/10 border border-sky-500/20 text-sky-500">
-                <Target className="h-5 w-5" />
+              <div className="p-1.5 sm:p-2 rounded-xl bg-sky-500/10 border border-sky-500/20 text-sky-500 shrink-0">
+                <Target className="h-4 w-4 sm:h-5 sm:w-5" />
               </div>
-              <Badge variant="outline" className="bg-sky-500/10 text-sky-500 border-sky-500/20 text-[10px]">active</Badge>
+              <Badge variant="outline" className="bg-sky-500/10 text-sky-500 border-sky-500/20 text-[9px] sm:text-[10px]">active</Badge>
             </div>
-            <p className="mt-4 font-display text-3xl font-bold tracking-tight text-foreground">{metrics.activeCampaigns}</p>
-            <p className="text-xs text-muted-foreground font-semibold mt-1">Marketing Campaigns</p>
+            <p className="mt-2 sm:mt-4 font-display text-xl sm:text-3xl font-bold tracking-tight text-foreground truncate">{metrics.activeCampaigns}</p>
+            <p className="text-[10px] sm:text-xs text-muted-foreground font-semibold mt-0.5 sm:mt-1 truncate">Marketing Campaigns</p>
           </CardContent>
         </Card>
 
         {/* Conversion Rate */}
-        <Card className="hover:shadow-md transition-all h-full">
-          <CardContent className="p-5 relative">
+        <Card className="hover:shadow-md transition-all h-full rounded-2xl">
+          <CardContent className="p-3.5 sm:p-5 relative">
             <div className="flex items-center justify-between">
-              <div className="p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-500">
-                <TrendingUp className="h-5 w-5" />
+              <div className="p-1.5 sm:p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 shrink-0">
+                <TrendingUp className="h-4 w-4 sm:h-5 sm:w-5" />
               </div>
-              <Badge variant="outline" className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20 text-[10px]">closed won</Badge>
+              <Badge variant="outline" className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20 text-[9px] sm:text-[10px]">closed won</Badge>
             </div>
-            <p className="mt-4 font-display text-3xl font-bold tracking-tight text-foreground">{metrics.conversionRate}%</p>
-            <p className="text-xs text-muted-foreground font-semibold mt-1">Inquiry-to-Enrollment</p>
+            <p className="mt-2 sm:mt-4 font-display text-xl sm:text-3xl font-bold tracking-tight text-foreground truncate">{metrics.conversionRate}%</p>
+            <p className="text-[10px] sm:text-xs text-muted-foreground font-semibold mt-0.5 sm:mt-1 truncate">Inquiry-to-Enrollment</p>
           </CardContent>
         </Card>
 
