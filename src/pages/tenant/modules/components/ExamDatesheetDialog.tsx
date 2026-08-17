@@ -68,17 +68,19 @@ export default function ExamDatesheetDialog({ open, onOpenChange, schoolId, exam
   const load = async () => {
     if (!open) return;
     setLoading(true);
-    const [subs, secs, ds, dir, sch] = await Promise.all([
+    const [subs, secs, ds, dir, sch, rolesRes] = await Promise.all([
       (api as any).from("subjects").select("id,name").eq("school_id", schoolId).order("name"),
       (api as any).from("class_sections").select("id,name,class_id,academic_classes(name)").eq("school_id", schoolId),
       (api as any).from("exam_subjects").select("*").eq("exam_id", examId).order("exam_date").order("start_time"),
       (api as any).rpc("get_school_user_directory", { _school_id: schoolId }),
       (api as any).from("schools").select("name").eq("id", schoolId).maybeSingle(),
+      (api as any).from("user_roles").select("user_id").eq("school_id", schoolId).not("role", "in", "(student,parent)"),
     ]);
     setSubjects(subs.data || []);
     setSections((secs.data || []).map((s: any) => ({ id: s.id, name: s.name, class_name: s.academic_classes?.name })));
     setRows(ds.data || []);
-    setStaff((dir.data || []).map((d: any) => ({ user_id: d.user_id, display_name: d.display_name })));
+    const staffIdSet = new Set((rolesRes.data || []).map((r: any) => r.user_id));
+    setStaff((dir.data || []).filter((d: any) => staffIdSet.has(d.user_id)).map((d: any) => ({ user_id: d.user_id, display_name: d.display_name })));
     setSchoolName(sch.data?.name || "");
     setLoading(false);
     loadConflicts();

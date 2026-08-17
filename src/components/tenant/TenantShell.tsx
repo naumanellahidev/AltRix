@@ -308,7 +308,7 @@ const [voiceOpen, setVoiceOpen] = useState(false);
       home,
       messages,
       { to: base("academic"), icon: GraduationCap, label: "Academic" },
-      { to: base("users"), icon: Users, label: "Staff" },
+      { to: base("users"), icon: Users, label: "Staff & Users" },
     ];
   }, [role, schoolSlug, unreadCount]);
 

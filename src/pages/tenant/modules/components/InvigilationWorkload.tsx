@@ -32,14 +32,16 @@ export default function InvigilationWorkload({ schoolId, examId, examName, onAll
     if (!schoolId || !examId) return;
     setLoading(true);
     try {
-      const [dir, ds, secs, subs] = await Promise.all([
+      const [dir, ds, secs, subs, rolesRes] = await Promise.all([
         api.rpc("get_school_user_directory", { _school_id: schoolId }),
         api.from("exam_subjects").select("*").eq("exam_id", examId),
         api.from("class_sections").select("id, name, academic_classes(name)").eq("school_id", schoolId),
         api.from("subjects").select("id, name").eq("school_id", schoolId),
+        api.from("user_roles").select("user_id").eq("school_id", schoolId).not("role", "in", "(student,parent)"),
       ]);
 
-      setStaff(dir.data || []);
+      const staffIdSet = new Set((rolesRes.data || []).map((r: any) => r.user_id));
+      setStaff((dir.data || []).filter((d: any) => staffIdSet.has(d.user_id)));
       setPapers(ds.data || []);
       setSections(secs.data || []);
       setSubjects(subs.data || []);

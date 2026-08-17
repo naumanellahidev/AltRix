@@ -51,7 +51,7 @@ export const NAV_CATALOG: NavItem[] = [
     roles: ["super_admin","school_owner","principal","vice_principal","school_admin","academic_coordinator","teacher","student","parent"] },
 
   // People
-  { key: "users", label: "Staff", icon: Users, group: "people", path: "users",
+  { key: "users", label: "Staff & Users", icon: Users, group: "people", path: "users",
     roles: ["super_admin","school_owner","principal","vice_principal","school_admin","hr_manager"] },
   { key: "staff-attendance", label: "Staff Attendance", icon: ClipboardList, group: "people", path: "staff-attendance",
     roles: ["super_admin","school_owner","principal","vice_principal","school_admin","hr_manager"] },

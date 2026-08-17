@@ -67,7 +67,7 @@ export function HrShell({ title, subtitle, schoolSlug, children }: Props) {
   const bottomNavItems = [
     { to: basePath, icon: LayoutGrid, label: "Home", end: true },
     { to: `${basePath}/messages`, icon: MessageSquare, label: "Messages", badge: unreadCount },
-    { to: `${basePath}/users`, icon: UsersIcon, label: "Staff" },
+    { to: `${basePath}/users`, icon: UsersIcon, label: "Staff & Users" },
     { to: `${basePath}/leaves`, icon: Calendar, label: "Leaves" },
   ];
 
