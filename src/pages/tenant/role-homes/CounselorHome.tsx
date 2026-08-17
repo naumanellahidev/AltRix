@@ -122,29 +122,29 @@ export function CounselorHome() {
   }, [data]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Hero */}
-      <div className="rounded-2xl border border-primary/15 bg-gradient-to-br from-primary/10 via-accent/30 to-transparent p-5">
-        <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="rounded-2xl border border-primary/15 bg-gradient-to-br from-primary/10 via-accent/30 to-transparent p-3.5 sm:p-5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <p className="font-display text-xl font-semibold tracking-tight">Counselor workspace</p>
-            <p className="mt-1 text-sm text-muted-foreground">
+            <p className="font-display text-lg sm:text-xl font-semibold tracking-tight">Counselor workspace</p>
+            <p className="mt-0.5 sm:mt-1 text-xs sm:text-sm text-muted-foreground">
               Triage cases, track sessions, and watch the early-warning signals that matter most.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button onClick={() => navigate(`${base}/counseling`)}>
-              <Heart className="mr-1.5 h-4 w-4" /> Open Counseling Center
+            <Button size="sm" onClick={() => navigate(`${base}/counseling`)} className="rounded-xl text-xs">
+              <Heart className="mr-1.5 h-3.5 w-3.5" /> Counseling Center
             </Button>
-            <Button variant="outline" onClick={() => navigate(`${base}/at-risk`)}>
-              <AlertTriangle className="mr-1.5 h-4 w-4" /> At-risk students
+            <Button size="sm" variant="outline" onClick={() => navigate(`${base}/at-risk`)} className="rounded-xl text-xs">
+              <AlertTriangle className="mr-1.5 h-3.5 w-3.5" /> At-risk students
             </Button>
           </div>
         </div>
       </div>
 
       {/* KPIs */}
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2.5 sm:gap-4 md:grid-cols-4">
         <Kpi icon={Heart} label="Open cases" value={kpis.open} tint="text-primary" loading={isLoading} />
         <Kpi icon={AlertTriangle} label="Urgent" value={kpis.urgent} tint="text-destructive" loading={isLoading} />
         <Kpi icon={CalendarDays} label="Sessions this week" value={kpis.thisWeek} tint="text-blue-600" loading={isLoading} />

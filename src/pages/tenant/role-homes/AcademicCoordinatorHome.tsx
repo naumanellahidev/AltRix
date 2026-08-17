@@ -126,32 +126,32 @@ export function AcademicCoordinatorHome() {
   }, [data]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Hero */}
-      <div className="rounded-2xl border border-primary/15 bg-gradient-to-br from-primary/10 via-accent/30 to-transparent p-5">
-        <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="rounded-2xl border border-primary/15 bg-gradient-to-br from-primary/10 via-accent/30 to-transparent p-3.5 sm:p-5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <p className="font-display text-xl font-semibold tracking-tight">Academic coordination</p>
-            <p className="mt-1 text-sm text-muted-foreground">
+            <p className="font-display text-lg sm:text-xl font-semibold tracking-tight">Academic coordination</p>
+            <p className="mt-0.5 sm:mt-1 text-xs sm:text-sm text-muted-foreground">
               {format(today, "EEEE, MMM d")} · Today's classes, attendance, exams and academic signals.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button onClick={() => navigate(`${base}/timetable`)}>
-              <CalendarDays className="mr-1.5 h-4 w-4" /> Open timetable
+            <Button size="sm" onClick={() => navigate(`${base}/timetable`)} className="rounded-xl text-xs">
+              <CalendarDays className="mr-1.5 h-3.5 w-3.5" /> Timetable
             </Button>
-            <Button variant="outline" onClick={() => navigate(`${base}/exams`)}>
-              <FileSpreadsheet className="mr-1.5 h-4 w-4" /> Exams
+            <Button size="sm" variant="outline" onClick={() => navigate(`${base}/exams`)} className="rounded-xl text-xs">
+              <FileSpreadsheet className="mr-1.5 h-3.5 w-3.5" /> Exams
             </Button>
-            <Button variant="outline" onClick={() => navigate(`${base}/attendance`)}>
-              <ClipboardCheck className="mr-1.5 h-4 w-4" /> Attendance
+            <Button size="sm" variant="outline" onClick={() => navigate(`${base}/attendance`)} className="rounded-xl text-xs">
+              <ClipboardCheck className="mr-1.5 h-3.5 w-3.5" /> Attendance
             </Button>
           </div>
         </div>
       </div>
 
       {/* KPIs */}
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2.5 sm:gap-4 md:grid-cols-4">
         <Kpi icon={Users} label="Active students" value={data?.counts.students ?? 0} tint="text-primary"
              loading={isLoading} onClick={() => navigate(`${base}/students`)} />
         <Kpi icon={School} label="Classes" value={data?.counts.classes ?? 0} tint="text-blue-600"

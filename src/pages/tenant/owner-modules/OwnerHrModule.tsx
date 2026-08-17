@@ -276,38 +276,40 @@ export function OwnerHrModule({ schoolId }: Props) {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
+    <div className="space-y-4 sm:space-y-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-border/40 pb-4">
         <div>
-          <h1 className="font-display text-2xl font-bold tracking-tight">HR & Culture</h1>
-          <p className="text-muted-foreground">
+          <h1 className="font-display text-xl sm:text-2xl lg:text-3xl font-bold tracking-tight">HR & Culture</h1>
+          <p className="text-xs sm:text-sm text-muted-foreground mt-1">
             Staff, payroll, leaves, contracts and performance reviews
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={exportLeavesCSV}>
+        <Button variant="outline" size="sm" onClick={exportLeavesCSV} className="rounded-xl text-xs w-full sm:w-auto justify-center">
           <Download className="mr-2 h-4 w-4" /> Export leaves
         </Button>
       </div>
 
       {/* KPIs */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-        <Card><CardContent className="p-4"><Users className="h-5 w-5 text-primary" /><p className="mt-2 font-display text-2xl font-bold">{hrData?.totalStaff || 0}</p><p className="text-xs text-muted-foreground">Total Staff</p></CardContent></Card>
-        <Card><CardContent className="p-4"><UserCheck className="h-5 w-5 text-emerald-600" /><p className="mt-2 font-display text-2xl font-bold">{hrData?.activeStaff || 0}</p><p className="text-xs text-muted-foreground">Active Staff</p></CardContent></Card>
-        <Card><CardContent className="p-4"><Briefcase className="h-5 w-5 text-blue-600" /><p className="mt-2 font-display text-2xl font-bold">{hrData?.teachers || 0}</p><p className="text-xs text-muted-foreground">Teachers</p></CardContent></Card>
-        <Card><CardContent className="p-4"><Wallet className="h-5 w-5 text-purple-600" /><p className="mt-2 font-display text-2xl font-bold">{formatCurrency(hrData?.totalSalaryBill || 0)}</p><p className="text-xs text-muted-foreground">Monthly Payroll</p></CardContent></Card>
-        <Card><CardContent className="p-4"><Heart className="h-5 w-5 text-pink-600" /><Badge variant={(hrData?.engagementScore || 0) >= 80 ? "default" : "destructive"} className="text-[10px]">Score</Badge><p className="mt-2 font-display text-2xl font-bold">{hrData?.engagementScore || 0}%</p><p className="text-xs text-muted-foreground">Engagement</p></CardContent></Card>
-        <Card className={hrData?.burnoutRisk === "High" ? "border-red-500/50" : ""}><CardContent className="p-4"><AlertTriangle className={`h-5 w-5 ${hrData?.burnoutRisk === "High" ? "text-red-600" : hrData?.burnoutRisk === "Medium" ? "text-amber-600" : "text-emerald-600"}`} /><p className="mt-2 font-display text-2xl font-bold">{hrData?.burnoutRisk || "Low"}</p><p className="text-xs text-muted-foreground">Burnout Risk</p></CardContent></Card>
+      <div className="grid grid-cols-2 gap-2.5 sm:gap-3 sm:grid-cols-3 lg:grid-cols-6">
+        <Card><CardContent className="p-3 sm:p-4"><Users className="h-4 w-4 sm:h-5 sm:w-5 text-primary" /><p className="mt-2 font-display text-lg sm:text-2xl font-bold truncate">{hrData?.totalStaff || 0}</p><p className="text-[10px] sm:text-xs text-muted-foreground truncate">Total Staff</p></CardContent></Card>
+        <Card><CardContent className="p-3 sm:p-4"><UserCheck className="h-4 w-4 sm:h-5 sm:w-5 text-emerald-600" /><p className="mt-2 font-display text-lg sm:text-2xl font-bold truncate">{hrData?.activeStaff || 0}</p><p className="text-[10px] sm:text-xs text-muted-foreground truncate">Active Staff</p></CardContent></Card>
+        <Card><CardContent className="p-3 sm:p-4"><Briefcase className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" /><p className="mt-2 font-display text-lg sm:text-2xl font-bold truncate">{hrData?.teachers || 0}</p><p className="text-[10px] sm:text-xs text-muted-foreground truncate">Teachers</p></CardContent></Card>
+        <Card><CardContent className="p-3 sm:p-4"><Wallet className="h-4 w-4 sm:h-5 sm:w-5 text-purple-600" /><p className="mt-2 font-display text-base sm:text-2xl font-bold truncate">{formatCurrency(hrData?.totalSalaryBill || 0)}</p><p className="text-[10px] sm:text-xs text-muted-foreground truncate">Monthly Payroll</p></CardContent></Card>
+        <Card><CardContent className="p-3 sm:p-4"><Heart className="h-4 w-4 sm:h-5 sm:w-5 text-pink-600" /><p className="mt-2 font-display text-lg sm:text-2xl font-bold truncate">{hrData?.engagementScore || 0}%</p><p className="text-[10px] sm:text-xs text-muted-foreground truncate">Engagement</p></CardContent></Card>
+        <Card className={hrData?.burnoutRisk === "High" ? "border-red-500/50" : ""}><CardContent className="p-3 sm:p-4"><AlertTriangle className={`h-4 w-4 sm:h-5 sm:w-5 ${hrData?.burnoutRisk === "High" ? "text-red-600" : hrData?.burnoutRisk === "Medium" ? "text-amber-600" : "text-emerald-600"}`} /><p className="mt-2 font-display text-lg sm:text-2xl font-bold truncate">{hrData?.burnoutRisk || "Low"}</p><p className="text-[10px] sm:text-xs text-muted-foreground truncate">Burnout Risk</p></CardContent></Card>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="flex-wrap">
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="roles">Roles</TabsTrigger>
-          <TabsTrigger value="salary">Payroll</TabsTrigger>
-          <TabsTrigger value="leaves">Leaves</TabsTrigger>
-          <TabsTrigger value="contracts">Contracts</TabsTrigger>
-          <TabsTrigger value="reviews">Reviews</TabsTrigger>
-        </TabsList>
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full space-y-4 sm:space-y-6">
+        <div className="overflow-x-auto no-scrollbar -mx-1 px-1">
+          <TabsList className="inline-flex w-max min-w-full bg-muted/60 p-1.5 rounded-2xl gap-1">
+            <TabsTrigger value="overview" className="rounded-xl py-2 px-3 sm:px-4 gap-2 text-xs sm:text-sm whitespace-nowrap">Overview</TabsTrigger>
+            <TabsTrigger value="roles" className="rounded-xl py-2 px-3 sm:px-4 gap-2 text-xs sm:text-sm whitespace-nowrap">Roles</TabsTrigger>
+            <TabsTrigger value="salary" className="rounded-xl py-2 px-3 sm:px-4 gap-2 text-xs sm:text-sm whitespace-nowrap">Payroll</TabsTrigger>
+            <TabsTrigger value="leaves" className="rounded-xl py-2 px-3 sm:px-4 gap-2 text-xs sm:text-sm whitespace-nowrap">Leaves</TabsTrigger>
+            <TabsTrigger value="contracts" className="rounded-xl py-2 px-3 sm:px-4 gap-2 text-xs sm:text-sm whitespace-nowrap">Contracts</TabsTrigger>
+            <TabsTrigger value="reviews" className="rounded-xl py-2 px-3 sm:px-4 gap-2 text-xs sm:text-sm whitespace-nowrap">Reviews</TabsTrigger>
+          </TabsList>
+        </div>
 
         <TabsContent value="overview" className="mt-6">
           <div className="grid gap-6 lg:grid-cols-2">
@@ -401,32 +403,34 @@ export function OwnerHrModule({ schoolId }: Props) {
               {(hrData?.leaves.length || 0) === 0 ? (
                 <p className="py-8 text-center text-muted-foreground">No leave requests yet.</p>
               ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Employee</TableHead>
-                      <TableHead>Start</TableHead>
-                      <TableHead>End</TableHead>
-                      <TableHead>Days</TableHead>
-                      <TableHead>Status</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {hrData?.leaves.slice(0, 30).map((l: any) => (
-                      <TableRow key={l.id}>
-                        <TableCell className="font-medium">{nameOf(l.user_id)}</TableCell>
-                        <TableCell>{l.start_date}</TableCell>
-                        <TableCell>{l.end_date}</TableCell>
-                        <TableCell>{l.days_count}</TableCell>
-                        <TableCell>
-                          <Badge variant={l.status === "approved" ? "default" : l.status === "rejected" ? "destructive" : "secondary"}>
-                            {l.status}
-                          </Badge>
-                        </TableCell>
+                <div className="w-full overflow-x-auto rounded-xl border border-muted/30">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Employee</TableHead>
+                        <TableHead>Start</TableHead>
+                        <TableHead>End</TableHead>
+                        <TableHead>Days</TableHead>
+                        <TableHead>Status</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {hrData?.leaves.slice(0, 30).map((l: any) => (
+                        <TableRow key={l.id}>
+                          <TableCell className="font-medium">{nameOf(l.user_id)}</TableCell>
+                          <TableCell>{l.start_date}</TableCell>
+                          <TableCell>{l.end_date}</TableCell>
+                          <TableCell>{l.days_count}</TableCell>
+                          <TableCell>
+                            <Badge variant={l.status === "approved" ? "default" : l.status === "rejected" ? "destructive" : "secondary"}>
+                              {l.status}
+                            </Badge>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
               )}
             </CardContent>
           </Card>
@@ -441,33 +445,35 @@ export function OwnerHrModule({ schoolId }: Props) {
               {(hrData?.contracts.length || 0) === 0 ? (
                 <p className="py-8 text-center text-muted-foreground">No contracts on file.</p>
               ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Employee</TableHead>
-                      <TableHead>Position</TableHead>
-                      <TableHead>Type</TableHead>
-                      <TableHead>Start</TableHead>
-                      <TableHead>End</TableHead>
-                      <TableHead>Status</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {hrData?.contracts.slice(0, 30).map((c: any) => {
-                      const exp = c.end_date && new Date(c.end_date).getTime() - Date.now() < 60 * 86400000;
-                      return (
-                        <TableRow key={c.id}>
-                          <TableCell className="font-medium">{nameOf(c.user_id)}</TableCell>
-                          <TableCell>{c.position || "—"}</TableCell>
-                          <TableCell>{c.contract_type || "—"}</TableCell>
-                          <TableCell>{c.start_date || "—"}</TableCell>
-                          <TableCell className={exp ? "text-amber-600 font-medium" : ""}>{c.end_date || "—"}</TableCell>
-                          <TableCell><Badge variant={c.status === "active" ? "default" : "secondary"}>{c.status || "—"}</Badge></TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
+                <div className="w-full overflow-x-auto rounded-xl border border-muted/30">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Employee</TableHead>
+                        <TableHead>Position</TableHead>
+                        <TableHead>Type</TableHead>
+                        <TableHead>Start</TableHead>
+                        <TableHead>End</TableHead>
+                        <TableHead>Status</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {hrData?.contracts.slice(0, 30).map((c: any) => {
+                        const exp = c.end_date && new Date(c.end_date).getTime() - Date.now() < 60 * 86400000;
+                        return (
+                          <TableRow key={c.id}>
+                            <TableCell className="font-medium">{nameOf(c.user_id)}</TableCell>
+                            <TableCell>{c.position || "—"}</TableCell>
+                            <TableCell>{c.contract_type || "—"}</TableCell>
+                            <TableCell>{c.start_date || "—"}</TableCell>
+                            <TableCell className={exp ? "text-amber-600 font-medium" : ""}>{c.end_date || "—"}</TableCell>
+                            <TableCell><Badge variant={c.status === "active" ? "default" : "secondary"}>{c.status || "—"}</Badge></TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
               )}
             </CardContent>
           </Card>
@@ -482,28 +488,30 @@ export function OwnerHrModule({ schoolId }: Props) {
               {(hrData?.reviews.length || 0) === 0 ? (
                 <p className="py-8 text-center text-muted-foreground">No performance reviews yet.</p>
               ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Employee</TableHead>
-                      <TableHead>Reviewer</TableHead>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Rating</TableHead>
-                      <TableHead>Status</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {hrData?.reviews.slice(0, 30).map((r: any) => (
-                      <TableRow key={r.id}>
-                        <TableCell className="font-medium">{nameOf(r.user_id)}</TableCell>
-                        <TableCell>{nameOf(r.reviewer_id)}</TableCell>
-                        <TableCell>{r.review_date || "—"}</TableCell>
-                        <TableCell className="flex items-center gap-1"><Star className="h-3.5 w-3.5 text-amber-500" />{Number(r.rating || 0).toFixed(1)}</TableCell>
-                        <TableCell><Badge variant="secondary">{r.status || "—"}</Badge></TableCell>
+                <div className="w-full overflow-x-auto rounded-xl border border-muted/30">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Employee</TableHead>
+                        <TableHead>Reviewer</TableHead>
+                        <TableHead>Date</TableHead>
+                        <TableHead>Rating</TableHead>
+                        <TableHead>Status</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {hrData?.reviews.slice(0, 30).map((r: any) => (
+                        <TableRow key={r.id}>
+                          <TableCell className="font-medium">{nameOf(r.user_id)}</TableCell>
+                          <TableCell>{nameOf(r.reviewer_id)}</TableCell>
+                          <TableCell>{r.review_date || "—"}</TableCell>
+                          <TableCell className="flex items-center gap-1"><Star className="h-3.5 w-3.5 text-amber-500" />{Number(r.rating || 0).toFixed(1)}</TableCell>
+                          <TableCell><Badge variant="secondary">{r.status || "—"}</Badge></TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
               )}
             </CardContent>
           </Card>

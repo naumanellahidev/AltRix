@@ -114,39 +114,41 @@ export function OwnerWellbeingModule({ schoolId }: Props) {
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="font-display text-2xl font-bold tracking-tight">Student Wellbeing & Safety</h1>
-        <p className="text-muted-foreground">
+    <div className="space-y-4 sm:space-y-6">
+      <div className="border-b border-border/40 pb-4">
+        <h1 className="font-display text-xl sm:text-2xl lg:text-3xl font-bold tracking-tight">Student Wellbeing & Safety</h1>
+        <p className="text-xs sm:text-sm text-muted-foreground mt-1">
           Welfare tracking, behavior analytics and complaint monitoring{activeCampusId ? " (campus-scoped)" : ""}
         </p>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Card><CardContent className="p-4"><HeartPulse className="h-5 w-5 text-pink-600" /><p className="mt-2 font-display text-2xl font-bold">{data?.wellbeing ?? "—"}</p><p className="text-xs text-muted-foreground">Overall Wellbeing</p></CardContent></Card>
-        <Card><CardContent className="p-4"><Users className="h-5 w-5 text-blue-600" /><p className="mt-2 font-display text-2xl font-bold">{data?.behaviorCount ?? 0}</p><p className="text-xs text-muted-foreground">Notes (90d)</p></CardContent></Card>
-        <Card><CardContent className="p-4"><AlertTriangle className="h-5 w-5 text-amber-600" /><p className="mt-2 font-display text-2xl font-bold">{data?.incidents ?? 0}</p><p className="text-xs text-muted-foreground">Incidents/Concerns</p></CardContent></Card>
-        <Card><CardContent className="p-4"><Activity className="h-5 w-5 text-emerald-600" /><p className="mt-2 font-display text-2xl font-bold">{data?.dropoutRisk ?? "Low"}</p><p className="text-xs text-muted-foreground">Dropout Risk</p></CardContent></Card>
+      <div className="grid grid-cols-2 gap-2.5 sm:gap-4 lg:grid-cols-4">
+        <Card><CardContent className="p-3 sm:p-4"><HeartPulse className="h-4 w-4 sm:h-5 sm:w-5 text-pink-600" /><p className="mt-2 font-display text-lg sm:text-2xl font-bold truncate">{data?.wellbeing ?? "—"}</p><p className="text-[10px] sm:text-xs text-muted-foreground truncate">Overall Wellbeing</p></CardContent></Card>
+        <Card><CardContent className="p-3 sm:p-4"><Users className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" /><p className="mt-2 font-display text-lg sm:text-2xl font-bold truncate">{data?.behaviorCount ?? 0}</p><p className="text-[10px] sm:text-xs text-muted-foreground truncate">Notes (90d)</p></CardContent></Card>
+        <Card><CardContent className="p-3 sm:p-4"><AlertTriangle className="h-4 w-4 sm:h-5 sm:w-5 text-amber-600" /><p className="mt-2 font-display text-lg sm:text-2xl font-bold truncate">{data?.incidents ?? 0}</p><p className="text-[10px] sm:text-xs text-muted-foreground truncate">Incidents/Concerns</p></CardContent></Card>
+        <Card><CardContent className="p-3 sm:p-4"><Activity className="h-4 w-4 sm:h-5 sm:w-5 text-emerald-600" /><p className="mt-2 font-display text-lg sm:text-2xl font-bold truncate">{data?.dropoutRisk ?? "Low"}</p><p className="text-[10px] sm:text-xs text-muted-foreground truncate">Dropout Risk</p></CardContent></Card>
       </div>
 
-      <Tabs defaultValue="trends">
-        <TabsList>
-          <TabsTrigger value="trends">Trends</TabsTrigger>
-          <TabsTrigger value="concerned">Top Concerns</TabsTrigger>
-          <TabsTrigger value="complaints">Complaints</TabsTrigger>
-        </TabsList>
+      <Tabs defaultValue="trends" className="w-full space-y-4 sm:space-y-6">
+        <div className="overflow-x-auto no-scrollbar -mx-1 px-1">
+          <TabsList className="inline-flex w-max min-w-full bg-muted/60 p-1.5 rounded-2xl gap-1">
+            <TabsTrigger value="trends" className="rounded-xl py-2 px-3 sm:px-4 gap-2 text-xs sm:text-sm whitespace-nowrap">Trends</TabsTrigger>
+            <TabsTrigger value="concerned" className="rounded-xl py-2 px-3 sm:px-4 gap-2 text-xs sm:text-sm whitespace-nowrap">Top Concerns</TabsTrigger>
+            <TabsTrigger value="complaints" className="rounded-xl py-2 px-3 sm:px-4 gap-2 text-xs sm:text-sm whitespace-nowrap">Complaints</TabsTrigger>
+          </TabsList>
+        </div>
 
         <TabsContent value="trends" className="mt-6">
-          <div className="grid gap-6 lg:grid-cols-2">
+          <div className="grid gap-4 sm:gap-6 lg:grid-cols-2">
             <Card>
-              <CardHeader><CardTitle className="text-base">Incidents (30 days)</CardTitle></CardHeader>
-              <CardContent>
-                <div className="h-[280px]">
+              <CardHeader className="p-4 sm:p-6 pb-2"><CardTitle className="text-sm sm:text-base">Incidents (30 days)</CardTitle></CardHeader>
+              <CardContent className="p-3 sm:p-6 pt-0">
+                <div className="h-[250px] sm:h-[280px]">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={data?.trend || []}>
                       <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
                       <XAxis dataKey="day" fontSize={10} interval={3} />
-                      <YAxis allowDecimals={false} />
+                      <YAxis allowDecimals={false} fontSize={10} />
                       <Tooltip />
                       <Bar dataKey="incidents" fill="hsl(var(--destructive))" radius={[4, 4, 0, 0]} />
                     </BarChart>
@@ -155,9 +157,9 @@ export function OwnerWellbeingModule({ schoolId }: Props) {
               </CardContent>
             </Card>
             <Card>
-              <CardHeader><CardTitle className="text-base">Behavior note types</CardTitle></CardHeader>
-              <CardContent>
-                <div className="h-[280px]">
+              <CardHeader className="p-4 sm:p-6 pb-2"><CardTitle className="text-sm sm:text-base">Behavior note types</CardTitle></CardHeader>
+              <CardContent className="p-3 sm:p-6 pt-0">
+                <div className="h-[250px] sm:h-[280px]">
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                       <Pie data={data?.typeBreakdown || []} dataKey="value" cx="50%" cy="50%" innerRadius={50} outerRadius={95} paddingAngle={2} label={({ name, value }) => `${name}: ${value}`} labelLine={false}>
@@ -174,61 +176,65 @@ export function OwnerWellbeingModule({ schoolId }: Props) {
 
         <TabsContent value="concerned" className="mt-6">
           <Card>
-            <CardHeader><CardTitle className="text-base">Students with most concerns/incidents (90d)</CardTitle></CardHeader>
-            <CardContent>
+            <CardHeader className="p-4 sm:p-6 pb-2"><CardTitle className="text-sm sm:text-base">Students with most concerns/incidents (90d)</CardTitle></CardHeader>
+            <CardContent className="p-3 sm:p-6 pt-0">
               {(data?.topConcerned.length || 0) === 0 ? (
-                <p className="py-8 text-center text-muted-foreground">No concerns logged in the last 90 days.</p>
+                <p className="py-8 text-center text-muted-foreground text-xs sm:text-sm">No concerns logged in the last 90 days.</p>
               ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow><TableHead>Student</TableHead><TableHead className="text-right">Notes</TableHead></TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {data?.topConcerned.map((s: any, i: number) => (
-                      <TableRow key={i}>
-                        <TableCell className="font-medium">{s.name}</TableCell>
-                        <TableCell className="text-right"><Badge variant={s.count >= 3 ? "destructive" : "secondary"}>{s.count}</Badge></TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                <div className="w-full overflow-x-auto rounded-xl border border-muted/30">
+                  <Table>
+                    <TableHeader>
+                      <TableRow><TableHead>Student</TableHead><TableHead className="text-right">Notes</TableHead></TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {data?.topConcerned.map((s: any, i: number) => (
+                        <TableRow key={i}>
+                          <TableCell className="font-medium text-xs sm:text-sm">{s.name}</TableCell>
+                          <TableCell className="text-right"><Badge variant={s.count >= 3 ? "destructive" : "secondary"} className="text-[10px]">{s.count}</Badge></TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
               )}
             </CardContent>
           </Card>
         </TabsContent>
 
         <TabsContent value="complaints" className="mt-6 space-y-4">
-          <div className="grid gap-4 sm:grid-cols-3">
-            <Card><CardContent className="p-4"><MessageSquare className="h-5 w-5 text-primary" /><p className="mt-2 font-display text-2xl font-bold">{data?.complaints.length || 0}</p><p className="text-xs text-muted-foreground">Total Complaints</p></CardContent></Card>
-            <Card><CardContent className="p-4"><AlertTriangle className="h-5 w-5 text-amber-600" /><p className="mt-2 font-display text-2xl font-bold">{data?.openComplaints || 0}</p><p className="text-xs text-muted-foreground">Open</p></CardContent></Card>
-            <Card><CardContent className="p-4"><Activity className="h-5 w-5 text-emerald-600" /><p className="mt-2 font-display text-2xl font-bold">{data?.resolutionRate || 0}%</p><p className="text-xs text-muted-foreground">Resolution Rate</p></CardContent></Card>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-4">
+            <Card><CardContent className="p-3 sm:p-4"><MessageSquare className="h-4 w-4 sm:h-5 sm:w-5 text-primary" /><p className="mt-2 font-display text-lg sm:text-2xl font-bold truncate">{data?.complaints.length || 0}</p><p className="text-[10px] sm:text-xs text-muted-foreground truncate">Total Complaints</p></CardContent></Card>
+            <Card><CardContent className="p-3 sm:p-4"><AlertTriangle className="h-4 w-4 sm:h-5 sm:w-5 text-amber-600" /><p className="mt-2 font-display text-lg sm:text-2xl font-bold truncate">{data?.openComplaints || 0}</p><p className="text-[10px] sm:text-xs text-muted-foreground truncate">Open</p></CardContent></Card>
+            <Card><CardContent className="p-3 sm:p-4"><Activity className="h-4 w-4 sm:h-5 sm:w-5 text-emerald-600" /><p className="mt-2 font-display text-lg sm:text-2xl font-bold truncate">{data?.resolutionRate || 0}%</p><p className="text-[10px] sm:text-xs text-muted-foreground truncate">Resolution Rate</p></CardContent></Card>
           </div>
           <Card>
-            <CardHeader><CardTitle className="text-base">Recent complaints</CardTitle></CardHeader>
-            <CardContent>
+            <CardHeader className="p-4 sm:p-6 pb-2"><CardTitle className="text-sm sm:text-base">Recent complaints</CardTitle></CardHeader>
+            <CardContent className="p-3 sm:p-6 pt-0">
               {(data?.complaints.length || 0) === 0 ? (
-                <p className="py-8 text-center text-muted-foreground">No complaints recorded.</p>
+                <p className="py-8 text-center text-muted-foreground text-xs sm:text-sm">No complaints recorded.</p>
               ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow><TableHead>Subject</TableHead><TableHead>Category</TableHead><TableHead>Flow</TableHead><TableHead>Status</TableHead><TableHead>Created</TableHead></TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {data?.complaints.slice(0, 20).map((c: any) => (
-                      <TableRow key={c.id}>
-                        <TableCell className="font-medium">{c.subject || "—"}</TableCell>
-                        <TableCell>{c.category || "—"}</TableCell>
-                        <TableCell className="text-xs">{c.flow || "—"}</TableCell>
-                        <TableCell>
-                          <Badge variant={c.status === "resolved" || c.status === "closed" ? "default" : "secondary"}>
-                            {c.status}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-xs text-muted-foreground">{c.created_at ? format(new Date(c.created_at), "MMM d") : "—"}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                <div className="w-full overflow-x-auto rounded-xl border border-muted/30">
+                  <Table>
+                    <TableHeader>
+                      <TableRow><TableHead>Subject</TableHead><TableHead>Category</TableHead><TableHead>Flow</TableHead><TableHead>Status</TableHead><TableHead>Created</TableHead></TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {data?.complaints.slice(0, 20).map((c: any) => (
+                        <TableRow key={c.id}>
+                          <TableCell className="font-medium text-xs sm:text-sm">{c.subject || "—"}</TableCell>
+                          <TableCell className="text-xs sm:text-sm">{c.category || "—"}</TableCell>
+                          <TableCell className="text-[10px] sm:text-xs">{c.flow || "—"}</TableCell>
+                          <TableCell>
+                            <Badge variant={c.status === "resolved" || c.status === "closed" ? "default" : "secondary"} className="text-[10px]">
+                              {c.status}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-[10px] sm:text-xs text-muted-foreground">{c.created_at ? format(new Date(c.created_at), "MMM d") : "—"}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
               )}
             </CardContent>
           </Card>

@@ -182,42 +182,42 @@ export function OwnerCampusesModule({ schoolId }: Props) {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-3">
+    <div className="space-y-4 sm:space-y-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-border/40 pb-4">
         <div>
-          <h1 className="font-display text-2xl font-bold tracking-tight">Multi-Campus View</h1>
-          <p className="text-muted-foreground">
+          <h1 className="font-display text-xl sm:text-2xl lg:text-3xl font-bold tracking-tight">Multi-Campus View</h1>
+          <p className="text-xs sm:text-sm text-muted-foreground mt-1">
             Read-only overview across all your schools and campuses. New schools and campuses can only be created by the platform super admin.
           </p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={handleExport} disabled={!campuses.length}>
-            <Download className="h-4 w-4" /> Export CSV
+        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+          <Button variant="outline" size="sm" onClick={handleExport} disabled={!campuses.length} className="rounded-xl text-xs justify-center">
+            <Download className="mr-1.5 h-4 w-4" /> Export CSV
           </Button>
-          <Button onClick={() => setRequestOpen(true)}>
-            <Send className="h-4 w-4" /> Request new campus/school
+          <Button size="sm" onClick={() => setRequestOpen(true)} className="rounded-xl text-xs justify-center">
+            <Send className="mr-1.5 h-4 w-4" /> Request new campus/school
           </Button>
         </div>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Card><CardContent className="p-4"><Building2 className="h-5 w-5 text-primary" /><p className="mt-2 font-display text-2xl font-bold">{total}</p><p className="text-xs text-muted-foreground">Total Campuses</p></CardContent></Card>
-        <Card><CardContent className="p-4"><Building2 className="h-5 w-5 text-emerald-600" /><p className="mt-2 font-display text-2xl font-bold">{active}</p><p className="text-xs text-muted-foreground">Active</p></CardContent></Card>
-        <Card><CardContent className="p-4"><GraduationCap className="h-5 w-5 text-blue-600" /><p className="mt-2 font-display text-2xl font-bold">{totalStudents}</p><p className="text-xs text-muted-foreground">Students (all campuses)</p></CardContent></Card>
-        <Card><CardContent className="p-4"><Users className="h-5 w-5 text-purple-600" /><p className="mt-2 font-display text-2xl font-bold">{totalStaff}</p><p className="text-xs text-muted-foreground">Campus-assigned Staff</p></CardContent></Card>
+      <div className="grid grid-cols-2 gap-2.5 sm:gap-4 lg:grid-cols-4">
+        <Card><CardContent className="p-3 sm:p-4"><Building2 className="h-4 w-4 sm:h-5 sm:w-5 text-primary" /><p className="mt-2 font-display text-lg sm:text-2xl font-bold truncate">{total}</p><p className="text-[10px] sm:text-xs text-muted-foreground truncate">Total Campuses</p></CardContent></Card>
+        <Card><CardContent className="p-3 sm:p-4"><Building2 className="h-4 w-4 sm:h-5 sm:w-5 text-emerald-600" /><p className="mt-2 font-display text-lg sm:text-2xl font-bold truncate">{active}</p><p className="text-[10px] sm:text-xs text-muted-foreground truncate">Active</p></CardContent></Card>
+        <Card><CardContent className="p-3 sm:p-4"><GraduationCap className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" /><p className="mt-2 font-display text-lg sm:text-2xl font-bold truncate">{totalStudents}</p><p className="text-[10px] sm:text-xs text-muted-foreground truncate">Students</p></CardContent></Card>
+        <Card><CardContent className="p-3 sm:p-4"><Users className="h-4 w-4 sm:h-5 sm:w-5 text-purple-600" /><p className="mt-2 font-display text-lg sm:text-2xl font-bold truncate">{totalStaff}</p><p className="text-[10px] sm:text-xs text-muted-foreground truncate">Assigned Staff</p></CardContent></Card>
       </div>
 
       {isLoading ? (
-        <Card><CardContent className="py-12 text-center text-muted-foreground">Loading…</CardContent></Card>
+        <Card><CardContent className="py-12 text-center text-muted-foreground text-sm">Loading…</CardContent></Card>
       ) : campuses.length === 0 ? (
-        <Card><CardContent className="py-12 text-center text-muted-foreground">No campuses configured for this school yet. Ask the platform super admin to add one.</CardContent></Card>
+        <Card><CardContent className="py-12 text-center text-muted-foreground text-sm">No campuses configured for this school yet. Ask the platform super admin to add one.</CardContent></Card>
       ) : (
-        <div className="grid gap-3 md:grid-cols-2">
+        <div className="grid gap-3 sm:gap-4 md:grid-cols-2">
           {campuses.map((c) => {
             const k = kpis[c.id] || { students: 0, staff: 0 };
             return (
               <Card key={c.id} className="overflow-hidden">
-                <CardHeader className="pb-3">
+                <CardHeader className="p-4 sm:p-5 pb-3">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <CardTitle className="text-base truncate">{c.name}</CardTitle>
@@ -235,14 +235,14 @@ export function OwnerCampusesModule({ schoolId }: Props) {
                     </Badge>
                   </div>
                 </CardHeader>
-                <CardContent className="grid grid-cols-2 gap-3 pt-0">
-                  <div className="rounded-lg bg-muted/40 p-3">
+                <CardContent className="grid grid-cols-2 gap-2.5 sm:gap-3 p-4 sm:p-5 pt-0">
+                  <div className="rounded-xl bg-muted/40 p-3">
                     <p className="text-[10px] uppercase text-muted-foreground">Students</p>
-                    <p className="font-display text-xl font-semibold">{k.students}</p>
+                    <p className="font-display text-lg sm:text-xl font-semibold">{k.students}</p>
                   </div>
-                  <div className="rounded-lg bg-muted/40 p-3">
+                  <div className="rounded-xl bg-muted/40 p-3">
                     <p className="text-[10px] uppercase text-muted-foreground">Staff</p>
-                    <p className="font-display text-xl font-semibold">{k.staff}</p>
+                    <p className="font-display text-lg sm:text-xl font-semibold">{k.staff}</p>
                   </div>
                 </CardContent>
               </Card>
@@ -252,18 +252,18 @@ export function OwnerCampusesModule({ schoolId }: Props) {
       )}
 
       <Dialog open={requestOpen} onOpenChange={setRequestOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-lg w-[calc(100%-2rem)] max-h-[90vh] overflow-y-auto p-4 sm:p-6 rounded-2xl">
           <DialogHeader>
             <DialogTitle>Request new campus or school</DialogTitle>
-            <DialogDescription>
+            <DialogDescription className="text-xs">
               Send a message to the platform super admin. They will review and follow up.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
             <div>
-              <Label>Request type</Label>
+              <Label className="text-xs">Request type</Label>
               <Select value={reqType} onValueChange={(v) => setReqType(v as any)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger className="text-xs mt-1"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="new_campus">New campus</SelectItem>
                   <SelectItem value="new_school">New school</SelectItem>
@@ -271,23 +271,24 @@ export function OwnerCampusesModule({ schoolId }: Props) {
               </Select>
             </div>
             <div>
-              <Label>Subject</Label>
-              <Input value={reqSubject} onChange={(e) => setReqSubject(e.target.value)} placeholder="e.g. Add new campus in Lahore" />
+              <Label className="text-xs">Subject</Label>
+              <Input value={reqSubject} onChange={(e) => setReqSubject(e.target.value)} placeholder="e.g. Add new campus in Lahore" className="text-xs mt-1" />
             </div>
             <div>
-              <Label>Message</Label>
+              <Label className="text-xs">Message</Label>
               <Textarea
                 value={reqMessage}
                 onChange={(e) => setReqMessage(e.target.value)}
-                rows={5}
+                rows={4}
                 placeholder="Describe the campus/school name, location, intended slug, and any other details."
+                className="text-xs mt-1"
               />
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setRequestOpen(false)} disabled={submitting}>Cancel</Button>
-            <Button onClick={submitRequest} disabled={submitting}>
-              <Send className="h-4 w-4" /> {submitting ? "Sending…" : "Send request"}
+          <DialogFooter className="flex flex-col-reverse sm:flex-row gap-2 mt-4">
+            <Button variant="outline" onClick={() => setRequestOpen(false)} disabled={submitting} className="w-full sm:w-auto text-xs">Cancel</Button>
+            <Button onClick={submitRequest} disabled={submitting} className="w-full sm:w-auto text-xs">
+              <Send className="mr-1.5 h-4 w-4" /> {submitting ? "Sending…" : "Send request"}
             </Button>
           </DialogFooter>
         </DialogContent>

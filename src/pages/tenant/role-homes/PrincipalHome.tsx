@@ -488,21 +488,21 @@ export function PrincipalHome() {
 
       <TabsContent value="overview" className="space-y-6 lg:space-y-8">
         {/* Top Overview Segment with Clean Headers and Control Dialog Triggers */}
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between bg-surface/50 border backdrop-blur-md p-5 rounded-3xl shadow-sm">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between bg-surface/50 border backdrop-blur-md p-3.5 sm:p-5 rounded-2xl sm:rounded-3xl shadow-sm">
           <div>
-            <h2 className="font-display text-xl font-bold tracking-tight text-foreground sm:text-2xl flex items-center gap-2">
-              <Activity className="h-5 w-5 text-primary animate-pulse" />
+            <h2 className="font-display text-lg sm:text-xl md:text-2xl font-bold tracking-tight text-foreground flex items-center gap-2">
+              <Activity className="h-4 w-4 sm:h-5 sm:w-5 text-primary animate-pulse" />
               <span>Operations Command</span>
             </h2>
-            <p className="text-xs text-muted-foreground sm:text-sm">Real-time overview and administrative controls for your campus.</p>
+            <p className="text-xs text-muted-foreground sm:text-sm mt-0.5">Real-time overview and administrative controls for your campus.</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             {schoolId && (
               <SendMessageDialog
                 schoolId={schoolId}
                 trigger={
-                  <Button variant="default" className="flex items-center gap-2 shadow-sm rounded-xl">
-                    <MessageSquare className="h-4 w-4" />
+                  <Button variant="default" size="sm" className="flex items-center gap-1.5 shadow-sm rounded-xl text-xs">
+                    <MessageSquare className="h-3.5 w-3.5" />
                     <span>Send Message</span>
                   </Button>
                 }
@@ -515,44 +515,44 @@ export function PrincipalHome() {
               size="icon"
               onClick={refresh}
               disabled={busy}
-              className="rounded-xl h-9 w-9 flex items-center justify-center shrink-0 border border-muted-foreground/20 hover:bg-muted/50 transition-colors"
+              className="rounded-xl h-8 w-8 sm:h-9 sm:w-9 flex items-center justify-center shrink-0 border border-muted-foreground/20 hover:bg-muted/50 transition-colors"
               title="Refresh Dashboard"
             >
-              <RefreshCw className={`h-4 w-4 ${busy ? "animate-spin" : ""}`} />
+              <RefreshCw className={`h-3.5 w-3.5 sm:h-4 sm:w-4 ${busy ? "animate-spin" : ""}`} />
             </Button>
             <AlertsSummaryBadge criticalCount={criticalCount} warningCount={warningCount} />
           </div>
         </div>
 
         {/* Upgrade the 5 Main KPI Grids with Visual Progress Metrics */}
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 sm:gap-4">
           {/* Card 1: Students */}
           <Card 
-            className="relative overflow-hidden bg-surface shadow-elevated border hover:shadow-md hover:border-primary/40 cursor-pointer transition-all duration-300 group/kpi flex flex-col justify-between"
+            className="relative overflow-hidden bg-surface shadow-elevated border hover:shadow-md hover:border-primary/40 cursor-pointer transition-all duration-300 group/kpi flex flex-col justify-between rounded-2xl"
             onClick={() => setActiveTab("students")}
           >
-            <CardContent className="p-5 flex flex-col justify-between h-full">
+            <CardContent className="p-3 sm:p-5 flex flex-col justify-between h-full">
               <div>
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-muted-foreground group-hover/kpi:text-primary transition-colors">Active Students</span>
-                  <div className="p-2 rounded-xl bg-primary/10 text-primary">
-                    <GraduationCap className="h-5 w-5" />
+                  <span className="text-xs sm:text-sm font-medium text-muted-foreground group-hover/kpi:text-primary transition-colors truncate">Active Students</span>
+                  <div className="p-1.5 sm:p-2 rounded-xl bg-primary/10 text-primary">
+                    <GraduationCap className="h-4 w-4 sm:h-5 sm:w-5" />
                   </div>
                 </div>
-                <div className="mt-4">
-                  <h3 className="text-3xl font-bold tracking-tight font-display text-foreground flex items-baseline gap-1">
+                <div className="mt-2.5 sm:mt-4">
+                  <h3 className="text-xl sm:text-3xl font-bold tracking-tight font-display text-foreground flex items-baseline gap-1">
                     <span>{kpis.students.toLocaleString()}</span>
-                    <ArrowRight className="h-4 w-4 text-primary opacity-0 -translate-x-1 group-hover/kpi:opacity-100 group-hover/kpi:translate-x-0 transition-all duration-200" />
+                    <ArrowRight className="h-3.5 w-3.5 text-primary opacity-0 -translate-x-1 group-hover/kpi:opacity-100 group-hover/kpi:translate-x-0 transition-all duration-200" />
                   </h3>
-                  <p className="mt-1 text-xs text-muted-foreground flex items-center gap-1">
+                  <p className="mt-0.5 sm:mt-1 text-[10px] sm:text-xs text-muted-foreground flex items-center gap-1">
                     <TrendingUp className="h-3 w-3 text-emerald-500" />
                     <span>Active enrollments</span>
                   </p>
                 </div>
               </div>
               
-              <div className="mt-4 space-y-3">
-                <div className="h-[45px] w-full">
+              <div className="mt-2.5 sm:mt-4 space-y-2 sm:space-y-3">
+                <div className="h-[35px] sm:h-[45px] w-full">
                   <ResponsiveContainer width="100%" height="100%">
                     <AreaChart data={studentsTrend} margin={{ top: 2, bottom: 2, left: 2, right: 2 }}>
                       <defs>
@@ -567,8 +567,8 @@ export function PrincipalHome() {
                   </ResponsiveContainer>
                 </div>
                 <div className="space-y-1">
-                  <div className="flex items-center justify-between text-[10px]">
-                    <span className="text-muted-foreground">Capacity (Target 500)</span>
+                  <div className="flex items-center justify-between text-[9px] sm:text-[10px]">
+                    <span className="text-muted-foreground">Capacity (500)</span>
                     <span className="font-semibold text-foreground">{Math.min(100, Math.round((kpis.students / 500) * 100))}%</span>
                   </div>
                   <div className="h-1 w-full bg-muted rounded-full overflow-hidden">
@@ -584,30 +584,30 @@ export function PrincipalHome() {
 
           {/* Card 2: Staff & Teachers */}
           <Card 
-            className="relative overflow-hidden bg-surface shadow-elevated border hover:shadow-md hover:border-violet-500/40 cursor-pointer transition-all duration-300 group/kpi flex flex-col justify-between"
+            className="relative overflow-hidden bg-surface shadow-elevated border hover:shadow-md hover:border-violet-500/40 cursor-pointer transition-all duration-300 group/kpi flex flex-col justify-between rounded-2xl"
             onClick={() => setActiveTab("teachers")}
           >
-            <CardContent className="p-5 flex flex-col justify-between h-full">
+            <CardContent className="p-3 sm:p-5 flex flex-col justify-between h-full">
               <div>
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-muted-foreground group-hover/kpi:text-violet-500 transition-colors">Staff & Faculty</span>
-                  <div className="p-2 rounded-xl bg-violet-500/10 text-violet-500">
-                    <Users className="h-5 w-5" />
+                  <span className="text-xs sm:text-sm font-medium text-muted-foreground group-hover/kpi:text-violet-500 transition-colors truncate">Staff & Faculty</span>
+                  <div className="p-1.5 sm:p-2 rounded-xl bg-violet-500/10 text-violet-500">
+                    <Users className="h-4 w-4 sm:h-5 sm:w-5" />
                   </div>
                 </div>
-                <div className="mt-4">
-                  <h3 className="text-3xl font-bold tracking-tight font-display text-foreground flex items-baseline gap-1">
+                <div className="mt-2.5 sm:mt-4">
+                  <h3 className="text-xl sm:text-3xl font-bold tracking-tight font-display text-foreground flex items-baseline gap-1">
                     <span>{kpis.totalStaff.toLocaleString()}</span>
-                    <ArrowRight className="h-4 w-4 text-violet-500 opacity-0 -translate-x-1 group-hover/kpi:opacity-100 group-hover/kpi:translate-x-0 transition-all duration-200" />
+                    <ArrowRight className="h-3.5 w-3.5 text-violet-500 opacity-0 -translate-x-1 group-hover/kpi:opacity-100 group-hover/kpi:translate-x-0 transition-all duration-200" />
                   </h3>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {kpis.teachers} teaching staff
+                  <p className="mt-0.5 sm:mt-1 text-[10px] sm:text-xs text-muted-foreground truncate">
+                    {kpis.teachers} teachers
                   </p>
                 </div>
               </div>
               
-              <div className="mt-4 space-y-3">
-                <div className="h-[45px] w-full">
+              <div className="mt-2.5 sm:mt-4 space-y-2 sm:space-y-3">
+                <div className="h-[35px] sm:h-[45px] w-full">
                   <ResponsiveContainer width="100%" height="100%">
                     <AreaChart data={staffTrend} margin={{ top: 2, bottom: 2, left: 2, right: 2 }}>
                       <defs>
@@ -622,7 +622,7 @@ export function PrincipalHome() {
                   </ResponsiveContainer>
                 </div>
                 <div className="space-y-1">
-                  <div className="flex items-center justify-between text-[10px]">
+                  <div className="flex items-center justify-between text-[9px] sm:text-[10px]">
                     <span className="text-muted-foreground">Faculty Ratio</span>
                     <span className="font-semibold text-foreground">{Math.round((kpis.teachers / (kpis.totalStaff || 1)) * 100)}%</span>
                   </div>
@@ -639,30 +639,30 @@ export function PrincipalHome() {
 
           {/* Card 3: Student Attendance */}
           <Card 
-            className="relative overflow-hidden bg-surface shadow-elevated border hover:shadow-md hover:border-emerald-500/40 cursor-pointer transition-all duration-300 group/kpi flex flex-col justify-between"
+            className="relative overflow-hidden bg-surface shadow-elevated border hover:shadow-md hover:border-emerald-500/40 cursor-pointer transition-all duration-300 group/kpi flex flex-col justify-between rounded-2xl"
             onClick={() => setActiveTab("students")}
           >
-            <CardContent className="p-5 flex flex-col justify-between h-full">
+            <CardContent className="p-3 sm:p-5 flex flex-col justify-between h-full">
               <div>
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-muted-foreground group-hover/kpi:text-emerald-500 transition-colors">Student Attendance</span>
-                  <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-500">
-                    <Activity className="h-5 w-5" />
+                  <span className="text-xs sm:text-sm font-medium text-muted-foreground group-hover/kpi:text-emerald-500 transition-colors truncate">Student Attendance</span>
+                  <div className="p-1.5 sm:p-2 rounded-xl bg-emerald-500/10 text-emerald-500">
+                    <Activity className="h-4 w-4 sm:h-5 sm:w-5" />
                   </div>
                 </div>
-                <div className="mt-4">
-                  <h3 className="text-3xl font-bold tracking-tight font-display text-foreground flex items-baseline gap-1">
+                <div className="mt-2.5 sm:mt-4">
+                  <h3 className="text-xl sm:text-3xl font-bold tracking-tight font-display text-foreground flex items-baseline gap-1">
                     <span>{attendanceRate}%</span>
-                    <ArrowRight className="h-4 w-4 text-emerald-500 opacity-0 -translate-x-1 group-hover/kpi:opacity-100 group-hover/kpi:translate-x-0 transition-all duration-200" />
+                    <ArrowRight className="h-3.5 w-3.5 text-emerald-500 opacity-0 -translate-x-1 group-hover/kpi:opacity-100 group-hover/kpi:translate-x-0 transition-all duration-200" />
                   </h3>
-                  <p className="mt-1 text-xs text-muted-foreground">
+                  <p className="mt-0.5 sm:mt-1 text-[10px] sm:text-xs text-muted-foreground">
                     7-day rolling average
                   </p>
                 </div>
               </div>
               
-              <div className="mt-4 space-y-3">
-                <div className="h-[45px] w-full">
+              <div className="mt-2.5 sm:mt-4 space-y-2 sm:space-y-3">
+                <div className="h-[35px] sm:h-[45px] w-full">
                   <ResponsiveContainer width="100%" height="100%">
                     <AreaChart data={attendanceTrend} margin={{ top: 2, bottom: 2, left: 2, right: 2 }}>
                       <defs>
@@ -677,7 +677,7 @@ export function PrincipalHome() {
                   </ResponsiveContainer>
                 </div>
                 <div className="space-y-1">
-                  <div className="flex items-center justify-between text-[10px]">
+                  <div className="flex items-center justify-between text-[9px] sm:text-[10px]">
                     <span className="text-muted-foreground">Target (95%)</span>
                     <span className="font-semibold text-foreground">{attendanceRate}%</span>
                   </div>
@@ -694,30 +694,30 @@ export function PrincipalHome() {
 
           {/* Card 4: Staff Attendance */}
           <Card 
-            className="relative overflow-hidden bg-surface shadow-elevated border hover:shadow-md hover:border-teal-500/40 cursor-pointer transition-all duration-300 group/kpi flex flex-col justify-between"
+            className="relative overflow-hidden bg-surface shadow-elevated border hover:shadow-md hover:border-teal-500/40 cursor-pointer transition-all duration-300 group/kpi flex flex-col justify-between rounded-2xl"
             onClick={() => setActiveTab("staff-attendance")}
           >
-            <CardContent className="p-5 flex flex-col justify-between h-full">
+            <CardContent className="p-3 sm:p-5 flex flex-col justify-between h-full">
               <div>
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-muted-foreground group-hover/kpi:text-teal-500 transition-colors">Staff Attendance</span>
-                  <div className="p-2 rounded-xl bg-teal-500/10 text-teal-500">
-                    <ClipboardList className="h-5 w-5" />
+                  <span className="text-xs sm:text-sm font-medium text-muted-foreground group-hover/kpi:text-teal-500 transition-colors truncate">Staff Attendance</span>
+                  <div className="p-1.5 sm:p-2 rounded-xl bg-teal-500/10 text-teal-500">
+                    <ClipboardList className="h-4 w-4 sm:h-5 sm:w-5" />
                   </div>
                 </div>
-                <div className="mt-4">
-                  <h3 className="text-3xl font-bold tracking-tight font-display text-foreground flex items-baseline gap-1">
+                <div className="mt-2.5 sm:mt-4">
+                  <h3 className="text-xl sm:text-3xl font-bold tracking-tight font-display text-foreground flex items-baseline gap-1">
                     <span>{staffAttendanceRate}%</span>
-                    <ArrowRight className="h-4 w-4 text-teal-500 opacity-0 -translate-x-1 group-hover/kpi:opacity-100 group-hover/kpi:translate-x-0 transition-all duration-200" />
+                    <ArrowRight className="h-3.5 w-3.5 text-teal-500 opacity-0 -translate-x-1 group-hover/kpi:opacity-100 group-hover/kpi:translate-x-0 transition-all duration-200" />
                   </h3>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    Active staff checked-in
+                  <p className="mt-0.5 sm:mt-1 text-[10px] sm:text-xs text-muted-foreground">
+                    Checked-in today
                   </p>
                 </div>
               </div>
               
-              <div className="mt-4 space-y-3">
-                <div className="h-[45px] w-full">
+              <div className="mt-2.5 sm:mt-4 space-y-2 sm:space-y-3">
+                <div className="h-[35px] sm:h-[45px] w-full">
                   <ResponsiveContainer width="100%" height="100%">
                     <AreaChart data={staffAttendanceTrend} margin={{ top: 2, bottom: 2, left: 2, right: 2 }}>
                       <defs>
@@ -732,7 +732,7 @@ export function PrincipalHome() {
                   </ResponsiveContainer>
                 </div>
                 <div className="space-y-1">
-                  <div className="flex items-center justify-between text-[10px]">
+                  <div className="flex items-center justify-between text-[9px] sm:text-[10px]">
                     <span className="text-muted-foreground">Target (95%)</span>
                     <span className="font-semibold text-foreground">{staffAttendanceRate}%</span>
                   </div>
@@ -749,30 +749,30 @@ export function PrincipalHome() {
 
           {/* Card 5: Admissions CRM */}
           <Card 
-            className="relative overflow-hidden bg-surface shadow-elevated border hover:shadow-md hover:border-blue-500/40 cursor-pointer transition-all duration-300 group/kpi flex flex-col justify-between"
+            className="relative overflow-hidden bg-surface shadow-elevated border hover:shadow-md hover:border-blue-500/40 cursor-pointer transition-all duration-300 group/kpi flex flex-col justify-between rounded-2xl col-span-2 sm:col-span-1"
             onClick={() => setActiveTab("admissions")}
           >
-            <CardContent className="p-5 flex flex-col justify-between h-full">
+            <CardContent className="p-3 sm:p-5 flex flex-col justify-between h-full">
               <div>
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-muted-foreground group-hover/kpi:text-blue-500 transition-colors">Active Leads</span>
-                  <div className="p-2 rounded-xl bg-blue-500/10 text-blue-500">
-                    <KanbanSquare className="h-5 w-5" />
+                  <span className="text-xs sm:text-sm font-medium text-muted-foreground group-hover/kpi:text-blue-500 transition-colors truncate">Active Leads</span>
+                  <div className="p-1.5 sm:p-2 rounded-xl bg-blue-500/10 text-blue-500">
+                    <KanbanSquare className="h-4 w-4 sm:h-5 sm:w-5" />
                   </div>
                 </div>
-                <div className="mt-4">
-                  <h3 className="text-3xl font-bold tracking-tight font-display text-foreground flex items-baseline gap-1">
+                <div className="mt-2.5 sm:mt-4">
+                  <h3 className="text-xl sm:text-3xl font-bold tracking-tight font-display text-foreground flex items-baseline gap-1">
                     <span>{kpis.openLeads.toLocaleString()}</span>
-                    <ArrowRight className="h-4 w-4 text-blue-500 opacity-0 -translate-x-1 group-hover/kpi:opacity-100 group-hover/kpi:translate-x-0 transition-all duration-200" />
+                    <ArrowRight className="h-3.5 w-3.5 text-blue-500 opacity-0 -translate-x-1 group-hover/kpi:opacity-100 group-hover/kpi:translate-x-0 transition-all duration-200" />
                   </h3>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {kpis.leads} total pipeline leads
+                  <p className="mt-0.5 sm:mt-1 text-[10px] sm:text-xs text-muted-foreground truncate">
+                    {kpis.leads} total leads
                   </p>
                 </div>
               </div>
               
-              <div className="mt-4 space-y-3">
-                <div className="h-[45px] w-full">
+              <div className="mt-2.5 sm:mt-4 space-y-2 sm:space-y-3">
+                <div className="h-[35px] sm:h-[45px] w-full">
                   <ResponsiveContainer width="100%" height="100%">
                     <AreaChart data={leadsTrend} margin={{ top: 2, bottom: 2, left: 2, right: 2 }}>
                       <defs>
@@ -787,8 +787,8 @@ export function PrincipalHome() {
                   </ResponsiveContainer>
                 </div>
                 <div className="space-y-1">
-                  <div className="flex items-center justify-between text-[10px]">
-                    <span className="text-muted-foreground">Active Lead Ratio</span>
+                  <div className="flex items-center justify-between text-[9px] sm:text-[10px]">
+                    <span className="text-muted-foreground">Active Ratio</span>
                     <span className="font-semibold text-foreground">{kpis.leads ? Math.round((kpis.openLeads / kpis.leads) * 100) : 0}%</span>
                   </div>
                   <div className="h-1 w-full bg-muted rounded-full overflow-hidden">

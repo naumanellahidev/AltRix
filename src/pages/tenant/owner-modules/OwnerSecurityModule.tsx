@@ -120,68 +120,68 @@ export function OwnerSecurityModule({ schoolId }: Props) {
   const statusColor = score >= 80 ? "text-emerald-600" : score >= 60 ? "text-amber-600" : "text-red-600";
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="font-display text-2xl font-bold tracking-tight">System & Security</h1>
-        <p className="text-muted-foreground">Access posture, accounts, and active warnings</p>
+    <div className="space-y-4 sm:space-y-6">
+      <div className="border-b border-border/40 pb-4">
+        <h1 className="font-display text-xl sm:text-2xl lg:text-3xl font-bold tracking-tight">System & Security</h1>
+        <p className="text-xs sm:text-sm text-muted-foreground mt-1">Access posture, accounts, and active warnings</p>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2.5 sm:gap-4 lg:grid-cols-4">
         <Card>
-          <CardContent className="p-4">
-            <Shield className={`h-5 w-5 ${statusColor}`} />
-            <p className={`mt-2 font-display text-2xl font-bold ${statusColor}`}>{status}</p>
-            <p className="text-xs text-muted-foreground">System Status • {score}/100</p>
+          <CardContent className="p-3 sm:p-4">
+            <Shield className={`h-4 w-4 sm:h-5 sm:w-5 ${statusColor}`} />
+            <p className={`mt-2 font-display text-lg sm:text-2xl font-bold truncate ${statusColor}`}>{status}</p>
+            <p className="text-[10px] sm:text-xs text-muted-foreground truncate">{score}/100 Score</p>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-4">
-            <AlertTriangle className="h-5 w-5 text-amber-600" />
-            <p className="mt-2 font-display text-2xl font-bold">{summary.activeWarnings}</p>
-            <p className="text-xs text-muted-foreground">Active Warnings</p>
+          <CardContent className="p-3 sm:p-4">
+            <AlertTriangle className="h-4 w-4 sm:h-5 sm:w-5 text-amber-600" />
+            <p className="mt-2 font-display text-lg sm:text-2xl font-bold truncate">{summary.activeWarnings}</p>
+            <p className="text-[10px] sm:text-xs text-muted-foreground truncate">Active Warnings</p>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-4">
-            <Users className="h-5 w-5 text-blue-600" />
-            <p className="mt-2 font-display text-2xl font-bold">{summary.totalMembers}</p>
-            <p className="text-xs text-muted-foreground">Institute Members</p>
+          <CardContent className="p-3 sm:p-4">
+            <Users className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
+            <p className="mt-2 font-display text-lg sm:text-2xl font-bold truncate">{summary.totalMembers}</p>
+            <p className="text-[10px] sm:text-xs text-muted-foreground truncate">Members</p>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-4">
-            <Lock className="h-5 w-5 text-primary" />
-            <p className="mt-2 font-display text-2xl font-bold">{summary.privilegedCount}</p>
-            <p className="text-xs text-muted-foreground">Privileged Accounts</p>
+          <CardContent className="p-3 sm:p-4">
+            <Lock className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
+            <p className="mt-2 font-display text-lg sm:text-2xl font-bold truncate">{summary.privilegedCount}</p>
+            <p className="text-[10px] sm:text-xs text-muted-foreground truncate">Privileged Accounts</p>
           </CardContent>
         </Card>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
-          <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">
+          <CardHeader className="p-4 sm:p-6 pb-2 sm:pb-3">
+            <CardTitle className="text-sm sm:text-base flex items-center gap-2">
               <Activity className="h-4 w-4" /> Security Posture Checks
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-2">
+          <CardContent className="p-3 sm:p-6 pt-0 space-y-2">
             {securityChecks.map((c) => (
               <div
                 key={c.label}
-                className="flex items-center justify-between rounded-lg border bg-card/40 p-3"
+                className="flex items-center justify-between rounded-xl border bg-card/40 p-2.5 sm:p-3 gap-2"
               >
-                <div className="flex items-center gap-3 min-w-0">
+                <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
                   {c.ok ? (
                     <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
                   ) : (
                     <XCircle className="h-4 w-4 text-red-600 shrink-0" />
                   )}
                   <div className="min-w-0">
-                    <p className="text-sm font-medium truncate">{c.label}</p>
-                    <p className="text-xs text-muted-foreground truncate">{c.detail}</p>
+                    <p className="text-xs sm:text-sm font-medium truncate">{c.label}</p>
+                    <p className="text-[10px] sm:text-xs text-muted-foreground truncate">{c.detail}</p>
                   </div>
                 </div>
-                <Badge variant={c.ok ? "default" : "destructive"} className="h-5 text-[10px]">
+                <Badge variant={c.ok ? "default" : "destructive"} className="h-5 text-[10px] shrink-0">
                   {c.ok ? "OK" : "Fix"}
                 </Badge>
               </div>
@@ -190,19 +190,19 @@ export function OwnerSecurityModule({ schoolId }: Props) {
         </Card>
 
         <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Role Distribution</CardTitle>
+          <CardHeader className="p-4 sm:p-6 pb-2 sm:pb-3">
+            <CardTitle className="text-sm sm:text-base">Role Distribution</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-2">
+          <CardContent className="p-3 sm:p-6 pt-0 space-y-2">
             {Object.keys(summary.roleCounts).length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-6">No roles assigned.</p>
+              <p className="text-xs sm:text-sm text-muted-foreground text-center py-6">No roles assigned.</p>
             ) : (
               Object.entries(summary.roleCounts)
                 .sort((a, b) => b[1] - a[1])
                 .map(([role, count]) => (
-                  <div key={role} className="flex items-center justify-between text-sm">
+                  <div key={role} className="flex items-center justify-between text-xs sm:text-sm py-0.5">
                     <span className="capitalize">{role.replace(/_/g, " ")}</span>
-                    <Badge variant="outline">{count}</Badge>
+                    <Badge variant="outline" className="text-[10px]">{count}</Badge>
                   </div>
                 ))
             )}
@@ -215,14 +215,14 @@ export function OwnerSecurityModule({ schoolId }: Props) {
       </div>
 
       <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Recent System Warnings</CardTitle>
+        <CardHeader className="p-4 sm:p-6 pb-2 sm:pb-3">
+          <CardTitle className="text-sm sm:text-base">Recent System Warnings</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-3 sm:p-6 pt-0">
           {isLoading ? (
-            <p className="text-sm text-muted-foreground text-center py-6">Loading…</p>
+            <p className="text-xs sm:text-sm text-muted-foreground text-center py-6">Loading…</p>
           ) : summary.warnings.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-6">
+            <p className="text-xs sm:text-sm text-muted-foreground text-center py-6">
               No warnings recorded. AI early-warning system has not flagged any issues.
             </p>
           ) : (
@@ -230,13 +230,13 @@ export function OwnerSecurityModule({ schoolId }: Props) {
               {summary.warnings.slice(0, 10).map((w: any) => (
                 <div
                   key={w.id}
-                  className="flex items-start justify-between gap-3 rounded-lg border bg-card/40 p-3"
+                  className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-xl border bg-card/40 p-2.5 sm:p-3"
                 >
                   <div className="min-w-0">
-                    <p className="text-sm font-medium truncate">
+                    <p className="text-xs sm:text-sm font-medium truncate">
                       {w.title || w.warning_type || "Warning"}
                     </p>
-                    <p className="text-xs text-muted-foreground">
+                    <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5">
                       {format(new Date(w.created_at), "MMM d, yyyy")} • {w.status}
                     </p>
                   </div>
@@ -248,7 +248,7 @@ export function OwnerSecurityModule({ schoolId }: Props) {
                           ? "secondary"
                           : "outline"
                     }
-                    className="h-5 text-[10px] shrink-0"
+                    className="h-5 text-[10px] self-start sm:self-auto shrink-0"
                   >
                     {w.severity || "info"}
                   </Badge>

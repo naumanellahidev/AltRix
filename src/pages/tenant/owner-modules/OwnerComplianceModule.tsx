@@ -116,25 +116,27 @@ export function OwnerComplianceModule({ schoolId }: Props) {
   const scoreColor = score >= 90 ? "text-emerald-600" : score >= 70 ? "text-amber-600" : "text-red-600";
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="font-display text-2xl font-bold tracking-tight">Compliance & Governance</h1>
-        <p className="text-muted-foreground">Policy compliance, contracts and document audits{activeCampusId ? " (campus-scoped)" : ""}</p>
+    <div className="space-y-4 sm:space-y-6">
+      <div className="border-b border-border/40 pb-4">
+        <h1 className="font-display text-xl sm:text-2xl lg:text-3xl font-bold tracking-tight">Compliance & Governance</h1>
+        <p className="text-xs sm:text-sm text-muted-foreground mt-1">Policy compliance, contracts and document audits{activeCampusId ? " (campus-scoped)" : ""}</p>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Card><CardContent className="p-4"><Scale className="h-5 w-5 text-primary" /><p className="mt-2 font-display text-2xl font-bold">{data?.isActive ? "Active" : "Inactive"}</p><p className="text-xs text-muted-foreground">Institute Status</p></CardContent></Card>
-        <Card><CardContent className="p-4"><Shield className="h-5 w-5 text-emerald-600" /><p className={`mt-2 font-display text-2xl font-bold ${scoreColor}`}>{score}%</p><p className="text-xs text-muted-foreground">Compliance Score</p></CardContent></Card>
-        <Card><CardContent className="p-4"><FileWarning className="h-5 w-5 text-amber-600" /><p className="mt-2 font-display text-2xl font-bold">{data?.expiring.length ?? 0}</p><p className="text-xs text-muted-foreground">Expiring Contracts (60d)</p></CardContent></Card>
-        <Card><CardContent className="p-4"><AlertTriangle className="h-5 w-5 text-red-600" /><p className="mt-2 font-display text-2xl font-bold">{(data?.missingContract.length ?? 0) + (data?.missingDocs.length ?? 0)}</p><p className="text-xs text-muted-foreground">Open Audit Items</p></CardContent></Card>
+      <div className="grid grid-cols-2 gap-2.5 sm:gap-4 lg:grid-cols-4">
+        <Card><CardContent className="p-3 sm:p-4"><Scale className="h-4 w-4 sm:h-5 sm:w-5 text-primary" /><p className="mt-2 font-display text-lg sm:text-2xl font-bold truncate">{data?.isActive ? "Active" : "Inactive"}</p><p className="text-[10px] sm:text-xs text-muted-foreground truncate">Institute Status</p></CardContent></Card>
+        <Card><CardContent className="p-3 sm:p-4"><Shield className="h-4 w-4 sm:h-5 sm:w-5 text-emerald-600" /><p className={`mt-2 font-display text-lg sm:text-2xl font-bold truncate ${scoreColor}`}>{score}%</p><p className="text-[10px] sm:text-xs text-muted-foreground truncate">Compliance Score</p></CardContent></Card>
+        <Card><CardContent className="p-3 sm:p-4"><FileWarning className="h-4 w-4 sm:h-5 sm:w-5 text-amber-600" /><p className="mt-2 font-display text-lg sm:text-2xl font-bold truncate">{data?.expiring.length ?? 0}</p><p className="text-[10px] sm:text-xs text-muted-foreground truncate">Expiring Contracts</p></CardContent></Card>
+        <Card><CardContent className="p-3 sm:p-4"><AlertTriangle className="h-4 w-4 sm:h-5 sm:w-5 text-red-600" /><p className="mt-2 font-display text-lg sm:text-2xl font-bold truncate">{(data?.missingContract.length ?? 0) + (data?.missingDocs.length ?? 0)}</p><p className="text-[10px] sm:text-xs text-muted-foreground truncate">Open Audit Items</p></CardContent></Card>
       </div>
 
-      <Tabs defaultValue="checks">
-        <TabsList>
-          <TabsTrigger value="checks">Compliance Checks</TabsTrigger>
-          <TabsTrigger value="contracts">Contract Audit</TabsTrigger>
-          <TabsTrigger value="policies">Policy Status</TabsTrigger>
-        </TabsList>
+      <Tabs defaultValue="checks" className="w-full space-y-4 sm:space-y-6">
+        <div className="overflow-x-auto no-scrollbar -mx-1 px-1">
+          <TabsList className="inline-flex w-max min-w-full bg-muted/60 p-1.5 rounded-2xl gap-1">
+            <TabsTrigger value="checks" className="rounded-xl py-2 px-3 sm:px-4 gap-2 text-xs sm:text-sm whitespace-nowrap">Compliance Checks</TabsTrigger>
+            <TabsTrigger value="contracts" className="rounded-xl py-2 px-3 sm:px-4 gap-2 text-xs sm:text-sm whitespace-nowrap">Contract Audit</TabsTrigger>
+            <TabsTrigger value="policies" className="rounded-xl py-2 px-3 sm:px-4 gap-2 text-xs sm:text-sm whitespace-nowrap">Policy Status</TabsTrigger>
+          </TabsList>
+        </div>
 
         <TabsContent value="checks" className="mt-6">
           <Card>
@@ -143,8 +145,8 @@ export function OwnerComplianceModule({ schoolId }: Props) {
               {data?.checks.map((c: any, i: number) => (
                 <div key={i}>
                   <div className="flex justify-between text-sm">
-                    <span>{c.label}</span>
-                    <span className="font-medium">{c.value}% <span className="text-xs text-muted-foreground">({c.total - c.missing}/{c.total})</span></span>
+                    <span className="text-xs sm:text-sm">{c.label}</span>
+                    <span className="font-medium text-xs sm:text-sm">{c.value}% <span className="text-xs text-muted-foreground">({c.total - c.missing}/{c.total})</span></span>
                   </div>
                   <Progress value={c.value} className="mt-2 h-2" />
                 </div>
@@ -158,23 +160,25 @@ export function OwnerComplianceModule({ schoolId }: Props) {
             <CardHeader><CardTitle className="text-base flex items-center gap-2"><FileText className="h-4 w-4" /> Contracts expiring within 60 days ({data?.expiring.length ?? 0})</CardTitle></CardHeader>
             <CardContent>
               {(data?.expiring.length ?? 0) === 0 ? (
-                <p className="py-6 text-center text-muted-foreground">No contracts expiring soon.</p>
+                <p className="py-6 text-center text-muted-foreground text-xs sm:text-sm">No contracts expiring soon.</p>
               ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow><TableHead>Employee</TableHead><TableHead>Position</TableHead><TableHead>Ends</TableHead><TableHead>Status</TableHead></TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {data?.expiring.map((c: any) => (
-                      <TableRow key={c.id}>
-                        <TableCell className="font-medium">{nameOf(c.user_id)}</TableCell>
-                        <TableCell>{c.position || "—"}</TableCell>
-                        <TableCell className="text-amber-600 font-medium">{c.end_date ? format(new Date(c.end_date), "MMM d, yyyy") : "—"}</TableCell>
-                        <TableCell><Badge variant="secondary">{c.status || "—"}</Badge></TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                <div className="w-full overflow-x-auto rounded-xl border border-muted/30">
+                  <Table>
+                    <TableHeader>
+                      <TableRow><TableHead>Employee</TableHead><TableHead>Position</TableHead><TableHead>Ends</TableHead><TableHead>Status</TableHead></TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {data?.expiring.map((c: any) => (
+                        <TableRow key={c.id}>
+                          <TableCell className="font-medium">{nameOf(c.user_id)}</TableCell>
+                          <TableCell>{c.position || "—"}</TableCell>
+                          <TableCell className="text-amber-600 font-medium">{c.end_date ? format(new Date(c.end_date), "MMM d, yyyy") : "—"}</TableCell>
+                          <TableCell><Badge variant="secondary">{c.status || "—"}</Badge></TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
               )}
             </CardContent>
           </Card>
@@ -183,11 +187,11 @@ export function OwnerComplianceModule({ schoolId }: Props) {
             <CardHeader><CardTitle className="text-base flex items-center gap-2"><AlertTriangle className="h-4 w-4 text-red-600" /> Active staff without contracts ({data?.missingContract.length ?? 0})</CardTitle></CardHeader>
             <CardContent>
               {(data?.missingContract.length ?? 0) === 0 ? (
-                <p className="py-6 text-center text-muted-foreground">All active staff have contracts on file.</p>
+                <p className="py-6 text-center text-muted-foreground text-xs sm:text-sm">All active staff have contracts on file.</p>
               ) : (
                 <ul className="divide-y">
                   {data?.missingContract.map((uid: string) => (
-                    <li key={uid} className="py-2 text-sm">{nameOf(uid)}</li>
+                    <li key={uid} className="py-2 text-xs sm:text-sm">{nameOf(uid)}</li>
                   ))}
                 </ul>
               )}
@@ -199,12 +203,12 @@ export function OwnerComplianceModule({ schoolId }: Props) {
           <Card>
             <CardHeader><CardTitle className="text-base">Policy & governance status</CardTitle></CardHeader>
             <CardContent>
-              <ul className="space-y-3 text-sm">
-                <li className="flex items-center justify-between"><span>Data protection — RLS enforced on all tables</span><Badge>Compliant</Badge></li>
-                <li className="flex items-center justify-between"><span>Role-based access control</span><Badge>Compliant</Badge></li>
-                <li className="flex items-center justify-between"><span>Financial transaction logging</span><Badge>Compliant</Badge></li>
-                <li className="flex items-center justify-between"><span>Staff contracts on file</span><Badge variant={(data?.missingContract.length ?? 0) === 0 ? "default" : "destructive"}>{(data?.missingContract.length ?? 0) === 0 ? "Compliant" : `${data?.missingContract.length} missing`}</Badge></li>
-                <li className="flex items-center justify-between"><span>HR documents on file</span><Badge variant={(data?.missingDocs.length ?? 0) === 0 ? "default" : "destructive"}>{(data?.missingDocs.length ?? 0) === 0 ? "Compliant" : `${data?.missingDocs.length} missing`}</Badge></li>
+              <ul className="space-y-3 text-xs sm:text-sm">
+                <li className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 py-1"><span>Data protection — RLS enforced on all tables</span><Badge className="self-start sm:self-auto text-[10px]">Compliant</Badge></li>
+                <li className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 py-1"><span>Role-based access control</span><Badge className="self-start sm:self-auto text-[10px]">Compliant</Badge></li>
+                <li className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 py-1"><span>Financial transaction logging</span><Badge className="self-start sm:self-auto text-[10px]">Compliant</Badge></li>
+                <li className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 py-1"><span>Staff contracts on file</span><Badge variant={(data?.missingContract.length ?? 0) === 0 ? "default" : "destructive"} className="self-start sm:self-auto text-[10px]">{(data?.missingContract.length ?? 0) === 0 ? "Compliant" : `${data?.missingContract.length} missing`}</Badge></li>
+                <li className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 py-1"><span>HR documents on file</span><Badge variant={(data?.missingDocs.length ?? 0) === 0 ? "default" : "destructive"} className="self-start sm:self-auto text-[10px]">{(data?.missingDocs.length ?? 0) === 0 ? "Compliant" : `${data?.missingDocs.length} missing`}</Badge></li>
               </ul>
             </CardContent>
           </Card>

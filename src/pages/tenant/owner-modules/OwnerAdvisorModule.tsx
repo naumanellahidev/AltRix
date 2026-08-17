@@ -222,83 +222,83 @@ export function OwnerAdvisorModule({ schoolId }: Props) {
   };
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="font-display text-2xl font-bold tracking-tight flex items-center gap-2">
-          <Brain className="h-6 w-6 text-primary" /> AI Strategy Advisor
+    <div className="space-y-4 sm:space-y-6">
+      <div className="border-b border-border/40 pb-4">
+        <h1 className="font-display text-xl sm:text-2xl lg:text-3xl font-bold tracking-tight flex items-center gap-2">
+          <Brain className="h-5 w-5 sm:h-6 sm:w-6 text-primary" /> AI Strategy Advisor
         </h1>
-        <p className="text-muted-foreground">
+        <p className="text-xs sm:text-sm text-muted-foreground mt-1">
           Your digital board of directors - strategic insights powered by AI
         </p>
       </div>
 
       {/* Quick Stats Context */}
       {schoolData && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <div className="rounded-xl bg-muted/50 p-3">
-            <p className="text-xs text-muted-foreground">Students</p>
-            <p className="font-display text-lg font-bold">{schoolData.totalStudents}</p>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3">
+          <div className="rounded-xl bg-muted/50 p-2.5 sm:p-3">
+            <p className="text-[10px] sm:text-xs text-muted-foreground">Students</p>
+            <p className="font-display text-base sm:text-lg font-bold truncate">{schoolData.totalStudents}</p>
           </div>
-          <div className="rounded-xl bg-muted/50 p-3">
-            <p className="text-xs text-muted-foreground">Profit Margin</p>
-            <p className="font-display text-lg font-bold">{schoolData.profitMargin}%</p>
+          <div className="rounded-xl bg-muted/50 p-2.5 sm:p-3">
+            <p className="text-[10px] sm:text-xs text-muted-foreground">Profit Margin</p>
+            <p className="font-display text-base sm:text-lg font-bold truncate">{schoolData.profitMargin}%</p>
           </div>
-          <div className="rounded-xl bg-muted/50 p-3">
-            <p className="text-xs text-muted-foreground">Attendance</p>
-            <p className="font-display text-lg font-bold">{schoolData.attendanceRate}%</p>
+          <div className="rounded-xl bg-muted/50 p-2.5 sm:p-3">
+            <p className="text-[10px] sm:text-xs text-muted-foreground">Attendance</p>
+            <p className="font-display text-base sm:text-lg font-bold truncate">{schoolData.attendanceRate}%</p>
           </div>
-          <div className="rounded-xl bg-muted/50 p-3">
-            <p className="text-xs text-muted-foreground">Collection Rate</p>
-            <p className="font-display text-lg font-bold">{schoolData.collectionRate}%</p>
+          <div className="rounded-xl bg-muted/50 p-2.5 sm:p-3">
+            <p className="text-[10px] sm:text-xs text-muted-foreground">Collection Rate</p>
+            <p className="font-display text-base sm:text-lg font-bold truncate">{schoolData.collectionRate}%</p>
           </div>
         </div>
       )}
 
       {/* Suggested Questions */}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-2 sm:gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
         {suggestedQuestions.map((q, idx) => (
           <button
             key={idx}
             onClick={() => handleSend(q.text)}
             disabled={isStreaming}
-            className="flex items-center gap-3 rounded-xl bg-muted/50 p-4 text-left hover:bg-muted transition-colors disabled:opacity-50"
+            className="flex items-center gap-2.5 sm:gap-3 rounded-xl bg-muted/50 p-3 sm:p-4 text-left hover:bg-muted transition-colors disabled:opacity-50"
           >
-            <q.icon className={`h-5 w-5 shrink-0 ${q.color}`} />
-            <span className="text-sm font-medium line-clamp-2">{q.text}</span>
+            <q.icon className={`h-4 w-4 sm:h-5 sm:w-5 shrink-0 ${q.color}`} />
+            <span className="text-xs sm:text-sm font-medium line-clamp-2">{q.text}</span>
           </button>
         ))}
       </div>
 
       {/* Chat Interface */}
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
+        <CardHeader className="p-4 sm:p-6 pb-2 sm:pb-3">
+          <CardTitle className="flex items-center gap-2 text-sm sm:text-base">
             <Sparkles className="h-4 w-4 text-primary" />
             Ask the Advisor
-            {isStreaming && <Badge variant="secondary" className="ml-2">Thinking...</Badge>}
+            {isStreaming && <Badge variant="secondary" className="ml-2 text-[10px]">Thinking...</Badge>}
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          <ScrollArea className="h-[400px] mb-4 rounded-xl bg-muted/30 p-4" ref={scrollRef}>
+        <CardContent className="p-3 sm:p-6 pt-0">
+          <ScrollArea className="h-[350px] sm:h-[400px] mb-3 sm:mb-4 rounded-xl bg-muted/30 p-3 sm:p-4" ref={scrollRef}>
             {messages.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-full text-center py-12">
-                <Brain className="h-12 w-12 text-muted-foreground/50 mb-4" />
-                <p className="text-muted-foreground max-w-sm">
+              <div className="flex flex-col items-center justify-center h-full text-center py-8 sm:py-12">
+                <Brain className="h-10 w-10 sm:h-12 sm:w-12 text-muted-foreground/50 mb-3" />
+                <p className="text-xs sm:text-sm text-muted-foreground max-w-sm">
                   Ask strategic questions about your institution. The AI will analyze your real-time data and provide actionable insights.
                 </p>
               </div>
             ) : (
-              <div className="space-y-4">
+              <div className="space-y-3 sm:space-y-4">
                 {messages.map((m, idx) => (
                   <div
                     key={idx}
-                    className={`rounded-xl p-4 ${
+                    className={`rounded-xl p-3 sm:p-4 ${
                       m.role === "user"
-                        ? "bg-primary text-primary-foreground ml-8"
-                        : "bg-background border mr-8"
+                        ? "bg-primary text-primary-foreground ml-4 sm:ml-8"
+                        : "bg-background border mr-4 sm:mr-8"
                     }`}
                   >
-                    <p className="text-sm whitespace-pre-wrap">{m.content || (isStreaming && idx === messages.length - 1 ? "..." : "")}</p>
+                    <p className="text-xs sm:text-sm whitespace-pre-wrap">{m.content || (isStreaming && idx === messages.length - 1 ? "..." : "")}</p>
                   </div>
                 ))}
               </div>
@@ -309,7 +309,7 @@ export function OwnerAdvisorModule({ schoolId }: Props) {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Ask a strategic question about your institution..."
-              className="min-h-[56px] resize-none"
+              className="min-h-[48px] sm:min-h-[56px] resize-none text-xs sm:text-sm"
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.shiftKey) {
                   e.preventDefault();
@@ -318,8 +318,8 @@ export function OwnerAdvisorModule({ schoolId }: Props) {
               }}
               disabled={isStreaming}
             />
-            <Button onClick={() => handleSend()} disabled={!query.trim() || isStreaming} className="shrink-0 h-14 w-14">
-              {isStreaming ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
+            <Button onClick={() => handleSend()} disabled={!query.trim() || isStreaming} className="shrink-0 h-12 w-12 sm:h-14 sm:w-14 rounded-xl">
+              {isStreaming ? <Loader2 className="h-4 w-4 sm:h-5 sm:w-5 animate-spin" /> : <Send className="h-4 w-4 sm:h-5 sm:w-5" />}
             </Button>
           </div>
         </CardContent>

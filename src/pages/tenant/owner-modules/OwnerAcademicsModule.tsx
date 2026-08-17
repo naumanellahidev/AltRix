@@ -167,85 +167,87 @@ export function OwnerAcademicsModule({ schoolId }: Props) {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="font-display text-2xl font-bold tracking-tight">Academics Intelligence</h1>
-        <p className="text-muted-foreground">Institution-level learning analytics and performance tracking</p>
+      <div className="border-b border-border/40 pb-4">
+        <h1 className="font-display text-xl sm:text-2xl lg:text-3xl font-bold tracking-tight">Academics Intelligence</h1>
+        <p className="text-xs sm:text-sm text-muted-foreground mt-1">Institution-level learning analytics and performance tracking</p>
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+      <div className="grid grid-cols-2 gap-2.5 sm:gap-3 sm:grid-cols-3 lg:grid-cols-6">
         <Card>
-          <CardContent className="p-4">
+          <CardContent className="p-3 sm:p-4">
             <div className="flex items-center justify-between">
-              <BookOpen className="h-5 w-5 text-primary" />
+              <BookOpen className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
             </div>
-            <p className="mt-2 font-display text-2xl font-bold">{academicData?.totalClasses || 0}</p>
-            <p className="text-xs text-muted-foreground">Classes</p>
+            <p className="mt-2 font-display text-lg sm:text-2xl font-bold truncate">{academicData?.totalClasses || 0}</p>
+            <p className="text-[10px] sm:text-xs text-muted-foreground truncate">Classes</p>
           </CardContent>
         </Card>
 
         <Card>
-          <CardContent className="p-4">
+          <CardContent className="p-3 sm:p-4">
             <div className="flex items-center justify-between">
-              <GraduationCap className="h-5 w-5 text-indigo-600" />
+              <GraduationCap className="h-4 w-4 sm:h-5 sm:w-5 text-indigo-600" />
             </div>
-            <p className="mt-2 font-display text-2xl font-bold">{academicData?.totalSections || 0}</p>
-            <p className="text-xs text-muted-foreground">Sections</p>
+            <p className="mt-2 font-display text-lg sm:text-2xl font-bold truncate">{academicData?.totalSections || 0}</p>
+            <p className="text-[10px] sm:text-xs text-muted-foreground truncate">Sections</p>
           </CardContent>
         </Card>
 
         <Card>
-          <CardContent className="p-4">
+          <CardContent className="p-3 sm:p-4">
             <div className="flex items-center justify-between">
-              <Users className="h-5 w-5 text-emerald-600" />
+              <Users className="h-4 w-4 sm:h-5 sm:w-5 text-emerald-600" />
             </div>
-            <p className="mt-2 font-display text-2xl font-bold">{academicData?.activeStudents || 0}</p>
-            <p className="text-xs text-muted-foreground">Active Students</p>
+            <p className="mt-2 font-display text-lg sm:text-2xl font-bold truncate">{academicData?.activeStudents || 0}</p>
+            <p className="text-[10px] sm:text-xs text-muted-foreground truncate">Active Students</p>
           </CardContent>
         </Card>
 
         <Card>
-          <CardContent className="p-4">
+          <CardContent className="p-3 sm:p-4">
             <div className="flex items-center justify-between">
-              <Users className="h-5 w-5 text-blue-600" />
+              <Users className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
             </div>
-            <p className="mt-2 font-display text-2xl font-bold">{academicData?.totalTeachers || 0}</p>
-            <p className="text-xs text-muted-foreground">Teachers</p>
+            <p className="mt-2 font-display text-lg sm:text-2xl font-bold truncate">{academicData?.totalTeachers || 0}</p>
+            <p className="text-[10px] sm:text-xs text-muted-foreground truncate">Teachers</p>
           </CardContent>
         </Card>
 
         <Card>
-          <CardContent className="p-4">
+          <CardContent className="p-3 sm:p-4">
             <div className="flex items-center justify-between">
-              <BarChart3 className="h-5 w-5 text-purple-600" />
+              <BarChart3 className="h-4 w-4 sm:h-5 sm:w-5 text-purple-600" />
             </div>
-            <p className="mt-2 font-display text-2xl font-bold">{academicData?.averageMarks || 0}%</p>
-            <p className="text-xs text-muted-foreground">Avg Performance</p>
+            <p className="mt-2 font-display text-lg sm:text-2xl font-bold truncate">{academicData?.averageMarks || 0}%</p>
+            <p className="text-[10px] sm:text-xs text-muted-foreground truncate">Avg Performance</p>
           </CardContent>
         </Card>
 
         <Card className={academicData?.atRiskStudents && academicData.atRiskStudents.length > 0 ? "border-red-500/50" : ""}>
-          <CardContent className="p-4">
+          <CardContent className="p-3 sm:p-4">
             <div className="flex items-center justify-between">
-              <AlertTriangle className="h-5 w-5 text-red-600" />
+              <AlertTriangle className="h-4 w-4 sm:h-5 sm:w-5 text-red-600" />
             </div>
-            <p className="mt-2 font-display text-2xl font-bold text-red-600">
+            <p className="mt-2 font-display text-lg sm:text-2xl font-bold text-red-600 truncate">
               {academicData?.atRiskStudents?.length || 0}
             </p>
-            <p className="text-xs text-muted-foreground">At-Risk Students</p>
+            <p className="text-[10px] sm:text-xs text-muted-foreground truncate">At-Risk Students</p>
           </CardContent>
         </Card>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList>
-          <TabsTrigger value="overview">Performance Overview</TabsTrigger>
-          <TabsTrigger value="heatmap">Subject Analysis</TabsTrigger>
-          <TabsTrigger value="at-risk">At-Risk Students</TabsTrigger>
-          <TabsTrigger value="teachers">Teacher Effectiveness</TabsTrigger>
-        </TabsList>
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full space-y-4 sm:space-y-6">
+        <div className="overflow-x-auto no-scrollbar -mx-1 px-1">
+          <TabsList className="inline-flex w-max min-w-full bg-muted/60 p-1.5 rounded-2xl gap-1">
+            <TabsTrigger value="overview" className="rounded-xl py-2 px-3 sm:px-4 gap-2 text-xs sm:text-sm whitespace-nowrap">Performance Overview</TabsTrigger>
+            <TabsTrigger value="heatmap" className="rounded-xl py-2 px-3 sm:px-4 gap-2 text-xs sm:text-sm whitespace-nowrap">Subject Analysis</TabsTrigger>
+            <TabsTrigger value="at-risk" className="rounded-xl py-2 px-3 sm:px-4 gap-2 text-xs sm:text-sm whitespace-nowrap">At-Risk Students</TabsTrigger>
+            <TabsTrigger value="teachers" className="rounded-xl py-2 px-3 sm:px-4 gap-2 text-xs sm:text-sm whitespace-nowrap">Teacher Effectiveness</TabsTrigger>
+          </TabsList>
+        </div>
 
         <TabsContent value="overview" className="mt-6 space-y-6">
           <div className="grid gap-6 lg:grid-cols-2">
@@ -421,13 +423,13 @@ export function OwnerAcademicsModule({ schoolId }: Props) {
                     {academicData.atRiskStudents.map((student: any) => (
                       <div
                         key={student.id}
-                        className="flex items-center justify-between rounded-xl bg-red-500/10 p-3"
+                        className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-xl bg-red-500/10 p-3 sm:p-3.5"
                       >
-                        <div>
-                          <p className="font-medium">
+                        <div className="min-w-0">
+                          <p className="font-medium text-sm truncate">
                             {student.first_name} {student.last_name || ""}
                           </p>
-                          <p className="text-xs text-muted-foreground">
+                          <p className="text-xs text-muted-foreground mt-0.5">
                             {student.reason || "Requires intervention"}
                             {typeof student.attendance_rate === "number" && (
                               <> · Attendance {Math.round(student.attendance_rate)}%</>
@@ -437,7 +439,7 @@ export function OwnerAcademicsModule({ schoolId }: Props) {
                             )}
                           </p>
                         </div>
-                        <Badge variant="destructive">At Risk</Badge>
+                        <Badge variant="destructive" className="self-start sm:self-auto shrink-0 text-[10px]">At Risk</Badge>
                       </div>
                     ))}
                   </div>

@@ -281,82 +281,82 @@ export function VicePrincipalHome() {
       <ActivityTimelineWidget />
 
       {/* Quick Actions - Top for better accessibility */}
-      <Card className="shadow-elevated">
-        <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-lg">Quick Actions</CardTitle>
+      <Card className="shadow-elevated rounded-2xl sm:rounded-3xl">
+        <CardHeader className="p-4 sm:p-6 pb-2 sm:pb-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <CardTitle className="text-base sm:text-lg">Quick Actions</CardTitle>
             <div className="flex items-center gap-2">
               <AlertSettingsDialog schoolId={schoolId} onSettingsChanged={refreshAlerts} />
               <AlertsSummaryBadge criticalCount={criticalCount} warningCount={warningCount} />
             </div>
           </div>
         </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-            <Button variant="soft" onClick={() => navigate(`${basePath}/users`)} className="h-auto flex-col gap-2 py-4">
-              <UserPlus className="h-5 w-5" />
-              <span className="text-xs">Manage Staff</span>
+        <CardContent className="p-3 sm:p-6 pt-0">
+          <div className="grid grid-cols-3 sm:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-3">
+            <Button variant="soft" onClick={() => navigate(`${basePath}/users`)} className="h-auto flex-col gap-1.5 py-3 sm:py-4 rounded-xl">
+              <UserPlus className="h-4 w-4 sm:h-5 sm:w-5" />
+              <span className="text-[10px] sm:text-xs">Staff</span>
             </Button>
-            <Button variant="soft" onClick={() => navigate(`${basePath}/academic`)} className="h-auto flex-col gap-2 py-4">
-              <GraduationCap className="h-5 w-5" />
-              <span className="text-xs">Academics</span>
+            <Button variant="soft" onClick={() => navigate(`${basePath}/academic`)} className="h-auto flex-col gap-1.5 py-3 sm:py-4 rounded-xl">
+              <GraduationCap className="h-4 w-4 sm:h-5 sm:w-5" />
+              <span className="text-[10px] sm:text-xs">Academics</span>
             </Button>
-            <Button variant="soft" onClick={() => navigate(`${basePath}/attendance`)} className="h-auto flex-col gap-2 py-4">
-              <ClipboardList className="h-5 w-5" />
-              <span className="text-xs">Attendance</span>
+            <Button variant="soft" onClick={() => navigate(`${basePath}/attendance`)} className="h-auto flex-col gap-1.5 py-3 sm:py-4 rounded-xl">
+              <ClipboardList className="h-4 w-4 sm:h-5 sm:w-5" />
+              <span className="text-[10px] sm:text-xs">Attendance</span>
             </Button>
-            <Button variant="soft" onClick={() => navigate(`${basePath}/timetable`)} className="h-auto flex-col gap-2 py-4">
-              <CalendarDays className="h-5 w-5" />
-              <span className="text-xs">Timetable</span>
+            <Button variant="soft" onClick={() => navigate(`${basePath}/timetable`)} className="h-auto flex-col gap-1.5 py-3 sm:py-4 rounded-xl">
+              <CalendarDays className="h-4 w-4 sm:h-5 sm:w-5" />
+              <span className="text-[10px] sm:text-xs">Timetable</span>
             </Button>
-            <Button variant="soft" onClick={() => navigate(`${basePath}/reports`)} className="h-auto flex-col gap-2 py-4">
-              <BarChart3 className="h-5 w-5" />
-              <span className="text-xs">Reports</span>
+            <Button variant="soft" onClick={() => navigate(`${basePath}/reports`)} className="h-auto flex-col gap-1.5 py-3 sm:py-4 rounded-xl">
+              <BarChart3 className="h-4 w-4 sm:h-5 sm:w-5" />
+              <span className="text-[10px] sm:text-xs">Reports</span>
             </Button>
-            <Button variant="soft" onClick={() => navigate(`${basePath}/support`)} className="h-auto flex-col gap-2 py-4">
-              <Headphones className="h-5 w-5" />
-              <span className="text-xs">Support</span>
+            <Button variant="soft" onClick={() => navigate(`${basePath}/support`)} className="h-auto flex-col gap-1.5 py-3 sm:py-4 rounded-xl">
+              <Headphones className="h-4 w-4 sm:h-5 sm:w-5" />
+              <span className="text-[10px] sm:text-xs">Support</span>
             </Button>
           </div>
         </CardContent>
       </Card>
 
       {/* KPI Grid */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <div className="rounded-3xl bg-surface p-5 shadow-elevated">
+      <div className="grid grid-cols-2 gap-2.5 sm:gap-4 lg:grid-cols-4">
+        <div className="rounded-2xl sm:rounded-3xl bg-surface p-3.5 sm:p-5 shadow-elevated border">
           <div className="flex items-center justify-between">
-            <p className="text-sm text-muted-foreground">Students</p>
+            <p className="text-xs sm:text-sm text-muted-foreground">Students</p>
             <GraduationCap className="h-4 w-4 text-muted-foreground" />
           </div>
-          <p className="mt-3 font-display text-2xl font-semibold tracking-tight">{kpis.students.toLocaleString()}</p>
-          <p className="mt-1 text-xs text-muted-foreground">Active enrollments</p>
+          <p className="mt-2 sm:mt-3 font-display text-lg sm:text-2xl font-semibold tracking-tight truncate">{kpis.students.toLocaleString()}</p>
+          <p className="mt-0.5 sm:mt-1 text-[10px] sm:text-xs text-muted-foreground truncate">Active enrollments</p>
         </div>
 
-        <div className="rounded-3xl bg-surface p-5 shadow-elevated">
+        <div className="rounded-2xl sm:rounded-3xl bg-surface p-3.5 sm:p-5 shadow-elevated border">
           <div className="flex items-center justify-between">
-            <p className="text-sm text-muted-foreground">Teachers</p>
+            <p className="text-xs sm:text-sm text-muted-foreground">Teachers</p>
             <Users className="h-4 w-4 text-muted-foreground" />
           </div>
-          <p className="mt-3 font-display text-2xl font-semibold tracking-tight">{kpis.teachers.toLocaleString()}</p>
-          <p className="mt-1 text-xs text-muted-foreground">{kpis.totalStaff} total staff</p>
+          <p className="mt-2 sm:mt-3 font-display text-lg sm:text-2xl font-semibold tracking-tight truncate">{kpis.teachers.toLocaleString()}</p>
+          <p className="mt-0.5 sm:mt-1 text-[10px] sm:text-xs text-muted-foreground truncate">{kpis.totalStaff} staff</p>
         </div>
 
-        <div className="rounded-3xl bg-surface p-5 shadow-elevated">
+        <div className="rounded-2xl sm:rounded-3xl bg-surface p-3.5 sm:p-5 shadow-elevated border">
           <div className="flex items-center justify-between">
-            <p className="text-sm text-muted-foreground">Attendance (7d)</p>
+            <p className="text-xs sm:text-sm text-muted-foreground">Attendance (7d)</p>
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </div>
-          <p className="mt-3 font-display text-2xl font-semibold tracking-tight">{attendanceRate}%</p>
-          <p className="mt-1 text-xs text-muted-foreground">{kpis.attendanceAbsent7d} absent</p>
+          <p className="mt-2 sm:mt-3 font-display text-lg sm:text-2xl font-semibold tracking-tight truncate">{attendanceRate}%</p>
+          <p className="mt-0.5 sm:mt-1 text-[10px] sm:text-xs text-muted-foreground truncate">{kpis.attendanceAbsent7d} absent</p>
         </div>
 
-        <div className="rounded-3xl bg-surface p-5 shadow-elevated">
+        <div className="rounded-2xl sm:rounded-3xl bg-surface p-3.5 sm:p-5 shadow-elevated border">
           <div className="flex items-center justify-between">
-            <p className="text-sm text-muted-foreground">Pending Grades</p>
+            <p className="text-xs sm:text-sm text-muted-foreground">Pending Grades</p>
             <AlertTriangle className="h-4 w-4 text-muted-foreground" />
           </div>
-          <p className="mt-3 font-display text-2xl font-semibold tracking-tight">{kpis.assignmentsPending.toLocaleString()}</p>
-          <p className="mt-1 text-xs text-muted-foreground">Submissions awaiting</p>
+          <p className="mt-2 sm:mt-3 font-display text-lg sm:text-2xl font-semibold tracking-tight truncate">{kpis.assignmentsPending.toLocaleString()}</p>
+          <p className="mt-0.5 sm:mt-1 text-[10px] sm:text-xs text-muted-foreground truncate">Awaiting marking</p>
         </div>
       </div>
 

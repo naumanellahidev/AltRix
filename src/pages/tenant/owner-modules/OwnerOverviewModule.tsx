@@ -428,31 +428,31 @@ export function OwnerOverviewModule({ schoolId }: Props) {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-border/40 pb-4">
+    <div className="space-y-4 sm:space-y-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-border/40 pb-4">
         <div>
-          <div className="flex items-center gap-2.5 flex-wrap">
-            <h1 className="font-display text-2xl font-bold tracking-tight lg:text-3xl text-foreground">Executive Command Center</h1>
-            <Badge variant="outline" className="bg-primary/10 text-primary border-primary/25 text-[11px] font-bold gap-1.5 py-0.5">
+          <div className="flex items-center gap-2 flex-wrap">
+            <h1 className="font-display text-xl sm:text-2xl lg:text-3xl font-bold tracking-tight text-foreground">Executive Command Center</h1>
+            <Badge variant="outline" className="bg-primary/10 text-primary border-primary/25 text-[10px] sm:text-[11px] font-bold gap-1.5 py-0.5">
               <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" /> Live
             </Badge>
             {currentCampus ? (
-              <Badge variant="secondary" className="bg-primary/15 text-primary border-primary/30 text-xs font-semibold gap-1.5 py-1 px-3">
+              <Badge variant="secondary" className="bg-primary/15 text-primary border-primary/30 text-[11px] sm:text-xs font-semibold gap-1.5 py-0.5 sm:py-1 px-2.5 sm:px-3">
                 <Building2 className="h-3.5 w-3.5" /> Scope: {currentCampus.name}
               </Badge>
             ) : (
-              <Badge variant="outline" className="bg-muted text-muted-foreground text-xs font-medium gap-1.5 py-1 px-3">
-                <Building2 className="h-3.5 w-3.5" /> Scope: All Campuses (Consolidated)
+              <Badge variant="outline" className="bg-muted text-muted-foreground text-[11px] sm:text-xs font-medium gap-1.5 py-0.5 sm:py-1 px-2.5 sm:px-3">
+                <Building2 className="h-3.5 w-3.5" /> Scope: All Campuses
               </Badge>
             )}
           </div>
         </div>
-        <Button variant="outline" size="sm" onClick={handleRefresh} disabled={refreshing} className="rounded-xl text-xs">
+        <Button variant="outline" size="sm" onClick={handleRefresh} disabled={refreshing} className="rounded-xl text-xs w-full sm:w-auto justify-center">
           <RefreshCw className={`mr-2 h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} /> Refresh Data
         </Button>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+      <div className="grid grid-cols-2 gap-2.5 sm:gap-3 sm:grid-cols-3 lg:grid-cols-6">
         {[
           { icon: GraduationCap, label: "Total Students", val: kpis?.totalStudents || 0, color: "text-primary" },
           { icon: Coins, label: "Revenue (MTD)", val: formatCurrency(kpis?.revenueMtd || 0), color: "text-emerald-600" },
@@ -462,25 +462,35 @@ export function OwnerOverviewModule({ schoolId }: Props) {
           { icon: Users, label: "Total Staff", val: kpis?.totalStaff || 0, color: "text-indigo-600" },
         ].map((item, idx) => (
           <MotionCard key={idx} initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: idx * 0.05 }} className="cursor-pointer hover:shadow-md transition-all">
-            <CardContent className="p-3.5">
+            <CardContent className="p-3 sm:p-3.5">
               <item.icon className={`h-4 w-4 ${item.color}`} />
-              <p className="mt-2.5 font-display text-lg font-bold tracking-tight truncate">{item.val}</p>
-              <p className="text-[11px] font-medium text-muted-foreground">{item.label}</p>
+              <p className="mt-2 font-display text-base sm:text-lg font-bold tracking-tight truncate">{item.val}</p>
+              <p className="text-[10px] sm:text-[11px] font-medium text-muted-foreground truncate">{item.label}</p>
             </CardContent>
           </MotionCard>
         ))}
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-12">
+      <div className="grid gap-4 sm:gap-6 lg:grid-cols-12">
         <div className="lg:col-span-8">
           <Card className="h-full">
             <CardHeader className="pb-2">
               <CardTitle className="text-base font-bold">Financial Performance Trend</CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="h-[270px]">
+            <CardContent className="p-3 sm:p-6">
+              <div className="h-[240px] sm:h-[270px]">
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={trendData || []}>
+                  <AreaChart data={trendData || []} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="revenueGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.35} />
+                        <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
+                      </linearGradient>
+                      <linearGradient id="expenseGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="hsl(var(--destructive))" stopOpacity={0.25} />
+                        <stop offset="95%" stopColor="hsl(var(--destructive))" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
                     <XAxis dataKey="month" fontSize={10} tickLine={false} axisLine={false} />
                     <YAxis fontSize={10} tickLine={false} axisLine={false} tickFormatter={formatCurrency} />
                     <Tooltip contentStyle={{ fontSize: "12px", borderRadius: "0.75rem" }} />
@@ -495,41 +505,41 @@ export function OwnerOverviewModule({ schoolId }: Props) {
         <div className="lg:col-span-4 flex flex-col gap-4">
           <Card className="flex-1">
             <CardHeader className="pb-3 border-b border-border/40"><CardTitle className="text-base flex items-center gap-2"><Star className="h-4 w-4 text-amber-500" /> YTD Financials</CardTitle></CardHeader>
-            <CardContent className="pt-4 space-y-3.5">
-              <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20"><p className="text-[11px] font-semibold">Revenue (YTD)</p><p className="text-lg font-bold text-emerald-600">{formatCurrency(kpis?.revenueYtd || 0)}</p></div>
-              <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20"><p className="text-[11px] font-semibold">Expenses (YTD)</p><p className="text-lg font-bold text-red-600">{formatCurrency(kpis?.expensesYtd || 0)}</p></div>
-              <div className="p-3 rounded-xl bg-primary/10 border border-primary/20"><p className="text-[11px] font-semibold">Net Profit</p><p className="text-xl font-black text-primary">{formatCurrency((kpis?.revenueYtd || 0) - (kpis?.expensesYtd || 0))}</p></div>
+            <CardContent className="p-4 sm:p-6 space-y-3">
+              <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20"><p className="text-[11px] font-semibold">Revenue (YTD)</p><p className="text-base sm:text-lg font-bold text-emerald-600 truncate">{formatCurrency(kpis?.revenueYtd || 0)}</p></div>
+              <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20"><p className="text-[11px] font-semibold">Expenses (YTD)</p><p className="text-base sm:text-lg font-bold text-red-600 truncate">{formatCurrency(kpis?.expensesYtd || 0)}</p></div>
+              <div className="p-3 rounded-xl bg-primary/10 border border-primary/20"><p className="text-[11px] font-semibold">Net Profit</p><p className="text-lg sm:text-xl font-black text-primary truncate">{formatCurrency((kpis?.revenueYtd || 0) - (kpis?.expensesYtd || 0))}</p></div>
             </CardContent>
           </Card>
         </div>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-12">
-        <div className="space-y-6 lg:col-span-7">
+      <div className="grid gap-4 sm:gap-6 lg:grid-cols-12">
+        <div className="space-y-4 sm:space-y-6 lg:col-span-7">
           <Card>
             <CardHeader className="pb-3 border-b border-border/40"><CardTitle className="text-base font-bold">Operational Health</CardTitle></CardHeader>
             <CardContent className="pt-4 space-y-4">
               {[ { label: "Fee Collection", val: kpis?.collectionRate || 0 }, { label: "Teacher Utilization", val: kpis?.teacherUtilization || 0 }, { label: "Academic Index", val: kpis?.academicIndex || 0 } ].map((m, i) => (
-                <div key={i}><div className="flex justify-between text-sm"><span className="font-semibold">{m.label}</span><span className="font-bold">{m.val}%</span></div><Progress value={m.val} className="mt-2 h-2.5" /></div>
+                <div key={i}><div className="flex justify-between text-xs sm:text-sm"><span className="font-semibold">{m.label}</span><span className="font-bold">{m.val}%</span></div><Progress value={m.val} className="mt-2 h-2 sm:h-2.5" /></div>
               ))}
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="pb-3 border-b border-border/40"><CardTitle className="text-base font-bold">Quick Navigation</CardTitle></CardHeader>
-            <CardContent className="pt-4 grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <CardContent className="pt-4 grid grid-cols-2 sm:grid-cols-4 gap-2.5">
               {[ { label: "Academics", path: "academics" }, { label: "Admissions", path: "admissions" }, { label: "Finance", path: "fees" }, { label: "HR", path: "hr" } ].map((item) => (
-                <button key={item.path} onClick={() => navigate(`${basePath}/${item.path}`)} className="flex items-center gap-2 rounded-xl bg-muted/40 p-3 text-left hover:bg-primary/10 border border-transparent text-xs font-semibold">{item.label}</button>
+                <button key={item.path} onClick={() => navigate(`${basePath}/${item.path}`)} className="flex items-center justify-center text-center gap-2 rounded-xl bg-muted/40 p-3 hover:bg-primary/10 border border-transparent text-xs font-semibold">{item.label}</button>
               ))}
             </CardContent>
           </Card>
         </div>
-        <div className="space-y-6 lg:col-span-5">
+        <div className="space-y-4 sm:space-y-6 lg:col-span-5">
           <DashboardNotificationsBanner schoolId={schoolId} schoolSlug={schoolSlug || ""} role="school_owner" inline={true} />
           <Card className="border-primary/20 bg-gradient-to-br from-primary/5 via-background to-accent/10">
             <CardHeader className="pb-3 border-b border-border/40"><CardTitle className="text-base font-bold flex items-center gap-2"><Brain className="h-4 w-4 text-primary" /> AI Strategic Insights</CardTitle></CardHeader>
             <CardContent className="pt-4 space-y-3">
               {insights.map((insight, idx) => (
-                <div key={idx} className={`p-3.5 rounded-2xl border ${insight.type === "warning" ? "bg-amber-500/10" : "bg-emerald-500/10"}`}>
+                <div key={idx} className={`p-3 sm:p-3.5 rounded-2xl border ${insight.type === "warning" ? "bg-amber-500/10" : "bg-emerald-500/10"}`}>
                   <p className="text-xs font-semibold">{insight.message}</p>
                   {insight.action && <button onClick={() => navigate(`${basePath}/admissions`)} className="mt-1 text-[11px] font-bold text-primary hover:underline">{insight.action} →</button>}
                 </div>

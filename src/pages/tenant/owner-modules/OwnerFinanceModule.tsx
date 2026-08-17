@@ -492,20 +492,27 @@ export function OwnerFinanceModule({ schoolId, role = "school_owner" }: Props) {
         <div className="absolute -right-10 -top-10 h-40 w-40 rounded-full bg-primary/5 blur-2xl" />
         <div className="absolute -left-10 -bottom-10 h-40 w-40 rounded-full bg-accent/10 blur-2xl" />
 
-        <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-border/40 pb-4">
           <div>
-            <div className="flex items-center gap-2">
-              <Badge className="bg-primary/20 text-primary border-primary/30 font-medium">Executive Suite</Badge>
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">AltRix BI</span>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+              <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 text-[10px] sm:text-xs">
+                Live Cashflow Engine
+              </Badge>
+              {activeCampusId && (
+                <Badge variant="secondary" className="bg-primary/10 text-primary border-primary/20 text-[10px] sm:text-xs font-semibold">
+                  Campus-Scoped
+                </Badge>
+              )}
             </div>
-            <h1 className="font-display text-3xl font-bold tracking-tight text-foreground mt-2">Finance & Cashflow Intelligence</h1>
-            <p className="text-sm text-muted-foreground mt-1 max-w-2xl">
+            <h1 className="font-display text-xl sm:text-2xl lg:text-3xl font-bold tracking-tight text-foreground mt-1.5">Finance & Cashflow Intelligence</h1>
+            <p className="text-xs sm:text-sm text-muted-foreground mt-1 max-w-2xl">
               Consolidated cash ledger balance, interactive 12-month forward predictive forecasting, budget variance, and liquidity accounts monitoring.
             </p>
           </div>
           <div className="flex flex-wrap gap-2 shrink-0">
             <Select value={periodFilter} onValueChange={(v) => { setPeriodFilter(v); setLedgerPage(1); }}>
-              <SelectTrigger className="w-[140px] bg-background/60 backdrop-blur-md rounded-xl border-border/80">
+              <SelectTrigger className="w-full sm:w-[140px] bg-background/60 backdrop-blur-md rounded-xl border-border/80 text-xs">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent className="rounded-xl">
@@ -518,7 +525,7 @@ export function OwnerFinanceModule({ schoolId, role = "school_owner" }: Props) {
 
             <Button
               variant="outline"
-              className="rounded-xl gap-2 bg-background/60 backdrop-blur-md"
+              className="rounded-xl gap-2 bg-background/60 backdrop-blur-md text-xs w-full sm:w-auto justify-center"
               onClick={() => {
                 const rows = filteredLedger.map((item) => ({
                   Date: format(new Date(item.date), "yyyy-MM-dd"),
@@ -544,7 +551,7 @@ export function OwnerFinanceModule({ schoolId, role = "school_owner" }: Props) {
 
       {/* Role Quick actions panel for Accountants */}
       {role === "accountant" && (
-        <Card className="rounded-2xl border-dashed border-primary/20 bg-primary/5 shadow-none p-4 flex flex-wrap items-center justify-between gap-4">
+        <Card className="rounded-2xl border-dashed border-primary/20 bg-primary/5 shadow-none p-3 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
           <div className="flex items-center gap-3">
             <div className="rounded-lg bg-primary/10 p-2 text-primary shrink-0">
               <Coins className="h-5 w-5" />
@@ -555,16 +562,16 @@ export function OwnerFinanceModule({ schoolId, role = "school_owner" }: Props) {
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button size="sm" variant="soft" className="rounded-xl" onClick={() => navigate(`/${schoolSlug}/accountant/payments`)}>
+            <Button size="sm" variant="soft" className="rounded-xl text-xs" onClick={() => navigate(`/${schoolSlug}/accountant/payments`)}>
               Record Payment
             </Button>
-            <Button size="sm" variant="soft" className="rounded-xl" onClick={() => navigate(`/${schoolSlug}/accountant/expenses`)}>
+            <Button size="sm" variant="soft" className="rounded-xl text-xs" onClick={() => navigate(`/${schoolSlug}/accountant/expenses`)}>
               Add Expense
             </Button>
-            <Button size="sm" variant="soft" className="rounded-xl" onClick={() => navigate(`/${schoolSlug}/accountant/fees?tab=invoices`)}>
+            <Button size="sm" variant="soft" className="rounded-xl text-xs" onClick={() => navigate(`/${schoolSlug}/accountant/fees?tab=invoices`)}>
               Create Invoice
             </Button>
-            <Button size="sm" variant="hero" className="rounded-xl" onClick={() => navigate(`/${schoolSlug}/accountant/payroll`)}>
+            <Button size="sm" variant="hero" className="rounded-xl text-xs" onClick={() => navigate(`/${schoolSlug}/accountant/payroll`)}>
               Run Payroll
             </Button>
           </div>
@@ -572,22 +579,22 @@ export function OwnerFinanceModule({ schoolId, role = "school_owner" }: Props) {
       )}
 
       {/* Primary KPI Widgets */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 w-full auto-rows-fr">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 sm:gap-4 w-full auto-rows-fr">
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }} className="h-full">
           <Card 
             className="shadow-sm shadow-blue-50/50 bg-gradient-to-br from-white to-blue-50/20 border border-blue-100/80 hover:border-blue-400 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 cursor-pointer border-l-4 border-l-emerald-500 rounded-2xl h-full flex flex-col justify-between group"
             onClick={() => navigate(role === "accountant" ? `/${schoolSlug}/accountant/payments` : `/${schoolSlug}/school_owner/finance`)}
           >
-            <CardContent className="p-4 flex flex-col justify-between h-full">
+            <CardContent className="p-3 sm:p-4 flex flex-col justify-between h-full">
               <div className="flex items-center justify-between text-muted-foreground">
-                <span className="text-xs font-semibold text-slate-700">Consolidated MTD</span>
-                <Coins className="h-4 w-4 text-emerald-500 group-hover:scale-110 transition-transform" />
+                <span className="text-[11px] sm:text-xs font-semibold text-slate-700">Consolidated MTD</span>
+                <Coins className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-emerald-500 group-hover:scale-110 transition-transform" />
               </div>
-              <div className="mt-4">
-                <p className="text-xl font-black tracking-tight text-emerald-600 truncate">
+              <div className="mt-3 sm:mt-4">
+                <p className="text-base sm:text-xl font-black tracking-tight text-emerald-600 truncate">
                   {formatCurrency(financeData?.revenueMtd || 0)}
                 </p>
-                <p className="text-[10px] font-semibold text-muted-foreground/80 mt-1">Total Cash Inflow</p>
+                <p className="text-[9px] sm:text-[10px] font-semibold text-muted-foreground/80 mt-1">Total Cash Inflow</p>
               </div>
             </CardContent>
           </Card>
@@ -598,16 +605,16 @@ export function OwnerFinanceModule({ schoolId, role = "school_owner" }: Props) {
             className="shadow-sm shadow-blue-50/50 bg-gradient-to-br from-white to-blue-50/20 border border-blue-100/80 hover:border-blue-400 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 cursor-pointer border-l-4 border-l-rose-500 rounded-2xl h-full flex flex-col justify-between group"
             onClick={() => navigate(role === "accountant" ? `/${schoolSlug}/accountant/expenses` : `/${schoolSlug}/school_owner/finance`)}
           >
-            <CardContent className="p-4 flex flex-col justify-between h-full">
+            <CardContent className="p-3 sm:p-4 flex flex-col justify-between h-full">
               <div className="flex items-center justify-between text-muted-foreground">
-                <span className="text-xs font-semibold text-slate-700">Expenses MTD</span>
-                <TrendingDown className="h-4 w-4 text-rose-500 group-hover:scale-110 transition-transform" />
+                <span className="text-[11px] sm:text-xs font-semibold text-slate-700">Expenses MTD</span>
+                <TrendingDown className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-rose-500 group-hover:scale-110 transition-transform" />
               </div>
-              <div className="mt-4">
-                <p className="text-xl font-black tracking-tight text-red-600 truncate">
+              <div className="mt-3 sm:mt-4">
+                <p className="text-base sm:text-xl font-black tracking-tight text-red-600 truncate">
                   {formatCurrency(financeData?.expensesMtd || 0)}
                 </p>
-                <p className="text-[10px] font-semibold text-muted-foreground/80 mt-1">Total Operations + Pay</p>
+                <p className="text-[9px] sm:text-[10px] font-semibold text-muted-foreground/80 mt-1">Operations + Pay</p>
               </div>
             </CardContent>
           </Card>
@@ -618,17 +625,17 @@ export function OwnerFinanceModule({ schoolId, role = "school_owner" }: Props) {
             className="shadow-sm shadow-blue-50/50 bg-gradient-to-br from-white to-blue-50/20 border border-blue-100/80 hover:border-blue-400 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 cursor-pointer border-l-4 border-l-blue-500 rounded-2xl h-full flex flex-col justify-between group"
             onClick={() => navigate(role === "accountant" ? `/${schoolSlug}/accountant/ledger` : `/${schoolSlug}/school_owner/finance`)}
           >
-            <CardContent className="p-4 flex flex-col justify-between h-full">
+            <CardContent className="p-3 sm:p-4 flex flex-col justify-between h-full">
               <div className="flex items-center justify-between text-muted-foreground">
-                <span className="text-xs font-semibold text-slate-700">Operating Cashflow</span>
-                <PiggyBank className="h-4 w-4 text-blue-500 group-hover:scale-110 transition-transform" />
+                <span className="text-[11px] sm:text-xs font-semibold text-slate-700">Operating Cash</span>
+                <PiggyBank className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-blue-500 group-hover:scale-110 transition-transform" />
               </div>
-              <div className="mt-4">
-                <p className="text-xl font-black tracking-tight text-slate-800 truncate">
+              <div className="mt-3 sm:mt-4">
+                <p className="text-base sm:text-xl font-black tracking-tight text-slate-800 truncate">
                   {formatCurrency(financeData?.profitMtd || 0)}
                 </p>
                 <div className="flex items-center gap-1 mt-1">
-                  <Badge className="bg-blue-50 text-blue-600 border-blue-100/50 text-[9px] px-1.5 py-0 font-semibold">
+                  <Badge className="bg-blue-50 text-blue-600 border-blue-100/50 text-[8px] sm:text-[9px] px-1 sm:px-1.5 py-0 font-semibold">
                     {financeData?.profitMargin || 0}% margin
                   </Badge>
                 </div>
@@ -642,16 +649,16 @@ export function OwnerFinanceModule({ schoolId, role = "school_owner" }: Props) {
             className="shadow-sm shadow-blue-50/50 bg-gradient-to-br from-white to-blue-50/20 border border-blue-100/80 hover:border-blue-400 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 cursor-pointer border-l-4 border-l-violet-500 rounded-2xl h-full flex flex-col justify-between group"
             onClick={() => navigate(role === "accountant" ? `/${schoolSlug}/accountant/payroll` : `/${schoolSlug}/school_owner/finance`)}
           >
-            <CardContent className="p-4 flex flex-col justify-between h-full">
+            <CardContent className="p-3 sm:p-4 flex flex-col justify-between h-full">
               <div className="flex items-center justify-between text-muted-foreground">
-                <span className="text-xs font-semibold text-slate-700">Payroll Liability</span>
-                <Wallet className="h-4 w-4 text-violet-500 group-hover:scale-110 transition-transform" />
+                <span className="text-[11px] sm:text-xs font-semibold text-slate-700">Payroll Liability</span>
+                <Wallet className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-violet-500 group-hover:scale-110 transition-transform" />
               </div>
-              <div className="mt-4">
-                <p className="text-xl font-black tracking-tight text-slate-800 truncate">
+              <div className="mt-3 sm:mt-4">
+                <p className="text-base sm:text-xl font-black tracking-tight text-slate-800 truncate">
                   {formatCurrency(financeData?.monthlyPayrollLiability || 0)}
                 </p>
-                <p className="text-[10px] font-semibold text-muted-foreground/80 mt-1">Active staff records</p>
+                <p className="text-[9px] sm:text-[10px] font-semibold text-muted-foreground/80 mt-1">Active staff records</p>
               </div>
             </CardContent>
           </Card>
@@ -662,18 +669,18 @@ export function OwnerFinanceModule({ schoolId, role = "school_owner" }: Props) {
             className="shadow-sm shadow-blue-50/50 bg-gradient-to-br from-white to-blue-50/20 border border-blue-100/80 hover:border-blue-400 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 cursor-pointer border-l-4 border-l-amber-500 rounded-2xl h-full flex flex-col justify-between group"
             onClick={() => navigate(role === "accountant" ? `/${schoolSlug}/accountant/fees?tab=invoices` : `/${schoolSlug}/school_owner/finance`)}
           >
-            <CardContent className="p-4 flex flex-col justify-between h-full">
+            <CardContent className="p-3 sm:p-4 flex flex-col justify-between h-full">
               <div className="flex items-center justify-between text-muted-foreground">
-                <span className="text-xs font-semibold text-slate-700">Outstanding Bal</span>
-                <CreditCard className="h-4 w-4 text-amber-500 group-hover:scale-110 transition-transform" />
+                <span className="text-[11px] sm:text-xs font-semibold text-slate-700">Outstanding</span>
+                <CreditCard className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-amber-500 group-hover:scale-110 transition-transform" />
               </div>
-              <div className="mt-4">
-                <p className="text-xl font-black tracking-tight text-amber-600 truncate">
+              <div className="mt-3 sm:mt-4">
+                <p className="text-base sm:text-xl font-black tracking-tight text-amber-600 truncate">
                   {formatCurrency(financeData?.unpaidAmount || 0)}
                 </p>
                 <div className="flex items-center gap-1 mt-1">
-                  <Badge variant="outline" className="text-[9px] px-1.5 py-0 text-muted-foreground border-slate-200">
-                    {financeData?.collectionRate || 0}% Coll Rate
+                  <Badge variant="outline" className="text-[8px] sm:text-[9px] px-1 sm:px-1.5 py-0 text-muted-foreground border-slate-200">
+                    {financeData?.collectionRate || 0}% Rate
                   </Badge>
                 </div>
               </div>
@@ -686,40 +693,42 @@ export function OwnerFinanceModule({ schoolId, role = "school_owner" }: Props) {
             className="shadow-sm shadow-blue-50/50 bg-gradient-to-br from-white to-blue-50/20 border border-blue-100/80 hover:border-blue-400 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 cursor-pointer border-l-4 border-l-indigo-500 rounded-2xl h-full flex flex-col justify-between group"
             onClick={() => navigate(role === "accountant" ? `/${schoolSlug}/accountant/fees?tab=invoices` : `/${schoolSlug}/school_owner/finance`)}
           >
-            <CardContent className="p-4 flex flex-col justify-between h-full">
+            <CardContent className="p-3 sm:p-4 flex flex-col justify-between h-full">
               <div className="flex items-center justify-between text-muted-foreground">
-                <span className="text-xs font-semibold text-slate-700">Unpaid Bills</span>
-                <FileText className="h-4 w-4 text-indigo-500 group-hover:scale-110 transition-transform" />
+                <span className="text-[11px] sm:text-xs font-semibold text-slate-700">Unpaid Bills</span>
+                <FileText className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-indigo-500 group-hover:scale-110 transition-transform" />
               </div>
-              <div className="mt-4">
-                <p className="text-xl font-black tracking-tight text-slate-800 truncate">
+              <div className="mt-3 sm:mt-4">
+                <p className="text-base sm:text-xl font-black tracking-tight text-slate-800 truncate">
                   {financeData?.pendingInvoicesCount || 0}
                 </p>
-                <p className="text-[10px] font-semibold text-muted-foreground/80 mt-1">Pending billing collection</p>
+                <p className="text-[9px] sm:text-[10px] font-semibold text-muted-foreground/80 mt-1">Pending collection</p>
               </div>
             </CardContent>
           </Card>
         </motion.div>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="flex flex-wrap h-auto bg-muted/60 p-1.5 rounded-2xl gap-1 w-full sm:w-auto">
-          <TabsTrigger value="overview" className="rounded-xl py-2 px-4 gap-2">
-            <Layers className="h-4 w-4" /> Overview & Accounts
-          </TabsTrigger>
-          <TabsTrigger value="forecast" className="rounded-xl py-2 px-4 gap-2">
-            <Sliders className="h-4 w-4" /> Interactive Forecast
-          </TabsTrigger>
-          <TabsTrigger value="budget" className="rounded-xl py-2 px-4 gap-2">
-            <Wallet className="h-4 w-4" /> Budget Control
-          </TabsTrigger>
-          <TabsTrigger value="collections" className="rounded-xl py-2 px-4 gap-2">
-            <Percent className="h-4 w-4" /> Invoice Aging
-          </TabsTrigger>
-          <TabsTrigger value="ledger" className="rounded-xl py-2 px-4 gap-2">
-            <FileText className="h-4 w-4" /> Cash Ledger
-          </TabsTrigger>
-        </TabsList>
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full space-y-4 sm:space-y-6">
+        <div className="overflow-x-auto no-scrollbar -mx-1 px-1">
+          <TabsList className="inline-flex w-max min-w-full bg-muted/60 p-1.5 rounded-2xl gap-1">
+            <TabsTrigger value="overview" className="rounded-xl py-2 px-3 sm:px-4 gap-2 text-xs sm:text-sm whitespace-nowrap">
+              <Layers className="h-4 w-4" /> Overview & Accounts
+            </TabsTrigger>
+            <TabsTrigger value="forecast" className="rounded-xl py-2 px-3 sm:px-4 gap-2 text-xs sm:text-sm whitespace-nowrap">
+              <Sliders className="h-4 w-4" /> Interactive Forecast
+            </TabsTrigger>
+            <TabsTrigger value="budget" className="rounded-xl py-2 px-3 sm:px-4 gap-2 text-xs sm:text-sm whitespace-nowrap">
+              <Wallet className="h-4 w-4" /> Budget Control
+            </TabsTrigger>
+            <TabsTrigger value="collections" className="rounded-xl py-2 px-3 sm:px-4 gap-2 text-xs sm:text-sm whitespace-nowrap">
+              <Percent className="h-4 w-4" /> Invoice Aging
+            </TabsTrigger>
+            <TabsTrigger value="ledger" className="rounded-xl py-2 px-3 sm:px-4 gap-2 text-xs sm:text-sm whitespace-nowrap">
+              <FileText className="h-4 w-4" /> Cash Ledger
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
         {/* Tab 1: Overview & Channels */}
         <TabsContent value="overview" className="mt-6 space-y-6">
@@ -1247,18 +1256,18 @@ export function OwnerFinanceModule({ schoolId, role = "school_owner" }: Props) {
                     Unified transaction timeline containing all payments received and expenses paid.
                   </CardDescription>
                 </div>
-                <div className="flex flex-wrap gap-2 items-center">
-                  <div className="relative w-[180px] sm:w-[220px]">
+                <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center w-full sm:w-auto">
+                  <div className="relative w-full sm:w-[220px]">
                     <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground/60" />
                     <Input
                       placeholder="Search ledger..."
-                      className="pl-8 rounded-xl h-9 bg-background/50 text-xs"
+                      className="pl-8 rounded-xl h-9 bg-background/50 text-xs w-full"
                       value={ledgerSearch}
                       onChange={(e) => { setLedgerSearch(e.target.value); setLedgerPage(1); }}
                     />
                   </div>
                   <Select value={ledgerTypeFilter} onValueChange={(v) => { setLedgerTypeFilter(v); setLedgerPage(1); }}>
-                    <SelectTrigger className="w-[120px] rounded-xl h-9 text-xs">
+                    <SelectTrigger className="w-full sm:w-[120px] rounded-xl h-9 text-xs">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent className="rounded-xl">
@@ -1271,7 +1280,7 @@ export function OwnerFinanceModule({ schoolId, role = "school_owner" }: Props) {
               </div>
             </CardHeader>
             <CardContent className="p-0">
-              <div className="px-6 pb-6 pt-4">
+              <div className="px-3 sm:px-6 pb-4 sm:pb-6 pt-3 sm:pt-4">
                 <div className="overflow-x-auto rounded-2xl border bg-surface">
                   <table className="w-full text-sm text-left">
                     <thead>

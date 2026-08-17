@@ -180,15 +180,15 @@ export function OwnerAdmissionsModule({ schoolId }: Props) {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-border/40 pb-4">
         <div>
-          <h1 className="font-display text-2xl font-bold tracking-tight">Admissions & Growth</h1>
-          <p className="text-muted-foreground">CRM analytics, lead funnel, and conversion tracking</p>
+          <h1 className="font-display text-xl sm:text-2xl lg:text-3xl font-bold tracking-tight">Admissions & Growth</h1>
+          <p className="text-xs sm:text-sm text-muted-foreground mt-1">CRM analytics, lead funnel, and conversion tracking</p>
         </div>
         <Select value={periodFilter} onValueChange={setPeriodFilter}>
-          <SelectTrigger className="w-[140px]">
+          <SelectTrigger className="w-full sm:w-[140px] text-xs">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -201,78 +201,80 @@ export function OwnerAdmissionsModule({ schoolId }: Props) {
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+      <div className="grid grid-cols-2 gap-2.5 sm:gap-3 sm:grid-cols-3 lg:grid-cols-6">
         <Card>
-          <CardContent className="p-4">
+          <CardContent className="p-3 sm:p-4">
             <div className="flex items-center justify-between">
-              <UserPlus className="h-5 w-5 text-primary" />
+              <UserPlus className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
             </div>
-            <p className="mt-2 font-display text-2xl font-bold">{crmData?.totalLeads || 0}</p>
-            <p className="text-xs text-muted-foreground">Total Leads</p>
+            <p className="mt-2 font-display text-lg sm:text-2xl font-bold truncate">{crmData?.totalLeads || 0}</p>
+            <p className="text-[10px] sm:text-xs text-muted-foreground truncate">Total Leads</p>
           </CardContent>
         </Card>
 
         <Card>
-          <CardContent className="p-4">
+          <CardContent className="p-3 sm:p-4">
             <div className="flex items-center justify-between">
-              <Target className="h-5 w-5 text-amber-600" />
+              <Target className="h-4 w-4 sm:h-5 sm:w-5 text-amber-600" />
             </div>
-            <p className="mt-2 font-display text-2xl font-bold">{crmData?.openLeads || 0}</p>
-            <p className="text-xs text-muted-foreground">Open Leads</p>
+            <p className="mt-2 font-display text-lg sm:text-2xl font-bold truncate">{crmData?.openLeads || 0}</p>
+            <p className="text-[10px] sm:text-xs text-muted-foreground truncate">Open Leads</p>
           </CardContent>
         </Card>
 
         <Card>
-          <CardContent className="p-4">
+          <CardContent className="p-3 sm:p-4">
             <div className="flex items-center justify-between">
-              <UserCheck className="h-5 w-5 text-emerald-600" />
+              <UserCheck className="h-4 w-4 sm:h-5 sm:w-5 text-emerald-600" />
             </div>
-            <p className="mt-2 font-display text-2xl font-bold">{crmData?.wonLeads || 0}</p>
-            <p className="text-xs text-muted-foreground">Conversions</p>
+            <p className="mt-2 font-display text-lg sm:text-2xl font-bold truncate">{crmData?.wonLeads || 0}</p>
+            <p className="text-[10px] sm:text-xs text-muted-foreground truncate">Conversions</p>
           </CardContent>
         </Card>
 
         <Card>
-          <CardContent className="p-4">
+          <CardContent className="p-3 sm:p-4">
             <div className="flex items-center justify-between">
-              <TrendingUp className="h-5 w-5 text-blue-600" />
-              <Badge variant={crmData?.conversionRate && crmData.conversionRate >= 20 ? "default" : "destructive"} className="text-[10px]">
-                Target: 20%
+              <TrendingUp className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
+              <Badge variant={crmData?.conversionRate && crmData.conversionRate >= 20 ? "default" : "destructive"} className="text-[9px] sm:text-[10px] px-1 py-0">
+                20% Target
               </Badge>
             </div>
-            <p className="mt-2 font-display text-2xl font-bold">{crmData?.conversionRate || 0}%</p>
-            <p className="text-xs text-muted-foreground">Conversion Rate</p>
+            <p className="mt-2 font-display text-lg sm:text-2xl font-bold truncate">{crmData?.conversionRate || 0}%</p>
+            <p className="text-[10px] sm:text-xs text-muted-foreground truncate">Conversion Rate</p>
           </CardContent>
         </Card>
 
         <Card>
-          <CardContent className="p-4">
+          <CardContent className="p-3 sm:p-4">
             <div className="flex items-center justify-between">
-              <Phone className="h-5 w-5 text-purple-600" />
+              <Phone className="h-4 w-4 sm:h-5 sm:w-5 text-purple-600" />
             </div>
-            <p className="mt-2 font-display text-2xl font-bold">{crmData?.totalCalls || 0}</p>
-            <p className="text-xs text-muted-foreground">Calls Made</p>
+            <p className="mt-2 font-display text-lg sm:text-2xl font-bold truncate">{crmData?.totalCalls || 0}</p>
+            <p className="text-[10px] sm:text-xs text-muted-foreground truncate">Calls Made</p>
           </CardContent>
         </Card>
 
         <Card>
-          <CardContent className="p-4">
+          <CardContent className="p-3 sm:p-4">
             <div className="flex items-center justify-between">
-              <Zap className="h-5 w-5 text-orange-600" />
+              <Zap className="h-4 w-4 sm:h-5 sm:w-5 text-orange-600" />
             </div>
-            <p className="mt-2 font-display text-2xl font-bold">{crmData?.activeCampaigns || 0}</p>
-            <p className="text-xs text-muted-foreground">Active Campaigns</p>
+            <p className="mt-2 font-display text-lg sm:text-2xl font-bold truncate">{crmData?.activeCampaigns || 0}</p>
+            <p className="text-[10px] sm:text-xs text-muted-foreground truncate">Active Campaigns</p>
           </CardContent>
         </Card>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList>
-          <TabsTrigger value="funnel">Funnel</TabsTrigger>
-          <TabsTrigger value="sources">Lead Sources</TabsTrigger>
-          <TabsTrigger value="trend">Monthly Trend</TabsTrigger>
-          <TabsTrigger value="counselors">Counselor Performance</TabsTrigger>
-        </TabsList>
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full space-y-4 sm:space-y-6">
+        <div className="overflow-x-auto no-scrollbar -mx-1 px-1">
+          <TabsList className="inline-flex w-max min-w-full bg-muted/60 p-1.5 rounded-2xl gap-1">
+            <TabsTrigger value="funnel" className="rounded-xl py-2 px-3 sm:px-4 gap-2 text-xs sm:text-sm whitespace-nowrap">Funnel</TabsTrigger>
+            <TabsTrigger value="sources" className="rounded-xl py-2 px-3 sm:px-4 gap-2 text-xs sm:text-sm whitespace-nowrap">Lead Sources</TabsTrigger>
+            <TabsTrigger value="trend" className="rounded-xl py-2 px-3 sm:px-4 gap-2 text-xs sm:text-sm whitespace-nowrap">Monthly Trend</TabsTrigger>
+            <TabsTrigger value="counselors" className="rounded-xl py-2 px-3 sm:px-4 gap-2 text-xs sm:text-sm whitespace-nowrap">Counselor Performance</TabsTrigger>
+          </TabsList>
+        </div>
 
         <TabsContent value="funnel" className="mt-6">
           <Card>
