@@ -55,6 +55,13 @@ const COLORS = [
   "hsl(var(--chart-5))",
 ];
 
+const STAFF_ROLES = [
+  "teacher", "principal", "vice_principal", "accountant",
+  "academic_coordinator", "counselor", "hr_manager", "school_admin",
+  "librarian", "transport_manager", "receptionist", "security_guard",
+  "staff", "admin", "school_owner"
+];
+
 export function OwnerHrModule({ schoolId }: Props) {
   const [activeTab, setActiveTab] = useState("overview");
   const activeCampusId = useActiveCampus(schoolId);
@@ -80,40 +87,51 @@ export function OwnerHrModule({ schoolId }: Props) {
     queryFn: async () => {
       if (!schoolId) return null;
 
-      // Restrict to staff assigned to active campus, or all school staff if "All Campuses" is selected
-      let applyUserFilter = (q: any) => q;
+      // 1. Resolve staff user IDs for this campus (or entire school)
+      let staffUserIds: string[] = [];
       if (activeCampusId) {
-        const { data: sca } = await api
-          .from("staff_campus_assignments")
-          .select("user_id")
-          .eq("campus_id", activeCampusId);
-        const staffUserIds = (sca || []).map((r: any) => r.user_id);
-        applyUserFilter = (q: any) =>
-          staffUserIds.length
-            ? q.in("user_id", staffUserIds)
-            : q.eq("user_id", "00000000-0000-0000-0000-000000000000");
+        const [scaRes, rolesRes] = await Promise.all([
+          api.from("staff_campus_assignments").select("user_id").eq("campus_id", activeCampusId),
+          api.from("user_roles").select("user_id").eq("school_id", schoolId).eq("campus_id", activeCampusId).in("role", STAFF_ROLES)
+        ]);
+        const idSet = new Set<string>();
+        (scaRes.data || []).forEach((r: any) => idSet.add(r.user_id));
+        (rolesRes.data || []).forEach((r: any) => idSet.add(r.user_id));
+        staffUserIds = Array.from(idSet);
+      } else {
+        const rolesRes = await api.from("user_roles").select("user_id").eq("school_id", schoolId).in("role", STAFF_ROLES);
+        staffUserIds = Array.from(new Set((rolesRes.data || []).map((r: any) => r.user_id)));
       }
+
+      const applyCampusOrUserFilter = (query: any) => {
+        if (activeCampusId) {
+          return query.eq("campus_id", activeCampusId);
+        }
+        return query;
+      };
 
       const [staffRes, rolesRes, salariesRes, leavesRes, payRunsRes, contractsRes, reviewsRes] =
         await Promise.all([
-          applyUserFilter(api.from("school_memberships").select("*").eq("school_id", schoolId)),
-          applyUserFilter(api.from("user_roles").select("*").eq("school_id", schoolId)),
-          applyUserFilter(api.from("hr_salary_records").select("*").eq("school_id", schoolId)),
-          applyUserFilter(
+          applyCampusOrUserFilter(api.from("school_memberships").select("*").eq("school_id", schoolId)),
+          applyCampusOrUserFilter(api.from("user_roles").select("*").eq("school_id", schoolId).in("role", STAFF_ROLES)),
+          applyCampusOrUserFilter(api.from("hr_salary_records").select("*").eq("school_id", schoolId)),
+          applyCampusOrUserFilter(
             api
               .from("hr_leave_requests")
               .select("*")
               .eq("school_id", schoolId)
               .order("created_at", { ascending: false })
           ),
-          api
-            .from("hr_pay_runs")
-            .select("*")
-            .eq("school_id", schoolId)
-            .order("year", { ascending: false })
-            .order("month", { ascending: false }),
-          applyUserFilter(api.from("hr_contracts").select("*").eq("school_id", schoolId)),
-          applyUserFilter(
+          applyCampusOrUserFilter(
+            api
+              .from("hr_pay_runs")
+              .select("*")
+              .eq("school_id", schoolId)
+              .order("year", { ascending: false })
+              .order("month", { ascending: false })
+          ),
+          applyCampusOrUserFilter(api.from("hr_contracts").select("*").eq("school_id", schoolId)),
+          applyCampusOrUserFilter(
             api
               .from("hr_reviews")
               .select("*")
@@ -130,8 +148,12 @@ export function OwnerHrModule({ schoolId }: Props) {
       const contracts = contractsRes.data || [];
       const reviews = reviewsRes.data || [];
 
-      const activeStaff = staff.filter((s: any) => s.status === "active").length;
-      const totalStaff = staff.length;
+      // Filter staff members to actual staff users (excluding students/parents)
+      const staffMembers = staffUserIds.length
+        ? staff.filter((s: any) => staffUserIds.includes(s.user_id))
+        : staff;
+      const totalStaff = staffMembers.length || roles.length;
+      const activeStaff = staffMembers.filter((s: any) => s.status === "active").length || totalStaff;
 
       const roleDistribution: Record<string, number> = {};
       roles.forEach((r: any) => {
@@ -139,7 +161,7 @@ export function OwnerHrModule({ schoolId }: Props) {
         roleDistribution[role] = (roleDistribution[role] || 0) + 1;
       });
 
-      const activeSalaries = salaries.filter((s: any) => s.is_active);
+      const activeSalaries = salaries.filter((s: any) => s.status === "active" || s.is_active !== false);
       const totalSalaryBill = activeSalaries.reduce(
         (sum: number, s: any) =>
           sum + Number(s.base_salary || 0) + Number(s.allowances || 0) - Number(s.deductions || 0),
