@@ -274,14 +274,14 @@ export function HrContractsModule() {
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="font-display text-2xl font-bold">Contracts</h1>
-          <p className="text-sm text-muted-foreground">Click any contract to open the branded letterhead view, edit, or print.</p>
+          <h1 className="font-display text-xl sm:text-2xl font-bold">Contracts</h1>
+          <p className="text-xs sm:text-sm text-muted-foreground">Click any contract to open the branded letterhead view, edit, or print.</p>
         </div>
         <Dialog open={createOpen} onOpenChange={(o) => { setCreateOpen(o); if (o) setForm(blankForm); }}>
           <DialogTrigger asChild>
-            <Button><Plus className="h-4 w-4 mr-1" />New Contract</Button>
+            <Button size="sm" className="rounded-xl text-xs h-9"><Plus className="h-3.5 w-3.5 mr-1" />New Contract</Button>
           </DialogTrigger>
-          <DialogContent className="max-w-2xl">
+          <DialogContent className="max-w-2xl w-[calc(100%-2rem)] max-h-[90vh] overflow-y-auto p-4 sm:p-6 rounded-2xl">
             <DialogHeader><DialogTitle>New Contract</DialogTitle></DialogHeader>
             {renderFormFields(form, setForm)}
             <DialogFooter>
@@ -292,15 +292,15 @@ export function HrContractsModule() {
       </div>
 
       <div className="relative max-w-md">
-        <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-        <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by name, position, dept, ref…" className="pl-8" />
+        <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+        <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by name, position, dept, ref…" className="pl-8 rounded-xl h-9 text-xs" />
       </div>
 
       {(expiringSoon.length > 0 || expired.length > 0) && (
-        <Card className="border-amber-500/40 bg-amber-500/5">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2 mb-2"><AlertTriangle className="h-4 w-4 text-amber-600" /><p className="font-medium">Contract Alerts</p></div>
-            <div className="text-sm space-y-1">
+        <Card className="border-amber-500/40 bg-amber-500/5 rounded-2xl shadow-sm">
+          <CardContent className="p-3.5 sm:p-4">
+            <div className="flex items-center gap-2 mb-1.5"><AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" /><p className="font-semibold text-xs sm:text-sm">Contract Alerts</p></div>
+            <div className="text-xs sm:text-sm space-y-1">
               {expired.length > 0 && <p><span className="font-medium text-destructive">{expired.length}</span> expired contract(s) still marked active.</p>}
               {expiringSoon.length > 0 && <p><span className="font-medium text-amber-600">{expiringSoon.length}</span> contract(s) expiring within 60 days.</p>}
             </div>
@@ -308,12 +308,14 @@ export function HrContractsModule() {
         </Card>
       )}
 
-      <Tabs defaultValue="all">
-        <TabsList>
-          <TabsTrigger value="all">All ({filtered.length})</TabsTrigger>
-          <TabsTrigger value="expiring">Expiring ({expiringSoon.length})</TabsTrigger>
-          <TabsTrigger value="expired">Expired ({expired.length})</TabsTrigger>
-        </TabsList>
+      <Tabs defaultValue="all" className="space-y-4">
+        <div className="overflow-x-auto no-scrollbar -mx-1 px-1">
+          <TabsList className="inline-flex w-max min-w-full sm:w-auto p-1 rounded-xl">
+            <TabsTrigger value="all" className="rounded-lg text-xs font-semibold whitespace-nowrap">All ({filtered.length})</TabsTrigger>
+            <TabsTrigger value="expiring" className="rounded-lg text-xs font-semibold whitespace-nowrap">Expiring ({expiringSoon.length})</TabsTrigger>
+            <TabsTrigger value="expired" className="rounded-lg text-xs font-semibold whitespace-nowrap">Expired ({expired.length})</TabsTrigger>
+          </TabsList>
+        </div>
         {[
           { v: "all", list: filtered },
           { v: "expiring", list: expiringSoon },

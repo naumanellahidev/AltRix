@@ -235,21 +235,23 @@ export function HrAttendanceModule() {
 
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="font-display text-2xl font-bold">Staff Attendance</h1>
-          <p className="text-sm text-muted-foreground mt-1">Mark, review, and analyze staff attendance</p>
+          <h1 className="font-display text-xl sm:text-2xl font-bold">Staff Attendance</h1>
+          <p className="text-xs sm:text-sm text-muted-foreground mt-0.5 sm:mt-1">Mark, review, and analyze staff attendance</p>
         </div>
       </div>
 
-      <Tabs defaultValue="daily">
-        <TabsList>
-          <TabsTrigger value="daily">Daily</TabsTrigger>
-          <TabsTrigger value="monthly">Monthly Summary</TabsTrigger>
-          <TabsTrigger value="regularizations">
-            Regularizations{pendingRegs.length > 0 && ` (${pendingRegs.length})`}
-          </TabsTrigger>
-        </TabsList>
+      <Tabs defaultValue="daily" className="space-y-4">
+        <div className="overflow-x-auto no-scrollbar -mx-1 px-1">
+          <TabsList className="inline-flex w-max min-w-full sm:w-auto p-1 rounded-xl">
+            <TabsTrigger value="daily" className="rounded-lg text-xs font-semibold whitespace-nowrap">Daily</TabsTrigger>
+            <TabsTrigger value="monthly" className="rounded-lg text-xs font-semibold whitespace-nowrap">Monthly Summary</TabsTrigger>
+            <TabsTrigger value="regularizations" className="rounded-lg text-xs font-semibold whitespace-nowrap">
+              Regularizations{pendingRegs.length > 0 && ` (${pendingRegs.length})`}
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
-        <TabsContent value="daily" className="space-y-4 mt-4">
+        <TabsContent value="daily" className="space-y-4">
           <Card>
             <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 flex-1">

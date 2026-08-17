@@ -131,25 +131,27 @@ export function HrRecruitmentModule() {
         <p className="text-sm text-muted-foreground">Manage job postings, applicants, and interviews.</p>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-4">
         <StatCard label="Open positions" value={stats.openings} icon={Briefcase} />
         <StatCard label="Total applicants" value={stats.applicants} icon={Users} />
         <StatCard label="Interviews this week" value={stats.interviewsThisWeek} icon={CalendarIcon} />
         <StatCard label="Hired" value={stats.hired} icon={Users} tone="success" />
       </div>
 
-      <Tabs defaultValue="postings">
-        <TabsList>
-          <TabsTrigger value="postings">Job Postings ({postings.length})</TabsTrigger>
-          <TabsTrigger value="pipeline">Applicant Pipeline ({applicants.length})</TabsTrigger>
-          <TabsTrigger value="interviews">Interviews ({interviews.length})</TabsTrigger>
-        </TabsList>
+      <Tabs defaultValue="postings" className="space-y-4">
+        <div className="overflow-x-auto no-scrollbar -mx-1 px-1">
+          <TabsList className="inline-flex w-max min-w-full sm:w-auto p-1 rounded-xl">
+            <TabsTrigger value="postings" className="rounded-lg text-xs font-semibold whitespace-nowrap">Job Postings ({postings.length})</TabsTrigger>
+            <TabsTrigger value="pipeline" className="rounded-lg text-xs font-semibold whitespace-nowrap">Applicant Pipeline ({applicants.length})</TabsTrigger>
+            <TabsTrigger value="interviews" className="rounded-lg text-xs font-semibold whitespace-nowrap">Interviews ({interviews.length})</TabsTrigger>
+          </TabsList>
+        </div>
 
-        <TabsContent value="postings" className="mt-4">
+        <TabsContent value="postings">
           <PostingsTab postings={postings} schoolId={schoolId} onChange={refresh} loading={loading} />
         </TabsContent>
 
-        <TabsContent value="pipeline" className="mt-4">
+        <TabsContent value="pipeline">
           <PipelineTab 
             applicants={applicants} 
             postings={postings} 
@@ -160,7 +162,7 @@ export function HrRecruitmentModule() {
           />
         </TabsContent>
 
-        <TabsContent value="interviews" className="mt-4">
+        <TabsContent value="interviews">
           <InterviewsTab interviews={interviews} applicants={applicants} schoolId={schoolId} onChange={refresh} />
         </TabsContent>
       </Tabs>
@@ -170,14 +172,19 @@ export function HrRecruitmentModule() {
 
 function StatCard({ label, value, icon: Icon, tone }: { label: string; value: number; icon: any; tone?: string }) {
   return (
-    <Card>
-      <CardContent className="p-4 flex items-center justify-between">
-        <div>
-          <p className="text-xs text-muted-foreground">{label}</p>
-          <p className="text-2xl font-semibold mt-1">{value}</p>
+    <Card className="rounded-2xl shadow-sm">
+      <CardContent className="p-3.5 sm:p-4 flex items-center justify-between">
+        <div className="min-w-0 pr-1">
+          <p className="text-[10px] sm:text-xs text-muted-foreground truncate">{label}</p>
+          <p className="text-xl sm:text-2xl font-bold mt-0.5 sm:mt-1 truncate">{value}</p>
         </div>
-        <div className={`p-2 rounded-lg ${tone === "success" ? "bg-emerald-500/10 text-emerald-600" : "bg-primary/10 text-primary"}`}>
-          <Icon className="h-5 w-5" />
+        <div className={`p-2 rounded-xl shrink-0 ${tone === "success" ? "bg-emerald-500/10 text-emerald-600" : "bg-primary/10 text-primary"}`}>
+          <Icon className="h-4 w-4 sm:h-5 sm:w-5" />
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
         </div>
       </CardContent>
     </Card>

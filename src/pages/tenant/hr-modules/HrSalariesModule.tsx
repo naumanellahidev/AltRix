@@ -417,65 +417,67 @@ export function HrSalariesModule() {
   return (
     <div className="space-y-6">
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-        <Card className="shadow-elevated">
-          <CardContent className="pt-4">
-            <div className="flex items-center gap-2">
-              <Users className="h-4 w-4 text-muted-foreground" />
-              <p className="text-sm text-muted-foreground">Active Staff</p>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
+        <Card className="shadow-elevated rounded-2xl">
+          <CardContent className="p-3.5 sm:p-4">
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              <Users className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-muted-foreground shrink-0" />
+              <p className="text-[10px] sm:text-xs text-muted-foreground uppercase font-semibold truncate">Active Staff</p>
             </div>
-            <p className="mt-2 text-2xl font-semibold">{stats.totalStaff}</p>
+            <p className="mt-1 sm:mt-2 text-lg sm:text-2xl font-bold truncate">{stats.totalStaff}</p>
           </CardContent>
         </Card>
-        <Card className="shadow-elevated">
-          <CardContent className="pt-4">
-            <div className="flex items-center gap-2">
-              <Coins className="h-4 w-4 text-muted-foreground" />
-              <p className="text-sm text-muted-foreground">Monthly Payroll</p>
+        <Card className="shadow-elevated rounded-2xl">
+          <CardContent className="p-3.5 sm:p-4">
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              <Coins className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-muted-foreground shrink-0" />
+              <p className="text-[10px] sm:text-xs text-muted-foreground uppercase font-semibold truncate">Monthly Payroll</p>
             </div>
-            <p className="mt-2 text-2xl font-semibold text-primary">{stats.totalPayroll.toLocaleString()}</p>
+            <p className="mt-1 sm:mt-2 text-lg sm:text-2xl font-bold text-primary truncate">{stats.totalPayroll.toLocaleString()}</p>
           </CardContent>
         </Card>
-        <Card className="shadow-elevated">
-          <CardContent className="pt-4">
-            <div className="flex items-center gap-2">
-              <TrendingUp className="h-4 w-4 text-muted-foreground" />
-              <p className="text-sm text-muted-foreground">Allowances</p>
+        <Card className="shadow-elevated rounded-2xl">
+          <CardContent className="p-3.5 sm:p-4">
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              <TrendingUp className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-muted-foreground shrink-0" />
+              <p className="text-[10px] sm:text-xs text-muted-foreground uppercase font-semibold truncate">Allowances</p>
             </div>
-            <p className="mt-2 text-2xl font-semibold">{stats.totalAllowances.toLocaleString()}</p>
+            <p className="mt-1 sm:mt-2 text-lg sm:text-2xl font-bold truncate">{stats.totalAllowances.toLocaleString()}</p>
           </CardContent>
         </Card>
-        <Card className="shadow-elevated">
-          <CardContent className="pt-4">
-            <div className="flex items-center gap-2">
-              <Calendar className="h-4 w-4 text-muted-foreground" />
-              <p className="text-sm text-muted-foreground">Total Deductions</p>
+        <Card className="shadow-elevated rounded-2xl">
+          <CardContent className="p-3.5 sm:p-4">
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              <Calendar className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-muted-foreground shrink-0" />
+              <p className="text-[10px] sm:text-xs text-muted-foreground uppercase font-semibold truncate">Deductions</p>
             </div>
-            <p className="mt-2 text-2xl font-semibold">{stats.totalDeductions.toLocaleString()}</p>
+            <p className="mt-1 sm:mt-2 text-lg sm:text-2xl font-bold truncate">{stats.totalDeductions.toLocaleString()}</p>
           </CardContent>
         </Card>
       </div>
 
-      <Tabs defaultValue="salaries">
-        <TabsList>
-          <TabsTrigger value="salaries">Salary Records</TabsTrigger>
-          <TabsTrigger value="payruns">Pay Runs</TabsTrigger>
-        </TabsList>
+      <Tabs defaultValue="salaries" className="space-y-4">
+        <div className="overflow-x-auto no-scrollbar -mx-1 px-1">
+          <TabsList className="inline-flex w-max min-w-full sm:w-auto p-1 rounded-xl">
+            <TabsTrigger value="salaries" className="rounded-lg text-xs font-semibold whitespace-nowrap">Salary Records</TabsTrigger>
+            <TabsTrigger value="payruns" className="rounded-lg text-xs font-semibold whitespace-nowrap">Pay Runs</TabsTrigger>
+          </TabsList>
+        </div>
 
-        <TabsContent value="salaries" className="mt-4">
-          <Card className="shadow-elevated">
-            <CardHeader className="flex flex-row items-center justify-between">
+        <TabsContent value="salaries" className="space-y-4">
+          <Card className="shadow-elevated rounded-2xl sm:rounded-3xl">
+            <CardHeader className="p-4 sm:p-6 pb-2 sm:pb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <div>
-                <CardTitle className="font-display text-xl">Salary Records</CardTitle>
-                <p className="text-sm text-muted-foreground">Manage staff salary configurations</p>
+                <CardTitle className="font-display text-lg sm:text-xl">Salary Records</CardTitle>
+                <p className="text-xs text-muted-foreground">Manage staff salary configurations</p>
               </div>
               <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
                 <DialogTrigger asChild>
-                  <Button variant="hero" onClick={openCreate}>
-                    <Plus className="mr-2 h-4 w-4" /> Add Salary Record
+                  <Button size="sm" variant="hero" onClick={openCreate} className="rounded-xl text-xs h-9">
+                    <Plus className="mr-1.5 h-3.5 w-3.5" /> Add Record
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="max-w-lg">
+                <DialogContent className="max-w-lg w-[calc(100%-2rem)] max-h-[90vh] overflow-y-auto p-4 sm:p-6 rounded-2xl">
                   <DialogHeader>
                     <DialogTitle>{editingRecord ? "Edit Salary Record" : "Add Salary Record"}</DialogTitle>
                     <DialogDescription>Configure salary details for a staff member</DialogDescription>

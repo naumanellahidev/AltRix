@@ -396,77 +396,79 @@ export function LibraryModule() {
   return (
     <div className="space-y-6">
       {/* Header Banner */}
-      <div className="bg-gradient-to-r from-blue-700 via-indigo-600 to-blue-800 text-white rounded-2xl p-6 shadow-lg shadow-blue-500/10 border border-blue-400/20">
+      <div className="bg-gradient-to-r from-blue-700 via-indigo-600 to-blue-800 text-white rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-lg shadow-blue-500/10 border border-blue-400/20">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <div className="p-3 bg-white/10 rounded-xl backdrop-blur-md border border-white/20">
-              <Library className="h-8 w-8 text-blue-100" />
+          <div className="flex items-center gap-3 sm:gap-4">
+            <div className="p-2.5 sm:p-3 bg-white/10 rounded-xl backdrop-blur-md border border-white/20 shrink-0">
+              <Library className="h-6 w-6 sm:h-8 sm:w-8 text-blue-100" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold tracking-tight">Library & Knowledge Resource Catalog</h1>
-              <p className="text-blue-100 text-sm mt-0.5">Manage digital book inventory, borrower circulation, barcodes & reservations</p>
+              <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Library Catalog</h1>
+              <p className="text-blue-100 text-xs sm:text-sm mt-0.5">Manage digital book inventory, circulation, and reservations</p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <Button onClick={() => setShowIssueModal(true)} variant="secondary" className="bg-white/10 hover:bg-white/20 text-white border border-white/20">
-              <UserCheck className="h-4 w-4 mr-2" /> Issue Book Desk
+          <div className="flex flex-wrap items-center gap-2">
+            <Button size="sm" onClick={() => setShowIssueModal(true)} variant="secondary" className="bg-white/10 hover:bg-white/20 text-white border border-white/20 rounded-xl text-xs h-9">
+              <UserCheck className="h-3.5 w-3.5 mr-1.5" /> Issue Desk
             </Button>
-            <Button onClick={() => setShowAddBook(true)} className="bg-white text-blue-700 hover:bg-blue-50 font-semibold shadow-md">
-              <Plus className="h-4 w-4 mr-2" /> Add Book Title
+            <Button size="sm" onClick={() => setShowAddBook(true)} className="bg-white text-blue-700 hover:bg-blue-50 font-semibold shadow-md rounded-xl text-xs h-9">
+              <Plus className="h-3.5 w-3.5 mr-1.5" /> Add Title
             </Button>
           </div>
         </div>
       </div>
 
       {/* KPI Stat Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm p-5 hover:shadow-md transition-all">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-4">
+        <Card className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm p-3.5 sm:p-5 hover:shadow-md transition-all rounded-2xl">
           <div className="flex items-center gap-3">
-            <div className="p-3 rounded-xl bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-900/50">
-              <BookOpen className="h-6 w-6" />
+            <div className="p-2.5 sm:p-3 rounded-xl bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-900/50 shrink-0">
+              <BookOpen className="h-5 w-5 sm:h-6 sm:w-6" />
             </div>
-            <div>
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Catalog Titles</p>
-              <p className="text-2xl font-bold text-slate-900 dark:text-slate-100 mt-0.5">{totalTitles} Titles <span className="text-sm font-normal text-slate-500">({totalAvailable}/{totalCopies} Available)</span></p>
+            <div className="min-w-0">
+              <p className="text-[10px] sm:text-xs font-semibold text-slate-500 uppercase tracking-wider truncate">Catalog Titles</p>
+              <p className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-slate-100 mt-0.5 truncate">{totalTitles} Titles <span className="text-xs sm:text-sm font-normal text-slate-500">({totalAvailable}/{totalCopies})</span></p>
             </div>
           </div>
         </Card>
 
-        <Card className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm p-5 hover:shadow-md transition-all">
+        <Card className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm p-3.5 sm:p-5 hover:shadow-md transition-all rounded-2xl">
           <div className="flex items-center gap-3">
-            <div className="p-3 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-900/50">
-              <Clock className="h-6 w-6" />
+            <div className="p-2.5 sm:p-3 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-900/50 shrink-0">
+              <Clock className="h-5 w-5 sm:h-6 sm:w-6" />
             </div>
-            <div>
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Active Circulation</p>
-              <p className="text-2xl font-bold text-indigo-600 dark:text-indigo-400 mt-0.5">{activeLoans} Issued Books</p>
+            <div className="min-w-0">
+              <p className="text-[10px] sm:text-xs font-semibold text-slate-500 uppercase tracking-wider truncate">Active Circulation</p>
+              <p className="text-xl sm:text-2xl font-bold text-indigo-600 dark:text-indigo-400 mt-0.5 truncate">{activeLoans} Issued</p>
             </div>
           </div>
         </Card>
 
-        <Card className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm p-5 hover:shadow-md transition-all">
+        <Card className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm p-3.5 sm:p-5 hover:shadow-md transition-all rounded-2xl">
           <div className="flex items-center gap-3">
-            <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-900/50">
-              <BookmarkCheck className="h-6 w-6" />
+            <div className="p-2.5 sm:p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-900/50 shrink-0">
+              <BookmarkCheck className="h-5 w-5 sm:h-6 sm:w-6" />
             </div>
-            <div>
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Book Reservations</p>
-              <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-0.5">{reservations.length} Queue Holds</p>
+            <div className="min-w-0">
+              <p className="text-[10px] sm:text-xs font-semibold text-slate-500 uppercase tracking-wider truncate">Reservations</p>
+              <p className="text-xl sm:text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-0.5 truncate">{reservations.length} Holds</p>
             </div>
           </div>
         </Card>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
-          <TabsList className="bg-slate-100 dark:bg-slate-800 p-1 border border-slate-200 dark:border-slate-700">
-            <TabsTrigger value="catalog" className="data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-sm font-medium">
-              <BookOpen className="h-4 w-4 mr-2" /> Master Book Catalog
-            </TabsTrigger>
-            <TabsTrigger value="issues" className="data-[state=active]:bg-white data-[state=active]:text-indigo-700 data-[state=active]:shadow-sm font-medium">
-              <Clock className="h-4 w-4 mr-2" /> Active Loans & Returns Log
-            </TabsTrigger>
-          </TabsList>
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="overflow-x-auto no-scrollbar -mx-1 px-1">
+            <TabsList className="inline-flex w-max min-w-full sm:w-auto p-1 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+              <TabsTrigger value="catalog" className="data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-sm font-semibold text-xs rounded-lg whitespace-nowrap">
+                <BookOpen className="h-3.5 w-3.5 mr-1.5" /> Book Catalog
+              </TabsTrigger>
+              <TabsTrigger value="issues" className="data-[state=active]:bg-white data-[state=active]:text-indigo-700 data-[state=active]:shadow-sm font-semibold text-xs rounded-lg whitespace-nowrap">
+                <Clock className="h-3.5 w-3.5 mr-1.5" /> Loans & Returns Log
+              </TabsTrigger>
+            </TabsList>
+          </div>
 
           <div className="flex items-center gap-2">
             {activeTab === "catalog" && (

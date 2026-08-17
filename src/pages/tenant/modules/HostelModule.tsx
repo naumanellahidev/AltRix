@@ -171,80 +171,82 @@ export function HostelModule() {
   return (
     <div className="space-y-6">
       {/* Header Banner */}
-      <div className="bg-gradient-to-r from-blue-700 via-indigo-600 to-blue-800 text-white rounded-2xl p-6 shadow-lg shadow-blue-500/10 border border-blue-400/20">
+      <div className="bg-gradient-to-r from-blue-700 via-indigo-600 to-blue-800 text-white rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-lg shadow-blue-500/10 border border-blue-400/20">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <div className="p-3 bg-white/10 rounded-xl backdrop-blur-md border border-white/20">
-              <Building className="h-8 w-8 text-blue-100" />
+          <div className="flex items-center gap-3 sm:gap-4">
+            <div className="p-2.5 sm:p-3 bg-white/10 rounded-xl backdrop-blur-md border border-white/20 shrink-0">
+              <Building className="h-6 w-6 sm:h-8 sm:w-8 text-blue-100" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold tracking-tight">Hostel & Residential Boarding</h1>
-              <p className="text-blue-100 text-sm mt-0.5">Manage student dormitories, room allocations, night attendance & mess menus</p>
+              <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Hostel & Boarding</h1>
+              <p className="text-blue-100 text-xs sm:text-sm mt-0.5">Manage dormitories, room allocations, night attendance & mess menus</p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <Button onClick={() => setShowAttendanceModal(true)} variant="secondary" className="bg-white/10 hover:bg-white/20 text-white border border-white/20">
-              <Moon className="h-4 w-4 mr-2" /> Night Check
+          <div className="flex flex-wrap items-center gap-2">
+            <Button size="sm" onClick={() => setShowAttendanceModal(true)} variant="secondary" className="bg-white/10 hover:bg-white/20 text-white border border-white/20 rounded-xl text-xs h-9">
+              <Moon className="h-3.5 w-3.5 mr-1.5" /> Night Check
             </Button>
-            <Button onClick={() => setShowAddRoomModal(true)} className="bg-white text-blue-700 hover:bg-blue-50 font-semibold shadow-md">
-              <Plus className="h-4 w-4 mr-2" /> Add Room
+            <Button size="sm" onClick={() => setShowAddRoomModal(true)} className="bg-white text-blue-700 hover:bg-blue-50 font-semibold shadow-md rounded-xl text-xs h-9">
+              <Plus className="h-3.5 w-3.5 mr-1.5" /> Add Room
             </Button>
           </div>
         </div>
       </div>
 
       {/* KPI Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm p-5 hover:shadow-md transition-all">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-4">
+        <Card className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm p-3.5 sm:p-5 hover:shadow-md transition-all rounded-2xl">
           <div className="flex items-center gap-3">
-            <div className="p-3 rounded-xl bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-900/50">
-              <Home className="h-6 w-6" />
+            <div className="p-2.5 sm:p-3 rounded-xl bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-900/50 shrink-0">
+              <Home className="h-5 w-5 sm:h-6 sm:w-6" />
             </div>
-            <div>
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Rooms</p>
-              <p className="text-2xl font-bold text-slate-900 dark:text-slate-100 mt-0.5">{totalRooms}</p>
+            <div className="min-w-0">
+              <p className="text-[10px] sm:text-xs font-semibold text-slate-500 uppercase tracking-wider truncate">Total Rooms</p>
+              <p className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-slate-100 mt-0.5 truncate">{totalRooms}</p>
             </div>
           </div>
         </Card>
 
-        <Card className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm p-5 hover:shadow-md transition-all">
+        <Card className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm p-3.5 sm:p-5 hover:shadow-md transition-all rounded-2xl">
           <div className="flex items-center gap-3">
-            <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-900/50">
-              <UserCheck className="h-6 w-6" />
+            <div className="p-2.5 sm:p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-900/50 shrink-0">
+              <UserCheck className="h-5 w-5 sm:h-6 sm:w-6" />
             </div>
-            <div>
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Boarding Occupancy</p>
-              <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-0.5">{totalOccupied} / {totalCapacity}</p>
+            <div className="min-w-0">
+              <p className="text-[10px] sm:text-xs font-semibold text-slate-500 uppercase tracking-wider truncate">Boarding Occupancy</p>
+              <p className="text-xl sm:text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-0.5 truncate">{totalOccupied} / {totalCapacity}</p>
             </div>
           </div>
         </Card>
 
-        <Card className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm p-5 hover:shadow-md transition-all">
+        <Card className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm p-3.5 sm:p-5 hover:shadow-md transition-all rounded-2xl">
           <div className="flex items-center gap-3">
-            <div className="p-3 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-900/50">
-              <Moon className="h-6 w-6" />
+            <div className="p-2.5 sm:p-3 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-900/50 shrink-0">
+              <Moon className="h-5 w-5 sm:h-6 sm:w-6" />
             </div>
-            <div>
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Night Check Desk</p>
-              <p className="text-2xl font-bold text-indigo-600 dark:text-indigo-400 mt-0.5">Active Warden</p>
+            <div className="min-w-0">
+              <p className="text-[10px] sm:text-xs font-semibold text-slate-500 uppercase tracking-wider truncate">Night Check Desk</p>
+              <p className="text-xl sm:text-2xl font-bold text-indigo-600 dark:text-indigo-400 mt-0.5 truncate">Active</p>
             </div>
           </div>
         </Card>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
-          <TabsList className="bg-slate-100 dark:bg-slate-800 p-1 border border-slate-200 dark:border-slate-700">
-            <TabsTrigger value="rooms" className="data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-sm font-medium">
-              <Bed className="h-4 w-4 mr-2" /> Hostel Rooms & Beds
-            </TabsTrigger>
-            <TabsTrigger value="night-check" className="data-[state=active]:bg-white data-[state=active]:text-indigo-700 data-[state=active]:shadow-sm font-medium">
-              <Moon className="h-4 w-4 mr-2" /> Nightly Roll Call
-            </TabsTrigger>
-            <TabsTrigger value="mess" className="data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-sm font-medium">
-              <Utensils className="h-4 w-4 mr-2" /> Boarding Mess Menu
-            </TabsTrigger>
-          </TabsList>
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="overflow-x-auto no-scrollbar -mx-1 px-1">
+            <TabsList className="inline-flex w-max min-w-full sm:w-auto p-1 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+              <TabsTrigger value="rooms" className="data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-sm font-semibold text-xs rounded-lg whitespace-nowrap">
+                <Bed className="h-3.5 w-3.5 mr-1.5" /> Rooms & Beds
+              </TabsTrigger>
+              <TabsTrigger value="night-check" className="data-[state=active]:bg-white data-[state=active]:text-indigo-700 data-[state=active]:shadow-sm font-semibold text-xs rounded-lg whitespace-nowrap">
+                <Moon className="h-3.5 w-3.5 mr-1.5" /> Nightly Roll Call
+              </TabsTrigger>
+              <TabsTrigger value="mess" className="data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-sm font-semibold text-xs rounded-lg whitespace-nowrap">
+                <Utensils className="h-3.5 w-3.5 mr-1.5" /> Mess Menu
+              </TabsTrigger>
+            </TabsList>
+          </div>
 
           <div className="flex items-center gap-2">
             <div className="relative">

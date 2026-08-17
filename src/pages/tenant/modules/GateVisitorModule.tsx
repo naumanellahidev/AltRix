@@ -181,28 +181,30 @@ export default function GateVisitorModule() {
   };
 
   return (
-    <div className="space-y-6 p-4 md:p-6 max-w-6xl mx-auto">
+    <div className="space-y-4 sm:space-y-6 p-3 sm:p-6 max-w-6xl mx-auto">
       {/* Title Header */}
       <div>
-        <h1 className="text-3xl font-display font-bold tracking-tight">Security Gate Console</h1>
-        <p className="text-muted-foreground mt-1">
+        <h1 className="text-2xl sm:text-3xl font-display font-bold tracking-tight">Security Gate Console</h1>
+        <p className="text-xs sm:text-sm text-muted-foreground mt-0.5 sm:mt-1">
           Scan pre-registered entry QR passes, record live visitor details, capture check-in photos, and filter blacklist threats.
         </p>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="bg-muted p-1 rounded-xl">
-          <TabsTrigger value="scan" className="gap-2 rounded-lg">
-            <Scan className="h-4 w-4" /> Scan & Check-in
-          </TabsTrigger>
-          <TabsTrigger value="blacklist" className="gap-2 rounded-lg">
-            <Ban className="h-4 w-4" /> Security Blacklist
-          </TabsTrigger>
-        </TabsList>
+        <div className="overflow-x-auto no-scrollbar -mx-1 px-1">
+          <TabsList className="inline-flex w-max min-w-full sm:w-auto p-1 rounded-xl">
+            <TabsTrigger value="scan" className="gap-2 rounded-lg text-xs font-semibold whitespace-nowrap">
+              <Scan className="h-3.5 w-3.5" /> Scan & Check-in
+            </TabsTrigger>
+            <TabsTrigger value="blacklist" className="gap-2 rounded-lg text-xs font-semibold whitespace-nowrap">
+              <Ban className="h-3.5 w-3.5" /> Security Blacklist
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
         {/* Scan & check-in console */}
-        <TabsContent value="scan" className="space-y-6">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <TabsContent value="scan" className="space-y-4 sm:space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
             {/* Verify input card */}
             <Card className="shadow-soft lg:col-span-1 border-border/60">
               <CardHeader>

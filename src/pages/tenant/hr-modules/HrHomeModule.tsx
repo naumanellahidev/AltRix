@@ -113,15 +113,15 @@ export function HrHomeModule() {
         <p className="text-sm text-muted-foreground">People operations at a glance.</p>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 sm:gap-3">
         {kpis.map(k => (
           <Link key={k.label} to={k.to}>
-            <Card className="hover:shadow-md transition cursor-pointer h-full">
-              <CardContent className="p-4">
+            <Card className="hover:shadow-md transition cursor-pointer h-full rounded-2xl">
+              <CardContent className="p-3 sm:p-4">
                 <div className="flex justify-between items-start">
-                  <div>
-                    <p className="text-xs text-muted-foreground">{k.label}</p>
-                    <p className="text-2xl font-semibold mt-1">{k.value}</p>
+                  <div className="min-w-0 pr-1">
+                    <p className="text-[10px] sm:text-xs text-muted-foreground truncate">{k.label}</p>
+                    <p className="text-xl sm:text-2xl font-bold mt-0.5 sm:mt-1 truncate">{k.value}</p>
                   </div>
                   <KpiIcon icon={k.icon} tone={k.tone} />
                 </div>
@@ -131,15 +131,15 @@ export function HrHomeModule() {
         ))}
       </div>
 
-      <Card>
-        <CardHeader><CardTitle className="text-sm uppercase tracking-wide">Quick Actions</CardTitle></CardHeader>
-        <CardContent>
+      <Card className="rounded-2xl shadow-sm">
+        <CardHeader className="p-4 pb-2 sm:pb-3"><CardTitle className="text-xs sm:text-sm uppercase tracking-wide">Quick Actions</CardTitle></CardHeader>
+        <CardContent className="p-3 sm:p-4 pt-0">
           <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2">
             {quickActions.map(a => (
               <Link key={a.label} to={a.to}>
-                <Button variant="outline" className="w-full h-auto py-3 flex-col gap-2">
-                  <a.icon className="h-5 w-5" />
-                  <span className="text-xs">{a.label}</span>
+                <Button variant="outline" className="w-full h-auto py-2.5 sm:py-3 flex-col gap-1.5 sm:gap-2 rounded-xl">
+                  <a.icon className="h-4 w-4 sm:h-5 sm:w-5" />
+                  <span className="text-[11px] sm:text-xs truncate">{a.label}</span>
                 </Button>
               </Link>
             ))}

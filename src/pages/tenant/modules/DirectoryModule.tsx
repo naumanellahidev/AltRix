@@ -367,18 +367,20 @@ export function DirectoryModule() {
           </div>
         </CardHeader>
         <CardContent>
-          <Tabs value={tab} onValueChange={(v) => setTab(v as any)}>
-            <TabsList>
-              <TabsTrigger value="students">Students{tab === "students" ? ` (${counts.students})` : ""}</TabsTrigger>
-              <TabsTrigger value="staff">Staff{tab === "staff" ? ` (${counts.staff})` : ""}</TabsTrigger>
-              <TabsTrigger value="leads">Leads{tab === "leads" ? ` (${counts.leads})` : ""}</TabsTrigger>
-            </TabsList>
+          <Tabs value={tab} onValueChange={(v) => setTab(v as any)} className="space-y-4">
+            <div className="overflow-x-auto no-scrollbar -mx-1 px-1">
+              <TabsList className="inline-flex w-max min-w-full sm:w-auto p-1 rounded-xl">
+                <TabsTrigger value="students" className="rounded-lg text-xs font-semibold whitespace-nowrap">Students{tab === "students" ? ` (${counts.students})` : ""}</TabsTrigger>
+                <TabsTrigger value="staff" className="rounded-lg text-xs font-semibold whitespace-nowrap">Staff{tab === "staff" ? ` (${counts.staff})` : ""}</TabsTrigger>
+                <TabsTrigger value="leads" className="rounded-lg text-xs font-semibold whitespace-nowrap">Leads{tab === "leads" ? ` (${counts.leads})` : ""}</TabsTrigger>
+              </TabsList>
+            </div>
 
-            <TabsContent value="students" className="mt-4">
+            <TabsContent value="students" className="space-y-4">
               <div
                 ref={tableRegionRef}
                 tabIndex={0}
-                className="rounded-2xl border bg-surface outline-none focus:ring-2 focus:ring-ring"
+                className="rounded-2xl border bg-surface outline-none focus:ring-2 focus:ring-ring overflow-x-auto"
               >
                 <Table>
                   <TableHeader>
