@@ -8,6 +8,7 @@ import { BookOpen, CalendarDays, FileText, GraduationCap, Headphones, LayoutGrid
 import { api } from "@/lib/api";
 import { GlobalCommandPalette } from "@/components/global/GlobalCommandPalette";
 import { NotificationsBell } from "@/components/global/NotificationsBell";
+import { LuxuryShellHeader } from "@/components/tenant/LuxuryShellHeader";
 import { DashboardNotificationsBanner } from "@/components/global/DashboardNotificationsBanner";
 import { useUnreadMessagesOptimized } from "@/hooks/useUnreadMessagesOptimized";
 import { useTenantOptimized } from "@/hooks/useTenantOptimized";
@@ -146,45 +147,21 @@ export function StudentShell({ title, subtitle, schoolSlug, children }: Props) {
     <div className="min-h-screen bg-background pb-20 lg:pb-0">
       <GlobalCommandPalette basePath={basePath} />
 
-      {/* Mobile Header */}
-      <header className="sticky top-0 z-40 flex items-center justify-between border-b bg-background/95 px-4 py-3 backdrop-blur lg:hidden">
-        <div className="flex items-center gap-3">
-          <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
-            <SheetTrigger asChild>
-              <Button variant="ghost" size="icon">
-                <Menu className="h-5 w-5" />
-              </Button>
-            </SheetTrigger>
-            <SheetContent side="left" className="w-[280px] p-4 overflow-y-auto">
-              <NavContent />
-            </SheetContent>
-          </Sheet>
-          <div>
-            <p className="font-display text-base font-semibold tracking-tight">{title}</p>
-            {subtitle && <p className="text-xs text-muted-foreground">{subtitle}</p>}
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <OfflineStatusIndicator
-            isOnline={offline.isOnline}
-            isSyncing={offline.isSyncing}
-            stats={offline.stats}
-            lastSyncAt={offline.lastSyncAt}
-            syncProgress={offline.syncProgress}
-            storageInfo={offline.storageInfo}
-            onSync={offline.syncPendingItems}
-            variant="compact"
-          />
-          <NotificationsBell schoolId={schoolId} schoolSlug={schoolSlug} role="student" />
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => window.dispatchEvent(new Event("eduverse:open-search"))}
-          >
-            <Sparkles className="h-5 w-5" />
-          </Button>
-        </div>
-      </header>
+      {/* Luxury Responsive Shell Header */}
+      <LuxuryShellHeader
+        title={title}
+        subtitle={subtitle || "Student Learning Portal"}
+        role="student"
+        schoolSlug={schoolSlug}
+        schoolId={schoolId}
+        schoolName={tenant.school?.name}
+        userEmail={user?.email}
+        mobileNavOpen={mobileNavOpen}
+        onMobileNavOpenChange={setMobileNavOpen}
+        navContent={<NavContent />}
+        offline={offline}
+        onLogout={handleLogout}
+      />
 
       <div className="grid w-full grid-cols-1 gap-4 px-4 py-4 lg:grid-cols-[280px_1fr] lg:gap-6 lg:px-6 lg:py-6">
         {/* Desktop Sidebar */}

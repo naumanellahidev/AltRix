@@ -28,6 +28,7 @@ import { motion } from "framer-motion";
 import { toast } from "sonner";
 import { GlobalCommandPalette } from "@/components/global/GlobalCommandPalette";
 import { NotificationsBell } from "@/components/global/NotificationsBell";
+import { LuxuryShellHeader } from "@/components/tenant/LuxuryShellHeader";
 import { DashboardNotificationsBanner } from "@/components/global/DashboardNotificationsBanner";
 import { useUnreadMessagesOptimized } from "@/hooks/useUnreadMessagesOptimized";
 import { useTenantOptimized } from "@/hooks/useTenantOptimized";
@@ -405,27 +406,20 @@ export function RoleAwareShell({ schoolSlug, title, subtitle, children }: Props)
     <div className="min-h-screen bg-background pb-20 lg:pb-0">
       <GlobalCommandPalette basePath={base} />
 
-      <header className="sticky top-0 z-40 flex items-center justify-between border-b border-border/60 bg-background/85 px-4 py-3 backdrop-blur-xl lg:hidden">
-        <div className="flex items-center gap-3">
-          <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-            <SheetTrigger asChild>
-              <Button variant="ghost" size="icon" className="rounded-xl">
-                <Menu className="h-5 w-5" />
-              </Button>
-            </SheetTrigger>
-            <SheetContent side="left" className="w-[280px] p-4 overflow-y-auto">
-              <NavBody />
-            </SheetContent>
-          </Sheet>
-          <div className="min-w-0">
-            <p className="font-display text-base font-semibold tracking-tight truncate">
-              {title ?? "Workspace"}
-            </p>
-            {subtitle && <p className="text-[11px] text-muted-foreground truncate">{subtitle}</p>}
-          </div>
-        </div>
-        <NotificationsBell schoolId={schoolId} schoolSlug={schoolSlug} role={primaryRole ?? "student"} />
-      </header>
+      {/* Luxury Responsive Shell Header */}
+      <LuxuryShellHeader
+        title={title ?? "Workspace"}
+        subtitle={subtitle || "Unified Role Workspace"}
+        role={primaryRole ?? "student"}
+        schoolSlug={schoolSlug}
+        schoolId={schoolId}
+        schoolName={tenant.school?.name}
+        userEmail={user?.email}
+        mobileNavOpen={mobileOpen}
+        onMobileNavOpenChange={setMobileOpen}
+        navContent={<NavBody />}
+        onLogout={handleLogout}
+      />
 
       <div className="mx-auto grid w-full max-w-7xl grid-cols-1 gap-4 px-3 py-4 sm:px-4 lg:grid-cols-[280px_1fr] lg:gap-6 lg:px-6 lg:py-6">
         <aside className="sticky top-6 hidden self-start max-h-[calc(100vh-3rem)] overflow-y-auto rounded-3xl border border-border/60 bg-surface/80 p-4 shadow-soft backdrop-blur-sm lg:block no-scrollbar">

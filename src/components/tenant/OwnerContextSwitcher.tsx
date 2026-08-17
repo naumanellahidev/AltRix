@@ -48,21 +48,25 @@ export function OwnerContextSwitcher({ schoolId, schoolSlug, compact }: Props) {
           variant="outline"
           size={compact ? "sm" : "default"}
           className={cn(
-            "gap-2 rounded-xl border-primary/20 bg-primary/5 hover:bg-primary/10",
-            compact && "h-9 px-2"
+            "gap-1.5 rounded-xl border-primary/20 bg-primary/5 hover:bg-primary/10 transition-all duration-200 text-foreground shadow-2xs group shrink-0",
+            compact
+              ? "h-8 sm:h-9 px-2 max-w-[110px] sm:max-w-[170px]"
+              : "h-10 px-3 w-full justify-between"
           )}
         >
-          <Building2 className="h-4 w-4 text-primary shrink-0" />
-          <div className="flex flex-col items-start leading-tight min-w-0">
-            <span className="text-xs font-semibold truncate max-w-[140px]">{label}</span>
-            <span className="text-[10px] text-muted-foreground truncate max-w-[140px]">
+          <Building2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-primary shrink-0 group-hover:scale-110 transition-transform" />
+          <div className="flex flex-col items-start leading-none min-w-0 text-left">
+            <span className="text-[11px] sm:text-xs font-bold truncate max-w-[70px] sm:max-w-[130px] text-foreground">
+              {label}
+            </span>
+            <span className="text-[9px] sm:text-[10px] text-muted-foreground truncate max-w-[70px] sm:max-w-[130px] font-medium hidden xs:inline">
               {sub}
             </span>
           </div>
-          <ChevronsUpDown className="h-3.5 w-3.5 opacity-60 shrink-0" />
+          <ChevronsUpDown className="h-3 w-3 sm:h-3.5 sm:w-3.5 opacity-60 shrink-0 text-muted-foreground ml-0.5" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="start" className="w-[300px] p-0">
+      <PopoverContent align="end" className="w-[300px] p-0 rounded-2xl border-primary/20 bg-surface/95 backdrop-blur-2xl shadow-xl">
         <Command>
           <CommandInput placeholder="Search schools or campuses…" />
           <CommandList className="max-h-[360px]">

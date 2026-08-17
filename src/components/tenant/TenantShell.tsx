@@ -23,6 +23,7 @@ import { buildMergedNav, GROUP_LABELS, GROUP_ORDER, DROPDOWN_MAPPING } from "@/l
 import { resolvePermissions } from "@/lib/permissions";
 import { cn } from "@/lib/utils";
 import { StaffAttendanceWidget } from "./StaffAttendanceWidget";
+import { LuxuryShellHeader } from "@/components/tenant/LuxuryShellHeader";
 
 function getNotificationTargetRoute(notification: any, schoolSlug: string, role: string): string {
   const t = (notification.entity_type || notification.type || "").toLowerCase();
@@ -514,60 +515,22 @@ const [voiceOpen, setVoiceOpen] = useState(false);
     <div className="min-h-screen bg-background pb-20 lg:pb-0">
       <GlobalCommandPalette basePath={`/${schoolSlug}/${role}`} />
 
-      {/* Mobile Header */}
-      <header className="sticky top-0 z-40 flex items-center justify-between border-b bg-background/95 px-4 py-3 backdrop-blur lg:hidden">
-        <div className="flex items-center gap-3 min-w-0 flex-1">
-          <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
-            <SheetTrigger asChild>
-              <Button variant="ghost" size="icon">
-                <Menu className="h-5 w-5" />
-              </Button>
-            </SheetTrigger>
-            <SheetContent side="left" className="w-[280px] p-4 overflow-y-auto">
-              <NavContent />
-            </SheetContent>
-          </Sheet>
-          <div className="min-w-0">
-            <p className="font-display text-base font-semibold tracking-tight truncate text-brand opacity-80">{title}</p>
-            {user?.email && (
-              <p className="text-[11px] text-brand opacity-80 truncate">
-                You are signed in as {user.email}
-              </p>
-            )}
-          </div>
-        </div>
-        <div className="flex items-center gap-1.5 shrink-0">
-          <OfflineStatusIndicator
-            isOnline={offline.isOnline}
-            isSyncing={offline.isSyncing}
-            stats={offline.stats}
-            lastSyncAt={offline.lastSyncAt}
-            syncProgress={offline.syncProgress}
-            storageInfo={offline.storageInfo}
-            onSync={offline.syncPendingItems}
-            variant="compact"
-          />
-          {schoolId && <StaffAttendanceWidget schoolId={schoolId} />}
-          <NotificationsBell schoolId={schoolId} schoolSlug={schoolSlug} role={role} />
-          <Button
-            variant="ghost"
-            size="icon"
-            aria-label="Search"
-            onClick={() => window.dispatchEvent(new Event("eduverse:open-search"))}
-          >
-            <Sparkles className="h-5 w-5" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="text-muted-foreground hover:text-destructive"
-            onClick={handleLogout}
-            aria-label="Logout"
-          >
-            <LogOut className="h-5 w-5" />
-          </Button>
-        </div>
-      </header>
+      {/* Luxury Responsive Shell Header */}
+      <LuxuryShellHeader
+        title={title}
+        subtitle={subtitle}
+        role={role}
+        schoolSlug={schoolSlug}
+        schoolId={schoolId}
+        schoolName={tenant.school?.name}
+        userEmail={user?.email}
+        mobileNavOpen={mobileNavOpen}
+        onMobileNavOpenChange={setMobileNavOpen}
+        navContent={<NavContent />}
+        offline={offline}
+        showStaffAttendance={isStaff}
+        onLogout={handleLogout}
+      />
 
       <div className="grid w-full grid-cols-1 gap-4 px-4 py-4 lg:grid-cols-[280px_1fr] lg:gap-6 lg:px-6 lg:py-6">
         {/* Desktop Sidebar */}

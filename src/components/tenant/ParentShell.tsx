@@ -133,6 +133,7 @@ import { useSession } from "@/hooks/useSession";
 import { useOfflineUniversal } from "@/hooks/useOfflineUniversal";
 import { OfflineStatusIndicator } from "@/components/offline/OfflineStatusIndicator";
 import { PWAInstallPrompt } from "@/components/parent/PWAInstallPrompt";
+import { LuxuryShellHeader } from "@/components/tenant/LuxuryShellHeader";
 
 interface ParentShellProps {
   children: ReactNode;
@@ -403,49 +404,21 @@ export function ParentShell({
     <div className="min-h-screen bg-background pb-20 lg:pb-0">
       <GlobalCommandPalette basePath={basePath} />
 
-      {/* Mobile Header */}
-      <header className="sticky top-0 z-40 flex items-center justify-between border-b bg-background/95 px-4 py-3 backdrop-blur lg:hidden">
-        <div className="flex items-center gap-3">
-          <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
-            <SheetTrigger asChild>
-              <Button variant="ghost" size="icon">
-                <Menu className="h-5 w-5" />
-              </Button>
-            </SheetTrigger>
-            <SheetContent side="left" className="w-[280px] p-4 overflow-y-auto">
-              <NavContent />
-            </SheetContent>
-          </Sheet>
-          <div>
-            <p className="font-display text-base font-semibold tracking-tight">{schoolName}</p>
-            {selectedChild && (
-              <p className="text-xs text-muted-foreground truncate max-w-[180px]">
-                {formatChildName(selectedChild)}
-              </p>
-            )}
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <OfflineStatusIndicator
-            isOnline={offline.isOnline}
-            isSyncing={offline.isSyncing}
-            stats={offline.stats}
-            lastSyncAt={offline.lastSyncAt}
-            syncProgress={offline.syncProgress}
-            storageInfo={offline.storageInfo}
-            onSync={offline.syncPendingItems}
-            variant="compact"
-          />
-          <NotificationsBell schoolId={schoolId} schoolSlug={schoolSlug} role="parent" />
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => window.dispatchEvent(new Event("eduverse:open-search"))}
-          >
-            <Sparkles className="h-5 w-5" />
-          </Button>
-        </div>
-      </header>
+      {/* Luxury Responsive Shell Header */}
+      <LuxuryShellHeader
+        title={`${schoolName} • Parent`}
+        subtitle={selectedChild ? formatChildName(selectedChild) : "Parent Portal"}
+        role="parent"
+        schoolSlug={schoolSlug}
+        schoolId={schoolId}
+        schoolName={schoolName}
+        userEmail={user?.email}
+        mobileNavOpen={mobileNavOpen}
+        onMobileNavOpenChange={setMobileNavOpen}
+        navContent={<NavContent />}
+        offline={offline}
+        onLogout={onLogout}
+      />
 
       <div className="grid w-full grid-cols-1 gap-4 px-4 py-4 lg:grid-cols-[280px_1fr] lg:gap-6 lg:px-6 lg:py-6">
         {/* Desktop Sidebar */}

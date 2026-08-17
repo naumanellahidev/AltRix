@@ -37,6 +37,7 @@ import { DashboardNotificationsBanner } from "@/components/global/DashboardNotif
 import { GlobalCommandPalette } from "@/components/global/GlobalCommandPalette";
 import { NotificationsBell } from "@/components/global/NotificationsBell";
 import { StaffAttendanceWidget } from "./StaffAttendanceWidget";
+import { LuxuryShellHeader } from "@/components/tenant/LuxuryShellHeader";
 import { useTeacherBadges } from "@/hooks/useTeacherBadges";
 import { useUnreadMessagesOptimized } from "@/hooks/useUnreadMessagesOptimized";
 import { useSession } from "@/hooks/useSession";
@@ -327,61 +328,25 @@ export function TeacherShell({ title, subtitle, schoolSlug, children }: Props) {
     <div className="min-h-screen bg-background pb-20 lg:pb-0">
       <GlobalCommandPalette basePath={basePath} />
 
-      {/* Mobile Header */}
-      <header className="sticky top-0 z-40 flex items-center justify-between border-b bg-background/95 px-4 py-3 backdrop-blur lg:hidden">
-        <div className="flex items-center gap-3 min-w-0 flex-1">
-          <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
-            <SheetTrigger asChild>
-              <Button variant="ghost" size="icon">
-                <Menu className="h-5 w-5" />
-              </Button>
-            </SheetTrigger>
-            <SheetContent side="left" className="w-[280px] p-4 overflow-y-auto">
-              <NavContent />
-            </SheetContent>
-          </Sheet>
-          <div className="min-w-0">
-            <p className="font-display text-base font-semibold tracking-tight truncate">{title}</p>
-            {user?.email && (
-              <p className="text-[11px] text-muted-foreground truncate">
-                You are signed in as {user.email}
-              </p>
-            )}
-          </div>
-        </div>
-        <div className="flex items-center gap-1.5 shrink-0">
-          <OfflineStatusIndicator
-            isOnline={offline.isOnline}
-            isSyncing={offline.isSyncing}
-            stats={offline.stats}
-            lastSyncAt={offline.lastSyncAt}
-            syncProgress={offline.syncProgress}
-            storageInfo={offline.storageInfo}
-            onSync={offline.syncPendingItems}
-            variant="compact"
-            className="hidden sm:inline-flex"
-          />
-          <NotificationsBell schoolId={schoolId} schoolSlug={schoolSlug} role="teacher" />
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => window.dispatchEvent(new Event("eduverse:open-search"))}
-            className="hidden sm:inline-flex"
-          >
-            <Sparkles className="h-5 w-5" />
-          </Button>
-          {schoolId && <StaffAttendanceWidget schoolId={schoolId} />}
-          <Button
-            variant="ghost"
-            size="icon"
-            className="text-muted-foreground hover:text-destructive hidden sm:inline-flex"
-            onClick={handleLogout}
-            aria-label="Logout"
-          >
-            <LogOut className="h-5 w-5" />
-          </Button>
-        </div>
-      </header>
+      {/* Luxury Responsive Shell Header */}
+      <LuxuryShellHeader
+        title={title}
+        subtitle="Faculty Academic Portal"
+        role="teacher"
+        schoolSlug={schoolSlug}
+        schoolId={schoolId}
+        schoolName={tenant.school?.name}
+        userEmail={user?.email}
+        mobileNavOpen={mobileNavOpen}
+        onMobileNavOpenChange={setMobileNavOpen}
+        navContent={<NavContent />}
+        offline={offline}
+        showStaffAttendance={true}
+        showVoiceCommand={true}
+        voiceListening={voiceListening}
+        onVoiceToggle={() => setVoiceListening((prev) => !prev)}
+        onLogout={handleLogout}
+      />
 
       <div className="grid w-full grid-cols-1 gap-4 px-4 py-4 lg:grid-cols-[280px_1fr] lg:gap-6 lg:px-6 lg:py-6">
         {/* Desktop Sidebar */}
