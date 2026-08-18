@@ -52,8 +52,8 @@ fi
 cd "${REPO_DIR}"
 # Add second repo as remote to fetch commits from both sources
 git remote add altrix2 https://github.com/farhathashmireflections-sys/Altrix-2.git 2>/dev/null || true
-git fetch origin || echo "[WARNING] Fetch from origin failed"
-git fetch altrix2 || echo "[WARNING] Fetch from altrix2 failed"
+GIT_TERMINAL_PROMPT=0 git fetch origin || echo "[WARNING] Fetch from origin failed"
+GIT_TERMINAL_PROMPT=0 git fetch altrix2 2>/dev/null || echo "[INFO] Fetch from altrix2 skipped or unneeded"
 
 if [ -z "${TARGET_SHA}" ]; then
     TARGET_SHA=$(git rev-parse origin/main)

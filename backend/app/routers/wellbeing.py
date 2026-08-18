@@ -5,7 +5,7 @@ from typing import List, Optional
 from uuid import UUID
 from datetime import datetime
 from pydantic import BaseModel, ConfigDict
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, status, Query
 from sqlalchemy import select
 
 from app.dependencies import CurrentUser, DbSession
