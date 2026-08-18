@@ -51,19 +51,19 @@ export function SearchableSelect({
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full flex items-center justify-between px-3 py-2 text-sm bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-md shadow-sm text-slate-900 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800/80 transition-colors"
+        className="w-full flex items-center justify-between px-3 py-2 text-xs sm:text-sm bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xs text-slate-900 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800/80 transition-colors min-w-0 gap-2"
       >
-        <span className="truncate font-medium">
+        <span className="truncate font-medium flex-1 text-left min-w-0">
           {selectedOption ? (
-            <span className="flex items-center gap-2">
-              <span className="font-semibold text-blue-700 dark:text-blue-400">{selectedOption.label}</span>
-              {selectedOption.sublabel && <span className="text-xs text-slate-400 font-mono">({selectedOption.sublabel})</span>}
+            <span className="flex items-center gap-1.5 min-w-0">
+              <span className="font-semibold text-blue-700 dark:text-blue-400 truncate">{selectedOption.label}</span>
+              {selectedOption.sublabel && <span className="text-[11px] text-slate-400 font-mono truncate hidden sm:inline">({selectedOption.sublabel})</span>}
             </span>
           ) : (
-            <span className="text-slate-400">{placeholder}</span>
+            <span className="text-slate-400 truncate">{placeholder}</span>
           )}
         </span>
-        <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${isOpen ? "rotate-180" : ""}`} />
+        <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform shrink-0 ${isOpen ? "rotate-180" : ""}`} />
       </button>
 
       {isOpen && (

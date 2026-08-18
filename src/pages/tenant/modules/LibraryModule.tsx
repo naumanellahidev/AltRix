@@ -1207,15 +1207,17 @@ export function LibraryModule() {
 
       {/* ─── ISSUE BOOK MODAL WITH FINE SYSTEM ─────────── */}
       <Dialog open={showIssueModal} onOpenChange={setShowIssueModal}>
-        <DialogContent className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 max-w-lg rounded-2xl">
-          <DialogHeader>
-            <DialogTitle className="text-blue-700 dark:text-blue-400 font-bold flex items-center gap-2">
-              <UserCheck className="h-5 w-5" /> Issue Book & Configure Late Fine
+        <DialogContent className="bg-surface border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 w-[calc(100vw-1.5rem)] sm:max-w-lg rounded-2xl sm:rounded-3xl p-4 sm:p-6 max-h-[90vh] overflow-y-auto overflow-x-hidden shadow-2xl">
+          <DialogHeader className="pr-8 text-left">
+            <DialogTitle className="text-blue-700 dark:text-blue-400 font-extrabold text-sm sm:text-base md:text-lg flex items-center gap-2 leading-tight">
+              <UserCheck className="h-4 w-4 sm:h-5 sm:w-5 shrink-0" />
+              <span>Issue Book & Configure Fine</span>
             </DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 pt-2">
+
+          <div className="space-y-3.5 pt-2">
             <div>
-              <Label className="mb-1.5 block font-bold text-xs">Select Book Title</Label>
+              <Label className="mb-1.5 block font-bold text-xs text-slate-700 dark:text-slate-300">Select Book Title</Label>
               <SearchableSelect
                 placeholder="Type title, author or barcode..."
                 options={books.map(b => ({
@@ -1228,35 +1230,32 @@ export function LibraryModule() {
               />
             </div>
             {selectedIssueBook && (
-              <div className="p-3 bg-blue-50/80 dark:bg-blue-950/40 rounded-xl border border-blue-200/80 dark:border-blue-800/60 flex items-start gap-3">
-                <div className="p-2 bg-blue-600 text-white rounded-lg">
+              <div className="p-3 bg-blue-50/80 dark:bg-blue-950/40 rounded-xl border border-blue-200/80 dark:border-blue-800/60 flex items-start gap-2.5">
+                <div className="p-2 bg-blue-600 text-white rounded-lg shrink-0">
                   <BookOpen className="h-4 w-4" />
                 </div>
                 <div className="space-y-0.5 min-w-0 flex-1">
                   <p className="font-bold text-xs text-slate-900 dark:text-slate-100 truncate">{selectedIssueBook.title}</p>
-                  <p className="text-[11px] text-slate-500">by {selectedIssueBook.author}</p>
-                  <div className="flex items-center gap-2 pt-1 flex-wrap">
+                  <p className="text-[11px] text-slate-500 truncate">by {selectedIssueBook.author}</p>
+                  <div className="flex items-center gap-1.5 pt-1 flex-wrap">
                     <span className="font-mono text-[10px] font-bold bg-white dark:bg-slate-900 text-blue-700 dark:text-blue-300 px-1.5 py-0.5 rounded border border-blue-200">
                       <Barcode className="h-3 w-3 inline mr-1" />
                       {selectedIssueBook.barcode || "LIB-1001"}
                     </span>
-                    {selectedIssueBook.shelf_location && (
-                      <span className="text-[10px] text-slate-500 font-medium">Location: {selectedIssueBook.shelf_location}</span>
-                    )}
-                    <span className="text-[10px] text-slate-500 font-medium">{selectedIssueBook.available_copies} copies available</span>
+                    <span className="text-[10px] text-slate-500 font-medium truncate">{selectedIssueBook.available_copies} available</span>
                   </div>
                 </div>
               </div>
             )}
             <div>
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 mb-1.5">
-                <Label className="font-bold text-xs">Select Borrower (Students & Teachers)</Label>
-                <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg text-[10px] sm:text-[11px] self-start sm:self-auto">
+              <div className="flex flex-col gap-1.5 mb-1.5">
+                <Label className="font-bold text-xs text-slate-700 dark:text-slate-300">Select Borrower (Students & Teachers)</Label>
+                <div className="grid grid-cols-3 gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl text-[10px] sm:text-[11px] w-full text-center">
                   <button
                     type="button"
                     onClick={() => setBorrowerCategoryFilter("all")}
-                    className={`px-2 py-0.5 rounded-md font-semibold transition-all ${
-                      borrowerCategoryFilter === "all" ? "bg-white dark:bg-slate-700 shadow-xs text-blue-700 dark:text-blue-300" : "text-slate-500"
+                    className={`py-1 rounded-lg font-bold transition-all truncate ${
+                      borrowerCategoryFilter === "all" ? "bg-white dark:bg-slate-700 shadow-xs text-blue-700 dark:text-blue-300" : "text-slate-500 hover:text-slate-700"
                     }`}
                   >
                     All ({borrowers.length})
@@ -1264,8 +1263,8 @@ export function LibraryModule() {
                   <button
                     type="button"
                     onClick={() => setBorrowerCategoryFilter("student")}
-                    className={`px-2 py-0.5 rounded-md font-semibold transition-all ${
-                      borrowerCategoryFilter === "student" ? "bg-white dark:bg-slate-700 shadow-xs text-blue-700 dark:text-blue-300" : "text-slate-500"
+                    className={`py-1 rounded-lg font-bold transition-all truncate ${
+                      borrowerCategoryFilter === "student" ? "bg-white dark:bg-slate-700 shadow-xs text-blue-700 dark:text-blue-300" : "text-slate-500 hover:text-slate-700"
                     }`}
                   >
                     🎓 Students ({borrowers.filter(b => b.type === "student").length})
@@ -1273,8 +1272,8 @@ export function LibraryModule() {
                   <button
                     type="button"
                     onClick={() => setBorrowerCategoryFilter("teacher")}
-                    className={`px-2 py-0.5 rounded-md font-semibold transition-all ${
-                      borrowerCategoryFilter === "teacher" ? "bg-white dark:bg-slate-700 shadow-xs text-blue-700 dark:text-blue-300" : "text-slate-500"
+                    className={`py-1 rounded-lg font-bold transition-all truncate ${
+                      borrowerCategoryFilter === "teacher" ? "bg-white dark:bg-slate-700 shadow-xs text-blue-700 dark:text-blue-300" : "text-slate-500 hover:text-slate-700"
                     }`}
                   >
                     👨‍🏫 Teachers ({borrowers.filter(b => b.type === "teacher").length})
@@ -1301,20 +1300,20 @@ export function LibraryModule() {
             {/* Loan Duration / Due Days */}
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
-                <Label className="font-bold text-xs flex items-center gap-1.5">
+                <Label className="font-bold text-xs flex items-center gap-1.5 text-slate-700 dark:text-slate-300">
                   <Calendar className="h-3.5 w-3.5 text-blue-600" /> Loan Duration
                 </Label>
-                <span className="text-[11px] font-mono font-bold text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/60 px-2 py-0.5 rounded border border-blue-200">
+                <span className="text-[11px] font-mono font-bold text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/60 px-2 py-0.5 rounded-lg border border-blue-200">
                   {newIssue.due_days} Days
                 </span>
               </div>
-              <div className="grid grid-cols-4 gap-2">
+              <div className="grid grid-cols-4 gap-1.5 sm:gap-2">
                 {[7, 14, 21, 30].map(days => (
                   <button
                     key={days}
                     type="button"
                     onClick={() => setNewIssue({ ...newIssue, due_days: days })}
-                    className={`py-1.5 px-2 rounded-xl text-xs font-bold transition-all border ${
+                    className={`py-1.5 px-1 sm:px-2 rounded-xl text-[11px] sm:text-xs font-bold transition-all border text-center ${
                       newIssue.due_days === days
                         ? "bg-blue-600 text-white border-blue-600 shadow-xs"
                         : "bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100"
@@ -1329,20 +1328,20 @@ export function LibraryModule() {
             {/* Overdue Fine Rate per Day */}
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
-                <Label className="font-bold text-xs flex items-center gap-1.5">
+                <Label className="font-bold text-xs flex items-center gap-1.5 text-slate-700 dark:text-slate-300">
                   <Coins className="h-3.5 w-3.5 text-amber-500" /> Overdue Fine Price (per Day Late)
                 </Label>
-                <span className="text-[11px] font-mono font-bold text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/60 px-2 py-0.5 rounded border border-amber-200">
-                  PKR {newIssue.fine_per_day} / day
+                <span className="text-[11px] font-mono font-bold text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/60 px-2 py-0.5 rounded-lg border border-amber-200">
+                  PKR {newIssue.fine_per_day}/d
                 </span>
               </div>
-              <div className="grid grid-cols-4 gap-2">
+              <div className="grid grid-cols-4 gap-1.5 sm:gap-2">
                 {[10, 20, 50, 100].map(rate => (
                   <button
                     key={rate}
                     type="button"
                     onClick={() => setNewIssue({ ...newIssue, fine_per_day: rate })}
-                    className={`py-1.5 px-2 rounded-xl text-xs font-bold transition-all border ${
+                    className={`py-1.5 px-1 sm:px-2 rounded-xl text-[11px] sm:text-xs font-bold transition-all border text-center ${
                       newIssue.fine_per_day === rate
                         ? "bg-amber-600 text-white border-amber-600 shadow-xs"
                         : "bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100"
@@ -1352,31 +1351,34 @@ export function LibraryModule() {
                   </button>
                 ))}
               </div>
-              <div className="flex items-center gap-2 pt-1">
-                <span className="text-[11px] text-slate-500 whitespace-nowrap">Custom Fine Rate (PKR):</span>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 pt-1">
+                <span className="text-[11px] text-slate-500 font-medium">Custom Fine Rate (PKR/day):</span>
                 <Input
                   type="number"
                   min={0}
                   step={5}
                   value={newIssue.fine_per_day}
                   onChange={e => setNewIssue({ ...newIssue, fine_per_day: Math.max(0, parseFloat(e.target.value) || 0) })}
-                  className="h-8 text-xs font-bold rounded-lg"
+                  className="h-8 text-xs font-bold rounded-lg w-full sm:w-28"
                   placeholder="20.00"
                 />
               </div>
             </div>
 
             {/* Automatic Fine Policy Notice Card */}
-            <div className="p-3 bg-amber-50/80 dark:bg-amber-950/40 rounded-xl border border-amber-200/80 dark:border-amber-900/50 text-[11px] space-y-1 text-amber-900 dark:text-amber-200">
+            <div className="p-3 bg-amber-50/80 dark:bg-amber-950/40 rounded-xl border border-amber-200/80 dark:border-amber-900/50 text-[10px] sm:text-[11px] space-y-1 text-amber-900 dark:text-amber-200">
               <p className="font-bold flex items-center gap-1.5 text-amber-800 dark:text-amber-300">
                 <Sparkles className="h-3.5 w-3.5 text-amber-600" /> Automatic Late Fine Accumulator
               </p>
-              <p className="text-[11px] text-amber-800/90 dark:text-amber-300/90 leading-relaxed">
-                Book will be due on <span className="font-bold underline">{new Date(Date.now() + (newIssue.due_days || 14) * 86400000).toLocaleDateString()}</span> ({newIssue.due_days || 14} days loan). If returned after this date, a late fine of <span className="font-bold">PKR {newIssue.fine_per_day}/day</span> will automatically accumulate for each overdue day.
+              <p className="text-[10px] sm:text-[11px] text-amber-800/90 dark:text-amber-300/90 leading-relaxed">
+                Book due on <span className="font-bold underline">{new Date(Date.now() + (newIssue.due_days || 14) * 86400000).toLocaleDateString()}</span> ({newIssue.due_days || 14}d loan). Overdue return incurs <span className="font-bold">PKR {newIssue.fine_per_day}/day</span> automatically.
               </p>
             </div>
 
-            <Button onClick={handleIssueBook} className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold py-5 rounded-xl shadow-md">
+            <Button
+              onClick={handleIssueBook}
+              className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold h-10 sm:h-11 rounded-xl sm:rounded-2xl shadow-md text-xs sm:text-sm"
+            >
               Confirm Issue Book
             </Button>
           </div>

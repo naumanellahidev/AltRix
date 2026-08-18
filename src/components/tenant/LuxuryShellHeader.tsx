@@ -209,7 +209,8 @@ export function LuxuryShellHeader({
               <RoleIcon className="h-4 w-4 sm:h-4.5 sm:w-4.5" />
             </div>
 
-            <div className="flex flex-col shrink-0">
+            {/* Text Hierarchy (Hidden on narrow/mobile screens to keep clean icon-only header) */}
+            <div className="hidden sm:flex flex-col shrink-0">
               <div className="flex items-center gap-1.5 flex-nowrap">
                 <span className="font-display text-xs sm:text-sm font-bold tracking-tight text-foreground whitespace-nowrap">
                   {effectiveSchoolName}
@@ -221,8 +222,8 @@ export function LuxuryShellHeader({
                     roleCfg.colorClass
                   )}
                 >
-                  <span className="hidden sm:inline">{roleCfg.label}</span>
-                  <span className="sm:hidden">{roleCfg.shortLabel}</span>
+                  <span className="hidden md:inline">{roleCfg.label}</span>
+                  <span className="md:hidden">{roleCfg.shortLabel}</span>
                 </Badge>
               </div>
 

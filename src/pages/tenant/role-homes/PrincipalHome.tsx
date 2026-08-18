@@ -617,35 +617,35 @@ export function PrincipalHome() {
         </div>
 
         {/* Upgrade the 5 Main KPI Grids with Visual Progress Metrics */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 sm:gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-3 md:gap-4">
           {/* Card 1: Classes & Sections */}
           <Card 
-            className="relative overflow-hidden bg-surface shadow-elevated border hover:shadow-md hover:border-indigo-500/40 cursor-pointer transition-all duration-300 group/kpi flex flex-col justify-between rounded-2xl"
+            className="relative overflow-hidden bg-surface shadow-elevated border hover:shadow-md hover:border-indigo-500/40 cursor-pointer transition-all duration-300 group/kpi flex flex-col justify-between rounded-xl sm:rounded-2xl"
             onClick={() => setActiveTab("students")}
           >
-            <CardContent className="p-3 sm:p-5 flex flex-col justify-between h-full">
+            <CardContent className="p-2.5 sm:p-4 md:p-5 flex flex-col justify-between h-full">
               <div>
                 <div className="flex items-center justify-between">
-                  <span className="text-xs sm:text-sm font-medium text-muted-foreground group-hover/kpi:text-indigo-500 transition-colors truncate">Academic Classes</span>
-                  <div className="p-1.5 sm:p-2 rounded-xl bg-indigo-500/10 text-indigo-500">
-                    <BookOpen className="h-4 w-4 sm:h-5 sm:w-5" />
+                  <span className="text-[10px] sm:text-xs md:text-sm font-medium text-muted-foreground group-hover/kpi:text-indigo-500 transition-colors truncate">Academic Classes</span>
+                  <div className="p-1 sm:p-2 rounded-lg sm:rounded-xl bg-indigo-500/10 text-indigo-500 shrink-0">
+                    <BookOpen className="h-3.5 w-3.5 sm:h-5 sm:w-5" />
                   </div>
                 </div>
-                <div className="mt-2.5 sm:mt-4">
-                  <h3 className="text-xl sm:text-3xl font-bold tracking-tight font-display text-foreground flex items-baseline gap-1">
+                <div className="mt-1.5 sm:mt-3">
+                  <h3 className="text-base sm:text-xl md:text-2xl lg:text-3xl font-bold tracking-tight font-display text-foreground flex items-baseline gap-1 truncate">
                     <span>{kpis.classes.toLocaleString()}</span>
-                    <span className="text-xs sm:text-sm font-medium text-muted-foreground">Classes</span>
-                    <ArrowRight className="h-3.5 w-3.5 text-indigo-500 opacity-0 -translate-x-1 group-hover/kpi:opacity-100 group-hover/kpi:translate-x-0 transition-all duration-200" />
+                    <span className="text-[10px] sm:text-xs md:text-sm font-medium text-muted-foreground">Classes</span>
+                    <ArrowRight className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-indigo-500 opacity-0 -translate-x-1 group-hover/kpi:opacity-100 group-hover/kpi:translate-x-0 transition-all duration-200" />
                   </h3>
-                  <p className="mt-0.5 sm:mt-1 text-[10px] sm:text-xs text-muted-foreground flex items-center gap-1">
-                    <Layers className="h-3 w-3 text-indigo-500" />
-                    <span>{kpis.sections} active sections</span>
+                  <p className="mt-0.5 sm:mt-1 text-[9px] sm:text-xs text-muted-foreground flex items-center gap-1 truncate">
+                    <Layers className="h-3 w-3 text-indigo-500 shrink-0" />
+                    <span className="truncate">{kpis.sections} active sections</span>
                   </p>
                 </div>
               </div>
               
-              <div className="mt-2.5 sm:mt-4 space-y-2 sm:space-y-3">
-                <div className="h-[35px] sm:h-[45px] w-full">
+              <div className="mt-1.5 sm:mt-3 space-y-1.5 sm:space-y-3">
+                <div className="h-[30px] sm:h-[45px] w-full">
                   <ResponsiveContainer width="100%" height="100%">
                     <AreaChart data={classesTrend} margin={{ top: 2, bottom: 2, left: 2, right: 2 }}>
                       <defs>
@@ -677,31 +677,31 @@ export function PrincipalHome() {
 
           {/* Card 2: Staff Leaves */}
           <Card 
-            className="relative overflow-hidden bg-surface shadow-elevated border hover:shadow-md hover:border-amber-500/40 cursor-pointer transition-all duration-300 group/kpi flex flex-col justify-between rounded-2xl"
+            className="relative overflow-hidden bg-surface shadow-elevated border hover:shadow-md hover:border-amber-500/40 cursor-pointer transition-all duration-300 group/kpi flex flex-col justify-between rounded-xl sm:rounded-2xl"
             onClick={() => setActiveTab("leaves")}
           >
-            <CardContent className="p-3 sm:p-5 flex flex-col justify-between h-full">
+            <CardContent className="p-2.5 sm:p-4 md:p-5 flex flex-col justify-between h-full">
               <div>
                 <div className="flex items-center justify-between">
-                  <span className="text-xs sm:text-sm font-medium text-muted-foreground group-hover/kpi:text-amber-500 transition-colors truncate">Leave Approvals</span>
-                  <div className="p-1.5 sm:p-2 rounded-xl bg-amber-500/10 text-amber-500">
-                    <CalendarDays className="h-4 w-4 sm:h-5 sm:w-5" />
+                  <span className="text-[10px] sm:text-xs md:text-sm font-medium text-muted-foreground group-hover/kpi:text-amber-500 transition-colors truncate">Leave Approvals</span>
+                  <div className="p-1 sm:p-2 rounded-lg sm:rounded-xl bg-amber-500/10 text-amber-500 shrink-0">
+                    <CalendarDays className="h-3.5 w-3.5 sm:h-5 sm:w-5" />
                   </div>
                 </div>
-                <div className="mt-2.5 sm:mt-4">
-                  <h3 className="text-xl sm:text-3xl font-bold tracking-tight font-display text-foreground flex items-baseline gap-1">
+                <div className="mt-1.5 sm:mt-3">
+                  <h3 className="text-base sm:text-xl md:text-2xl lg:text-3xl font-bold tracking-tight font-display text-foreground flex items-baseline gap-1 truncate">
                     <span>{kpis.pendingLeaves.toLocaleString()}</span>
-                    <span className="text-xs sm:text-sm font-medium text-muted-foreground">Pending</span>
-                    <ArrowRight className="h-3.5 w-3.5 text-amber-500 opacity-0 -translate-x-1 group-hover/kpi:opacity-100 group-hover/kpi:translate-x-0 transition-all duration-200" />
+                    <span className="text-[10px] sm:text-xs md:text-sm font-medium text-muted-foreground">Pending</span>
+                    <ArrowRight className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-amber-500 opacity-0 -translate-x-1 group-hover/kpi:opacity-100 group-hover/kpi:translate-x-0 transition-all duration-200" />
                   </h3>
-                  <p className="mt-0.5 sm:mt-1 text-[10px] sm:text-xs text-muted-foreground truncate">
+                  <p className="mt-0.5 sm:mt-1 text-[9px] sm:text-xs text-muted-foreground truncate">
                     {kpis.pendingLeaves === 0 ? "All requests cleared" : "Awaiting principal review"}
                   </p>
                 </div>
               </div>
               
-              <div className="mt-2.5 sm:mt-4 space-y-2 sm:space-y-3">
-                <div className="h-[35px] sm:h-[45px] w-full">
+              <div className="mt-1.5 sm:mt-3 space-y-1.5 sm:space-y-3">
+                <div className="h-[30px] sm:h-[45px] w-full">
                   <ResponsiveContainer width="100%" height="100%">
                     <AreaChart data={leavesTrend} margin={{ top: 2, bottom: 2, left: 2, right: 2 }}>
                       <defs>
@@ -735,30 +735,30 @@ export function PrincipalHome() {
 
           {/* Card 3: Student Attendance */}
           <Card 
-            className="relative overflow-hidden bg-surface shadow-elevated border hover:shadow-md hover:border-emerald-500/40 cursor-pointer transition-all duration-300 group/kpi flex flex-col justify-between rounded-2xl"
+            className="relative overflow-hidden bg-surface shadow-elevated border hover:shadow-md hover:border-emerald-500/40 cursor-pointer transition-all duration-300 group/kpi flex flex-col justify-between rounded-xl sm:rounded-2xl"
             onClick={() => setActiveTab("students")}
           >
-            <CardContent className="p-3 sm:p-5 flex flex-col justify-between h-full">
+            <CardContent className="p-2.5 sm:p-4 md:p-5 flex flex-col justify-between h-full">
               <div>
                 <div className="flex items-center justify-between">
-                  <span className="text-xs sm:text-sm font-medium text-muted-foreground group-hover/kpi:text-emerald-500 transition-colors truncate">Student Attendance</span>
-                  <div className="p-1.5 sm:p-2 rounded-xl bg-emerald-500/10 text-emerald-500">
-                    <Activity className="h-4 w-4 sm:h-5 sm:w-5" />
+                  <span className="text-[10px] sm:text-xs md:text-sm font-medium text-muted-foreground group-hover/kpi:text-emerald-500 transition-colors truncate">Student Attendance</span>
+                  <div className="p-1 sm:p-2 rounded-lg sm:rounded-xl bg-emerald-500/10 text-emerald-500 shrink-0">
+                    <Activity className="h-3.5 w-3.5 sm:h-5 sm:w-5" />
                   </div>
                 </div>
-                <div className="mt-2.5 sm:mt-4">
-                  <h3 className="text-xl sm:text-3xl font-bold tracking-tight font-display text-foreground flex items-baseline gap-1">
+                <div className="mt-1.5 sm:mt-3">
+                  <h3 className="text-base sm:text-xl md:text-2xl lg:text-3xl font-bold tracking-tight font-display text-foreground flex items-baseline gap-1 truncate">
                     <span>{attendanceRate}%</span>
-                    <ArrowRight className="h-3.5 w-3.5 text-emerald-500 opacity-0 -translate-x-1 group-hover/kpi:opacity-100 group-hover/kpi:translate-x-0 transition-all duration-200" />
+                    <ArrowRight className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-emerald-500 opacity-0 -translate-x-1 group-hover/kpi:opacity-100 group-hover/kpi:translate-x-0 transition-all duration-200" />
                   </h3>
-                  <p className="mt-0.5 sm:mt-1 text-[10px] sm:text-xs text-muted-foreground">
+                  <p className="mt-0.5 sm:mt-1 text-[9px] sm:text-xs text-muted-foreground truncate">
                     7-day rolling average
                   </p>
                 </div>
               </div>
               
-              <div className="mt-2.5 sm:mt-4 space-y-2 sm:space-y-3">
-                <div className="h-[35px] sm:h-[45px] w-full">
+              <div className="mt-1.5 sm:mt-3 space-y-1.5 sm:space-y-3">
+                <div className="h-[30px] sm:h-[45px] w-full">
                   <ResponsiveContainer width="100%" height="100%">
                     <AreaChart data={attendanceTrend} margin={{ top: 2, bottom: 2, left: 2, right: 2 }}>
                       <defs>
@@ -790,30 +790,30 @@ export function PrincipalHome() {
 
           {/* Card 4: Staff Attendance */}
           <Card 
-            className="relative overflow-hidden bg-surface shadow-elevated border hover:shadow-md hover:border-teal-500/40 cursor-pointer transition-all duration-300 group/kpi flex flex-col justify-between rounded-2xl"
+            className="relative overflow-hidden bg-surface shadow-elevated border hover:shadow-md hover:border-teal-500/40 cursor-pointer transition-all duration-300 group/kpi flex flex-col justify-between rounded-xl sm:rounded-2xl"
             onClick={() => setActiveTab("staff-attendance")}
           >
-            <CardContent className="p-3 sm:p-5 flex flex-col justify-between h-full">
+            <CardContent className="p-2.5 sm:p-4 md:p-5 flex flex-col justify-between h-full">
               <div>
                 <div className="flex items-center justify-between">
-                  <span className="text-xs sm:text-sm font-medium text-muted-foreground group-hover/kpi:text-teal-500 transition-colors truncate">Staff Attendance</span>
-                  <div className="p-1.5 sm:p-2 rounded-xl bg-teal-500/10 text-teal-500">
-                    <ClipboardList className="h-4 w-4 sm:h-5 sm:w-5" />
+                  <span className="text-[10px] sm:text-xs md:text-sm font-medium text-muted-foreground group-hover/kpi:text-teal-500 transition-colors truncate">Staff Attendance</span>
+                  <div className="p-1 sm:p-2 rounded-lg sm:rounded-xl bg-teal-500/10 text-teal-500 shrink-0">
+                    <ClipboardList className="h-3.5 w-3.5 sm:h-5 sm:w-5" />
                   </div>
                 </div>
-                <div className="mt-2.5 sm:mt-4">
-                  <h3 className="text-xl sm:text-3xl font-bold tracking-tight font-display text-foreground flex items-baseline gap-1">
+                <div className="mt-1.5 sm:mt-3">
+                  <h3 className="text-base sm:text-xl md:text-2xl lg:text-3xl font-bold tracking-tight font-display text-foreground flex items-baseline gap-1 truncate">
                     <span>{staffAttendanceRate}%</span>
-                    <ArrowRight className="h-3.5 w-3.5 text-teal-500 opacity-0 -translate-x-1 group-hover/kpi:opacity-100 group-hover/kpi:translate-x-0 transition-all duration-200" />
+                    <ArrowRight className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-teal-500 opacity-0 -translate-x-1 group-hover/kpi:opacity-100 group-hover/kpi:translate-x-0 transition-all duration-200" />
                   </h3>
-                  <p className="mt-0.5 sm:mt-1 text-[10px] sm:text-xs text-muted-foreground">
+                  <p className="mt-0.5 sm:mt-1 text-[9px] sm:text-xs text-muted-foreground truncate">
                     Checked-in today
                   </p>
                 </div>
               </div>
               
-              <div className="mt-2.5 sm:mt-4 space-y-2 sm:space-y-3">
-                <div className="h-[35px] sm:h-[45px] w-full">
+              <div className="mt-1.5 sm:mt-3 space-y-1.5 sm:space-y-3">
+                <div className="h-[30px] sm:h-[45px] w-full">
                   <ResponsiveContainer width="100%" height="100%">
                     <AreaChart data={staffAttendanceTrend} margin={{ top: 2, bottom: 2, left: 2, right: 2 }}>
                       <defs>
@@ -845,30 +845,30 @@ export function PrincipalHome() {
 
           {/* Card 5: Admissions CRM */}
           <Card 
-            className="relative overflow-hidden bg-surface shadow-elevated border hover:shadow-md hover:border-blue-500/40 cursor-pointer transition-all duration-300 group/kpi flex flex-col justify-between rounded-2xl col-span-2 sm:col-span-1"
+            className="relative overflow-hidden bg-surface shadow-elevated border hover:shadow-md hover:border-blue-500/40 cursor-pointer transition-all duration-300 group/kpi flex flex-col justify-between rounded-xl sm:rounded-2xl col-span-2 sm:col-span-1"
             onClick={() => setActiveTab("admissions")}
           >
-            <CardContent className="p-3 sm:p-5 flex flex-col justify-between h-full">
+            <CardContent className="p-2.5 sm:p-4 md:p-5 flex flex-col justify-between h-full">
               <div>
                 <div className="flex items-center justify-between">
-                  <span className="text-xs sm:text-sm font-medium text-muted-foreground group-hover/kpi:text-blue-500 transition-colors truncate">Active Leads</span>
-                  <div className="p-1.5 sm:p-2 rounded-xl bg-blue-500/10 text-blue-500">
-                    <KanbanSquare className="h-4 w-4 sm:h-5 sm:w-5" />
+                  <span className="text-[10px] sm:text-xs md:text-sm font-medium text-muted-foreground group-hover/kpi:text-blue-500 transition-colors truncate">Active Leads</span>
+                  <div className="p-1 sm:p-2 rounded-lg sm:rounded-xl bg-blue-500/10 text-blue-500 shrink-0">
+                    <KanbanSquare className="h-3.5 w-3.5 sm:h-5 sm:w-5" />
                   </div>
                 </div>
-                <div className="mt-2.5 sm:mt-4">
-                  <h3 className="text-xl sm:text-3xl font-bold tracking-tight font-display text-foreground flex items-baseline gap-1">
+                <div className="mt-1.5 sm:mt-3">
+                  <h3 className="text-base sm:text-xl md:text-2xl lg:text-3xl font-bold tracking-tight font-display text-foreground flex items-baseline gap-1 truncate">
                     <span>{kpis.openLeads.toLocaleString()}</span>
-                    <ArrowRight className="h-3.5 w-3.5 text-blue-500 opacity-0 -translate-x-1 group-hover/kpi:opacity-100 group-hover/kpi:translate-x-0 transition-all duration-200" />
+                    <ArrowRight className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-blue-500 opacity-0 -translate-x-1 group-hover/kpi:opacity-100 group-hover/kpi:translate-x-0 transition-all duration-200" />
                   </h3>
-                  <p className="mt-0.5 sm:mt-1 text-[10px] sm:text-xs text-muted-foreground truncate">
+                  <p className="mt-0.5 sm:mt-1 text-[9px] sm:text-xs text-muted-foreground truncate">
                     {kpis.leads} total leads
                   </p>
                 </div>
               </div>
               
-              <div className="mt-2.5 sm:mt-4 space-y-2 sm:space-y-3">
-                <div className="h-[35px] sm:h-[45px] w-full">
+              <div className="mt-1.5 sm:mt-3 space-y-1.5 sm:space-y-3">
+                <div className="h-[30px] sm:h-[45px] w-full">
                   <ResponsiveContainer width="100%" height="100%">
                     <AreaChart data={leadsTrend} margin={{ top: 2, bottom: 2, left: 2, right: 2 }}>
                       <defs>

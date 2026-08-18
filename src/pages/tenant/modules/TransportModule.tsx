@@ -532,119 +532,119 @@ export function TransportModule() {
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
       {/* ─── Hero Header Banner ──────────────────────────── */}
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-900 via-indigo-950 to-blue-950 text-white p-5 sm:p-7 shadow-xl border border-indigo-500/20">
+      <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl bg-gradient-to-br from-slate-900 via-indigo-950 to-blue-950 text-white p-4 sm:p-6 md:p-7 shadow-xl border border-indigo-500/20">
         <div className="absolute right-0 top-0 -mt-8 -mr-8 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute left-1/3 bottom-0 w-48 h-48 bg-blue-500/10 rounded-full blur-2xl pointer-events-none" />
 
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-5">
-          <div className="flex items-start sm:items-center gap-3.5 sm:gap-4">
-            <div className="p-3 sm:p-3.5 bg-gradient-to-br from-indigo-500 to-blue-600 rounded-2xl shadow-md shadow-indigo-500/30 border border-white/10 shrink-0">
-              <Bus className="h-7 w-7 sm:h-8 sm:w-8 text-white" />
+        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-3.5 sm:gap-5">
+          <div className="flex items-center gap-3 sm:gap-4">
+            <div className="p-2.5 sm:p-3.5 bg-gradient-to-br from-indigo-500 to-blue-600 rounded-xl sm:rounded-2xl shadow-md shadow-indigo-500/30 border border-white/10 shrink-0">
+              <Bus className="h-5 w-5 sm:h-8 sm:w-8 text-white" />
             </div>
-            <div>
+            <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <h1 className="text-xl sm:text-2xl md:text-3xl font-extrabold tracking-tight">Fleet & Transport Logistics</h1>
-                <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30 text-[10px] uppercase font-bold tracking-widest hidden sm:inline-flex">
-                  Live Operations
+                <h1 className="text-base sm:text-2xl md:text-3xl font-extrabold tracking-tight truncate sm:whitespace-normal">Fleet & Transport Logistics</h1>
+                <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30 text-[9px] sm:text-[10px] uppercase font-bold tracking-widest hidden md:inline-flex">
+                  Live
                 </Badge>
               </div>
-              <p className="text-indigo-200/90 text-xs sm:text-sm mt-1 max-w-2xl leading-relaxed">
+              <p className="text-indigo-200/90 text-[11px] sm:text-xs md:text-sm mt-0.5 sm:mt-1 line-clamp-2 sm:line-clamp-none leading-relaxed">
                 Manage transit lines, designated pickup stops, school bus fleet capacity, and real-time passenger rosters.
               </p>
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 shrink-0">
+          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 shrink-0 w-full sm:w-auto">
             <Button
               size="sm"
               onClick={handleOpenAddRoute}
-              className="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-xl text-xs h-9.5 px-3.5 shadow-md shadow-indigo-600/30 border border-indigo-400/30 transition-all hover:scale-[1.02]"
+              className="flex-1 sm:flex-initial bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-xl text-xs h-8.5 sm:h-9.5 px-2.5 sm:px-3.5 shadow-md shadow-indigo-600/30 border border-indigo-400/30 transition-all hover:scale-[1.02]"
             >
-              <MapPin className="h-4 w-4 mr-1.5" /> + Add Route
+              <MapPin className="h-3.5 w-3.5 mr-1" /> + Add Route
             </Button>
             <Button
               size="sm"
               onClick={handleOpenAddBus}
-              className="bg-white hover:bg-blue-50 text-slate-900 font-bold rounded-xl text-xs h-9.5 px-3.5 shadow-md transition-all hover:scale-[1.02]"
+              className="flex-1 sm:flex-initial bg-white hover:bg-blue-50 text-slate-900 font-bold rounded-xl text-xs h-8.5 sm:h-9.5 px-2.5 sm:px-3.5 shadow-md transition-all hover:scale-[1.02]"
             >
-              <Bus className="h-4 w-4 mr-1.5 text-blue-600" /> + Add Bus
+              <Bus className="h-3.5 w-3.5 mr-1 text-blue-600" /> + Add Bus
             </Button>
             <Button
               size="sm"
               onClick={handleOpenAssignModal}
               variant="outline"
-              className="bg-white/10 hover:bg-white/20 text-white border-white/20 rounded-xl text-xs h-9.5 px-3"
+              className="w-full sm:w-auto bg-white/10 hover:bg-white/20 text-white border-white/20 rounded-xl text-xs h-8.5 sm:h-9.5 px-2.5 sm:px-3"
             >
-              <Users className="h-4 w-4 mr-1.5" /> Assign Passenger
+              <Users className="h-3.5 w-3.5 mr-1" /> Assign Passenger
             </Button>
           </div>
         </div>
       </div>
 
       {/* ─── Metric KPI Cards ──────────────────────────── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 md:gap-4">
         {/* Active Fleet */}
-        <Card className="rounded-2xl sm:rounded-3xl bg-surface p-3.5 sm:p-5 shadow-elevated border border-transparent hover:border-blue-500/30 transition-all">
+        <Card className="rounded-xl sm:rounded-2xl md:rounded-3xl bg-surface p-2.5 sm:p-4 md:p-5 shadow-elevated border border-transparent hover:border-blue-500/30 transition-all">
           <div className="flex items-center justify-between">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Fleet Vehicles</p>
-            <div className="h-8 w-8 rounded-xl bg-blue-50 dark:bg-blue-950/50 text-blue-600 flex items-center justify-center">
-              <Bus className="h-4 w-4" />
+            <p className="text-[10px] sm:text-xs font-semibold text-muted-foreground uppercase tracking-tight sm:tracking-wider truncate">Fleet Vehicles</p>
+            <div className="h-6 w-6 sm:h-8 sm:w-8 rounded-lg sm:rounded-xl bg-blue-50 dark:bg-blue-950/50 text-blue-600 flex items-center justify-center shrink-0">
+              <Bus className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             </div>
           </div>
-          <p className="mt-2 font-display text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
-            {summary.total_fleet} <span className="text-xs font-normal text-muted-foreground">Buses</span>
+          <p className="mt-1 sm:mt-2 font-display text-base sm:text-xl md:text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100 truncate">
+            {summary.total_fleet} <span className="text-[10px] sm:text-xs font-normal text-muted-foreground">Buses</span>
           </p>
-          <p className="mt-1 text-[11px] text-muted-foreground flex items-center gap-1">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 inline-block" />
-            {summary.active_fleet} active in service
+          <p className="mt-0.5 sm:mt-1 text-[10px] sm:text-[11px] text-muted-foreground flex items-center gap-1 truncate">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 inline-block shrink-0" />
+            <span className="truncate">{summary.active_fleet} in service</span>
           </p>
         </Card>
 
         {/* Total Routes */}
-        <Card className="rounded-2xl sm:rounded-3xl bg-surface p-3.5 sm:p-5 shadow-elevated border border-transparent hover:border-indigo-500/30 transition-all">
+        <Card className="rounded-xl sm:rounded-2xl md:rounded-3xl bg-surface p-2.5 sm:p-4 md:p-5 shadow-elevated border border-transparent hover:border-indigo-500/30 transition-all">
           <div className="flex items-center justify-between">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Transit Routes</p>
-            <div className="h-8 w-8 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 flex items-center justify-center">
-              <MapPin className="h-4 w-4" />
+            <p className="text-[10px] sm:text-xs font-semibold text-muted-foreground uppercase tracking-tight sm:tracking-wider truncate">Transit Lines</p>
+            <div className="h-6 w-6 sm:h-8 sm:w-8 rounded-lg sm:rounded-xl bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 flex items-center justify-center shrink-0">
+              <MapPin className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             </div>
           </div>
-          <p className="mt-2 font-display text-xl sm:text-2xl font-bold tracking-tight text-indigo-600 dark:text-indigo-400">
-            {summary.total_routes} <span className="text-xs font-normal text-muted-foreground">Lines</span>
+          <p className="mt-1 sm:mt-2 font-display text-base sm:text-xl md:text-2xl font-bold tracking-tight text-indigo-600 dark:text-indigo-400 truncate">
+            {summary.total_routes} <span className="text-[10px] sm:text-xs font-normal text-muted-foreground">Routes</span>
           </p>
-          <p className="mt-1 text-[11px] text-muted-foreground">
-            {summary.total_stops} designated pickup stops
+          <p className="mt-0.5 sm:mt-1 text-[10px] sm:text-[11px] text-muted-foreground truncate">
+            {summary.total_stops} pickup stops
           </p>
         </Card>
 
         {/* Total Seating Capacity */}
-        <Card className="rounded-2xl sm:rounded-3xl bg-surface p-3.5 sm:p-5 shadow-elevated border border-transparent hover:border-emerald-500/30 transition-all">
+        <Card className="rounded-xl sm:rounded-2xl md:rounded-3xl bg-surface p-2.5 sm:p-4 md:p-5 shadow-elevated border border-transparent hover:border-emerald-500/30 transition-all">
           <div className="flex items-center justify-between">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Fleet Capacity</p>
-            <div className="h-8 w-8 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 flex items-center justify-center">
-              <ShieldCheck className="h-4 w-4" />
+            <p className="text-[10px] sm:text-xs font-semibold text-muted-foreground uppercase tracking-tight sm:tracking-wider truncate">Total Capacity</p>
+            <div className="h-6 w-6 sm:h-8 sm:w-8 rounded-lg sm:rounded-xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 flex items-center justify-center shrink-0">
+              <ShieldCheck className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             </div>
           </div>
-          <p className="mt-2 font-display text-xl sm:text-2xl font-bold tracking-tight text-emerald-600 dark:text-emerald-400">
-            {summary.total_capacity} <span className="text-xs font-normal text-muted-foreground">Seats</span>
+          <p className="mt-1 sm:mt-2 font-display text-base sm:text-xl md:text-2xl font-bold tracking-tight text-emerald-600 dark:text-emerald-400 truncate">
+            {summary.total_capacity} <span className="text-[10px] sm:text-xs font-normal text-muted-foreground">Seats</span>
           </p>
-          <p className="mt-1 text-[11px] text-muted-foreground">
-            Total passenger capacity
+          <p className="mt-0.5 sm:mt-1 text-[10px] sm:text-[11px] text-muted-foreground truncate">
+            Passenger capacity
           </p>
         </Card>
 
         {/* Assigned Passengers */}
-        <Card className="rounded-2xl sm:rounded-3xl bg-surface p-3.5 sm:p-5 shadow-elevated border border-transparent hover:border-violet-500/30 transition-all">
+        <Card className="rounded-xl sm:rounded-2xl md:rounded-3xl bg-surface p-2.5 sm:p-4 md:p-5 shadow-elevated border border-transparent hover:border-violet-500/30 transition-all">
           <div className="flex items-center justify-between">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Passengers</p>
-            <div className="h-8 w-8 rounded-xl bg-violet-50 dark:bg-violet-950/50 text-violet-600 flex items-center justify-center">
-              <Users className="h-4 w-4" />
+            <p className="text-[10px] sm:text-xs font-semibold text-muted-foreground uppercase tracking-tight sm:tracking-wider truncate">Passengers</p>
+            <div className="h-6 w-6 sm:h-8 sm:w-8 rounded-lg sm:rounded-xl bg-violet-50 dark:bg-violet-950/50 text-violet-600 flex items-center justify-center shrink-0">
+              <Users className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             </div>
           </div>
-          <p className="mt-2 font-display text-xl sm:text-2xl font-bold tracking-tight text-violet-600 dark:text-violet-400">
-            {summary.total_passengers} <span className="text-xs font-normal text-muted-foreground">Enrolled</span>
+          <p className="mt-1 sm:mt-2 font-display text-base sm:text-xl md:text-2xl font-bold tracking-tight text-violet-600 dark:text-violet-400 truncate">
+            {summary.total_passengers} <span className="text-[10px] sm:text-xs font-normal text-muted-foreground">Students</span>
           </p>
-          <p className="mt-1 text-[11px] text-muted-foreground">
-            Subscribed students
+          <p className="mt-0.5 sm:mt-1 text-[10px] sm:text-[11px] text-muted-foreground truncate">
+            Enrolled roster
           </p>
         </Card>
       </div>
@@ -1166,9 +1166,9 @@ export function TransportModule() {
           MODAL: ADD / EDIT ROUTE WITH INLINE MULTI-STOP BUILDER
       ════════════════════════════════════════════════════════════════════ */}
       <Dialog open={showRouteModal} onOpenChange={setShowRouteModal}>
-        <DialogContent className="bg-surface border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 rounded-3xl max-w-2xl max-h-[90vh] overflow-y-auto p-6">
-          <DialogHeader>
-            <DialogTitle className="text-indigo-700 dark:text-indigo-400 font-extrabold text-lg flex items-center gap-2">
+        <DialogContent className="bg-surface border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 rounded-2xl sm:rounded-3xl w-[calc(100vw-1.5rem)] sm:max-w-2xl max-h-[90vh] overflow-y-auto overflow-x-hidden p-4 sm:p-6 shadow-2xl">
+          <DialogHeader className="pr-8 text-left">
+            <DialogTitle className="text-indigo-700 dark:text-indigo-400 font-extrabold text-base sm:text-lg flex items-center gap-2">
               <MapPin className="h-5 w-5" /> {editingRouteId ? "Edit Transport Route & Stops" : "Register New Transport Route"}
             </DialogTitle>
           </DialogHeader>
@@ -1177,7 +1177,7 @@ export function TransportModule() {
             {/* Route Code & Name */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <Label className="text-xs font-bold text-slate-700">Route Identifier Code *</Label>
+                <Label className="text-xs font-bold text-slate-700 dark:text-slate-300">Route Identifier Code *</Label>
                 <Input
                   placeholder="e.g. RT-101"
                   value={routeForm.route_code}
@@ -1186,7 +1186,7 @@ export function TransportModule() {
                 />
               </div>
               <div>
-                <Label className="text-xs font-bold text-slate-700">Route Name *</Label>
+                <Label className="text-xs font-bold text-slate-700 dark:text-slate-300">Route Name *</Label>
                 <Input
                   placeholder="e.g. Morning Campus Line A"
                   value={routeForm.route_name}
@@ -1199,7 +1199,7 @@ export function TransportModule() {
             {/* Start & End Points */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <Label className="text-xs font-bold text-slate-700">Origin / Starting Point *</Label>
+                <Label className="text-xs font-bold text-slate-700 dark:text-slate-300">Origin / Starting Point *</Label>
                 <Input
                   placeholder="e.g. City Center Terminal"
                   value={routeForm.start_point}
@@ -1208,7 +1208,7 @@ export function TransportModule() {
                 />
               </div>
               <div>
-                <Label className="text-xs font-bold text-slate-700">Destination Terminal *</Label>
+                <Label className="text-xs font-bold text-slate-700 dark:text-slate-300">Destination Terminal *</Label>
                 <Input
                   placeholder="e.g. Main Campus Gate 1"
                   value={routeForm.end_point}
@@ -1221,7 +1221,7 @@ export function TransportModule() {
             {/* Timings, Fare & Vehicle */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
-                <Label className="text-xs font-bold text-slate-700">Monthly Fare (PKR)</Label>
+                <Label className="text-xs font-bold text-slate-700 dark:text-slate-300">Monthly Fare (PKR)</Label>
                 <Input
                   type="number"
                   placeholder="4000"
@@ -1231,7 +1231,7 @@ export function TransportModule() {
                 />
               </div>
               <div>
-                <Label className="text-xs font-bold text-slate-700">Morning Departure</Label>
+                <Label className="text-xs font-bold text-slate-700 dark:text-slate-300">Morning Departure</Label>
                 <Input
                   placeholder="07:15 AM"
                   value={routeForm.morning_departure}
@@ -1240,7 +1240,7 @@ export function TransportModule() {
                 />
               </div>
               <div>
-                <Label className="text-xs font-bold text-slate-700">Evening Return</Label>
+                <Label className="text-xs font-bold text-slate-700 dark:text-slate-300">Evening Return</Label>
                 <Input
                   placeholder="02:30 PM"
                   value={routeForm.evening_departure}
@@ -1252,7 +1252,7 @@ export function TransportModule() {
 
             {/* Assign Bus Vehicle */}
             <div>
-              <Label className="text-xs font-bold text-slate-700">Assign Fleet Vehicle (Optional)</Label>
+              <Label className="text-xs font-bold text-slate-700 dark:text-slate-300">Assign Fleet Vehicle (Optional)</Label>
               <select
                 value={routeForm.vehicle_id}
                 onChange={e => setRouteForm({ ...routeForm, vehicle_id: e.target.value })}
@@ -1285,7 +1285,7 @@ export function TransportModule() {
                   onClick={handleAddInlineStop}
                   className="h-8 text-xs font-bold text-indigo-600 bg-indigo-50 border-indigo-200 hover:bg-indigo-100 rounded-xl"
                 >
-                  <Plus className="h-3.5 w-3.5 mr-1" /> + Add Another Stop
+                  <Plus className="h-3.5 w-3.5 mr-1" /> + Add Stop
                 </Button>
               </div>
 
@@ -1300,7 +1300,7 @@ export function TransportModule() {
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 flex-1">
                       <Input
-                        placeholder="Stop Name (e.g. Town Hall)"
+                        placeholder="Stop Name"
                         value={stop.stop_name}
                         onChange={e => {
                           const updated = [...routeForm.stops];
@@ -1310,7 +1310,7 @@ export function TransportModule() {
                         className="h-8 text-xs rounded-lg bg-white dark:bg-slate-900"
                       />
                       <Input
-                        placeholder="Pickup Time (07:30 AM)"
+                        placeholder="Time (07:30 AM)"
                         value={stop.estimated_morning_time || ""}
                         onChange={e => {
                           const updated = [...routeForm.stops];
@@ -1320,7 +1320,7 @@ export function TransportModule() {
                         className="h-8 text-xs rounded-lg bg-white dark:bg-slate-900"
                       />
                       <Input
-                        placeholder="Landmark / Crossing"
+                        placeholder="Landmark"
                         value={stop.landmark || ""}
                         onChange={e => {
                           const updated = [...routeForm.stops];
@@ -1348,7 +1348,7 @@ export function TransportModule() {
 
             <Button
               onClick={handleSaveRoute}
-              className="w-full bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-white font-bold rounded-2xl h-10 shadow-md text-xs mt-3"
+              className="w-full bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-white font-bold rounded-xl sm:rounded-2xl h-10 shadow-md text-xs mt-3"
             >
               {editingRouteId ? "Save Route & Stops Changes" : "Save Transport Route & All Stops"}
             </Button>
@@ -1361,26 +1361,26 @@ export function TransportModule() {
       ════════════════════════════════════════════════════════════════════ */}
       {selectedRouteForStops && (
         <Dialog open={!!selectedRouteForStops} onOpenChange={() => setSelectedRouteForStops(null)}>
-          <DialogContent className="bg-surface border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 rounded-3xl max-w-xl max-h-[90vh] overflow-y-auto p-6">
-            <DialogHeader>
+          <DialogContent className="bg-surface border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 rounded-2xl sm:rounded-3xl w-[calc(100vw-1.5rem)] sm:max-w-xl max-h-[90vh] overflow-y-auto overflow-x-hidden p-4 sm:p-6 shadow-2xl">
+            <DialogHeader className="pr-8 text-left">
               <div className="flex items-center justify-between">
                 <div>
-                  <DialogTitle className="text-slate-900 dark:text-slate-100 font-extrabold text-lg flex items-center gap-2">
+                  <DialogTitle className="text-slate-900 dark:text-slate-100 font-extrabold text-base sm:text-lg flex items-center gap-2">
                     <MapPin className="h-5 w-5 text-indigo-600" /> {selectedRouteForStops.route_code}: {selectedRouteForStops.route_name}
                   </DialogTitle>
                   <p className="text-xs text-muted-foreground mt-0.5">
                     {selectedRouteForStops.start_point} ➔ {selectedRouteForStops.end_point}
                   </p>
                 </div>
-                <Badge className="bg-indigo-50 text-indigo-700 border-indigo-200 text-xs font-bold">
-                  {selectedRouteForStops.stops?.length || 0} Total Stops
+                <Badge className="bg-indigo-50 text-indigo-700 border-indigo-200 text-xs font-bold shrink-0">
+                  {selectedRouteForStops.stops?.length || 0} Stops
                 </Badge>
               </div>
             </DialogHeader>
 
             <div className="space-y-4 pt-3">
               {/* Add New Stop Form */}
-              <div className="p-3.5 bg-indigo-50/60 dark:bg-slate-800/60 rounded-2xl border border-indigo-100 dark:border-slate-700 space-y-2.5">
+              <div className="p-3 bg-indigo-50/60 dark:bg-slate-800/60 rounded-2xl border border-indigo-100 dark:border-slate-700 space-y-2.5">
                 <Label className="text-xs font-extrabold text-indigo-800 dark:text-indigo-300 flex items-center gap-1.5">
                   <Plus className="h-3.5 w-3.5" /> Add Designated Stop to Route
                 </Label>
@@ -1426,10 +1426,10 @@ export function TransportModule() {
                     return (
                       <div
                         key={stop.id || idx}
-                        className="flex items-center justify-between p-3 bg-surface rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xs hover:border-indigo-300 transition-all"
+                        className="flex items-center justify-between p-2.5 sm:p-3 bg-surface rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xs hover:border-indigo-300 transition-all"
                       >
-                        <div className="flex items-center gap-3 min-w-0">
-                          <div className="h-7 w-7 rounded-full bg-indigo-100 text-indigo-700 font-extrabold text-xs flex items-center justify-center shrink-0 border border-indigo-200">
+                        <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
+                          <div className="h-6 w-6 sm:h-7 sm:w-7 rounded-full bg-indigo-100 text-indigo-700 font-extrabold text-xs flex items-center justify-center shrink-0 border border-indigo-200">
                             {stop.stop_order || idx + 1}
                           </div>
 
@@ -1460,13 +1460,13 @@ export function TransportModule() {
                               <span className="font-bold text-xs sm:text-sm text-slate-900 dark:text-slate-100 truncate">
                                 {stop.stop_name}
                               </span>
-                              <div className="flex items-center gap-2 text-[11px] text-slate-500 mt-0.5">
+                              <div className="flex items-center gap-2 text-[10px] sm:text-[11px] text-slate-500 mt-0.5">
                                 <span className="inline-flex items-center gap-1 font-mono text-indigo-600 dark:text-indigo-400">
                                   <Clock className="h-3 w-3" />
                                   {stop.estimated_arrival_time || stop.estimated_morning_time || "07:30 AM"}
                                 </span>
                                 {stop.landmark && (
-                                  <span className="truncate max-w-[160px] text-slate-400">
+                                  <span className="truncate max-w-[120px] sm:max-w-[160px] text-slate-400">
                                     • {stop.landmark}
                                   </span>
                                 )}
@@ -1535,7 +1535,7 @@ export function TransportModule() {
               <Button
                 onClick={() => setSelectedRouteForStops(null)}
                 variant="outline"
-                className="w-full rounded-2xl text-xs h-9"
+                className="w-full rounded-xl sm:rounded-2xl text-xs h-9"
               >
                 Close Stops Manager
               </Button>
@@ -1548,16 +1548,16 @@ export function TransportModule() {
           MODAL: ADD / EDIT BUS VEHICLE
       ════════════════════════════════════════════════════════════════════ */}
       <Dialog open={showAddBus} onOpenChange={setShowAddBus}>
-        <DialogContent className="bg-surface border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 rounded-3xl max-w-md p-6">
-          <DialogHeader>
-            <DialogTitle className="text-blue-700 dark:text-blue-400 font-extrabold text-lg flex items-center gap-2">
+        <DialogContent className="bg-surface border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 rounded-2xl sm:rounded-3xl w-[calc(100vw-1.5rem)] sm:max-w-md p-4 sm:p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader className="pr-8 text-left">
+            <DialogTitle className="text-blue-700 dark:text-blue-400 font-extrabold text-base sm:text-lg flex items-center gap-2">
               <Bus className="h-5 w-5" /> {editingBusId ? "Edit Vehicle Details" : "Register School Bus Vehicle"}
             </DialogTitle>
           </DialogHeader>
 
           <div className="space-y-3.5 pt-2">
             <div>
-              <Label className="text-xs font-bold text-slate-700">Bus Identifier Number *</Label>
+              <Label className="text-xs font-bold text-slate-700 dark:text-slate-300">Bus Identifier Number *</Label>
               <Input
                 placeholder="e.g. BUS-01"
                 value={busForm.bus_number}
@@ -1568,7 +1568,7 @@ export function TransportModule() {
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label className="text-xs font-bold text-slate-700">License Plate</Label>
+                <Label className="text-xs font-bold text-slate-700 dark:text-slate-300">License Plate</Label>
                 <Input
                   placeholder="e.g. LEA-9876"
                   value={busForm.registration_no}
@@ -1577,7 +1577,7 @@ export function TransportModule() {
                 />
               </div>
               <div>
-                <Label className="text-xs font-bold text-slate-700">Seating Capacity</Label>
+                <Label className="text-xs font-bold text-slate-700 dark:text-slate-300">Seating Capacity</Label>
                 <Input
                   type="number"
                   value={busForm.seating_capacity}
@@ -1589,7 +1589,7 @@ export function TransportModule() {
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label className="text-xs font-bold text-slate-700">Driver Full Name</Label>
+                <Label className="text-xs font-bold text-slate-700 dark:text-slate-300">Driver Full Name</Label>
                 <Input
                   placeholder="e.g. Muhammad Aslam"
                   value={busForm.driver_name}
@@ -1598,7 +1598,7 @@ export function TransportModule() {
                 />
               </div>
               <div>
-                <Label className="text-xs font-bold text-slate-700">Driver Phone Number</Label>
+                <Label className="text-xs font-bold text-slate-700 dark:text-slate-300">Driver Phone Number</Label>
                 <Input
                   placeholder="e.g. +92 300 1234567"
                   value={busForm.driver_phone}
@@ -1610,7 +1610,7 @@ export function TransportModule() {
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label className="text-xs font-bold text-slate-700">Conductor Name</Label>
+                <Label className="text-xs font-bold text-slate-700 dark:text-slate-300">Conductor Name</Label>
                 <Input
                   placeholder="e.g. Tariq Mahmood"
                   value={busForm.conductor_name}
@@ -1619,7 +1619,7 @@ export function TransportModule() {
                 />
               </div>
               <div>
-                <Label className="text-xs font-bold text-slate-700">GPS Tracker Device ID</Label>
+                <Label className="text-xs font-bold text-slate-700 dark:text-slate-300">GPS Tracker Device ID</Label>
                 <Input
                   placeholder="e.g. GPS-8821"
                   value={busForm.gps_device_id}
@@ -1631,7 +1631,7 @@ export function TransportModule() {
 
             <Button
               onClick={handleSaveBus}
-              className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold rounded-2xl h-10 shadow-md text-xs mt-2"
+              className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold rounded-xl sm:rounded-2xl h-10 shadow-md text-xs mt-2"
             >
               {editingBusId ? "Update Vehicle Record" : "Save Vehicle to Fleet"}
             </Button>
@@ -1643,16 +1643,16 @@ export function TransportModule() {
           MODAL: ASSIGN STUDENT TO TRANSPORT
       ════════════════════════════════════════════════════════════════════ */}
       <Dialog open={showAssignModal} onOpenChange={setShowAssignModal}>
-        <DialogContent className="bg-surface border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 rounded-3xl max-w-md p-6">
-          <DialogHeader>
-            <DialogTitle className="text-violet-700 dark:text-violet-400 font-extrabold text-lg flex items-center gap-2">
+        <DialogContent className="bg-surface border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 rounded-2xl sm:rounded-3xl w-[calc(100vw-1.5rem)] sm:max-w-md p-4 sm:p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader className="pr-8 text-left">
+            <DialogTitle className="text-violet-700 dark:text-violet-400 font-extrabold text-base sm:text-lg flex items-center gap-2">
               <Users className="h-5 w-5" /> Assign Student Passenger
             </DialogTitle>
           </DialogHeader>
 
           <div className="space-y-3.5 pt-2">
             <div>
-              <Label className="text-xs font-bold text-slate-700">Select Student *</Label>
+              <Label className="text-xs font-bold text-slate-700 dark:text-slate-300">Select Student *</Label>
               <select
                 value={assignForm.student_id}
                 onChange={e => setAssignForm({ ...assignForm, student_id: e.target.value })}
@@ -1668,7 +1668,7 @@ export function TransportModule() {
             </div>
 
             <div>
-              <Label className="text-xs font-bold text-slate-700">Select Transport Line *</Label>
+              <Label className="text-xs font-bold text-slate-700 dark:text-slate-300">Select Transport Line *</Label>
               <select
                 value={assignForm.route_id}
                 onChange={e => {
@@ -1692,7 +1692,7 @@ export function TransportModule() {
             </div>
 
             <div>
-              <Label className="text-xs font-bold text-slate-700">Designated Pickup Stop</Label>
+              <Label className="text-xs font-bold text-slate-700 dark:text-slate-300">Designated Pickup Stop</Label>
               <select
                 value={assignForm.stop_id}
                 onChange={e => setAssignForm({ ...assignForm, stop_id: e.target.value })}
@@ -1710,7 +1710,7 @@ export function TransportModule() {
             </div>
 
             <div>
-              <Label className="text-xs font-bold text-slate-700">Service Coverage Type</Label>
+              <Label className="text-xs font-bold text-slate-700 dark:text-slate-300">Service Coverage Type</Label>
               <select
                 value={assignForm.pickup_type}
                 onChange={e => setAssignForm({ ...assignForm, pickup_type: e.target.value })}
@@ -1724,7 +1724,7 @@ export function TransportModule() {
 
             <Button
               onClick={handleSaveAssignment}
-              className="w-full bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-bold rounded-2xl h-10 shadow-md text-xs mt-2"
+              className="w-full bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-bold rounded-xl sm:rounded-2xl h-10 shadow-md text-xs mt-2"
             >
               Confirm Student Transport Assignment
             </Button>
@@ -1737,10 +1737,10 @@ export function TransportModule() {
       ════════════════════════════════════════════════════════════════════ */}
       {trackingVehicle && (
         <Dialog open={!!trackingVehicle} onOpenChange={() => setTrackingVehicle(null)}>
-          <DialogContent className="bg-surface border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 rounded-3xl max-w-lg p-6">
-            <DialogHeader>
+          <DialogContent className="bg-surface border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 rounded-2xl sm:rounded-3xl w-[calc(100vw-1.5rem)] sm:max-w-lg p-4 sm:p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader className="pr-8 text-left">
               <div className="flex items-center justify-between">
-                <DialogTitle className="text-blue-700 dark:text-blue-400 font-extrabold text-lg flex items-center gap-2">
+                <DialogTitle className="text-blue-700 dark:text-blue-400 font-extrabold text-base sm:text-lg flex items-center gap-2">
                   <Navigation className="h-5 w-5 animate-spin" /> Live GPS: {trackingVehicle.bus_number}
                 </DialogTitle>
                 <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 text-xs">
