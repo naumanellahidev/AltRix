@@ -11,6 +11,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { SearchableSelect } from "@/components/ui/SearchableSelect";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "sonner";
+import { useActiveCampus } from "@/hooks/useActiveCampus";
+import { useSession } from "@/hooks/useSession";
 import {
   Home, Bed, Utensils, Moon, Plus, Search, RefreshCw,
   CheckCircle2, AlertCircle, UserCheck, Shield, Clock, Building, User
@@ -41,8 +43,7 @@ interface StudentOption {
   roll_number?: string;
   admission_number?: string;
   class_name?: string;
-import { useActiveCampus } from "@/hooks/useActiveCampus";
-import { useSession } from "@/hooks/useSession";
+}
 
 export function HostelModule() {
   const { user } = useSession();

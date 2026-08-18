@@ -613,5 +613,3 @@ export default function EventsModule() {
   );
 }
 
-export default EventsModule;
-

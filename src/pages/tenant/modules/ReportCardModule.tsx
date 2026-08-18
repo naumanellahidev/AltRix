@@ -1567,5 +1567,3 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
   );
 }
 
-export default ReportCardModule;
-
