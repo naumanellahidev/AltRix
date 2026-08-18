@@ -178,9 +178,9 @@ export function LuxuryShellHeader({
       {/* Radiant bottom hairline accent */}
       <div className="absolute inset-x-0 bottom-0 h-[1px] bg-gradient-to-r from-transparent via-primary/30 to-transparent pointer-events-none" />
 
-      <div className="flex h-14 sm:h-16 items-center justify-between px-3 sm:px-4 md:px-6 gap-2">
+      <div className="flex h-14 sm:h-16 items-center justify-between px-3 sm:px-4 md:px-6 gap-2 overflow-x-auto no-scrollbar flex-nowrap min-w-0">
         {/* Left Side: Mobile Menu Trigger + Brand Jewel + Dynamic Hierarchy */}
-        <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0 shrink-0">
           {/* Mobile Sheet Trigger (Hidden on Desktop) */}
           <div className="lg:hidden shrink-0">
             <Sheet open={mobileNavOpen} onOpenChange={onMobileNavOpenChange}>
@@ -204,20 +204,20 @@ export function LuxuryShellHeader({
           </div>
 
           {/* Luxury Brand Crest / Jewel (Mobile & Desktop) */}
-          <div className="flex items-center gap-2.5 min-w-0">
+          <div className="flex items-center gap-2.5 shrink-0">
             <div className="h-8 w-8 sm:h-9 sm:w-9 rounded-xl bg-gradient-to-br from-primary/20 via-primary/10 to-transparent border border-primary/25 flex items-center justify-center text-primary shadow-xs shrink-0 ring-2 ring-primary/5">
               <RoleIcon className="h-4 w-4 sm:h-4.5 sm:w-4.5" />
             </div>
 
-            <div className="flex flex-col min-w-0">
-              <div className="flex items-center gap-1.5 min-w-0">
-                <span className="font-display text-xs sm:text-sm font-bold tracking-tight text-foreground truncate max-w-[130px] sm:max-w-[200px] md:max-w-[320px]">
+            <div className="flex flex-col shrink-0">
+              <div className="flex items-center gap-1.5 flex-nowrap">
+                <span className="font-display text-xs sm:text-sm font-bold tracking-tight text-foreground whitespace-nowrap">
                   {effectiveSchoolName}
                 </span>
                 <Badge
                   variant="outline"
                   className={cn(
-                    "text-[9px] sm:text-[10px] font-bold uppercase tracking-wider px-1.5 py-0 h-4 sm:h-4.5 rounded-md border shrink-0 bg-gradient-to-r shadow-2xs",
+                    "text-[9px] sm:text-[10px] font-bold uppercase tracking-wider px-1.5 py-0 h-4 sm:h-4.5 rounded-md border shrink-0 bg-gradient-to-r shadow-2xs whitespace-nowrap",
                     roleCfg.colorClass
                   )}
                 >
@@ -227,7 +227,7 @@ export function LuxuryShellHeader({
               </div>
 
               {subtitle && (
-                <span className="text-[10px] sm:text-xs text-muted-foreground/80 font-medium truncate max-w-[150px] sm:max-w-[240px] md:max-w-[360px] flex items-center gap-1">
+                <span className="text-[10px] sm:text-xs text-muted-foreground/80 font-medium whitespace-nowrap flex items-center gap-1">
                   <span className="inline-block h-1 w-1 rounded-full bg-primary/40" />
                   {subtitle}
                 </span>

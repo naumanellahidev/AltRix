@@ -579,80 +579,80 @@ const TenantDashboard = () => {
 
         {/* Primary KPIs - Render on the main dashboard tab */}
         {isIndexRoute && (
-          <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-5">
+          <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-5">
             {/* Revenue KPI */}
             <div 
-              className="rounded-3xl bg-surface p-5 shadow-elevated border border-transparent hover:border-emerald-500/30 hover:shadow-emerald-500/5 cursor-pointer transition-all duration-300 group"
+              className="rounded-2xl sm:rounded-3xl bg-surface p-3.5 sm:p-5 shadow-elevated border border-transparent hover:border-emerald-500/30 hover:shadow-emerald-500/5 cursor-pointer transition-all duration-300 group flex flex-col justify-between"
               onClick={() => navigate(`/${tenant.slug}/${role}/fees`)}
             >
-              <div className="flex items-center justify-between">
-                <p className="text-sm text-muted-foreground group-hover:text-emerald-600 transition-colors">Revenue (MTD)</p>
-                <Coins className="h-4 w-4 text-emerald-500 transition-transform group-hover:scale-110" />
+              <div className="flex items-center justify-between gap-1">
+                <p className="text-xs sm:text-sm text-muted-foreground group-hover:text-emerald-600 transition-colors font-medium truncate">Revenue (MTD)</p>
+                <Coins className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-emerald-500 transition-transform group-hover:scale-110 shrink-0" />
               </div>
-              <p className="mt-3 font-display text-2xl font-semibold tracking-tight text-emerald-600">
+              <p className="mt-2 sm:mt-3 font-display text-lg sm:text-xl md:text-2xl font-bold tracking-tight text-emerald-600 truncate">
                 ${revenueMtd.toLocaleString()}
               </p>
-              <p className="mt-1 text-xs text-muted-foreground">This month</p>
+              <p className="mt-0.5 sm:mt-1 text-[10px] sm:text-xs text-muted-foreground truncate">This month</p>
             </div>
 
             {/* Students KPI */}
             <div 
-              className="rounded-3xl bg-surface p-5 shadow-elevated border border-transparent hover:border-primary/30 hover:shadow-primary/5 cursor-pointer transition-all duration-300 group"
+              className="rounded-2xl sm:rounded-3xl bg-surface p-3.5 sm:p-5 shadow-elevated border border-transparent hover:border-primary/30 hover:shadow-primary/5 cursor-pointer transition-all duration-300 group flex flex-col justify-between"
               onClick={() => navigate(`/${tenant.slug}/${role}/academic`)}
             >
-              <div className="flex items-center justify-between">
-                <p className="text-sm text-muted-foreground group-hover:text-primary transition-colors">Students</p>
-                <GraduationCap className="h-4 w-4 text-primary transition-transform group-hover:scale-110" />
+              <div className="flex items-center justify-between gap-1">
+                <p className="text-xs sm:text-sm text-muted-foreground group-hover:text-primary transition-colors font-medium truncate">Students</p>
+                <GraduationCap className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-primary transition-transform group-hover:scale-110 shrink-0" />
               </div>
-              <p className="mt-3 font-display text-2xl font-semibold tracking-tight">
+              <p className="mt-2 sm:mt-3 font-display text-lg sm:text-xl md:text-2xl font-bold tracking-tight truncate">
                 {studentsCount.toLocaleString()}
               </p>
-              <p className="mt-1 text-xs text-muted-foreground">Enrolled</p>
+              <p className="mt-0.5 sm:mt-1 text-[10px] sm:text-xs text-muted-foreground truncate">Enrolled</p>
             </div>
 
             {/* Staff KPI */}
             <div 
-              className="rounded-3xl bg-surface p-5 shadow-elevated border border-transparent hover:border-violet-500/30 hover:shadow-violet-500/5 cursor-pointer transition-all duration-300 group"
+              className="rounded-2xl sm:rounded-3xl bg-surface p-3.5 sm:p-5 shadow-elevated border border-transparent hover:border-violet-500/30 hover:shadow-violet-500/5 cursor-pointer transition-all duration-300 group flex flex-col justify-between"
               onClick={() => navigate(`/${tenant.slug}/${role}/users`)}
             >
-              <div className="flex items-center justify-between">
-                <p className="text-sm text-muted-foreground group-hover:text-violet-600 transition-colors">Staff</p>
-                <Users className="h-4 w-4 text-violet-500 transition-transform group-hover:scale-110" />
+              <div className="flex items-center justify-between gap-1">
+                <p className="text-xs sm:text-sm text-muted-foreground group-hover:text-violet-600 transition-colors font-medium truncate">Staff</p>
+                <Users className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-violet-500 transition-transform group-hover:scale-110 shrink-0" />
               </div>
-              <p className="mt-3 font-display text-2xl font-semibold tracking-tight">
+              <p className="mt-2 sm:mt-3 font-display text-lg sm:text-xl md:text-2xl font-bold tracking-tight truncate">
                 {displayStaffData.total}
               </p>
-              <p className="mt-1 text-xs text-muted-foreground">{displayStaffData.teachers} teachers</p>
+              <p className="mt-0.5 sm:mt-1 text-[10px] sm:text-xs text-muted-foreground truncate">{displayStaffData.teachers} teachers</p>
             </div>
 
             {/* Admissions KPI */}
             <div 
-              className="rounded-3xl bg-surface p-5 shadow-elevated border border-transparent hover:border-blue-500/30 hover:shadow-blue-500/5 cursor-pointer transition-all duration-300 group"
+              className="rounded-2xl sm:rounded-3xl bg-surface p-3.5 sm:p-5 shadow-elevated border border-transparent hover:border-blue-500/30 hover:shadow-blue-500/5 cursor-pointer transition-all duration-300 group flex flex-col justify-between"
               onClick={() => navigate(`/${tenant.slug}/${role}/crm`)}
             >
-              <div className="flex items-center justify-between">
-                <p className="text-sm text-muted-foreground group-hover:text-blue-600 transition-colors">Admissions</p>
-                <UserPlus className="h-4 w-4 text-blue-500 transition-transform group-hover:scale-110" />
+              <div className="flex items-center justify-between gap-1">
+                <p className="text-xs sm:text-sm text-muted-foreground group-hover:text-blue-600 transition-colors font-medium truncate">Admissions</p>
+                <UserPlus className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-blue-500 transition-transform group-hover:scale-110 shrink-0" />
               </div>
-              <p className="mt-3 font-display text-2xl font-semibold tracking-tight">
+              <p className="mt-2 sm:mt-3 font-display text-lg sm:text-xl md:text-2xl font-bold tracking-tight truncate">
                 {displayLeadsData.open}
               </p>
-              <p className="mt-1 text-xs text-muted-foreground">{displayLeadsData.total} leads</p>
+              <p className="mt-0.5 sm:mt-1 text-[10px] sm:text-xs text-muted-foreground truncate">{displayLeadsData.total} leads</p>
             </div>
 
             {/* Pending Invoices KPI */}
             <div 
-              className="rounded-3xl bg-surface p-5 shadow-elevated border border-transparent hover:border-rose-500/30 hover:shadow-rose-500/5 cursor-pointer transition-all duration-300 group"
+              className="rounded-2xl sm:rounded-3xl bg-surface p-3.5 sm:p-5 shadow-elevated border border-transparent hover:border-rose-500/30 hover:shadow-rose-500/5 cursor-pointer transition-all duration-300 group flex flex-col justify-between"
               onClick={() => navigate(`/${tenant.slug}/${role}/fees`)}
             >
-              <div className="flex items-center justify-between">
-                <p className="text-sm text-muted-foreground group-hover:text-rose-600 transition-colors">Pending</p>
-                <FileText className={`h-4 w-4 text-rose-500 transition-transform group-hover:scale-110 ${pendingInvoices > 0 ? "animate-pulse" : ""}`} />
+              <div className="flex items-center justify-between gap-1">
+                <p className="text-xs sm:text-sm text-muted-foreground group-hover:text-rose-600 transition-colors font-medium truncate">Pending</p>
+                <FileText className={`h-3.5 w-3.5 sm:h-4 sm:w-4 text-rose-500 transition-transform group-hover:scale-110 shrink-0 ${pendingInvoices > 0 ? "animate-pulse" : ""}`} />
               </div>
-              <p className="mt-3 font-display text-2xl font-semibold tracking-tight text-rose-600">
+              <p className="mt-2 sm:mt-3 font-display text-lg sm:text-xl md:text-2xl font-bold tracking-tight text-rose-600 truncate">
                 {pendingInvoices}
               </p>
-              <p className="mt-1 text-xs text-muted-foreground">Invoices</p>
+              <p className="mt-0.5 sm:mt-1 text-[10px] sm:text-xs text-muted-foreground truncate">Invoices</p>
             </div>
           </div>
         )}

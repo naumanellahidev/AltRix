@@ -1457,7 +1457,7 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
                                 {/* Percentage Badge */}
                                 <td className="py-3 px-3 text-center align-middle">
                                   {pct != null ? (
-                                    <span className="inline-flex items-center justify-center min-w-[54px] h-7.5 px-3 rounded-full text-xs font-black bg-blue-50 text-blue-700 border border-blue-200 leading-none shadow-2xs box-border">
+                                    <span className="inline-flex items-center justify-center min-w-[56px] h-7 px-3 rounded-full text-xs font-black bg-blue-50 text-blue-700 border border-blue-200 leading-none shadow-2xs">
                                       {pct}%
                                     </span>
                                   ) : (
@@ -1468,7 +1468,7 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
                                 {/* Grade Badge */}
                                 <td className="py-3 px-3 text-center align-middle">
                                   {grade ? (
-                                    <span className={`inline-flex items-center justify-center min-w-[42px] h-7.5 px-2.5 rounded-full text-xs font-black border leading-none shadow-2xs box-border ${getGradeBadge(grade)}`}>
+                                    <span className={`inline-flex items-center justify-center min-w-[42px] h-7 px-2.5 rounded-full text-xs font-black border leading-none shadow-2xs ${getGradeBadge(grade)}`}>
                                       {grade}
                                     </span>
                                   ) : (
@@ -1508,12 +1508,12 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
                             <td className="py-3.5 px-3 text-center text-sm font-black text-slate-900">{totals.total}</td>
                             <td className="py-3.5 px-3 text-center text-sm font-bold text-slate-600">{totals.max}</td>
                             <td className="py-3.5 px-3 text-center text-sm font-black text-primary align-middle">
-                              <span className="inline-flex items-center justify-center min-w-[54px] h-7.5 px-3 rounded-full text-xs font-black bg-blue-100 text-blue-800 border border-blue-300 leading-none shadow-2xs box-border">
+                              <span className="inline-flex items-center justify-center min-w-[56px] h-7 px-3 rounded-full text-xs font-black bg-blue-100 text-blue-800 border border-blue-300 leading-none shadow-2xs">
                                 {totals.pct}%
                               </span>
                             </td>
                             <td className="py-3.5 px-3 text-center align-middle">
-                              <span className={`inline-flex items-center justify-center min-w-[42px] h-7.5 px-2.5 rounded-full text-xs font-black border leading-none shadow-2xs box-border ${getGradeBadge(totals.grade)}`}>
+                              <span className={`inline-flex items-center justify-center min-w-[42px] h-7 px-2.5 rounded-full text-xs font-black border leading-none shadow-2xs ${getGradeBadge(totals.grade)}`}>
                                 {totals.grade}
                               </span>
                             </td>

@@ -57,19 +57,15 @@ async def list_teachers(
     for tp in tp_list:
         out_items.append(TeacherOut.model_validate(tp))
 
-    # 2. Augment with staff and teachers from user_roles and profiles
+    # 2. Augment with teachers from user_roles and profiles
     try:
         sql = """
-            SELECT DISTINCT r.user_id, COALESCE(p.display_name, p.email, 'Staff Member') as display_name, p.email, r.role, p.phone
+            SELECT DISTINCT r.user_id, COALESCE(p.display_name, p.email, 'Faculty Member') as display_name, p.email, r.role, p.phone
             FROM public.user_roles r
             LEFT JOIN public.profiles p ON p.id = r.user_id
             WHERE r.school_id = :school_id
               AND (:campus_id IS NULL OR r.campus_id = CAST(:campus_id AS UUID))
-              AND r.role IN (
-                'teacher', 'head_teacher', 'accountant', 'hr_manager',
-                'librarian', 'principal', 'vice_principal', 'academic_coordinator',
-                'counselor', 'school_admin', 'staff', 'hostel_warden', 'transport_manager'
-              )
+              AND r.role IN ('teacher', 'head_teacher', 'faculty', 'instructor')
         """
         dir_res = await db.execute(text(sql), {
             "school_id": str(current_user.school_id),

@@ -171,16 +171,34 @@ export function LibraryModule() {
         studentQuery = studentQuery.eq("campus_id", activeCampusId);
       }
 
-      // 2. Fetch only teachers/faculty (strictly exclude parents, admins, cleaners, accountants, support staff)
-      let teachersQuery = api
-        .from("profiles")
-        .select("id, display_name, email, role, phone, designation")
-        .in("role", ["teacher", "faculty", "instructor"]);
+      // 2. Fetch only real teachers belonging to the current school
+      let teachersList: any[] = [];
+      try {
+        const resp = await apiClient.get("/teachers", {
+          params: { ...(activeCampusId && activeCampusId !== "all" ? { campus_id: activeCampusId } : {}) }
+        });
+        if (resp.data && Array.isArray(resp.data.items)) {
+          teachersList = resp.data.items;
+        } else if (Array.isArray(resp.data)) {
+          teachersList = resp.data;
+        }
+      } catch {
+        // Fallback: query user_roles strictly for the school
+        if (user?.school_id) {
+          const urRes = await api
+            .from("user_roles")
+            .select("user_id, role, school_id")
+            .eq("school_id", user.school_id)
+            .eq("role", "teacher");
+          if (urRes.data && urRes.data.length > 0) {
+            const uids = urRes.data.map((u: any) => u.user_id);
+            const pRes = await api.from("profiles").select("id, display_name, email, phone").in("id", uids);
+            teachersList = pRes.data ?? [];
+          }
+        }
+      }
 
-      const [stRes, teachRes] = await Promise.all([
-        studentQuery.limit(500),
-        teachersQuery.limit(150)
-      ]);
+      const stRes = await studentQuery.limit(500);
 
       const list: BorrowerOption[] = [];
       const map: Record<string, { name: string; code: string; type: string; details?: string }> = {};
@@ -194,12 +212,13 @@ export function LibraryModule() {
         map[s.id] = { name, code, type: "student", details };
       });
 
-      (teachRes.data ?? []).forEach((p: any) => {
-        const name = p.display_name || p.email || "Faculty Member";
-        const code = `FAC-${p.id.slice(0, 4).toUpperCase()}`;
-        const details = p.designation || "Teacher / Faculty";
-        list.push({ id: p.id, name, type: "teacher", code, details });
-        map[p.id] = { name, code, type: "teacher", details };
+      teachersList.forEach((p: any) => {
+        const name = p.full_name || p.display_name || (p.first_name ? `${p.first_name} ${p.last_name || ""}`.trim() : p.email) || "Faculty Member";
+        const code = p.employee_id || `FAC-${(p.id || "").slice(0, 4).toUpperCase()}`;
+        const details = p.designation || p.department || "Teacher / Faculty";
+        const keyId = p.id || p.user_id;
+        list.push({ id: keyId, name, type: "teacher", code, details });
+        map[keyId] = { name, code, type: "teacher", details };
       });
 
       list.sort((a, b) => a.name.localeCompare(b.name));
