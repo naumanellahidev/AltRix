@@ -161,25 +161,42 @@ export function PrincipalHome() {
   const handleAlertNavigate = (path: string) => {
     navigate(`${basePath}/${path}`);
   };
-  const [kpis, setKpis] = useState<Kpis>({
-    students: 0,
-    teachers: 0,
-    totalStaff: 0,
-    leads: 0,
-    openLeads: 0,
-    attendanceEntries7d: 0,
-    attendancePresent7d: 0,
-    revenueMtd: 0,
-    expensesMtd: 0,
-    pendingInvoices: 0,
-    classes: 0,
-    sections: 0,
-    pendingLeaves: 0,
-    openComplaints: 0,
+  const [kpis, setKpis] = useState<Kpis>(() => {
+    if (typeof window !== "undefined" && schoolId) {
+      try {
+        const cached = sessionStorage.getItem(`altrix_principal_kpis_${schoolId}`);
+        if (cached) return JSON.parse(cached);
+      } catch (_) {}
+    }
+    return {
+      students: 0,
+      teachers: 0,
+      totalStaff: 0,
+      leads: 0,
+      openLeads: 0,
+      attendanceEntries7d: 0,
+      attendancePresent7d: 0,
+      revenueMtd: 0,
+      expensesMtd: 0,
+      pendingInvoices: 0,
+      classes: 0,
+      sections: 0,
+      pendingLeaves: 0,
+      openComplaints: 0,
+    };
   });
   const [trend, setTrend] = useState<{ day: string; revenue: number; expenses: number; cashflow: number }[]>([]);
   const [busy, setBusy] = useState(false);
   const [activeTab, setActiveTab] = useState("overview");
+
+  const saveKpis = (newKpis: Kpis) => {
+    setKpis(newKpis);
+    if (typeof window !== "undefined" && schoolId) {
+      try {
+        sessionStorage.setItem(`altrix_principal_kpis_${schoolId}`, JSON.stringify(newKpis));
+      } catch (_) {}
+    }
+  };
 
   const studentsTrend = useMemo(() => [
     { val: Math.max(0, kpis.students - 10) },
@@ -279,7 +296,7 @@ export function PrincipalHome() {
           );
 
           if (hasRealData) {
-            setKpis({
+            saveKpis({
               students: Number(dbKpis.total_students) || 0,
               teachers: Number(dbKpis.total_teachers) || 0,
               totalStaff: Number(dbKpis.total_staff) || 0,
@@ -292,6 +309,8 @@ export function PrincipalHome() {
               pendingInvoices: Number(dbKpis.pending_payments) || 0,
               classes: Number(dbKpis.total_classes) || 0,
               sections: Number(dbKpis.total_sections) || 0,
+              pendingLeaves: Number(dbKpis.pending_leaves) || 0,
+              openComplaints: Number(dbKpis.open_complaints) || 0,
             });
 
             // Build day buckets for chart (MTD)
@@ -323,7 +342,7 @@ export function PrincipalHome() {
             fetchedViaFastApi = true;
           }
         } catch (fastApiErr) {
-          console.warn("FastAPI backend reports call failed, falling back to direct table queries:", fastApiErr);
+          // Fallback gracefully to direct tables
         }
       }
 
@@ -341,10 +360,12 @@ export function PrincipalHome() {
           pendingInvoicesCount,
           classesCount,
           sectionsCount,
+          pendingLeavesCount,
+          openComplaintsCount,
         ] = await Promise.all([
           api.from("students").select("id", { count: "exact", head: true }).eq("school_id", schoolId),
           api.from("user_roles").select("id", { count: "exact", head: true }).eq("school_id", schoolId).eq("role", "teacher"),
-          api.from("school_memberships").select("id", { count: "exact", head: true }).eq("school_id", schoolId),
+          api.from("user_roles").select("id", { count: "exact", head: true }).eq("school_id", schoolId).not("role", "in", '("student","parent")'),
           api.from("crm_leads").select("id", { count: "exact", head: true }).eq("school_id", schoolId),
           api.from("crm_leads").select("id", { count: "exact", head: true }).eq("school_id", schoolId).not("stage_id", "is", null),
           api
@@ -362,17 +383,19 @@ export function PrincipalHome() {
             .from("fee_payments")
             .select("amount,paid_at,created_at,status")
             .eq("school_id", schoolId)
-            .limit(1000),
+            .gte("created_at", monthStart.toISOString())
+            .limit(500),
           api
             .from("finance_expenses")
             .select("amount,expense_date,created_at")
             .eq("school_id", schoolId)
-            .limit(1000),
+            .gte("created_at", monthStart.toISOString())
+            .limit(500),
           api
             .from("fee_invoices")
             .select("id,total_amount,paid_amount,status,created_at")
             .eq("school_id", schoolId)
-            .limit(1000),
+            .limit(500),
           api.from("academic_classes").select("id", { count: "exact", head: true }).eq("school_id", schoolId),
           api.from("class_sections").select("id", { count: "exact", head: true }).eq("school_id", schoolId),
           api.from("hr_leave_requests").select("id", { count: "exact", head: true }).eq("school_id", schoolId).eq("status", "pending"),
@@ -411,10 +434,13 @@ export function PrincipalHome() {
 
         const pendingCount = (pendingInvoicesCount.data ?? []).filter((inv: any) => inv.status !== 'paid' && inv.status !== 'cancelled').length;
 
-        setKpis({
+        const teachersCountVal = teachersCount.count ?? 0;
+        const totalStaffVal = Math.max(totalStaffCount.count ?? 0, teachersCountVal);
+
+        saveKpis({
           students: studentsCount.count ?? 0,
-          teachers: teachersCount.count ?? 0,
-          totalStaff: totalStaffCount.count ?? 0,
+          teachers: teachersCountVal,
+          totalStaff: totalStaffVal,
           leads: leadsCount.count ?? 0,
           openLeads: openLeadsCount.count ?? 0,
           attendanceEntries7d: entries7.count ?? 0,
@@ -424,8 +450,8 @@ export function PrincipalHome() {
           pendingInvoices: pendingCount,
           classes: classesCount.count ?? 0,
           sections: sectionsCount.count ?? 0,
-          pendingLeaves: pendingLeavesCount.count ?? 0,
-          openComplaints: openComplaintsCount.count ?? 0,
+          pendingLeaves: pendingLeavesCount?.count ?? 0,
+          openComplaints: openComplaintsCount?.count ?? 0,
         });
 
         // Build day buckets for chart (MTD)
@@ -468,26 +494,70 @@ export function PrincipalHome() {
     void refresh();
     if (!schoolId) return;
 
+    let debounceTimer: any = null;
+    const triggerDebouncedRefresh = () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        void refresh();
+      }, 400);
+    };
+
     const channel = api
-      .channel("principal-finance-sync")
+      .channel(`principal-realtime-sync-${schoolId}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "students", filter: `school_id=eq.${schoolId}` },
+        triggerDebouncedRefresh
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "user_roles", filter: `school_id=eq.${schoolId}` },
+        triggerDebouncedRefresh
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "attendance_entries", filter: `school_id=eq.${schoolId}` },
+        triggerDebouncedRefresh
+      )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "fee_invoices", filter: `school_id=eq.${schoolId}` },
-        () => { void refresh(); }
+        triggerDebouncedRefresh
       )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "fee_payments", filter: `school_id=eq.${schoolId}` },
-        () => { void refresh(); }
+        triggerDebouncedRefresh
       )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "finance_expenses", filter: `school_id=eq.${schoolId}` },
-        () => { void refresh(); }
+        triggerDebouncedRefresh
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "hr_leave_requests", filter: `school_id=eq.${schoolId}` },
+        triggerDebouncedRefresh
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "complaints", filter: `school_id=eq.${schoolId}` },
+        triggerDebouncedRefresh
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "academic_classes", filter: `school_id=eq.${schoolId}` },
+        triggerDebouncedRefresh
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "class_sections", filter: `school_id=eq.${schoolId}` },
+        triggerDebouncedRefresh
       )
       .subscribe();
 
     return () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
       void api.removeChannel(channel);
     };
   }, [schoolId]);
