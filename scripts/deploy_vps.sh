@@ -140,17 +140,48 @@ docker build \
     backend/
 
 # 5. Swap Backend & Celery Containers
-echo "[INFO] Guaranteeing database schema permissions for app user..."
+echo "[INFO] Guaranteeing database schema permissions and column migrations for app user..."
 # Try connecting via local postgres user first (if script runs as root)
-sudo -u postgres psql -d altrix -c "GRANT USAGE ON SCHEMA auth TO altrix_app; GRANT SELECT ON ALL TABLES IN SCHEMA auth TO altrix_app; ALTER DEFAULT PRIVILEGES IN SCHEMA auth GRANT SELECT ON TABLES TO altrix_app;" || true
+sudo -u postgres psql -d altrix -c "
+  GRANT USAGE ON SCHEMA auth TO altrix_app;
+  GRANT SELECT ON ALL TABLES IN SCHEMA auth TO altrix_app;
+  ALTER DEFAULT PRIVILEGES IN SCHEMA auth GRANT SELECT ON TABLES TO altrix_app;
+  ALTER TABLE IF EXISTS public.book_issues ADD COLUMN IF NOT EXISTS campus_id UUID;
+  ALTER TABLE IF EXISTS public.book_issues ADD COLUMN IF NOT EXISTS fine_per_day NUMERIC(10, 2) DEFAULT 20.00;
+  ALTER TABLE IF EXISTS public.library_books ADD COLUMN IF NOT EXISTS campus_id UUID;
+  ALTER TABLE IF EXISTS public.library_books ADD COLUMN IF NOT EXISTS barcode VARCHAR(100);
+  ALTER TABLE IF EXISTS public.library_books ADD COLUMN IF NOT EXISTS shelf_location VARCHAR(100);
+  ALTER TABLE IF EXISTS public.library_books ADD COLUMN IF NOT EXISTS publisher VARCHAR(255);
+  ALTER TABLE IF EXISTS public.library_books ADD COLUMN IF NOT EXISTS publication_year INTEGER;
+  ALTER TABLE IF EXISTS public.school_events ADD COLUMN IF NOT EXISTS campus_id UUID;
+  ALTER TABLE IF EXISTS public.school_events ADD COLUMN IF NOT EXISTS audience VARCHAR(50) DEFAULT 'all';
+  ALTER TABLE IF EXISTS public.school_events ADD COLUMN IF NOT EXISTS rsvp_enabled BOOLEAN DEFAULT false;
+  ALTER TABLE IF EXISTS public.school_events ADD COLUMN IF NOT EXISTS rsvp_count INTEGER DEFAULT 0;
+  ALTER TABLE IF EXISTS public.school_events ADD COLUMN IF NOT EXISTS max_attendees INTEGER;
+  GRANT ALL ON ALL TABLES IN SCHEMA public TO altrix_app;
+  GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO altrix_app;
+" || true
 
 # Try using the admin database URL from vps_postgresql.env or production.env directly (works without passwordless sudo)
 for config_file in "/opt/altrix/shared/config/vps_postgresql.env" "/opt/altrix/shared/config/production.env"; do
     if [ -f "${config_file}" ]; then
         ADMIN_URL=$(grep '^VPS_ADMIN_DATABASE_URL=' "${config_file}" | cut -d '=' -f2-)
         if [ -n "${ADMIN_URL}" ]; then
-            echo "[INFO] Running schema grants via admin URL from $(basename ${config_file})..."
-            psql "${ADMIN_URL}" -c "GRANT USAGE ON SCHEMA auth TO altrix_app; GRANT SELECT ON ALL TABLES IN SCHEMA auth TO altrix_app; ALTER DEFAULT PRIVILEGES IN SCHEMA auth GRANT SELECT ON TABLES TO altrix_app;" || true
+            echo "[INFO] Running schema grants and migrations via admin URL from $(basename ${config_file})..."
+            psql "${ADMIN_URL}" -c "
+              GRANT USAGE ON SCHEMA auth TO altrix_app;
+              GRANT SELECT ON ALL TABLES IN SCHEMA auth TO altrix_app;
+              ALTER DEFAULT PRIVILEGES IN SCHEMA auth GRANT SELECT ON TABLES TO altrix_app;
+              ALTER TABLE IF EXISTS public.book_issues ADD COLUMN IF NOT EXISTS campus_id UUID;
+              ALTER TABLE IF EXISTS public.book_issues ADD COLUMN IF NOT EXISTS fine_per_day NUMERIC(10, 2) DEFAULT 20.00;
+              ALTER TABLE IF EXISTS public.library_books ADD COLUMN IF NOT EXISTS campus_id UUID;
+              ALTER TABLE IF EXISTS public.library_books ADD COLUMN IF NOT EXISTS barcode VARCHAR(100);
+              ALTER TABLE IF EXISTS public.library_books ADD COLUMN IF NOT EXISTS shelf_location VARCHAR(100);
+              ALTER TABLE IF EXISTS public.library_books ADD COLUMN IF NOT EXISTS publisher VARCHAR(255);
+              ALTER TABLE IF EXISTS public.library_books ADD COLUMN IF NOT EXISTS publication_year INTEGER;
+              GRANT ALL ON ALL TABLES IN SCHEMA public TO altrix_app;
+              GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO altrix_app;
+            " || true
         fi
     fi
 done

@@ -626,11 +626,13 @@ export function AcademicModule() {
                       <SelectValue placeholder="Select user" />
                     </SelectTrigger>
                     <SelectContent>
-                      {directoryUsers.map((u) => (
-                        <SelectItem key={u.user_id} value={u.user_id}>
-                          {u.display_name ?? u.email}
-                        </SelectItem>
-                      ))}
+                      {directoryUsers
+                        .filter((u: any) => !u.role || u.role === "student")
+                        .map((u) => (
+                          <SelectItem key={u.user_id} value={u.user_id}>
+                            {u.display_name ?? u.email}
+                          </SelectItem>
+                        ))}
                     </SelectContent>
                   </Select>
                 </div>

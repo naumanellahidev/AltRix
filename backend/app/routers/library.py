@@ -276,11 +276,45 @@ async def issue_book(payload: IssueCreateSchema, current_user: CurrentUser, db: 
                         ADD COLUMN IF NOT EXISTS fine_per_day NUMERIC(10, 2) DEFAULT 20.00;
                 """))
                 await db.commit()
-                # Retry inserting issue
-                db.add(issue)
+                # Direct SQL insert to bypass in-memory cached column map
+                new_id = uuid.uuid4()
+                await db.execute(text("""
+                    INSERT INTO public.book_issues 
+                    (id, school_id, campus_id, book_id, borrower_id, borrower_type, issue_date, due_date, fine_amount, fine_per_day, fine_paid, status, created_at)
+                    VALUES (:id, :school_id, :campus_id, :book_id, :borrower_id, :borrower_type, :issue_date, :due_date, :fine_amount, :fine_per_day, :fine_paid, :status, NOW())
+                """), {
+                    "id": new_id,
+                    "school_id": school_uuid,
+                    "campus_id": effective_cid,
+                    "book_id": payload.book_id,
+                    "borrower_id": borrower_uuid,
+                    "borrower_type": payload.borrower_type or "student",
+                    "issue_date": today,
+                    "due_date": due_date,
+                    "fine_amount": 0.00,
+                    "fine_per_day": payload.fine_per_day if payload.fine_per_day is not None else 20.0,
+                    "fine_paid": False,
+                    "status": "issued"
+                })
                 await db.commit()
-                await db.refresh(issue)
-                return issue
+                res_issue = await db.execute(select(BookIssue).where(BookIssue.id == new_id))
+                created_issue = res_issue.scalar_one_or_none()
+                if created_issue:
+                    return created_issue
+                return BookIssue(
+                    id=new_id,
+                    school_id=school_uuid,
+                    campus_id=effective_cid,
+                    book_id=payload.book_id,
+                    borrower_id=borrower_uuid,
+                    borrower_type=payload.borrower_type or "student",
+                    issue_date=today,
+                    due_date=due_date,
+                    fine_amount=0.00,
+                    fine_per_day=payload.fine_per_day if payload.fine_per_day is not None else 20.0,
+                    fine_paid=False,
+                    status="issued"
+                )
             except Exception as retry_err:
                 await db.rollback()
                 logger.error(f"Retry after column auto-align failed: {retry_err}", exc_info=True)

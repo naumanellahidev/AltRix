@@ -64,8 +64,9 @@ interface BookReservation {
 interface BorrowerOption {
   id: string;
   name: string;
-  type: string;
+  type: "student" | "teacher";
   code?: string;
+  details?: string;
 }
 
 export function LibraryModule() {
@@ -75,12 +76,13 @@ export function LibraryModule() {
   const [books, setBooks] = useState<Book[]>([]);
   const [issues, setIssues] = useState<Issue[]>([]);
   const [borrowers, setBorrowers] = useState<BorrowerOption[]>([]);
-  const [borrowerMap, setBorrowerMap] = useState<Record<string, { name: string; code: string; type: string }>>({});
+  const [borrowerMap, setBorrowerMap] = useState<Record<string, { name: string; code: string; type: string; details?: string }>>({});
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
   const [activeTab, setActiveTab] = useState("catalog");
+  const [borrowerCategoryFilter, setBorrowerCategoryFilter] = useState<"all" | "student" | "teacher">("all");
 
   // Loans tab filtering
   const [issuesSearch, setIssuesSearch] = useState("");
@@ -157,25 +159,50 @@ export function LibraryModule() {
 
   const loadBorrowers = async () => {
     try {
-      const [stRes, staffRes] = await Promise.all([
-        api.from("students").select("id, first_name, last_name, roll_number, student_code").limit(200),
-        api.from("profiles").select("id, display_name, email, role").limit(100)
+      // 1. Fetch only active students of current school/campus
+      let studentQuery = api
+        .from("students")
+        .select("id, first_name, last_name, roll_number, student_code, status, class_name, section");
+      
+      if (user?.school_id) {
+        studentQuery = studentQuery.eq("school_id", user.school_id);
+      }
+      if (activeCampusId && activeCampusId !== "all") {
+        studentQuery = studentQuery.eq("campus_id", activeCampusId);
+      }
+
+      // 2. Fetch only teachers/faculty (strictly exclude parents, admins, cleaners, accountants, support staff)
+      let teachersQuery = api
+        .from("profiles")
+        .select("id, display_name, email, role, phone, designation")
+        .in("role", ["teacher", "faculty", "instructor"]);
+
+      const [stRes, teachRes] = await Promise.all([
+        studentQuery.limit(500),
+        teachersQuery.limit(150)
       ]);
+
       const list: BorrowerOption[] = [];
-      const map: Record<string, { name: string; code: string; type: string }> = {};
+      const map: Record<string, { name: string; code: string; type: string; details?: string }> = {};
 
       (stRes.data ?? []).forEach((s: any) => {
+        if (s.status === "inactive" || s.status === "withdrawn" || s.status === "graduated" || s.status === "deleted") return;
         const name = `${s.first_name || ""} ${s.last_name || ""}`.trim() || "Student";
-        const code = s.student_code || s.roll_number || "ST-00";
-        list.push({ id: s.id, name, type: "student", code });
-        map[s.id] = { name, code, type: "student" };
+        const code = s.student_code || s.roll_number || "STU";
+        const details = s.class_name ? `Class ${s.class_name}${s.section ? `-${s.section}` : ""}` : "Student";
+        list.push({ id: s.id, name, type: "student", code, details });
+        map[s.id] = { name, code, type: "student", details };
       });
-      (staffRes.data ?? []).forEach((p: any) => {
-        const name = p.display_name || p.email || "Staff Member";
-        const code = `STAFF-${p.id.slice(0, 4).toUpperCase()}`;
-        list.push({ id: p.id, name, type: "staff", code });
-        map[p.id] = { name, code, type: "staff" };
+
+      (teachRes.data ?? []).forEach((p: any) => {
+        const name = p.display_name || p.email || "Faculty Member";
+        const code = `FAC-${p.id.slice(0, 4).toUpperCase()}`;
+        const details = p.designation || "Teacher / Faculty";
+        list.push({ id: p.id, name, type: "teacher", code, details });
+        map[p.id] = { name, code, type: "teacher", details };
       });
+
+      list.sort((a, b) => a.name.localeCompare(b.name));
       setBorrowers(list);
       setBorrowerMap(map);
     } catch { /* graceful fallback */ }
@@ -463,74 +490,74 @@ export function LibraryModule() {
         </div>
       </div>
 
-      {/* 🌟 KPI Stat Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
-        <Card className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm p-3 sm:p-4.5 hover:shadow-md transition-all rounded-2xl">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 sm:p-3 rounded-xl bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-900/50 shrink-0">
-              <BookOpen className="h-5 w-5 sm:h-6 sm:w-6" />
+      {/* 🌟 KPI Stat Cards (Responsive & Non-Truncating) */}
+      <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <Card className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm p-3.5 sm:p-4.5 hover:shadow-md transition-all rounded-2xl flex flex-col justify-between min-h-[105px]">
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <p className="text-[10px] sm:text-xs font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Total Catalog</p>
+              <p className="text-xl sm:text-2xl font-black text-slate-900 dark:text-slate-100 mt-1">
+                {totalTitles} <span className="text-xs sm:text-sm font-semibold text-slate-500">Titles</span>
+              </p>
             </div>
-            <div className="min-w-0">
-              <p className="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-wider truncate">Total Catalog</p>
-              <p className="text-lg sm:text-2xl font-black text-slate-900 dark:text-slate-100 mt-0.5 truncate">
-                {totalTitles} <span className="text-xs sm:text-sm font-normal text-slate-500">Titles</span>
-              </p>
-              <p className="text-[10px] sm:text-xs text-emerald-600 dark:text-emerald-400 font-semibold truncate mt-0.5">
-                {totalAvailable} of {totalCopies} Available
-              </p>
+            <div className="p-2 sm:p-2.5 rounded-xl bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-900/50 shrink-0">
+              <BookOpen className="h-4 w-4 sm:h-5 sm:w-5" />
             </div>
           </div>
+          <p className="text-[10px] sm:text-xs text-emerald-600 dark:text-emerald-400 font-bold mt-2 truncate">
+            {totalAvailable} / {totalCopies} Available
+          </p>
         </Card>
 
-        <Card className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm p-3 sm:p-4.5 hover:shadow-md transition-all rounded-2xl">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 sm:p-3 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-900/50 shrink-0">
-              <Clock className="h-5 w-5 sm:h-6 sm:w-6" />
+        <Card className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm p-3.5 sm:p-4.5 hover:shadow-md transition-all rounded-2xl flex flex-col justify-between min-h-[105px]">
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <p className="text-[10px] sm:text-xs font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Active Loans</p>
+              <p className="text-xl sm:text-2xl font-black text-indigo-600 dark:text-indigo-400 mt-1">
+                {activeLoans} <span className="text-xs sm:text-sm font-semibold text-slate-500">Issued</span>
+              </p>
             </div>
-            <div className="min-w-0">
-              <p className="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-wider truncate">Active Loans</p>
-              <p className="text-lg sm:text-2xl font-black text-indigo-600 dark:text-indigo-400 mt-0.5 truncate">
-                {activeLoans} <span className="text-xs sm:text-sm font-normal text-slate-500">Issued</span>
-              </p>
-              <p className="text-[10px] sm:text-xs text-slate-500 font-medium truncate mt-0.5">
-                {activeIssuesCount} Active Borrowers
-              </p>
+            <div className="p-2 sm:p-2.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-900/50 shrink-0">
+              <Clock className="h-4 w-4 sm:h-5 sm:w-5" />
             </div>
           </div>
+          <p className="text-[10px] sm:text-xs text-slate-500 font-semibold mt-2 truncate">
+            {activeIssuesCount} Active Borrowers
+          </p>
         </Card>
 
-        <Card className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm p-3 sm:p-4.5 hover:shadow-md transition-all rounded-2xl">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 sm:p-3 rounded-xl bg-rose-50 dark:bg-rose-950/50 text-rose-600 dark:text-rose-400 border border-rose-100 dark:border-rose-900/50 shrink-0">
-              <AlertTriangle className="h-5 w-5 sm:h-6 sm:w-6" />
+        <Card className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm p-3.5 sm:p-4.5 hover:shadow-md transition-all rounded-2xl flex flex-col justify-between min-h-[105px]">
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <p className="text-[10px] sm:text-xs font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Overdue Returns</p>
+              <p className="text-xl sm:text-2xl font-black text-rose-600 dark:text-rose-400 mt-1">
+                {overdueIssuesCount} <span className="text-xs sm:text-sm font-semibold text-slate-500">Overdue</span>
+              </p>
             </div>
-            <div className="min-w-0">
-              <p className="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-wider truncate">Overdue Returns</p>
-              <p className="text-lg sm:text-2xl font-black text-rose-600 dark:text-rose-400 mt-0.5 truncate">
-                {overdueIssuesCount} <span className="text-xs sm:text-sm font-normal text-slate-500">Overdue</span>
-              </p>
-              <p className="text-[10px] sm:text-xs text-rose-600 font-semibold truncate mt-0.5">
-                Late Fine Accumulating
-              </p>
+            <div className="p-2 sm:p-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/50 text-rose-600 dark:text-rose-400 border border-rose-100 dark:border-rose-900/50 shrink-0">
+              <AlertTriangle className="h-4 w-4 sm:h-5 sm:w-5" />
             </div>
           </div>
+          <p className="text-[10px] sm:text-xs text-rose-600 font-bold mt-2 truncate">
+            Late Fine Accumulating
+          </p>
         </Card>
 
-        <Card className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm p-3 sm:p-4.5 hover:shadow-md transition-all rounded-2xl">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 sm:p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-900/50 shrink-0">
-              <BookmarkCheck className="h-5 w-5 sm:h-6 sm:w-6" />
+        <Card className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm p-3.5 sm:p-4.5 hover:shadow-md transition-all rounded-2xl flex flex-col justify-between min-h-[105px]">
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <p className="text-[10px] sm:text-xs font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Reservations</p>
+              <p className="text-xl sm:text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-1">
+                {safeReservations.length} <span className="text-xs sm:text-sm font-semibold text-slate-500">Holds</span>
+              </p>
             </div>
-            <div className="min-w-0">
-              <p className="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-wider truncate">Reservations</p>
-              <p className="text-lg sm:text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-0.5 truncate">
-                {safeReservations.length} <span className="text-xs sm:text-sm font-normal text-slate-500">Holds</span>
-              </p>
-              <p className="text-[10px] sm:text-xs text-slate-500 font-medium truncate mt-0.5">
-                {returnedIssuesCount} Returned All-Time
-              </p>
+            <div className="p-2 sm:p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-900/50 shrink-0">
+              <BookmarkCheck className="h-4 w-4 sm:h-5 sm:w-5" />
             </div>
           </div>
+          <p className="text-[10px] sm:text-xs text-slate-500 font-semibold mt-2 truncate">
+            {returnedIssuesCount} Returned All-Time
+          </p>
         </Card>
       </div>
 
@@ -552,61 +579,53 @@ export function LibraryModule() {
             </TabsTrigger>
           </TabsList>
 
-          <div className="flex items-center gap-2 justify-end">
+          <div className="flex items-center gap-2 self-end sm:self-auto">
             <Button
+              variant={viewMode === "grid" ? "default" : "outline"}
               size="sm"
-              variant="outline"
-              onClick={() => { loadBooks(false); loadIssues(false); loadReservations(false); }}
-              disabled={loading}
-              className="text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 rounded-xl h-8.5 text-xs font-semibold"
+              onClick={() => setViewMode("grid")}
+              className="h-8.5 text-xs rounded-xl font-bold"
             >
-              <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${loading ? "animate-spin" : ""}`} /> Refresh
+              <LayoutGrid className="h-3.5 w-3.5 mr-1" /> Grid
+            </Button>
+            <Button
+              variant={viewMode === "table" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setViewMode("table")}
+              className="h-8.5 text-xs rounded-xl font-bold"
+            >
+              <ListFilter className="h-3.5 w-3.5 mr-1" /> Table
             </Button>
           </div>
         </div>
 
-        {/* ─── Book Catalog Tab ─────────────────────────── */}
-        <TabsContent value="catalog" className="space-y-4">
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-white dark:bg-slate-900 p-3 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm">
-            <div className="relative w-full sm:w-96">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+        {/* ─── TAB 1: CATALOG VIEW ─────────────────────────── */}
+        <TabsContent value="catalog" className="space-y-4 m-0">
+          {/* Search and Category Filter Strip */}
+          <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
+            <div className="relative flex-1">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
               <Input
-                placeholder="Search title, author, barcode, ISBN, or rack..."
+                placeholder="Search by title, author, category, ISBN, or barcode tag..."
                 value={search}
                 onChange={e => setSearch(e.target.value)}
-                className="pl-9 h-9 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 rounded-xl text-xs font-medium"
+                className="pl-10 h-10 rounded-xl bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-xs sm:text-sm"
               />
-              {search && (
-                <button onClick={() => setSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              )}
             </div>
-
-            <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
-              <div className="flex items-center p-1 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => setViewMode("grid")}
-                  className={`h-7 px-2.5 rounded-lg text-xs font-bold ${viewMode === "grid" ? "bg-white dark:bg-slate-900 text-blue-700 shadow-xs" : "text-slate-500"}`}
-                >
-                  <LayoutGrid className="h-3.5 w-3.5 mr-1" /> Grid
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => setViewMode("table")}
-                  className={`h-7 px-2.5 rounded-lg text-xs font-bold ${viewMode === "table" ? "bg-white dark:bg-slate-900 text-blue-700 shadow-xs" : "text-slate-500"}`}
-                >
-                  <List className="h-3.5 w-3.5 mr-1" /> Table
-                </Button>
-              </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => { loadBooks(); loadIssues(); }}
+                className="h-10 text-xs rounded-xl bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 font-semibold"
+              >
+                <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${loading ? "animate-spin" : ""}`} /> Refresh
+              </Button>
             </div>
           </div>
 
-          {/* Category Filter Pills */}
-          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
+          {/* Category Quick Chips */}
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
             {categories.map(cat => (
               <button
                 key={cat}
@@ -630,8 +649,8 @@ export function LibraryModule() {
               <p className="text-xs text-slate-500 mt-1">Try adjusting search filters or click "Add Title" to register new books.</p>
             </Card>
           ) : viewMode === "grid" ? (
-            /* 🌟 LUXURY RESPONSIVE GRID VIEW */
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-5">
+            /* 🌟 LUXURY RESPONSIVE GRID VIEW (2 cols on tablet, 3 on laptop, 4 on wide) */
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4 sm:gap-5">
               {filteredBooks.map(b => {
                 const availabilityPct = Math.round(((b.available_copies || 0) / (b.total_copies || 1)) * 100);
                 const isOutOfStock = b.available_copies <= 0;
@@ -657,17 +676,17 @@ export function LibraryModule() {
                     </CardHeader>
 
                     <CardContent className="p-4 sm:p-5 space-y-3.5 flex-1">
-                      {/* Meta Pills */}
-                      <div className="grid grid-cols-2 gap-2 text-xs">
-                        <div className="bg-slate-50 dark:bg-slate-800/60 p-2 sm:p-2.5 rounded-xl border border-slate-100 dark:border-slate-800">
-                          <p className="text-slate-400 text-[10px] uppercase font-bold">Shelf Location</p>
-                          <p className="font-bold text-slate-800 dark:text-slate-200 mt-0.5 truncate">{b.shelf_location || "Rack A-1"}</p>
+                      {/* Meta Details Box */}
+                      <div className="bg-slate-50 dark:bg-slate-800/60 p-2.5 rounded-xl border border-slate-100 dark:border-slate-800 space-y-2 text-xs">
+                        <div className="flex items-center justify-between">
+                          <span className="text-slate-400 text-[10px] uppercase font-extrabold">Shelf Location</span>
+                          <span className="font-bold text-slate-800 dark:text-slate-200">{b.shelf_location || "Rack A-1"}</span>
                         </div>
-                        <div className="bg-slate-50 dark:bg-slate-800/60 p-2 sm:p-2.5 rounded-xl border border-slate-100 dark:border-slate-800">
-                          <p className="text-slate-400 text-[10px] uppercase font-bold">Barcode Tag</p>
-                          <p className="font-mono font-bold text-blue-600 dark:text-blue-400 mt-0.5 flex items-center gap-1 truncate">
-                            <Barcode className="h-3.5 w-3.5 shrink-0" /> {b.barcode || "LIB-1001"}
-                          </p>
+                        <div className="flex items-center justify-between border-t border-slate-200/50 dark:border-slate-700/50 pt-1.5">
+                          <span className="text-slate-400 text-[10px] uppercase font-extrabold">Barcode Tag</span>
+                          <span className="font-mono font-bold text-blue-600 dark:text-blue-400 flex items-center gap-1">
+                            <Barcode className="h-3.5 w-3.5" /> {b.barcode || "LIB-1001"}
+                          </span>
                         </div>
                       </div>
 
@@ -683,14 +702,14 @@ export function LibraryModule() {
                       </div>
 
                       {/* ISBN details */}
-                      <div className="text-[10px] sm:text-[11px] text-slate-400 font-mono flex items-center justify-between border-t border-slate-100 dark:border-slate-800 pt-2">
-                        <span className="truncate">ISBN: {b.isbn || "978-969-000-0"}</span>
-                        <span className="truncate ml-2">{b.publisher || "Standard Edition"}</span>
+                      <div className="text-[10px] sm:text-[11px] text-slate-500 font-mono flex flex-wrap items-center justify-between border-t border-slate-100 dark:border-slate-800 pt-2 gap-1">
+                        <span>ISBN: {b.isbn || "978-969-000-0"}</span>
+                        <span className="text-slate-400 font-sans">{b.publisher || "Standard Edition"}</span>
                       </div>
                     </CardContent>
 
                     {/* Action Bar */}
-                    <div className="p-3 sm:p-3.5 bg-slate-50/80 dark:bg-slate-800/50 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-1.5">
+                    <div className="p-3 sm:p-3.5 bg-slate-50/80 dark:bg-slate-800/50 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-2">
                       <div className="flex items-center gap-0.5">
                         <Button size="icon" variant="ghost" title="View Barcode Label" onClick={() => setShowBarcodeModal(b)} className="h-8 w-8 text-slate-600 hover:text-blue-600 rounded-lg">
                           <Barcode className="h-4 w-4" />
@@ -709,7 +728,7 @@ export function LibraryModule() {
                         size="sm"
                         disabled={isOutOfStock}
                         onClick={() => { setNewIssue({ ...newIssue, book_id: b.id }); setShowIssueModal(true); }}
-                        className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold shadow-xs text-xs h-8 px-3 rounded-lg"
+                        className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold shadow-xs text-xs h-8 px-3 rounded-lg shrink-0"
                       >
                         <UserCheck className="h-3.5 w-3.5 mr-1" /> Issue
                       </Button>
@@ -1211,18 +1230,51 @@ export function LibraryModule() {
               </div>
             )}
             <div>
-              <Label className="mb-1.5 block font-bold text-xs">Select Student / Staff Borrower</Label>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 mb-1.5">
+                <Label className="font-bold text-xs">Select Borrower (Students & Teachers)</Label>
+                <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg text-[10px] sm:text-[11px] self-start sm:self-auto">
+                  <button
+                    type="button"
+                    onClick={() => setBorrowerCategoryFilter("all")}
+                    className={`px-2 py-0.5 rounded-md font-semibold transition-all ${
+                      borrowerCategoryFilter === "all" ? "bg-white dark:bg-slate-700 shadow-xs text-blue-700 dark:text-blue-300" : "text-slate-500"
+                    }`}
+                  >
+                    All ({borrowers.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setBorrowerCategoryFilter("student")}
+                    className={`px-2 py-0.5 rounded-md font-semibold transition-all ${
+                      borrowerCategoryFilter === "student" ? "bg-white dark:bg-slate-700 shadow-xs text-blue-700 dark:text-blue-300" : "text-slate-500"
+                    }`}
+                  >
+                    🎓 Students ({borrowers.filter(b => b.type === "student").length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setBorrowerCategoryFilter("teacher")}
+                    className={`px-2 py-0.5 rounded-md font-semibold transition-all ${
+                      borrowerCategoryFilter === "teacher" ? "bg-white dark:bg-slate-700 shadow-xs text-blue-700 dark:text-blue-300" : "text-slate-500"
+                    }`}
+                  >
+                    👨‍🏫 Teachers ({borrowers.filter(b => b.type === "teacher").length})
+                  </button>
+                </div>
+              </div>
               <SearchableSelect
-                placeholder="Type name, roll number, or code..."
-                options={borrowers.map(b => ({
-                  id: b.id,
-                  label: b.name,
-                  sublabel: `${b.type.toUpperCase()} • ${b.code}`
-                }))}
+                placeholder="Search student or teacher by name, roll, or ID..."
+                options={borrowers
+                  .filter(b => borrowerCategoryFilter === "all" || b.type === borrowerCategoryFilter)
+                  .map(b => ({
+                    id: b.id,
+                    label: `${b.type === "student" ? "🎓" : "👨‍🏫"} ${b.name}`,
+                    sublabel: `${b.type === "student" ? "STUDENT" : "FACULTY"} • ${b.code || ""} ${b.details ? `(${b.details})` : ""}`
+                  }))}
                 value={newIssue.borrower_id}
                 onChange={val => {
                   const b = borrowers.find(item => item.id === val);
-                  setNewIssue({ ...newIssue, borrower_id: val, borrower_type: b?.type || "student" });
+                  setNewIssue({ ...newIssue, borrower_id: val, borrower_type: b?.type === "teacher" ? "staff" : "student" });
                 }}
               />
             </div>
