@@ -157,6 +157,8 @@ export default function EventsModule() {
     }
   };
 
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   useEffect(() => {
     loadEvents();
   }, []);
@@ -164,77 +166,126 @@ export default function EventsModule() {
   useEffect(() => {
     if (!selectedEventId) return;
     const ev = events.find(e => e.id === selectedEventId);
-    if (ev) setSelectedEvent(ev);
+    if (ev) {
+      setSelectedEvent(ev);
+      // Fetch photos, scorecards, tasks if this is a real backend UUID
+      if (!ev.id.startsWith("event-")) {
+        apiClient.get(`/school-events/${ev.id}/photos`).then(r => {
+          if (r.data) setPhotos(r.data);
+        }).catch(() => {});
+        apiClient.get(`/school-events/${ev.id}/scorecard`).then(r => {
+          if (r.data) setScores(r.data);
+        }).catch(() => {});
+        apiClient.get(`/school-events/${ev.id}/tasks`).then(r => {
+          if (r.data) setTasks(r.data);
+        }).catch(() => {});
+      }
+    }
   }, [selectedEventId, events]);
 
   const handleCreateEvent = async () => {
-    if (!title || !eventDate) {
+    if (!title.trim() || !eventDate) {
       toast.error("Event title and date are required");
       return;
     }
-    const newEvent: SchoolEvent = {
-      id: `event-${Date.now()}`,
-      title,
-      description: description || null,
-      event_type: eventType,
-      event_date: eventDate,
-      start_time: startTime,
-      end_time: endTime,
-      location: location || null,
-      cover_image_url: coverImageUrl || "https://images.unsplash.com/photo-1523580494863-6f3031224c94?auto=format&fit=crop&w=1200&q=80",
-      status: "upcoming",
-      audience,
-      rsvp_enabled: rsvpEnabled,
-      rsvp_count: 0,
-      photo_count: 0
-    };
-
-    setEvents(prev => [newEvent, ...prev]);
-    setSelectedEventId(newEvent.id);
-    setSelectedEvent(newEvent);
-    setShowCreateEvent(false);
-    toast.success("Event created successfully!");
-
-    // Reset form
-    setTitle("");
-    setDescription("");
-    setCoverImageUrl("");
-
+    setIsSubmitting(true);
     try {
-      await apiClient.post("/school-events", {
-        title,
-        description,
+      const res = await apiClient.post("/school-events", {
+        title: title.trim(),
+        description: description.trim() || null,
         event_type: eventType,
         event_date: eventDate,
-        start_time: startTime,
-        end_time: endTime,
-        location,
-        cover_image_url: coverImageUrl,
+        start_time: startTime || null,
+        end_time: endTime || null,
+        location: location.trim() || null,
+        cover_image_url: coverImageUrl.trim() || null,
         audience,
         rsvp_enabled: rsvpEnabled
       });
-    } catch {
-      // Saved locally
+
+      const serverEvent: SchoolEvent = res.data;
+      setEvents(prev => [serverEvent, ...prev.filter(e => e.id !== serverEvent.id)]);
+      setSelectedEventId(serverEvent.id);
+      setSelectedEvent(serverEvent);
+      setShowCreateEvent(false);
+      toast.success("Event created successfully!");
+
+      // Reset form
+      setTitle("");
+      setDescription("");
+      setCoverImageUrl("");
+    } catch (err: any) {
+      const msg = err?.response?.data?.detail || err?.message || "Failed to create event";
+      toast.error(typeof msg === "string" ? msg : JSON.stringify(msg));
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
-  const handleAddPhoto = () => {
-    if (!photoUrl) return;
+  const handleAddPhoto = async () => {
+    if (!photoUrl.trim()) return;
+    if (selectedEvent && !selectedEvent.id.startsWith("event-")) {
+      try {
+        const res = await apiClient.post(`/school-events/${selectedEvent.id}/photos`, {
+          photo_url: photoUrl.trim(),
+          caption: photoCaption.trim() || null,
+          sort_order: photos.length
+        });
+        setPhotos(prev => [...prev, res.data]);
+        setPhotoUrl("");
+        setPhotoCaption("");
+        toast.success("Photo added to gallery");
+        return;
+      } catch (err: any) {
+        toast.error("Failed to upload photo to server");
+      }
+    }
     setPhotos(prev => [...prev, { id: `p-${Date.now()}`, photo_url: photoUrl, caption: photoCaption || null }]);
     setPhotoUrl("");
     setPhotoCaption("");
     toast.success("Photo added to gallery");
   };
 
-  const handleAddScore = () => {
-    if (!scoreTitle) return;
+  const handleAddScore = async () => {
+    if (!scoreTitle.trim()) return;
+    if (selectedEvent && !selectedEvent.id.startsWith("event-")) {
+      try {
+        const res = await apiClient.post(`/school-events/${selectedEvent.id}/scorecard`, {
+          title: scoreTitle.trim(),
+          house_name: houseName,
+          points: Number(points) || 0,
+          position: 1
+        });
+        setScores(prev => [...prev, res.data]);
+        setScoreTitle("");
+        toast.success("Score saved to leaderboard");
+        return;
+      } catch (err: any) {
+        toast.error("Failed to save score to server");
+      }
+    }
     setScores(prev => [...prev, { id: `s-${Date.now()}`, title: scoreTitle, house_name: houseName, points, position: 1 }]);
     setScoreTitle("");
     toast.success("Score saved to leaderboard");
   };
 
-  const handleAddTask = () => {
-    if (!taskName) return;
+  const handleAddTask = async () => {
+    if (!taskName.trim()) return;
+    if (selectedEvent && !selectedEvent.id.startsWith("event-")) {
+      try {
+        const res = await apiClient.post(`/school-events/${selectedEvent.id}/tasks`, {
+          task_name: taskName.trim(),
+          status: "pending",
+          priority: "medium"
+        });
+        setTasks(prev => [...prev, res.data]);
+        setTaskName("");
+        toast.success("Task added to planning checklist");
+        return;
+      } catch (err: any) {
+        toast.error("Failed to save task to server");
+      }
+    }
     setTasks(prev => [...prev, { id: `t-${Date.now()}`, task_name: taskName, status: "pending", priority: "medium" }]);
     setTaskName("");
     toast.success("Task added to planning checklist");
@@ -603,8 +654,13 @@ export default function EventsModule() {
               <Input value={description} onChange={e => setDescription(e.target.value)} placeholder="Brief summary of program schedule..." className="mt-1" />
             </div>
 
-            <Button onClick={handleCreateEvent} className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold py-5 shadow-md">
-              <Sparkles className="h-4 w-4 mr-2" /> Publish Event to Calendar
+            <Button
+              onClick={handleCreateEvent}
+              disabled={isSubmitting}
+              className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold py-5 shadow-md"
+            >
+              <Sparkles className="h-4 w-4 mr-2" />
+              {isSubmitting ? "Publishing Event..." : "Publish Event to Calendar"}
             </Button>
           </div>
         </DialogContent>
