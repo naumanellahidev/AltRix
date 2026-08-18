@@ -91,6 +91,25 @@ class ReservationOutSchema(BaseModel):
 
 
 # --- Books Catalog Endpoints ---
+def _to_uuid(val) -> Optional[UUID]:
+    if not val:
+        return None
+    if isinstance(val, UUID):
+        return val
+    try:
+        return UUID(str(val))
+    except Exception:
+        return None
+
+def _parse_or_generate_uuid(val: str) -> UUID:
+    try:
+        return UUID(str(val))
+    except Exception:
+        import uuid
+        return uuid.uuid5(uuid.NAMESPACE_DNS, str(val))
+
+
+# --- Books Catalog Endpoints ---
 @router.get("/books", response_model=List[BookOutSchema])
 async def list_books(
     current_user: CurrentUser,
@@ -99,10 +118,11 @@ async def list_books(
     category: Optional[str] = Query(None),
     campus_id: Optional[UUID] = Query(None),
 ):
-    if not current_user.school_id:
+    school_uuid = _to_uuid(current_user.school_id)
+    if not school_uuid:
         return []
-    effective_cid = campus_id if isinstance(campus_id, (UUID, str)) else current_user.campus_id
-    stmt = select(LibraryBook).where(LibraryBook.school_id == current_user.school_id)
+    effective_cid = campus_id if isinstance(campus_id, (UUID, str)) else _to_uuid(current_user.campus_id)
+    stmt = select(LibraryBook).where(LibraryBook.school_id == school_uuid)
     if effective_cid:
         stmt = stmt.where(or_(LibraryBook.campus_id == effective_cid, LibraryBook.campus_id.is_(None)))
     if category and category != "All":
@@ -117,24 +137,31 @@ async def list_books(
     try:
         res = await db.execute(stmt)
         return list(res.scalars().all())
-    except Exception:
+    except Exception as e:
+        logger.warning(f"Error listing library books: {e}")
         return []
 
 @router.post("/books", response_model=BookOutSchema)
 async def create_book(payload: BookCreateSchema, current_user: CurrentUser, db: DbSession):
-    if not current_user.school_id:
+    school_uuid = _to_uuid(current_user.school_id)
+    if not school_uuid:
         raise HTTPException(status_code=400, detail="User has no associated school")
-    effective_cid = payload.campus_id if isinstance(payload.campus_id, (UUID, str)) else current_user.campus_id
+    effective_cid = payload.campus_id if isinstance(payload.campus_id, (UUID, str)) else _to_uuid(current_user.campus_id)
     book_data = payload.model_dump(exclude={"campus_id"})
-    book = LibraryBook(
-        school_id=current_user.school_id,
-        campus_id=effective_cid,
-        **book_data
-    )
-    db.add(book)
-    await db.commit()
-    await db.refresh(book)
-    return book
+    try:
+        book = LibraryBook(
+            school_id=school_uuid,
+            campus_id=effective_cid,
+            **book_data
+        )
+        db.add(book)
+        await db.commit()
+        await db.refresh(book)
+        return book
+    except Exception as e:
+        await db.rollback()
+        logger.error(f"Failed to create book: {e}", exc_info=True)
+        raise HTTPException(status_code=400, detail=f"Failed to create book: {str(e)}")
 
 
 # --- Issue & Return Endpoints ---
@@ -145,10 +172,11 @@ async def list_issues(
     status_filter: Optional[str] = Query(None),
     campus_id: Optional[UUID] = Query(None),
 ):
-    if not current_user.school_id:
+    school_uuid = _to_uuid(current_user.school_id)
+    if not school_uuid:
         return []
-    effective_cid = campus_id if isinstance(campus_id, (UUID, str)) else current_user.campus_id
-    stmt = select(BookIssue).where(BookIssue.school_id == current_user.school_id)
+    effective_cid = campus_id if isinstance(campus_id, (UUID, str)) else _to_uuid(current_user.campus_id)
+    stmt = select(BookIssue).where(BookIssue.school_id == school_uuid)
     if effective_cid:
         stmt = stmt.where(or_(BookIssue.campus_id == effective_cid, BookIssue.campus_id.is_(None)))
     if status_filter:
@@ -164,24 +192,19 @@ async def list_issues(
                 rate = float(iss.fine_per_day) if iss.fine_per_day is not None else 20.0
                 iss.fine_amount = round(days_overdue * rate, 2)
         return issues
-    except Exception:
+    except Exception as e:
+        logger.warning(f"Error listing book issues: {e}")
         return []
-
-def _parse_or_generate_uuid(val: str) -> UUID:
-    try:
-        return UUID(val)
-    except Exception:
-        import uuid
-        return uuid.uuid5(uuid.NAMESPACE_DNS, str(val))
 
 
 @router.post("/issue", response_model=IssueOutSchema)
 async def issue_book(payload: IssueCreateSchema, current_user: CurrentUser, db: DbSession):
-    if not current_user.school_id:
+    school_uuid = _to_uuid(current_user.school_id)
+    if not school_uuid:
         raise HTTPException(status_code=400, detail="User has no associated school")
     
     # Check book availability
-    stmt = select(LibraryBook).where(LibraryBook.id == payload.book_id, LibraryBook.school_id == current_user.school_id)
+    stmt = select(LibraryBook).where(LibraryBook.id == payload.book_id, LibraryBook.school_id == school_uuid)
     res = await db.execute(stmt)
     book = res.scalar_one_or_none()
     if not book:
@@ -202,7 +225,7 @@ async def issue_book(payload: IssueCreateSchema, current_user: CurrentUser, db: 
         try:
             cid_uuid = UUID(str(raw_cid))
             from app.models.campus import Campus
-            res_camp = await db.execute(select(Campus.id).where(Campus.id == cid_uuid, Campus.school_id == current_user.school_id))
+            res_camp = await db.execute(select(Campus.id).where(Campus.id == cid_uuid, Campus.school_id == school_uuid))
             if res_camp.scalar_one_or_none():
                 effective_cid = cid_uuid
         except Exception:
@@ -210,7 +233,7 @@ async def issue_book(payload: IssueCreateSchema, current_user: CurrentUser, db: 
     
     try:
         issue = BookIssue(
-            school_id=current_user.school_id,
+            school_id=school_uuid,
             campus_id=effective_cid,
             book_id=payload.book_id,
             borrower_id=borrower_uuid,
@@ -234,10 +257,11 @@ async def issue_book(payload: IssueCreateSchema, current_user: CurrentUser, db: 
 
 @router.post("/return/{issue_id}", response_model=IssueOutSchema)
 async def return_book(issue_id: UUID, current_user: CurrentUser, db: DbSession):
-    if not current_user.school_id:
+    school_uuid = _to_uuid(current_user.school_id)
+    if not school_uuid:
         raise HTTPException(status_code=400, detail="User has no associated school")
     
-    stmt = select(BookIssue).where(BookIssue.id == issue_id, BookIssue.school_id == current_user.school_id)
+    stmt = select(BookIssue).where(BookIssue.id == issue_id, BookIssue.school_id == school_uuid)
     res = await db.execute(stmt)
     issue = res.scalar_one_or_none()
     if not issue:
@@ -278,49 +302,68 @@ async def list_reservations(
     db: DbSession,
     campus_id: Optional[UUID] = Query(None),
 ):
-    if not current_user.school_id:
+    school_uuid = _to_uuid(current_user.school_id)
+    if not school_uuid:
         return []
-    effective_cid = campus_id if isinstance(campus_id, (UUID, str)) else current_user.campus_id
-    stmt = select(BookReservation).where(BookReservation.school_id == current_user.school_id)
+    effective_cid = campus_id if isinstance(campus_id, (UUID, str)) else _to_uuid(current_user.campus_id)
+    stmt = select(BookReservation).where(BookReservation.school_id == school_uuid)
     if effective_cid:
         stmt = stmt.where(or_(BookReservation.campus_id == effective_cid, BookReservation.campus_id.is_(None)))
     try:
         res = await db.execute(stmt)
         return list(res.scalars().all())
-    except Exception:
+    except Exception as e:
+        logger.warning(f"Error listing reservations: {e}")
         return []
 
 @router.post("/reservations", response_model=ReservationOutSchema)
 async def reserve_book(payload: ReservationCreateSchema, current_user: CurrentUser, db: DbSession):
-    if not current_user.school_id:
+    school_uuid = _to_uuid(current_user.school_id)
+    if not school_uuid:
         raise HTTPException(status_code=400, detail="User has no associated school")
     
-    stmt = select(LibraryBook).where(LibraryBook.id == payload.book_id, LibraryBook.school_id == current_user.school_id)
+    stmt = select(LibraryBook).where(LibraryBook.id == payload.book_id, LibraryBook.school_id == school_uuid)
     res = await db.execute(stmt)
     book = res.scalar_one_or_none()
     if not book:
         raise HTTPException(status_code=404, detail="Book not found")
         
     student_uuid = _parse_or_generate_uuid(payload.student_id)
-    effective_cid = payload.campus_id if getattr(payload, "campus_id", None) else (current_user.campus_id or book.campus_id)
+    raw_cid = payload.campus_id if getattr(payload, "campus_id", None) else (current_user.campus_id or book.campus_id)
+    effective_cid = None
+    if raw_cid:
+        try:
+            cid_uuid = UUID(str(raw_cid))
+            from app.models.campus import Campus
+            res_camp = await db.execute(select(Campus.id).where(Campus.id == cid_uuid, Campus.school_id == school_uuid))
+            if res_camp.scalar_one_or_none():
+                effective_cid = cid_uuid
+        except Exception:
+            effective_cid = None
     
-    reservation = BookReservation(
-        school_id=current_user.school_id,
-        campus_id=effective_cid,
-        book_id=payload.book_id,
-        student_id=student_uuid,
-        status="pending"
-    )
-    db.add(reservation)
-    await db.commit()
-    await db.refresh(reservation)
-    return reservation
+    try:
+        reservation = BookReservation(
+            school_id=school_uuid,
+            campus_id=effective_cid,
+            book_id=payload.book_id,
+            student_id=student_uuid,
+            status="pending"
+        )
+        db.add(reservation)
+        await db.commit()
+        await db.refresh(reservation)
+        return reservation
+    except Exception as e:
+        await db.rollback()
+        logger.error(f"Failed to reserve book: {e}", exc_info=True)
+        raise HTTPException(status_code=400, detail=f"Failed to reserve book: {str(e)}")
 
 @router.put("/books/{book_id}", response_model=BookOutSchema)
 async def update_book(book_id: UUID, payload: BookUpdateSchema, current_user: CurrentUser, db: DbSession):
-    if not current_user.school_id:
+    school_uuid = _to_uuid(current_user.school_id)
+    if not school_uuid:
         raise HTTPException(status_code=400, detail="User has no associated school")
-    stmt = select(LibraryBook).where(LibraryBook.id == book_id, LibraryBook.school_id == current_user.school_id)
+    stmt = select(LibraryBook).where(LibraryBook.id == book_id, LibraryBook.school_id == school_uuid)
     res = await db.execute(stmt)
     book = res.scalar_one_or_none()
     if not book:
@@ -330,26 +373,37 @@ async def update_book(book_id: UUID, payload: BookUpdateSchema, current_user: Cu
     for field, val in update_data.items():
         setattr(book, field, val)
         
-    await db.commit()
-    await db.refresh(book)
-    return book
+    try:
+        await db.commit()
+        await db.refresh(book)
+        return book
+    except Exception as e:
+        await db.rollback()
+        logger.error(f"Failed to update book: {e}", exc_info=True)
+        raise HTTPException(status_code=400, detail=f"Failed to update book: {str(e)}")
 
 
 @router.delete("/books/{book_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_book(book_id: UUID, current_user: CurrentUser, db: DbSession):
-    if not current_user.school_id:
+    school_uuid = _to_uuid(current_user.school_id)
+    if not school_uuid:
         raise HTTPException(status_code=400, detail="User has no associated school")
-    stmt = select(LibraryBook).where(LibraryBook.id == book_id, LibraryBook.school_id == current_user.school_id)
+    stmt = select(LibraryBook).where(LibraryBook.id == book_id, LibraryBook.school_id == school_uuid)
     res = await db.execute(stmt)
     book = res.scalar_one_or_none()
     if not book:
         raise HTTPException(status_code=404, detail="Book not found")
     
     from sqlalchemy import delete as sql_delete
-    # Clean up dependent circulation issues & reservations first
-    await db.execute(sql_delete(BookIssue).where(BookIssue.book_id == book_id))
-    await db.execute(sql_delete(BookReservation).where(BookReservation.book_id == book_id))
-    await db.delete(book)
-    await db.commit()
-    return {"message": "Book deleted successfully"}
+    try:
+        # Clean up dependent circulation issues & reservations first
+        await db.execute(sql_delete(BookIssue).where(BookIssue.book_id == book_id))
+        await db.execute(sql_delete(BookReservation).where(BookReservation.book_id == book_id))
+        await db.delete(book)
+        await db.commit()
+        return {"message": "Book deleted successfully"}
+    except Exception as e:
+        await db.rollback()
+        logger.error(f"Failed to delete book: {e}", exc_info=True)
+        raise HTTPException(status_code=400, detail=f"Failed to delete book: {str(e)}")
 

@@ -926,7 +926,7 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6 pb-36 sm:pb-28">
       <div className="flex flex-col gap-3 print:hidden md:flex-row md:items-center md:justify-between">
         <div className="flex items-center gap-2">
           {isReadOnlyForChild && viewingCardId && (
@@ -1158,80 +1158,82 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
               </div>
             </div>
 
-          <table className="relative mt-5 w-full table-fixed border-collapse text-sm">
-            <colgroup>
-              <col style={{ width: "30%" }} />
-              <col style={{ width: "12%" }} />
-              <col style={{ width: "12%" }} />
-              <col style={{ width: "12%" }} />
-              <col style={{ width: "12%" }} />
-              <col style={{ width: "22%" }} className="print:hidden" />
-            </colgroup>
-            <thead>
-              <tr className="bg-primary/10 text-left">
-                <th className="border border-gray-300 p-2">Subject</th>
-                <th className="border border-gray-300 p-2 text-center">Marks</th>
-                <th className="border border-gray-300 p-2 text-center">Max</th>
-                <th className="border border-gray-300 p-2 text-center">%</th>
-                <th className="border border-gray-300 p-2 text-center">Grade</th>
-                <th className="border border-gray-300 p-2 print:hidden">Remarks</th>
-              </tr>
-            </thead>
+          <div className="relative mt-5 overflow-x-auto rounded-xl border border-gray-300 bg-white">
+            <table className="w-full min-w-[600px] table-fixed border-collapse text-sm">
+              <colgroup>
+                <col style={{ width: "30%" }} />
+                <col style={{ width: "12%" }} />
+                <col style={{ width: "12%" }} />
+                <col style={{ width: "12%" }} />
+                <col style={{ width: "12%" }} />
+                <col style={{ width: "22%" }} className="print:hidden" />
+              </colgroup>
+              <thead>
+                <tr className="bg-primary/10 text-left">
+                  <th className="border-b border-r border-gray-300 p-2.5 font-semibold text-slate-900">Subject</th>
+                  <th className="border-b border-r border-gray-300 p-2.5 text-center font-semibold text-slate-900">Marks</th>
+                  <th className="border-b border-r border-gray-300 p-2.5 text-center font-semibold text-slate-900">Max</th>
+                  <th className="border-b border-r border-gray-300 p-2.5 text-center font-semibold text-slate-900">%</th>
+                  <th className="border-b border-r border-gray-300 p-2.5 text-center font-semibold text-slate-900">Grade</th>
+                  <th className="border-b border-gray-300 p-2.5 font-semibold text-slate-900 print:hidden">Remarks</th>
+                </tr>
+              </thead>
 
-            <tbody>
-              {subjects.map((s) => {
-                const r = results[s.id];
-                const max = r?.max_marks || 100;
-                const obtained = r?.marks_obtained;
-                const pct = obtained != null && max > 0 ? Math.round((Number(obtained) / Number(max)) * 100) : null;
-                return (
-                  <tr key={s.id}>
-                    <td className="border border-gray-300 p-2">
-                      <div className="flex items-center justify-between gap-2">
-                        <span>{s.name}</span>
-                        {canManage && (
-                          <button
-                            type="button"
-                            onClick={() => openAddFor(s.id)}
-                            className="grid h-6 w-6 place-items-center rounded-full bg-primary/10 text-primary hover:bg-primary/20 print:hidden"
-                            title="Add quiz / test / assignment"
-                          >
-                            <Plus className="h-3.5 w-3.5" />
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                    <td className="border border-gray-300 p-2 text-center">
-                      {canManage ? (
-                        <Input type="number" className="mx-auto h-8 w-20 text-center text-black" value={r?.marks_obtained ?? ""} onChange={(e) => updateMark(s.id, Number(e.target.value), max)} />
-                      ) : (obtained ?? "—")}
-                    </td>
-                    <td className="border border-gray-300 p-2 text-center">
-                      {canManage ? (
-                        <Input type="number" className="mx-auto h-8 w-20 text-center text-black" value={r?.max_marks ?? 100} onChange={(e) => updateMark(s.id, Number(r?.marks_obtained || 0), Number(e.target.value))} />
-                      ) : max}
-                    </td>
+              <tbody className="divide-y divide-gray-200">
+                {subjects.map((s) => {
+                  const r = results[s.id];
+                  const max = r?.max_marks || 100;
+                  const obtained = r?.marks_obtained;
+                  const pct = obtained != null && max > 0 ? Math.round((Number(obtained) / Number(max)) * 100) : null;
+                  return (
+                    <tr key={s.id} className="hover:bg-slate-50/60 transition-colors">
+                      <td className="border-r border-gray-200 p-2.5">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-medium text-slate-900">{s.name}</span>
+                          {canManage && (
+                            <button
+                              type="button"
+                              onClick={() => openAddFor(s.id)}
+                              className="grid h-6 w-6 place-items-center rounded-full bg-primary/10 text-primary hover:bg-primary/20 print:hidden"
+                              title="Add quiz / test / assignment"
+                            >
+                              <Plus className="h-3.5 w-3.5" />
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                      <td className="border-r border-gray-200 p-2 text-center">
+                        {canManage ? (
+                          <Input type="number" className="mx-auto h-8 w-20 text-center text-black font-semibold" value={r?.marks_obtained ?? ""} onChange={(e) => updateMark(s.id, Number(e.target.value), max)} />
+                        ) : (obtained ?? "—")}
+                      </td>
+                      <td className="border-r border-gray-200 p-2 text-center font-medium">
+                        {canManage ? (
+                          <Input type="number" className="mx-auto h-8 w-20 text-center text-black font-semibold" value={r?.max_marks ?? 100} onChange={(e) => updateMark(s.id, Number(r?.marks_obtained || 0), Number(e.target.value))} />
+                        ) : max}
+                      </td>
 
-                    <td className="border border-gray-300 p-2 text-center">{pct != null ? `${pct}%` : "—"}</td>
-                    <td className="border border-gray-300 p-2 text-center font-semibold">{r?.grade ?? "—"}</td>
-                    <td className="border border-gray-300 p-2 print:hidden">
-                      {canManage ? (
-                        <Input className="h-8 text-black" value={r?.remarks ?? ""} onChange={(e) => setResults({ ...results, [s.id]: { ...(results[s.id] || { subject_id: s.id, marks_obtained: null, max_marks: 100, grade: null, remarks: null }), remarks: e.target.value } })} />
-                      ) : (r?.remarks || "—")}
-                    </td>
-                  </tr>
-                );
-              })}
-              <tr className="bg-gray-50 font-semibold">
-                <td className="border border-gray-300 p-2">TOTAL</td>
-                <td className="border border-gray-300 p-2 text-center">{totals.total}</td>
-                <td className="border border-gray-300 p-2 text-center">{totals.max}</td>
-                <td className="border border-gray-300 p-2 text-center">{totals.pct}%</td>
-                <td className="border border-gray-300 p-2 text-center">{totals.grade}</td>
-                <td className="border border-gray-300 p-2 print:hidden"></td>
-              </tr>
-            </tbody>
-          </table>
+                      <td className="border-r border-gray-200 p-2.5 text-center font-medium text-slate-700">{pct != null ? `${pct}%` : "—"}</td>
+                      <td className="border-r border-gray-200 p-2.5 text-center font-bold text-primary">{r?.grade ?? "—"}</td>
+                      <td className="p-2 print:hidden">
+                        {canManage ? (
+                          <Input className="h-8 text-black text-xs" placeholder="Add remarks..." value={r?.remarks ?? ""} onChange={(e) => setResults({ ...results, [s.id]: { ...(results[s.id] || { subject_id: s.id, marks_obtained: null, max_marks: 100, grade: null, remarks: null }), remarks: e.target.value } })} />
+                        ) : (r?.remarks || "—")}
+                      </td>
+                    </tr>
+                  );
+                })}
+                <tr className="bg-slate-100/80 font-bold border-t-2 border-gray-300">
+                  <td className="border-r border-gray-300 p-2.5 text-slate-900 uppercase text-xs tracking-wider">TOTAL</td>
+                  <td className="border-r border-gray-300 p-2.5 text-center text-slate-900">{totals.total}</td>
+                  <td className="border-r border-gray-300 p-2.5 text-center text-slate-900">{totals.max}</td>
+                  <td className="border-r border-gray-300 p-2.5 text-center text-primary">{totals.pct}%</td>
+                  <td className="border-r border-gray-300 p-2.5 text-center text-emerald-700">{totals.grade}</td>
+                  <td className="p-2.5 print:hidden"></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
 
           {/* Premium summary tiles */}
           <div className="relative mt-5 grid grid-cols-3 gap-3">
@@ -1376,9 +1378,9 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
       )}
 
       {canManage && studentId && (
-        <div className="sticky bottom-2 flex flex-wrap items-center gap-2 rounded-xl border bg-card/95 p-3 shadow-lg backdrop-blur print:hidden">
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium">
+        <div className="sticky bottom-20 md:bottom-4 z-30 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200/90 dark:border-slate-800 bg-card/95 p-3.5 shadow-2xl backdrop-blur-md print:hidden transition-all">
+          <div className="flex-1 min-w-[220px]">
+            <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
               {periodType === "exam"
                 ? (examId ? "Ready to save exam report card" : "Pick an exam to enable saving")
                 : `Ready to save ${periodType} report card — ${currentPeriodLabel}`}
@@ -1389,29 +1391,32 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
                 : "Save first. Publish separately when ready to release to parents."}
             </p>
           </div>
-          <Button variant="outline" disabled={periodType === "exam" && !examId} onClick={() => save()}>
-            Save
-          </Button>
-          {card.is_published ? (
-            <Button variant="secondary" onClick={() => publishIndividual(false)}>
-              Unpublish
+          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+            <Button variant="outline" size="sm" disabled={periodType === "exam" && !examId} onClick={() => save()}>
+              Save
             </Button>
-          ) : (
-            <Button disabled={periodType === "exam" && !examId} onClick={() => publishIndividual(true)}>
-              <Send className="mr-1.5 h-4 w-4" /> Publish to parent
+            {card.is_published ? (
+              <Button variant="secondary" size="sm" onClick={() => publishIndividual(false)}>
+                Unpublish
+              </Button>
+            ) : (
+              <Button size="sm" className="bg-primary text-primary-foreground font-semibold shadow-xs" disabled={periodType === "exam" && !examId} onClick={() => publishIndividual(true)}>
+                <Send className="mr-1.5 h-3.5 w-3.5" /> Publish to parent
+              </Button>
+            )}
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={periodType === "exam" && !examId}
+              onClick={() => {
+                const enr = enrollments.find((e) => e.student_id === studentId);
+                setPublishSectionId(enr?.class_section_id || "");
+                setPublishDialogOpen(true);
+              }}
+            >
+              <Users className="mr-1.5 h-3.5 w-3.5" /> Publish whole class
             </Button>
-          )}
-          <Button
-            variant="outline"
-            disabled={periodType === "exam" && !examId}
-            onClick={() => {
-              const enr = enrollments.find((e) => e.student_id === studentId);
-              setPublishSectionId(enr?.class_section_id || "");
-              setPublishDialogOpen(true);
-            }}
-          >
-            <Users className="mr-1.5 h-4 w-4" /> Publish whole class
-          </Button>
+          </div>
         </div>
       )}
 
