@@ -16,7 +16,7 @@ import { useActiveCampus } from "@/hooks/useActiveCampus";
 import { useSession } from "@/hooks/useSession";
 import {
   BookOpen, Plus, Search, RefreshCw, BookmarkCheck, Clock, CheckCircle2,
-  AlertTriangle, UserCheck, Library, LayoutGrid, List,
+  AlertTriangle, UserCheck, Library, LayoutGrid, List, ListFilter,
   Barcode, Edit3, Trash2, Eye, User, Sparkles, Filter, Check, Calendar, ArrowRight, X, Coins,
   BookMarked, Layers, ShieldCheck, Printer
 } from "lucide-react";
