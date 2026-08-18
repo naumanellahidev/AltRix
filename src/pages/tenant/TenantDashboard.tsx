@@ -224,39 +224,62 @@ const TenantDashboard = () => {
   const { data: revenueMtd = cachedKPIs?.revenueMtd ?? 0 } = useQuery({
     queryKey: ["dashboard_kpi_revenue", schoolId],
     queryFn: async () => {
+      let rev = 0;
       if (USE_FASTAPI && schoolId) {
         try {
           const resp = await apiClient.get<any>("/reports/dashboard", {
             params: { school_id: schoolId }
           });
-          if (resp?.data?.collected_fees !== undefined) {
-            return resp.data.collected_fees ?? 0;
+          if (resp?.data?.collected_fees && Number(resp.data.collected_fees) > 0) {
+            rev = Number(resp.data.collected_fees);
+            return rev;
           }
         } catch (fastApiErr) {
           console.warn("FastAPI backend unreachable, using Supabase fallback for TenantDashboard revenue:", fastApiErr);
         }
       }
-      const { data, error } = await api
-        .from("fee_payments")
-        .select("amount, paid_at, created_at, status")
-        .eq("school_id", schoolId!)
-        .limit(1000);
-      if (error) throw error;
 
-      const mtdMonth = monthStart.getMonth();
-      const mtdYear = monthStart.getFullYear();
+      try {
+        const { data, error } = await api
+          .from("fee_payments")
+          .select("amount, paid_at, created_at, status")
+          .eq("school_id", schoolId!)
+          .limit(1000);
+        if (!error && data && data.length > 0) {
+          const mtdMonth = monthStart.getMonth();
+          const mtdYear = monthStart.getFullYear();
 
-      return (data || []).reduce((sum, p: any) => {
-        const isPaid = !p.status || p.status === 'success' || p.status === 'completed' || p.status === 'paid';
-        if (!isPaid) return sum;
-        const dStr = p.paid_at || p.created_at;
-        if (!dStr) return sum + Number(p.amount ?? 0);
-        const d = new Date(dStr);
-        if (d.getMonth() === mtdMonth && d.getFullYear() === mtdYear) {
-          return sum + Number(p.amount ?? 0);
+          const sum = data.reduce((s, p: any) => {
+            const isPaid = !p.status || p.status === 'success' || p.status === 'completed' || p.status === 'paid';
+            if (!isPaid) return s;
+            const dStr = p.paid_at || p.created_at;
+            if (!dStr) return s + Number(p.amount ?? 0);
+            const d = new Date(dStr);
+            if (d.getMonth() === mtdMonth && d.getFullYear() === mtdYear) {
+              return s + Number(p.amount ?? 0);
+            }
+            return s;
+          }, 0);
+          if (sum > 0) return sum;
         }
-        return sum;
-      }, 0);
+
+        // Check paid fee invoices as fallback
+        const { data: invData } = await api
+          .from("fee_invoices")
+          .select("paid_amount, total_amount, status, created_at")
+          .eq("school_id", schoolId!)
+          .eq("status", "paid")
+          .limit(1000);
+
+        if (invData && invData.length > 0) {
+          const invSum = invData.reduce((s, inv: any) => s + Number(inv.paid_amount || inv.total_amount || 0), 0);
+          if (invSum > 0) return invSum;
+        }
+      } catch (err) {
+        console.warn("Error fetching revenue in TenantDashboard:", err);
+      }
+
+      return rev || 0;
     },
     enabled: !!schoolId && isOnline,
     staleTime: 5 * 60 * 1000,
@@ -266,25 +289,35 @@ const TenantDashboard = () => {
   const { data: leadsData } = useQuery({
     queryKey: ["dashboard_kpi_leads", schoolId],
     queryFn: async () => {
+      let total = 0;
+      let open = 0;
       if (USE_FASTAPI && schoolId) {
         try {
           const resp = await apiClient.get<any>("/reports/dashboard", {
             params: { school_id: schoolId }
           });
-          return {
-            total: resp.data.total_leads ?? 0,
-            open: resp.data.open_leads ?? 0,
-          };
+          if (resp?.data?.total_leads !== undefined || resp?.data?.open_leads !== undefined) {
+            total = Number(resp.data.total_leads || 0);
+            open = Number(resp.data.open_leads || 0);
+          }
         } catch {}
       }
-      const [totalRes, openRes] = await Promise.all([
-        api.from("crm_leads").select("id", { count: "exact", head: true }).eq("school_id", schoolId!),
-        api.from("crm_leads").select("id", { count: "exact", head: true }).eq("school_id", schoolId!).not("stage_id", "is", null),
-      ]);
-      return {
-        total: totalRes.count ?? 0,
-        open: openRes.count ?? 0,
-      };
+      if (total > 0 || open > 0) {
+        return { total, open };
+      }
+
+      try {
+        const [totalRes, openRes] = await Promise.all([
+          api.from("crm_leads").select("id", { count: "exact", head: true }).eq("school_id", schoolId!),
+          api.from("crm_leads").select("id", { count: "exact", head: true }).eq("school_id", schoolId!).not("stage_id", "is", null),
+        ]);
+        return {
+          total: totalRes.count ?? total ?? 0,
+          open: openRes.count ?? open ?? totalRes.count ?? 0,
+        };
+      } catch {
+        return { total, open };
+      }
     },
     enabled: !!schoolId && isOnline,
     staleTime: 5 * 60 * 1000,
@@ -302,33 +335,39 @@ const TenantDashboard = () => {
               school_id: schoolId
             }
           });
-          return {
-            total: resp.data.total ?? 0,
-            present: resp.data.present ?? 0,
-            rate: resp.data.attendance_rate ?? 0,
-          };
+          if (resp?.data && (resp.data.total > 0 || resp.data.attendance_rate > 0)) {
+            return {
+              total: resp.data.total ?? 0,
+              present: resp.data.present ?? 0,
+              rate: resp.data.attendance_rate ?? 0,
+            };
+          }
         } catch {}
       }
-      const [entriesRes, presentRes] = await Promise.all([
-        api
-          .from("attendance_entries")
-          .select("id", { count: "exact", head: true })
-          .eq("school_id", schoolId!)
-          .gte("created_at", d7Ago.toISOString()),
-        api
-          .from("attendance_entries")
-          .select("id", { count: "exact", head: true })
-          .eq("school_id", schoolId!)
-          .eq("status", "present")
-          .gte("created_at", d7Ago.toISOString()),
-      ]);
-      const total = entriesRes.count ?? 0;
-      const present = presentRes.count ?? 0;
-      return {
-        total,
-        present,
-        rate: total > 0 ? Math.round((present / total) * 100) : 0,
-      };
+      try {
+        const [entriesRes, presentRes] = await Promise.all([
+          api
+            .from("attendance_entries")
+            .select("id", { count: "exact", head: true })
+            .eq("school_id", schoolId!)
+            .gte("created_at", d7Ago.toISOString()),
+          api
+            .from("attendance_entries")
+            .select("id", { count: "exact", head: true })
+            .eq("school_id", schoolId!)
+            .eq("status", "present")
+            .gte("created_at", d7Ago.toISOString()),
+        ]);
+        const total = entriesRes.count ?? 0;
+        const present = presentRes.count ?? 0;
+        return {
+          total,
+          present,
+          rate: total > 0 ? Math.round((present / total) * 100) : 0,
+        };
+      } catch {
+        return { total: 0, present: 0, rate: 0 };
+      }
     },
     enabled: !!schoolId && isOnline,
     staleTime: 5 * 60 * 1000,
@@ -338,20 +377,29 @@ const TenantDashboard = () => {
   const { data: studentsCount = cachedKPIs?.totalStudents ?? 0 } = useQuery({
     queryKey: ["dashboard_kpi_students", schoolId],
     queryFn: async () => {
+      let fastApiCount = 0;
       if (USE_FASTAPI && schoolId) {
         try {
           const resp = await apiClient.get<any>("/reports/dashboard", {
             params: { school_id: schoolId }
           });
-          return resp.data.total_students ?? 0;
+          if (resp?.data?.total_students) {
+            fastApiCount = Number(resp.data.total_students);
+          }
         } catch {}
       }
-      const { count, error } = await api
-        .from("students")
-        .select("id", { count: "exact", head: true })
-        .eq("school_id", schoolId!);
-      if (error) throw error;
-      return count ?? 0;
+      if (fastApiCount > 0) return fastApiCount;
+
+      try {
+        const { count, error } = await api
+          .from("students")
+          .select("id", { count: "exact", head: true })
+          .eq("school_id", schoolId!);
+        if (error) throw error;
+        return count ?? fastApiCount ?? 0;
+      } catch {
+        return fastApiCount ?? 0;
+      }
     },
     enabled: !!schoolId && isOnline,
     staleTime: 5 * 60 * 1000,
@@ -361,22 +409,31 @@ const TenantDashboard = () => {
   const { data: pendingInvoices = cachedKPIs?.pendingInvoices ?? 0 } = useQuery({
     queryKey: ["dashboard_kpi_invoices", schoolId],
     queryFn: async () => {
+      let pending = 0;
       if (USE_FASTAPI && schoolId) {
         try {
           const resp = await apiClient.get<any>("/reports/dashboard", {
             params: { school_id: schoolId }
           });
-          return resp.data.pending_payments ?? 0;
+          if (resp?.data?.pending_payments) {
+            pending = Number(resp.data.pending_payments);
+          }
         } catch {}
       }
-      const { count, error } = await api
-        .from("fee_invoices")
-        .select("id", { count: "exact", head: true })
-        .eq("school_id", schoolId!)
-        .not("status", "eq", "paid")
-        .not("status", "eq", "cancelled");
-      if (error) throw error;
-      return count ?? 0;
+      if (pending > 0) return pending;
+
+      try {
+        const { count, error } = await api
+          .from("fee_invoices")
+          .select("id", { count: "exact", head: true })
+          .eq("school_id", schoolId!)
+          .not("status", "eq", "paid")
+          .not("status", "eq", "cancelled");
+        if (error) throw error;
+        return count ?? pending ?? 0;
+      } catch {
+        return pending ?? 0;
+      }
     },
     enabled: !!schoolId && isOnline,
     staleTime: 5 * 60 * 1000,
@@ -386,25 +443,35 @@ const TenantDashboard = () => {
   const { data: staffData } = useQuery({
     queryKey: ["dashboard_kpi_staff", schoolId],
     queryFn: async () => {
+      let total = 0;
+      let teachers = 0;
       if (USE_FASTAPI && schoolId) {
         try {
           const resp = await apiClient.get<any>("/reports/dashboard", {
             params: { school_id: schoolId }
           });
-          return {
-            total: resp.data.total_staff ?? 0,
-            teachers: resp.data.total_teachers ?? 0,
-          };
+          if (resp?.data?.total_staff || resp?.data?.total_teachers) {
+            total = Number(resp.data.total_staff || 0);
+            teachers = Number(resp.data.total_teachers || 0);
+          }
         } catch {}
       }
-      const [totalRes, teachersRes] = await Promise.all([
-        api.from("school_memberships").select("id", { count: "exact", head: true }).eq("school_id", schoolId!),
-        api.from("user_roles").select("id", { count: "exact", head: true }).eq("school_id", schoolId!).eq("role", "teacher"),
-      ]);
-      return {
-        total: totalRes.count ?? 0,
-        teachers: teachersRes.count ?? 0,
-      };
+      if (total > 0 || teachers > 0) {
+        return { total, teachers };
+      }
+
+      try {
+        const [totalRes, teachersRes] = await Promise.all([
+          api.from("school_memberships").select("id", { count: "exact", head: true }).eq("school_id", schoolId!),
+          api.from("user_roles").select("id", { count: "exact", head: true }).eq("school_id", schoolId!).eq("role", "teacher"),
+        ]);
+        return {
+          total: totalRes.count ?? total ?? 0,
+          teachers: teachersRes.count ?? teachers ?? 0,
+        };
+      } catch {
+        return { total, teachers };
+      }
     },
     enabled: !!schoolId && isOnline,
     staleTime: 5 * 60 * 1000,
@@ -416,13 +483,6 @@ const TenantDashboard = () => {
     const basePath = `/${tenant.slug}/${role}`;
     return location.pathname === basePath || location.pathname === `${basePath}/`;
   }, [location.pathname, tenant.slug, role]);
-
-  // Dedicated role homes (principal, vice_principal, counselor, academic_coordinator, school_owner, etc.) manage their own primary KPI dashboards.
-  const shouldShowGenericKpis = useMemo(() => {
-    if (!isIndexRoute) return false;
-    const dedicatedRoles = ["principal", "vice_principal", "counselor", "academic_coordinator", "school_owner", "teacher", "student", "parent", "accountant", "hr_manager"];
-    return !dedicatedRoles.includes(role || "");
-  }, [isIndexRoute, role]);
 
   // ─── TENANT AUTHORIZATION GATES ────────────────────────────────────────
   // Gate 1: Unknown/invalid school slug → reject before any data loads
@@ -517,8 +577,8 @@ const TenantDashboard = () => {
           </div>
         )}
 
-        {/* Primary KPIs - Only render on the main generic dashboard tab */}
-        {shouldShowGenericKpis && (
+        {/* Primary KPIs - Render on the main dashboard tab */}
+        {isIndexRoute && (
           <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-5">
             {/* Revenue KPI */}
             <div 

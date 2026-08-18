@@ -26,19 +26,40 @@ import {
   Building2,
   FileText,
   Loader2,
+  Bus,
+  BookOpen,
+  Package,
+  Home,
+  Award,
+  HeartPulse,
+  Sparkles,
+  Layers,
+  FileSignature,
+  CreditCard,
+  Receipt,
+  Bell,
+  MessageSquare,
+  AlertTriangle,
+  FolderLock,
+  PlusCircle,
+  TrendingUp,
+  Clock,
+  DoorClosed,
+  CheckCircle2,
 } from "lucide-react";
 import { api } from "@/lib/api";
 
 type Props = {
-  basePath: string; // e.g. "/acme/principal" or "/acme/teacher"
+  basePath: string; // e.g. "/beacon/principal" or "/beacon/teacher"
 };
 
 type SearchResult = {
-  entity: "students" | "staff" | "leads";
+  entity: "students" | "staff" | "leads" | "classes" | "transport" | "library" | "inventory";
   id: string;
   title: string;
   subtitle: string;
-  status: string;
+  status?: string;
+  url?: string;
 };
 
 function useDebounced<T>(value: T, ms = 300) {
@@ -54,14 +75,17 @@ export function GlobalCommandPalette({ basePath }: Props) {
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const debouncedQuery = useDebounced(query.trim(), 250);
+  const debouncedQuery = useDebounced(query.trim(), 200);
   const [results, setResults] = useState<SearchResult[]>([]);
   const [searching, setSearching] = useState(false);
 
-  // Extract schoolId from basePath (format: /schoolSlug/role)
-  const schoolSlug = useMemo(() => {
+  // Extract schoolSlug and current role from basePath (format: /schoolSlug/role)
+  const { schoolSlug, currentRole } = useMemo(() => {
     const parts = basePath.split("/").filter(Boolean);
-    return parts[0] || "";
+    return {
+      schoolSlug: parts[0] || "",
+      currentRole: parts[1] || "principal",
+    };
   }, [basePath]);
 
   const [schoolId, setSchoolId] = useState<string | null>(null);
@@ -84,7 +108,7 @@ export function GlobalCommandPalette({ basePath }: Props) {
       const isK = e.key?.toLowerCase() === "k";
       if ((e.metaKey || e.ctrlKey) && isK) {
         e.preventDefault();
-        setOpen(true);
+        setOpen((prev) => !prev);
       }
     };
     window.addEventListener("keydown", onKeyDown);
@@ -105,7 +129,7 @@ export function GlobalCommandPalette({ basePath }: Props) {
     }
   }, [open]);
 
-  // Search across all entities
+  // Search across all entities in parallel
   const performSearch = useCallback(async () => {
     if (!schoolId || !debouncedQuery) {
       setResults([]);
@@ -113,75 +137,235 @@ export function GlobalCommandPalette({ basePath }: Props) {
     }
 
     setSearching(true);
+    const q = debouncedQuery.toLowerCase();
+
     try {
-      // Search all three entity types in parallel
-      const [studentsRes, staffRes, leadsRes] = await Promise.all([
-        (api as any).rpc("directory_search", {
-          _school_id: schoolId,
-          _entity: "students",
-          _q: debouncedQuery,
-          _status: null,
-          _limit: 5,
-          _offset: 0,
-        }),
-        (api as any).rpc("directory_search", {
-          _school_id: schoolId,
-          _entity: "staff",
-          _q: debouncedQuery,
-          _status: null,
-          _limit: 5,
-          _offset: 0,
-        }),
-        (api as any).rpc("directory_search", {
-          _school_id: schoolId,
-          _entity: "leads",
-          _q: debouncedQuery,
-          _status: null,
-          _limit: 5,
-          _offset: 0,
-        }),
+      const [
+        studentsRes,
+        staffRes,
+        leadsRes,
+        classesRes,
+        transportRes,
+        libraryRes,
+        inventoryRes,
+      ] = await Promise.all([
+        // 1. Students
+        api
+          .from("students")
+          .select("id, first_name, last_name, admission_number, roll_number, status")
+          .eq("school_id", schoolId)
+          .or(`first_name.ilike.%${q}%,last_name.ilike.%${q}%,admission_number.ilike.%${q}%,roll_number.ilike.%${q}%`)
+          .limit(6),
+        // 2. Staff / Users
+        api
+          .from("school_memberships")
+          .select("id, user_id, full_name, role_name, email")
+          .eq("school_id", schoolId)
+          .or(`full_name.ilike.%${q}%,role_name.ilike.%${q}%,email.ilike.%${q}%`)
+          .limit(6),
+        // 3. CRM Leads
+        api
+          .from("crm_leads")
+          .select("id, student_name, parent_name, phone, status")
+          .eq("school_id", schoolId)
+          .or(`student_name.ilike.%${q}%,parent_name.ilike.%${q}%,phone.ilike.%${q}%`)
+          .limit(6),
+        // 4. Academic Classes
+        api
+          .from("academic_classes")
+          .select("id, name, grade_level")
+          .eq("school_id", schoolId)
+          .ilike("name", `%${q}%`)
+          .limit(4),
+        // 5. Fleet / Vehicles
+        api
+          .from("transport_vehicles")
+          .select("id, bus_number, registration_no, driver_name")
+          .eq("school_id", schoolId)
+          .or(`bus_number.ilike.%${q}%,registration_no.ilike.%${q}%,driver_name.ilike.%${q}%`)
+          .limit(4)
+          .catch(() => ({ data: [] })),
+        // 6. Library Books
+        api
+          .from("library_books")
+          .select("id, title, author, isbn")
+          .eq("school_id", schoolId)
+          .or(`title.ilike.%${q}%,author.ilike.%${q}%,isbn.ilike.%${q}%`)
+          .limit(4)
+          .catch(() => ({ data: [] })),
+        // 7. Inventory Items
+        api
+          .from("inventory_items")
+          .select("id, item_name, category, sku")
+          .eq("school_id", schoolId)
+          .or(`item_name.ilike.%${q}%,category.ilike.%${q}%,sku.ilike.%${q}%`)
+          .limit(4)
+          .catch(() => ({ data: [] })),
       ]);
 
-      const allResults: SearchResult[] = [
-        ...((studentsRes.data ?? []) as unknown as SearchResult[]),
-        ...((staffRes.data ?? []) as unknown as SearchResult[]),
-        ...((leadsRes.data ?? []) as unknown as SearchResult[]),
-      ];
+      const studentList: SearchResult[] = (studentsRes.data || []).map((s: any) => ({
+        entity: "students",
+        id: s.id,
+        title: `${s.first_name || ""} ${s.last_name || ""}`.trim() || "Student",
+        subtitle: `Roll: ${s.roll_number || s.admission_number || "N/A"} • Adm: ${s.admission_number || "N/A"}`,
+        status: s.status || "active",
+        url: `${basePath}/academic?studentId=${s.id}`,
+      }));
 
-      setResults(allResults);
+      const staffList: SearchResult[] = (staffRes.data || []).map((st: any) => ({
+        entity: "staff",
+        id: st.id || st.user_id,
+        title: st.full_name || st.email || "Staff Member",
+        subtitle: `${st.role_name || "Employee"} • ${st.email || ""}`,
+        url: `${basePath}/users?userId=${st.user_id || st.id}`,
+      }));
+
+      const leadsList: SearchResult[] = (leadsRes.data || []).map((l: any) => ({
+        entity: "leads",
+        id: l.id,
+        title: l.student_name || "Lead Applicant",
+        subtitle: `Parent: ${l.parent_name || "N/A"} • ${l.phone || ""}`,
+        status: l.status || "new",
+        url: `${basePath}/crm?leadId=${l.id}`,
+      }));
+
+      const classesList: SearchResult[] = (classesRes.data || []).map((c: any) => ({
+        entity: "classes",
+        id: c.id,
+        title: `Class: ${c.name}`,
+        subtitle: `Grade Level: ${c.grade_level || "N/A"}`,
+        url: `${basePath}/academic?classId=${c.id}`,
+      }));
+
+      const transportList: SearchResult[] = (transportRes.data || []).map((t: any) => ({
+        entity: "transport",
+        id: t.id,
+        title: `Bus: ${t.bus_number}`,
+        subtitle: `Driver: ${t.driver_name || "Unassigned"} • ${t.registration_no || ""}`,
+        url: `${basePath}/transport`,
+      }));
+
+      const libraryList: SearchResult[] = (libraryRes.data || []).map((b: any) => ({
+        entity: "library",
+        id: b.id,
+        title: `Book: ${b.title}`,
+        subtitle: `Author: ${b.author || "Unknown"} • ISBN: ${b.isbn || "N/A"}`,
+        url: `${basePath}/library`,
+      }));
+
+      const inventoryList: SearchResult[] = (inventoryRes.data || []).map((i: any) => ({
+        entity: "inventory",
+        id: i.id,
+        title: `Asset: ${i.item_name}`,
+        subtitle: `Category: ${i.category || "General"} • SKU: ${i.sku || "N/A"}`,
+        url: `${basePath}/inventory`,
+      }));
+
+      setResults([
+        ...studentList,
+        ...staffList,
+        ...leadsList,
+        ...classesList,
+        ...transportList,
+        ...libraryList,
+        ...inventoryList,
+      ]);
     } catch (error) {
-      console.error("Search error:", error);
+      console.error("Global search error:", error);
       setResults([]);
     } finally {
       setSearching(false);
     }
-  }, [schoolId, debouncedQuery]);
+  }, [schoolId, debouncedQuery, basePath]);
 
   useEffect(() => {
     performSearch();
   }, [performSearch]);
 
-  // Navigation items - all modules and sections
+  // Comprehensive navigation items covering all features and submodules
   const navItems = useMemo(
     () => [
-      { label: "Dashboard", icon: LayoutGrid, href: basePath, keywords: "home overview" },
-      { label: "Academic", icon: GraduationCap, href: `${basePath}/academic`, keywords: "classes sections subjects teachers students grades" },
-      { label: "Timetable", icon: CalendarDays, href: `${basePath}/timetable`, keywords: "schedule periods slots" },
-      { label: "Attendance", icon: GraduationCap, href: `${basePath}/attendance`, keywords: "present absent late" },
-      { label: "Staff & Users", icon: Users, href: `${basePath}/users`, keywords: "employees hr teachers principal" },
-      { label: "CRM / Leads", icon: KanbanSquare, href: `${basePath}/crm`, keywords: "admissions pipeline marketing" },
-      { label: "Fees Center", icon: Coins, href: `${basePath}/fees`, keywords: "fees payments invoices expenses" },
-      { label: "Reports", icon: BarChart3, href: `${basePath}/reports`, keywords: "analytics statistics" },
-      { label: "Support", icon: Headphones, href: `${basePath}/support`, keywords: "help tickets" },
-      { label: "Directory Search", icon: Search, href: `${basePath}/directory`, keywords: "find search all" },
-      { label: "Settings", icon: Settings, href: `${basePath}?settings=1`, keywords: "configuration preferences" },
+      // Core & Academics
+      { label: "Dashboard Overview", icon: LayoutGrid, href: basePath, keywords: "home overview kpis command center operations metrics" },
+      { label: "Academic Management", icon: GraduationCap, href: `${basePath}/academic`, keywords: "classes sections subjects teachers students curriculum enrollment" },
+      { label: "Timetable Builder", icon: CalendarDays, href: `${basePath}/timetable`, keywords: "schedule periods routine slots teacher allocation weekly master timetable" },
+      { label: "Student Attendance Center", icon: CheckCircle2, href: `${basePath}/attendance`, keywords: "attendance present absent late excused daily rollcall register" },
+      { label: "Seating Planner", icon: Layers, href: `${basePath}/seating-planner`, keywords: "seating arrangement exam seats classroom layout desks" },
+      { label: "Curriculum Standards", icon: BookOpen, href: `${basePath}/curriculum`, keywords: "syllabus learning outcomes lesson plans standards rubrics" },
+      { label: "Events Calendar", icon: CalendarDays, href: `${basePath}/events`, keywords: "annual calendar school events sports gala meetings parent teacher meeting" },
+      { label: "School Diary", icon: BookOpen, href: `${basePath}/diary`, keywords: "homework daily diary class notes student assignments tasks" },
+      { label: "Academic Setup", icon: Settings, href: `${basePath}/academic-setup`, keywords: "sessions terms grading scales academic years" },
+
+      // People & HR
+      { label: "Staff & Faculty Directory", icon: Users, href: `${basePath}/users`, keywords: "employees teachers staff profiles user accounts permissions" },
+      { label: "Staff Appraisals & KPIs", icon: Award, href: `${basePath}/staff-appraisals`, keywords: "evaluation performance review staff ratings kpi scorecards pip" },
+      { label: "HR Leaves Management", icon: Clock, href: `${basePath}/leaves`, keywords: "leave requests sick casual annual approval hr approvals" },
+      { label: "HR Staff Attendance", icon: CheckCircle2, href: `${basePath}/staff-attendance`, keywords: "faculty biometric checkin punch in staff presence timesheet" },
+      { label: "HR Payroll & Salaries", icon: Receipt, href: `${basePath}/salaries`, keywords: "payroll salary slips bonuses deductions payslips" },
+      { label: "HR Contracts & Policies", icon: FileSignature, href: `${basePath}/contracts`, keywords: "employment contracts agreements policy documents" },
+      { label: "HR Documents", icon: FolderLock, href: `${basePath}/documents`, keywords: "staff files credentials certificates records" },
+
+      // Operations & Logistics
+      { label: "Fleet & Transport Logistics", icon: Bus, href: `${basePath}/transport`, keywords: "school bus routes fleet drivers stops gps tracking vehicle allocation" },
+      { label: "Library & Barcode Circulation", icon: BookOpen, href: `${basePath}/library`, keywords: "books issue return catalog isbn shelf barcode circulation" },
+      { label: "Asset & Inventory Management", icon: Package, href: `${basePath}/inventory`, keywords: "stock assets consumables lab equipment stationery purchase orders" },
+      { label: "Hostel & Boarding Management", icon: Home, href: `${basePath}/hostel`, keywords: "rooms beds boarding warden student resident meal plan" },
+      { label: "Alumni Network & Career Tracker", icon: Award, href: `${basePath}/alumni`, keywords: "graduates alumni association placements higher studies donations" },
+
+      // Student Services & Wellbeing
+      { label: "Student Wellbeing & Infirmary", icon: HeartPulse, href: `${basePath}/student-wellbeing`, keywords: "medical clinic infirmary doctor nurse vaccinations allergies health records" },
+      { label: "Counseling & Guidance Center", icon: Sparkles, href: `${basePath}/counselor`, keywords: "counselor appointments behavioral sessions student support guidance" },
+      { label: "At-Risk Students (Early Warning)", icon: AlertTriangle, href: `${basePath}/counselor/at-risk`, keywords: "early warning dropouts attendance risk academic intervention support" },
+      { label: "Student Behavior & Disciplinary Notes", icon: FileText, href: `${basePath}/counselor/behavior`, keywords: "behavior incidents infractions warnings disciplinary records praise" },
+      { label: "Gate & Visitor Security Console", icon: DoorClosed, href: `${basePath}/gate-visitor`, keywords: "security gate visitor passes checkin checkout badges entry log" },
+
+      // CRM & Admissions
+      { label: "Admissions Pipeline (CRM)", icon: KanbanSquare, href: `${basePath}/crm`, keywords: "admissions inquiry leads prospects kanban stages followups" },
+      { label: "Marketing Leads", icon: Users, href: `${basePath}/leads`, keywords: "lead management inquiry call lists" },
+      { label: "Follow-Ups & Call Logs", icon: Clock, href: `${basePath}/follow-ups`, keywords: "crm followups phone calls scheduled appointments" },
+      { label: "Campaigns & Marketing Sources", icon: TrendingUp, href: `${basePath}/campaigns`, keywords: "marketing campaigns ads open days social media" },
+
+      // Finance & Accounts
+      { label: "Fees & Finance Center", icon: Coins, href: `${basePath}/fees`, keywords: "fee collection vouchers fee structures concessions discounts bank accounts" },
+      { label: "Student Fee Invoices", icon: FileText, href: `${basePath}/invoices`, keywords: "generate invoices challans dues unpaid pending arrears" },
+      { label: "Payment Collections", icon: CreditCard, href: `${basePath}/payments`, keywords: "cash payments online payments bank receipts vouchers collected" },
+      { label: "Expense Tracker", icon: Receipt, href: `${basePath}/expenses`, keywords: "petty cash bills utility invoices purchase vouchers payments" },
+      { label: "General Ledger & Accounting", icon: BarChart3, href: `${basePath}/ledger`, keywords: "chart of accounts balance sheet journal entries double entry" },
+      { label: "Vendor Management", icon: Building2, href: `${basePath}/vendors`, keywords: "suppliers contractors vendors invoices procurement" },
+
+      // Analytics, Admin & Communication
+      { label: "Executive Reports & Analytics", icon: BarChart3, href: `${basePath}/reports`, keywords: "reports statistical graphs export excel pdf financial summaries" },
+      { label: "AI Board & Owner Insights", icon: Sparkles, href: `${basePath}/owner-insights`, keywords: "ai forecasting board summary revenue predictions growth retention" },
+      { label: "Complaints & Grievance Desk", icon: AlertTriangle, href: `${basePath}/complaints`, keywords: "parent complaints teacher issues unresolved tickets disputes feedback" },
+      { label: "Parent Communication Notes", icon: MessageSquare, href: `${basePath}/parent-notes`, keywords: "parent messages feedback diary notes meetings" },
+      { label: "Student ID Cards Studio", icon: CreditCard, href: `${basePath}/id-cards`, keywords: "generate id cards student badges printable barcode qr code" },
+      { label: "Examinations & Term Assessments", icon: FileText, href: `${basePath}/exams`, keywords: "exams datesheet term marks grading entry roll numbers" },
+      { label: "Report Cards & Transcripts", icon: Award, href: `${basePath}/report-cards`, keywords: "result cards print transcripts term evaluations gpa grades" },
+      { label: "School Notices & Circulars", icon: Bell, href: `${basePath}/notices`, keywords: "announcements circulars public notices staff alerts" },
+      { label: "Holiday & Vacation Planner", icon: CalendarDays, href: `${basePath}/holidays`, keywords: "public holidays school vacations gazetted off days" },
+      { label: "Messages & Broadcasts", icon: MessageSquare, href: `${basePath}/messages`, keywords: "chat broadcast sms internal communication group discussions" },
+      { label: "Help & Support Desk", icon: Headphones, href: `${basePath}/support`, keywords: "support tickets technical help documentation guide" },
+      { label: "Campus & System Settings", icon: Settings, href: `${basePath}?settings=1`, keywords: "institute profile branding academic preferences configuration" },
     ],
-    [basePath],
+    [basePath]
+  );
+
+  // Quick Action shortcuts
+  const quickActions = useMemo(
+    () => [
+      { label: "Admit New Student", icon: PlusCircle, href: `${basePath}/academic?action=new-student`, keywords: "add register enroll student admission" },
+      { label: "Collect Fee Payment", icon: CreditCard, href: `${basePath}/fees?action=collect-fee`, keywords: "pay fee voucher receipt cash payment" },
+      { label: "Mark Today's Attendance", icon: CheckCircle2, href: `${basePath}/attendance`, keywords: "mark roll call daily present" },
+      { label: "Register School Bus", icon: Bus, href: `${basePath}/transport?action=new-bus`, keywords: "add bus new route fleet vehicle" },
+      { label: "Create Expense Voucher", icon: Receipt, href: `${basePath}/expenses?action=new-expense`, keywords: "add bill expense voucher petty cash" },
+      { label: "Broadcast School Notice", icon: Bell, href: `${basePath}/notices?action=new-notice`, keywords: "post notice send circular announcement" },
+    ],
+    [basePath]
   );
 
   // Filter navigation items based on query
   const filteredNavItems = useMemo(() => {
-    if (!query.trim()) return navItems;
+    if (!query.trim()) return navItems.slice(0, 10);
     const q = query.toLowerCase();
     return navItems.filter(
       (item) =>
@@ -190,6 +374,17 @@ export function GlobalCommandPalette({ basePath }: Props) {
     );
   }, [navItems, query]);
 
+  // Filter quick actions
+  const filteredQuickActions = useMemo(() => {
+    if (!query.trim()) return quickActions;
+    const q = query.toLowerCase();
+    return quickActions.filter(
+      (item) =>
+        item.label.toLowerCase().includes(q) ||
+        item.keywords.toLowerCase().includes(q)
+    );
+  }, [quickActions, query]);
+
   const getEntityIcon = (entity: string) => {
     switch (entity) {
       case "students":
@@ -197,7 +392,15 @@ export function GlobalCommandPalette({ basePath }: Props) {
       case "staff":
         return UserCircle;
       case "leads":
-        return Building2;
+        return KanbanSquare;
+      case "classes":
+        return Layers;
+      case "transport":
+        return Bus;
+      case "library":
+        return BookOpen;
+      case "inventory":
+        return Package;
       default:
         return FileText;
     }
@@ -205,12 +408,8 @@ export function GlobalCommandPalette({ basePath }: Props) {
 
   const navigateToResult = (result: SearchResult) => {
     setOpen(false);
-    if (result.entity === "leads") {
-      navigate(`${basePath}/crm?leadId=${result.id}`);
-    } else if (result.entity === "students") {
-      navigate(`${basePath}/academic?studentId=${result.id}`);
-    } else {
-      navigate(`${basePath}/users?userId=${result.id}`);
+    if (result.url) {
+      navigate(result.url);
     }
   };
 
@@ -220,6 +419,10 @@ export function GlobalCommandPalette({ basePath }: Props) {
       students: [],
       staff: [],
       leads: [],
+      classes: [],
+      transport: [],
+      library: [],
+      inventory: [],
     };
     results.forEach((r) => {
       if (groups[r.entity]) {
@@ -234,41 +437,67 @@ export function GlobalCommandPalette({ basePath }: Props) {
   return (
     <CommandDialog open={open} onOpenChange={setOpen}>
       <CommandInput
-        placeholder="Search students, staff, leads, or navigate…"
+        placeholder="Search all modules, students, staff, classes, fleet, library, actions (⌘ K)..."
         value={query}
         onValueChange={setQuery}
       />
-      <CommandList className="max-h-[60vh]">
+      <CommandList className="max-h-[65vh] overflow-y-auto">
         {searching && (
           <div className="flex items-center justify-center py-6">
-            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-            <span className="ml-2 text-sm text-muted-foreground">Searching...</span>
+            <Loader2 className="h-5 w-5 animate-spin text-blue-600" />
+            <span className="ml-2 text-sm text-muted-foreground">Searching entire campus ecosystem...</span>
           </div>
         )}
 
-        {!searching && debouncedQuery && !hasResults && filteredNavItems.length === 0 && (
-          <CommandEmpty>No results found for "{debouncedQuery}"</CommandEmpty>
+        {!searching && debouncedQuery && !hasResults && filteredNavItems.length === 0 && filteredQuickActions.length === 0 && (
+          <CommandEmpty>No matching features, modules, or campus records found for "{debouncedQuery}"</CommandEmpty>
+        )}
+
+        {/* Quick Actions (when query matches action keywords) */}
+        {filteredQuickActions.length > 0 && (
+          <CommandGroup heading="Quick Actions">
+            {filteredQuickActions.map((qa) => (
+              <CommandItem
+                key={qa.label}
+                value={`action-${qa.label}`}
+                onSelect={() => {
+                  setOpen(false);
+                  navigate(qa.href);
+                }}
+                className="cursor-pointer"
+              >
+                <qa.icon className="mr-2.5 h-4 w-4 text-blue-600" />
+                <span className="font-medium text-slate-900 dark:text-slate-100">{qa.label}</span>
+                <CommandShortcut>Action</CommandShortcut>
+              </CommandItem>
+            ))}
+          </CommandGroup>
         )}
 
         {/* Search Results - Students */}
         {groupedResults.students.length > 0 && (
-          <CommandGroup heading="Students">
+          <CommandGroup heading={`Students (${groupedResults.students.length})`}>
             {groupedResults.students.map((r) => {
               const Icon = getEntityIcon(r.entity);
               return (
                 <CommandItem
                   key={`${r.entity}-${r.id}`}
-                  value={`${r.entity}-${r.title}`}
+                  value={`${r.entity}-${r.title}-${r.subtitle}`}
                   onSelect={() => navigateToResult(r)}
+                  className="cursor-pointer"
                 >
-                  <Icon className="mr-2 h-4 w-4 text-primary" />
+                  <Icon className="mr-2.5 h-4 w-4 text-blue-600" />
                   <div className="flex flex-1 flex-col">
-                    <span>{r.title}</span>
+                    <span className="font-semibold text-slate-900 dark:text-slate-100">{r.title}</span>
                     {r.subtitle && (
                       <span className="text-xs text-muted-foreground">{r.subtitle}</span>
                     )}
                   </div>
-                  <span className="text-xs text-muted-foreground capitalize">{r.status}</span>
+                  {r.status && (
+                    <span className="text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+                      {r.status}
+                    </span>
+                  )}
                 </CommandItem>
               );
             })}
@@ -277,18 +506,19 @@ export function GlobalCommandPalette({ basePath }: Props) {
 
         {/* Search Results - Staff */}
         {groupedResults.staff.length > 0 && (
-          <CommandGroup heading="Staff">
+          <CommandGroup heading={`Staff & Faculty (${groupedResults.staff.length})`}>
             {groupedResults.staff.map((r) => {
               const Icon = getEntityIcon(r.entity);
               return (
                 <CommandItem
                   key={`${r.entity}-${r.id}`}
-                  value={`${r.entity}-${r.title}`}
+                  value={`${r.entity}-${r.title}-${r.subtitle}`}
                   onSelect={() => navigateToResult(r)}
+                  className="cursor-pointer"
                 >
-                  <Icon className="mr-2 h-4 w-4 text-primary" />
+                  <Icon className="mr-2.5 h-4 w-4 text-indigo-600" />
                   <div className="flex flex-1 flex-col">
-                    <span>{r.title}</span>
+                    <span className="font-semibold text-slate-900 dark:text-slate-100">{r.title}</span>
                     {r.subtitle && (
                       <span className="text-xs text-muted-foreground">{r.subtitle}</span>
                     )}
@@ -301,23 +531,128 @@ export function GlobalCommandPalette({ basePath }: Props) {
 
         {/* Search Results - Leads */}
         {groupedResults.leads.length > 0 && (
-          <CommandGroup heading="Leads">
+          <CommandGroup heading={`Admissions & Leads (${groupedResults.leads.length})`}>
             {groupedResults.leads.map((r) => {
               const Icon = getEntityIcon(r.entity);
               return (
                 <CommandItem
                   key={`${r.entity}-${r.id}`}
-                  value={`${r.entity}-${r.title}`}
+                  value={`${r.entity}-${r.title}-${r.subtitle}`}
                   onSelect={() => navigateToResult(r)}
+                  className="cursor-pointer"
                 >
-                  <Icon className="mr-2 h-4 w-4 text-accent-foreground" />
+                  <Icon className="mr-2.5 h-4 w-4 text-emerald-600" />
                   <div className="flex flex-1 flex-col">
-                    <span>{r.title}</span>
+                    <span className="font-semibold text-slate-900 dark:text-slate-100">{r.title}</span>
                     {r.subtitle && (
                       <span className="text-xs text-muted-foreground">{r.subtitle}</span>
                     )}
                   </div>
-                  <span className="text-xs text-muted-foreground capitalize">{r.status}</span>
+                  {r.status && (
+                    <span className="text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                      {r.status}
+                    </span>
+                  )}
+                </CommandItem>
+              );
+            })}
+          </CommandGroup>
+        )}
+
+        {/* Search Results - Classes */}
+        {groupedResults.classes.length > 0 && (
+          <CommandGroup heading={`Academic Classes (${groupedResults.classes.length})`}>
+            {groupedResults.classes.map((r) => {
+              const Icon = getEntityIcon(r.entity);
+              return (
+                <CommandItem
+                  key={`${r.entity}-${r.id}`}
+                  value={`${r.entity}-${r.title}-${r.subtitle}`}
+                  onSelect={() => navigateToResult(r)}
+                  className="cursor-pointer"
+                >
+                  <Icon className="mr-2.5 h-4 w-4 text-violet-600" />
+                  <div className="flex flex-1 flex-col">
+                    <span className="font-semibold text-slate-900 dark:text-slate-100">{r.title}</span>
+                    {r.subtitle && (
+                      <span className="text-xs text-muted-foreground">{r.subtitle}</span>
+                    )}
+                  </div>
+                </CommandItem>
+              );
+            })}
+          </CommandGroup>
+        )}
+
+        {/* Search Results - Transport / Fleet */}
+        {groupedResults.transport.length > 0 && (
+          <CommandGroup heading={`Transport & Fleet (${groupedResults.transport.length})`}>
+            {groupedResults.transport.map((r) => {
+              const Icon = getEntityIcon(r.entity);
+              return (
+                <CommandItem
+                  key={`${r.entity}-${r.id}`}
+                  value={`${r.entity}-${r.title}-${r.subtitle}`}
+                  onSelect={() => navigateToResult(r)}
+                  className="cursor-pointer"
+                >
+                  <Icon className="mr-2.5 h-4 w-4 text-amber-600" />
+                  <div className="flex flex-1 flex-col">
+                    <span className="font-semibold text-slate-900 dark:text-slate-100">{r.title}</span>
+                    {r.subtitle && (
+                      <span className="text-xs text-muted-foreground">{r.subtitle}</span>
+                    )}
+                  </div>
+                </CommandItem>
+              );
+            })}
+          </CommandGroup>
+        )}
+
+        {/* Search Results - Library */}
+        {groupedResults.library.length > 0 && (
+          <CommandGroup heading={`Library Books (${groupedResults.library.length})`}>
+            {groupedResults.library.map((r) => {
+              const Icon = getEntityIcon(r.entity);
+              return (
+                <CommandItem
+                  key={`${r.entity}-${r.id}`}
+                  value={`${r.entity}-${r.title}-${r.subtitle}`}
+                  onSelect={() => navigateToResult(r)}
+                  className="cursor-pointer"
+                >
+                  <Icon className="mr-2.5 h-4 w-4 text-sky-600" />
+                  <div className="flex flex-1 flex-col">
+                    <span className="font-semibold text-slate-900 dark:text-slate-100">{r.title}</span>
+                    {r.subtitle && (
+                      <span className="text-xs text-muted-foreground">{r.subtitle}</span>
+                    )}
+                  </div>
+                </CommandItem>
+              );
+            })}
+          </CommandGroup>
+        )}
+
+        {/* Search Results - Inventory */}
+        {groupedResults.inventory.length > 0 && (
+          <CommandGroup heading={`Asset & Inventory Items (${groupedResults.inventory.length})`}>
+            {groupedResults.inventory.map((r) => {
+              const Icon = getEntityIcon(r.entity);
+              return (
+                <CommandItem
+                  key={`${r.entity}-${r.id}`}
+                  value={`${r.entity}-${r.title}-${r.subtitle}`}
+                  onSelect={() => navigateToResult(r)}
+                  className="cursor-pointer"
+                >
+                  <Icon className="mr-2.5 h-4 w-4 text-teal-600" />
+                  <div className="flex flex-1 flex-col">
+                    <span className="font-semibold text-slate-900 dark:text-slate-100">{r.title}</span>
+                    {r.subtitle && (
+                      <span className="text-xs text-muted-foreground">{r.subtitle}</span>
+                    )}
+                  </div>
                 </CommandItem>
               );
             })}
@@ -326,21 +661,22 @@ export function GlobalCommandPalette({ basePath }: Props) {
 
         {(hasResults || debouncedQuery) && filteredNavItems.length > 0 && <CommandSeparator />}
 
-        {/* Navigation Items */}
+        {/* Navigation Items (All Modules & Features) */}
         {filteredNavItems.length > 0 && (
-          <CommandGroup heading="Navigate">
+          <CommandGroup heading="Modules & Feature Navigation">
             {filteredNavItems.map((it) => (
               <CommandItem
                 key={it.label}
-                value={`nav-${it.label}`}
+                value={`nav-${it.label}-${it.keywords}`}
                 onSelect={() => {
                   setOpen(false);
                   navigate(it.href);
                 }}
+                className="cursor-pointer"
               >
-                <it.icon className="mr-2 h-4 w-4" />
-                <span>{it.label}</span>
-                <CommandShortcut>↵</CommandShortcut>
+                <it.icon className="mr-2.5 h-4 w-4 text-slate-500 group-hover:text-blue-600" />
+                <span className="text-slate-800 dark:text-slate-200 font-medium">{it.label}</span>
+                <CommandShortcut>Go</CommandShortcut>
               </CommandItem>
             ))}
           </CommandGroup>
@@ -349,12 +685,18 @@ export function GlobalCommandPalette({ basePath }: Props) {
         {!debouncedQuery && (
           <>
             <CommandSeparator />
-            <CommandGroup heading="Tips">
-              <CommandItem disabled className="text-muted-foreground">
-                <span>Type to search students, staff, leads, or modules</span>
+            <CommandGroup heading="Campus Intelligence Tips">
+              <CommandItem disabled className="text-muted-foreground text-xs">
+                <span>• Search by student name, roll number, or admission ID</span>
               </CommandItem>
-              <CommandItem disabled className="text-muted-foreground">
-                <span>Ctrl/⌘ K to open from anywhere</span>
+              <CommandItem disabled className="text-muted-foreground text-xs">
+                <span>• Search by teacher name, email, or department</span>
+              </CommandItem>
+              <CommandItem disabled className="text-muted-foreground text-xs">
+                <span>• Search any feature e.g. "bus", "library", "hostel", "exams", "fees", "crm"</span>
+              </CommandItem>
+              <CommandItem disabled className="text-muted-foreground text-xs">
+                <span>• Press <kbd className="px-1.5 py-0.5 bg-slate-100 rounded border">Ctrl</kbd> + <kbd className="px-1.5 py-0.5 bg-slate-100 rounded border">K</kbd> to open search anywhere</span>
               </CommandItem>
             </CommandGroup>
           </>
@@ -363,3 +705,4 @@ export function GlobalCommandPalette({ basePath }: Props) {
     </CommandDialog>
   );
 }
+
