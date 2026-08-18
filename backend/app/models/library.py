@@ -46,6 +46,7 @@ class BookIssue(Base):
     due_date: Mapped[date] = mapped_column(Date, nullable=False)
     return_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     fine_amount: Mapped[float] = mapped_column(Numeric(10, 2), default=0.00, nullable=False)
+    fine_per_day: Mapped[Optional[float]] = mapped_column(Numeric(10, 2), default=20.00, nullable=True)
     fine_paid: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     status: Mapped[str] = mapped_column(String(50), default="issued", nullable=False)  # 'issued', 'returned', 'overdue', 'lost'
     created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=True)

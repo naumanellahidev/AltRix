@@ -55,6 +55,7 @@ class IssueCreateSchema(BaseModel):
     borrower_id: str
     borrower_type: Optional[str] = "student"
     due_days: Optional[int] = 14
+    fine_per_day: Optional[float] = 20.0
     campus_id: Optional[UUID] = None
 
 class IssueOutSchema(BaseModel):
@@ -68,6 +69,7 @@ class IssueOutSchema(BaseModel):
     due_date: date
     return_date: Optional[date]
     fine_amount: float
+    fine_per_day: Optional[float] = 20.0
     fine_paid: bool
     status: str
     model_config = ConfigDict(from_attributes=True)
@@ -153,7 +155,15 @@ async def list_issues(
         stmt = stmt.where(BookIssue.status == status_filter)
     try:
         res = await db.execute(stmt)
-        return list(res.scalars().all())
+        issues = list(res.scalars().all())
+        today = date.today()
+        # Automatically compute live overdue fines
+        for iss in issues:
+            if iss.status != "returned" and iss.due_date and today > iss.due_date:
+                days_overdue = (today - iss.due_date).days
+                rate = float(iss.fine_per_day) if iss.fine_per_day is not None else 20.0
+                iss.fine_amount = round(days_overdue * rate, 2)
+        return issues
     except Exception:
         return []
 
@@ -195,6 +205,9 @@ async def issue_book(payload: IssueCreateSchema, current_user: CurrentUser, db: 
         borrower_type=payload.borrower_type or "student",
         issue_date=today,
         due_date=due_date,
+        fine_per_day=payload.fine_per_day if payload.fine_per_day is not None else 20.0,
+        fine_amount=0.00,
+        fine_paid=False,
         status="issued"
     )
     db.add(issue)
@@ -222,7 +235,8 @@ async def return_book(issue_id: UUID, current_user: CurrentUser, db: DbSession):
 
     if today > issue.due_date:
         days_overdue = (today - issue.due_date).days
-        issue.fine_amount = days_overdue * 5.0
+        rate = float(issue.fine_per_day) if issue.fine_per_day is not None else 20.0
+        issue.fine_amount = round(days_overdue * rate, 2)
 
     # Increment available copies
     stmt_book = select(LibraryBook).where(LibraryBook.id == issue.book_id)

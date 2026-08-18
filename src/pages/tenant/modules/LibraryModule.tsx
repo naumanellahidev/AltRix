@@ -18,7 +18,7 @@ import { useSession } from "@/hooks/useSession";
 import {
   BookOpen, Plus, Search, RefreshCw, BookmarkCheck, Clock, CheckCircle2,
   AlertTriangle, UserCheck, ShieldAlert, Library, LayoutGrid, List,
-  Barcode, Edit3, Trash2, Eye, User, Sparkles, Filter, Check, Calendar, ArrowRight, X
+  Barcode, Edit3, Trash2, Eye, User, Sparkles, Filter, Check, Calendar, ArrowRight, X, Coins
 } from "lucide-react";
 
 interface Book {
@@ -46,6 +46,8 @@ interface Issue {
   due_date: string;
   return_date?: string;
   fine_amount: number;
+  fine_per_day?: number;
+  fine_paid?: boolean;
   status: string;
   campus_id?: string;
 }
@@ -94,7 +96,7 @@ export function LibraryModule() {
 
   const [showIssueModal, setShowIssueModal] = useState(false);
   const [newIssue, setNewIssue] = useState({
-    book_id: "", borrower_id: "", borrower_type: "student", due_days: 14
+    book_id: "", borrower_id: "", borrower_type: "student", due_days: 14, fine_per_day: 20
   });
 
   const [showBarcodeModal, setShowBarcodeModal] = useState<Book | null>(null);
@@ -332,6 +334,8 @@ export function LibraryModule() {
     }
     const issuePayload = { 
       ...newIssue,
+      due_days: Number(newIssue.due_days) || 14,
+      fine_per_day: Number(newIssue.fine_per_day) || 20,
       ...(activeCampusId ? { campus_id: activeCampusId } : {})
     };
     setShowIssueModal(false);
@@ -340,7 +344,7 @@ export function LibraryModule() {
     setBooks(prev => (Array.isArray(prev) ? prev : []).map(b => 
       b.id === issuePayload.book_id ? { ...b, available_copies: Math.max(0, b.available_copies - 1) } : b
     ));
-    toast.success("Book issued successfully!");
+    toast.success("Book issued with automatic fine rate!");
 
     try {
       await apiClient.post("/library/issue", issuePayload);
@@ -376,7 +380,7 @@ export function LibraryModule() {
     try {
       const res = await apiClient.post(`/library/return/${issueId}`);
       toast.success("Book returned to library", {
-        description: res.data?.fine_amount > 0 ? `Calculated overdue fine: PKR ${res.data.fine_amount.toFixed(2)}` : "Returned in good condition."
+        description: res.data?.fine_amount > 0 ? `Total late fine: PKR ${res.data.fine_amount.toFixed(2)}` : "Returned in good condition."
       });
       loadBooks(true);
       loadIssues(true);
@@ -844,29 +848,34 @@ export function LibraryModule() {
               ) : (
                 <>
                   {/* Desktop Table: Fits on single screen without horizontal scrollbar */}
-                  <div className="hidden md:block w-full">
-                    <Table className="w-full table-fixed">
-                      <TableHeader>
-                        <TableRow className="bg-slate-50/80 dark:bg-slate-800/60 text-xs border-b border-slate-200/80 dark:border-slate-800">
-                          <TableHead className="w-[32%] py-3">Book & Barcode</TableHead>
-                          <TableHead className="w-[24%] py-3">Borrower</TableHead>
-                          <TableHead className="w-[20%] py-3">Timeline</TableHead>
-                          <TableHead className="w-[12%] py-3">Status</TableHead>
-                          <TableHead className="w-[12%] py-3 text-right pr-4">Actions</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
+                  <div className="hidden md:block w-full overflow-hidden">
+                    <table className="w-full text-left text-sm table-fixed border-collapse">
+                      <thead>
+                        <tr className="bg-slate-50/90 dark:bg-slate-800/80 text-xs border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400">
+                          <th className="w-[30%] px-4 py-3 font-semibold text-left">Book & Barcode</th>
+                          <th className="w-[24%] px-4 py-3 font-semibold text-left">Borrower</th>
+                          <th className="w-[18%] px-4 py-3 font-semibold text-left">Timeline</th>
+                          <th className="w-[16%] px-4 py-3 font-semibold text-left">Status & Fine</th>
+                          <th className="w-[12%] px-4 py-3 font-semibold text-right pr-4">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                         {filteredIssues.map(i => {
                           const book = bookMap[i.book_id] || safeBooks.find(b => b.id === i.book_id);
                           const borrower = borrowerMap[i.borrower_id];
                           const displayName = borrower ? borrower.name : "Hamza Malik";
                           const displayCode = borrower ? `${borrower.type.toUpperCase()} • ${borrower.code}` : "STUDENT • #1001";
                           const isOverdue = i.status !== "returned" && new Date(i.due_date) < new Date();
+                          const daysLate = isOverdue
+                            ? Math.max(1, Math.ceil((new Date().getTime() - new Date(i.due_date).getTime()) / 86400000))
+                            : 0;
+                          const dailyRate = Number(i.fine_per_day) > 0 ? Number(i.fine_per_day) : 20;
+                          const dynamicFine = isOverdue ? daysLate * dailyRate : (Number(i.fine_amount) || 0);
 
                           return (
-                            <TableRow key={i.id} className="hover:bg-blue-50/40 dark:hover:bg-slate-800/40 border-b border-slate-100 dark:border-slate-800/80 transition-colors">
+                            <tr key={i.id} className="hover:bg-blue-50/40 dark:hover:bg-slate-800/40 transition-colors">
                               {/* Book & Barcode */}
-                              <TableCell className="py-3 align-middle">
+                              <td className="px-4 py-3 align-middle">
                                 <div className="flex items-center gap-2.5 min-w-0">
                                   <div className="p-2 rounded-lg bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 shrink-0">
                                     <BookOpen className="h-4 w-4" />
@@ -885,10 +894,10 @@ export function LibraryModule() {
                                     </div>
                                   </div>
                                 </div>
-                              </TableCell>
+                              </td>
 
                               {/* Borrower */}
-                              <TableCell className="py-3 align-middle">
+                              <td className="px-4 py-3 align-middle">
                                 <div className="flex items-center gap-2 min-w-0">
                                   <div className="h-7 w-7 rounded-full bg-gradient-to-br from-indigo-500/20 to-purple-500/20 border border-indigo-200/60 text-indigo-700 dark:text-indigo-300 font-bold flex items-center justify-center text-[10px] shrink-0">
                                     {displayName.charAt(0)}
@@ -898,10 +907,10 @@ export function LibraryModule() {
                                     <p className="text-[10px] text-slate-400 font-mono truncate">{displayCode}</p>
                                   </div>
                                 </div>
-                              </TableCell>
+                              </td>
 
                               {/* Timeline */}
-                              <TableCell className="py-3 align-middle text-xs">
+                              <td className="px-4 py-3 align-middle text-xs">
                                 <div className="space-y-0.5">
                                   <div className="flex items-center gap-1 text-slate-500 text-[11px]">
                                     <span className="text-[10px] uppercase font-semibold text-slate-400">Out:</span> {i.issue_date || "2026-07-24"}
@@ -910,34 +919,36 @@ export function LibraryModule() {
                                     <span className="text-[10px] uppercase font-semibold text-slate-400">Due:</span> {i.due_date}
                                   </div>
                                 </div>
-                              </TableCell>
+                              </td>
 
                               {/* Status & Fine */}
-                              <TableCell className="py-3 align-middle">
+                              <td className="px-4 py-3 align-middle">
                                 <div className="flex flex-col items-start gap-1">
                                   {i.status === "returned" ? (
-                                    <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-300 text-[10px] py-0 px-2 font-semibold">
+                                    <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-300 text-[10px] py-0.5 px-2 font-semibold">
                                       <CheckCircle2 className="h-3 w-3 mr-1" /> Returned
                                     </Badge>
                                   ) : isOverdue ? (
-                                    <Badge className="bg-rose-50 text-rose-700 border-rose-200 text-[10px] py-0 px-2 font-semibold animate-pulse">
-                                      <AlertTriangle className="h-3 w-3 mr-1" /> Overdue
+                                    <Badge className="bg-rose-50 text-rose-700 border-rose-200 text-[10px] py-0.5 px-2 font-semibold animate-pulse">
+                                      <AlertTriangle className="h-3 w-3 mr-1" /> Overdue ({daysLate}d)
                                     </Badge>
                                   ) : (
-                                    <Badge className="bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/50 dark:text-blue-300 text-[10px] py-0 px-2 font-semibold">
+                                    <Badge className="bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/50 dark:text-blue-300 text-[10px] py-0.5 px-2 font-semibold">
                                       <Clock className="h-3 w-3 mr-1" /> Issued
                                     </Badge>
                                   )}
-                                  {i.fine_amount > 0 && (
-                                    <span className="text-[9px] font-mono font-bold text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-200">
-                                      Fine: PKR {Number(i.fine_amount).toFixed(0)}
-                                    </span>
+                                  {dynamicFine > 0 && (
+                                    <div className="flex items-center gap-1 text-[10px] font-mono font-bold text-rose-600 bg-rose-50 dark:bg-rose-950/50 px-1.5 py-0.5 rounded border border-rose-200 dark:border-rose-900/50">
+                                      <Coins className="h-3 w-3 text-rose-500" />
+                                      <span>PKR {dynamicFine.toFixed(0)}</span>
+                                      <span className="text-[9px] text-rose-400 font-normal">(@{dailyRate}/d)</span>
+                                    </div>
                                   )}
                                 </div>
-                              </TableCell>
+                              </td>
 
                               {/* Actions */}
-                              <TableCell className="py-3 align-middle text-right pr-4">
+                              <td className="px-4 py-3 align-middle text-right pr-4">
                                 <div className="flex items-center justify-end gap-1">
                                   <Button
                                     size="sm"
@@ -958,12 +969,12 @@ export function LibraryModule() {
                                     </Button>
                                   )}
                                 </div>
-                              </TableCell>
-                            </TableRow>
+                              </td>
+                            </tr>
                           );
                         })}
-                      </TableBody>
-                    </Table>
+                      </tbody>
+                    </table>
                   </div>
 
                   {/* Mobile High-Density Stacked Cards (zero horizontal overflow) */}
@@ -974,6 +985,11 @@ export function LibraryModule() {
                       const displayName = borrower ? borrower.name : "Hamza Malik";
                       const displayCode = borrower ? `${borrower.type.toUpperCase()} • ${borrower.code}` : "STUDENT • #1001";
                       const isOverdue = i.status !== "returned" && new Date(i.due_date) < new Date();
+                      const daysLate = isOverdue
+                        ? Math.max(1, Math.ceil((new Date().getTime() - new Date(i.due_date).getTime()) / 86400000))
+                        : 0;
+                      const dailyRate = Number(i.fine_per_day) > 0 ? Number(i.fine_per_day) : 20;
+                      const dynamicFine = isOverdue ? daysLate * dailyRate : (Number(i.fine_amount) || 0);
 
                       return (
                         <div key={i.id} className="p-3.5 space-y-2.5">
@@ -988,7 +1004,7 @@ export function LibraryModule() {
                               {i.status === "returned" ? (
                                 <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[10px] py-0 px-2">Returned</Badge>
                               ) : isOverdue ? (
-                                <Badge className="bg-rose-50 text-rose-700 border-rose-200 text-[10px] py-0 px-2 animate-pulse">Overdue</Badge>
+                                <Badge className="bg-rose-50 text-rose-700 border-rose-200 text-[10px] py-0 px-2 animate-pulse">Overdue ({daysLate}d)</Badge>
                               ) : (
                                 <Badge className="bg-blue-50 text-blue-700 border-blue-200 text-[10px] py-0 px-2">Issued</Badge>
                               )}
@@ -1002,7 +1018,11 @@ export function LibraryModule() {
                             </div>
                             <div className="text-right font-mono text-[11px]">
                               <p className="text-slate-500">Due: <span className={isOverdue ? "text-rose-600 font-bold" : "font-semibold"}>{i.due_date}</span></p>
-                              <p className="text-[10px] text-blue-600">{book?.barcode || "LIB-1001"}</p>
+                              {dynamicFine > 0 ? (
+                                <p className="text-[10px] text-rose-600 font-bold">Fine: PKR {dynamicFine.toFixed(0)}</p>
+                              ) : (
+                                <p className="text-[10px] text-blue-600">{book?.barcode || "LIB-1001"}</p>
+                              )}
                             </div>
                           </div>
 
@@ -1126,17 +1146,17 @@ export function LibraryModule() {
         </DialogContent>
       </Dialog>
 
-      {/* ─── ISSUE BOOK MODAL ─────────────────────────── */}
+      {/* ─── ISSUE BOOK MODAL WITH FINE SYSTEM ─────────── */}
       <Dialog open={showIssueModal} onOpenChange={setShowIssueModal}>
-        <DialogContent className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100">
+        <DialogContent className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 max-w-lg">
           <DialogHeader>
             <DialogTitle className="text-blue-700 dark:text-blue-400 font-bold flex items-center gap-2">
-              <UserCheck className="h-5 w-5" /> Issue Book to Borrower
+              <UserCheck className="h-5 w-5" /> Issue Book & Configure Late Fine
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 pt-2">
             <div>
-              <Label className="mb-1.5 block">Select Book Title</Label>
+              <Label className="mb-1.5 block font-semibold text-xs">Select Book Title</Label>
               <SearchableSelect
                 placeholder="Type title, author or barcode..."
                 options={books.map(b => ({
@@ -1170,7 +1190,7 @@ export function LibraryModule() {
               </div>
             )}
             <div>
-              <Label className="mb-1.5 block">Select Student / Staff Borrower</Label>
+              <Label className="mb-1.5 block font-semibold text-xs">Select Student / Staff Borrower</Label>
               <SearchableSelect
                 placeholder="Type name, roll number, or code..."
                 options={borrowers.map(b => ({
@@ -1185,7 +1205,86 @@ export function LibraryModule() {
                 }}
               />
             </div>
-            <Button onClick={handleIssueBook} className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-semibold">
+
+            {/* Loan Duration / Due Days */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <Label className="font-semibold text-xs flex items-center gap-1.5">
+                  <Calendar className="h-3.5 w-3.5 text-blue-600" /> Loan Duration
+                </Label>
+                <span className="text-[11px] font-mono font-semibold text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/60 px-2 py-0.5 rounded border border-blue-200">
+                  {newIssue.due_days} Days
+                </span>
+              </div>
+              <div className="grid grid-cols-4 gap-2">
+                {[7, 14, 21, 30].map(days => (
+                  <button
+                    key={days}
+                    type="button"
+                    onClick={() => setNewIssue({ ...newIssue, due_days: days })}
+                    className={`py-1.5 px-2 rounded-lg text-xs font-semibold transition-all border ${
+                      newIssue.due_days === days
+                        ? "bg-blue-600 text-white border-blue-600 shadow-xs"
+                        : "bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100"
+                    }`}
+                  >
+                    {days} Days
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Overdue Fine Rate per Day */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <Label className="font-semibold text-xs flex items-center gap-1.5">
+                  <Coins className="h-3.5 w-3.5 text-amber-500" /> Overdue Fine Price (per Day Late)
+                </Label>
+                <span className="text-[11px] font-mono font-bold text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/60 px-2 py-0.5 rounded border border-amber-200">
+                  PKR {newIssue.fine_per_day} / day
+                </span>
+              </div>
+              <div className="grid grid-cols-4 gap-2">
+                {[10, 20, 50, 100].map(rate => (
+                  <button
+                    key={rate}
+                    type="button"
+                    onClick={() => setNewIssue({ ...newIssue, fine_per_day: rate })}
+                    className={`py-1.5 px-2 rounded-lg text-xs font-semibold transition-all border ${
+                      newIssue.fine_per_day === rate
+                        ? "bg-amber-600 text-white border-amber-600 shadow-xs"
+                        : "bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100"
+                    }`}
+                  >
+                    PKR {rate}/d
+                  </button>
+                ))}
+              </div>
+              <div className="flex items-center gap-2 pt-1">
+                <span className="text-[11px] text-slate-500 whitespace-nowrap">Custom Fine Rate (PKR):</span>
+                <Input
+                  type="number"
+                  min={0}
+                  step={5}
+                  value={newIssue.fine_per_day}
+                  onChange={e => setNewIssue({ ...newIssue, fine_per_day: Math.max(0, parseFloat(e.target.value) || 0) })}
+                  className="h-8 text-xs font-semibold"
+                  placeholder="20.00"
+                />
+              </div>
+            </div>
+
+            {/* Automatic Fine Policy Notice Card */}
+            <div className="p-3 bg-amber-50/80 dark:bg-amber-950/40 rounded-xl border border-amber-200/80 dark:border-amber-900/50 text-[11px] space-y-1 text-amber-900 dark:text-amber-200">
+              <p className="font-bold flex items-center gap-1.5 text-amber-800 dark:text-amber-300">
+                <Sparkles className="h-3.5 w-3.5 text-amber-600" /> Automatic Late Fine Accumulator
+              </p>
+              <p className="text-[11px] text-amber-800/90 dark:text-amber-300/90 leading-relaxed">
+                Book will be due on <span className="font-bold underline">{new Date(Date.now() + (newIssue.due_days || 14) * 86400000).toLocaleDateString()}</span> ({newIssue.due_days || 14} days loan). If returned after this date, a late fine of <span className="font-bold">PKR {newIssue.fine_per_day}/day</span> will automatically accumulate for each overdue day.
+              </p>
+            </div>
+
+            <Button onClick={handleIssueBook} className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-semibold shadow-md">
               Confirm Issue Book
             </Button>
           </div>
@@ -1229,111 +1328,125 @@ export function LibraryModule() {
       </Dialog>
       {/* ─── COMPLETE LOAN INFO PASSPORT MODAL ────────────────── */}
       <Dialog open={!!selectedLoanDetail} onOpenChange={open => !open && setSelectedLoanDetail(null)}>
-        {selectedLoanDetail && (
-          <DialogContent className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 max-w-2xl p-0 overflow-hidden shadow-2xl">
-            {/* Header Banner */}
-            <div className="bg-gradient-to-r from-blue-700 via-indigo-600 to-blue-800 p-6 text-white">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="p-3 bg-white/10 rounded-xl backdrop-blur-md border border-white/20">
-                    <BookOpen className="h-6 w-6 text-blue-100" />
-                  </div>
-                  <div>
-                    <h3 className="text-xl font-bold">Book Loan & Barcode Passport</h3>
-                    <p className="text-blue-100 text-xs mt-0.5">Circulation Record ID: #{selectedLoanDetail.issue.id.slice(0, 8).toUpperCase()}</p>
-                  </div>
-                </div>
-                <Badge className={selectedLoanDetail.issue.status === "returned" ? "bg-emerald-500 text-white" : "bg-blue-500 text-white"}>
-                  {selectedLoanDetail.issue.status.toUpperCase()}
-                </Badge>
-              </div>
-            </div>
+        {selectedLoanDetail && (() => {
+          const isOverdue = selectedLoanDetail.issue.status !== "returned" && new Date(selectedLoanDetail.issue.due_date) < new Date();
+          const daysLate = isOverdue
+            ? Math.max(1, Math.ceil((new Date().getTime() - new Date(selectedLoanDetail.issue.due_date).getTime()) / 86400000))
+            : 0;
+          const dailyRate = Number(selectedLoanDetail.issue.fine_per_day) > 0 ? Number(selectedLoanDetail.issue.fine_per_day) : 20;
+          const currentFine = isOverdue ? daysLate * dailyRate : (Number(selectedLoanDetail.issue.fine_amount) || 0);
 
-            <div className="p-6 space-y-6">
-              {/* BOOK DETAILS SPECIFICATION */}
-              <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl border border-slate-200/80 dark:border-slate-800 space-y-3">
-                <p className="text-xs font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400 flex items-center gap-1.5">
-                  <BookOpen className="h-4 w-4" /> Book Inventory Specifications
-                </p>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-xs text-slate-500">Book Title</p>
-                    <p className="font-bold text-slate-900 dark:text-slate-100 text-base">{selectedLoanDetail.book?.title || "Unknown Title"}</p>
-                    <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">by {selectedLoanDetail.book?.author || "N/A"}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-slate-500">Category & Shelf Location</p>
-                    <p className="font-semibold text-slate-800 dark:text-slate-200">{selectedLoanDetail.book?.category || "General"} • {selectedLoanDetail.book?.shelf_location || "Rack A-1"}</p>
-                    <p className="text-xs text-slate-500 mt-0.5">Stock: {selectedLoanDetail.book?.available_copies ?? 1} / {selectedLoanDetail.book?.total_copies ?? 1} Copies</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-slate-500">Barcode Identifier</p>
-                    <div className="flex items-center gap-2 mt-1">
-                      <span className="font-mono text-xs font-bold bg-blue-100 text-blue-800 px-2.5 py-1 rounded-md border border-blue-200 flex items-center gap-1">
-                        <Barcode className="h-3.5 w-3.5 text-blue-600" />
-                        {selectedLoanDetail.book?.barcode || "LIB-1001"}
-                      </span>
+          return (
+            <DialogContent className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 max-w-2xl p-0 overflow-hidden shadow-2xl">
+              {/* Header Banner */}
+              <div className="bg-gradient-to-r from-blue-700 via-indigo-600 to-blue-800 p-6 text-white">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="p-3 bg-white/10 rounded-xl backdrop-blur-md border border-white/20">
+                      <BookOpen className="h-6 w-6 text-blue-100" />
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-bold">Book Loan & Barcode Passport</h3>
+                      <p className="text-blue-100 text-xs mt-0.5">Circulation Record ID: #{selectedLoanDetail.issue.id.slice(0, 8).toUpperCase()}</p>
                     </div>
                   </div>
-                  <div>
-                    <p className="text-xs text-slate-500">ISBN Serial Code</p>
-                    <p className="font-mono text-xs font-semibold text-slate-800 dark:text-slate-200 mt-1">
-                      {selectedLoanDetail.book?.isbn || "978-969-0000-00-0"}
+                  <Badge className={selectedLoanDetail.issue.status === "returned" ? "bg-emerald-500 text-white" : isOverdue ? "bg-rose-500 text-white animate-pulse" : "bg-blue-500 text-white"}>
+                    {selectedLoanDetail.issue.status === "returned" ? "RETURNED" : isOverdue ? `OVERDUE (${daysLate}d)` : "ISSUED"}
+                  </Badge>
+                </div>
+              </div>
+
+              <div className="p-6 space-y-6">
+                {/* BOOK DETAILS SPECIFICATION */}
+                <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl border border-slate-200/80 dark:border-slate-800 space-y-3">
+                  <p className="text-xs font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400 flex items-center gap-1.5">
+                    <BookOpen className="h-4 w-4" /> Book Inventory Specifications
+                  </p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-xs text-slate-500">Book Title</p>
+                      <p className="font-bold text-slate-900 dark:text-slate-100 text-base">{selectedLoanDetail.book?.title || "Unknown Title"}</p>
+                      <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">by {selectedLoanDetail.book?.author || "N/A"}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-slate-500">Category & Shelf Location</p>
+                      <p className="font-semibold text-slate-800 dark:text-slate-200">{selectedLoanDetail.book?.category || "General"} • {selectedLoanDetail.book?.shelf_location || "Rack A-1"}</p>
+                      <p className="text-xs text-slate-500 mt-0.5">Stock: {selectedLoanDetail.book?.available_copies ?? 1} / {selectedLoanDetail.book?.total_copies ?? 1} Copies</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-slate-500">Barcode Identifier</p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className="font-mono text-xs font-bold bg-blue-100 text-blue-800 px-2.5 py-1 rounded-md border border-blue-200 flex items-center gap-1">
+                          <Barcode className="h-3.5 w-3.5 text-blue-600" />
+                          {selectedLoanDetail.book?.barcode || "LIB-1001"}
+                        </span>
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-xs text-slate-500">ISBN Serial Code</p>
+                      <p className="font-mono text-xs font-semibold text-slate-800 dark:text-slate-200 mt-1">
+                        {selectedLoanDetail.book?.isbn || "978-969-0000-00-0"}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* BORROWER & SCHEDULE SUMMARY */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl border border-slate-200/80 dark:border-slate-800 space-y-2">
+                    <p className="text-xs font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400 flex items-center gap-1.5">
+                      <User className="h-4 w-4" /> Borrower Info
+                    </p>
+                    <p className="font-bold text-slate-900 dark:text-slate-100 text-sm">
+                      {selectedLoanDetail.borrower?.name || "Hamza Malik (Student)"}
+                    </p>
+                    <p className="text-xs text-slate-500 font-mono">
+                      Role: {selectedLoanDetail.issue.borrower_type?.toUpperCase() || "STUDENT"}
+                    </p>
+                    <p className="text-xs text-slate-500 font-mono">
+                      Code / Roll: {selectedLoanDetail.borrower?.code || "#1001"}
                     </p>
                   </div>
-                </div>
-              </div>
 
-              {/* BORROWER & SCHEDULE SUMMARY */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl border border-slate-200/80 dark:border-slate-800 space-y-2">
-                  <p className="text-xs font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400 flex items-center gap-1.5">
-                    <User className="h-4 w-4" /> Borrower Info
-                  </p>
-                  <p className="font-bold text-slate-900 dark:text-slate-100 text-sm">
-                    {selectedLoanDetail.borrower?.name || "Hamza Malik (Student)"}
-                  </p>
-                  <p className="text-xs text-slate-500 font-mono">
-                    Role: {selectedLoanDetail.issue.borrower_type?.toUpperCase() || "STUDENT"}
-                  </p>
-                  <p className="text-xs text-slate-500 font-mono">
-                    Code / Roll: {selectedLoanDetail.borrower?.code || "#1001"}
-                  </p>
-                </div>
-
-                <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl border border-slate-200/80 dark:border-slate-800 space-y-2">
-                  <p className="text-xs font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
-                    <Clock className="h-4 w-4" /> Loan Schedule & Fine
-                  </p>
-                  <div className="text-xs space-y-1">
-                    <p className="text-slate-600 dark:text-slate-400">Issue Date: <span className="font-semibold text-slate-900 dark:text-slate-100">{selectedLoanDetail.issue.issue_date || "2026-07-24"}</span></p>
-                    <p className="text-slate-600 dark:text-slate-400">Due Date: <span className="font-semibold text-blue-600 dark:text-blue-400">{selectedLoanDetail.issue.due_date}</span></p>
-                    <p className="text-slate-600 dark:text-slate-400">Fine Accrued: <span className="font-semibold text-rose-600">{selectedLoanDetail.issue.fine_amount > 0 ? `PKR ${selectedLoanDetail.issue.fine_amount.toFixed(2)}` : "PKR 0.00 (None)"}</span></p>
+                  <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl border border-slate-200/80 dark:border-slate-800 space-y-2">
+                    <p className="text-xs font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
+                      <Clock className="h-4 w-4" /> Loan Schedule & Fine Policy
+                    </p>
+                    <div className="text-xs space-y-1">
+                      <p className="text-slate-600 dark:text-slate-400">Issue Date: <span className="font-semibold text-slate-900 dark:text-slate-100">{selectedLoanDetail.issue.issue_date || "2026-07-24"}</span></p>
+                      <p className="text-slate-600 dark:text-slate-400">Due Date: <span className={`font-semibold ${isOverdue ? "text-rose-600" : "text-blue-600"}`}>{selectedLoanDetail.issue.due_date}</span></p>
+                      <p className="text-slate-600 dark:text-slate-400">Fine Rate: <span className="font-semibold text-amber-600">PKR {dailyRate.toFixed(2)} / day</span></p>
+                      <p className="text-slate-600 dark:text-slate-400">
+                        Fine Accrued: <span className={`font-bold ${currentFine > 0 ? "text-rose-600" : "text-emerald-600"}`}>
+                          {currentFine > 0 ? `PKR ${currentFine.toFixed(2)} (${daysLate} days overdue)` : "PKR 0.00 (On Time)"}
+                        </span>
+                      </p>
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              {/* MODAL FOOTER ACTIONS */}
-              <div className="flex items-center justify-end gap-3 pt-2">
-                {selectedLoanDetail.issue.status !== "returned" && (
-                  <Button
-                    onClick={() => {
-                      const id = selectedLoanDetail.issue.id;
-                      setSelectedLoanDetail(null);
-                      handleReturnBook(id);
-                    }}
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
-                  >
-                    <Check className="h-4 w-4 mr-1.5" /> Return Book Now
+                {/* MODAL FOOTER ACTIONS */}
+                <div className="flex items-center justify-end gap-3 pt-2">
+                  {selectedLoanDetail.issue.status !== "returned" && (
+                    <Button
+                      onClick={() => {
+                        const id = selectedLoanDetail.issue.id;
+                        setSelectedLoanDetail(null);
+                        handleReturnBook(id);
+                      }}
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
+                    >
+                      <Check className="h-4 w-4 mr-1.5" /> Return Book Now
+                    </Button>
+                  )}
+                  <Button variant="outline" onClick={() => setSelectedLoanDetail(null)}>
+                    Close Passport
                   </Button>
-                )}
-                <Button variant="outline" onClick={() => setSelectedLoanDetail(null)}>
-                  Close Passport
-                </Button>
+                </div>
               </div>
-            </div>
-          </DialogContent>
-        )}
+            </DialogContent>
+          );
+        })()}
       </Dialog>
     </div>
   );
