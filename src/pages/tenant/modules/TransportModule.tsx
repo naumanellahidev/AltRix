@@ -530,120 +530,122 @@ export function TransportModule() {
   );
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto">
-      {/* ─── Hero Header Banner ──────────────────────────── */}
-      <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl bg-gradient-to-br from-slate-900 via-indigo-950 to-blue-950 text-white p-4 sm:p-6 md:p-7 shadow-xl border border-indigo-500/20">
-        <div className="absolute right-0 top-0 -mt-8 -mr-8 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute left-1/3 bottom-0 w-48 h-48 bg-blue-500/10 rounded-full blur-2xl pointer-events-none" />
-
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-3.5 sm:gap-5">
+    <div className="space-y-4 sm:space-y-6 max-w-7xl mx-auto p-2.5 sm:p-6">
+      {/* 🌟 Executive Header Banner */}
+      <div className="bg-gradient-to-r from-blue-700 via-indigo-600 to-purple-700 text-white rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-xl shadow-blue-500/10 border border-blue-400/20">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-3 sm:gap-4">
-            <div className="p-2.5 sm:p-3.5 bg-gradient-to-br from-indigo-500 to-blue-600 rounded-xl sm:rounded-2xl shadow-md shadow-indigo-500/30 border border-white/10 shrink-0">
-              <Bus className="h-5 w-5 sm:h-8 sm:w-8 text-white" />
+            <div className="p-3 sm:p-3.5 bg-white/10 rounded-2xl backdrop-blur-md border border-white/20 shrink-0 shadow-inner">
+              <Bus className="h-6 w-6 sm:h-8 sm:w-8 text-blue-100" />
             </div>
-            <div className="min-w-0">
+            <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-base sm:text-2xl md:text-3xl font-extrabold tracking-tight truncate sm:whitespace-normal">Fleet & Transport Logistics</h1>
-                <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30 text-[9px] sm:text-[10px] uppercase font-bold tracking-widest hidden md:inline-flex">
-                  Live
-                </Badge>
+                <h1 className="text-xl sm:text-3xl font-bold tracking-tight">Fleet & Transport Logistics</h1>
+                <Badge className="bg-white/20 text-white border-white/30 text-[10px] sm:text-xs">Live Telematics</Badge>
               </div>
-              <p className="text-indigo-200/90 text-[11px] sm:text-xs md:text-sm mt-0.5 sm:mt-1 line-clamp-2 sm:line-clamp-none leading-relaxed">
+              <p className="text-blue-100 text-xs sm:text-sm mt-1">
                 Manage transit lines, designated pickup stops, school bus fleet capacity, and real-time passenger rosters.
               </p>
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 shrink-0 w-full sm:w-auto">
+          <div className="flex flex-wrap items-center gap-2">
             <Button
               size="sm"
-              onClick={handleOpenAddRoute}
-              className="flex-1 sm:flex-initial bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-xl text-xs h-8.5 sm:h-9.5 px-2.5 sm:px-3.5 shadow-md shadow-indigo-600/30 border border-indigo-400/30 transition-all hover:scale-[1.02]"
+              onClick={handleOpenAssignModal}
+              className="bg-white/15 hover:bg-white/25 text-white border border-white/25 rounded-xl text-xs h-9 font-semibold shadow-xs"
             >
-              <MapPin className="h-3.5 w-3.5 mr-1" /> + Add Route
+              <Users className="h-3.5 w-3.5 mr-1.5 text-blue-200" /> Assign Passenger
             </Button>
             <Button
               size="sm"
               onClick={handleOpenAddBus}
-              className="flex-1 sm:flex-initial bg-white hover:bg-blue-50 text-slate-900 font-bold rounded-xl text-xs h-8.5 sm:h-9.5 px-2.5 sm:px-3.5 shadow-md transition-all hover:scale-[1.02]"
+              className="bg-white/15 hover:bg-white/25 text-white border border-white/25 rounded-xl text-xs h-9 font-semibold shadow-xs"
             >
-              <Bus className="h-3.5 w-3.5 mr-1 text-blue-600" /> + Add Bus
+              <Bus className="h-3.5 w-3.5 mr-1.5 text-blue-200" /> Add Bus
             </Button>
             <Button
               size="sm"
-              onClick={handleOpenAssignModal}
-              variant="outline"
-              className="w-full sm:w-auto bg-white/10 hover:bg-white/20 text-white border-white/20 rounded-xl text-xs h-8.5 sm:h-9.5 px-2.5 sm:px-3"
+              onClick={handleOpenAddRoute}
+              className="bg-white text-blue-700 hover:bg-blue-50 font-bold shadow-md rounded-xl text-xs h-9"
             >
-              <Users className="h-3.5 w-3.5 mr-1" /> Assign Passenger
+              <Plus className="h-3.5 w-3.5 mr-1.5" /> Add Route
             </Button>
           </div>
         </div>
       </div>
 
-      {/* ─── Metric KPI Cards ──────────────────────────── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 md:gap-4">
+      {/* 🌟 KPI Stat Cards (Responsive & Non-Truncating) */}
+      <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {/* Active Fleet */}
-        <Card className="rounded-xl sm:rounded-2xl md:rounded-3xl bg-surface p-2.5 sm:p-4 md:p-5 shadow-elevated border border-transparent hover:border-blue-500/30 transition-all">
-          <div className="flex items-center justify-between">
-            <p className="text-[10px] sm:text-xs font-semibold text-muted-foreground uppercase tracking-tight sm:tracking-wider truncate">Fleet Vehicles</p>
-            <div className="h-6 w-6 sm:h-8 sm:w-8 rounded-lg sm:rounded-xl bg-blue-50 dark:bg-blue-950/50 text-blue-600 flex items-center justify-center shrink-0">
-              <Bus className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+        <Card className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm p-3.5 sm:p-4.5 hover:shadow-md transition-all rounded-2xl flex flex-col justify-between min-h-[105px]">
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <p className="text-[10px] sm:text-xs font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Fleet Vehicles</p>
+              <p className="text-xl sm:text-2xl font-black text-slate-900 dark:text-slate-100 mt-1">
+                {summary.total_fleet} <span className="text-xs sm:text-sm font-semibold text-slate-500">Buses</span>
+              </p>
+            </div>
+            <div className="p-2 sm:p-2.5 rounded-xl bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-900/50 shrink-0">
+              <Bus className="h-4 w-4 sm:h-5 sm:w-5" />
             </div>
           </div>
-          <p className="mt-1 sm:mt-2 font-display text-base sm:text-xl md:text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100 truncate">
-            {summary.total_fleet} <span className="text-[10px] sm:text-xs font-normal text-muted-foreground">Buses</span>
-          </p>
-          <p className="mt-0.5 sm:mt-1 text-[10px] sm:text-[11px] text-muted-foreground flex items-center gap-1 truncate">
+          <p className="text-[10px] sm:text-xs text-emerald-600 dark:text-emerald-400 font-bold mt-2 truncate flex items-center gap-1">
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 inline-block shrink-0" />
-            <span className="truncate">{summary.active_fleet} in service</span>
+            {summary.active_fleet} in service
           </p>
         </Card>
 
         {/* Total Routes */}
-        <Card className="rounded-xl sm:rounded-2xl md:rounded-3xl bg-surface p-2.5 sm:p-4 md:p-5 shadow-elevated border border-transparent hover:border-indigo-500/30 transition-all">
-          <div className="flex items-center justify-between">
-            <p className="text-[10px] sm:text-xs font-semibold text-muted-foreground uppercase tracking-tight sm:tracking-wider truncate">Transit Lines</p>
-            <div className="h-6 w-6 sm:h-8 sm:w-8 rounded-lg sm:rounded-xl bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 flex items-center justify-center shrink-0">
-              <MapPin className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+        <Card className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm p-3.5 sm:p-4.5 hover:shadow-md transition-all rounded-2xl flex flex-col justify-between min-h-[105px]">
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <p className="text-[10px] sm:text-xs font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Transit Lines</p>
+              <p className="text-xl sm:text-2xl font-black text-indigo-600 dark:text-indigo-400 mt-1">
+                {summary.total_routes} <span className="text-xs sm:text-sm font-semibold text-slate-500">Routes</span>
+              </p>
+            </div>
+            <div className="p-2 sm:p-2.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-900/50 shrink-0">
+              <MapPin className="h-4 w-4 sm:h-5 sm:w-5" />
             </div>
           </div>
-          <p className="mt-1 sm:mt-2 font-display text-base sm:text-xl md:text-2xl font-bold tracking-tight text-indigo-600 dark:text-indigo-400 truncate">
-            {summary.total_routes} <span className="text-[10px] sm:text-xs font-normal text-muted-foreground">Routes</span>
-          </p>
-          <p className="mt-0.5 sm:mt-1 text-[10px] sm:text-[11px] text-muted-foreground truncate">
+          <p className="text-[10px] sm:text-xs text-slate-500 font-semibold mt-2 truncate">
             {summary.total_stops} pickup stops
           </p>
         </Card>
 
         {/* Total Seating Capacity */}
-        <Card className="rounded-xl sm:rounded-2xl md:rounded-3xl bg-surface p-2.5 sm:p-4 md:p-5 shadow-elevated border border-transparent hover:border-emerald-500/30 transition-all">
-          <div className="flex items-center justify-between">
-            <p className="text-[10px] sm:text-xs font-semibold text-muted-foreground uppercase tracking-tight sm:tracking-wider truncate">Total Capacity</p>
-            <div className="h-6 w-6 sm:h-8 sm:w-8 rounded-lg sm:rounded-xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 flex items-center justify-center shrink-0">
-              <ShieldCheck className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+        <Card className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm p-3.5 sm:p-4.5 hover:shadow-md transition-all rounded-2xl flex flex-col justify-between min-h-[105px]">
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <p className="text-[10px] sm:text-xs font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Total Capacity</p>
+              <p className="text-xl sm:text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-1">
+                {summary.total_capacity} <span className="text-xs sm:text-sm font-semibold text-slate-500">Seats</span>
+              </p>
+            </div>
+            <div className="p-2 sm:p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-900/50 shrink-0">
+              <ShieldCheck className="h-4 w-4 sm:h-5 sm:w-5" />
             </div>
           </div>
-          <p className="mt-1 sm:mt-2 font-display text-base sm:text-xl md:text-2xl font-bold tracking-tight text-emerald-600 dark:text-emerald-400 truncate">
-            {summary.total_capacity} <span className="text-[10px] sm:text-xs font-normal text-muted-foreground">Seats</span>
-          </p>
-          <p className="mt-0.5 sm:mt-1 text-[10px] sm:text-[11px] text-muted-foreground truncate">
+          <p className="text-[10px] sm:text-xs text-slate-500 font-semibold mt-2 truncate">
             Passenger capacity
           </p>
         </Card>
 
         {/* Assigned Passengers */}
-        <Card className="rounded-xl sm:rounded-2xl md:rounded-3xl bg-surface p-2.5 sm:p-4 md:p-5 shadow-elevated border border-transparent hover:border-violet-500/30 transition-all">
-          <div className="flex items-center justify-between">
-            <p className="text-[10px] sm:text-xs font-semibold text-muted-foreground uppercase tracking-tight sm:tracking-wider truncate">Passengers</p>
-            <div className="h-6 w-6 sm:h-8 sm:w-8 rounded-lg sm:rounded-xl bg-violet-50 dark:bg-violet-950/50 text-violet-600 flex items-center justify-center shrink-0">
-              <Users className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+        <Card className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm p-3.5 sm:p-4.5 hover:shadow-md transition-all rounded-2xl flex flex-col justify-between min-h-[105px]">
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <p className="text-[10px] sm:text-xs font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Passengers</p>
+              <p className="text-xl sm:text-2xl font-black text-blue-600 dark:text-blue-400 mt-1">
+                {summary.total_passengers} <span className="text-xs sm:text-sm font-semibold text-slate-500">Students</span>
+              </p>
+            </div>
+            <div className="p-2 sm:p-2.5 rounded-xl bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-900/50 shrink-0">
+              <Users className="h-4 w-4 sm:h-5 sm:w-5" />
             </div>
           </div>
-          <p className="mt-1 sm:mt-2 font-display text-base sm:text-xl md:text-2xl font-bold tracking-tight text-violet-600 dark:text-violet-400 truncate">
-            {summary.total_passengers} <span className="text-[10px] sm:text-xs font-normal text-muted-foreground">Students</span>
-          </p>
-          <p className="mt-0.5 sm:mt-1 text-[10px] sm:text-[11px] text-muted-foreground truncate">
+          <p className="text-[10px] sm:text-xs text-slate-500 font-semibold mt-2 truncate">
             Enrolled roster
           </p>
         </Card>
@@ -651,28 +653,28 @@ export function TransportModule() {
 
       {/* ─── Navigation Tabs & Controls ──────────────────────────── */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-surface p-2 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xs">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white dark:bg-slate-900 p-2.5 sm:p-3 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm">
           <div className="overflow-x-auto no-scrollbar -mx-1 px-1">
-            <TabsList className="inline-flex w-full sm:w-auto p-1 rounded-xl bg-slate-100 dark:bg-slate-800/80">
+            <TabsList className="inline-flex w-full sm:w-auto p-1 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
               <TabsTrigger
                 value="routes"
-                className="flex-1 sm:flex-initial data-[state=active]:bg-white dark:data-[state=active]:bg-slate-900 data-[state=active]:text-indigo-600 data-[state=active]:shadow-xs font-bold text-xs rounded-lg whitespace-nowrap px-3.5 py-1.5"
+                className="flex-1 sm:flex-initial data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-sm font-bold text-xs rounded-lg whitespace-nowrap py-1.5 px-3"
               >
-                <MapPin className="h-3.5 w-3.5 mr-1.5 text-indigo-500" />
+                <MapPin className="h-3.5 w-3.5 mr-1.5" />
                 Routes & Stops ({routes.length})
               </TabsTrigger>
               <TabsTrigger
                 value="fleet"
-                className="flex-1 sm:flex-initial data-[state=active]:bg-white dark:data-[state=active]:bg-slate-900 data-[state=active]:text-blue-600 data-[state=active]:shadow-xs font-bold text-xs rounded-lg whitespace-nowrap px-3.5 py-1.5"
+                className="flex-1 sm:flex-initial data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-sm font-bold text-xs rounded-lg whitespace-nowrap py-1.5 px-3"
               >
-                <Bus className="h-3.5 w-3.5 mr-1.5 text-blue-500" />
+                <Bus className="h-3.5 w-3.5 mr-1.5" />
                 Fleet Vehicles ({fleet.length})
               </TabsTrigger>
               <TabsTrigger
                 value="assignments"
-                className="flex-1 sm:flex-initial data-[state=active]:bg-white dark:data-[state=active]:bg-slate-900 data-[state=active]:text-violet-600 data-[state=active]:shadow-xs font-bold text-xs rounded-lg whitespace-nowrap px-3.5 py-1.5"
+                className="flex-1 sm:flex-initial data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-sm font-bold text-xs rounded-lg whitespace-nowrap py-1.5 px-3"
               >
-                <Users className="h-3.5 w-3.5 mr-1.5 text-violet-500" />
+                <Users className="h-3.5 w-3.5 mr-1.5" />
                 Passenger Roster ({assignments.length})
               </TabsTrigger>
             </TabsList>
@@ -685,17 +687,17 @@ export function TransportModule() {
                 placeholder="Search routes, stops, bus plate, driver..."
                 value={search}
                 onChange={e => setSearch(e.target.value)}
-                className="pl-8.5 h-9 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-xs rounded-xl focus-visible:ring-indigo-500"
+                className="pl-8.5 h-9 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-xs rounded-xl focus-visible:ring-blue-500"
               />
             </div>
             <Button
               variant="outline"
               size="icon"
               onClick={loadTransportData}
-              className="h-9 w-9 border-slate-200 dark:border-slate-700 rounded-xl shrink-0 hover:bg-slate-100"
+              className="h-9 w-9 border-slate-200 dark:border-slate-700 rounded-xl shrink-0 hover:bg-slate-100 dark:hover:bg-slate-800"
               title="Refresh Data"
             >
-              <RefreshCw className={`h-4 w-4 text-slate-600 ${loading ? "animate-spin" : ""}`} />
+              <RefreshCw className={`h-4 w-4 text-slate-600 dark:text-slate-300 ${loading ? "animate-spin" : ""}`} />
             </Button>
           </div>
         </div>
@@ -704,11 +706,11 @@ export function TransportModule() {
             TAB 1: ROUTES & DESIGNATED STOPS
         ════════════════════════════════════════════════════════════════════ */}
         <TabsContent value="routes" className="space-y-4 mt-0">
-          <Card className="bg-surface border border-slate-200/80 dark:border-slate-800 shadow-sm rounded-3xl overflow-hidden">
-            <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800/80 p-5">
+          <Card className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm rounded-2xl sm:rounded-3xl overflow-hidden">
+            <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800/80 p-4 sm:p-5">
               <div>
                 <CardTitle className="text-base sm:text-lg font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                  <MapPin className="h-5 w-5 text-indigo-600" /> Transport Routes & Stops Master Roster
+                  <MapPin className="h-5 w-5 text-blue-600" /> Transport Routes & Stops Master Roster
                 </CardTitle>
                 <p className="text-xs text-muted-foreground mt-0.5">
                   Click any route's stop badge to manage or add designated pickup locations.
@@ -716,23 +718,23 @@ export function TransportModule() {
               </div>
               <Button
                 onClick={handleOpenAddRoute}
-                className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs h-9 px-3.5 rounded-xl shadow-xs shrink-0"
+                className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs h-9 px-3.5 rounded-xl shadow-sm shrink-0"
               >
-                <Plus className="h-4 w-4 mr-1.5" /> + New Route
+                <Plus className="h-3.5 w-3.5 mr-1.5" /> Add Route
               </Button>
             </CardHeader>
 
             <CardContent className="p-0">
               {filteredRoutes.length === 0 ? (
                 <div className="text-center py-16 px-4">
-                  <div className="h-16 w-16 bg-indigo-50 dark:bg-indigo-950/50 rounded-3xl flex items-center justify-center mx-auto mb-3 border border-indigo-100 dark:border-indigo-900/50">
-                    <MapPin className="h-8 w-8 text-indigo-500" />
+                  <div className="h-16 w-16 bg-blue-50 dark:bg-blue-950/50 rounded-3xl flex items-center justify-center mx-auto mb-3 border border-blue-100 dark:border-blue-900/50">
+                    <MapPin className="h-8 w-8 text-blue-500" />
                   </div>
                   <p className="font-bold text-slate-800 dark:text-slate-200 text-base">No Transport Routes Found</p>
                   <p className="text-xs text-slate-500 max-w-sm mx-auto mt-1">
                     Define transit lines with origin, destination, monthly fare, and designated pickup stops.
                   </p>
-                  <Button onClick={handleOpenAddRoute} size="sm" className="mt-4 bg-indigo-600 text-white rounded-xl text-xs">
+                  <Button onClick={handleOpenAddRoute} size="sm" className="mt-4 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold">
                     <Plus className="h-3.5 w-3.5 mr-1" /> Create First Route
                   </Button>
                 </div>
@@ -755,12 +757,12 @@ export function TransportModule() {
                         return (
                           <TableRow
                             key={r.id}
-                            className="hover:bg-indigo-50/40 dark:hover:bg-slate-800/40 transition-colors group"
+                            className="hover:bg-blue-50/40 dark:hover:bg-slate-800/40 transition-colors group"
                           >
                             {/* Route Code & Tag */}
                             <TableCell className="py-3.5 px-4 whitespace-nowrap">
                               <div className="flex items-center gap-2">
-                                <span className="font-mono font-extrabold text-xs px-2.5 py-1 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 shadow-2xs">
+                                <span className="font-mono font-extrabold text-xs px-2.5 py-1 rounded-lg bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 shadow-2xs">
                                   {r.route_code}
                                 </span>
                                 <Badge variant="outline" className="text-[10px] font-semibold text-slate-600 dark:text-slate-400 bg-surface">
@@ -772,7 +774,7 @@ export function TransportModule() {
                             {/* Route Name & Start-End Visual Path */}
                             <TableCell className="py-3.5 px-4 whitespace-nowrap">
                               <div className="flex flex-col">
-                                <span className="font-bold text-sm text-slate-900 dark:text-slate-100 group-hover:text-indigo-600 transition-colors">
+                                <span className="font-bold text-sm text-slate-900 dark:text-slate-100 group-hover:text-blue-600 transition-colors">
                                   {r.route_name}
                                 </span>
                                 <div className="flex items-center gap-1.5 text-xs text-slate-500 mt-1">
@@ -780,7 +782,7 @@ export function TransportModule() {
                                     <span className="h-1.5 w-1.5 rounded-full bg-blue-500" />
                                     {r.start_point}
                                   </span>
-                                  <ArrowRight className="h-3 w-3 text-indigo-400" />
+                                  <ArrowRight className="h-3 w-3 text-blue-400" />
                                   <span className="inline-flex items-center gap-1 font-medium text-slate-700 dark:text-slate-300">
                                     <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
                                     {r.end_point}
@@ -795,12 +797,12 @@ export function TransportModule() {
                                 onClick={() => handleOpenStopsModal(r)}
                                 className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all shadow-2xs cursor-pointer border ${
                                   stopCount > 0
-                                    ? "bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100 hover:scale-105"
+                                    ? "bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800 hover:bg-blue-100 hover:scale-105"
                                     : "bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800 hover:bg-amber-100 animate-pulse"
                                 }`}
                                 title="Click to view and manage designated pickup stops"
                               >
-                                <MapPin className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400" />
+                                <MapPin className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
                                 <span>{stopCount} {stopCount === 1 ? "Stop" : "Stops"}</span>
                                 <span className="text-[10px] font-extrabold opacity-75 underline ml-1">Manage</span>
                               </button>
@@ -846,7 +848,7 @@ export function TransportModule() {
                                   size="sm"
                                   variant="outline"
                                   onClick={() => handleOpenStopsModal(r)}
-                                  className="h-8 px-2.5 text-xs text-indigo-700 bg-indigo-50/60 hover:bg-indigo-100 border-indigo-200 rounded-lg"
+                                  className="h-8 px-2.5 text-xs text-blue-700 bg-blue-50/60 hover:bg-blue-100 border-blue-200 rounded-lg"
                                   title="Add/Edit Stops"
                                 >
                                   <MapPin className="h-3.5 w-3.5 mr-1" /> Stops
@@ -855,7 +857,7 @@ export function TransportModule() {
                                   size="sm"
                                   variant="ghost"
                                   onClick={() => handleOpenEditRoute(r)}
-                                  className="h-8 w-8 p-0 text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg"
+                                  className="h-8 w-8 p-0 text-slate-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg"
                                   title="Edit Route Details"
                                 >
                                   <Edit3 className="h-3.5 w-3.5" />
@@ -886,8 +888,8 @@ export function TransportModule() {
             TAB 2: FLEET VEHICLES
         ════════════════════════════════════════════════════════════════════ */}
         <TabsContent value="fleet" className="space-y-4 mt-0">
-          <Card className="bg-surface border border-slate-200/80 dark:border-slate-800 shadow-sm rounded-3xl overflow-hidden">
-            <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800/80 p-5">
+          <Card className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm rounded-2xl sm:rounded-3xl overflow-hidden">
+            <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800/80 p-4 sm:p-5">
               <div>
                 <CardTitle className="text-base sm:text-lg font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
                   <Bus className="h-5 w-5 text-blue-600" /> School Bus Fleet & Driver Roster
@@ -898,9 +900,9 @@ export function TransportModule() {
               </div>
               <Button
                 onClick={handleOpenAddBus}
-                className="bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs h-9 px-3.5 rounded-xl shadow-xs shrink-0"
+                className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs h-9 px-3.5 rounded-xl shadow-sm shrink-0"
               >
-                <Plus className="h-4 w-4 mr-1.5" /> + Register Bus
+                <Plus className="h-3.5 w-3.5 mr-1.5" /> Register Bus
               </Button>
             </CardHeader>
 
@@ -914,7 +916,7 @@ export function TransportModule() {
                   <p className="text-xs text-slate-500 max-w-sm mx-auto mt-1">
                     Add school buses, vans, or coasters with license plate, seating capacity, and driver contact.
                   </p>
-                  <Button onClick={handleOpenAddBus} size="sm" className="mt-4 bg-blue-600 text-white rounded-xl text-xs">
+                  <Button onClick={handleOpenAddBus} size="sm" className="mt-4 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold">
                     <Plus className="h-3.5 w-3.5 mr-1" /> Add First Bus
                   </Button>
                 </div>
@@ -976,8 +978,8 @@ export function TransportModule() {
                             {/* Assigned Route */}
                             <TableCell className="py-3.5 px-4 whitespace-nowrap">
                               {v.assigned_route_name ? (
-                                <Badge variant="outline" className="bg-indigo-50/80 text-indigo-700 border-indigo-200 font-semibold text-xs py-1">
-                                  <MapPin className="h-3 w-3 mr-1 text-indigo-500" />
+                                <Badge variant="outline" className="bg-blue-50/80 text-blue-700 border-blue-200 font-semibold text-xs py-1">
+                                  <MapPin className="h-3 w-3 mr-1 text-blue-500" />
                                   {v.assigned_route_name}
                                 </Badge>
                               ) : (
@@ -1058,11 +1060,11 @@ export function TransportModule() {
             TAB 3: PASSENGER ASSIGNMENTS ROSTER
         ════════════════════════════════════════════════════════════════════ */}
         <TabsContent value="assignments" className="space-y-4 mt-0">
-          <Card className="bg-surface border border-slate-200/80 dark:border-slate-800 shadow-sm rounded-3xl overflow-hidden">
-            <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800/80 p-5">
+          <Card className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm rounded-2xl sm:rounded-3xl overflow-hidden">
+            <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800/80 p-4 sm:p-5">
               <div>
                 <CardTitle className="text-base sm:text-lg font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                  <Users className="h-5 w-5 text-violet-600" /> Student Transport Passenger Roster
+                  <Users className="h-5 w-5 text-blue-600" /> Student Transport Passenger Roster
                 </CardTitle>
                 <p className="text-xs text-muted-foreground mt-0.5">
                   Assigned students, designated pickup stop, and round-trip transport subscriptions.
@@ -1070,23 +1072,23 @@ export function TransportModule() {
               </div>
               <Button
                 onClick={handleOpenAssignModal}
-                className="bg-violet-600 hover:bg-violet-500 text-white font-bold text-xs h-9 px-3.5 rounded-xl shadow-xs shrink-0"
+                className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs h-9 px-3.5 rounded-xl shadow-sm shrink-0"
               >
-                <Plus className="h-4 w-4 mr-1.5" /> + Assign Student
+                <Plus className="h-3.5 w-3.5 mr-1.5" /> Assign Student
               </Button>
             </CardHeader>
 
             <CardContent className="p-0">
               {filteredAssignments.length === 0 ? (
                 <div className="text-center py-16 px-4">
-                  <div className="h-16 w-16 bg-violet-50 dark:bg-violet-950/50 rounded-3xl flex items-center justify-center mx-auto mb-3 border border-violet-100 dark:border-violet-900/50">
-                    <Users className="h-8 w-8 text-violet-500" />
+                  <div className="h-16 w-16 bg-blue-50 dark:bg-blue-950/50 rounded-3xl flex items-center justify-center mx-auto mb-3 border border-blue-100 dark:border-blue-900/50">
+                    <Users className="h-8 w-8 text-blue-500" />
                   </div>
                   <p className="font-bold text-slate-800 dark:text-slate-200 text-base">No Assigned Student Passengers</p>
                   <p className="text-xs text-slate-500 max-w-sm mx-auto mt-1">
                     Assign enrolled students to specific routes and pickup stops for bus attendance and tracking.
                   </p>
-                  <Button onClick={handleOpenAssignModal} size="sm" className="mt-4 bg-violet-600 text-white rounded-xl text-xs">
+                  <Button onClick={handleOpenAssignModal} size="sm" className="mt-4 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold">
                     <Plus className="h-3.5 w-3.5 mr-1" /> Assign First Student
                   </Button>
                 </div>
@@ -1104,10 +1106,10 @@ export function TransportModule() {
                     </TableHeader>
                     <TableBody className="divide-y divide-slate-100 dark:divide-slate-800/60">
                       {filteredAssignments.map((a) => (
-                        <TableRow key={a.id} className="hover:bg-violet-50/40 dark:hover:bg-slate-800/40 transition-colors">
+                        <TableRow key={a.id} className="hover:bg-blue-50/40 dark:hover:bg-slate-800/40 transition-colors">
                           <TableCell className="py-3.5 px-4 whitespace-nowrap">
                             <div className="flex items-center gap-2.5">
-                              <div className="h-8 w-8 rounded-full bg-violet-100 text-violet-700 font-extrabold text-xs flex items-center justify-center shrink-0 border border-violet-200">
+                              <div className="h-8 w-8 rounded-full bg-blue-100 text-blue-700 font-extrabold text-xs flex items-center justify-center shrink-0 border border-blue-200">
                                 {a.student_name.slice(0, 2).toUpperCase()}
                               </div>
                               <div className="flex flex-col">
@@ -1122,7 +1124,7 @@ export function TransportModule() {
                           </TableCell>
 
                           <TableCell className="py-3.5 px-4 whitespace-nowrap">
-                            <Badge variant="outline" className="bg-indigo-50 text-indigo-700 border-indigo-200 font-semibold text-xs">
+                            <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 font-semibold text-xs">
                               {a.route_code ? `${a.route_code} - ` : ""}{a.route_name}
                             </Badge>
                           </TableCell>
@@ -1168,7 +1170,7 @@ export function TransportModule() {
       <Dialog open={showRouteModal} onOpenChange={setShowRouteModal}>
         <DialogContent className="bg-surface border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 rounded-2xl sm:rounded-3xl w-[calc(100vw-1.5rem)] sm:max-w-2xl max-h-[90vh] overflow-y-auto overflow-x-hidden p-4 sm:p-6 shadow-2xl">
           <DialogHeader className="pr-8 text-left">
-            <DialogTitle className="text-indigo-700 dark:text-indigo-400 font-extrabold text-base sm:text-lg flex items-center gap-2">
+            <DialogTitle className="text-blue-700 dark:text-blue-400 font-extrabold text-base sm:text-lg flex items-center gap-2">
               <MapPin className="h-5 w-5" /> {editingRouteId ? "Edit Transport Route & Stops" : "Register New Transport Route"}
             </DialogTitle>
           </DialogHeader>
@@ -1256,7 +1258,7 @@ export function TransportModule() {
               <select
                 value={routeForm.vehicle_id}
                 onChange={e => setRouteForm({ ...routeForm, vehicle_id: e.target.value })}
-                className="w-full mt-1 h-9 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 text-xs focus:ring-2 focus:ring-indigo-500"
+                className="w-full mt-1 h-9 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 text-xs focus:ring-2 focus:ring-blue-500"
               >
                 <option value="">-- No Bus Assigned (Standby) --</option>
                 {fleet.map(v => (
@@ -1271,7 +1273,7 @@ export function TransportModule() {
             <div className="pt-2 border-t border-slate-200 dark:border-slate-800">
               <div className="flex items-center justify-between mb-2.5">
                 <div>
-                  <Label className="text-xs font-extrabold text-indigo-700 dark:text-indigo-400 flex items-center gap-1.5">
+                  <Label className="text-xs font-extrabold text-blue-700 dark:text-blue-400 flex items-center gap-1.5">
                     <MapPin className="h-4 w-4" /> Designated Pickup Stops ({routeForm.stops.length})
                   </Label>
                   <p className="text-[11px] text-muted-foreground">
@@ -1283,7 +1285,7 @@ export function TransportModule() {
                   size="sm"
                   variant="outline"
                   onClick={handleAddInlineStop}
-                  className="h-8 text-xs font-bold text-indigo-600 bg-indigo-50 border-indigo-200 hover:bg-indigo-100 rounded-xl"
+                  className="h-8 text-xs font-bold text-blue-600 bg-blue-50 border-blue-200 hover:bg-blue-100 rounded-xl"
                 >
                   <Plus className="h-3.5 w-3.5 mr-1" /> + Add Stop
                 </Button>
@@ -1295,7 +1297,7 @@ export function TransportModule() {
                     key={idx}
                     className="flex items-center gap-2 p-2.5 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/80 dark:border-slate-700"
                   >
-                    <div className="h-6 w-6 rounded-full bg-indigo-600 text-white font-bold text-[11px] flex items-center justify-center shrink-0">
+                    <div className="h-6 w-6 rounded-full bg-blue-600 text-white font-bold text-[11px] flex items-center justify-center shrink-0">
                       {idx + 1}
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 flex-1">
@@ -1348,7 +1350,7 @@ export function TransportModule() {
 
             <Button
               onClick={handleSaveRoute}
-              className="w-full bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-white font-bold rounded-xl sm:rounded-2xl h-10 shadow-md text-xs mt-3"
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl h-10 shadow-sm text-xs mt-3"
             >
               {editingRouteId ? "Save Route & Stops Changes" : "Save Transport Route & All Stops"}
             </Button>
@@ -1365,14 +1367,14 @@ export function TransportModule() {
             <DialogHeader className="pr-8 text-left">
               <div className="flex items-center justify-between">
                 <div>
-                  <DialogTitle className="text-slate-900 dark:text-slate-100 font-extrabold text-base sm:text-lg flex items-center gap-2">
-                    <MapPin className="h-5 w-5 text-indigo-600" /> {selectedRouteForStops.route_code}: {selectedRouteForStops.route_name}
+                  <DialogTitle className="text-blue-700 dark:text-blue-400 font-extrabold text-base sm:text-lg flex items-center gap-2">
+                    <MapPin className="h-5 w-5 text-blue-600" /> {selectedRouteForStops.route_code}: {selectedRouteForStops.route_name}
                   </DialogTitle>
                   <p className="text-xs text-muted-foreground mt-0.5">
                     {selectedRouteForStops.start_point} ➔ {selectedRouteForStops.end_point}
                   </p>
                 </div>
-                <Badge className="bg-indigo-50 text-indigo-700 border-indigo-200 text-xs font-bold shrink-0">
+                <Badge className="bg-blue-50 text-blue-700 border-blue-200 text-xs font-bold shrink-0">
                   {selectedRouteForStops.stops?.length || 0} Stops
                 </Badge>
               </div>
@@ -1380,8 +1382,8 @@ export function TransportModule() {
 
             <div className="space-y-4 pt-3">
               {/* Add New Stop Form */}
-              <div className="p-3 bg-indigo-50/60 dark:bg-slate-800/60 rounded-2xl border border-indigo-100 dark:border-slate-700 space-y-2.5">
-                <Label className="text-xs font-extrabold text-indigo-800 dark:text-indigo-300 flex items-center gap-1.5">
+              <div className="p-3 bg-blue-50/60 dark:bg-slate-800/60 rounded-2xl border border-blue-100 dark:border-slate-700 space-y-2.5">
+                <Label className="text-xs font-extrabold text-blue-800 dark:text-blue-300 flex items-center gap-1.5">
                   <Plus className="h-3.5 w-3.5" /> Add Designated Stop to Route
                 </Label>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
@@ -1407,7 +1409,7 @@ export function TransportModule() {
                 <Button
                   onClick={handleAddStopToRoute}
                   size="sm"
-                  className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl text-xs h-8 shadow-xs"
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs h-8 shadow-xs"
                 >
                   <Plus className="h-3.5 w-3.5 mr-1" /> Add Stop to Route
                 </Button>
@@ -1426,10 +1428,10 @@ export function TransportModule() {
                     return (
                       <div
                         key={stop.id || idx}
-                        className="flex items-center justify-between p-2.5 sm:p-3 bg-surface rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xs hover:border-indigo-300 transition-all"
+                        className="flex items-center justify-between p-2.5 sm:p-3 bg-surface rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xs hover:border-blue-300 transition-all"
                       >
                         <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
-                          <div className="h-6 w-6 sm:h-7 sm:w-7 rounded-full bg-indigo-100 text-indigo-700 font-extrabold text-xs flex items-center justify-center shrink-0 border border-indigo-200">
+                          <div className="h-6 w-6 sm:h-7 sm:w-7 rounded-full bg-blue-100 text-blue-700 font-extrabold text-xs flex items-center justify-center shrink-0 border border-blue-200">
                             {stop.stop_order || idx + 1}
                           </div>
 
@@ -1461,7 +1463,7 @@ export function TransportModule() {
                                 {stop.stop_name}
                               </span>
                               <div className="flex items-center gap-2 text-[10px] sm:text-[11px] text-slate-500 mt-0.5">
-                                <span className="inline-flex items-center gap-1 font-mono text-indigo-600 dark:text-indigo-400">
+                                <span className="inline-flex items-center gap-1 font-mono text-blue-600 dark:text-blue-400">
                                   <Clock className="h-3 w-3" />
                                   {stop.estimated_arrival_time || stop.estimated_morning_time || "07:30 AM"}
                                 </span>
@@ -1509,7 +1511,7 @@ export function TransportModule() {
                                     landmark: stop.landmark,
                                   });
                                 }}
-                                className="h-7 w-7 p-0 text-slate-500 hover:text-indigo-600 rounded-lg"
+                                className="h-7 w-7 p-0 text-slate-500 hover:text-blue-600 rounded-lg"
                               >
                                 <Edit3 className="h-3.5 w-3.5" />
                               </Button>
@@ -1631,7 +1633,7 @@ export function TransportModule() {
 
             <Button
               onClick={handleSaveBus}
-              className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold rounded-xl sm:rounded-2xl h-10 shadow-md text-xs mt-2"
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl h-10 shadow-sm text-xs mt-2"
             >
               {editingBusId ? "Update Vehicle Record" : "Save Vehicle to Fleet"}
             </Button>
@@ -1645,7 +1647,7 @@ export function TransportModule() {
       <Dialog open={showAssignModal} onOpenChange={setShowAssignModal}>
         <DialogContent className="bg-surface border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 rounded-2xl sm:rounded-3xl w-[calc(100vw-1.5rem)] sm:max-w-md p-4 sm:p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader className="pr-8 text-left">
-            <DialogTitle className="text-violet-700 dark:text-violet-400 font-extrabold text-base sm:text-lg flex items-center gap-2">
+            <DialogTitle className="text-blue-700 dark:text-blue-400 font-extrabold text-base sm:text-lg flex items-center gap-2">
               <Users className="h-5 w-5" /> Assign Student Passenger
             </DialogTitle>
           </DialogHeader>
@@ -1656,7 +1658,7 @@ export function TransportModule() {
               <select
                 value={assignForm.student_id}
                 onChange={e => setAssignForm({ ...assignForm, student_id: e.target.value })}
-                className="w-full mt-1 h-9 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 text-xs focus:ring-2 focus:ring-violet-500"
+                className="w-full mt-1 h-9 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 text-xs focus:ring-2 focus:ring-blue-500"
               >
                 <option value="">-- Choose Student --</option>
                 {students.map((s: any) => (
@@ -1680,7 +1682,7 @@ export function TransportModule() {
                     stop_id: selectedR?.stops?.[0]?.id || ""
                   });
                 }}
-                className="w-full mt-1 h-9 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 text-xs focus:ring-2 focus:ring-violet-500"
+                className="w-full mt-1 h-9 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 text-xs focus:ring-2 focus:ring-blue-500"
               >
                 <option value="">-- Choose Route --</option>
                 {routes.map(r => (
@@ -1696,7 +1698,7 @@ export function TransportModule() {
               <select
                 value={assignForm.stop_id}
                 onChange={e => setAssignForm({ ...assignForm, stop_id: e.target.value })}
-                className="w-full mt-1 h-9 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 text-xs focus:ring-2 focus:ring-violet-500"
+                className="w-full mt-1 h-9 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 text-xs focus:ring-2 focus:ring-blue-500"
               >
                 <option value="">-- Select Stop Location --</option>
                 {routes
@@ -1724,7 +1726,7 @@ export function TransportModule() {
 
             <Button
               onClick={handleSaveAssignment}
-              className="w-full bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-bold rounded-xl sm:rounded-2xl h-10 shadow-md text-xs mt-2"
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl h-10 shadow-sm text-xs mt-2"
             >
               Confirm Student Transport Assignment
             </Button>
