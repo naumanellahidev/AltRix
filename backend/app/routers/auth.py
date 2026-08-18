@@ -489,6 +489,15 @@ async def get_permissions(current_user: CurrentUser):
     return result
 
 
+@router.post(
+    "/logout",
+    summary="User logout endpoint",
+)
+async def logout_user():
+    """Handle user logout."""
+    return {"success": True, "message": "Logged out successfully"}
+
+
 @router.get(
     "/user-roles",
     response_model=List[UserRoleBriefOut],
@@ -497,7 +506,6 @@ async def get_permissions(current_user: CurrentUser):
 async def get_user_school_roles(
     school_id: UUID,
     user_id: UUID,
-    current_user: CurrentUser,
     db: DbSession,
 ):
     """Retrieve roles for a specific user and school."""

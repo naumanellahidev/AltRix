@@ -6,6 +6,7 @@ import { KanbanSquare, Plus, Star, Search, Filter } from "lucide-react";
 
 import { api } from "@/lib/api";
 import { useTenant } from "@/hooks/useTenant";
+import { useActiveCampus } from "@/hooks/useActiveCampus";
 import { useOfflineLeads, useOfflineCrmStages } from "@/hooks/useOfflineData";
 import { OfflineDataBanner } from "@/components/offline/OfflineDataBanner";
 import { Button } from "@/components/ui/button";

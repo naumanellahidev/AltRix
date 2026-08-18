@@ -27,33 +27,38 @@ export function useUserRole(schoolId: string | null, userId: string | null): Use
 
     const fetchRoles = async () => {
       setLoading(true);
+      let fetchedRoles: EduverseRole[] = [];
+
       if (USE_FASTAPI) {
         try {
           const resp = await apiClient.get<Array<{ role: string }>>("/auth/user-roles", {
             params: { school_id: schoolId, user_id: userId }
           });
-          if (!cancelled) {
-            setRoles(resp.data.map((r) => r.role as EduverseRole));
-            setLoading(false);
+          if (resp?.data && Array.isArray(resp.data) && resp.data.length > 0) {
+            fetchedRoles = resp.data.map((r) => r.role as EduverseRole);
           }
         } catch (err) {
-          console.error("Failed to fetch user roles:", err);
-          if (!cancelled) {
-            setRoles([]);
-            setLoading(false);
-          }
+          console.warn("FastAPI user-roles fallback to direct DB:", err);
         }
-      } else {
-        const { data } = await api
-          .from("user_roles")
-          .select("role")
-          .eq("school_id", schoolId)
-          .eq("user_id", userId);
+      }
 
-        if (!cancelled) {
-          setRoles((data || []).map((r) => r.role as EduverseRole));
-          setLoading(false);
-        }
+      if (fetchedRoles.length === 0) {
+        try {
+          const { data } = await api
+            .from("user_roles")
+            .select("role")
+            .eq("school_id", schoolId)
+            .eq("user_id", userId);
+
+          if (data && data.length > 0) {
+            fetchedRoles = data.map((r) => r.role as EduverseRole);
+          }
+        } catch {}
+      }
+
+      if (!cancelled) {
+        setRoles(fetchedRoles);
+        setLoading(false);
       }
     };
 

@@ -7,6 +7,7 @@ import { api } from "@/lib/api";
 import { useTenant } from "@/hooks/useTenant";
 import { useSession } from "@/hooks/useSession";
 import { useSchoolPermissions } from "@/hooks/useSchoolPermissions";
+import { useActiveCampus } from "@/hooks/useActiveCampus";
 import { useRealtimeTable } from "@/hooks/useRealtime";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";

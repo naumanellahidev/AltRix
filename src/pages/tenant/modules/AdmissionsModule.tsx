@@ -6,6 +6,7 @@ import { getVPSFileUrl } from "@/lib/vpsStorage";
 import { printStudentCards } from "@/lib/id-card-print";
 import { useTenantOptimized } from "@/hooks/useTenantOptimized";
 import { useSchoolPermissions } from "@/hooks/useSchoolPermissions";
+import { useActiveCampus } from "@/hooks/useActiveCampus";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
