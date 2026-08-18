@@ -40,6 +40,15 @@ export function TransportModule() {
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
 
+  const [showAddBus, setShowAddBus] = useState(false);
+  const [newBus, setNewBus] = useState({
+    bus_number: "",
+    registration_no: "",
+    seating_capacity: 40,
+    driver_name: "",
+    driver_phone: ""
+  });
+
   const [showAddRoute, setShowAddRoute] = useState(false);
   const [selectedRoute, setSelectedRoute] = useState<Route | null>(null);
   const [newRoute, setNewRoute] = useState({

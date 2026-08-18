@@ -224,9 +224,11 @@ const TenantDashboard = () => {
   const { data: revenueMtd = cachedKPIs?.revenueMtd ?? 0 } = useQuery({
     queryKey: ["dashboard_kpi_revenue", schoolId],
     queryFn: async () => {
-      if (USE_FASTAPI) {
+      if (USE_FASTAPI && schoolId) {
         try {
-          const resp = await apiClient.get<any>("/reports/dashboard");
+          const resp = await apiClient.get<any>("/reports/dashboard", {
+            params: { school_id: schoolId }
+          });
           if (resp?.data?.collected_fees !== undefined) {
             return resp.data.collected_fees ?? 0;
           }
@@ -264,12 +266,16 @@ const TenantDashboard = () => {
   const { data: leadsData } = useQuery({
     queryKey: ["dashboard_kpi_leads", schoolId],
     queryFn: async () => {
-      if (USE_FASTAPI) {
-        const resp = await apiClient.get<any>("/reports/dashboard");
-        return {
-          total: resp.data.total_leads ?? 0,
-          open: resp.data.open_leads ?? 0,
-        };
+      if (USE_FASTAPI && schoolId) {
+        try {
+          const resp = await apiClient.get<any>("/reports/dashboard", {
+            params: { school_id: schoolId }
+          });
+          return {
+            total: resp.data.total_leads ?? 0,
+            open: resp.data.open_leads ?? 0,
+          };
+        } catch {}
       }
       const [totalRes, openRes] = await Promise.all([
         api.from("crm_leads").select("id", { count: "exact", head: true }).eq("school_id", schoolId!),
@@ -288,17 +294,20 @@ const TenantDashboard = () => {
   const { data: attendanceData } = useQuery({
     queryKey: ["dashboard_kpi_attendance", schoolId],
     queryFn: async () => {
-      if (USE_FASTAPI) {
-        const resp = await apiClient.get<any>("/reports/attendance-summary", {
-          params: {
-            from_date: d7Ago.toISOString().split("T")[0]
-          }
-        });
-        return {
-          total: resp.data.total ?? 0,
-          present: resp.data.present ?? 0,
-          rate: resp.data.attendance_rate ?? 0,
-        };
+      if (USE_FASTAPI && schoolId) {
+        try {
+          const resp = await apiClient.get<any>("/reports/attendance-summary", {
+            params: {
+              from_date: d7Ago.toISOString().split("T")[0],
+              school_id: schoolId
+            }
+          });
+          return {
+            total: resp.data.total ?? 0,
+            present: resp.data.present ?? 0,
+            rate: resp.data.attendance_rate ?? 0,
+          };
+        } catch {}
       }
       const [entriesRes, presentRes] = await Promise.all([
         api
@@ -329,9 +338,13 @@ const TenantDashboard = () => {
   const { data: studentsCount = cachedKPIs?.totalStudents ?? 0 } = useQuery({
     queryKey: ["dashboard_kpi_students", schoolId],
     queryFn: async () => {
-      if (USE_FASTAPI) {
-        const resp = await apiClient.get<any>("/reports/dashboard");
-        return resp.data.total_students ?? 0;
+      if (USE_FASTAPI && schoolId) {
+        try {
+          const resp = await apiClient.get<any>("/reports/dashboard", {
+            params: { school_id: schoolId }
+          });
+          return resp.data.total_students ?? 0;
+        } catch {}
       }
       const { count, error } = await api
         .from("students")
@@ -348,9 +361,13 @@ const TenantDashboard = () => {
   const { data: pendingInvoices = cachedKPIs?.pendingInvoices ?? 0 } = useQuery({
     queryKey: ["dashboard_kpi_invoices", schoolId],
     queryFn: async () => {
-      if (USE_FASTAPI) {
-        const resp = await apiClient.get<any>("/reports/dashboard");
-        return resp.data.pending_payments ?? 0;
+      if (USE_FASTAPI && schoolId) {
+        try {
+          const resp = await apiClient.get<any>("/reports/dashboard", {
+            params: { school_id: schoolId }
+          });
+          return resp.data.pending_payments ?? 0;
+        } catch {}
       }
       const { count, error } = await api
         .from("fee_invoices")
@@ -369,12 +386,16 @@ const TenantDashboard = () => {
   const { data: staffData } = useQuery({
     queryKey: ["dashboard_kpi_staff", schoolId],
     queryFn: async () => {
-      if (USE_FASTAPI) {
-        const resp = await apiClient.get<any>("/reports/dashboard");
-        return {
-          total: resp.data.total_staff ?? 0,
-          teachers: resp.data.total_teachers ?? 0,
-        };
+      if (USE_FASTAPI && schoolId) {
+        try {
+          const resp = await apiClient.get<any>("/reports/dashboard", {
+            params: { school_id: schoolId }
+          });
+          return {
+            total: resp.data.total_staff ?? 0,
+            teachers: resp.data.total_teachers ?? 0,
+          };
+        } catch {}
       }
       const [totalRes, teachersRes] = await Promise.all([
         api.from("school_memberships").select("id", { count: "exact", head: true }).eq("school_id", schoolId!),
@@ -395,6 +416,13 @@ const TenantDashboard = () => {
     const basePath = `/${tenant.slug}/${role}`;
     return location.pathname === basePath || location.pathname === `${basePath}/`;
   }, [location.pathname, tenant.slug, role]);
+
+  // Dedicated role homes (principal, vice_principal, counselor, academic_coordinator, school_owner, etc.) manage their own primary KPI dashboards.
+  const shouldShowGenericKpis = useMemo(() => {
+    if (!isIndexRoute) return false;
+    const dedicatedRoles = ["principal", "vice_principal", "counselor", "academic_coordinator", "school_owner", "teacher", "student", "parent", "accountant", "hr_manager"];
+    return !dedicatedRoles.includes(role || "");
+  }, [isIndexRoute, role]);
 
   // ─── TENANT AUTHORIZATION GATES ────────────────────────────────────────
   // Gate 1: Unknown/invalid school slug → reject before any data loads
@@ -489,8 +517,8 @@ const TenantDashboard = () => {
           </div>
         )}
 
-        {/* Primary KPIs - Only render on the main dashboard tab */}
-        {isIndexRoute && (
+        {/* Primary KPIs - Only render on the main generic dashboard tab */}
+        {shouldShowGenericKpis && (
           <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-5">
             {/* Revenue KPI */}
             <div 
