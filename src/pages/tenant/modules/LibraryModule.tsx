@@ -18,7 +18,7 @@ import { useSession } from "@/hooks/useSession";
 import {
   BookOpen, Plus, Search, RefreshCw, BookmarkCheck, Clock, CheckCircle2,
   AlertTriangle, UserCheck, ShieldAlert, Library, LayoutGrid, List,
-  Barcode, Edit3, Trash2, Eye, User as UserIcon, Sparkles, Filter, Check
+  Barcode, Edit3, Trash2, Eye, User, Sparkles, Filter, Check, Calendar, ArrowRight, X
 } from "lucide-react";
 
 interface Book {
@@ -79,6 +79,10 @@ export function LibraryModule() {
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
   const [activeTab, setActiveTab] = useState("catalog");
+
+  // Loans tab filtering
+  const [issuesSearch, setIssuesSearch] = useState("");
+  const [issuesStatusFilter, setIssuesStatusFilter] = useState<"all" | "active" | "overdue" | "returned">("all");
 
   // Modals
   const [showAddBook, setShowAddBook] = useState(false);
@@ -419,6 +423,33 @@ export function LibraryModule() {
     return matchesSearch && matchesCategory;
   });
 
+  const filteredIssues = useMemo(() => {
+    return safeIssues.filter(i => {
+      const book = bookMap[i.book_id] || safeBooks.find(b => b.id === i.book_id);
+      const borrower = borrowerMap[i.borrower_id];
+      const isOverdue = i.status !== "returned" && new Date(i.due_date) < new Date();
+
+      if (issuesStatusFilter === "active" && (i.status === "returned")) return false;
+      if (issuesStatusFilter === "overdue" && !isOverdue) return false;
+      if (issuesStatusFilter === "returned" && i.status !== "returned") return false;
+
+      if (issuesSearch.trim()) {
+        const q = issuesSearch.toLowerCase();
+        const bookTitle = (book?.title || "").toLowerCase();
+        const bookBarcode = (book?.barcode || "").toLowerCase();
+        const borrowerName = (borrower?.name || "").toLowerCase();
+        const borrowerCode = (borrower?.code || "").toLowerCase();
+        const matches = bookTitle.includes(q) || bookBarcode.includes(q) || borrowerName.includes(q) || borrowerCode.includes(q);
+        if (!matches) return false;
+      }
+      return true;
+    });
+  }, [safeIssues, bookMap, safeBooks, borrowerMap, issuesStatusFilter, issuesSearch]);
+
+  const activeIssuesCount = useMemo(() => safeIssues.filter(i => i.status !== "returned").length, [safeIssues]);
+  const overdueIssuesCount = useMemo(() => safeIssues.filter(i => i.status !== "returned" && new Date(i.due_date) < new Date()).length, [safeIssues]);
+  const returnedIssuesCount = useMemo(() => safeIssues.filter(i => i.status === "returned").length, [safeIssues]);
+
   const totalTitles = safeBooks.length;
   const totalCopies = safeBooks.reduce((acc, b) => acc + (b?.total_copies || 0), 0);
   const totalAvailable = safeBooks.reduce((acc, b) => acc + (b?.available_copies || 0), 0);
@@ -465,7 +496,7 @@ export function LibraryModule() {
 
         <Card className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm p-3.5 sm:p-5 hover:shadow-md transition-all rounded-2xl">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 sm:p-3 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-900/50 shrink-0">
+            <div className="p-2.5 sm:p-3 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:indigo-400 border border-indigo-100 dark:border-indigo-900/50 shrink-0">
               <Clock className="h-5 w-5 sm:h-6 sm:w-6" />
             </div>
             <div className="min-w-0">
@@ -501,51 +532,70 @@ export function LibraryModule() {
             </TabsList>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-            {activeTab === "catalog" && (
-              <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-lg border border-slate-200 dark:border-slate-700 shrink-0">
-                <Button
-                  size="sm"
-                  variant={viewMode === "grid" ? "white" : "ghost"}
-                  onClick={() => setViewMode("grid")}
-                  className={`h-8 px-2.5 ${viewMode === "grid" ? "bg-white text-blue-700 shadow-sm" : "text-slate-600"}`}
-                >
-                  <LayoutGrid className="h-4 w-4 mr-1" /> Grid
-                </Button>
-                <Button
-                  size="sm"
-                  variant={viewMode === "table" ? "white" : "ghost"}
-                  onClick={() => setViewMode("table")}
-                  className={`h-8 px-2.5 ${viewMode === "table" ? "bg-white text-blue-700 shadow-sm" : "text-slate-600"}`}
-                >
-                  <List className="h-4 w-4 mr-1" /> Table
-                </Button>
-              </div>
-            )}
-            <div className="relative flex-1 min-w-[180px] sm:w-64 sm:flex-initial">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-              <Input placeholder="Search Title, Author, ISBN, Barcode..." value={search} onChange={e => setSearch(e.target.value)}
-                className="pl-9 w-full bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 focus-visible:ring-blue-500" />
-            </div>
-            <Button variant="outline" onClick={() => { loadBooks(); loadIssues(); }} className="border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shrink-0">
-              <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => { loadBooks(false); loadIssues(false); loadReservations(false); }}
+              disabled={loading}
+              className="text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 rounded-xl h-9 text-xs"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${loading ? "animate-spin" : ""}`} /> Refresh
             </Button>
           </div>
         </div>
 
-        {/* ─── Book Catalog Tab ───────────────────────────── */}
+        {/* ─── Book Catalog Tab ─────────────────────────── */}
         <TabsContent value="catalog" className="space-y-4">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-white dark:bg-slate-900 p-3 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm">
+            <div className="relative w-full sm:w-80">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+              <Input
+                placeholder="Search title, author, barcode or ISBN..."
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                className="pl-9 h-9 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 rounded-xl text-xs"
+              />
+              {search && (
+                <button onClick={() => setSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
+              <div className="flex items-center p-1 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setViewMode("grid")}
+                  className={`h-7 px-2.5 rounded-lg text-xs font-semibold ${viewMode === "grid" ? "bg-white dark:bg-slate-900 text-blue-700 shadow-xs" : "text-slate-500"}`}
+                >
+                  <LayoutGrid className="h-3.5 w-3.5 mr-1" /> Grid
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setViewMode("table")}
+                  className={`h-7 px-2.5 rounded-lg text-xs font-semibold ${viewMode === "table" ? "bg-white dark:bg-slate-900 text-blue-700 shadow-xs" : "text-slate-500"}`}
+                >
+                  <List className="h-3.5 w-3.5 mr-1" /> Table
+                </Button>
+              </div>
+            </div>
+          </div>
+
           {/* Category Filter Pills */}
-          <div className="flex items-center gap-2 overflow-x-auto pb-1">
-            <span className="text-xs font-semibold text-slate-500 flex items-center mr-1"><Filter className="h-3.5 w-3.5 mr-1" /> Categories:</span>
+          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
             {categories.map(cat => (
               <button
                 key={cat}
+                type="button"
                 onClick={() => setSelectedCategory(cat)}
-                className={`px-3 py-1 rounded-full text-xs font-semibold transition-all border ${
+                className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${
                   selectedCategory === cat
-                    ? "bg-blue-600 text-white border-blue-600 shadow-sm"
-                    : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-50"
+                    ? "bg-blue-600 text-white shadow-sm"
+                    : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-50"
                 }`}
               >
                 {cat}
@@ -715,162 +765,271 @@ export function LibraryModule() {
           )}
         </TabsContent>
 
-        {/* ─── Active Loans Tab ──────────────────────────── */}
-        <TabsContent value="issues">
-          <Card className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm">
-            <CardHeader>
-              <CardTitle className="text-lg font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                <Clock className="h-5 w-5 text-blue-600" /> Active Circulation & Overdue Loans Log
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="pt-2">
-              {issues.length === 0 ? (
+        {/* ─── Active Loans Tab (Single-Screen, Zero Horizontal Scroll) ───────────── */}
+        <TabsContent value="issues" className="space-y-4">
+          <Card className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">
+            {/* Header & Filter Controls Bar */}
+            <div className="p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => setIssuesStatusFilter("all")}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                    issuesStatusFilter === "all"
+                      ? "bg-blue-600 text-white shadow-sm"
+                      : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-50"
+                  }`}
+                >
+                  All Records ({safeIssues.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIssuesStatusFilter("active")}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                    issuesStatusFilter === "active"
+                      ? "bg-blue-600 text-white shadow-sm"
+                      : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-50"
+                  }`}
+                >
+                  Active ({activeIssuesCount})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIssuesStatusFilter("overdue")}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                    issuesStatusFilter === "overdue"
+                      ? "bg-rose-600 text-white shadow-sm"
+                      : "bg-white dark:bg-slate-800 text-rose-600 border border-rose-200 dark:border-rose-900/50 hover:bg-rose-50"
+                  }`}
+                >
+                  Overdue ({overdueIssuesCount})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIssuesStatusFilter("returned")}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                    issuesStatusFilter === "returned"
+                      ? "bg-emerald-600 text-white shadow-sm"
+                      : "bg-white dark:bg-slate-800 text-emerald-700 border border-emerald-200 dark:border-emerald-900/50 hover:bg-emerald-50"
+                  }`}
+                >
+                  Returned ({returnedIssuesCount})
+                </button>
+              </div>
+
+              {/* Quick Search */}
+              <div className="relative w-full sm:w-64">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                <Input
+                  placeholder="Search book or borrower..."
+                  value={issuesSearch}
+                  onChange={e => setIssuesSearch(e.target.value)}
+                  className="pl-8 h-8 text-xs bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 rounded-lg"
+                />
+                {issuesSearch && (
+                  <button onClick={() => setIssuesSearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                    <X className="h-3 w-3" />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <CardContent className="p-0">
+              {filteredIssues.length === 0 ? (
                 <div className="text-center py-12 text-slate-500">
                   <Clock className="h-10 w-10 mx-auto mb-2 text-slate-300" />
-                  <p className="font-semibold text-slate-700 dark:text-slate-300">No Active Circulation Records</p>
-                  <p className="text-xs text-slate-500 mt-1">Issued books will appear here with borrower names and return status.</p>
+                  <p className="font-semibold text-slate-700 dark:text-slate-300">No Circulation Records Found</p>
+                  <p className="text-xs text-slate-500 mt-1">Try changing search keywords or filters, or issue a new book.</p>
                 </div>
               ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow className="bg-slate-50 dark:bg-slate-800/50">
-                      <TableHead>Issued Book & Barcode Details</TableHead>
-                      <TableHead>Borrower Name & Details</TableHead>
-                      <TableHead>Borrower Role</TableHead>
-                      <TableHead>Issue Date</TableHead>
-                      <TableHead>Due Date</TableHead>
-                      <TableHead>Fine Status</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {safeIssues.map(i => {
+                <>
+                  {/* Desktop Table: Fits on single screen without horizontal scrollbar */}
+                  <div className="hidden md:block w-full">
+                    <Table className="w-full table-fixed">
+                      <TableHeader>
+                        <TableRow className="bg-slate-50/80 dark:bg-slate-800/60 text-xs border-b border-slate-200/80 dark:border-slate-800">
+                          <TableHead className="w-[32%] py-3">Book & Barcode</TableHead>
+                          <TableHead className="w-[24%] py-3">Borrower</TableHead>
+                          <TableHead className="w-[20%] py-3">Timeline</TableHead>
+                          <TableHead className="w-[12%] py-3">Status</TableHead>
+                          <TableHead className="w-[12%] py-3 text-right pr-4">Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {filteredIssues.map(i => {
+                          const book = bookMap[i.book_id] || safeBooks.find(b => b.id === i.book_id);
+                          const borrower = borrowerMap[i.borrower_id];
+                          const displayName = borrower ? borrower.name : "Hamza Malik";
+                          const displayCode = borrower ? `${borrower.type.toUpperCase()} • ${borrower.code}` : "STUDENT • #1001";
+                          const isOverdue = i.status !== "returned" && new Date(i.due_date) < new Date();
+
+                          return (
+                            <TableRow key={i.id} className="hover:bg-blue-50/40 dark:hover:bg-slate-800/40 border-b border-slate-100 dark:border-slate-800/80 transition-colors">
+                              {/* Book & Barcode */}
+                              <TableCell className="py-3 align-middle">
+                                <div className="flex items-center gap-2.5 min-w-0">
+                                  <div className="p-2 rounded-lg bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 shrink-0">
+                                    <BookOpen className="h-4 w-4" />
+                                  </div>
+                                  <div className="min-w-0 flex-1">
+                                    <p className="font-semibold text-slate-900 dark:text-slate-100 text-xs truncate" title={book?.title || "Library Book"}>
+                                      {book ? book.title : "Library Book"}
+                                    </p>
+                                    <div className="flex items-center gap-1.5 mt-0.5">
+                                      <span className="font-mono text-[10px] text-blue-700 dark:text-blue-300 font-semibold bg-blue-50 dark:bg-blue-950/50 px-1.5 py-0.2 rounded border border-blue-200/60 dark:border-blue-800/40 shrink-0">
+                                        {book?.barcode || "LIB-1001"}
+                                      </span>
+                                      {book?.author && (
+                                        <span className="text-[11px] text-slate-400 truncate">by {book.author}</span>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              </TableCell>
+
+                              {/* Borrower */}
+                              <TableCell className="py-3 align-middle">
+                                <div className="flex items-center gap-2 min-w-0">
+                                  <div className="h-7 w-7 rounded-full bg-gradient-to-br from-indigo-500/20 to-purple-500/20 border border-indigo-200/60 text-indigo-700 dark:text-indigo-300 font-bold flex items-center justify-center text-[10px] shrink-0">
+                                    {displayName.charAt(0)}
+                                  </div>
+                                  <div className="min-w-0 flex-1">
+                                    <p className="font-semibold text-slate-800 dark:text-slate-200 text-xs truncate">{displayName}</p>
+                                    <p className="text-[10px] text-slate-400 font-mono truncate">{displayCode}</p>
+                                  </div>
+                                </div>
+                              </TableCell>
+
+                              {/* Timeline */}
+                              <TableCell className="py-3 align-middle text-xs">
+                                <div className="space-y-0.5">
+                                  <div className="flex items-center gap-1 text-slate-500 text-[11px]">
+                                    <span className="text-[10px] uppercase font-semibold text-slate-400">Out:</span> {i.issue_date || "2026-07-24"}
+                                  </div>
+                                  <div className={`flex items-center gap-1 font-semibold text-[11px] ${isOverdue ? "text-rose-600" : "text-slate-800 dark:text-slate-200"}`}>
+                                    <span className="text-[10px] uppercase font-semibold text-slate-400">Due:</span> {i.due_date}
+                                  </div>
+                                </div>
+                              </TableCell>
+
+                              {/* Status & Fine */}
+                              <TableCell className="py-3 align-middle">
+                                <div className="flex flex-col items-start gap-1">
+                                  {i.status === "returned" ? (
+                                    <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-300 text-[10px] py-0 px-2 font-semibold">
+                                      <CheckCircle2 className="h-3 w-3 mr-1" /> Returned
+                                    </Badge>
+                                  ) : isOverdue ? (
+                                    <Badge className="bg-rose-50 text-rose-700 border-rose-200 text-[10px] py-0 px-2 font-semibold animate-pulse">
+                                      <AlertTriangle className="h-3 w-3 mr-1" /> Overdue
+                                    </Badge>
+                                  ) : (
+                                    <Badge className="bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/50 dark:text-blue-300 text-[10px] py-0 px-2 font-semibold">
+                                      <Clock className="h-3 w-3 mr-1" /> Issued
+                                    </Badge>
+                                  )}
+                                  {i.fine_amount > 0 && (
+                                    <span className="text-[9px] font-mono font-bold text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-200">
+                                      Fine: PKR {Number(i.fine_amount).toFixed(0)}
+                                    </span>
+                                  )}
+                                </div>
+                              </TableCell>
+
+                              {/* Actions */}
+                              <TableCell className="py-3 align-middle text-right pr-4">
+                                <div className="flex items-center justify-end gap-1">
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    title="View Full Loan Info"
+                                    onClick={() => setSelectedLoanDetail({ issue: i, book, borrower })}
+                                    className="h-7 px-2 text-xs text-slate-600 hover:text-blue-600 hover:bg-blue-50"
+                                  >
+                                    <Eye className="h-3.5 w-3.5 mr-1" /> Info
+                                  </Button>
+                                  {i.status !== "returned" && (
+                                    <Button
+                                      size="sm"
+                                      onClick={() => handleReturnBook(i.id)}
+                                      className="h-7 px-2.5 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-xs"
+                                    >
+                                      <Check className="h-3 w-3 mr-1" /> Return
+                                    </Button>
+                                  )}
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </div>
+
+                  {/* Mobile High-Density Stacked Cards (zero horizontal overflow) */}
+                  <div className="md:hidden divide-y divide-slate-100 dark:divide-slate-800">
+                    {filteredIssues.map(i => {
                       const book = bookMap[i.book_id] || safeBooks.find(b => b.id === i.book_id);
                       const borrower = borrowerMap[i.borrower_id];
-                      const displayName = borrower ? borrower.name : "Hamza Malik (Student)";
-                      const displayCode = borrower ? `${borrower.type.toUpperCase()} • Code: ${borrower.code}` : "STUDENT • Roll: #1001";
+                      const displayName = borrower ? borrower.name : "Hamza Malik";
+                      const displayCode = borrower ? `${borrower.type.toUpperCase()} • ${borrower.code}` : "STUDENT • #1001";
                       const isOverdue = i.status !== "returned" && new Date(i.due_date) < new Date();
 
                       return (
-                        <TableRow key={i.id} className="hover:bg-blue-50/50 dark:hover:bg-slate-800/50 transition-colors">
-                          <TableCell className="min-w-[260px]">
-                            <div className="flex items-start gap-3">
-                              <div className="p-2.5 rounded-xl bg-gradient-to-br from-blue-500/10 to-indigo-500/10 border border-blue-200/50 dark:border-blue-800/40 text-blue-600 dark:text-blue-400 mt-0.5 shadow-sm">
-                                <BookOpen className="h-4 w-4" />
-                              </div>
-                              <div className="space-y-1">
-                                <p className="font-bold text-slate-900 dark:text-slate-100 text-sm leading-snug">
-                                  {book ? book.title : "Library Book"}
-                                </p>
-                                {book?.author && (
-                                  <p className="text-xs text-slate-500 font-medium">by {book.author}</p>
-                                )}
-                                <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
-                                  <span className="inline-flex items-center gap-1 font-mono text-[11px] font-semibold bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded-md border border-blue-200/80 dark:border-blue-800/50">
-                                    <Barcode className="h-3 w-3 text-blue-500" />
-                                    {book?.barcode || "LIB-1001"}
-                                  </span>
-                                  {book?.isbn && (
-                                    <span className="font-mono text-[10px] text-slate-400">
-                                      ISBN: {book.isbn}
-                                    </span>
-                                  )}
-                                  {book?.shelf_location && (
-                                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40 text-slate-600 dark:text-slate-300">
-                                      {book.shelf_location}
-                                    </Badge>
-                                  )}
-                                </div>
-                              </div>
+                        <div key={i.id} className="p-3.5 space-y-2.5">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <p className="font-bold text-slate-900 dark:text-slate-100 text-xs truncate">
+                                {book ? book.title : "Library Book"}
+                              </p>
+                              <p className="text-[11px] text-slate-400">by {book?.author || "Author"}</p>
                             </div>
-                          </TableCell>
-
-                          <TableCell>
-                            <div className="flex items-center gap-3">
-                              <div className="h-9 w-9 rounded-full bg-gradient-to-br from-indigo-500/20 to-purple-500/20 border border-indigo-200/50 text-indigo-700 dark:text-indigo-300 font-bold flex items-center justify-center text-xs shadow-sm">
-                                {displayName.charAt(0)}
-                              </div>
-                              <div>
-                                <p className="font-bold text-slate-900 dark:text-slate-100">{displayName}</p>
-                                <p className="text-xs text-slate-500 font-mono">{displayCode}</p>
-                              </div>
-                            </div>
-                          </TableCell>
-
-                          <TableCell>
-                            <Badge variant="outline" className="capitalize border-indigo-200 bg-indigo-50 text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-300 font-semibold">
-                              {i.borrower_type || "Student"}
-                            </Badge>
-                          </TableCell>
-
-                          <TableCell className="text-slate-600 dark:text-slate-400 font-medium text-xs">
-                            {i.issue_date || "2026-07-24"}
-                          </TableCell>
-
-                          <TableCell className={`font-semibold text-xs ${isOverdue ? "text-rose-600 dark:text-rose-400" : "text-blue-700 dark:text-blue-400"}`}>
-                            <div className="flex items-center gap-1">
-                              <Clock className="h-3.5 w-3.5" />
-                              {i.due_date}
-                            </div>
-                            {isOverdue && <span className="text-[10px] text-rose-500 block font-bold">OVERDUE</span>}
-                          </TableCell>
-
-                          <TableCell className="font-mono text-xs">
-                            {i.fine_amount > 0 ? (
-                              <Badge variant="destructive" className="bg-rose-100 text-rose-800 border-rose-300">
-                                PKR {i.fine_amount.toFixed(2)}
-                              </Badge>
-                            ) : (
-                              <span className="text-slate-400">None</span>
-                            )}
-                          </TableCell>
-
-                          <TableCell>
-                            {i.status === "returned" ? (
-                              <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-300">
-                                <CheckCircle2 className="h-3 w-3 mr-1" /> Returned
-                              </Badge>
-                            ) : isOverdue ? (
-                              <Badge className="bg-rose-100 text-rose-800 border-rose-200 animate-pulse">
-                                <AlertTriangle className="h-3 w-3 mr-1" /> Overdue
-                              </Badge>
-                            ) : (
-                              <Badge className="bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-950/50 dark:text-blue-300">
-                                <Clock className="h-3 w-3 mr-1" /> Issued
-                              </Badge>
-                            )}
-                          </TableCell>
-
-                          <TableCell className="text-right">
-                            <div className="flex items-center justify-end gap-1.5">
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                title="View Complete Loan Info"
-                                onClick={() => setSelectedLoanDetail({ issue: i, book, borrower })}
-                                className="h-8 text-slate-600 hover:text-blue-600 hover:bg-blue-50"
-                              >
-                                <Eye className="h-4 w-4 mr-1" /> Info
-                              </Button>
-
-                              {i.status !== "returned" && (
-                                <Button
-                                  size="sm"
-                                  onClick={() => handleReturnBook(i.id)}
-                                  variant="outline"
-                                  className="border-slate-300 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300 font-semibold"
-                                >
-                                  <Check className="h-3.5 w-3.5 mr-1" /> Return
-                                </Button>
+                            <div className="shrink-0">
+                              {i.status === "returned" ? (
+                                <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[10px] py-0 px-2">Returned</Badge>
+                              ) : isOverdue ? (
+                                <Badge className="bg-rose-50 text-rose-700 border-rose-200 text-[10px] py-0 px-2 animate-pulse">Overdue</Badge>
+                              ) : (
+                                <Badge className="bg-blue-50 text-blue-700 border-blue-200 text-[10px] py-0 px-2">Issued</Badge>
                               )}
                             </div>
-                          </TableCell>
-                        </TableRow>
+                          </div>
+
+                          <div className="flex items-center justify-between text-xs bg-slate-50 dark:bg-slate-800/50 p-2 rounded-lg border border-slate-100 dark:border-slate-800">
+                            <div>
+                              <p className="font-semibold text-slate-800 dark:text-slate-200 text-xs">{displayName}</p>
+                              <p className="text-[10px] text-slate-400 font-mono">{displayCode}</p>
+                            </div>
+                            <div className="text-right font-mono text-[11px]">
+                              <p className="text-slate-500">Due: <span className={isOverdue ? "text-rose-600 font-bold" : "font-semibold"}>{i.due_date}</span></p>
+                              <p className="text-[10px] text-blue-600">{book?.barcode || "LIB-1001"}</p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center justify-end gap-2 pt-0.5">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => setSelectedLoanDetail({ issue: i, book, borrower })}
+                              className="h-7 text-xs text-slate-600 hover:text-blue-600"
+                            >
+                              <Eye className="h-3.5 w-3.5 mr-1" /> Info
+                            </Button>
+                            {i.status !== "returned" && (
+                              <Button
+                                size="sm"
+                                onClick={() => handleReturnBook(i.id)}
+                                className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
+                              >
+                                <Check className="h-3.5 w-3.5 mr-1" /> Return
+                              </Button>
+                            )}
+                          </div>
+                        </div>
                       );
                     })}
-                  </TableBody>
-                </Table>
+                  </div>
+                </>
               )}
             </CardContent>
           </Card>
