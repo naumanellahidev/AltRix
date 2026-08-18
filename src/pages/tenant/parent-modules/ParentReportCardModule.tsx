@@ -307,10 +307,10 @@ export default function ParentReportCardModule({ child, schoolId }: ParentReport
                               </span>
                               <span className="text-muted-foreground text-xs">/{entry.max_marks || 100}</span>
                             </TableCell>
-                            <TableCell className="text-center">
-                              <Badge variant="outline" className="font-bold border-primary/20 text-primary">
+                            <TableCell className="text-center align-middle">
+                              <span className="inline-block text-center px-2.5 py-0.5 rounded-md text-xs font-black border border-primary/30 text-primary bg-primary/5 min-w-[36px] leading-tight box-border">
                                 {entry.grade || "N/A"}
-                              </Badge>
+                              </span>
                             </TableCell>
                             <TableCell className="text-center font-medium">
                               {entry.gpa_points !== null ? entry.gpa_points.toFixed(1) : "-"}
@@ -332,7 +332,7 @@ export default function ParentReportCardModule({ child, schoolId }: ParentReport
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <div className="bg-gradient-to-br from-primary/5 to-accent/5 p-5 rounded-2xl border border-primary/10 flex flex-col justify-between">
+                  <div className="bg-gradient-to-br from-primary/5 to-accent/5 p-5 rounded-2xl border border-primary/10 flex flex-col justify-between box-border min-h-[110px]">
                     <span className="text-xs uppercase font-semibold tracking-wider text-muted-foreground">
                       Final Score Card
                     </span>
@@ -351,9 +351,9 @@ export default function ParentReportCardModule({ child, schoolId }: ParentReport
                       </div>
                       <div className="flex justify-between items-center">
                         <span className="text-sm text-muted-foreground">Overall Evaluation</span>
-                        <Badge className="font-bold bg-primary text-primary-foreground px-3 py-0.5">
+                        <span className="inline-block text-center font-black bg-primary text-primary-foreground px-3 py-1 rounded-md text-xs min-w-[40px] leading-tight box-border">
                           {detail.report_card.overall_grade || "N/A"}
-                        </Badge>
+                        </span>
                       </div>
                     </div>
                   </div>

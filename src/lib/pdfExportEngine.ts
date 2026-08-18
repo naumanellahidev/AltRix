@@ -3,8 +3,8 @@
  *
  * Guarantees that exported PDFs contain ONLY the target document:
  * - Completely isolates the target DOM node from page chrome (headers, footers, sidebars, AI Copilot).
- * - Normalizes to exact standard printable paper dimensions (A4 portrait: 794px, landscape: 1123px).
- * - Removes interactive buttons, input borders, and focus rings.
+ * - Full-bleed A4 output (0 side margins) using the document's own internal padding.
+ * - Enforces box-sizing and line-height normalization so badges and text never overflow.
  * - Slices multi-page documents smartly without cutting through table rows, cards, or signatures.
  */
 
@@ -44,24 +44,29 @@ export async function exportCleanDocumentToPdf(
 
   onProgress?.("Preparing clean document...");
 
+  // Standard A4 dimensions at 96 DPI: Portrait 794px, Landscape 1123px
+  const targetWidthPx = orientation === "landscape" ? 1123 : 794;
+
   // 1. Create a sandboxed off-screen isolation container
   const sandbox = document.createElement("div");
   sandbox.id = "clean-pdf-sandbox-" + Date.now();
   sandbox.style.position = "fixed";
   sandbox.style.left = "-99999px";
   sandbox.style.top = "0";
-  sandbox.style.width = orientation === "landscape" ? "1123px" : "794px"; // Standard A4 width at 96 DPI
+  sandbox.style.width = `${targetWidthPx}px`;
+  sandbox.style.maxWidth = `${targetWidthPx}px`;
   sandbox.style.background = "#ffffff";
   sandbox.style.color = "#0f172a";
   sandbox.style.zIndex = "-9999";
   sandbox.style.opacity = "1";
   sandbox.style.pointerEvents = "none";
   sandbox.style.overflow = "visible";
+  sandbox.style.boxSizing = "border-box";
 
   // 2. Clone the target element deeply
   const clone = element.cloneNode(true) as HTMLElement;
 
-  // Normalize clone styles for pure print presentation
+  // Normalize clone styles for edge-to-edge presentation
   clone.style.width = "100%";
   clone.style.maxWidth = "100%";
   clone.style.margin = "0";
@@ -73,23 +78,25 @@ export async function exportCleanDocumentToPdf(
   clone.classList.remove("dark");
   clone.classList.add("clean-pdf-render");
 
-  // 3. Strip all non-printable elements, action buttons, toolbars, and copilot remnants
+  // 3. Strip interactive UI chrome, buttons, action bars, AI Copilot, and toasts
   const stripSelectors = [
     ".no-print",
+    ".print\\:hidden",
     "[data-print='hide']",
     "[data-html2canvas-ignore]",
     "button:not(.keep-for-pdf)",
     ".action-bar",
+    ".action-bar-no-print",
     ".copilot-trigger",
     ".ai-copilot-widget",
+    ".copilot-panel",
     "#copilot-root",
-    "header:not(.document-header)",
-    "footer:not(.document-footer)",
     ".sonner-toaster",
+    "[data-radix-portal]",
   ];
   clone.querySelectorAll(stripSelectors.join(", ")).forEach((el) => el.remove());
 
-  // 4. Clean up input / textarea fields into crisp text labels for the PDF
+  // 4. Convert inputs and textareas to clean, crisp static text labels
   clone.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>("input, textarea").forEach((inp) => {
     const span = document.createElement("span");
     span.textContent = inp.value || inp.placeholder || "";
@@ -100,10 +107,37 @@ export async function exportCleanDocumentToPdf(
     span.style.display = "inline-block";
     span.style.width = "100%";
     span.style.textAlign = inp.style.textAlign || "inherit";
+    span.style.boxSizing = "border-box";
     inp.parentNode?.replaceChild(span, inp);
   });
 
-  // 5. Append to sandbox and mount to DOM temporarily for layout computation
+  // 5. Inject PDF-specific layout normalization for badges, tables, and KPI tiles
+  const styleTag = document.createElement("style");
+  styleTag.innerHTML = `
+    .clean-pdf-render * {
+      box-sizing: border-box !important;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+    .clean-pdf-render table {
+      width: 100% !important;
+      border-collapse: collapse !important;
+      table-layout: fixed !important;
+    }
+    .clean-pdf-render th, .clean-pdf-render td {
+      vertical-align: middle !important;
+    }
+    .clean-pdf-render span, .clean-pdf-render .badge {
+      display: inline-block !important;
+      vertical-align: middle !important;
+      line-height: 1.3 !important;
+      box-sizing: border-box !important;
+      white-space: nowrap !important;
+    }
+  `;
+  sandbox.appendChild(styleTag);
+
+  // 6. Append clone to sandbox and mount to DOM temporarily
   sandbox.appendChild(clone);
   document.body.appendChild(sandbox);
 
@@ -118,24 +152,24 @@ export async function exportCleanDocumentToPdf(
           new Promise<void>((resolve) => {
             if (img.complete) return resolve();
             img.onload = () => resolve();
-            img.onerror = () => resolve(); // continue even if an image fails
+            img.onerror = () => resolve();
           })
       )
     );
 
-    // Give fonts and layout a brief tick to calculate bounding boxes
-    await new Promise((r) => setTimeout(r, 100));
+    // Layout settlement tick
+    await new Promise((r) => setTimeout(r, 120));
 
     onProgress?.("Rendering high-definition document...");
 
-    // 6. Capture clean canvas from the isolated sandbox
+    // 7. Capture clean canvas from isolated sandbox
     const canvas = await html2canvas(clone, {
       scale: scale,
       useCORS: true,
       allowTaint: true,
       backgroundColor: "#ffffff",
       logging: false,
-      windowWidth: orientation === "landscape" ? 1123 : 794,
+      windowWidth: targetWidthPx,
       scrollX: 0,
       scrollY: 0,
     });
@@ -148,28 +182,21 @@ export async function exportCleanDocumentToPdf(
       format: format,
     });
 
-    const pageWidth = pdf.internal.pageSize.getWidth();
-    const pageHeight = pdf.internal.pageSize.getHeight();
-    const margin = 6; // 6mm border margin for elegant presentation
-    const printableWidth = pageWidth - margin * 2;
-    const printableHeight = pageHeight - margin * 2;
+    const pageWidth = pdf.internal.pageSize.getWidth();   // 210mm for A4 portrait
+    const pageHeight = pdf.internal.pageSize.getHeight(); // 297mm for A4 portrait
 
+    // Full-bleed edge-to-edge calculation (0 side margins)
     const ratio = canvas.width / canvas.height;
-    const naturalHeightMm = printableWidth / ratio;
+    const renderedHeightMm = pageWidth / ratio;
 
-    // Single-page fit: if content fits or overflows slightly (< 15%), scale cleanly into 1 page
-    if (naturalHeightMm <= printableHeight * 1.15) {
-      const fitHeight = Math.min(naturalHeightMm, printableHeight);
-      const fitWidth = fitHeight * ratio;
-      const x = (pageWidth - fitWidth) / 2;
-      const y = margin;
+    // If single page:
+    if (renderedHeightMm <= pageHeight) {
       const imgData = canvas.toDataURL("image/jpeg", 0.98);
-      pdf.addImage(imgData, "JPEG", x, y, fitWidth, fitHeight, undefined, "FAST");
+      pdf.addImage(imgData, "JPEG", 0, 0, pageWidth, renderedHeightMm, undefined, "FAST");
     } else {
-      // Smart Multi-Page Slicing:
-      // Slice canvas into chunks corresponding to standard page heights
-      const pxPerMm = canvas.width / printableWidth;
-      const sliceHeightPx = printableHeight * pxPerMm;
+      // Smart Multi-Page Slicing (spanning full page width on each page):
+      const pxPerMm = canvas.width / pageWidth;
+      const sliceHeightPx = pageHeight * pxPerMm;
       const totalPages = Math.ceil(canvas.height / sliceHeightPx);
 
       for (let page = 0; page < totalPages; page++) {
@@ -198,8 +225,8 @@ export async function exportCleanDocumentToPdf(
         }
 
         const sliceData = sliceCanvas.toDataURL("image/jpeg", 0.98);
-        const renderedHeightMm = currentSliceHeight / pxPerMm;
-        pdf.addImage(sliceData, "JPEG", margin, margin, printableWidth, renderedHeightMm, undefined, "FAST");
+        const sliceHeightMm = currentSliceHeight / pxPerMm;
+        pdf.addImage(sliceData, "JPEG", 0, 0, pageWidth, sliceHeightMm, undefined, "FAST");
       }
     }
 
@@ -207,7 +234,7 @@ export async function exportCleanDocumentToPdf(
     pdf.save(finalName);
     onProgress?.("Download complete!");
   } finally {
-    // 7. Clean up sandbox from DOM
+    // 8. Clean up sandbox from DOM
     sandbox.remove();
   }
 }

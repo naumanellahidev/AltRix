@@ -568,4 +568,17 @@ body.super-admin-mode {
   page-break-inside: avoid !important;
 }
 
+.clean-pdf-render * {
+  box-sizing: border-box !important;
+}
+
+.clean-pdf-render span,
+.clean-pdf-render .badge {
+  display: inline-block !important;
+  vertical-align: middle !important;
+  line-height: 1.3 !important;
+  box-sizing: border-box !important;
+  white-space: nowrap !important;
+}
+
 

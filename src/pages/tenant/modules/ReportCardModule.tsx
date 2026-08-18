@@ -1455,9 +1455,9 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
                                 </td>
 
                                 {/* Percentage Badge */}
-                                <td className="py-3 px-3 text-center">
+                                <td className="py-2.5 px-3 text-center align-middle">
                                   {pct != null ? (
-                                    <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-black bg-blue-50 text-blue-700 border border-blue-200">
+                                    <span className="inline-block text-center px-2.5 py-1 rounded-md text-xs font-black bg-blue-50 text-blue-700 border border-blue-200 min-w-[46px] leading-tight box-border">
                                       {pct}%
                                     </span>
                                   ) : (
@@ -1466,9 +1466,9 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
                                 </td>
 
                                 {/* Grade Badge */}
-                                <td className="py-3 px-3 text-center">
+                                <td className="py-2.5 px-3 text-center align-middle">
                                   {grade ? (
-                                    <span className={`inline-flex items-center justify-center min-w-[32px] px-2 py-0.5 rounded-md text-xs font-black border ${getGradeBadge(grade)}`}>
+                                    <span className={`inline-block text-center px-2.5 py-1 rounded-md text-xs font-black border min-w-[36px] leading-tight box-border ${getGradeBadge(grade)}`}>
                                       {grade}
                                     </span>
                                   ) : (
@@ -1477,10 +1477,10 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
                                 </td>
 
                                 {/* Remarks Input */}
-                                <td className="py-2.5 px-4 print:hidden">
+                                <td className="py-2 px-4 print:hidden">
                                   {canManage ? (
                                     <Input
-                                      className="h-9 text-xs border-slate-200 focus:bg-white rounded-lg"
+                                      className="h-8.5 text-xs border-slate-200 focus:bg-white rounded-lg"
                                       placeholder="Add subject remark..."
                                       value={r?.remarks ?? ""}
                                       onChange={(e) => {
@@ -1504,52 +1504,56 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
 
                           {/* ─── SUMMARY TOTALS ROW ─── */}
                           <tr className="bg-slate-100/90 font-extrabold border-t-2 border-slate-300 text-slate-900">
-                            <td className="py-3.5 px-4 uppercase text-xs tracking-wider">CUMULATIVE TOTAL</td>
-                            <td className="py-3.5 px-3 text-center text-sm font-black text-slate-900">{totals.total}</td>
-                            <td className="py-3.5 px-3 text-center text-sm font-bold text-slate-600">{totals.max}</td>
-                            <td className="py-3.5 px-3 text-center text-sm font-black text-primary">{totals.pct}%</td>
-                            <td className="py-3.5 px-3 text-center">
-                              <span className={`inline-flex items-center justify-center px-2.5 py-0.5 rounded-md text-xs font-black border ${getGradeBadge(totals.grade)}`}>
+                            <td className="py-3 px-4 uppercase text-xs tracking-wider font-black">CUMULATIVE TOTAL</td>
+                            <td className="py-3 px-3 text-center text-sm font-black text-slate-900">{totals.total}</td>
+                            <td className="py-3 px-3 text-center text-sm font-bold text-slate-600">{totals.max}</td>
+                            <td className="py-3 px-3 text-center text-sm font-black text-primary align-middle">
+                              <span className="inline-block text-center px-2.5 py-1 rounded-md text-xs font-black bg-blue-100 text-blue-800 border border-blue-300 min-w-[46px] leading-tight box-border">
+                                {totals.pct}%
+                              </span>
+                            </td>
+                            <td className="py-3 px-3 text-center align-middle">
+                              <span className={`inline-block text-center px-2.5 py-1 rounded-md text-xs font-black border min-w-[36px] leading-tight box-border ${getGradeBadge(totals.grade)}`}>
                                 {totals.grade}
                               </span>
                             </td>
-                            <td className="py-3.5 px-4 print:hidden"></td>
+                            <td className="py-3 px-4 print:hidden"></td>
                           </tr>
                         </tbody>
                       </table>
                     </div>
                   </div>
 
-                  {/* ─── LUXURY KPI METRIC TILES ─── */}
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div className="rounded-2xl bg-gradient-to-br from-blue-50 to-indigo-50/50 p-4.5 border border-blue-200/80 shadow-2xs">
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-blue-700">Percentage Score</p>
-                      <p className="font-display text-3xl font-black text-blue-800 mt-1">{totals.pct}%</p>
-                      <div className="w-full bg-blue-200/80 h-1.5 rounded-full mt-2 overflow-hidden">
+                  {/* ─── LUXURY KPI METRIC TILES (NON-COLLAPSING PADDED CARDS) ─── */}
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5 sm:gap-4">
+                    <div className="rounded-2xl bg-gradient-to-br from-blue-50 to-indigo-50/50 p-4 sm:p-5 border border-blue-200/90 shadow-2xs flex flex-col justify-between min-h-[105px] box-border">
+                      <p className="text-[10px] sm:text-[11px] font-extrabold uppercase tracking-wider text-blue-700 leading-snug">Percentage Score</p>
+                      <p className="font-display text-2xl sm:text-3xl font-black text-blue-800 my-1 sm:my-1.5 leading-none">{totals.pct}%</p>
+                      <div className="w-full bg-blue-200/80 h-2 rounded-full overflow-hidden mt-auto">
                         <div className="bg-blue-600 h-full rounded-full transition-all" style={{ width: `${Math.min(100, totals.pct)}%` }} />
                       </div>
                     </div>
 
-                    <div className="rounded-2xl bg-gradient-to-br from-amber-50 to-orange-50/50 p-4.5 border border-amber-200/80 shadow-2xs">
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-amber-700">Aggregate Marks</p>
-                      <p className="font-display text-3xl font-black text-amber-800 mt-1">
-                        {totals.total} <span className="text-sm font-semibold text-amber-600">/ {totals.max}</span>
+                    <div className="rounded-2xl bg-gradient-to-br from-amber-50 to-orange-50/50 p-4 sm:p-5 border border-amber-200/90 shadow-2xs flex flex-col justify-between min-h-[105px] box-border">
+                      <p className="text-[10px] sm:text-[11px] font-extrabold uppercase tracking-wider text-amber-700 leading-snug">Aggregate Marks</p>
+                      <p className="font-display text-2xl sm:text-3xl font-black text-amber-800 my-1 sm:my-1.5 leading-none">
+                        {totals.total} <span className="text-xs sm:text-sm font-bold text-amber-600">/ {totals.max}</span>
                       </p>
-                      <p className="text-[11px] text-amber-600/90 mt-1.5 font-medium">{subjects.length} Evaluated Subjects</p>
+                      <p className="text-[10px] sm:text-[11px] text-amber-700/90 font-semibold leading-tight mt-auto truncate">{subjects.length} Evaluated Subjects</p>
                     </div>
 
-                    <div className="rounded-2xl bg-gradient-to-br from-emerald-50 to-teal-50/50 p-4.5 border border-emerald-200/80 shadow-2xs">
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-700">Overall Grade</p>
-                      <p className="font-display text-3xl font-black text-emerald-800 mt-1">{totals.grade}</p>
-                      <p className="text-[11px] text-emerald-600/90 mt-1.5 font-medium">Standard Grading Scale</p>
+                    <div className="rounded-2xl bg-gradient-to-br from-emerald-50 to-teal-50/50 p-4 sm:p-5 border border-emerald-200/90 shadow-2xs flex flex-col justify-between min-h-[105px] box-border">
+                      <p className="text-[10px] sm:text-[11px] font-extrabold uppercase tracking-wider text-emerald-700 leading-snug">Overall Grade</p>
+                      <p className="font-display text-2xl sm:text-3xl font-black text-emerald-800 my-1 sm:my-1.5 leading-none">{totals.grade}</p>
+                      <p className="text-[10px] sm:text-[11px] text-emerald-700/90 font-semibold leading-tight mt-auto truncate">Standard Grading Scale</p>
                     </div>
 
-                    <div className="rounded-2xl bg-gradient-to-br from-purple-50 to-fuchsia-50/50 p-4.5 border border-purple-200/80 shadow-2xs">
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-purple-700">Attendance Rate</p>
-                      <p className="font-display text-3xl font-black text-purple-800 mt-1">
+                    <div className="rounded-2xl bg-gradient-to-br from-purple-50 to-fuchsia-50/50 p-4 sm:p-5 border border-purple-200/90 shadow-2xs flex flex-col justify-between min-h-[105px] box-border">
+                      <p className="text-[10px] sm:text-[11px] font-extrabold uppercase tracking-wider text-purple-700 leading-snug">Attendance Rate</p>
+                      <p className="font-display text-2xl sm:text-3xl font-black text-purple-800 my-1 sm:my-1.5 leading-none">
                         {card.attendance_percentage != null ? `${card.attendance_percentage}%` : "—"}
                       </p>
-                      <p className="text-[11px] text-purple-600/90 mt-1.5 font-medium">Synced from daily roll call</p>
+                      <p className="text-[10px] sm:text-[11px] text-purple-700/90 font-semibold leading-tight mt-auto truncate">Synced from daily roll call</p>
                     </div>
                   </div>
 
