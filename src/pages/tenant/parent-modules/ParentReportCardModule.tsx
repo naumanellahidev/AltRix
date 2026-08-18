@@ -21,8 +21,7 @@ import {
   AlertCircle
 } from "lucide-react";
 import { toast } from "sonner";
-import jsPDF from "jspdf";
-import html2canvas from "html2canvas";
+import { exportCleanDocumentToPdf } from "@/lib/pdfExportEngine";
 
 interface ParentReportCardModuleProps {
   child: ChildInfo | null;
@@ -116,31 +115,16 @@ export default function ParentReportCardModule({ child, schoolId }: ParentReport
 
   const handlePrint = async () => {
     if (!reportRef.current) return;
+    const name = (child ? `${child.first_name}_${child.last_name || ""}` : "Student").replace(/\s+/g, "_");
     try {
-      const element = reportRef.current;
-      const canvas = await html2canvas(element, { scale: 2, useCORS: true });
-      const imgData = canvas.toDataURL("image/png");
-      const pdf = new jsPDF("p", "mm", "a4");
-      const imgWidth = 210;
-      const pageHeight = 295;
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
-      let heightLeft = imgHeight;
-      let position = 0;
-
-      pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
-      heightLeft -= pageHeight;
-
-      while (heightLeft >= 0) {
-        position = heightLeft - imgHeight;
-        pdf.addPage();
-        pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
-        heightLeft -= pageHeight;
-      }
-      pdf.save(`ReportCard_${child?.first_name || "Student"}.pdf`);
-      toast.success("PDF report card downloaded successfully!");
-    } catch (err) {
-      console.error(err);
-      toast.error("Failed to generate PDF document");
+      await exportCleanDocumentToPdf(reportRef.current, {
+        filename: `${name}_ReportCard.pdf`,
+        orientation: "portrait",
+        scale: 2.5,
+      });
+      toast.success("Official PDF report card downloaded successfully!");
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to generate PDF document");
     }
   };
 

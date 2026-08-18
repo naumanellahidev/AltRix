@@ -7,7 +7,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { SearchableSelect } from "@/components/ui/SearchableSelect";
 import { Progress } from "@/components/ui/progress";
 import { api } from "@/lib/api";
@@ -17,8 +16,9 @@ import { useActiveCampus } from "@/hooks/useActiveCampus";
 import { useSession } from "@/hooks/useSession";
 import {
   BookOpen, Plus, Search, RefreshCw, BookmarkCheck, Clock, CheckCircle2,
-  AlertTriangle, UserCheck, ShieldAlert, Library, LayoutGrid, List,
-  Barcode, Edit3, Trash2, Eye, User, Sparkles, Filter, Check, Calendar, ArrowRight, X, Coins
+  AlertTriangle, UserCheck, Library, LayoutGrid, List,
+  Barcode, Edit3, Trash2, Eye, User, Sparkles, Filter, Check, Calendar, ArrowRight, X, Coins,
+  BookMarked, Layers, ShieldCheck, Printer
 } from "lucide-react";
 
 interface Book {
@@ -155,141 +155,103 @@ export function LibraryModule() {
     }
   };
 
+  const loadBorrowers = async () => {
+    try {
+      const [stRes, staffRes] = await Promise.all([
+        api.from("students").select("id, first_name, last_name, roll_number, student_code").limit(200),
+        api.from("profiles").select("id, display_name, email, role").limit(100)
+      ]);
+      const list: BorrowerOption[] = [];
+      const map: Record<string, { name: string; code: string; type: string }> = {};
+
+      (stRes.data ?? []).forEach((s: any) => {
+        const name = `${s.first_name || ""} ${s.last_name || ""}`.trim() || "Student";
+        const code = s.student_code || s.roll_number || "ST-00";
+        list.push({ id: s.id, name, type: "student", code });
+        map[s.id] = { name, code, type: "student" };
+      });
+      (staffRes.data ?? []).forEach((p: any) => {
+        const name = p.display_name || p.email || "Staff Member";
+        const code = `STAFF-${p.id.slice(0, 4).toUpperCase()}`;
+        list.push({ id: p.id, name, type: "staff", code });
+        map[p.id] = { name, code, type: "staff" };
+      });
+      setBorrowers(list);
+      setBorrowerMap(map);
+    } catch { /* graceful fallback */ }
+  };
+
   const loadReservations = async (silent = false) => {
-    if (!silent) setLoading(true);
     try {
       const res = await apiClient.get("/library/reservations", {
         params: { ...(activeCampusId ? { campus_id: activeCampusId } : {}) }
       });
-      if (Array.isArray(res.data) && res.data.length > 0) {
+      if (Array.isArray(res.data)) {
         setReservations(res.data);
-      } else {
-        const fallback = await api.from("book_reservations").select("*").order("created_at", { ascending: false });
-        setReservations(Array.isArray(fallback.data) && fallback.data.length > 0 ? (fallback.data as BookReservation[]) : (res.data ?? []));
       }
-    } catch { 
-      try {
-        const fallback = await api.from("book_reservations").select("*").order("created_at", { ascending: false });
-        setReservations((fallback.data as BookReservation[]) ?? []);
-      } catch {
-        if (!silent) setReservations([]); 
-      }
-    } finally {
-      if (!silent) setLoading(false);
-    }
-  };
-
-  const loadBorrowers = async () => {
-    try {
-      const campusParam = activeCampusId ? `&campus_id=${activeCampusId}` : "";
-      const [resStu, resTeach] = await Promise.all([
-        apiClient.get(`/students?page_size=1000${campusParam}`).catch(() => ({ data: [] })),
-        apiClient.get(`/teachers?page_size=1000${campusParam}`).catch(() => ({ data: [] }))
-      ]);
-
-      const rawStu = resStu.data;
-      const rawTeach = resTeach.data;
-
-      const stuList = Array.isArray(rawStu?.data)
-        ? rawStu.data
-        : Array.isArray(rawStu?.items)
-        ? rawStu.items
-        : Array.isArray(rawStu)
-        ? rawStu
-        : [];
-
-      const teachList = Array.isArray(rawTeach?.data)
-        ? rawTeach.data
-        : Array.isArray(rawTeach?.items)
-        ? rawTeach.items
-        : Array.isArray(rawTeach)
-        ? rawTeach
-        : [];
-      
-      const bOptions: BorrowerOption[] = [
-        ...stuList.map((s: any) => ({
-          id: s.id,
-          name: s.full_name || `${s.first_name || ''} ${s.last_name || ''}`.trim() || 'Student Borrower',
-          type: "student",
-          code: s.admission_number || s.student_id || s.roll_number || ""
-        })),
-        ...teachList.map((t: any) => ({
-          id: t.id,
-          name: t.full_name || t.name || `${t.first_name || ''} ${t.last_name || ''}`.trim() || 'Teacher Borrower',
-          type: "teacher",
-          code: t.employee_id || t.code || ""
-        }))
-      ];
-
-      const bMap: Record<string, { name: string; code: string; type: string }> = {};
-      bOptions.forEach(b => {
-        bMap[b.id] = { name: b.name, code: b.code || "", type: b.type };
-      });
-      
-      setBorrowers(bOptions);
-      setBorrowerMap(bMap);
     } catch {
-      setBorrowers([]);
-      setBorrowerMap({});
+      // ignore
     }
   };
 
   useEffect(() => {
     loadBooks();
     loadIssues();
-    loadReservations();
     loadBorrowers();
+    loadReservations(true);
   }, [activeCampusId]);
 
-  useEffect(() => {
-    if (showIssueModal) {
-      loadBorrowers();
-      loadBooks(true);
-    }
-  }, [showIssueModal]);
-
-  const getErrorMessage = (err: any, fallback: string): string => {
-    const detail = err?.response?.data?.detail;
-    if (typeof detail === "string") return detail;
-    if (Array.isArray(detail)) {
-      return detail.map((e: any) => e.msg || e.message || "Invalid input").join(", ");
+  const getErrorMessage = (err: any, fallback: string) => {
+    const raw = err?.response?.data?.detail || err?.response?.data?.message || err?.message;
+    if (typeof raw === "string") return raw;
+    if (Array.isArray(raw) && raw.length > 0) {
+      return raw.map((item: any) => item.msg || JSON.stringify(item)).join(", ");
     }
     return fallback;
   };
 
   const handleAddBook = async () => {
     if (!newBook.title || !newBook.author) {
-      toast.error("Please provide book title and author");
+      toast.error("Book title and author are required");
       return;
     }
-    const generatedBarcode = newBook.barcode || `LIB-${Math.floor(100000 + Math.random() * 900000)}`;
-    const generatedISBN = newBook.isbn || `978-969-${Math.floor(1000 + Math.random() * 9000)}-${Math.floor(10 + Math.random() * 90)}-1`;
-    const payload = {
-      ...newBook,
-      barcode: generatedBarcode,
-      isbn: generatedISBN,
-      available_copies: newBook.total_copies,
-      ...(activeCampusId ? { campus_id: activeCampusId } : {})
+    const bookPayload: any = {
+      title: newBook.title.trim(),
+      author: newBook.author.trim(),
+      isbn: newBook.isbn.trim() || `978-969-${Math.floor(1000 + Math.random() * 9000)}-0`,
+      barcode: newBook.barcode.trim() || `LIB-${Math.floor(1000 + Math.random() * 9000)}`,
+      category: newBook.category.trim() || "General",
+      publisher: newBook.publisher.trim() || "Standard Edition",
+      publication_year: Number(newBook.publication_year) || new Date().getFullYear(),
+      total_copies: Number(newBook.total_copies) || 1,
+      available_copies: Number(newBook.total_copies) || 1,
+      shelf_location: newBook.shelf_location.trim() || "Rack A-1",
     };
 
-    // Optimistic UI Update
-    const tempId = `temp-${Date.now()}`;
-    const optimisticBook: Book = { ...payload, id: tempId };
-    setBooks(prev => [optimisticBook, ...(Array.isArray(prev) ? prev : [])]);
+    if (activeCampusId && activeCampusId !== "all" && activeCampusId !== "null" && activeCampusId !== "undefined") {
+      bookPayload.campus_id = activeCampusId;
+    }
+
     setShowAddBook(false);
-    setNewBook({ title: "", author: "", isbn: "", barcode: "", category: "General", publisher: "", publication_year: 2024, total_copies: 5, available_copies: 5, shelf_location: "Rack A-1" });
-    toast.success("Book added to catalog!");
+    setNewBook({
+      title: "", author: "", isbn: "", barcode: "", category: "General", publisher: "", publication_year: 2024, total_copies: 5, available_copies: 5, shelf_location: "Rack A-1"
+    });
+
+    // Optimistic UI Update
+    const tempBook: Book = { id: `temp-${Date.now()}`, ...bookPayload };
+    setBooks(prev => [tempBook, ...(Array.isArray(prev) ? prev : [])]);
+    toast.success("New book registered to catalog!");
 
     try {
-      const res = await apiClient.post("/library/books", payload);
-      if (res.data?.id) {
-        setBooks(prev => (Array.isArray(prev) ? prev : []).map(b => b.id === tempId ? res.data : b));
+      const res = await apiClient.post("/library/books", bookPayload);
+      if (res.data && res.data.id) {
+        setBooks(prev => prev.map(b => b.id === tempBook.id ? res.data : b));
+      } else {
+        loadBooks(true);
       }
-      loadBooks(true);
     } catch (err: any) {
-      // Rollback on error
-      setBooks(prev => (Array.isArray(prev) ? prev : []).filter(b => b.id !== tempId));
-      toast.error(getErrorMessage(err, "Failed to add book"));
+      loadBooks(true);
+      toast.error(getErrorMessage(err, "Failed to create book"));
     }
   };
 
@@ -464,89 +426,139 @@ export function LibraryModule() {
   const activeLoans = safeIssues.filter(i => i?.status === "issued" || i?.status === "overdue").length;
 
   return (
-    <div className="space-y-6">
-      {/* Header Banner */}
-      <div className="bg-gradient-to-r from-blue-700 via-indigo-600 to-blue-800 text-white rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-lg shadow-blue-500/10 border border-blue-400/20">
+    <div className="space-y-4 sm:space-y-6 max-w-7xl mx-auto p-2.5 sm:p-6">
+      {/* 🌟 Executive Header Banner */}
+      <div className="bg-gradient-to-r from-blue-700 via-indigo-600 to-purple-700 text-white rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-xl shadow-blue-500/10 border border-blue-400/20">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-3 sm:gap-4">
-            <div className="p-2.5 sm:p-3 bg-white/10 rounded-xl backdrop-blur-md border border-white/20 shrink-0">
+            <div className="p-3 sm:p-3.5 bg-white/10 rounded-2xl backdrop-blur-md border border-white/20 shrink-0 shadow-inner">
               <Library className="h-6 w-6 sm:h-8 sm:w-8 text-blue-100" />
             </div>
             <div>
-              <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Library Catalog</h1>
-              <p className="text-blue-100 text-xs sm:text-sm mt-0.5">Manage digital book inventory, circulation, and reservations</p>
+              <div className="flex items-center gap-2">
+                <h1 className="text-xl sm:text-3xl font-bold tracking-tight">Library & Circulation</h1>
+                <Badge className="bg-white/20 text-white border-white/30 text-[10px] sm:text-xs">Digital LMS</Badge>
+              </div>
+              <p className="text-blue-100 text-xs sm:text-sm mt-1">
+                Catalog indexing, automated overdue fine accumulator, barcode scanning, and multi-campus circulation.
+              </p>
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <Button size="sm" onClick={() => setShowIssueModal(true)} variant="secondary" className="bg-white/10 hover:bg-white/20 text-white border border-white/20 rounded-xl text-xs h-9">
-              <UserCheck className="h-3.5 w-3.5 mr-1.5" /> Issue Desk
+            <Button
+              size="sm"
+              onClick={() => setShowIssueModal(true)}
+              className="bg-white/15 hover:bg-white/25 text-white border border-white/25 rounded-xl text-xs h-9 font-semibold shadow-xs"
+            >
+              <UserCheck className="h-3.5 w-3.5 mr-1.5 text-blue-200" /> Issue Desk
             </Button>
-            <Button size="sm" onClick={() => setShowAddBook(true)} className="bg-white text-blue-700 hover:bg-blue-50 font-semibold shadow-md rounded-xl text-xs h-9">
+            <Button
+              size="sm"
+              onClick={() => setShowAddBook(true)}
+              className="bg-white text-blue-700 hover:bg-blue-50 font-bold shadow-md rounded-xl text-xs h-9"
+            >
               <Plus className="h-3.5 w-3.5 mr-1.5" /> Add Title
             </Button>
           </div>
         </div>
       </div>
 
-      {/* KPI Stat Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-4">
-        <Card className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm p-3.5 sm:p-5 hover:shadow-md transition-all rounded-2xl">
+      {/* 🌟 KPI Stat Cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
+        <Card className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm p-3 sm:p-4.5 hover:shadow-md transition-all rounded-2xl">
           <div className="flex items-center gap-3">
             <div className="p-2.5 sm:p-3 rounded-xl bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-900/50 shrink-0">
               <BookOpen className="h-5 w-5 sm:h-6 sm:w-6" />
             </div>
             <div className="min-w-0">
-              <p className="text-[10px] sm:text-xs font-semibold text-slate-500 uppercase tracking-wider truncate">Catalog Titles</p>
-              <p className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-slate-100 mt-0.5 truncate">{totalTitles} Titles <span className="text-xs sm:text-sm font-normal text-slate-500">({totalAvailable}/{totalCopies})</span></p>
+              <p className="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-wider truncate">Total Catalog</p>
+              <p className="text-lg sm:text-2xl font-black text-slate-900 dark:text-slate-100 mt-0.5 truncate">
+                {totalTitles} <span className="text-xs sm:text-sm font-normal text-slate-500">Titles</span>
+              </p>
+              <p className="text-[10px] sm:text-xs text-emerald-600 dark:text-emerald-400 font-semibold truncate mt-0.5">
+                {totalAvailable} of {totalCopies} Available
+              </p>
             </div>
           </div>
         </Card>
 
-        <Card className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm p-3.5 sm:p-5 hover:shadow-md transition-all rounded-2xl">
+        <Card className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm p-3 sm:p-4.5 hover:shadow-md transition-all rounded-2xl">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 sm:p-3 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:indigo-400 border border-indigo-100 dark:border-indigo-900/50 shrink-0">
+            <div className="p-2.5 sm:p-3 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-900/50 shrink-0">
               <Clock className="h-5 w-5 sm:h-6 sm:w-6" />
             </div>
             <div className="min-w-0">
-              <p className="text-[10px] sm:text-xs font-semibold text-slate-500 uppercase tracking-wider truncate">Active Circulation</p>
-              <p className="text-xl sm:text-2xl font-bold text-indigo-600 dark:text-indigo-400 mt-0.5 truncate">{activeLoans} Issued</p>
+              <p className="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-wider truncate">Active Loans</p>
+              <p className="text-lg sm:text-2xl font-black text-indigo-600 dark:text-indigo-400 mt-0.5 truncate">
+                {activeLoans} <span className="text-xs sm:text-sm font-normal text-slate-500">Issued</span>
+              </p>
+              <p className="text-[10px] sm:text-xs text-slate-500 font-medium truncate mt-0.5">
+                {activeIssuesCount} Active Borrowers
+              </p>
             </div>
           </div>
         </Card>
 
-        <Card className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm p-3.5 sm:p-5 hover:shadow-md transition-all rounded-2xl">
+        <Card className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm p-3 sm:p-4.5 hover:shadow-md transition-all rounded-2xl">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 sm:p-3 rounded-xl bg-rose-50 dark:bg-rose-950/50 text-rose-600 dark:text-rose-400 border border-rose-100 dark:border-rose-900/50 shrink-0">
+              <AlertTriangle className="h-5 w-5 sm:h-6 sm:w-6" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-wider truncate">Overdue Returns</p>
+              <p className="text-lg sm:text-2xl font-black text-rose-600 dark:text-rose-400 mt-0.5 truncate">
+                {overdueIssuesCount} <span className="text-xs sm:text-sm font-normal text-slate-500">Overdue</span>
+              </p>
+              <p className="text-[10px] sm:text-xs text-rose-600 font-semibold truncate mt-0.5">
+                Late Fine Accumulating
+              </p>
+            </div>
+          </div>
+        </Card>
+
+        <Card className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm p-3 sm:p-4.5 hover:shadow-md transition-all rounded-2xl">
           <div className="flex items-center gap-3">
             <div className="p-2.5 sm:p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-900/50 shrink-0">
               <BookmarkCheck className="h-5 w-5 sm:h-6 sm:w-6" />
             </div>
             <div className="min-w-0">
-              <p className="text-[10px] sm:text-xs font-semibold text-slate-500 uppercase tracking-wider truncate">Reservations</p>
-              <p className="text-xl sm:text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-0.5 truncate">{reservations.length} Holds</p>
+              <p className="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-wider truncate">Reservations</p>
+              <p className="text-lg sm:text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-0.5 truncate">
+                {safeReservations.length} <span className="text-xs sm:text-sm font-normal text-slate-500">Holds</span>
+              </p>
+              <p className="text-[10px] sm:text-xs text-slate-500 font-medium truncate mt-0.5">
+                {returnedIssuesCount} Returned All-Time
+              </p>
             </div>
           </div>
         </Card>
       </div>
 
+      {/* 🌟 Tabbed Views Container */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="overflow-x-auto no-scrollbar -mx-1 px-1">
-            <TabsList className="inline-flex w-full sm:w-auto p-1 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
-              <TabsTrigger value="catalog" className="flex-1 sm:flex-initial data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-sm font-semibold text-xs rounded-lg whitespace-nowrap">
-                <BookOpen className="h-3.5 w-3.5 mr-1.5" /> Book Catalog
-              </TabsTrigger>
-              <TabsTrigger value="issues" className="flex-1 sm:flex-initial data-[state=active]:bg-white data-[state=active]:text-indigo-700 data-[state=active]:shadow-sm font-semibold text-xs rounded-lg whitespace-nowrap">
-                <Clock className="h-3.5 w-3.5 mr-1.5" /> Loans & Returns Log
-              </TabsTrigger>
-            </TabsList>
-          </div>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white dark:bg-slate-900 p-2.5 sm:p-3 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm">
+          <TabsList className="inline-flex w-full sm:w-auto p-1 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+            <TabsTrigger
+              value="catalog"
+              className="flex-1 sm:flex-initial data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-sm font-bold text-xs rounded-lg whitespace-nowrap py-1.5"
+            >
+              <BookOpen className="h-3.5 w-3.5 mr-1.5" /> Book Catalog ({safeBooks.length})
+            </TabsTrigger>
+            <TabsTrigger
+              value="issues"
+              className="flex-1 sm:flex-initial data-[state=active]:bg-white data-[state=active]:text-indigo-700 data-[state=active]:shadow-sm font-bold text-xs rounded-lg whitespace-nowrap py-1.5"
+            >
+              <Clock className="h-3.5 w-3.5 mr-1.5" /> Circulation Log ({safeIssues.length})
+            </TabsTrigger>
+          </TabsList>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 justify-end">
             <Button
               size="sm"
               variant="outline"
               onClick={() => { loadBooks(false); loadIssues(false); loadReservations(false); }}
               disabled={loading}
-              className="text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 rounded-xl h-9 text-xs"
+              className="text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 rounded-xl h-8.5 text-xs font-semibold"
             >
               <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${loading ? "animate-spin" : ""}`} /> Refresh
             </Button>
@@ -556,13 +568,13 @@ export function LibraryModule() {
         {/* ─── Book Catalog Tab ─────────────────────────── */}
         <TabsContent value="catalog" className="space-y-4">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-white dark:bg-slate-900 p-3 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm">
-            <div className="relative w-full sm:w-80">
+            <div className="relative w-full sm:w-96">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
               <Input
-                placeholder="Search title, author, barcode or ISBN..."
+                placeholder="Search title, author, barcode, ISBN, or rack..."
                 value={search}
                 onChange={e => setSearch(e.target.value)}
-                className="pl-9 h-9 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 rounded-xl text-xs"
+                className="pl-9 h-9 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 rounded-xl text-xs font-medium"
               />
               {search && (
                 <button onClick={() => setSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
@@ -577,7 +589,7 @@ export function LibraryModule() {
                   size="sm"
                   variant="ghost"
                   onClick={() => setViewMode("grid")}
-                  className={`h-7 px-2.5 rounded-lg text-xs font-semibold ${viewMode === "grid" ? "bg-white dark:bg-slate-900 text-blue-700 shadow-xs" : "text-slate-500"}`}
+                  className={`h-7 px-2.5 rounded-lg text-xs font-bold ${viewMode === "grid" ? "bg-white dark:bg-slate-900 text-blue-700 shadow-xs" : "text-slate-500"}`}
                 >
                   <LayoutGrid className="h-3.5 w-3.5 mr-1" /> Grid
                 </Button>
@@ -585,7 +597,7 @@ export function LibraryModule() {
                   size="sm"
                   variant="ghost"
                   onClick={() => setViewMode("table")}
-                  className={`h-7 px-2.5 rounded-lg text-xs font-semibold ${viewMode === "table" ? "bg-white dark:bg-slate-900 text-blue-700 shadow-xs" : "text-slate-500"}`}
+                  className={`h-7 px-2.5 rounded-lg text-xs font-bold ${viewMode === "table" ? "bg-white dark:bg-slate-900 text-blue-700 shadow-xs" : "text-slate-500"}`}
                 >
                   <List className="h-3.5 w-3.5 mr-1" /> Table
                 </Button>
@@ -600,7 +612,7 @@ export function LibraryModule() {
                 key={cat}
                 type="button"
                 onClick={() => setSelectedCategory(cat)}
-                className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
                   selectedCategory === cat
                     ? "bg-blue-600 text-white shadow-sm"
                     : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-50"
@@ -612,84 +624,84 @@ export function LibraryModule() {
           </div>
 
           {filteredBooks.length === 0 ? (
-            <Card className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 p-12 text-center">
+            <Card className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 p-12 text-center rounded-2xl">
               <BookOpen className="h-12 w-12 mx-auto mb-3 text-slate-300" />
-              <p className="font-semibold text-slate-700 dark:text-slate-300">No Library Books Matching Query</p>
-              <p className="text-xs text-slate-500 mt-1">Click "Add Book Title" to add new literature to your library catalog.</p>
+              <p className="font-bold text-slate-700 dark:text-slate-300">No Library Books Matching Query</p>
+              <p className="text-xs text-slate-500 mt-1">Try adjusting search filters or click "Add Title" to register new books.</p>
             </Card>
           ) : viewMode === "grid" ? (
-            /* 🌟 LUXURY GRID CARDS VIEW */
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            /* 🌟 LUXURY RESPONSIVE GRID VIEW */
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-5">
               {filteredBooks.map(b => {
                 const availabilityPct = Math.round(((b.available_copies || 0) / (b.total_copies || 1)) * 100);
                 const isOutOfStock = b.available_copies <= 0;
                 const isLowStock = b.available_copies > 0 && b.available_copies <= 2;
 
                 return (
-                  <Card key={b.id} className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden flex flex-col justify-between group">
-                    <CardHeader className="p-5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30">
+                  <Card key={b.id} className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden flex flex-col justify-between group rounded-2xl">
+                    <CardHeader className="p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30">
                       <div className="flex items-start justify-between gap-3">
-                        <div className="flex items-start gap-3">
-                          <div className="p-3 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-700 text-white shadow-md flex-shrink-0">
-                            <BookOpen className="h-6 w-6" />
+                        <div className="flex items-start gap-3 min-w-0">
+                          <div className="p-2.5 sm:p-3 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-700 text-white shadow-md shrink-0">
+                            <BookOpen className="h-5 w-5 sm:h-6 sm:w-6" />
                           </div>
-                          <div>
-                            <h3 className="font-bold text-slate-900 dark:text-slate-100 group-hover:text-blue-600 transition-colors line-clamp-1">{b.title}</h3>
-                            <p className="text-xs text-slate-500 font-medium">by {b.author}</p>
+                          <div className="min-w-0">
+                            <h3 className="font-bold text-slate-900 dark:text-slate-100 group-hover:text-blue-600 transition-colors line-clamp-1 text-sm sm:text-base">{b.title}</h3>
+                            <p className="text-xs text-slate-500 font-medium truncate mt-0.5">by {b.author}</p>
                           </div>
                         </div>
-                        <Badge variant="outline" className="border-blue-200 bg-blue-50 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300 text-[11px] font-medium flex-shrink-0">
+                        <Badge variant="outline" className="border-blue-200 bg-blue-50 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300 text-[10px] sm:text-[11px] font-bold shrink-0">
                           {b.category}
                         </Badge>
                       </div>
                     </CardHeader>
 
-                    <CardContent className="p-5 space-y-4 flex-1">
+                    <CardContent className="p-4 sm:p-5 space-y-3.5 flex-1">
                       {/* Meta Pills */}
                       <div className="grid grid-cols-2 gap-2 text-xs">
-                        <div className="bg-slate-50 dark:bg-slate-800/60 p-2.5 rounded-lg border border-slate-100 dark:border-slate-800">
-                          <p className="text-slate-400 text-[10px] uppercase font-semibold">Shelf Location</p>
-                          <p className="font-bold text-slate-800 dark:text-slate-200 mt-0.5">{b.shelf_location || "Rack A-1"}</p>
+                        <div className="bg-slate-50 dark:bg-slate-800/60 p-2 sm:p-2.5 rounded-xl border border-slate-100 dark:border-slate-800">
+                          <p className="text-slate-400 text-[10px] uppercase font-bold">Shelf Location</p>
+                          <p className="font-bold text-slate-800 dark:text-slate-200 mt-0.5 truncate">{b.shelf_location || "Rack A-1"}</p>
                         </div>
-                        <div className="bg-slate-50 dark:bg-slate-800/60 p-2.5 rounded-lg border border-slate-100 dark:border-slate-800">
-                          <p className="text-slate-400 text-[10px] uppercase font-semibold">Barcode Tag</p>
-                          <p className="font-mono font-bold text-blue-600 dark:text-blue-400 mt-0.5 flex items-center gap-1">
-                            <Barcode className="h-3.5 w-3.5" /> {b.barcode || "LIB-1001"}
+                        <div className="bg-slate-50 dark:bg-slate-800/60 p-2 sm:p-2.5 rounded-xl border border-slate-100 dark:border-slate-800">
+                          <p className="text-slate-400 text-[10px] uppercase font-bold">Barcode Tag</p>
+                          <p className="font-mono font-bold text-blue-600 dark:text-blue-400 mt-0.5 flex items-center gap-1 truncate">
+                            <Barcode className="h-3.5 w-3.5 shrink-0" /> {b.barcode || "LIB-1001"}
                           </p>
                         </div>
                       </div>
 
                       {/* Stock Bar Progress */}
-                      <div className="space-y-1.5 pt-1">
-                        <div className="flex justify-between text-xs font-semibold">
+                      <div className="space-y-1.5 pt-0.5">
+                        <div className="flex justify-between text-xs font-bold">
                           <span className="text-slate-600 dark:text-slate-400">Available Stock:</span>
                           <span className={isOutOfStock ? "text-rose-600" : isLowStock ? "text-amber-600" : "text-emerald-600"}>
-                            {b.available_copies} of {b.total_copies} Copies
+                            {b.available_copies} / {b.total_copies} Copies
                           </span>
                         </div>
                         <Progress value={availabilityPct} className={`h-2 ${isOutOfStock ? "bg-rose-100 text-rose-600" : "bg-blue-100"}`} />
                       </div>
 
                       {/* ISBN details */}
-                      <div className="text-[11px] text-slate-400 font-mono flex items-center justify-between border-t border-slate-100 dark:border-slate-800 pt-2">
-                        <span>ISBN: {b.isbn || "978-969-000-0"}</span>
-                        <span>{b.publisher || "Standard Edition"}</span>
+                      <div className="text-[10px] sm:text-[11px] text-slate-400 font-mono flex items-center justify-between border-t border-slate-100 dark:border-slate-800 pt-2">
+                        <span className="truncate">ISBN: {b.isbn || "978-969-000-0"}</span>
+                        <span className="truncate ml-2">{b.publisher || "Standard Edition"}</span>
                       </div>
                     </CardContent>
 
                     {/* Action Bar */}
-                    <div className="p-4 bg-slate-50/80 dark:bg-slate-800/50 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-1">
-                        <Button size="icon" variant="ghost" title="View Barcode Details" onClick={() => setShowBarcodeModal(b)} className="h-8 w-8 text-slate-600 hover:text-blue-600">
+                    <div className="p-3 sm:p-3.5 bg-slate-50/80 dark:bg-slate-800/50 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-1.5">
+                      <div className="flex items-center gap-0.5">
+                        <Button size="icon" variant="ghost" title="View Barcode Label" onClick={() => setShowBarcodeModal(b)} className="h-8 w-8 text-slate-600 hover:text-blue-600 rounded-lg">
                           <Barcode className="h-4 w-4" />
                         </Button>
-                        <Button size="icon" variant="ghost" title="Edit Book Info" onClick={() => setShowEditBook(b)} className="h-8 w-8 text-slate-600 hover:text-blue-600">
+                        <Button size="icon" variant="ghost" title="Edit Book Info" onClick={() => setShowEditBook(b)} className="h-8 w-8 text-slate-600 hover:text-blue-600 rounded-lg">
                           <Edit3 className="h-4 w-4" />
                         </Button>
-                        <Button size="icon" variant="ghost" title="Reserve Queue" onClick={() => handleReserveBook(b.id)} className="h-8 w-8 text-slate-600 hover:text-emerald-600">
+                        <Button size="icon" variant="ghost" title="Reserve Queue" onClick={() => handleReserveBook(b.id)} className="h-8 w-8 text-slate-600 hover:text-emerald-600 rounded-lg">
                           <BookmarkCheck className="h-4 w-4" />
                         </Button>
-                        <Button size="icon" variant="ghost" title="Delete Book" onClick={() => handleDeleteBook(b.id, b.title)} className="h-8 w-8 text-slate-600 hover:text-rose-600">
+                        <Button size="icon" variant="ghost" title="Delete Book" onClick={() => handleDeleteBook(b.id, b.title)} className="h-8 w-8 text-slate-600 hover:text-rose-600 rounded-lg">
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
@@ -697,9 +709,9 @@ export function LibraryModule() {
                         size="sm"
                         disabled={isOutOfStock}
                         onClick={() => { setNewIssue({ ...newIssue, book_id: b.id }); setShowIssueModal(true); }}
-                        className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold shadow-sm"
+                        className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold shadow-xs text-xs h-8 px-3 rounded-lg"
                       >
-                        <UserCheck className="h-3.5 w-3.5 mr-1.5" /> Issue Book
+                        <UserCheck className="h-3.5 w-3.5 mr-1" /> Issue
                       </Button>
                     </div>
                   </Card>
@@ -707,18 +719,18 @@ export function LibraryModule() {
               })}
             </div>
           ) : (
-            /* 🌟 LUXURY TABLE VIEW */
-            <Card className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm">
-              <CardContent className="p-0">
+            /* 🌟 LUXURY RESPONSIVE TABLE VIEW */
+            <Card className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm rounded-2xl overflow-hidden">
+              <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-slate-50 dark:bg-slate-800/50">
-                      <TableHead>Book Title & Author</TableHead>
-                      <TableHead>Category</TableHead>
-                      <TableHead>ISBN & Barcode</TableHead>
-                      <TableHead>Shelf Rack</TableHead>
-                      <TableHead>Available Stock</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
+                      <TableHead className="font-bold text-xs uppercase">Book Title & Author</TableHead>
+                      <TableHead className="font-bold text-xs uppercase">Category</TableHead>
+                      <TableHead className="font-bold text-xs uppercase">ISBN & Barcode</TableHead>
+                      <TableHead className="font-bold text-xs uppercase">Shelf Rack</TableHead>
+                      <TableHead className="font-bold text-xs uppercase">Available Stock</TableHead>
+                      <TableHead className="text-right font-bold text-xs uppercase pr-4">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -726,40 +738,45 @@ export function LibraryModule() {
                       <TableRow key={b.id} className="hover:bg-blue-50/50 dark:hover:bg-slate-800/50 transition-colors">
                         <TableCell>
                           <div className="flex items-center gap-3">
-                            <div className="p-2 rounded-lg bg-blue-50 dark:bg-blue-950/50 text-blue-600 font-bold border border-blue-100">
-                              <BookOpen className="h-5 w-5" />
+                            <div className="p-2 rounded-xl bg-blue-50 dark:bg-blue-950/50 text-blue-600 font-bold border border-blue-100">
+                              <BookOpen className="h-4 w-4" />
                             </div>
                             <div>
-                              <p className="font-bold text-slate-900 dark:text-slate-100">{b.title}</p>
-                              <p className="text-xs text-slate-500">by {b.author}</p>
+                              <p className="font-bold text-slate-900 dark:text-slate-100 text-xs sm:text-sm">{b.title}</p>
+                              <p className="text-[11px] text-slate-500">by {b.author}</p>
                             </div>
                           </div>
                         </TableCell>
                         <TableCell>
-                          <Badge variant="outline" className="border-blue-200 bg-blue-50 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300">
+                          <Badge variant="outline" className="border-blue-200 bg-blue-50 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300 text-[10px] font-bold">
                             {b.category}
                           </Badge>
                         </TableCell>
                         <TableCell>
                           <p className="font-mono text-xs text-slate-700 dark:text-slate-300">{b.isbn || "978-969-0000"}</p>
-                          <p className="font-mono text-[10px] text-blue-600">{b.barcode || "LIB-1001"}</p>
+                          <p className="font-mono text-[10px] font-bold text-blue-600">{b.barcode || "LIB-1001"}</p>
                         </TableCell>
-                        <TableCell className="font-medium text-slate-800 dark:text-slate-200">{b.shelf_location || "Rack A-1"}</TableCell>
+                        <TableCell className="font-semibold text-xs text-slate-800 dark:text-slate-200">{b.shelf_location || "Rack A-1"}</TableCell>
                         <TableCell>
-                          <div className="space-y-1 w-32">
+                          <div className="space-y-1 w-28 sm:w-32">
                             <p className="text-xs font-bold text-slate-900 dark:text-slate-100">{b.available_copies} / {b.total_copies} Copies</p>
                             <Progress value={Math.round((b.available_copies / (b.total_copies || 1)) * 100)} className="h-1.5 bg-blue-100" />
                           </div>
                         </TableCell>
-                        <TableCell className="text-right">
+                        <TableCell className="text-right pr-4">
                           <div className="flex items-center justify-end gap-1">
-                            <Button size="sm" variant="ghost" title="Edit" onClick={() => setShowEditBook(b)} className="h-8 text-slate-600 hover:text-blue-600">
-                              <Edit3 className="h-4 w-4" />
+                            <Button size="sm" variant="ghost" title="Edit" onClick={() => setShowEditBook(b)} className="h-7 w-7 p-0 text-slate-600 hover:text-blue-600 rounded-lg">
+                              <Edit3 className="h-3.5 w-3.5" />
                             </Button>
-                            <Button size="sm" variant="ghost" title="Delete" onClick={() => handleDeleteBook(b.id, b.title)} className="h-8 text-slate-600 hover:text-rose-600">
-                              <Trash2 className="h-4 w-4" />
+                            <Button size="sm" variant="ghost" title="Delete" onClick={() => handleDeleteBook(b.id, b.title)} className="h-7 w-7 p-0 text-slate-600 hover:text-rose-600 rounded-lg">
+                              <Trash2 className="h-3.5 w-3.5" />
                             </Button>
-                            <Button size="sm" onClick={() => { setNewIssue({ ...newIssue, book_id: b.id }); setShowIssueModal(true); }} className="bg-blue-600 hover:bg-blue-700 text-white font-medium">
+                            <Button
+                              size="sm"
+                              disabled={b.available_copies <= 0}
+                              onClick={() => { setNewIssue({ ...newIssue, book_id: b.id }); setShowIssueModal(true); }}
+                              className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs h-7 px-2.5 rounded-lg"
+                            >
                               Issue
                             </Button>
                           </div>
@@ -768,23 +785,23 @@ export function LibraryModule() {
                     ))}
                   </TableBody>
                 </Table>
-              </CardContent>
+              </div>
             </Card>
           )}
         </TabsContent>
 
-        {/* ─── Active Loans Tab (Single-Screen, Zero Horizontal Scroll) ───────────── */}
+        {/* ─── Active Circulation & Loans Tab ───────────── */}
         <TabsContent value="issues" className="space-y-4">
-          <Card className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">
-            {/* Header & Filter Controls Bar */}
-            <div className="p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div className="flex items-center gap-2 flex-wrap">
+          <Card className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm rounded-2xl overflow-hidden">
+            {/* Filter Controls Bar */}
+            <div className="p-3 sm:p-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
                 <button
                   type="button"
                   onClick={() => setIssuesStatusFilter("all")}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
                     issuesStatusFilter === "all"
-                      ? "bg-blue-600 text-white shadow-sm"
+                      ? "bg-blue-600 text-white shadow-xs"
                       : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-50"
                   }`}
                 >
@@ -793,9 +810,9 @@ export function LibraryModule() {
                 <button
                   type="button"
                   onClick={() => setIssuesStatusFilter("active")}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
                     issuesStatusFilter === "active"
-                      ? "bg-blue-600 text-white shadow-sm"
+                      ? "bg-blue-600 text-white shadow-xs"
                       : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-50"
                   }`}
                 >
@@ -804,9 +821,9 @@ export function LibraryModule() {
                 <button
                   type="button"
                   onClick={() => setIssuesStatusFilter("overdue")}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
                     issuesStatusFilter === "overdue"
-                      ? "bg-rose-600 text-white shadow-sm"
+                      ? "bg-rose-600 text-white shadow-xs"
                       : "bg-white dark:bg-slate-800 text-rose-600 border border-rose-200 dark:border-rose-900/50 hover:bg-rose-50"
                   }`}
                 >
@@ -815,9 +832,9 @@ export function LibraryModule() {
                 <button
                   type="button"
                   onClick={() => setIssuesStatusFilter("returned")}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
                     issuesStatusFilter === "returned"
-                      ? "bg-emerald-600 text-white shadow-sm"
+                      ? "bg-emerald-600 text-white shadow-xs"
                       : "bg-white dark:bg-slate-800 text-emerald-700 border border-emerald-200 dark:border-emerald-900/50 hover:bg-emerald-50"
                   }`}
                 >
@@ -826,13 +843,13 @@ export function LibraryModule() {
               </div>
 
               {/* Quick Search */}
-              <div className="relative w-full sm:w-64">
+              <div className="relative w-full sm:w-72">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
                 <Input
                   placeholder="Search book or borrower..."
                   value={issuesSearch}
                   onChange={e => setIssuesSearch(e.target.value)}
-                  className="pl-8 h-8 text-xs bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 rounded-lg"
+                  className="pl-8 h-8 text-xs bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 rounded-xl"
                 />
                 {issuesSearch && (
                   <button onClick={() => setIssuesSearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
@@ -846,28 +863,28 @@ export function LibraryModule() {
               {filteredIssues.length === 0 ? (
                 <div className="text-center py-12 text-slate-500">
                   <Clock className="h-10 w-10 mx-auto mb-2 text-slate-300" />
-                  <p className="font-semibold text-slate-700 dark:text-slate-300">No Circulation Records Found</p>
-                  <p className="text-xs text-slate-500 mt-1">Try changing search keywords or filters, or issue a new book.</p>
+                  <p className="font-bold text-slate-700 dark:text-slate-300">No Circulation Records Found</p>
+                  <p className="text-xs text-slate-500 mt-1">Try changing filters or issue a new book title.</p>
                 </div>
               ) : (
                 <>
-                  {/* Desktop Table: Fits on single screen without horizontal scrollbar */}
-                  <div className="hidden md:block w-full overflow-hidden">
+                  {/* Desktop Table View */}
+                  <div className="hidden md:block w-full overflow-x-auto">
                     <table className="w-full text-left text-sm table-fixed border-collapse">
                       <thead>
                         <tr className="bg-slate-50/90 dark:bg-slate-800/80 text-xs border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400">
-                          <th className="w-[30%] px-4 py-3 font-semibold text-left">Book & Barcode</th>
-                          <th className="w-[24%] px-4 py-3 font-semibold text-left">Borrower</th>
-                          <th className="w-[18%] px-4 py-3 font-semibold text-left">Timeline</th>
-                          <th className="w-[16%] px-4 py-3 font-semibold text-left">Status & Fine</th>
-                          <th className="w-[12%] px-4 py-3 font-semibold text-right pr-4">Actions</th>
+                          <th className="w-[30%] px-4 py-3 font-bold text-left uppercase">Book & Barcode</th>
+                          <th className="w-[24%] px-4 py-3 font-bold text-left uppercase">Borrower</th>
+                          <th className="w-[18%] px-4 py-3 font-bold text-left uppercase">Timeline</th>
+                          <th className="w-[16%] px-4 py-3 font-bold text-left uppercase">Status & Fine</th>
+                          <th className="w-[12%] px-4 py-3 font-bold text-right pr-4 uppercase">Actions</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                         {filteredIssues.map(i => {
                           const book = bookMap[i.book_id] || safeBooks.find(b => b.id === i.book_id);
                           const borrower = borrowerMap[i.borrower_id];
-                          const displayName = borrower ? borrower.name : "Hamza Malik";
+                          const displayName = borrower ? borrower.name : "Student Member";
                           const displayCode = borrower ? `${borrower.type.toUpperCase()} • ${borrower.code}` : "STUDENT • #1001";
                           const isOverdue = i.status !== "returned" && new Date(i.due_date) < new Date();
                           const daysLate = isOverdue
@@ -881,15 +898,15 @@ export function LibraryModule() {
                               {/* Book & Barcode */}
                               <td className="px-4 py-3 align-middle">
                                 <div className="flex items-center gap-2.5 min-w-0">
-                                  <div className="p-2 rounded-lg bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 shrink-0">
+                                  <div className="p-2 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 shrink-0">
                                     <BookOpen className="h-4 w-4" />
                                   </div>
                                   <div className="min-w-0 flex-1">
-                                    <p className="font-semibold text-slate-900 dark:text-slate-100 text-xs truncate" title={book?.title || "Library Book"}>
+                                    <p className="font-bold text-slate-900 dark:text-slate-100 text-xs truncate" title={book?.title || "Library Book"}>
                                       {book ? book.title : "Library Book"}
                                     </p>
                                     <div className="flex items-center gap-1.5 mt-0.5">
-                                      <span className="font-mono text-[10px] text-blue-700 dark:text-blue-300 font-semibold bg-blue-50 dark:bg-blue-950/50 px-1.5 py-0.2 rounded border border-blue-200/60 dark:border-blue-800/40 shrink-0">
+                                      <span className="font-mono text-[10px] text-blue-700 dark:text-blue-300 font-bold bg-blue-50 dark:bg-blue-950/50 px-1.5 py-0.2 rounded border border-blue-200/60 dark:border-blue-800/40 shrink-0">
                                         {book?.barcode || "LIB-1001"}
                                       </span>
                                       {book?.author && (
@@ -907,7 +924,7 @@ export function LibraryModule() {
                                     {displayName.charAt(0)}
                                   </div>
                                   <div className="min-w-0 flex-1">
-                                    <p className="font-semibold text-slate-800 dark:text-slate-200 text-xs truncate">{displayName}</p>
+                                    <p className="font-bold text-slate-800 dark:text-slate-200 text-xs truncate">{displayName}</p>
                                     <p className="text-[10px] text-slate-400 font-mono truncate">{displayCode}</p>
                                   </div>
                                 </div>
@@ -917,10 +934,10 @@ export function LibraryModule() {
                               <td className="px-4 py-3 align-middle text-xs">
                                 <div className="space-y-0.5">
                                   <div className="flex items-center gap-1 text-slate-500 text-[11px]">
-                                    <span className="text-[10px] uppercase font-semibold text-slate-400">Out:</span> {i.issue_date || "2026-07-24"}
+                                    <span className="text-[10px] uppercase font-bold text-slate-400">Out:</span> {i.issue_date || "2026-07-24"}
                                   </div>
-                                  <div className={`flex items-center gap-1 font-semibold text-[11px] ${isOverdue ? "text-rose-600" : "text-slate-800 dark:text-slate-200"}`}>
-                                    <span className="text-[10px] uppercase font-semibold text-slate-400">Due:</span> {i.due_date}
+                                  <div className={`flex items-center gap-1 font-bold text-[11px] ${isOverdue ? "text-rose-600" : "text-slate-800 dark:text-slate-200"}`}>
+                                    <span className="text-[10px] uppercase font-bold text-slate-400">Due:</span> {i.due_date}
                                   </div>
                                 </div>
                               </td>
@@ -929,15 +946,15 @@ export function LibraryModule() {
                               <td className="px-4 py-3 align-middle">
                                 <div className="flex flex-col items-start gap-1">
                                   {i.status === "returned" ? (
-                                    <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-300 text-[10px] py-0.5 px-2 font-semibold">
+                                    <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-300 text-[10px] py-0.5 px-2 font-bold">
                                       <CheckCircle2 className="h-3 w-3 mr-1" /> Returned
                                     </Badge>
                                   ) : isOverdue ? (
-                                    <Badge className="bg-rose-50 text-rose-700 border-rose-200 text-[10px] py-0.5 px-2 font-semibold animate-pulse">
+                                    <Badge className="bg-rose-50 text-rose-700 border-rose-200 text-[10px] py-0.5 px-2 font-bold animate-pulse">
                                       <AlertTriangle className="h-3 w-3 mr-1" /> Overdue ({daysLate}d)
                                     </Badge>
                                   ) : (
-                                    <Badge className="bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/50 dark:text-blue-300 text-[10px] py-0.5 px-2 font-semibold">
+                                    <Badge className="bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/50 dark:text-blue-300 text-[10px] py-0.5 px-2 font-bold">
                                       <Clock className="h-3 w-3 mr-1" /> Issued
                                     </Badge>
                                   )}
@@ -959,7 +976,7 @@ export function LibraryModule() {
                                     variant="ghost"
                                     title="View Full Loan Info"
                                     onClick={() => setSelectedLoanDetail({ issue: i, book, borrower })}
-                                    className="h-7 px-2 text-xs text-slate-600 hover:text-blue-600 hover:bg-blue-50"
+                                    className="h-7 px-2 text-xs text-slate-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg"
                                   >
                                     <Eye className="h-3.5 w-3.5 mr-1" /> Info
                                   </Button>
@@ -967,7 +984,7 @@ export function LibraryModule() {
                                     <Button
                                       size="sm"
                                       onClick={() => handleReturnBook(i.id)}
-                                      className="h-7 px-2.5 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-xs"
+                                      className="h-7 px-2.5 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-xs rounded-lg"
                                     >
                                       <Check className="h-3 w-3 mr-1" /> Return
                                     </Button>
@@ -981,12 +998,12 @@ export function LibraryModule() {
                     </table>
                   </div>
 
-                  {/* Mobile High-Density Stacked Cards (zero horizontal overflow) */}
+                  {/* Mobile High-Density Stacked Cards */}
                   <div className="md:hidden divide-y divide-slate-100 dark:divide-slate-800">
                     {filteredIssues.map(i => {
                       const book = bookMap[i.book_id] || safeBooks.find(b => b.id === i.book_id);
                       const borrower = borrowerMap[i.borrower_id];
-                      const displayName = borrower ? borrower.name : "Hamza Malik";
+                      const displayName = borrower ? borrower.name : "Student Member";
                       const displayCode = borrower ? `${borrower.type.toUpperCase()} • ${borrower.code}` : "STUDENT • #1001";
                       const isOverdue = i.status !== "returned" && new Date(i.due_date) < new Date();
                       const daysLate = isOverdue
@@ -1006,26 +1023,26 @@ export function LibraryModule() {
                             </div>
                             <div className="shrink-0">
                               {i.status === "returned" ? (
-                                <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[10px] py-0 px-2">Returned</Badge>
+                                <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[10px] py-0 px-2 font-bold">Returned</Badge>
                               ) : isOverdue ? (
-                                <Badge className="bg-rose-50 text-rose-700 border-rose-200 text-[10px] py-0 px-2 animate-pulse">Overdue ({daysLate}d)</Badge>
+                                <Badge className="bg-rose-50 text-rose-700 border-rose-200 text-[10px] py-0 px-2 font-bold animate-pulse">Overdue ({daysLate}d)</Badge>
                               ) : (
-                                <Badge className="bg-blue-50 text-blue-700 border-blue-200 text-[10px] py-0 px-2">Issued</Badge>
+                                <Badge className="bg-blue-50 text-blue-700 border-blue-200 text-[10px] py-0 px-2 font-bold">Issued</Badge>
                               )}
                             </div>
                           </div>
 
-                          <div className="flex items-center justify-between text-xs bg-slate-50 dark:bg-slate-800/50 p-2 rounded-lg border border-slate-100 dark:border-slate-800">
+                          <div className="flex items-center justify-between text-xs bg-slate-50 dark:bg-slate-800/50 p-2.5 rounded-xl border border-slate-100 dark:border-slate-800">
                             <div>
-                              <p className="font-semibold text-slate-800 dark:text-slate-200 text-xs">{displayName}</p>
+                              <p className="font-bold text-slate-800 dark:text-slate-200 text-xs">{displayName}</p>
                               <p className="text-[10px] text-slate-400 font-mono">{displayCode}</p>
                             </div>
                             <div className="text-right font-mono text-[11px]">
-                              <p className="text-slate-500">Due: <span className={isOverdue ? "text-rose-600 font-bold" : "font-semibold"}>{i.due_date}</span></p>
+                              <p className="text-slate-500">Due: <span className={isOverdue ? "text-rose-600 font-bold" : "font-bold text-slate-800"}>{i.due_date}</span></p>
                               {dynamicFine > 0 ? (
                                 <p className="text-[10px] text-rose-600 font-bold">Fine: PKR {dynamicFine.toFixed(0)}</p>
                               ) : (
-                                <p className="text-[10px] text-blue-600">{book?.barcode || "LIB-1001"}</p>
+                                <p className="text-[10px] text-blue-600 font-bold">{book?.barcode || "LIB-1001"}</p>
                               )}
                             </div>
                           </div>
@@ -1035,7 +1052,7 @@ export function LibraryModule() {
                               size="sm"
                               variant="ghost"
                               onClick={() => setSelectedLoanDetail({ issue: i, book, borrower })}
-                              className="h-7 text-xs text-slate-600 hover:text-blue-600"
+                              className="h-7 text-xs text-slate-600 hover:text-blue-600 rounded-lg"
                             >
                               <Eye className="h-3.5 w-3.5 mr-1" /> Info
                             </Button>
@@ -1043,9 +1060,9 @@ export function LibraryModule() {
                               <Button
                                 size="sm"
                                 onClick={() => handleReturnBook(i.id)}
-                                className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
+                                className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg"
                               >
-                                <Check className="h-3.5 w-3.5 mr-1" /> Return
+                                <Check className="h-3.5 w-3.5 mr-1" /> Return Book
                               </Button>
                             )}
                           </div>
@@ -1062,7 +1079,7 @@ export function LibraryModule() {
 
       {/* ─── ADD BOOK MODAL ─────────────────────────── */}
       <Dialog open={showAddBook} onOpenChange={setShowAddBook}>
-        <DialogContent className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 max-w-lg">
+        <DialogContent className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 max-w-lg rounded-2xl">
           <DialogHeader>
             <DialogTitle className="text-blue-700 dark:text-blue-400 font-bold flex items-center gap-2">
               <Plus className="h-5 w-5" /> Add New Book to Library Catalog
@@ -1070,34 +1087,34 @@ export function LibraryModule() {
           </DialogHeader>
           <div className="space-y-4 pt-2">
             <div>
-              <Label>Book Title</Label>
-              <Input placeholder="e.g. Fundamental Physics" value={newBook.title} onChange={e => setNewBook({ ...newBook, title: e.target.value })} className="mt-1" />
+              <Label className="text-xs font-bold">Book Title</Label>
+              <Input placeholder="e.g. Fundamental Physics" value={newBook.title} onChange={e => setNewBook({ ...newBook, title: e.target.value })} className="mt-1 rounded-xl" />
             </div>
             <div>
-              <Label>Author Name</Label>
-              <Input placeholder="e.g. David Halliday & Robert Resnick" value={newBook.author} onChange={e => setNewBook({ ...newBook, author: e.target.value })} className="mt-1" />
+              <Label className="text-xs font-bold">Author Name</Label>
+              <Input placeholder="e.g. David Halliday & Robert Resnick" value={newBook.author} onChange={e => setNewBook({ ...newBook, author: e.target.value })} className="mt-1 rounded-xl" />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label>Category</Label>
-                <Input placeholder="Science / General" value={newBook.category} onChange={e => setNewBook({ ...newBook, category: e.target.value })} className="mt-1" />
+                <Label className="text-xs font-bold">Category</Label>
+                <Input placeholder="Science / General" value={newBook.category} onChange={e => setNewBook({ ...newBook, category: e.target.value })} className="mt-1 rounded-xl" />
               </div>
               <div>
-                <Label>Total Copies</Label>
-                <Input type="number" value={newBook.total_copies} onChange={e => setNewBook({ ...newBook, total_copies: parseInt(e.target.value) || 1 })} className="mt-1" />
+                <Label className="text-xs font-bold">Total Copies</Label>
+                <Input type="number" value={newBook.total_copies} onChange={e => setNewBook({ ...newBook, total_copies: parseInt(e.target.value) || 1 })} className="mt-1 rounded-xl" />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label>Shelf Location / Rack</Label>
-                <Input placeholder="Rack A-1" value={newBook.shelf_location} onChange={e => setNewBook({ ...newBook, shelf_location: e.target.value })} className="mt-1" />
+                <Label className="text-xs font-bold">Shelf Location / Rack</Label>
+                <Input placeholder="Rack A-1" value={newBook.shelf_location} onChange={e => setNewBook({ ...newBook, shelf_location: e.target.value })} className="mt-1 rounded-xl" />
               </div>
               <div>
-                <Label>Publisher</Label>
-                <Input placeholder="Wiley / Oxford" value={newBook.publisher} onChange={e => setNewBook({ ...newBook, publisher: e.target.value })} className="mt-1" />
+                <Label className="text-xs font-bold">Publisher</Label>
+                <Input placeholder="Wiley / Oxford" value={newBook.publisher} onChange={e => setNewBook({ ...newBook, publisher: e.target.value })} className="mt-1 rounded-xl" />
               </div>
             </div>
-            <Button onClick={handleAddBook} className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-semibold">
+            <Button onClick={handleAddBook} className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold py-5 rounded-xl shadow-md">
               Save to Catalog
             </Button>
           </div>
@@ -1106,7 +1123,7 @@ export function LibraryModule() {
 
       {/* ─── EDIT BOOK MODAL ─────────────────────────── */}
       <Dialog open={!!showEditBook} onOpenChange={() => setShowEditBook(null)}>
-        <DialogContent className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 max-w-lg">
+        <DialogContent className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 max-w-lg rounded-2xl">
           <DialogHeader>
             <DialogTitle className="text-blue-700 dark:text-blue-400 font-bold flex items-center gap-2">
               <Edit3 className="h-5 w-5" /> Edit Book Details
@@ -1115,34 +1132,34 @@ export function LibraryModule() {
           {showEditBook && (
             <div className="space-y-4 pt-2">
               <div>
-                <Label>Book Title</Label>
-                <Input value={showEditBook.title} onChange={e => setShowEditBook({ ...showEditBook, title: e.target.value })} className="mt-1" />
+                <Label className="text-xs font-bold">Book Title</Label>
+                <Input value={showEditBook.title} onChange={e => setShowEditBook({ ...showEditBook, title: e.target.value })} className="mt-1 rounded-xl" />
               </div>
               <div>
-                <Label>Author</Label>
-                <Input value={showEditBook.author} onChange={e => setShowEditBook({ ...showEditBook, author: e.target.value })} className="mt-1" />
+                <Label className="text-xs font-bold">Author</Label>
+                <Input value={showEditBook.author} onChange={e => setShowEditBook({ ...showEditBook, author: e.target.value })} className="mt-1 rounded-xl" />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <Label>Category</Label>
-                  <Input value={showEditBook.category} onChange={e => setShowEditBook({ ...showEditBook, category: e.target.value })} className="mt-1" />
+                  <Label className="text-xs font-bold">Category</Label>
+                  <Input value={showEditBook.category} onChange={e => setShowEditBook({ ...showEditBook, category: e.target.value })} className="mt-1 rounded-xl" />
                 </div>
                 <div>
-                  <Label>Shelf Rack</Label>
-                  <Input value={showEditBook.shelf_location || ""} onChange={e => setShowEditBook({ ...showEditBook, shelf_location: e.target.value })} className="mt-1" />
+                  <Label className="text-xs font-bold">Shelf Rack</Label>
+                  <Input value={showEditBook.shelf_location || ""} onChange={e => setShowEditBook({ ...showEditBook, shelf_location: e.target.value })} className="mt-1 rounded-xl" />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <Label>Total Copies</Label>
-                  <Input type="number" value={showEditBook.total_copies} onChange={e => setShowEditBook({ ...showEditBook, total_copies: parseInt(e.target.value) || 1 })} className="mt-1" />
+                  <Label className="text-xs font-bold">Total Copies</Label>
+                  <Input type="number" value={showEditBook.total_copies} onChange={e => setShowEditBook({ ...showEditBook, total_copies: parseInt(e.target.value) || 1 })} className="mt-1 rounded-xl" />
                 </div>
                 <div>
-                  <Label>Available Copies</Label>
-                  <Input type="number" value={showEditBook.available_copies} onChange={e => setShowEditBook({ ...showEditBook, available_copies: parseInt(e.target.value) || 0 })} className="mt-1" />
+                  <Label className="text-xs font-bold">Available Copies</Label>
+                  <Input type="number" value={showEditBook.available_copies} onChange={e => setShowEditBook({ ...showEditBook, available_copies: parseInt(e.target.value) || 0 })} className="mt-1 rounded-xl" />
                 </div>
               </div>
-              <Button onClick={handleUpdateBook} className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-semibold">
+              <Button onClick={handleUpdateBook} className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold py-5 rounded-xl shadow-md">
                 Update Book Record
               </Button>
             </div>
@@ -1152,7 +1169,7 @@ export function LibraryModule() {
 
       {/* ─── ISSUE BOOK MODAL WITH FINE SYSTEM ─────────── */}
       <Dialog open={showIssueModal} onOpenChange={setShowIssueModal}>
-        <DialogContent className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 max-w-lg">
+        <DialogContent className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 max-w-lg rounded-2xl">
           <DialogHeader>
             <DialogTitle className="text-blue-700 dark:text-blue-400 font-bold flex items-center gap-2">
               <UserCheck className="h-5 w-5" /> Issue Book & Configure Late Fine
@@ -1160,7 +1177,7 @@ export function LibraryModule() {
           </DialogHeader>
           <div className="space-y-4 pt-2">
             <div>
-              <Label className="mb-1.5 block font-semibold text-xs">Select Book Title</Label>
+              <Label className="mb-1.5 block font-bold text-xs">Select Book Title</Label>
               <SearchableSelect
                 placeholder="Type title, author or barcode..."
                 options={books.map(b => ({
@@ -1194,7 +1211,7 @@ export function LibraryModule() {
               </div>
             )}
             <div>
-              <Label className="mb-1.5 block font-semibold text-xs">Select Student / Staff Borrower</Label>
+              <Label className="mb-1.5 block font-bold text-xs">Select Student / Staff Borrower</Label>
               <SearchableSelect
                 placeholder="Type name, roll number, or code..."
                 options={borrowers.map(b => ({
@@ -1213,10 +1230,10 @@ export function LibraryModule() {
             {/* Loan Duration / Due Days */}
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
-                <Label className="font-semibold text-xs flex items-center gap-1.5">
+                <Label className="font-bold text-xs flex items-center gap-1.5">
                   <Calendar className="h-3.5 w-3.5 text-blue-600" /> Loan Duration
                 </Label>
-                <span className="text-[11px] font-mono font-semibold text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/60 px-2 py-0.5 rounded border border-blue-200">
+                <span className="text-[11px] font-mono font-bold text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/60 px-2 py-0.5 rounded border border-blue-200">
                   {newIssue.due_days} Days
                 </span>
               </div>
@@ -1226,7 +1243,7 @@ export function LibraryModule() {
                     key={days}
                     type="button"
                     onClick={() => setNewIssue({ ...newIssue, due_days: days })}
-                    className={`py-1.5 px-2 rounded-lg text-xs font-semibold transition-all border ${
+                    className={`py-1.5 px-2 rounded-xl text-xs font-bold transition-all border ${
                       newIssue.due_days === days
                         ? "bg-blue-600 text-white border-blue-600 shadow-xs"
                         : "bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100"
@@ -1241,7 +1258,7 @@ export function LibraryModule() {
             {/* Overdue Fine Rate per Day */}
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
-                <Label className="font-semibold text-xs flex items-center gap-1.5">
+                <Label className="font-bold text-xs flex items-center gap-1.5">
                   <Coins className="h-3.5 w-3.5 text-amber-500" /> Overdue Fine Price (per Day Late)
                 </Label>
                 <span className="text-[11px] font-mono font-bold text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/60 px-2 py-0.5 rounded border border-amber-200">
@@ -1254,7 +1271,7 @@ export function LibraryModule() {
                     key={rate}
                     type="button"
                     onClick={() => setNewIssue({ ...newIssue, fine_per_day: rate })}
-                    className={`py-1.5 px-2 rounded-lg text-xs font-semibold transition-all border ${
+                    className={`py-1.5 px-2 rounded-xl text-xs font-bold transition-all border ${
                       newIssue.fine_per_day === rate
                         ? "bg-amber-600 text-white border-amber-600 shadow-xs"
                         : "bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100"
@@ -1272,7 +1289,7 @@ export function LibraryModule() {
                   step={5}
                   value={newIssue.fine_per_day}
                   onChange={e => setNewIssue({ ...newIssue, fine_per_day: Math.max(0, parseFloat(e.target.value) || 0) })}
-                  className="h-8 text-xs font-semibold"
+                  className="h-8 text-xs font-bold rounded-lg"
                   placeholder="20.00"
                 />
               </div>
@@ -1288,7 +1305,7 @@ export function LibraryModule() {
               </p>
             </div>
 
-            <Button onClick={handleIssueBook} className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-semibold shadow-md">
+            <Button onClick={handleIssueBook} className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold py-5 rounded-xl shadow-md">
               Confirm Issue Book
             </Button>
           </div>
@@ -1297,7 +1314,7 @@ export function LibraryModule() {
 
       {/* ─── DIGITAL BARCODE PREVIEW MODAL ────────────────── */}
       <Dialog open={!!showBarcodeModal} onOpenChange={() => setShowBarcodeModal(null)}>
-        <DialogContent className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 text-center">
+        <DialogContent className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 text-center rounded-2xl">
           <DialogHeader>
             <DialogTitle className="text-blue-700 dark:text-blue-400 font-bold flex items-center justify-center gap-2">
               <Barcode className="h-5 w-5" /> Digital Library Barcode Label
@@ -1309,7 +1326,7 @@ export function LibraryModule() {
                 <p className="font-bold text-lg text-slate-900 dark:text-slate-100">{showBarcodeModal.title}</p>
                 <p className="text-xs text-slate-500 mt-0.5">Author: {showBarcodeModal.author}</p>
                 
-                <div className="my-6 py-4 bg-white dark:bg-slate-900 rounded-lg border border-slate-200 font-mono tracking-widest text-xl font-bold text-blue-600 flex flex-col items-center justify-center">
+                <div className="my-6 py-4 bg-white dark:bg-slate-900 rounded-lg border border-slate-200 font-mono tracking-widest text-xl font-bold text-blue-600 flex flex-col items-center justify-center shadow-inner">
                   <div className="h-12 w-48 border-b-2 border-slate-800 flex items-center justify-around px-2 mb-2">
                     {Array.from({ length: 18 }).map((_, idx) => (
                       <div key={idx} className={`h-full ${idx % 3 === 0 ? "w-1 bg-black" : idx % 2 === 0 ? "w-0.5 bg-black" : "w-1.5 bg-black"}`} />
@@ -1323,13 +1340,14 @@ export function LibraryModule() {
                   <span>Rack: {showBarcodeModal.shelf_location || "Rack A-1"}</span>
                 </div>
               </div>
-              <Button onClick={() => { toast.success("Barcode label sent to library printer"); setShowBarcodeModal(null); }} className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-semibold">
+              <Button onClick={() => { toast.success("Barcode label sent to library printer"); setShowBarcodeModal(null); }} className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold py-5 rounded-xl shadow-md">
                 Print Barcode Label
               </Button>
             </div>
           )}
         </DialogContent>
       </Dialog>
+
       {/* ─── COMPLETE LOAN INFO PASSPORT MODAL ────────────────── */}
       <Dialog open={!!selectedLoanDetail} onOpenChange={open => !open && setSelectedLoanDetail(null)}>
         {selectedLoanDetail && (() => {
@@ -1341,46 +1359,46 @@ export function LibraryModule() {
           const currentFine = isOverdue ? daysLate * dailyRate : (Number(selectedLoanDetail.issue.fine_amount) || 0);
 
           return (
-            <DialogContent className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 max-w-2xl p-0 overflow-hidden shadow-2xl">
+            <DialogContent className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 max-w-2xl p-0 overflow-hidden shadow-2xl rounded-2xl sm:rounded-3xl">
               {/* Header Banner */}
-              <div className="bg-gradient-to-r from-blue-700 via-indigo-600 to-blue-800 p-6 text-white">
+              <div className="bg-gradient-to-r from-blue-700 via-indigo-600 to-purple-700 p-5 sm:p-6 text-white">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="p-3 bg-white/10 rounded-xl backdrop-blur-md border border-white/20">
+                    <div className="p-3 bg-white/10 rounded-2xl backdrop-blur-md border border-white/20">
                       <BookOpen className="h-6 w-6 text-blue-100" />
                     </div>
                     <div>
-                      <h3 className="text-xl font-bold">Book Loan & Barcode Passport</h3>
+                      <h3 className="text-lg sm:text-xl font-bold">Book Circulation Passport</h3>
                       <p className="text-blue-100 text-xs mt-0.5">Circulation Record ID: #{selectedLoanDetail.issue.id.slice(0, 8).toUpperCase()}</p>
                     </div>
                   </div>
-                  <Badge className={selectedLoanDetail.issue.status === "returned" ? "bg-emerald-500 text-white" : isOverdue ? "bg-rose-500 text-white animate-pulse" : "bg-blue-500 text-white"}>
+                  <Badge className={selectedLoanDetail.issue.status === "returned" ? "bg-emerald-500 text-white font-bold" : isOverdue ? "bg-rose-500 text-white font-bold animate-pulse" : "bg-blue-500 text-white font-bold"}>
                     {selectedLoanDetail.issue.status === "returned" ? "RETURNED" : isOverdue ? `OVERDUE (${daysLate}d)` : "ISSUED"}
                   </Badge>
                 </div>
               </div>
 
-              <div className="p-6 space-y-6">
+              <div className="p-5 sm:p-6 space-y-5">
                 {/* BOOK DETAILS SPECIFICATION */}
                 <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl border border-slate-200/80 dark:border-slate-800 space-y-3">
                   <p className="text-xs font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400 flex items-center gap-1.5">
                     <BookOpen className="h-4 w-4" /> Book Inventory Specifications
                   </p>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
                     <div>
                       <p className="text-xs text-slate-500">Book Title</p>
-                      <p className="font-bold text-slate-900 dark:text-slate-100 text-base">{selectedLoanDetail.book?.title || "Unknown Title"}</p>
+                      <p className="font-bold text-slate-900 dark:text-slate-100 text-sm sm:text-base">{selectedLoanDetail.book?.title || "Unknown Title"}</p>
                       <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">by {selectedLoanDetail.book?.author || "N/A"}</p>
                     </div>
                     <div>
                       <p className="text-xs text-slate-500">Category & Shelf Location</p>
-                      <p className="font-semibold text-slate-800 dark:text-slate-200">{selectedLoanDetail.book?.category || "General"} • {selectedLoanDetail.book?.shelf_location || "Rack A-1"}</p>
+                      <p className="font-bold text-slate-800 dark:text-slate-200 text-sm">{selectedLoanDetail.book?.category || "General"} • {selectedLoanDetail.book?.shelf_location || "Rack A-1"}</p>
                       <p className="text-xs text-slate-500 mt-0.5">Stock: {selectedLoanDetail.book?.available_copies ?? 1} / {selectedLoanDetail.book?.total_copies ?? 1} Copies</p>
                     </div>
                     <div>
                       <p className="text-xs text-slate-500">Barcode Identifier</p>
                       <div className="flex items-center gap-2 mt-1">
-                        <span className="font-mono text-xs font-bold bg-blue-100 text-blue-800 px-2.5 py-1 rounded-md border border-blue-200 flex items-center gap-1">
+                        <span className="font-mono text-xs font-bold bg-blue-100 text-blue-800 px-2.5 py-1 rounded-lg border border-blue-200 flex items-center gap-1">
                           <Barcode className="h-3.5 w-3.5 text-blue-600" />
                           {selectedLoanDetail.book?.barcode || "LIB-1001"}
                         </span>
@@ -1388,7 +1406,7 @@ export function LibraryModule() {
                     </div>
                     <div>
                       <p className="text-xs text-slate-500">ISBN Serial Code</p>
-                      <p className="font-mono text-xs font-semibold text-slate-800 dark:text-slate-200 mt-1">
+                      <p className="font-mono text-xs font-bold text-slate-800 dark:text-slate-200 mt-1">
                         {selectedLoanDetail.book?.isbn || "978-969-0000-00-0"}
                       </p>
                     </div>
@@ -1397,29 +1415,29 @@ export function LibraryModule() {
 
                 {/* BORROWER & SCHEDULE SUMMARY */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl border border-slate-200/80 dark:border-slate-800 space-y-2">
+                  <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl border border-slate-200/80 dark:border-slate-800 space-y-1.5">
                     <p className="text-xs font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400 flex items-center gap-1.5">
                       <User className="h-4 w-4" /> Borrower Info
                     </p>
                     <p className="font-bold text-slate-900 dark:text-slate-100 text-sm">
-                      {selectedLoanDetail.borrower?.name || "Hamza Malik (Student)"}
+                      {selectedLoanDetail.borrower?.name || "Student Member"}
                     </p>
-                    <p className="text-xs text-slate-500 font-mono">
+                    <p className="text-xs text-slate-500 font-mono font-semibold">
                       Role: {selectedLoanDetail.issue.borrower_type?.toUpperCase() || "STUDENT"}
                     </p>
-                    <p className="text-xs text-slate-500 font-mono">
+                    <p className="text-xs text-slate-500 font-mono font-semibold">
                       Code / Roll: {selectedLoanDetail.borrower?.code || "#1001"}
                     </p>
                   </div>
 
-                  <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl border border-slate-200/80 dark:border-slate-800 space-y-2">
+                  <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl border border-slate-200/80 dark:border-slate-800 space-y-1.5">
                     <p className="text-xs font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
                       <Clock className="h-4 w-4" /> Loan Schedule & Fine Policy
                     </p>
                     <div className="text-xs space-y-1">
-                      <p className="text-slate-600 dark:text-slate-400">Issue Date: <span className="font-semibold text-slate-900 dark:text-slate-100">{selectedLoanDetail.issue.issue_date || "2026-07-24"}</span></p>
-                      <p className="text-slate-600 dark:text-slate-400">Due Date: <span className={`font-semibold ${isOverdue ? "text-rose-600" : "text-blue-600"}`}>{selectedLoanDetail.issue.due_date}</span></p>
-                      <p className="text-slate-600 dark:text-slate-400">Fine Rate: <span className="font-semibold text-amber-600">PKR {dailyRate.toFixed(2)} / day</span></p>
+                      <p className="text-slate-600 dark:text-slate-400">Issue Date: <span className="font-bold text-slate-900 dark:text-slate-100">{selectedLoanDetail.issue.issue_date || "2026-07-24"}</span></p>
+                      <p className="text-slate-600 dark:text-slate-400">Due Date: <span className={`font-bold ${isOverdue ? "text-rose-600" : "text-blue-600"}`}>{selectedLoanDetail.issue.due_date}</span></p>
+                      <p className="text-slate-600 dark:text-slate-400">Fine Rate: <span className="font-bold text-amber-600">PKR {dailyRate.toFixed(2)} / day</span></p>
                       <p className="text-slate-600 dark:text-slate-400">
                         Fine Accrued: <span className={`font-bold ${currentFine > 0 ? "text-rose-600" : "text-emerald-600"}`}>
                           {currentFine > 0 ? `PKR ${currentFine.toFixed(2)} (${daysLate} days overdue)` : "PKR 0.00 (On Time)"}
@@ -1438,13 +1456,13 @@ export function LibraryModule() {
                         setSelectedLoanDetail(null);
                         handleReturnBook(id);
                       }}
-                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl"
                     >
                       <Check className="h-4 w-4 mr-1.5" /> Return Book Now
                     </Button>
                   )}
-                  <Button variant="outline" onClick={() => setSelectedLoanDetail(null)}>
-                    Close Passport
+                  <Button variant="outline" onClick={() => setSelectedLoanDetail(null)} className="rounded-xl font-semibold">
+                    Close
                   </Button>
                 </div>
               </div>
@@ -1457,4 +1475,3 @@ export function LibraryModule() {
 }
 
 export default LibraryModule;
-

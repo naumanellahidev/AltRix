@@ -171,7 +171,10 @@ export function LuxuryShellHeader({
   };
 
   return (
-    <header className="sticky top-0 z-40 w-full border-b border-primary/10 bg-background/80 backdrop-blur-xl shadow-[0_4px_20px_-4px_rgba(0,0,0,0.03)] dark:shadow-[0_4px_20px_-4px_rgba(0,0,0,0.25)] transition-all duration-200">
+    <header
+      data-html2canvas-ignore="true"
+      className="sticky top-0 z-40 w-full border-b border-primary/10 bg-background/80 backdrop-blur-xl shadow-[0_4px_20px_-4px_rgba(0,0,0,0.03)] dark:shadow-[0_4px_20px_-4px_rgba(0,0,0,0.25)] transition-all duration-200 print:hidden no-print"
+    >
       {/* Radiant bottom hairline accent */}
       <div className="absolute inset-x-0 bottom-0 h-[1px] bg-gradient-to-r from-transparent via-primary/30 to-transparent pointer-events-none" />
 

@@ -69,9 +69,11 @@ function CopilotWrapper() {
     return true;
   }, [location.pathname, user]);
 
-  if (!isTenantRoute) return null;
-
-  return <AltrixCopilot />;
+  return (
+    <div className="no-print print:hidden" data-html2canvas-ignore="true" id="copilot-root">
+      <AltrixCopilot />
+    </div>
+  );
 }
 
 const queryClient = new QueryClient({

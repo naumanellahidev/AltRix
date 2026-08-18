@@ -39,8 +39,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import jsPDF from "jspdf";
-import html2canvas from "html2canvas";
+import { exportCleanDocumentToPdf } from "@/lib/pdfExportEngine";
 
 interface Exam { id: string; name: string; term_label: string | null; start_date?: string | null; end_date?: string | null; }
 interface Student { id: string; first_name: string; last_name: string | null; student_code?: string | null; section_id?: string | null; class_id?: string | null; classLabel?: string; }
@@ -915,28 +914,17 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
   const today = format(new Date(), "MMMM d, yyyy");
 
   const exportPdf = async () => {
-    const el = document.getElementById("report-card-print") as HTMLElement | null;
+    const el = document.getElementById("report-card-print");
     if (!el) return toast.error("No report card to export");
+    const name = (studentInfo ? `${studentInfo.first_name}_${studentInfo.last_name || ""}` : "Report_Card").replace(/\s+/g, "_");
     try {
-      el.classList.add("exporting-pdf");
-      const canvas = await html2canvas(el, { scale: 2, useCORS: true, backgroundColor: "#ffffff", logging: false, windowWidth: el.scrollWidth });
-      el.classList.remove("exporting-pdf");
-      const pdf = new jsPDF("p", "mm", "a4");
-      const pageW = pdf.internal.pageSize.getWidth();
-      const pageH = pdf.internal.pageSize.getHeight();
-      const margin = 8;
-      const availW = pageW - margin * 2;
-      const availH = pageH - margin * 2;
-      const ratio = canvas.width / canvas.height;
-      let w = availW; let h = w / ratio;
-      if (h > availH) { h = availH; w = h * ratio; }
-      const x = (pageW - w) / 2; const y = (pageH - h) / 2;
-      pdf.addImage(canvas.toDataURL("image/png"), "PNG", x, y, w, h, undefined, "FAST");
-      const name = (studentInfo ? `${studentInfo.first_name}-${studentInfo.last_name || ""}` : "report-card").replace(/\s+/g, "_");
-      pdf.save(`${name}_report-card.pdf`);
-      toast.success("PDF downloaded successfully!");
+      await exportCleanDocumentToPdf(el, {
+        filename: `${name}_official_transcript.pdf`,
+        orientation: "portrait",
+        scale: 2.5,
+      });
+      toast.success("Official report card PDF downloaded successfully!");
     } catch (e: any) {
-      el?.classList.remove("exporting-pdf");
       toast.error(e?.message || "Failed to export PDF");
     }
   };

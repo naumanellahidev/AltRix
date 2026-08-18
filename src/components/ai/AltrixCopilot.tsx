@@ -1438,7 +1438,10 @@ export default function AltrixCopilot() {
       `}</style>
 
       {/* ── Floating Button ──────────────────────────────────────────────── */}
-      <div className="fixed bottom-20 right-4 sm:bottom-6 sm:right-6 z-50 flex flex-col items-end gap-2 pointer-events-auto">
+      <div
+        className="fixed bottom-20 right-4 sm:bottom-6 sm:right-6 z-50 flex flex-col items-end gap-2 pointer-events-auto print:hidden no-print copilot-trigger"
+        data-html2canvas-ignore="true"
+      >
         {!isOpen && (
           <div className="hidden sm:flex items-center gap-2 animate-in fade-in slide-in-from-right-4 duration-300">
             <span className="bg-white/95 backdrop-blur text-slate-700 text-[10px] font-medium px-2.5 py-1 rounded-full border border-slate-200 shadow-sm whitespace-nowrap">
@@ -1467,7 +1470,8 @@ export default function AltrixCopilot() {
       {/* ── Chat Panel ───────────────────────────────────────────────────── */}
       {isOpen && (
         <div
-          className={`${panelClass} rounded-2xl sm:rounded-3xl border border-slate-200 bg-white shadow-[0_20px_50px_rgba(15,23,42,0.15)] flex flex-col overflow-hidden copilot-panel`}
+          data-html2canvas-ignore="true"
+          className={`${panelClass} rounded-2xl sm:rounded-3xl border border-slate-200 bg-white shadow-[0_20px_50px_rgba(15,23,42,0.15)] flex flex-col overflow-hidden copilot-panel print:hidden no-print`}
           style={{ fontFamily: "'Inter', sans-serif" }}
         >
           {/* ── Header ─────────────────────────────────────────────────── */}
