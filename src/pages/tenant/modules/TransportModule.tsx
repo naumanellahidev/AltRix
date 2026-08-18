@@ -530,59 +530,65 @@ export function TransportModule() {
   );
 
   return (
-    <div className="space-y-4 sm:space-y-6 max-w-7xl mx-auto p-2.5 sm:p-6">
+    <div className="space-y-4 sm:space-y-6 w-full max-w-7xl mx-auto min-w-0">
       {/* 🌟 Executive Header Banner */}
-      <div className="bg-gradient-to-r from-blue-700 via-indigo-600 to-purple-700 text-white rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-xl shadow-blue-500/10 border border-blue-400/20">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex items-center gap-3 sm:gap-4">
-            <div className="p-3 sm:p-3.5 bg-white/10 rounded-2xl backdrop-blur-md border border-white/20 shrink-0 shadow-inner">
-              <Bus className="h-6 w-6 sm:h-8 sm:w-8 text-blue-100" />
+      <div className="bg-gradient-to-r from-blue-700 via-indigo-600 to-purple-700 text-white rounded-2xl sm:rounded-3xl p-3.5 sm:p-6 shadow-xl shadow-blue-500/10 border border-blue-400/20 w-full max-w-full min-w-0">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3.5 sm:gap-4 min-w-0">
+          <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+            <div className="p-2.5 sm:p-3.5 bg-white/10 rounded-xl sm:rounded-2xl backdrop-blur-md border border-white/20 shrink-0 shadow-inner">
+              <Bus className="h-5 w-5 sm:h-8 sm:w-8 text-blue-100" />
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-xl sm:text-3xl font-bold tracking-tight">Fleet & Transport Logistics</h1>
-                <Badge className="bg-white/20 text-white border-white/30 text-[10px] sm:text-xs">Live Telematics</Badge>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                <h1 className="text-base sm:text-2xl lg:text-3xl font-bold tracking-tight truncate">Fleet & Transport Logistics</h1>
+                <Badge className="bg-white/20 text-white border-white/30 text-[9px] sm:text-xs shrink-0">Live Telematics</Badge>
               </div>
-              <p className="text-blue-100 text-xs sm:text-sm mt-1">
+              <p className="text-blue-100 text-[11px] sm:text-xs md:text-sm mt-0.5 sm:mt-1 line-clamp-2 sm:line-clamp-none">
                 Manage transit lines, designated pickup stops, school bus fleet capacity, and real-time passenger rosters.
               </p>
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="grid grid-cols-3 sm:flex sm:flex-wrap items-center gap-1.5 sm:gap-2 w-full sm:w-auto min-w-0">
             <Button
               size="sm"
               onClick={handleOpenAssignModal}
-              className="bg-white/15 hover:bg-white/25 text-white border border-white/25 rounded-xl text-xs h-9 font-semibold shadow-xs"
+              className="bg-white/15 hover:bg-white/25 text-white border border-white/25 rounded-xl text-[11px] sm:text-xs h-8.5 sm:h-9 font-semibold shadow-xs px-1.5 sm:px-3 justify-center min-w-0"
             >
-              <Users className="h-3.5 w-3.5 mr-1.5 text-blue-200" /> Assign Passenger
+              <Users className="h-3.5 w-3.5 sm:mr-1.5 text-blue-200 shrink-0" />
+              <span className="hidden sm:inline">Assign Passenger</span>
+              <span className="sm:hidden truncate">Assign</span>
             </Button>
             <Button
               size="sm"
               onClick={handleOpenAddBus}
-              className="bg-white/15 hover:bg-white/25 text-white border border-white/25 rounded-xl text-xs h-9 font-semibold shadow-xs"
+              className="bg-white/15 hover:bg-white/25 text-white border border-white/25 rounded-xl text-[11px] sm:text-xs h-8.5 sm:h-9 font-semibold shadow-xs px-1.5 sm:px-3 justify-center min-w-0"
             >
-              <Bus className="h-3.5 w-3.5 mr-1.5 text-blue-200" /> Add Bus
+              <Bus className="h-3.5 w-3.5 sm:mr-1.5 text-blue-200 shrink-0" />
+              <span className="hidden sm:inline">Add Bus</span>
+              <span className="sm:hidden truncate">+ Bus</span>
             </Button>
             <Button
               size="sm"
               onClick={handleOpenAddRoute}
-              className="bg-white text-blue-700 hover:bg-blue-50 font-bold shadow-md rounded-xl text-xs h-9"
+              className="bg-white text-blue-700 hover:bg-blue-50 font-bold shadow-md rounded-xl text-[11px] sm:text-xs h-8.5 sm:h-9 px-1.5 sm:px-3 justify-center min-w-0"
             >
-              <Plus className="h-3.5 w-3.5 mr-1.5" /> Add Route
+              <Plus className="h-3.5 w-3.5 sm:mr-1.5 shrink-0" />
+              <span className="hidden sm:inline">Add Route</span>
+              <span className="sm:hidden truncate">+ Route</span>
             </Button>
           </div>
         </div>
       </div>
 
       {/* 🌟 KPI Stat Cards (Responsive & Non-Truncating) */}
-      <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4 w-full max-w-full min-w-0">
         {/* Active Fleet */}
-        <Card className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm p-3.5 sm:p-4.5 hover:shadow-md transition-all rounded-2xl flex flex-col justify-between min-h-[105px]">
+        <Card className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm p-3 sm:p-4.5 hover:shadow-md transition-all rounded-2xl flex flex-col justify-between min-h-[95px] sm:min-h-[105px] min-w-0">
           <div className="flex items-start justify-between gap-2">
             <div>
               <p className="text-[10px] sm:text-xs font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Fleet Vehicles</p>
-              <p className="text-xl sm:text-2xl font-black text-slate-900 dark:text-slate-100 mt-1">
+              <p className="text-lg sm:text-2xl font-black text-slate-900 dark:text-slate-100 mt-1">
                 {summary.total_fleet} <span className="text-xs sm:text-sm font-semibold text-slate-500">Buses</span>
               </p>
             </div>
@@ -597,11 +603,11 @@ export function TransportModule() {
         </Card>
 
         {/* Total Routes */}
-        <Card className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm p-3.5 sm:p-4.5 hover:shadow-md transition-all rounded-2xl flex flex-col justify-between min-h-[105px]">
+        <Card className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm p-3 sm:p-4.5 hover:shadow-md transition-all rounded-2xl flex flex-col justify-between min-h-[95px] sm:min-h-[105px] min-w-0">
           <div className="flex items-start justify-between gap-2">
             <div>
               <p className="text-[10px] sm:text-xs font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Transit Lines</p>
-              <p className="text-xl sm:text-2xl font-black text-indigo-600 dark:text-indigo-400 mt-1">
+              <p className="text-lg sm:text-2xl font-black text-indigo-600 dark:text-indigo-400 mt-1">
                 {summary.total_routes} <span className="text-xs sm:text-sm font-semibold text-slate-500">Routes</span>
               </p>
             </div>
@@ -615,11 +621,11 @@ export function TransportModule() {
         </Card>
 
         {/* Total Seating Capacity */}
-        <Card className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm p-3.5 sm:p-4.5 hover:shadow-md transition-all rounded-2xl flex flex-col justify-between min-h-[105px]">
+        <Card className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm p-3 sm:p-4.5 hover:shadow-md transition-all rounded-2xl flex flex-col justify-between min-h-[95px] sm:min-h-[105px] min-w-0">
           <div className="flex items-start justify-between gap-2">
             <div>
               <p className="text-[10px] sm:text-xs font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Total Capacity</p>
-              <p className="text-xl sm:text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-1">
+              <p className="text-lg sm:text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-1">
                 {summary.total_capacity} <span className="text-xs sm:text-sm font-semibold text-slate-500">Seats</span>
               </p>
             </div>
@@ -633,11 +639,11 @@ export function TransportModule() {
         </Card>
 
         {/* Assigned Passengers */}
-        <Card className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm p-3.5 sm:p-4.5 hover:shadow-md transition-all rounded-2xl flex flex-col justify-between min-h-[105px]">
+        <Card className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm p-3 sm:p-4.5 hover:shadow-md transition-all rounded-2xl flex flex-col justify-between min-h-[95px] sm:min-h-[105px] min-w-0">
           <div className="flex items-start justify-between gap-2">
             <div>
               <p className="text-[10px] sm:text-xs font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Passengers</p>
-              <p className="text-xl sm:text-2xl font-black text-blue-600 dark:text-blue-400 mt-1">
+              <p className="text-lg sm:text-2xl font-black text-blue-600 dark:text-blue-400 mt-1">
                 {summary.total_passengers} <span className="text-xs sm:text-sm font-semibold text-slate-500">Students</span>
               </p>
             </div>
@@ -652,42 +658,42 @@ export function TransportModule() {
       </div>
 
       {/* ─── Navigation Tabs & Controls ──────────────────────────── */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white dark:bg-slate-900 p-2.5 sm:p-3 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm">
-          <div className="overflow-x-auto no-scrollbar -mx-1 px-1">
-            <TabsList className="inline-flex w-full sm:w-auto p-1 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-3 sm:space-y-4 w-full max-w-full min-w-0">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3 bg-white dark:bg-slate-900 p-2 sm:p-3 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm w-full max-w-full min-w-0">
+          <div className="w-full sm:w-auto overflow-x-auto no-scrollbar -mx-0.5 px-0.5 min-w-0">
+            <TabsList className="inline-flex w-full sm:w-auto p-1 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 min-w-max">
               <TabsTrigger
                 value="routes"
-                className="flex-1 sm:flex-initial data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-sm font-bold text-xs rounded-lg whitespace-nowrap py-1.5 px-3"
+                className="flex-1 sm:flex-initial data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-sm font-bold text-xs rounded-lg whitespace-nowrap py-1.5 px-2.5 sm:px-3"
               >
-                <MapPin className="h-3.5 w-3.5 mr-1.5" />
+                <MapPin className="h-3.5 w-3.5 mr-1" />
                 Routes & Stops ({routes.length})
               </TabsTrigger>
               <TabsTrigger
                 value="fleet"
-                className="flex-1 sm:flex-initial data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-sm font-bold text-xs rounded-lg whitespace-nowrap py-1.5 px-3"
+                className="flex-1 sm:flex-initial data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-sm font-bold text-xs rounded-lg whitespace-nowrap py-1.5 px-2.5 sm:px-3"
               >
-                <Bus className="h-3.5 w-3.5 mr-1.5" />
+                <Bus className="h-3.5 w-3.5 mr-1" />
                 Fleet Vehicles ({fleet.length})
               </TabsTrigger>
               <TabsTrigger
                 value="assignments"
-                className="flex-1 sm:flex-initial data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-sm font-bold text-xs rounded-lg whitespace-nowrap py-1.5 px-3"
+                className="flex-1 sm:flex-initial data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-sm font-bold text-xs rounded-lg whitespace-nowrap py-1.5 px-2.5 sm:px-3"
               >
-                <Users className="h-3.5 w-3.5 mr-1.5" />
+                <Users className="h-3.5 w-3.5 mr-1" />
                 Passenger Roster ({assignments.length})
               </TabsTrigger>
             </TabsList>
           </div>
 
-          <div className="flex items-center gap-2">
-            <div className="relative flex-1 sm:w-72">
+          <div className="flex items-center gap-2 w-full sm:w-auto min-w-0">
+            <div className="relative flex-1 sm:w-72 min-w-0">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
               <Input
                 placeholder="Search routes, stops, bus plate, driver..."
                 value={search}
                 onChange={e => setSearch(e.target.value)}
-                className="pl-8.5 h-9 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-xs rounded-xl focus-visible:ring-blue-500"
+                className="pl-8.5 h-9 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-xs rounded-xl focus-visible:ring-blue-500 w-full"
               />
             </div>
             <Button
@@ -705,26 +711,26 @@ export function TransportModule() {
         {/* ════════════════════════════════════════════════════════════════════
             TAB 1: ROUTES & DESIGNATED STOPS
         ════════════════════════════════════════════════════════════════════ */}
-        <TabsContent value="routes" className="space-y-4 mt-0">
-          <Card className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm rounded-2xl sm:rounded-3xl overflow-hidden">
-            <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800/80 p-4 sm:p-5">
-              <div>
-                <CardTitle className="text-base sm:text-lg font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                  <MapPin className="h-5 w-5 text-blue-600" /> Transport Routes & Stops Master Roster
+        <TabsContent value="routes" className="space-y-4 mt-0 w-full max-w-full min-w-0">
+          <Card className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm rounded-2xl sm:rounded-3xl overflow-hidden w-full max-w-full min-w-0">
+            <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3 border-b border-slate-100 dark:border-slate-800/80 p-3.5 sm:p-5 w-full min-w-0">
+              <div className="min-w-0">
+                <CardTitle className="text-sm sm:text-lg font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2 truncate">
+                  <MapPin className="h-4.5 w-4.5 sm:h-5 sm:w-5 text-blue-600 shrink-0" /> Transport Routes & Stops Master Roster
                 </CardTitle>
-                <p className="text-xs text-muted-foreground mt-0.5">
+                <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1 sm:line-clamp-none">
                   Click any route's stop badge to manage or add designated pickup locations.
                 </p>
               </div>
               <Button
                 onClick={handleOpenAddRoute}
-                className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs h-9 px-3.5 rounded-xl shadow-sm shrink-0"
+                className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs h-8.5 sm:h-9 px-3.5 rounded-xl shadow-sm self-start sm:self-auto shrink-0"
               >
                 <Plus className="h-3.5 w-3.5 mr-1.5" /> Add Route
               </Button>
             </CardHeader>
 
-            <CardContent className="p-0">
+            <CardContent className="p-0 w-full max-w-full overflow-hidden min-w-0">
               {filteredRoutes.length === 0 ? (
                 <div className="text-center py-16 px-4">
                   <div className="h-16 w-16 bg-blue-50 dark:bg-blue-950/50 rounded-3xl flex items-center justify-center mx-auto mb-3 border border-blue-100 dark:border-blue-900/50">
@@ -739,8 +745,8 @@ export function TransportModule() {
                   </Button>
                 </div>
               ) : (
-                <div className="overflow-x-auto no-scrollbar">
-                  <Table>
+                <div className="w-full max-w-full overflow-x-auto custom-scrollbar min-w-0">
+                  <Table className="w-full min-w-[620px]">
                     <TableHeader className="bg-slate-50/80 dark:bg-slate-850/50">
                       <TableRow className="border-b border-slate-100 dark:border-slate-800">
                         <TableHead className="font-bold text-xs text-slate-600 py-3.5 px-4">Route Identifier</TableHead>
@@ -887,26 +893,26 @@ export function TransportModule() {
         {/* ════════════════════════════════════════════════════════════════════
             TAB 2: FLEET VEHICLES
         ════════════════════════════════════════════════════════════════════ */}
-        <TabsContent value="fleet" className="space-y-4 mt-0">
-          <Card className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm rounded-2xl sm:rounded-3xl overflow-hidden">
-            <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800/80 p-4 sm:p-5">
-              <div>
-                <CardTitle className="text-base sm:text-lg font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                  <Bus className="h-5 w-5 text-blue-600" /> School Bus Fleet & Driver Roster
+        <TabsContent value="fleet" className="space-y-4 mt-0 w-full max-w-full min-w-0">
+          <Card className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm rounded-2xl sm:rounded-3xl overflow-hidden w-full max-w-full min-w-0">
+            <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3 border-b border-slate-100 dark:border-slate-800/80 p-3.5 sm:p-5 w-full min-w-0">
+              <div className="min-w-0">
+                <CardTitle className="text-sm sm:text-lg font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2 truncate">
+                  <Bus className="h-4.5 w-4.5 sm:h-5 sm:w-5 text-blue-600 shrink-0" /> School Bus Fleet & Driver Roster
                 </CardTitle>
-                <p className="text-xs text-muted-foreground mt-0.5">
+                <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1 sm:line-clamp-none">
                   Track seating capacity, driver assignments, license registration, and telematics status.
                 </p>
               </div>
               <Button
                 onClick={handleOpenAddBus}
-                className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs h-9 px-3.5 rounded-xl shadow-sm shrink-0"
+                className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs h-8.5 sm:h-9 px-3.5 rounded-xl shadow-sm self-start sm:self-auto shrink-0"
               >
                 <Plus className="h-3.5 w-3.5 mr-1.5" /> Register Bus
               </Button>
             </CardHeader>
 
-            <CardContent className="p-0">
+            <CardContent className="p-0 w-full max-w-full overflow-hidden min-w-0">
               {filteredFleet.length === 0 ? (
                 <div className="text-center py-16 px-4">
                   <div className="h-16 w-16 bg-blue-50 dark:bg-blue-950/50 rounded-3xl flex items-center justify-center mx-auto mb-3 border border-blue-100 dark:border-blue-900/50">
@@ -921,8 +927,180 @@ export function TransportModule() {
                   </Button>
                 </div>
               ) : (
-                <div className="overflow-x-auto no-scrollbar">
-                  <Table>
+                <div className="w-full max-w-full overflow-x-auto custom-scrollbar min-w-0">
+                  <Table className="w-full min-w-[620px]">
+                    <TableHeader className="bg-slate-50/80 dark:bg-slate-850/50">
+                      <TableRow className="border-b border-slate-100 dark:border-slate-800">
+                        <TableHead className="font-bold text-xs text-slate-600 py-3.5 px-4">Vehicle Identifier</TableHead>
+                        <TableHead className="font-bold text-xs text-slate-600 py-3.5 px-4">Assigned Driver & Phone</TableHead>
+                        <TableHead className="font-bold text-xs text-slate-600 py-3.5 px-4">Active Route</TableHead>
+                        <TableHead className="font-bold text-xs text-slate-600 py-3.5 px-4">Capacity & Occupancy</TableHead>
+                        <TableHead className="font-bold text-xs text-slate-600 py-3.5 px-4 text-center">Status</TableHead>
+                        <TableHead className="font-bold text-xs text-slate-600 py-3.5 px-4 text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody className="divide-y divide-slate-100 dark:divide-slate-800/60">
+                      {filteredFleet.map((v) => {
+                        const occupancy = Math.round(((v.assigned_students_count || 0) / (v.seating_capacity || 40)) * 100);
+                        return (
+                          <TableRow
+                            key={v.id}
+                            className="hover:bg-blue-50/40 dark:hover:bg-slate-800/40 transition-colors group"
+                          >
+                            {/* Bus Identification & License Plate */}
+                            <TableCell className="py-3.5 px-4 whitespace-nowrap">
+                              <div className="flex items-center gap-3">
+                                <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-blue-500/10 to-indigo-500/20 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold border border-blue-200/80 dark:border-blue-800 shadow-2xs shrink-0">
+                                  <Bus className="h-4.5 w-4.5" />
+                                </div>
+                                <div className="flex flex-col">
+                                  <span className="font-bold text-sm text-slate-900 dark:text-slate-100 group-hover:text-blue-600 transition-colors">
+                                    {v.bus_number}
+                                  </span>
+                                  <span className="font-mono text-[11px] text-slate-500">
+                                    {v.registration_no || "LEA-9876"}
+                                  </span>
+                                </div>
+                              </div>
+                            </TableCell>
+
+                            {/* Driver Information */}
+                            <TableCell className="py-3.5 px-4 whitespace-nowrap">
+                              <div className="flex items-center gap-2">
+                                <div className="h-7 w-7 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 flex items-center justify-center font-bold text-xs shrink-0 border border-slate-200 dark:border-slate-700">
+                                  <User className="h-3.5 w-3.5" />
+                                </div>
+                                <div className="flex flex-col">
+                                  <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                                    {v.driver_name || "Unassigned Driver"}
+                                  </span>
+                                  <span className="font-mono text-[10px] text-blue-600 flex items-center gap-1">
+                                    <Phone className="h-2.5 w-2.5" /> {v.driver_phone || "—"}
+                                  </span>
+                                </div>
+                              </div>
+                            </TableCell>
+
+                            {/* Assigned Route */}
+                            <TableCell className="py-3.5 px-4 whitespace-nowrap">
+                              {v.assigned_route_name ? (
+                                <Badge variant="outline" className="bg-blue-50/80 text-blue-700 border-blue-200 font-semibold text-xs py-1">
+                                  <MapPin className="h-3 w-3 mr-1 text-blue-500" />
+                                  {v.assigned_route_name}
+                                </Badge>
+                              ) : (
+                                <Badge variant="outline" className="text-slate-500 bg-slate-50 border-slate-200 text-[10px]">
+                                  Standby Fleet
+                                </Badge>
+                              )}
+                            </TableCell>
+
+                            {/* Capacity & Occupancy Progress */}
+                            <TableCell className="py-3.5 px-4 whitespace-nowrap">
+                              <div className="w-32 space-y-1.5">
+                                <div className="flex justify-between text-[11px] font-bold text-slate-700 dark:text-slate-300">
+                                  <span>{v.assigned_students_count || 0} / {v.seating_capacity} Seats</span>
+                                  <span className="text-blue-600">{occupancy}%</span>
+                                </div>
+                                <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-1.5 overflow-hidden">
+                                  <div
+                                    className={`h-1.5 rounded-full ${occupancy > 90 ? "bg-rose-500" : occupancy > 60 ? "bg-amber-500" : "bg-blue-600"}`}
+                                    style={{ width: `${Math.min(100, Math.max(10, occupancy))}%` }}
+                                  />
+                                </div>
+                              </div>
+                            </TableCell>
+
+                            {/* GPS / Telematics Status */}
+                            <TableCell className="py-3.5 px-4 text-center whitespace-nowrap">
+                              <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 font-semibold text-[10px] inline-flex items-center gap-1 shadow-2xs">
+                                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                In Service
+                              </Badge>
+                            </TableCell>
+
+                            {/* Actions */}
+                            <TableCell className="py-3.5 px-4 text-right whitespace-nowrap">
+                              <div className="flex items-center justify-end gap-1.5">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => setTrackingVehicle(v)}
+                                  className="h-8 px-2.5 text-xs text-blue-700 bg-blue-50/60 hover:bg-blue-100 border-blue-200 rounded-lg"
+                                  title="Live GPS Location"
+                                >
+                                  <Navigation className="h-3.5 w-3.5 mr-1 text-blue-600" /> Track
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => handleOpenEditBus(v)}
+                                  className="h-8 w-8 p-0 text-slate-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg"
+                                  title="Edit Bus"
+                                >
+                                  <Edit3 className="h-3.5 w-3.5" />
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => handleDeleteBus(v.id, v.bus_number)}
+                                  className="h-8 w-8 p-0 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg"
+                                  title="Delete Bus"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ════════════════════════════════════════════════════════════════════
+            TAB 2: FLEET VEHICLES
+        ════════════════════════════════════════════════════════════════════ */}
+        <TabsContent value="fleet" className="space-y-4 mt-0 w-full max-w-full min-w-0">
+          <Card className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm rounded-2xl sm:rounded-3xl overflow-hidden w-full max-w-full min-w-0">
+            <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3 border-b border-slate-100 dark:border-slate-800/80 p-3.5 sm:p-5 w-full min-w-0">
+              <div className="min-w-0">
+                <CardTitle className="text-sm sm:text-lg font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2 truncate">
+                  <Bus className="h-4.5 w-4.5 sm:h-5 sm:w-5 text-blue-600 shrink-0" /> School Bus Fleet & Driver Roster
+                </CardTitle>
+                <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1 sm:line-clamp-none">
+                  Track seating capacity, driver assignments, license registration, and telematics status.
+                </p>
+              </div>
+              <Button
+                onClick={handleOpenAddBus}
+                className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs h-8.5 sm:h-9 px-3.5 rounded-xl shadow-sm self-start sm:self-auto shrink-0"
+              >
+                <Plus className="h-3.5 w-3.5 mr-1.5" /> Register Bus
+              </Button>
+            </CardHeader>
+
+            <CardContent className="p-0 w-full max-w-full overflow-hidden min-w-0">
+              {filteredFleet.length === 0 ? (
+                <div className="text-center py-16 px-4">
+                  <div className="h-16 w-16 bg-blue-50 dark:bg-blue-950/50 rounded-3xl flex items-center justify-center mx-auto mb-3 border border-blue-100 dark:border-blue-900/50">
+                    <Bus className="h-8 w-8 text-blue-500" />
+                  </div>
+                  <p className="font-bold text-slate-800 dark:text-slate-200 text-base">No Fleet Vehicles Registered</p>
+                  <p className="text-xs text-slate-500 max-w-sm mx-auto mt-1">
+                    Add school buses, vans, or coasters with license plate, seating capacity, and driver contact.
+                  </p>
+                  <Button onClick={handleOpenAddBus} size="sm" className="mt-4 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold">
+                    <Plus className="h-3.5 w-3.5 mr-1" /> Add First Bus
+                  </Button>
+                </div>
+              ) : (
+                <div className="w-full max-w-full overflow-x-auto custom-scrollbar min-w-0">
+                  <Table className="w-full min-w-[620px]">
                     <TableHeader className="bg-slate-50/80 dark:bg-slate-850/50">
                       <TableRow className="border-b border-slate-100 dark:border-slate-800">
                         <TableHead className="font-bold text-xs text-slate-600 py-3.5 px-4">Vehicle Identifier</TableHead>
@@ -1059,26 +1237,26 @@ export function TransportModule() {
         {/* ════════════════════════════════════════════════════════════════════
             TAB 3: PASSENGER ASSIGNMENTS ROSTER
         ════════════════════════════════════════════════════════════════════ */}
-        <TabsContent value="assignments" className="space-y-4 mt-0">
-          <Card className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm rounded-2xl sm:rounded-3xl overflow-hidden">
-            <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800/80 p-4 sm:p-5">
-              <div>
-                <CardTitle className="text-base sm:text-lg font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                  <Users className="h-5 w-5 text-blue-600" /> Student Transport Passenger Roster
+        <TabsContent value="assignments" className="space-y-4 mt-0 w-full max-w-full min-w-0">
+          <Card className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm rounded-2xl sm:rounded-3xl overflow-hidden w-full max-w-full min-w-0">
+            <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3 border-b border-slate-100 dark:border-slate-800/80 p-3.5 sm:p-5 w-full min-w-0">
+              <div className="min-w-0">
+                <CardTitle className="text-sm sm:text-lg font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2 truncate">
+                  <Users className="h-4.5 w-4.5 sm:h-5 sm:w-5 text-blue-600 shrink-0" /> Student Transport Passenger Roster
                 </CardTitle>
-                <p className="text-xs text-muted-foreground mt-0.5">
+                <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1 sm:line-clamp-none">
                   Assigned students, designated pickup stop, and round-trip transport subscriptions.
                 </p>
               </div>
               <Button
                 onClick={handleOpenAssignModal}
-                className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs h-9 px-3.5 rounded-xl shadow-sm shrink-0"
+                className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs h-8.5 sm:h-9 px-3.5 rounded-xl shadow-sm self-start sm:self-auto shrink-0"
               >
                 <Plus className="h-3.5 w-3.5 mr-1.5" /> Assign Student
               </Button>
             </CardHeader>
 
-            <CardContent className="p-0">
+            <CardContent className="p-0 w-full max-w-full overflow-hidden min-w-0">
               {filteredAssignments.length === 0 ? (
                 <div className="text-center py-16 px-4">
                   <div className="h-16 w-16 bg-blue-50 dark:bg-blue-950/50 rounded-3xl flex items-center justify-center mx-auto mb-3 border border-blue-100 dark:border-blue-900/50">
@@ -1093,8 +1271,8 @@ export function TransportModule() {
                   </Button>
                 </div>
               ) : (
-                <div className="overflow-x-auto no-scrollbar">
-                  <Table>
+                <div className="w-full max-w-full overflow-x-auto custom-scrollbar min-w-0">
+                  <Table className="w-full min-w-[620px]">
                     <TableHeader className="bg-slate-50/80 dark:bg-slate-850/50">
                       <TableRow className="border-b border-slate-100 dark:border-slate-800">
                         <TableHead className="font-bold text-xs text-slate-600 py-3.5 px-4">Student Passenger</TableHead>

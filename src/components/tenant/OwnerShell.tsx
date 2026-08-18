@@ -430,14 +430,14 @@ export function OwnerShell({ title, subtitle, schoolSlug, children }: Props) {
         onLogout={handleLogout}
       />
 
-      <div className="grid w-full grid-cols-1 gap-4 px-4 py-4 lg:grid-cols-[300px_1fr] lg:gap-6 lg:px-6 lg:py-6">
+      <div className="grid w-full max-w-full grid-cols-1 gap-3 sm:gap-4 px-2.5 sm:px-4 py-3 sm:py-4 lg:grid-cols-[300px_1fr] lg:gap-6 lg:px-6 lg:py-6 min-w-0 overflow-x-hidden">
         {/* Desktop Sidebar */}
         <aside className="sticky top-6 hidden self-start max-h-[calc(100vh-3rem)] overflow-y-auto rounded-3xl bg-surface p-4 shadow-elevated lg:block">
           <NavContent />
         </aside>
 
         {/* Main Content */}
-        <section className="rounded-2xl bg-surface p-4 shadow-elevated lg:rounded-3xl lg:p-6 pb-20 lg:pb-6 min-w-0">
+        <section className="min-w-0 w-full max-w-full rounded-2xl bg-surface p-3 sm:p-4 shadow-elevated lg:rounded-3xl lg:p-6 pb-20 lg:pb-6 overflow-x-hidden">
           <div className="mb-4 lg:mb-5">
             <DashboardNotificationsBanner schoolId={schoolId} schoolSlug={schoolSlug} role="school_owner" />
           </div>
