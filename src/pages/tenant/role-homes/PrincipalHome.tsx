@@ -111,6 +111,8 @@ type Kpis = {
   pendingInvoices: number;
   classes: number;
   sections: number;
+  pendingLeaves: number;
+  openComplaints: number;
 };
 
 export function PrincipalHome() {
@@ -172,6 +174,8 @@ export function PrincipalHome() {
     pendingInvoices: 0,
     classes: 0,
     sections: 0,
+    pendingLeaves: 0,
+    openComplaints: 0,
   });
   const [trend, setTrend] = useState<{ day: string; revenue: number; expenses: number; cashflow: number }[]>([]);
   const [busy, setBusy] = useState(false);
@@ -371,6 +375,8 @@ export function PrincipalHome() {
             .limit(1000),
           api.from("academic_classes").select("id", { count: "exact", head: true }).eq("school_id", schoolId),
           api.from("class_sections").select("id", { count: "exact", head: true }).eq("school_id", schoolId),
+          api.from("hr_leave_requests").select("id", { count: "exact", head: true }).eq("school_id", schoolId).eq("status", "pending"),
+          api.from("complaints").select("id", { count: "exact", head: true }).eq("school_id", schoolId).in("status", ["pending", "open"]),
         ]);
 
         const mtdMonth = monthStart.getMonth();
@@ -418,6 +424,8 @@ export function PrincipalHome() {
           pendingInvoices: pendingCount,
           classes: classesCount.count ?? 0,
           sections: sectionsCount.count ?? 0,
+          pendingLeaves: pendingLeavesCount.count ?? 0,
+          openComplaints: openComplaintsCount.count ?? 0,
         });
 
         // Build day buckets for chart (MTD)
@@ -832,14 +840,14 @@ export function PrincipalHome() {
             )}
           </div>
 
-          {/* Column 2: Campus Infrastructure Summary */}
+          {/* Column 2: Executive Action Center */}
           <div className="lg:col-span-5">
             <Card className="h-full bg-surface shadow-elevated border flex flex-col justify-between">
               <CardHeader className="pb-3 border-b">
                 <div className="flex items-center justify-between">
                   <div>
-                    <CardTitle className="font-display text-lg font-bold">Campus Infrastructure</CardTitle>
-                    <p className="text-xs text-muted-foreground">Active academic and administrative entities</p>
+                    <CardTitle className="font-display text-lg font-bold">Executive Action Center</CardTitle>
+                    <p className="text-xs text-muted-foreground">Live institutional controls & pending items requiring attention</p>
                   </div>
                   <Layers className="h-5 w-5 text-primary/80" />
                 </div>
@@ -855,22 +863,27 @@ export function PrincipalHome() {
                       <GraduationCap className="h-5 w-5" />
                     </div>
                     <div>
-                      <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">Classes</p>
+                      <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">Active Classes</p>
                       <h4 className="text-lg font-bold font-display">{kpis.classes}</h4>
                     </div>
                   </div>
 
-                  {/* Sections */}
+                  {/* Open Complaints */}
                   <div 
-                    className="flex items-center gap-3 p-3 rounded-2xl bg-muted/45 border border-muted/70 cursor-pointer hover:bg-violet-500/5 hover:border-violet-500/30 transition-all duration-200"
-                    onClick={() => navigate(`${basePath}/academic`)}
+                    className="flex items-center gap-3 p-3 rounded-2xl bg-muted/45 border border-muted/70 cursor-pointer hover:bg-rose-500/5 hover:border-rose-500/30 transition-all duration-200"
+                    onClick={() => setActiveTab("complaints")}
                   >
-                    <div className="p-2 rounded-xl bg-violet-500/10 text-violet-500">
-                      <Layers className="h-5 w-5" />
+                    <div className="p-2 rounded-xl bg-rose-500/10 text-rose-500">
+                      <MessageSquare className="h-5 w-5" />
                     </div>
                     <div>
-                      <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">Sections</p>
-                      <h4 className="text-lg font-bold font-display">{kpis.sections}</h4>
+                      <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">Open Complaints</p>
+                      <h4 className="text-lg font-bold font-display flex items-center gap-1.5">
+                        <span>{kpis.openComplaints}</span>
+                        {kpis.openComplaints > 0 && (
+                          <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-rose-500/15 text-rose-600 font-semibold">Action</span>
+                        )}
+                      </h4>
                     </div>
                   </div>
 
@@ -888,25 +901,30 @@ export function PrincipalHome() {
                     </div>
                   </div>
 
-                  {/* Teaching Faculty */}
+                  {/* Pending Leave Requests */}
                   <div 
-                    className="flex items-center gap-3 p-3 rounded-2xl bg-muted/45 border border-muted/70 cursor-pointer hover:bg-blue-500/5 hover:border-blue-500/30 transition-all duration-200"
-                    onClick={() => setActiveTab("teachers")}
+                    className="flex items-center gap-3 p-3 rounded-2xl bg-muted/45 border border-muted/70 cursor-pointer hover:bg-indigo-500/5 hover:border-indigo-500/30 transition-all duration-200"
+                    onClick={() => setActiveTab("leaves")}
                   >
-                    <div className="p-2 rounded-xl bg-blue-500/10 text-blue-500">
-                      <Users className="h-5 w-5" />
+                    <div className="p-2 rounded-xl bg-indigo-500/10 text-indigo-500">
+                      <CalendarDays className="h-5 w-5" />
                     </div>
                     <div>
-                      <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">Teachers</p>
-                      <h4 className="text-lg font-bold font-display">{kpis.teachers}</h4>
+                      <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">Pending Leaves</p>
+                      <h4 className="text-lg font-bold font-display flex items-center gap-1.5">
+                        <span>{kpis.pendingLeaves}</span>
+                        {kpis.pendingLeaves > 0 && (
+                          <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-indigo-500/15 text-indigo-600 font-semibold">Review</span>
+                        )}
+                      </h4>
                     </div>
                   </div>
                 </div>
 
                 <div className="mt-6 p-4 rounded-2xl bg-primary/5 border border-primary/10 flex items-center justify-between">
                   <div className="space-y-1">
-                    <p className="text-xs font-semibold text-primary">Academic Operations Active</p>
-                    <p className="text-[10px] text-muted-foreground font-medium">All systems reporting healthy status</p>
+                    <p className="text-xs font-semibold text-primary">Academic & Operations Sync</p>
+                    <p className="text-[10px] text-muted-foreground font-medium">All executive pipelines active and monitoring</p>
                   </div>
                   <Activity className="h-5 w-5 text-primary animate-pulse" />
                 </div>

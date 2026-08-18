@@ -6,7 +6,7 @@ from uuid import UUID
 from datetime import date, datetime, timedelta
 from pydantic import BaseModel, ConfigDict
 from fastapi import APIRouter, HTTPException, Query, status
-from sqlalchemy import select, update
+from sqlalchemy import select, update, or_
 
 from app.dependencies import CurrentUser, DbSession
 from app.models.library import LibraryBook, BookIssue, BookReservation
@@ -102,7 +102,7 @@ async def list_books(
     effective_cid = campus_id if isinstance(campus_id, (UUID, str)) else current_user.campus_id
     stmt = select(LibraryBook).where(LibraryBook.school_id == current_user.school_id)
     if effective_cid:
-        stmt = stmt.where(LibraryBook.campus_id == effective_cid)
+        stmt = stmt.where(or_(LibraryBook.campus_id == effective_cid, LibraryBook.campus_id.is_(None)))
     if category and category != "All":
         stmt = stmt.where(LibraryBook.category == category)
     if search:
@@ -148,7 +148,7 @@ async def list_issues(
     effective_cid = campus_id if isinstance(campus_id, (UUID, str)) else current_user.campus_id
     stmt = select(BookIssue).where(BookIssue.school_id == current_user.school_id)
     if effective_cid:
-        stmt = stmt.where(BookIssue.campus_id == effective_cid)
+        stmt = stmt.where(or_(BookIssue.campus_id == effective_cid, BookIssue.campus_id.is_(None)))
     if status_filter:
         stmt = stmt.where(BookIssue.status == status_filter)
     try:
@@ -248,7 +248,7 @@ async def list_reservations(
     effective_cid = campus_id if isinstance(campus_id, (UUID, str)) else current_user.campus_id
     stmt = select(BookReservation).where(BookReservation.school_id == current_user.school_id)
     if effective_cid:
-        stmt = stmt.where(BookReservation.campus_id == effective_cid)
+        stmt = stmt.where(or_(BookReservation.campus_id == effective_cid, BookReservation.campus_id.is_(None)))
     try:
         res = await db.execute(stmt)
         return list(res.scalars().all())

@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { SearchableSelect } from "@/components/ui/SearchableSelect";
 import { Progress } from "@/components/ui/progress";
+import { api } from "@/lib/api";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "sonner";
 import { useActiveCampus } from "@/hooks/useActiveCampus";
@@ -17,7 +18,7 @@ import { useSession } from "@/hooks/useSession";
 import {
   BookOpen, Plus, Search, RefreshCw, BookmarkCheck, Clock, CheckCircle2,
   AlertTriangle, UserCheck, ShieldAlert, Library, LayoutGrid, List,
-  Barcode, Edit3, Trash2, Eye, User, Sparkles, Filter, Check
+  Barcode, Edit3, Trash2, Eye, User as UserIcon, Sparkles, Filter, Check
 } from "lucide-react";
 
 interface Book {
@@ -106,9 +107,19 @@ export function LibraryModule() {
       const res = await apiClient.get("/library/books", {
         params: { ...(activeCampusId ? { campus_id: activeCampusId } : {}) }
       });
-      setBooks(Array.isArray(res.data) ? res.data : []);
+      if (Array.isArray(res.data) && res.data.length > 0) {
+        setBooks(res.data);
+      } else {
+        const fallback = await api.from("library_books").select("*").order("title");
+        setBooks(Array.isArray(fallback.data) && fallback.data.length > 0 ? (fallback.data as Book[]) : (res.data ?? []));
+      }
     } catch { 
-      if (!silent) setBooks([]); 
+      try {
+        const fallback = await api.from("library_books").select("*").order("title");
+        setBooks((fallback.data as Book[]) ?? []);
+      } catch {
+        if (!silent) setBooks([]); 
+      }
     } finally {
       if (!silent) setLoading(false);
     }
@@ -120,9 +131,19 @@ export function LibraryModule() {
       const res = await apiClient.get("/library/issues", {
         params: { ...(activeCampusId ? { campus_id: activeCampusId } : {}) }
       });
-      setIssues(Array.isArray(res.data) ? res.data : []);
+      if (Array.isArray(res.data) && res.data.length > 0) {
+        setIssues(res.data);
+      } else {
+        const fallback = await api.from("book_issues").select("*").order("created_at", { ascending: false });
+        setIssues(Array.isArray(fallback.data) && fallback.data.length > 0 ? (fallback.data as Issue[]) : (res.data ?? []));
+      }
     } catch { 
-      if (!silent) setIssues([]); 
+      try {
+        const fallback = await api.from("book_issues").select("*").order("created_at", { ascending: false });
+        setIssues((fallback.data as Issue[]) ?? []);
+      } catch {
+        if (!silent) setIssues([]); 
+      }
     } finally {
       if (!silent) setLoading(false);
     }
@@ -134,9 +155,19 @@ export function LibraryModule() {
       const res = await apiClient.get("/library/reservations", {
         params: { ...(activeCampusId ? { campus_id: activeCampusId } : {}) }
       });
-      setReservations(Array.isArray(res.data) ? res.data : []);
+      if (Array.isArray(res.data) && res.data.length > 0) {
+        setReservations(res.data);
+      } else {
+        const fallback = await api.from("book_reservations").select("*").order("created_at", { ascending: false });
+        setReservations(Array.isArray(fallback.data) && fallback.data.length > 0 ? (fallback.data as BookReservation[]) : (res.data ?? []));
+      }
     } catch { 
-      if (!silent) setReservations([]); 
+      try {
+        const fallback = await api.from("book_reservations").select("*").order("created_at", { ascending: false });
+        setReservations((fallback.data as BookReservation[]) ?? []);
+      } catch {
+        if (!silent) setReservations([]); 
+      }
     } finally {
       if (!silent) setLoading(false);
     }
