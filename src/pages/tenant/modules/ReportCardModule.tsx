@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -25,6 +25,15 @@ import {
   Users,
   Pencil,
   Trash2,
+  Save,
+  ChevronLeft,
+  ChevronRight,
+  CheckCircle2,
+  AlertCircle,
+  Download,
+  Award,
+  BookOpen,
+  Check,
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
@@ -34,10 +43,10 @@ import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 
 interface Exam { id: string; name: string; term_label: string | null; start_date?: string | null; end_date?: string | null; }
-interface Student { id: string; first_name: string; last_name: string | null; student_code?: string | null; section_id?: string | null; }
+interface Student { id: string; first_name: string; last_name: string | null; student_code?: string | null; section_id?: string | null; class_id?: string | null; classLabel?: string; }
 interface Subject { id: string; name: string; }
 interface Result { id?: string; subject_id: string; marks_obtained: number | null; max_marks: number; grade: string | null; remarks: string | null; }
-interface Card { id?: string; exam_id?: string | null; total_marks: number | null; max_total: number | null; percentage: number | null; gpa: number | null; overall_grade: string | null; teacher_remarks: string | null; principal_remarks: string | null; attendance_percentage: number | null; is_published: boolean; period_type?: string; period_label?: string | null; period_start?: string | null; period_end?: string | null; academic_year?: string | null; published_at?: string | null; }
+interface CardData { id?: string; exam_id?: string | null; total_marks: number | null; max_total: number | null; percentage: number | null; gpa: number | null; overall_grade: string | null; teacher_remarks: string | null; principal_remarks: string | null; attendance_percentage: number | null; is_published: boolean; period_type?: string; period_label?: string | null; period_start?: string | null; period_end?: string | null; academic_year?: string | null; published_at?: string | null; }
 interface ClassRow { id: string; name: string; }
 interface SectionRow { id: string; name: string; class_id: string; }
 interface AssessmentRow { id: string; title: string; subject_id: string | null; assessment_date: string | null; max_marks: number; is_published?: boolean | null; assessment_type?: string | null; weightage_percent?: number | null; class_section_id?: string | null; }
@@ -68,6 +77,26 @@ const calcGrade = (pct: number) => {
   return { grade: "F" };
 };
 
+const getGradeBadge = (grade: string | null) => {
+  if (!grade) return "bg-slate-100 text-slate-500 border-slate-200";
+  switch (grade.toUpperCase()) {
+    case "A+":
+      return "bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-950 dark:text-emerald-300";
+    case "A":
+      return "bg-teal-100 text-teal-800 border-teal-300 dark:bg-teal-950 dark:text-teal-300";
+    case "B":
+      return "bg-blue-100 text-blue-800 border-blue-300 dark:bg-blue-950 dark:text-blue-300";
+    case "C":
+      return "bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-950 dark:text-amber-300";
+    case "D":
+      return "bg-orange-100 text-orange-800 border-orange-300 dark:bg-orange-950 dark:text-orange-300";
+    case "F":
+      return "bg-rose-100 text-rose-800 border-rose-300 dark:bg-rose-950 dark:text-rose-300";
+    default:
+      return "bg-slate-100 text-slate-700 border-slate-200";
+  }
+};
+
 const MONTHS = [
   "January", "February", "March", "April", "May", "June",
   "July", "August", "September", "October", "November", "December",
@@ -76,7 +105,6 @@ const currentYear = () => new Date().getFullYear();
 const academicYearLabel = () => {
   const y = currentYear();
   const m = new Date().getMonth();
-  // School year roughly Aug-Jul; show "2025-2026" style.
   return m >= 7 ? `${y}-${y + 1}` : `${y - 1}-${y}`;
 };
 
@@ -93,13 +121,14 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
   const [examId, setExamId] = useState<string>("");
   const [studentId, setStudentId] = useState<string>(studentIdLocked || "");
   const [results, setResults] = useState<Record<string, Result>>({});
-  const [card, setCard] = useState<Card>({ total_marks: 0, max_total: 0, percentage: 0, gpa: 0, overall_grade: "", teacher_remarks: "", principal_remarks: "", attendance_percentage: null, is_published: false });
+  const [card, setCard] = useState<CardData>({ total_marks: 0, max_total: 0, percentage: 0, gpa: 0, overall_grade: "", teacher_remarks: "", principal_remarks: "", attendance_percentage: null, is_published: false });
   const [school, setSchool] = useState<any>(null);
   const [studentInfo, setStudentInfo] = useState<any>(null);
   const [allAssessments, setAllAssessments] = useState<AssessmentRow[]>([]);
   const [allMarks, setAllMarks] = useState<MarkRow[]>([]);
-  // null = no scope restriction (admin/principal/etc.). Array = teacher restricted to these section ids.
   const [teacherSectionIds, setTeacherSectionIds] = useState<string[] | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
   // Period mode
   const [periodType, setPeriodType] = useState<PeriodType>("exam");
@@ -115,7 +144,7 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
   // List view (parent/student)
   const [myCards, setMyCards] = useState<ReportCardRow[]>([]);
   const [viewingCardId, setViewingCardId] = useState<string | null>(null);
-  // Derived permission: a teacher (no admin role) is only allowed to view report cards, not edit them.
+
   const currentStudentSectionId = useMemo(
     () => enrollments.find((e) => e.student_id === studentId)?.class_section_id ?? null,
     [enrollments, studentId]
@@ -127,8 +156,6 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
   const canManage = canManageProp && allowedForCurrentStudent && !isTeacherOnly;
   const isReadOnlyForChild = !!studentIdLocked && !canManageProp;
 
-  // Detect scope: if the current user has any admin-style role for this school we leave
-  // teacherSectionIds=null (full access). Otherwise we restrict to sections assigned to them.
   useEffect(() => {
     if (!schoolId || !canManageProp) { setTeacherSectionIds(null); return; }
     let cancelled = false;
@@ -145,7 +172,7 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
       const adminRoles = ["super_admin", "school_owner", "principal", "vice_principal", "school_admin", "academic_coordinator"];
       const isAdmin = roleList.some((r) => adminRoles.includes(r));
       if (isAdmin) { if (!cancelled) setTeacherSectionIds(null); return; }
-      // Gather sections assigned to this teacher
+      
       const [ta, ss, tsa] = await Promise.all([
         (api as any).from("teacher_assignments").select("class_section_id").eq("school_id", schoolId).eq("teacher_user_id", uid),
         (api as any).from("section_subjects").select("class_section_id").eq("school_id", schoolId).eq("teacher_user_id", uid),
@@ -160,8 +187,6 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
     return () => { cancelled = true; };
   }, [schoolId, canManageProp]);
 
-
-  // Load directory
   useEffect(() => {
     if (!schoolId) return;
     (async () => {
@@ -176,6 +201,9 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
       ]);
       setExams(ex.data || []); setStudents(st.data || []); setSubjects(sub.data || []); setSchool(sch.data);
       setClasses(cls.data || []); setSections(sec.data || []); setEnrollments(enr.data || []);
+      if (!examId && ex.data && ex.data.length > 0) {
+        setExamId(ex.data[0].id);
+      }
     })();
   }, [schoolId]);
 
@@ -192,7 +220,6 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
     }
   }, [viewCardParam]);
 
-  // Load list of published cards for parent/student
   useEffect(() => {
     if (!isReadOnlyForChild || !schoolId || !studentId) return;
     (async () => {
@@ -207,7 +234,6 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
     })();
   }, [isReadOnlyForChild, schoolId, studentId]);
 
-  // Build current period_label
   const currentPeriodLabel = useMemo(() => {
     if (periodType === "monthly") return `${MONTHS[monthIdx]} ${monthYear}`;
     if (periodType === "annual") return `Annual ${annualYear}`;
@@ -231,7 +257,7 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
   // Load card + results for chosen context
   useEffect(() => {
     if (!studentId || !schoolId) return;
-    if (isReadOnlyForChild && !viewingCardId) return; // wait until parent opens a specific card
+    if (isReadOnlyForChild && !viewingCardId) return;
     (async () => {
       let rcQuery = (api as any).from("report_cards").select("*").eq("school_id", schoolId).eq("student_id", studentId);
       if (viewingCardId) {
@@ -262,7 +288,6 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
       setAllAssessments(assessments.data || []);
       setAllMarks(marks.data || []);
 
-      // If viewing existing saved card and it has exam_id, load its exam_results too
       let savedResults: any[] = res.data || [];
       if (loadedCard?.exam_id && (!savedResults || savedResults.length === 0)) {
         const { data } = await (api as any)
@@ -274,14 +299,11 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
       const map: Record<string, Result> = {};
       savedResults.forEach((r: any) => { map[r.subject_id] = r; });
 
-      // Determine which assessments are in scope for the period
       const studentSectionId = enrollments.find((e) => e.student_id === studentId)?.class_section_id ?? null;
       const inScope = (assessments.data || []).filter((a: any) => {
         if (a.is_published === false) return false;
-        // Strictly scope to the student's class section so quizzes/tests added for one class
-        // do not leak into other classes' report cards.
         if (studentSectionId && a.class_section_id && a.class_section_id !== studentSectionId) return false;
-        if (loadedCard?.exam_id || examIdForResults) return true; // exam mode: include all (existing fallback behavior)
+        if (loadedCard?.exam_id || examIdForResults) return true;
         if (periodType === "monthly") {
           const d = a.assessment_date ? new Date(a.assessment_date) : null;
           if (!d) return false;
@@ -291,14 +313,6 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
           const d = a.assessment_date ? new Date(a.assessment_date) : null;
           if (!d || !currentPeriodRange.start || !currentPeriodRange.end) return false;
           return d >= new Date(currentPeriodRange.start) && d <= new Date(currentPeriodRange.end);
-        }
-        if (loadedCard?.period_type === "monthly" && loadedCard.period_start && loadedCard.period_end) {
-          const d = a.assessment_date ? new Date(a.assessment_date) : null;
-          return !!d && d >= new Date(loadedCard.period_start) && d <= new Date(loadedCard.period_end);
-        }
-        if (loadedCard?.period_type === "annual" && loadedCard.period_start && loadedCard.period_end) {
-          const d = a.assessment_date ? new Date(a.assessment_date) : null;
-          return !!d && d >= new Date(loadedCard.period_start) && d <= new Date(loadedCard.period_end);
         }
         return true;
       });
@@ -328,9 +342,8 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
       });
 
       setResults(map);
-      // Safely merge attendance_percentage: prefer the live-computed value already
-      // in state; fall back to the saved value on the loaded card. Never let a
-      // null/undefined from either side wipe out a known good number.
+      setHasUnsavedChanges(false);
+
       const safeAttendance = (a: unknown, b: unknown): number | null => {
         const na = typeof a === "number" && !Number.isNaN(a) ? a : null;
         const nb = typeof b === "number" && !Number.isNaN(b) ? b : null;
@@ -340,7 +353,6 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
       else setCard((prev) => ({ total_marks: 0, max_total: 0, percentage: 0, gpa: 0, overall_grade: "", teacher_remarks: "", principal_remarks: "", attendance_percentage: safeAttendance(prev.attendance_percentage, null), is_published: false }));
       setStudentInfo(info.data);
 
-      // If we opened a saved card, sync the period selector for display
       if (loadedCard) {
         if (loadedCard.exam_id) { setPeriodType("exam"); setExamId(loadedCard.exam_id); }
         else if (loadedCard.period_type === "monthly" || loadedCard.period_type === "annual") {
@@ -350,7 +362,7 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
     })();
   }, [examId, studentId, schoolId, periodType, currentPeriodLabel, viewingCardId, isReadOnlyForChild, monthIdx, monthYear, currentPeriodRange.start, currentPeriodRange.end, JSON.stringify(enrollments)]);
 
-  // Auto-compute attendance % from attendance history for the selected period (read-only)
+  // Auto-compute attendance %
   useEffect(() => {
     if (!studentId || !schoolId) return;
     const studentSectionId = enrollments.find((e) => e.student_id === studentId)?.class_section_id ?? null;
@@ -377,21 +389,15 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
       if (end) sessionsQ = sessionsQ.lte("session_date", end);
       const { data: sessions } = await sessionsQ;
       const sessionIds = (sessions || []).map((s: any) => s.id);
-      if (sessionIds.length === 0) {
-        // No sessions in this period — keep any previously known value
-        // (saved on card or computed earlier) rather than blanking it out.
-        return;
-      }
+      if (sessionIds.length === 0) return;
+      
       const { data: entries } = await (api as any)
         .from("attendance_entries")
         .select("status")
         .eq("student_id", studentId)
         .in("session_id", sessionIds);
       const total = entries?.length || 0;
-      if (total === 0) {
-        // Student has no entries — keep existing value instead of wiping it.
-        return;
-      }
+      if (total === 0) return;
       const attended = (entries || []).filter((e: any) => e.status === "present" || e.status === "late").length;
       const raw = (attended / total) * 100;
       const pct = Number.isFinite(raw) ? Math.round(raw * 10) / 10 : null;
@@ -400,19 +406,39 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
     })();
   }, [studentId, schoolId, periodType, examId, currentPeriodRange.start, currentPeriodRange.end, card.period_start, card.period_end, JSON.stringify(enrollments), exams]);
 
-  const updateMark = (subjectId: string, marks: number, max: number) => {
-    setResults((prev) => ({ ...prev, [subjectId]: { ...(prev[subjectId] || {}), subject_id: subjectId, marks_obtained: marks, max_marks: max, grade: calcGrade((marks / max) * 100).grade, remarks: prev[subjectId]?.remarks || null } }));
+  const updateMark = (subjectId: string, marks: number | null, max: number) => {
+    setHasUnsavedChanges(true);
+    setResults((prev) => {
+      const m = marks === null || Number.isNaN(marks) ? null : Number(marks);
+      const mx = Number(max) || 100;
+      const pct = m != null && mx > 0 ? (m / mx) * 100 : 0;
+      return {
+        ...prev,
+        [subjectId]: {
+          ...(prev[subjectId] || {}),
+          subject_id: subjectId,
+          marks_obtained: m,
+          max_marks: mx,
+          grade: m != null ? calcGrade(pct).grade : null,
+          remarks: prev[subjectId]?.remarks || null,
+        }
+      };
+    });
   };
 
   const totals = useMemo(() => {
     let total = 0, max = 0;
-    Object.values(results).forEach((r) => { if (r.marks_obtained != null) { total += Number(r.marks_obtained); max += Number(r.max_marks || 100); } });
+    Object.values(results).forEach((r) => {
+      if (r.marks_obtained != null) {
+        total += Number(r.marks_obtained);
+        max += Number(r.max_marks || 100);
+      }
+    });
     const pct = max > 0 ? (total / max) * 100 : 0;
     const g = calcGrade(pct);
     return { total, max, pct: Math.round(pct * 100) / 100, grade: g.grade };
   }, [results]);
 
-  // Per-assessment appendix for the loaded card
   const appendix = useMemo(() => {
     const subjectName = new Map(subjects.map((s) => [s.id, s.name]));
     const studentSectionId = enrollments.find((e) => e.student_id === studentId)?.class_section_id ?? null;
@@ -422,7 +448,7 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
       return true;
     });
     if (card.exam_id || (periodType === "exam" && examId)) {
-      // exam mode — show all marks for this student (existing behavior)
+      // exam mode
     } else if (card.period_type === "monthly" && card.period_start && card.period_end) {
       const s = new Date(card.period_start), e = new Date(card.period_end);
       scope = scope.filter((a) => a.assessment_date && new Date(a.assessment_date) >= s && new Date(a.assessment_date) <= e);
@@ -455,7 +481,6 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
       .sort((x, y) => (x.date || "").localeCompare(y.date || ""));
   }, [allAssessments, allMarks, subjects, card, periodType, examId, monthIdx, monthYear, currentPeriodRange.start, currentPeriodRange.end, studentId, JSON.stringify(enrollments)]);
 
-  // ───── Per-subject × per-category breakdown (quiz/test/assignment/project/exam/etc.)
   const CATEGORY_ORDER: { key: string; label: string }[] = [
     { key: "quiz", label: "Quizzes" },
     { key: "test", label: "Tests" },
@@ -473,12 +498,10 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
   ];
 
   const categoryBreakdown = useMemo(() => {
-    // Filter assessments by current period scope
     const inScope = appendix.map((a) => a.id);
     const inScopeSet = new Set(inScope);
     const markByA = new Map(allMarks.map((m) => [m.assessment_id, m]));
 
-    // matrix: subjectId -> categoryKey -> { obtained, max }
     const matrix: Record<string, Record<string, { obtained: number; max: number }>> = {};
     const usedCategories = new Set<string>();
 
@@ -498,7 +521,6 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
 
     const visibleCategories = CATEGORY_ORDER.filter((c) => usedCategories.has(c.key));
     return { matrix, visibleCategories };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allAssessments, allMarks, appendix]);
 
   const enriched = useMemo(() => {
@@ -513,7 +535,6 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
   const filteredStudents = useMemo(() => {
     const q = search.trim().toLowerCase();
     return enriched.filter((s) => {
-      // Teachers (non-admin) can only see students from sections assigned to them.
       if (teacherSectionIds !== null) {
         if (!s.section_id || !teacherSectionIds.includes(s.section_id)) return false;
       }
@@ -525,6 +546,21 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
     });
   }, [enriched, search, classFilter, sectionFilter, teacherSectionIds]);
 
+  const currentStudentIdx = useMemo(() => {
+    return filteredStudents.findIndex((s) => s.id === studentId);
+  }, [filteredStudents, studentId]);
+
+  const handlePrevStudent = () => {
+    if (currentStudentIdx > 0) {
+      setStudentId(filteredStudents[currentStudentIdx - 1].id);
+    }
+  };
+
+  const handleNextStudent = () => {
+    if (currentStudentIdx >= 0 && currentStudentIdx < filteredStudents.length - 1) {
+      setStudentId(filteredStudents[currentStudentIdx + 1].id);
+    }
+  };
 
   const periodTitle = useMemo(() => {
     if (card.exam_id) return exams.find((e) => e.id === card.exam_id)?.name || "Exam Report";
@@ -533,66 +569,85 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
     return currentPeriodLabel || "Report Card";
   }, [card, exams, examId, periodType, currentPeriodLabel]);
 
-  const save = async () => {
-    if (!schoolId || !studentId) { toast.error("Select a student"); return null; }
-    if (periodType === "exam" && !examId) { toast.error("Select an exam"); return null; }
-    const userResp = await (api as any).auth.getUser();
-    const uid = userResp.data?.user?.id ?? null;
+  const save = useCallback(async () => {
+    if (!schoolId || !studentId) { toast.error("Select a student first"); return null; }
+    if (periodType === "exam" && !examId) { toast.error("Select an exam first"); return null; }
+    setIsSaving(true);
+    try {
+      const userResp = await (api as any).auth.getUser();
+      const uid = userResp.data?.user?.id ?? null;
 
-    if (periodType === "exam") {
-      for (const subjectId of Object.keys(results)) {
-        const r = results[subjectId];
-        if (r.marks_obtained == null) continue;
-        await (api as any).from("exam_results").upsert({
-          school_id: schoolId, exam_id: examId, student_id: studentId, subject_id: subjectId,
-          marks_obtained: r.marks_obtained, max_marks: r.max_marks, grade: r.grade, remarks: r.remarks,
-        }, { onConflict: "exam_id,student_id,subject_id" });
+      if (periodType === "exam") {
+        for (const subjectId of Object.keys(results)) {
+          const r = results[subjectId];
+          if (r.marks_obtained == null) continue;
+          await (api as any).from("exam_results").upsert({
+            school_id: schoolId, exam_id: examId, student_id: studentId, subject_id: subjectId,
+            marks_obtained: r.marks_obtained, max_marks: r.max_marks, grade: r.grade, remarks: r.remarks,
+          }, { onConflict: "exam_id,student_id,subject_id" });
+        }
       }
-    }
 
-    const basePayload: any = {
-      school_id: schoolId, student_id: studentId,
-      total_marks: totals.total, max_total: totals.max, percentage: totals.pct,
-      gpa: null, overall_grade: totals.grade,
-      teacher_remarks: card.teacher_remarks, principal_remarks: card.principal_remarks,
-      attendance_percentage: card.attendance_percentage,
-      is_published: card.is_published, // preserve current state, do NOT auto-publish on save
-      published_at: (card as any).published_at ?? null,
-      last_edited_by: uid,
-      period_type: periodType,
+      const basePayload: any = {
+        school_id: schoolId, student_id: studentId,
+        total_marks: totals.total, max_total: totals.max, percentage: totals.pct,
+        gpa: null, overall_grade: totals.grade,
+        teacher_remarks: card.teacher_remarks, principal_remarks: card.principal_remarks,
+        attendance_percentage: card.attendance_percentage,
+        is_published: card.is_published,
+        published_at: (card as any).published_at ?? null,
+        last_edited_by: uid,
+        period_type: periodType,
+      };
+
+      let onConflict: string;
+      if (periodType === "exam") {
+        basePayload.exam_id = examId;
+        basePayload.period_label = exams.find((e) => e.id === examId)?.name ?? null;
+        onConflict = "exam_id,student_id";
+      } else {
+        basePayload.exam_id = null;
+        basePayload.period_label = currentPeriodLabel;
+        basePayload.period_start = currentPeriodRange.start;
+        basePayload.period_end = currentPeriodRange.end;
+        basePayload.academic_year = periodType === "annual" ? annualYear : null;
+        onConflict = "school_id,student_id,period_type,period_label";
+      }
+
+      const { data, error } = await (api as any)
+        .from("report_cards")
+        .upsert(basePayload, { onConflict })
+        .select("id,is_published,published_at")
+        .maybeSingle();
+      if (error) { toast.error(error.message); return null; }
+      toast.success("Marks & remarks saved successfully!");
+      setHasUnsavedChanges(false);
+      if (data) setCard((c) => ({ ...c, id: data.id, is_published: data.is_published, published_at: data.published_at }));
+      return data?.id ?? null;
+    } finally {
+      setIsSaving(false);
+    }
+  }, [schoolId, studentId, periodType, examId, results, totals, card, exams, currentPeriodLabel, currentPeriodRange, annualYear]);
+
+  // Keyboard shortcut Ctrl+S
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "s") {
+        e.preventDefault();
+        if (canManage && studentId) {
+          save();
+        }
+      }
     };
-
-    let onConflict: string;
-    if (periodType === "exam") {
-      basePayload.exam_id = examId;
-      basePayload.period_label = exams.find((e) => e.id === examId)?.name ?? null;
-      onConflict = "exam_id,student_id";
-    } else {
-      basePayload.exam_id = null;
-      basePayload.period_label = currentPeriodLabel;
-      basePayload.period_start = currentPeriodRange.start;
-      basePayload.period_end = currentPeriodRange.end;
-      basePayload.academic_year = periodType === "annual" ? annualYear : null;
-      onConflict = "school_id,student_id,period_type,period_label";
-    }
-
-    const { data, error } = await (api as any)
-      .from("report_cards")
-      .upsert(basePayload, { onConflict })
-      .select("id,is_published,published_at")
-      .maybeSingle();
-    if (error) { toast.error(error.message); return null; }
-    toast.success("Saved as draft");
-    if (data) setCard((c) => ({ ...c, id: data.id, is_published: data.is_published, published_at: data.published_at }));
-    return data?.id ?? null;
-  };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [canManage, studentId, save]);
 
   const notifyPublish = async (studentIds: string[], published: boolean, cardMap?: Map<string, string>) => {
     if (!schoolId || studentIds.length === 0) return;
     const title = published ? "New report card published" : "Report card unpublished";
     const body = `${periodTitle} — ${published ? "now available on your dashboard" : "temporarily withdrawn"}.`;
     
-    // Resolve recipients: student profile_id + guardians
     const [{ data: studs }, { data: guards }] = await Promise.all([
       (api as any).from("students").select("id,profile_id").in("id", studentIds),
       (api as any).from("student_guardians").select("student_id,user_id").in("student_id", studentIds),
@@ -602,7 +657,6 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
     if (cardMap) {
       cardMap.forEach((val, key) => studentCardMap.set(key, val));
     } else {
-      // Query card IDs as fallback
       let cardsQuery = (api as any)
         .from("report_cards")
         .select("id,student_id")
@@ -648,9 +702,8 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
   };
 
   const publishIndividual = async (publish: boolean) => {
-    // Ensure saved first
     let id = card.id;
-    if (!id) {
+    if (!id || hasUnsavedChanges) {
       id = await save();
       if (!id) return;
     }
@@ -665,7 +718,7 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
     if (id) cardMap.set(studentId, id);
     await notifyPublish([studentId], publish, cardMap);
     
-    toast.success(publish ? "Published — sent to parent dashboard" : "Unpublished");
+    toast.success(publish ? "Published — now visible to parent & student" : "Unpublished — moved back to draft");
   };
 
   // Whole-class publish dialog state
@@ -715,7 +768,7 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
     }
   };
 
-  // ───────── Inline "+ add quiz/test/assignment" for current student/subject
+  // Inline "+ add quiz/test/assignment"
   const [addOpen, setAddOpen] = useState(false);
   const [addSubjectId, setAddSubjectId] = useState<string>("");
   const [addType, setAddType] = useState<string>("quiz");
@@ -758,7 +811,7 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
       })
       .select("id,subject_id,max_marks,is_published,title,assessment_date,assessment_type,weightage_percent,class_section_id")
       .single();
-    if (aErr || !a) return toast.error(aErr?.message || "Failed to add");
+    if (aErr || !a) return toast.error(aErr?.message || "Failed to add assessment");
 
     const pct = addMax > 0 ? (addMarks / addMax) * 100 : 0;
     const { error: mErr } = await (api as any)
@@ -775,11 +828,10 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
 
     setAllAssessments((prev) => [...prev, a as any]);
     setAllMarks((prev) => [...prev, { assessment_id: a.id, marks: addMarks, computed_grade: calcGrade(pct).grade } as any]);
-    toast.success(`${addType[0].toUpperCase() + addType.slice(1)} added`);
+    toast.success(`${addType[0].toUpperCase() + addType.slice(1)} added successfully!`);
     setAddOpen(false);
   };
 
-  // Edit an existing assessment + the current student's mark for it
   const [editAssessmentId, setEditAssessmentId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
   const [editType, setEditType] = useState<string>("quiz");
@@ -844,14 +896,13 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
       }
       return [...prev, { assessment_id: editAssessmentId, marks: editMarks, computed_grade: calcGrade(pct).grade } as any];
     });
-    toast.success("Updated");
+    toast.success("Updated assessment mark");
     setEditAssessmentId(null);
   };
 
   const deleteAssessment = async (id: string) => {
     if (!schoolId) return;
     if (!confirm("Delete this assessment? This removes it and all student marks for it.")) return;
-    // Delete marks first (in case FK is not cascading), then assessment
     await (api as any).from("student_marks").delete().eq("school_id", schoolId).eq("assessment_id", id);
     const { error } = await (api as any).from("academic_assessments").delete().eq("school_id", schoolId).eq("id", id);
     if (error) return toast.error(error.message);
@@ -860,59 +911,87 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
     toast.success("Deleted");
   };
 
-
-
-
   const showPicker = !studentIdLocked;
   const today = format(new Date(), "MMMM d, yyyy");
+
+  const exportPdf = async () => {
+    const el = document.getElementById("report-card-print") as HTMLElement | null;
+    if (!el) return toast.error("No report card to export");
+    try {
+      el.classList.add("exporting-pdf");
+      const canvas = await html2canvas(el, { scale: 2, useCORS: true, backgroundColor: "#ffffff", logging: false, windowWidth: el.scrollWidth });
+      el.classList.remove("exporting-pdf");
+      const pdf = new jsPDF("p", "mm", "a4");
+      const pageW = pdf.internal.pageSize.getWidth();
+      const pageH = pdf.internal.pageSize.getHeight();
+      const margin = 8;
+      const availW = pageW - margin * 2;
+      const availH = pageH - margin * 2;
+      const ratio = canvas.width / canvas.height;
+      let w = availW; let h = w / ratio;
+      if (h > availH) { h = availH; w = h * ratio; }
+      const x = (pageW - w) / 2; const y = (pageH - h) / 2;
+      pdf.addImage(canvas.toDataURL("image/png"), "PNG", x, y, w, h, undefined, "FAST");
+      const name = (studentInfo ? `${studentInfo.first_name}-${studentInfo.last_name || ""}` : "report-card").replace(/\s+/g, "_");
+      pdf.save(`${name}_report-card.pdf`);
+      toast.success("PDF downloaded successfully!");
+    } catch (e: any) {
+      el?.classList.remove("exporting-pdf");
+      toast.error(e?.message || "Failed to export PDF");
+    }
+  };
 
   // ───────────── Parent / Student LIST view ─────────────
   if (isReadOnlyForChild && !viewingCardId) {
     return (
-      <div className="space-y-4">
+      <div className="space-y-6 pb-24">
         <div>
-          <h2 className="font-display text-2xl font-semibold">Report Cards</h2>
-          <p className="text-sm text-muted-foreground">All published monthly, exam and annual report cards</p>
+          <h2 className="font-display text-2xl font-bold text-slate-900 dark:text-slate-100">Report Cards</h2>
+          <p className="text-sm text-muted-foreground">Official published examination, monthly, and annual academic transcripts.</p>
         </div>
 
         {myCards.length === 0 ? (
-          <Card>
-            <CardContent className="grid place-items-center py-16 text-center">
-              <GraduationCap className="h-10 w-10 text-muted-foreground" />
-              <p className="mt-3 font-medium">No report cards yet</p>
-              <p className="text-sm text-muted-foreground">Cards will appear here as soon as they are published.</p>
+          <Card className="rounded-2xl border-slate-200 dark:border-slate-800 shadow-sm">
+            <CardContent className="grid place-items-center py-20 text-center">
+              <div className="h-16 w-16 rounded-2xl bg-primary/10 flex items-center justify-center mb-4">
+                <GraduationCap className="h-8 w-8 text-primary" />
+              </div>
+              <p className="text-lg font-bold text-slate-900 dark:text-slate-100">No report cards released yet</p>
+              <p className="text-sm text-muted-foreground max-w-sm mt-1">Official evaluations and transcripts will appear here once finalized by the school faculty.</p>
             </CardContent>
           </Card>
         ) : (
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {myCards.map((c) => {
               const ex = c.exam_id ? exams.find((e) => e.id === c.exam_id) : null;
-              const title = ex?.name || c.period_label || "Report Card";
+              const title = ex?.name || c.period_label || "Academic Report Card";
               const Icon = c.period_type === "annual" ? Sparkles : c.period_type === "monthly" ? Calendar : c.period_type === "exam" ? FileText : ClipboardList;
               return (
                 <button
                   key={c.id}
                   onClick={() => setViewingCardId(c.id)}
-                  className="group relative overflow-hidden rounded-2xl border bg-card p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md"
+                  className="group relative overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800 bg-card p-5 text-left shadow-xs transition-all duration-200 hover:-translate-y-1 hover:border-primary/40 hover:shadow-lg"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex items-center gap-3">
-                      <div className="grid h-10 w-10 place-items-center rounded-xl bg-primary/10">
-                        <Icon className="h-5 w-5 text-primary" />
+                      <div className="grid h-12 w-12 place-items-center rounded-2xl bg-primary/10 text-primary">
+                        <Icon className="h-6 w-6" />
                       </div>
                       <div>
-                        <p className="font-medium leading-tight">{title}</p>
-                        <p className="text-xs text-muted-foreground capitalize">{c.period_type}</p>
+                        <p className="font-bold text-slate-900 dark:text-slate-100 leading-snug">{title}</p>
+                        <p className="text-xs text-muted-foreground uppercase font-semibold tracking-wider mt-0.5">{c.period_type}</p>
                       </div>
                     </div>
-                    <Badge variant="secondary" className="capitalize">{c.overall_grade || "—"}</Badge>
+                    <Badge variant="outline" className={`font-extrabold px-2.5 py-0.5 text-xs ${getGradeBadge(c.overall_grade)}`}>
+                      {c.overall_grade || "—"}
+                    </Badge>
                   </div>
-                  <div className="mt-4 flex items-end justify-between">
+                  <div className="mt-5 flex items-end justify-between border-t border-slate-100 dark:border-slate-800/80 pt-3">
                     <div>
-                      <p className="text-[11px] uppercase tracking-wider text-muted-foreground">Percentage</p>
-                      <p className="font-display text-2xl font-bold">{c.percentage != null ? `${Number(c.percentage).toFixed(1)}%` : "—"}</p>
+                      <p className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">Score</p>
+                      <p className="font-display text-2xl font-black text-primary">{c.percentage != null ? `${Number(c.percentage).toFixed(1)}%` : "—"}</p>
                     </div>
-                    <p className="text-[11px] text-muted-foreground">
+                    <p className="text-xs text-muted-foreground font-medium">
                       {c.published_at ? format(new Date(c.published_at), "MMM d, yyyy") : ""}
                     </p>
                   </div>
@@ -927,122 +1006,156 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
 
   return (
     <div className="space-y-6 pb-36 sm:pb-28">
-      <div className="flex flex-col gap-3 print:hidden md:flex-row md:items-center md:justify-between">
-        <div className="flex items-center gap-2">
+      {/* ─── TOP HEADER BAR ─── */}
+      <div className="flex flex-col gap-4 print:hidden md:flex-row md:items-center md:justify-between border-b border-slate-200 dark:border-slate-800 pb-4">
+        <div className="flex items-center gap-3">
           {isReadOnlyForChild && viewingCardId && (
-            <Button variant="ghost" size="sm" onClick={() => { setViewingCardId(null); setCard({ total_marks: 0, max_total: 0, percentage: 0, gpa: 0, overall_grade: "", teacher_remarks: "", principal_remarks: "", attendance_percentage: null, is_published: false }); }}>
-              <ArrowLeft className="mr-1 h-4 w-4" /> All cards
+            <Button variant="outline" size="sm" onClick={() => { setViewingCardId(null); setCard({ total_marks: 0, max_total: 0, percentage: 0, gpa: 0, overall_grade: "", teacher_remarks: "", principal_remarks: "", attendance_percentage: null, is_published: false }); }} className="gap-1.5 font-semibold">
+              <ArrowLeft className="h-4 w-4" /> Back to Cards
             </Button>
           )}
           <div>
-            <h2 className="font-display text-2xl font-semibold">Report Cards</h2>
-            <p className="text-sm text-muted-foreground">Monthly, exam-based and annual cumulative reports</p>
+            <div className="flex items-center gap-2">
+              <h1 className="font-display text-2xl md:text-3xl font-extrabold text-slate-900 dark:text-slate-100 tracking-tight">Report Cards Studio</h1>
+              <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20 text-xs font-bold uppercase">
+                {periodType} Evaluation
+              </Badge>
+            </div>
+            <p className="text-xs md:text-sm text-muted-foreground mt-0.5">Comprehensive marks entry, continuous assessment aggregation, GPA grading, and printable PDF cards.</p>
           </div>
         </div>
-        <Button variant="outline" onClick={async () => {
-          const el = document.getElementById("report-card-print") as HTMLElement | null;
-          if (!el) return toast.error("No report card to export");
-          try {
-            el.classList.add("exporting-pdf");
-            const canvas = await html2canvas(el, { scale: 2, useCORS: true, backgroundColor: "#ffffff", logging: false, windowWidth: el.scrollWidth });
-            el.classList.remove("exporting-pdf");
-            const pdf = new jsPDF("p", "mm", "a4");
-            const pageW = pdf.internal.pageSize.getWidth();
-            const pageH = pdf.internal.pageSize.getHeight();
-            const margin = 8;
-            const availW = pageW - margin * 2;
-            const availH = pageH - margin * 2;
-            const ratio = canvas.width / canvas.height;
-            let w = availW; let h = w / ratio;
-            if (h > availH) { h = availH; w = h * ratio; }
-            const x = (pageW - w) / 2; const y = (pageH - h) / 2;
-            pdf.addImage(canvas.toDataURL("image/png"), "PNG", x, y, w, h, undefined, "FAST");
-            const name = (studentInfo ? `${studentInfo.first_name}-${studentInfo.last_name || ""}` : "report-card").replace(/\s+/g, "_");
-            pdf.save(`${name}_report-card.pdf`);
-          } catch (e: any) {
-            el.classList.remove("exporting-pdf");
-            toast.error(e?.message || "Failed to export PDF");
-          }
-        }}>
-          <Printer className="mr-2 h-4 w-4" />Download PDF
-        </Button>
+
+        <div className="flex items-center gap-2 flex-wrap">
+          {studentId && (
+            <Button variant="outline" onClick={exportPdf} className="shadow-xs font-semibold gap-2 border-slate-300 dark:border-slate-700">
+              <Download className="h-4 w-4 text-blue-600" /> Export PDF
+            </Button>
+          )}
+          {canManage && (
+            <Button
+              variant="outline"
+              onClick={() => {
+                const enr = enrollments.find((e) => e.student_id === studentId);
+                setPublishSectionId(enr?.class_section_id || sections[0]?.id || "");
+                setPublishDialogOpen(true);
+              }}
+              className="font-semibold gap-2"
+            >
+              <Users className="h-4 w-4 text-indigo-600" /> Batch Publish Class
+            </Button>
+          )}
+        </div>
       </div>
 
-      {/* Period selector — staff or "create" mode */}
+      {/* ─── PERIOD SELECTOR TABS ─── */}
       {!isReadOnlyForChild && (
-        <div className="rounded-2xl border bg-card p-3 sm:p-4 print:hidden">
-          <div className="overflow-x-auto no-scrollbar -mx-1 px-1">
-            <Tabs value={periodType} onValueChange={(v) => setPeriodType(v as PeriodType)}>
-              <TabsList className="inline-flex w-max min-w-full rounded-xl">
-                <TabsTrigger value="exam" className="rounded-lg text-xs font-semibold whitespace-nowrap"><FileText className="mr-1 h-3.5 w-3.5" />Exam</TabsTrigger>
-                <TabsTrigger value="monthly" className="rounded-lg text-xs font-semibold whitespace-nowrap"><Calendar className="mr-1 h-3.5 w-3.5" />Monthly</TabsTrigger>
-                <TabsTrigger value="annual" className="rounded-lg text-xs font-semibold whitespace-nowrap"><CalendarRange className="mr-1 h-3.5 w-3.5" />Annual</TabsTrigger>
-              </TabsList>
-            </Tabs>
-          </div>
-          <div className="mt-3 grid gap-2 md:grid-cols-3">
-            {periodType === "exam" && (
-              <Select value={examId} onValueChange={setExamId}>
-                <SelectTrigger><SelectValue placeholder="Select exam" /></SelectTrigger>
-                <SelectContent>
-                  {exams.map((e) => <SelectItem key={e.id} value={e.id}>{e.name}{e.term_label ? ` (${e.term_label})` : ""}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            )}
-            {periodType === "monthly" && (
-              <>
-                <Select value={String(monthIdx)} onValueChange={(v) => setMonthIdx(parseInt(v, 10))}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {MONTHS.map((m, i) => <SelectItem key={m} value={String(i)}>{m}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-                <Select value={String(monthYear)} onValueChange={(v) => setMonthYear(parseInt(v, 10))}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {Array.from({ length: 6 }, (_, i) => currentYear() - 3 + i).map((y) => (
-                      <SelectItem key={y} value={String(y)}>{y}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </>
-            )}
-            {periodType === "annual" && (
-              <Select value={annualYear} onValueChange={setAnnualYear}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {Array.from({ length: 6 }, (_, i) => currentYear() - 3 + i).map((y) => (
-                    <SelectItem key={`${y}-${y + 1}`} value={`${y}-${y + 1}`}>{`${y}-${y + 1}`}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
+        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 p-3.5 sm:p-4.5 shadow-sm backdrop-blur-sm print:hidden">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+            <div className="overflow-x-auto no-scrollbar">
+              <Tabs value={periodType} onValueChange={(v) => setPeriodType(v as PeriodType)}>
+                <TabsList className="inline-flex h-10 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl">
+                  <TabsTrigger value="exam" className="rounded-lg text-xs font-bold px-4 py-1.5 data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-xs">
+                    <FileText className="mr-1.5 h-3.5 w-3.5" /> Exam Assessment
+                  </TabsTrigger>
+                  <TabsTrigger value="monthly" className="rounded-lg text-xs font-bold px-4 py-1.5 data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-xs">
+                    <Calendar className="mr-1.5 h-3.5 w-3.5" /> Monthly Progress
+                  </TabsTrigger>
+                  <TabsTrigger value="annual" className="rounded-lg text-xs font-bold px-4 py-1.5 data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-xs">
+                    <CalendarRange className="mr-1.5 h-3.5 w-3.5" /> Annual Transcript
+                  </TabsTrigger>
+                </TabsList>
+              </Tabs>
+            </div>
+
+            <div className="flex items-center gap-3 flex-wrap sm:flex-nowrap">
+              {periodType === "exam" && (
+                <div className="flex items-center gap-2 min-w-[240px]">
+                  <Label className="text-xs font-semibold text-slate-500 whitespace-nowrap">Exam Term:</Label>
+                  <Select value={examId} onValueChange={setExamId}>
+                    <SelectTrigger className="h-9 font-semibold bg-white dark:bg-slate-950"><SelectValue placeholder="Select examination" /></SelectTrigger>
+                    <SelectContent>
+                      {exams.map((e) => <SelectItem key={e.id} value={e.id}>{e.name}{e.term_label ? ` (${e.term_label})` : ""}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+              {periodType === "monthly" && (
+                <div className="flex items-center gap-2">
+                  <Select value={String(monthIdx)} onValueChange={(v) => setMonthIdx(parseInt(v, 10))}>
+                    <SelectTrigger className="h-9 font-semibold w-36 bg-white dark:bg-slate-950"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {MONTHS.map((m, i) => <SelectItem key={m} value={String(i)}>{m}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  <Select value={String(monthYear)} onValueChange={(v) => setMonthYear(parseInt(v, 10))}>
+                    <SelectTrigger className="h-9 font-semibold w-28 bg-white dark:bg-slate-950"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {Array.from({ length: 6 }, (_, i) => currentYear() - 3 + i).map((y) => (
+                        <SelectItem key={y} value={String(y)}>{y}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+              {periodType === "annual" && (
+                <div className="flex items-center gap-2">
+                  <Label className="text-xs font-semibold text-slate-500 whitespace-nowrap">Session:</Label>
+                  <Select value={annualYear} onValueChange={setAnnualYear}>
+                    <SelectTrigger className="h-9 font-semibold w-36 bg-white dark:bg-slate-950"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {Array.from({ length: 6 }, (_, i) => currentYear() - 3 + i).map((y) => (
+                        <SelectItem key={`${y}-${y + 1}`} value={`${y}-${y + 1}`}>{`${y}-${y + 1}`}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
 
-      <div className="grid gap-4 print:hidden lg:grid-cols-[320px_1fr]">
+      {/* ─── DESKTOP TWO-COLUMN WORKSPACE ─── */}
+      <div className="grid grid-cols-1 lg:grid-cols-[340px_1fr] xl:grid-cols-[360px_1fr] gap-6 items-start print:block">
+        
+        {/* ─── LEFT PANEL: STUDENT DIRECTORY SELECTOR ─── */}
         {showPicker && (
-          <div className="rounded-2xl border bg-card p-3">
-            <div className="space-y-2">
+          <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm p-4 print:hidden sticky top-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+              <span className="font-bold text-sm text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                <Users className="h-4 w-4 text-primary" /> Student Directory
+              </span>
+              <span className="text-[11px] font-semibold text-slate-500 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-full">
+                {filteredStudents.length} Students
+              </span>
+            </div>
+
+            <div className="space-y-2.5 pt-3">
               <div className="relative">
-                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input className="pl-8" placeholder="Search by name or code…" value={search} onChange={(e) => setSearch(e.target.value)} />
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
+                <Input
+                  className="pl-8 h-9 text-xs font-medium bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800"
+                  placeholder="Search name or roll number..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
               </div>
+
               <div className="grid grid-cols-2 gap-2">
                 <Select value={classFilter} onValueChange={(v) => { setClassFilter(v); setSectionFilter("all"); }}>
-                  <SelectTrigger><SelectValue placeholder="Class" /></SelectTrigger>
+                  <SelectTrigger className="h-8 text-xs font-semibold"><SelectValue placeholder="Class" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">All classes</SelectItem>
+                    <SelectItem value="all">All Classes</SelectItem>
                     {classes
                       .filter((c) => teacherSectionIds === null || sections.some((s) => s.class_id === c.id && teacherSectionIds.includes(s.id)))
                       .map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
+
                 <Select value={sectionFilter} onValueChange={setSectionFilter}>
-                  <SelectTrigger><SelectValue placeholder="Section" /></SelectTrigger>
+                  <SelectTrigger className="h-8 text-xs font-semibold"><SelectValue placeholder="Section" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">All sections</SelectItem>
+                    <SelectItem value="all">All Sections</SelectItem>
                     {sections
                       .filter((s) => classFilter === "all" || s.class_id === classFilter)
                       .filter((s) => teacherSectionIds === null || teacherSectionIds.includes(s.id))
@@ -1051,390 +1164,669 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
                 </Select>
               </div>
             </div>
-            <ScrollArea className="mt-3 h-[460px] pr-2">
-              <div className="space-y-1">
-                {filteredStudents.map((s) => (
-                  <button
-                    key={s.id}
-                    onClick={() => setStudentId(s.id)}
-                    className={`w-full rounded-xl border p-2 text-left transition-colors hover:bg-muted/50 ${studentId === s.id ? "border-primary bg-primary/5" : "border-transparent"}`}
-                  >
-                    <div className="flex items-center gap-2">
-                      <div className="grid h-8 w-8 place-items-center rounded-full bg-primary/10">
-                        <User className="h-4 w-4 text-primary" />
+
+            <ScrollArea className="mt-3 h-[calc(100vh-360px)] min-h-[380px] pr-1">
+              <div className="space-y-1.5">
+                {filteredStudents.map((s, idx) => {
+                  const isSelected = studentId === s.id;
+                  return (
+                    <button
+                      key={s.id}
+                      onClick={() => setStudentId(s.id)}
+                      className={`w-full rounded-xl p-2.5 text-left transition-all duration-150 flex items-center justify-between border ${
+                        isSelected
+                          ? "bg-primary/10 border-primary text-primary shadow-xs ring-1 ring-primary/30"
+                          : "bg-transparent border-transparent hover:bg-slate-50 dark:hover:bg-slate-800/60 text-slate-700 dark:text-slate-300"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className={`grid h-8 w-8 place-items-center rounded-full text-xs font-bold shrink-0 ${isSelected ? "bg-primary text-white" : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300"}`}>
+                          {s.first_name[0]}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-xs font-bold leading-tight">{s.first_name} {s.last_name || ""}</p>
+                          <p className="truncate text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">{s.classLabel}{s.student_code ? ` • ${s.student_code}` : ""}</p>
+                        </div>
                       </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium">{s.first_name} {s.last_name}</p>
-                        <p className="truncate text-[11px] text-muted-foreground">{s.classLabel}{s.student_code ? ` • ${s.student_code}` : ""}</p>
-                      </div>
-                    </div>
-                  </button>
-                ))}
+                      <span className="text-[10px] font-mono font-semibold text-slate-400 shrink-0">
+                        #{idx + 1}
+                      </span>
+                    </button>
+                  );
+                })}
                 {filteredStudents.length === 0 && (
-                  <p className="py-6 text-center text-xs text-muted-foreground">No students match your filters</p>
+                  <div className="py-12 text-center text-xs text-muted-foreground">
+                    <GraduationCap className="h-8 w-8 mx-auto text-slate-300 mb-2" />
+                    No students matching search or filters
+                  </div>
                 )}
               </div>
             </ScrollArea>
           </div>
         )}
 
-        {(!studentId || !studentInfo) && (
-          <div className="grid place-items-center rounded-2xl border bg-card p-12 text-center">
-            <GraduationCap className="h-10 w-10 text-muted-foreground" />
-            <p className="mt-3 font-medium">Select a student</p>
-            <p className="text-sm text-muted-foreground">Pick a student, then choose Exam, Monthly, or Annual to build the report.</p>
-          </div>
-        )}
-      </div>
-
-      {studentId && studentInfo && (
-        <div
-          id="report-card-print"
-          className="relative mx-auto overflow-hidden rounded-3xl bg-white text-black shadow-[0_30px_80px_-30px_rgba(0,0,0,0.35)] ring-1 ring-black/5 print:rounded-none print:shadow-none print:ring-0"
-          style={{ maxWidth: 860 }}
-        >
-          {/* Decorative top band */}
-          <div className="relative h-32 overflow-hidden bg-gradient-to-br from-primary via-primary to-primary/70 text-primary-foreground">
-            <div className="absolute inset-0 opacity-20" style={{ backgroundImage: "radial-gradient(circle at 20% 20%, rgba(255,255,255,0.55) 0, transparent 40%), radial-gradient(circle at 80% 60%, rgba(255,255,255,0.35) 0, transparent 45%)" }} />
-            <div className="absolute -bottom-10 -right-10 h-40 w-40 rounded-full bg-white/10 blur-2xl" />
-            <div className="absolute -bottom-6 -left-6 h-24 w-24 rounded-full bg-white/10 blur-xl" />
-            <div className="relative flex h-full items-center justify-between px-8">
-              <div className="flex items-center gap-4">
-                {school?.logo_url ? (
-                  <img src={school.logo_url} alt="School logo" className="h-16 w-16 rounded-xl bg-white/95 object-contain p-1.5 shadow-lg" />
-                ) : (
-                  <div className="grid h-16 w-16 place-items-center rounded-xl bg-white/95 shadow-lg">
-                    <FileText className="h-8 w-8 text-primary" />
-                  </div>
-                )}
-                <div>
-                  <p className="font-display text-2xl font-bold leading-tight tracking-tight">{school?.name || "School"}</p>
-                  {school?.motto && <p className="text-[11px] italic opacity-90">"{school.motto}"</p>}
-                  <p className="text-[11px] opacity-90">{[school?.address, school?.phone, school?.email].filter(Boolean).join(" • ")}</p>
-                </div>
+        {/* ─── RIGHT PANEL: ACTIVE REPORT CARD STUDIO WORKSPACE ─── */}
+        <div className="space-y-4 min-w-0">
+          
+          {(!studentId || !studentInfo) && (
+            <Card className="rounded-3xl border-dashed border-2 border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 p-16 text-center">
+              <div className="h-16 w-16 mx-auto rounded-2xl bg-primary/10 flex items-center justify-center mb-4">
+                <GraduationCap className="h-8 w-8 text-primary" />
               </div>
-              <div className="text-right">
-                <p className="rounded-full bg-white/20 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em] backdrop-blur">
-                  {(card.period_type || periodType) === "annual" ? "Annual Report" : (card.period_type || periodType) === "monthly" ? "Monthly Report" : "Official Report"}
-                </p>
-                {card.is_published && <p className="mt-2 text-[10px] font-bold text-emerald-200">● PUBLISHED</p>}
-              </div>
-            </div>
-          </div>
-
-          {/* Watermark */}
-          {school?.logo_url && (
-            <img src={school.logo_url} alt="" aria-hidden className="pointer-events-none absolute left-1/2 top-1/2 h-80 w-80 -translate-x-1/2 -translate-y-1/2 object-contain opacity-[0.035]" />
+              <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100">Select a Student from Directory</h3>
+              <p className="text-sm text-muted-foreground max-w-md mx-auto mt-1.5">Choose any student from the left panel to load their academic results, enter marks, write remarks, and generate their official report card.</p>
+            </Card>
           )}
 
-          <div className="relative px-8 pb-8 pt-6">
-            {/* Title + meta */}
-            <div className="mb-5 flex flex-wrap items-end justify-between gap-3 border-b border-dashed border-gray-300 pb-4">
-              <div>
-                <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-primary">Academic Report Card</p>
-                <p className="font-display text-2xl font-bold tracking-tight">{periodTitle}</p>
-              </div>
-              <p className="text-xs text-gray-500">Issued <strong className="text-gray-700">{today}</strong></p>
-            </div>
+          {studentId && studentInfo && (
+            <>
+              {/* ─── DESKTOP STUDIO TOP CONTROL TOOLBAR ─── */}
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-900 p-3.5 shadow-sm print:hidden">
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={handlePrevStudent}
+                    disabled={currentStudentIdx <= 0}
+                    className="h-8 w-8 rounded-lg"
+                    title="Previous Student"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <div className="flex items-center gap-2 px-1">
+                    <div className="h-7 w-7 rounded-full bg-primary/10 text-primary grid place-items-center text-xs font-bold">
+                      {studentInfo.first_name[0]}
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-slate-900 dark:text-slate-100 leading-tight">
+                        {studentInfo.first_name} {studentInfo.last_name || ""}
+                      </p>
+                      <p className="text-[10px] text-slate-500 font-mono">
+                        Student {currentStudentIdx + 1} of {filteredStudents.length}
+                      </p>
+                    </div>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={handleNextStudent}
+                    disabled={currentStudentIdx >= filteredStudents.length - 1}
+                    className="h-8 w-8 rounded-lg"
+                    title="Next Student"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
 
-            {/* Student profile card */}
-            <div className="relative mb-5 grid grid-cols-1 gap-4 rounded-2xl border border-gray-200 bg-gradient-to-br from-gray-50 to-white p-5 md:grid-cols-[auto_1fr]">
-              {studentInfo.profile_image_url ? (
-                <img src={studentInfo.profile_image_url} alt="" className="h-24 w-24 rounded-2xl object-cover ring-2 ring-primary/20" />
-              ) : (
-                <div className="grid h-24 w-24 place-items-center rounded-2xl bg-primary/10 ring-2 ring-primary/20">
-                  <User className="h-10 w-10 text-primary" />
+                  <div className="h-4 w-px bg-slate-200 dark:bg-slate-800 mx-1" />
+
+                  {hasUnsavedChanges ? (
+                    <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-300 text-[11px] font-bold gap-1">
+                      <AlertCircle className="h-3 w-3" /> Unsaved Changes (Ctrl+S)
+                    </Badge>
+                  ) : card.is_published ? (
+                    <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-300 text-[11px] font-bold gap-1">
+                      <CheckCircle2 className="h-3 w-3" /> Published
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline" className="bg-slate-50 text-slate-600 border-slate-200 text-[11px] font-semibold gap-1">
+                      <Check className="h-3 w-3 text-slate-400" /> Saved as Draft
+                    </Badge>
+                  )}
                 </div>
-              )}
-              <div className="grid grid-cols-2 gap-x-6 gap-y-1.5 text-sm md:grid-cols-3">
-                <p><span className="text-gray-500">Name:</span> <strong>{studentInfo.first_name} {studentInfo.last_name}</strong></p>
-                <p><span className="text-gray-500">Roll No:</span> <strong>{studentInfo.student_code || "—"}</strong></p>
-                <p><span className="text-gray-500">Class:</span> <strong>{(() => { const e = enrollments.find(x => x.student_id === studentId); const sec = sections.find(s => s.id === e?.class_section_id); const cls = classes.find(c => c.id === sec?.class_id); return cls?.name || "—"; })()}</strong></p>
-                <p><span className="text-gray-500">Section:</span> <strong>{(() => { const e = enrollments.find(x => x.student_id === studentId); const sec = sections.find(s => s.id === e?.class_section_id); return sec?.name || "—"; })()}</strong></p>
-                <p><span className="text-gray-500">DOB:</span> <strong>{studentInfo.date_of_birth ? format(new Date(studentInfo.date_of_birth), "MMM d, yyyy") : "—"}</strong></p>
-                <p><span className="text-gray-500">Parent:</span> <strong>{studentInfo.parent_name || "—"}</strong></p>
-                <p><span className="text-gray-500">Phone:</span> <strong>{studentInfo.phone || studentInfo.parent_phone || "—"}</strong></p>
-                <p className="md:col-span-2"><span className="text-gray-500">Address:</span> <strong>{studentInfo.address || "—"}</strong></p>
+
+                <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+                  {canManage && (
+                    <Button
+                      onClick={() => save()}
+                      disabled={isSaving || (periodType === "exam" && !examId)}
+                      className={`font-bold gap-2 text-white shadow-md transition-all ${
+                        hasUnsavedChanges
+                          ? "bg-emerald-600 hover:bg-emerald-700 ring-2 ring-emerald-400/50"
+                          : "bg-slate-800 hover:bg-slate-900"
+                      }`}
+                    >
+                      <Save className="h-4 w-4" /> {isSaving ? "Saving..." : "Save Report Card"}
+                    </Button>
+                  )}
+
+                  {canManage && (
+                    card.is_published ? (
+                      <Button variant="outline" onClick={() => publishIndividual(false)} className="text-xs font-semibold">
+                        Unpublish
+                      </Button>
+                    ) : (
+                      <Button onClick={() => publishIndividual(true)} disabled={periodType === "exam" && !examId} className="bg-primary font-semibold text-xs gap-1.5 shadow-xs">
+                        <Send className="h-3.5 w-3.5" /> Publish to Parent
+                      </Button>
+                    )
+                  )}
+                </div>
               </div>
-            </div>
 
-          <div className="relative mt-5 overflow-x-auto rounded-xl border border-gray-300 bg-white">
-            <table className="w-full min-w-[600px] table-fixed border-collapse text-sm">
-              <colgroup>
-                <col style={{ width: "30%" }} />
-                <col style={{ width: "12%" }} />
-                <col style={{ width: "12%" }} />
-                <col style={{ width: "12%" }} />
-                <col style={{ width: "12%" }} />
-                <col style={{ width: "22%" }} className="print:hidden" />
-              </colgroup>
-              <thead>
-                <tr className="bg-primary/10 text-left">
-                  <th className="border-b border-r border-gray-300 p-2.5 font-semibold text-slate-900">Subject</th>
-                  <th className="border-b border-r border-gray-300 p-2.5 text-center font-semibold text-slate-900">Marks</th>
-                  <th className="border-b border-r border-gray-300 p-2.5 text-center font-semibold text-slate-900">Max</th>
-                  <th className="border-b border-r border-gray-300 p-2.5 text-center font-semibold text-slate-900">%</th>
-                  <th className="border-b border-r border-gray-300 p-2.5 text-center font-semibold text-slate-900">Grade</th>
-                  <th className="border-b border-gray-300 p-2.5 font-semibold text-slate-900 print:hidden">Remarks</th>
-                </tr>
-              </thead>
-
-              <tbody className="divide-y divide-gray-200">
-                {subjects.map((s) => {
-                  const r = results[s.id];
-                  const max = r?.max_marks || 100;
-                  const obtained = r?.marks_obtained;
-                  const pct = obtained != null && max > 0 ? Math.round((Number(obtained) / Number(max)) * 100) : null;
-                  return (
-                    <tr key={s.id} className="hover:bg-slate-50/60 transition-colors">
-                      <td className="border-r border-gray-200 p-2.5">
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="font-medium text-slate-900">{s.name}</span>
-                          {canManage && (
-                            <button
-                              type="button"
-                              onClick={() => openAddFor(s.id)}
-                              className="grid h-6 w-6 place-items-center rounded-full bg-primary/10 text-primary hover:bg-primary/20 print:hidden"
-                              title="Add quiz / test / assignment"
-                            >
-                              <Plus className="h-3.5 w-3.5" />
-                            </button>
-                          )}
+              {/* ─── PRINTABLE LUXURY REPORT CARD PAPER ─── */}
+              <div
+                id="report-card-print"
+                className="relative mx-auto overflow-hidden rounded-3xl bg-white text-slate-900 shadow-xl ring-1 ring-slate-200/80 print:rounded-none print:shadow-none print:ring-0 w-full"
+              >
+                {/* ─── DECORATIVE BANNER ─── */}
+                <div className="relative h-32 overflow-hidden bg-gradient-to-r from-blue-700 via-indigo-700 to-primary text-white">
+                  <div className="absolute inset-0 opacity-15" style={{ backgroundImage: "radial-gradient(circle at 20% 20%, rgba(255,255,255,0.7) 0, transparent 40%), radial-gradient(circle at 80% 60%, rgba(255,255,255,0.4) 0, transparent 45%)" }} />
+                  <div className="relative flex h-full items-center justify-between px-8">
+                    <div className="flex items-center gap-4">
+                      {school?.logo_url ? (
+                        <img src={school.logo_url} alt="School logo" className="h-16 w-16 rounded-2xl bg-white object-contain p-1.5 shadow-md ring-2 ring-white/20" />
+                      ) : (
+                        <div className="grid h-16 w-16 place-items-center rounded-2xl bg-white text-primary shadow-md">
+                          <BookOpen className="h-8 w-8" />
                         </div>
-                      </td>
-                      <td className="border-r border-gray-200 p-2 text-center">
-                        {canManage ? (
-                          <Input type="number" className="mx-auto h-8 w-20 text-center text-black font-semibold" value={r?.marks_obtained ?? ""} onChange={(e) => updateMark(s.id, Number(e.target.value), max)} />
-                        ) : (obtained ?? "—")}
-                      </td>
-                      <td className="border-r border-gray-200 p-2 text-center font-medium">
-                        {canManage ? (
-                          <Input type="number" className="mx-auto h-8 w-20 text-center text-black font-semibold" value={r?.max_marks ?? 100} onChange={(e) => updateMark(s.id, Number(r?.marks_obtained || 0), Number(e.target.value))} />
-                        ) : max}
-                      </td>
+                      )}
+                      <div>
+                        <p className="font-display text-2xl font-black leading-tight tracking-tight">{school?.name || "Campus Institute"}</p>
+                        {school?.motto && <p className="text-xs italic opacity-90 font-medium">"{school.motto}"</p>}
+                        <p className="text-[11px] opacity-80 mt-0.5">{[school?.address, school?.phone, school?.email].filter(Boolean).join(" • ")}</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="rounded-full bg-white/20 px-3.5 py-1 text-[11px] font-extrabold uppercase tracking-widest backdrop-blur-sm border border-white/20">
+                        {(card.period_type || periodType) === "annual" ? "Annual Transcript" : (card.period_type || periodType) === "monthly" ? "Monthly Evaluation" : "Examination Report"}
+                      </p>
+                      {card.is_published && (
+                        <p className="mt-2 text-[10px] font-bold text-emerald-300 flex items-center justify-end gap-1">
+                          <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" /> VERIFIED &amp; PUBLISHED
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
 
-                      <td className="border-r border-gray-200 p-2.5 text-center font-medium text-slate-700">{pct != null ? `${pct}%` : "—"}</td>
-                      <td className="border-r border-gray-200 p-2.5 text-center font-bold text-primary">{r?.grade ?? "—"}</td>
-                      <td className="p-2 print:hidden">
-                        {canManage ? (
-                          <Input className="h-8 text-black text-xs" placeholder="Add remarks..." value={r?.remarks ?? ""} onChange={(e) => setResults({ ...results, [s.id]: { ...(results[s.id] || { subject_id: s.id, marks_obtained: null, max_marks: 100, grade: null, remarks: null }), remarks: e.target.value } })} />
-                        ) : (r?.remarks || "—")}
-                      </td>
-                    </tr>
-                  );
-                })}
-                <tr className="bg-slate-100/80 font-bold border-t-2 border-gray-300">
-                  <td className="border-r border-gray-300 p-2.5 text-slate-900 uppercase text-xs tracking-wider">TOTAL</td>
-                  <td className="border-r border-gray-300 p-2.5 text-center text-slate-900">{totals.total}</td>
-                  <td className="border-r border-gray-300 p-2.5 text-center text-slate-900">{totals.max}</td>
-                  <td className="border-r border-gray-300 p-2.5 text-center text-primary">{totals.pct}%</td>
-                  <td className="border-r border-gray-300 p-2.5 text-center text-emerald-700">{totals.grade}</td>
-                  <td className="p-2.5 print:hidden"></td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
+                {/* Watermark */}
+                {school?.logo_url && (
+                  <img src={school.logo_url} alt="" aria-hidden className="pointer-events-none absolute left-1/2 top-1/2 h-96 w-96 -translate-x-1/2 -translate-y-1/2 object-contain opacity-[0.03]" />
+                )}
 
-          {/* Premium summary tiles */}
-          <div className="relative mt-5 grid grid-cols-3 gap-3">
-            <div className="rounded-2xl bg-gradient-to-br from-primary/10 to-primary/5 p-4 ring-1 ring-primary/20">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">Percentage</p>
-              <p className="font-display text-3xl font-bold text-primary">{totals.pct}%</p>
-            </div>
-            <div className="rounded-2xl bg-gradient-to-br from-amber-100 to-amber-50 p-4 ring-1 ring-amber-200">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">Marks</p>
-              <p className="font-display text-3xl font-bold text-amber-700">{totals.total}<span className="text-base font-medium text-gray-500"> / {totals.max}</span></p>
-            </div>
-            <div className="rounded-2xl bg-gradient-to-br from-emerald-100 to-emerald-50 p-4 ring-1 ring-emerald-200">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">Overall Grade</p>
-              <p className="font-display text-3xl font-bold text-emerald-700">{totals.grade}</p>
-            </div>
-          </div>
+                <div className="relative p-6 sm:p-8 space-y-6">
+                  {/* ─── DOCUMENT TITLE & DATE ─── */}
+                  <div className="flex flex-wrap items-end justify-between gap-3 border-b border-slate-200 pb-4">
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary">Official Academic Transcript</p>
+                      <p className="font-display text-2xl font-extrabold text-slate-900 tracking-tight">{periodTitle}</p>
+                    </div>
+                    <p className="text-xs text-slate-500">Issued On: <strong className="text-slate-800 font-semibold">{today}</strong></p>
+                  </div>
 
-          {/* Category breakdown — Quizzes / Tests / Assignments / Projects / Exam etc. */}
-          {categoryBreakdown.visibleCategories.length > 0 && (
-            <div className="relative mt-6">
-              <p className="mb-2 text-sm font-semibold">Continuous Assessment Breakdown</p>
-              <div className="overflow-x-auto rounded-xl ring-1 ring-gray-200">
-                <table className="w-full border-collapse text-xs">
-                  <thead>
-                    <tr className="bg-gradient-to-r from-primary/10 to-primary/5 text-left">
-                      <th className="p-2 font-semibold">Subject</th>
-                      {categoryBreakdown.visibleCategories.map((c) => (
-                        <th key={c.key} className="p-2 text-center font-semibold">{c.label}</th>
-                      ))}
-                      <th className="p-2 text-center font-semibold">Combined</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {subjects.map((s) => {
-                      const row = categoryBreakdown.matrix[s.id];
-                      if (!row) return null;
-                      let tObt = 0, tMax = 0;
-                      Object.values(row).forEach((v) => { tObt += v.obtained; tMax += v.max; });
-                      if (tMax === 0) return null;
-                      return (
-                        <tr key={s.id} className="border-t border-gray-200">
-                          <td className="p-2 font-medium">{s.name}</td>
-                          {categoryBreakdown.visibleCategories.map((c) => {
-                            const v = row[c.key];
+                  {/* ─── STUDENT PROFILE CARD ─── */}
+                  <div className="grid grid-cols-1 gap-5 rounded-2xl border border-slate-200/90 bg-slate-50/70 p-5 md:grid-cols-[auto_1fr] items-center">
+                    {studentInfo.profile_image_url ? (
+                      <img src={studentInfo.profile_image_url} alt="" className="h-20 w-20 rounded-2xl object-cover ring-2 ring-primary/20 shadow-sm" />
+                    ) : (
+                      <div className="grid h-20 w-20 place-items-center rounded-2xl bg-primary/10 text-primary ring-2 ring-primary/20 font-black text-2xl">
+                        {studentInfo.first_name[0]}
+                      </div>
+                    )}
+                    <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-xs md:grid-cols-4">
+                      <div><span className="text-slate-500 font-medium block">Student Name</span><strong className="text-slate-900 text-sm">{studentInfo.first_name} {studentInfo.last_name || ""}</strong></div>
+                      <div><span className="text-slate-500 font-medium block">Roll / Code</span><strong className="text-slate-900 font-mono text-sm">{studentInfo.student_code || "—"}</strong></div>
+                      <div><span className="text-slate-500 font-medium block">Class &amp; Section</span><strong className="text-slate-900 text-sm">{(() => { const e = enrollments.find(x => x.student_id === studentId); const sec = sections.find(s => s.id === e?.class_section_id); const cls = classes.find(c => c.id === sec?.class_id); return `${cls?.name || "Class"} • ${sec?.name || "Sec"}`; })()}</strong></div>
+                      <div><span className="text-slate-500 font-medium block">Date of Birth</span><strong className="text-slate-900">{studentInfo.date_of_birth ? format(new Date(studentInfo.date_of_birth), "MMM d, yyyy") : "—"}</strong></div>
+                      <div><span className="text-slate-500 font-medium block">Parent / Guardian</span><strong className="text-slate-900">{studentInfo.parent_name || "—"}</strong></div>
+                      <div><span className="text-slate-500 font-medium block">Contact Number</span><strong className="text-slate-900 font-mono">{studentInfo.phone || studentInfo.parent_phone || "—"}</strong></div>
+                      <div className="md:col-span-2"><span className="text-slate-500 font-medium block">Residential Address</span><strong className="text-slate-900 truncate block">{studentInfo.address || "—"}</strong></div>
+                    </div>
+                  </div>
+
+                  {/* ─── REDESIGNED & SPACIOUS SUBJECT MARKS TABLE (FIXES COLLAPSING BORDERS) ─── */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <h4 className="font-bold text-sm text-slate-900 flex items-center gap-2">
+                        <Award className="h-4 w-4 text-primary" /> Subject Marks &amp; Academic Performance
+                      </h4>
+                      {canManage && (
+                        <span className="text-[11px] text-slate-500 font-medium print:hidden">
+                          Type marks directly into boxes. Press <kbd className="font-mono font-bold bg-slate-100 px-1.5 py-0.5 rounded border">Ctrl+S</kbd> to save.
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-2xs">
+                      <table className="w-full text-left border-collapse">
+                        <thead>
+                          <tr className="bg-slate-100/90 text-slate-800 border-b border-slate-200 text-xs uppercase font-extrabold tracking-wider">
+                            <th className="py-3 px-4 w-[28%]">Subject</th>
+                            <th className="py-3 px-3 text-center w-[16%]">Marks Obtained</th>
+                            <th className="py-3 px-3 text-center w-[14%]">Max Marks</th>
+                            <th className="py-3 px-3 text-center w-[12%]">Percentage</th>
+                            <th className="py-3 px-3 text-center w-[10%]">Grade</th>
+                            <th className="py-3 px-4 w-[20%] print:hidden">Teacher Remarks</th>
+                          </tr>
+                        </thead>
+
+                        <tbody className="divide-y divide-slate-100 text-xs">
+                          {subjects.map((s) => {
+                            const r = results[s.id];
+                            const max = r?.max_marks || 100;
+                            const obtained = r?.marks_obtained;
+                            const pct = obtained != null && max > 0 ? Math.round((Number(obtained) / Number(max)) * 100) : null;
+                            const grade = r?.grade || (pct != null ? calcGrade(pct).grade : null);
+
                             return (
-                              <td key={c.key} className="p-2 text-center text-gray-700">
-                                {v ? <span><strong>{v.obtained}</strong><span className="text-gray-400">/{v.max}</span></span> : <span className="text-gray-300">—</span>}
-                              </td>
+                              <tr key={s.id} className="hover:bg-slate-50/70 transition-colors">
+                                {/* Subject Name */}
+                                <td className="py-3 px-4">
+                                  <div className="flex items-center justify-between gap-2">
+                                    <span className="font-bold text-slate-900 text-sm">{s.name}</span>
+                                    {canManage && (
+                                      <button
+                                        type="button"
+                                        onClick={() => openAddFor(s.id)}
+                                        className="grid h-6 w-6 place-items-center rounded-full bg-primary/10 text-primary hover:bg-primary/20 transition-colors print:hidden"
+                                        title="Add Quiz / Test / Assignment"
+                                      >
+                                        <Plus className="h-3.5 w-3.5" />
+                                      </button>
+                                    )}
+                                  </div>
+                                </td>
+
+                                {/* Marks Obtained Input */}
+                                <td className="py-2.5 px-3">
+                                  {canManage ? (
+                                    <div className="flex justify-center">
+                                      <Input
+                                        type="number"
+                                        min={0}
+                                        max={max}
+                                        className="h-9 w-24 text-center font-extrabold text-slate-900 bg-slate-50/80 border-slate-300 focus:bg-white focus:ring-2 focus:ring-primary/20 rounded-lg text-sm shadow-2xs"
+                                        placeholder="0"
+                                        value={obtained ?? ""}
+                                        onChange={(e) => {
+                                          const val = e.target.value === "" ? null : Number(e.target.value);
+                                          updateMark(s.id, val, max);
+                                        }}
+                                      />
+                                    </div>
+                                  ) : (
+                                    <div className="text-center font-bold text-slate-900 text-sm">{obtained ?? "—"}</div>
+                                  )}
+                                </td>
+
+                                {/* Max Marks Input */}
+                                <td className="py-2.5 px-3">
+                                  {canManage ? (
+                                    <div className="flex justify-center">
+                                      <Input
+                                        type="number"
+                                        min={1}
+                                        className="h-9 w-20 text-center font-semibold text-slate-600 bg-slate-50/60 border-slate-200 focus:bg-white focus:ring-2 focus:ring-primary/20 rounded-lg text-xs"
+                                        value={max}
+                                        onChange={(e) => updateMark(s.id, obtained ?? 0, Number(e.target.value))}
+                                      />
+                                    </div>
+                                  ) : (
+                                    <div className="text-center font-medium text-slate-600">{max}</div>
+                                  )}
+                                </td>
+
+                                {/* Percentage Badge */}
+                                <td className="py-3 px-3 text-center">
+                                  {pct != null ? (
+                                    <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-black bg-blue-50 text-blue-700 border border-blue-200">
+                                      {pct}%
+                                    </span>
+                                  ) : (
+                                    <span className="text-slate-400 font-medium">—</span>
+                                  )}
+                                </td>
+
+                                {/* Grade Badge */}
+                                <td className="py-3 px-3 text-center">
+                                  {grade ? (
+                                    <span className={`inline-flex items-center justify-center min-w-[32px] px-2 py-0.5 rounded-md text-xs font-black border ${getGradeBadge(grade)}`}>
+                                      {grade}
+                                    </span>
+                                  ) : (
+                                    <span className="text-slate-400 font-medium">—</span>
+                                  )}
+                                </td>
+
+                                {/* Remarks Input */}
+                                <td className="py-2.5 px-4 print:hidden">
+                                  {canManage ? (
+                                    <Input
+                                      className="h-9 text-xs border-slate-200 focus:bg-white rounded-lg"
+                                      placeholder="Add subject remark..."
+                                      value={r?.remarks ?? ""}
+                                      onChange={(e) => {
+                                        setHasUnsavedChanges(true);
+                                        setResults({
+                                          ...results,
+                                          [s.id]: {
+                                            ...(results[s.id] || { subject_id: s.id, marks_obtained: null, max_marks: 100, grade: null, remarks: null }),
+                                            remarks: e.target.value
+                                          }
+                                        });
+                                      }}
+                                    />
+                                  ) : (
+                                    <span className="text-slate-600 text-xs italic">{r?.remarks || "—"}</span>
+                                  )}
+                                </td>
+                              </tr>
                             );
                           })}
-                          <td className="p-2 text-center font-semibold text-primary">
-                            {tObt}/{tMax}<span className="ml-1 text-[10px] text-gray-500">({tMax ? Math.round((tObt/tMax)*100) : 0}%)</span>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-              <p className="mt-1 text-[10px] text-gray-500">Includes all published quizzes, tests, assignments, projects and exam-style assessments in this period.</p>
-            </div>
-          )}
 
+                          {/* ─── SUMMARY TOTALS ROW ─── */}
+                          <tr className="bg-slate-100/90 font-extrabold border-t-2 border-slate-300 text-slate-900">
+                            <td className="py-3.5 px-4 uppercase text-xs tracking-wider">CUMULATIVE TOTAL</td>
+                            <td className="py-3.5 px-3 text-center text-sm font-black text-slate-900">{totals.total}</td>
+                            <td className="py-3.5 px-3 text-center text-sm font-bold text-slate-600">{totals.max}</td>
+                            <td className="py-3.5 px-3 text-center text-sm font-black text-primary">{totals.pct}%</td>
+                            <td className="py-3.5 px-3 text-center">
+                              <span className={`inline-flex items-center justify-center px-2.5 py-0.5 rounded-md text-xs font-black border ${getGradeBadge(totals.grade)}`}>
+                                {totals.grade}
+                              </span>
+                            </td>
+                            <td className="py-3.5 px-4 print:hidden"></td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
 
-          {/* Per-assessment appendix */}
-          {appendix.length > 0 && (
-            <div className="relative mt-5">
-              <p className="mb-1 text-sm font-semibold">Assessments, Assignments &amp; Tasks</p>
-              <table className="w-full border-collapse text-xs">
-                <thead>
-                  <tr className="bg-gray-100 text-left">
-                    <th className="border border-gray-300 p-1.5">Title</th>
-                    <th className="border border-gray-300 p-1.5">Subject</th>
-                    <th className="border border-gray-300 p-1.5">Date</th>
-                    <th className="border border-gray-300 p-1.5 text-center">Marks</th>
-                    <th className="border border-gray-300 p-1.5 text-center">Grade</th>
-                    {canManage && <th className="border border-gray-300 p-1.5 text-center print:hidden">Actions</th>}
-                  </tr>
-                </thead>
-                <tbody>
-                  {appendix.map((a) => (
-                    <tr key={a.id}>
-                      <td className="border border-gray-300 p-1.5">{a.title}</td>
-                      <td className="border border-gray-300 p-1.5">{a.subject}</td>
-                      <td className="border border-gray-300 p-1.5">{a.date ? format(new Date(a.date), "MMM d, yyyy") : "—"}</td>
-                      <td className="border border-gray-300 p-1.5 text-center">{a.marks != null ? `${a.marks} / ${a.max}` : "—"}</td>
-                      <td className="border border-gray-300 p-1.5 text-center">{a.grade ?? "—"}</td>
-                      {canManage && (
-                        <td className="border border-gray-300 p-1.5 text-center print:hidden">
-                          <div className="flex items-center justify-center gap-1">
-                            <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEditAssessment(a.id)} title="Edit">
-                              <Pencil className="h-3.5 w-3.5" />
-                            </Button>
-                            <Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => deleteAssessment(a.id)} title="Delete">
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
-                          </div>
-                        </td>
+                  {/* ─── LUXURY KPI METRIC TILES ─── */}
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="rounded-2xl bg-gradient-to-br from-blue-50 to-indigo-50/50 p-4.5 border border-blue-200/80 shadow-2xs">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-blue-700">Percentage Score</p>
+                      <p className="font-display text-3xl font-black text-blue-800 mt-1">{totals.pct}%</p>
+                      <div className="w-full bg-blue-200/80 h-1.5 rounded-full mt-2 overflow-hidden">
+                        <div className="bg-blue-600 h-full rounded-full transition-all" style={{ width: `${Math.min(100, totals.pct)}%` }} />
+                      </div>
+                    </div>
+
+                    <div className="rounded-2xl bg-gradient-to-br from-amber-50 to-orange-50/50 p-4.5 border border-amber-200/80 shadow-2xs">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-amber-700">Aggregate Marks</p>
+                      <p className="font-display text-3xl font-black text-amber-800 mt-1">
+                        {totals.total} <span className="text-sm font-semibold text-amber-600">/ {totals.max}</span>
+                      </p>
+                      <p className="text-[11px] text-amber-600/90 mt-1.5 font-medium">{subjects.length} Evaluated Subjects</p>
+                    </div>
+
+                    <div className="rounded-2xl bg-gradient-to-br from-emerald-50 to-teal-50/50 p-4.5 border border-emerald-200/80 shadow-2xs">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-700">Overall Grade</p>
+                      <p className="font-display text-3xl font-black text-emerald-800 mt-1">{totals.grade}</p>
+                      <p className="text-[11px] text-emerald-600/90 mt-1.5 font-medium">Standard Grading Scale</p>
+                    </div>
+
+                    <div className="rounded-2xl bg-gradient-to-br from-purple-50 to-fuchsia-50/50 p-4.5 border border-purple-200/80 shadow-2xs">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-purple-700">Attendance Rate</p>
+                      <p className="font-display text-3xl font-black text-purple-800 mt-1">
+                        {card.attendance_percentage != null ? `${card.attendance_percentage}%` : "—"}
+                      </p>
+                      <p className="text-[11px] text-purple-600/90 mt-1.5 font-medium">Synced from daily roll call</p>
+                    </div>
+                  </div>
+
+                  {/* ─── CONTINUOUS ASSESSMENT BREAKDOWN MATRIX ─── */}
+                  {categoryBreakdown.visibleCategories.length > 0 && (
+                    <div className="space-y-2">
+                      <h4 className="font-bold text-sm text-slate-900 flex items-center gap-2">
+                        <Sparkles className="h-4 w-4 text-amber-600" /> Continuous Assessment Breakdown (Quizzes, Tests, Tasks)
+                      </h4>
+                      <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
+                        <table className="w-full border-collapse text-xs">
+                          <thead>
+                            <tr className="bg-slate-50 text-slate-700 font-extrabold border-b border-slate-200 text-left">
+                              <th className="py-2.5 px-3">Subject</th>
+                              {categoryBreakdown.visibleCategories.map((c) => (
+                                <th key={c.key} className="py-2.5 px-3 text-center">{c.label}</th>
+                              ))}
+                              <th className="py-2.5 px-3 text-center text-primary font-black">Total Weight</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100">
+                            {subjects.map((s) => {
+                              const row = categoryBreakdown.matrix[s.id];
+                              if (!row) return null;
+                              let tObt = 0, tMax = 0;
+                              Object.values(row).forEach((v) => { tObt += v.obtained; tMax += v.max; });
+                              if (tMax === 0) return null;
+                              return (
+                                <tr key={s.id} className="hover:bg-slate-50/50">
+                                  <td className="py-2 px-3 font-bold text-slate-900">{s.name}</td>
+                                  {categoryBreakdown.visibleCategories.map((c) => {
+                                    const v = row[c.key];
+                                    return (
+                                      <td key={c.key} className="py-2 px-3 text-center text-slate-700">
+                                        {v ? <span><strong>{v.obtained}</strong><span className="text-slate-400">/{v.max}</span></span> : <span className="text-slate-300">—</span>}
+                                      </td>
+                                    );
+                                  })}
+                                  <td className="py-2 px-3 text-center font-black text-primary">
+                                    {tObt}/{tMax} <span className="text-[10px] text-slate-500 font-normal">({tMax ? Math.round((tObt/tMax)*100) : 0}%)</span>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ─── PER-ASSESSMENT APPENDIX TABLE ─── */}
+                  {appendix.length > 0 && (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <h4 className="font-bold text-sm text-slate-900 flex items-center gap-2">
+                          <ClipboardList className="h-4 w-4 text-slate-600" /> Individual Assessment Logs &amp; Marks
+                        </h4>
+                      </div>
+                      <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
+                        <table className="w-full border-collapse text-xs">
+                          <thead>
+                            <tr className="bg-slate-50 text-slate-700 font-extrabold border-b border-slate-200 text-left">
+                              <th className="py-2.5 px-3">Title</th>
+                              <th className="py-2.5 px-3">Subject</th>
+                              <th className="py-2.5 px-3">Date</th>
+                              <th className="py-2.5 px-3 text-center">Marks Obtained</th>
+                              <th className="py-2.5 px-3 text-center">Grade</th>
+                              {canManage && <th className="py-2.5 px-3 text-center print:hidden">Actions</th>}
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100">
+                            {appendix.map((a) => (
+                              <tr key={a.id} className="hover:bg-slate-50/50">
+                                <td className="py-2 px-3 font-semibold text-slate-900">{a.title}</td>
+                                <td className="py-2 px-3 text-slate-600">{a.subject}</td>
+                                <td className="py-2 px-3 text-slate-500">{a.date ? format(new Date(a.date), "MMM d, yyyy") : "—"}</td>
+                                <td className="py-2 px-3 text-center font-bold text-slate-900">{a.marks != null ? `${a.marks} / ${a.max}` : "—"}</td>
+                                <td className="py-2 px-3 text-center">
+                                  <span className={`inline-flex px-1.5 py-0.5 rounded text-[10px] font-bold border ${getGradeBadge(a.grade)}`}>
+                                    {a.grade ?? "—"}
+                                  </span>
+                                </td>
+                                {canManage && (
+                                  <td className="py-2 px-3 text-center print:hidden">
+                                    <div className="flex items-center justify-center gap-1">
+                                      <Button type="button" variant="ghost" size="icon" className="h-7 w-7 rounded-lg" onClick={() => openEditAssessment(a.id)} title="Edit">
+                                        <Pencil className="h-3 w-3" />
+                                      </Button>
+                                      <Button type="button" variant="ghost" size="icon" className="h-7 w-7 rounded-lg text-rose-600 hover:text-rose-700" onClick={() => deleteAssessment(a.id)} title="Delete">
+                                        <Trash2 className="h-3 w-3" />
+                                      </Button>
+                                    </div>
+                                  </td>
+                                )}
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ─── REMARKS SECTION ─── */}
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2 pt-2">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-bold text-slate-900 flex items-center justify-between">
+                        <span>Class Teacher Observations &amp; Remarks</span>
+                        {canManage && (
+                          <span className="text-[10px] text-slate-400 font-normal">Auto-saved with report</span>
+                        )}
+                      </Label>
+                      {canManage ? (
+                        <Textarea
+                          className="text-xs text-slate-900 bg-slate-50/70 border-slate-200 focus:bg-white rounded-xl resize-none"
+                          rows={3}
+                          placeholder="e.g. Excellent critical thinking and active classroom participation..."
+                          value={card.teacher_remarks || ""}
+                          onChange={(e) => {
+                            setHasUnsavedChanges(true);
+                            setCard({ ...card, teacher_remarks: e.target.value });
+                          }}
+                        />
+                      ) : (
+                        <p className="min-h-[70px] rounded-xl border border-slate-200 bg-slate-50/50 p-3 text-xs text-slate-700 italic">
+                          {card.teacher_remarks || "No teacher remarks recorded."}
+                        </p>
                       )}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-bold text-slate-900 flex items-center justify-between">
+                        <span>Principal / Academic Head Remarks</span>
+                        {canManage && (
+                          <span className="text-[10px] text-slate-400 font-normal">Official Endorsement</span>
+                        )}
+                      </Label>
+                      {canManage ? (
+                        <Textarea
+                          className="text-xs text-slate-900 bg-slate-50/70 border-slate-200 focus:bg-white rounded-xl resize-none"
+                          rows={3}
+                          placeholder="e.g. Promoted to next academic term with distinction..."
+                          value={card.principal_remarks || ""}
+                          onChange={(e) => {
+                            setHasUnsavedChanges(true);
+                            setCard({ ...card, principal_remarks: e.target.value });
+                          }}
+                        />
+                      ) : (
+                        <p className="min-h-[70px] rounded-xl border border-slate-200 bg-slate-50/50 p-3 text-xs text-slate-700 italic">
+                          {card.principal_remarks || "No principal remarks recorded."}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* ─── OFFICIAL SIGNATURE BLOCK ─── */}
+                  <div className="pt-8 pb-4 grid grid-cols-3 gap-6 text-center text-xs text-slate-600">
+                    <div>
+                      <div className="h-10 flex items-end justify-center font-cursive text-slate-400">
+                        {card.is_published ? "Class Teacher Stamp" : ""}
+                      </div>
+                      <div className="border-t border-slate-400 pt-1.5 font-bold text-slate-800">Class Teacher</div>
+                    </div>
+                    <div>
+                      <div className="h-10 flex items-end justify-center font-cursive text-slate-400">
+                        {card.is_published ? "Principal Seal" : ""}
+                      </div>
+                      <div className="border-t border-slate-400 pt-1.5 font-bold text-slate-800">Principal</div>
+                    </div>
+                    <div>
+                      <div className="h-10 flex items-end justify-center font-cursive text-slate-400">
+                        {/* Parent signature line */}
+                      </div>
+                      <div className="border-t border-slate-400 pt-1.5 font-bold text-slate-800">Parent / Guardian</div>
+                    </div>
+                  </div>
+
+                  {/* Footer Seal */}
+                  <div className="border-t border-dashed border-slate-200 pt-3 text-center text-[10px] text-slate-400 font-mono">
+                    AltRix Verified Computer-Generated Academic Record • {school?.name || "Institute"} • Verification Ref: {card.id || "DRAFT-EVAL"}
+                  </div>
+                </div>
+              </div>
+            </>
           )}
-
-          <div className="relative mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
-            <div>
-              <p className="text-sm font-semibold">Class Teacher Remarks</p>
-              {canManage ? (
-                <Textarea className="mt-1 text-black" rows={3} value={card.teacher_remarks || ""} onChange={(e) => setCard({ ...card, teacher_remarks: e.target.value })} />
-              ) : <p className="mt-1 min-h-[60px] rounded border border-gray-200 p-2 text-sm">{card.teacher_remarks || "—"}</p>}
-            </div>
-            <div>
-              <p className="text-sm font-semibold">Principal Remarks</p>
-              {canManage ? (
-                <Textarea className="mt-1 text-black" rows={3} value={card.principal_remarks || ""} onChange={(e) => setCard({ ...card, principal_remarks: e.target.value })} />
-              ) : <p className="mt-1 min-h-[60px] rounded border border-gray-200 p-2 text-sm">{card.principal_remarks || "—"}</p>}
-            </div>
-          </div>
-
-          <div className="relative mt-4 text-sm">
-            <p>
-              <strong>Attendance:</strong>{" "}
-              <span>{card.attendance_percentage != null ? `${card.attendance_percentage}%` : "—"}</span>
-              <span className="ml-2 text-xs text-gray-500 print:hidden">(auto from attendance records)</span>
-            </p>
-          </div>
-
-
-          <div className="relative mt-12 grid grid-cols-3 gap-4 text-center text-xs text-gray-600">
-            <div><div className="border-t border-gray-500 px-4 pt-1">Class Teacher</div></div>
-            <div><div className="border-t border-gray-500 px-4 pt-1">Principal</div></div>
-            <div><div className="border-t border-gray-500 px-4 pt-1">Parent / Guardian</div></div>
-          </div>
-
-          <div className="relative mt-4 border-t border-dashed border-gray-300 pt-2 text-center text-[10px] text-gray-500">
-            This is a computer-generated document by AltRix • {school?.name || "School"} • {today}
-          </div>
-          </div>
         </div>
-      )}
+      </div>
 
+      {/* ─── STICKY BOTTOM SAVE & PUBLISH ACTION BAR (NEVER COLLIDES WITH MOBILE NAV) ─── */}
       {canManage && studentId && (
-        <div className="sticky bottom-20 md:bottom-4 z-30 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200/90 dark:border-slate-800 bg-card/95 p-3.5 shadow-2xl backdrop-blur-md print:hidden transition-all">
+        <div className="sticky bottom-20 md:bottom-4 z-30 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-slate-200/90 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 p-4 shadow-2xl backdrop-blur-md print:hidden transition-all">
           <div className="flex-1 min-w-[220px]">
-            <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+            <p className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+              <Save className="h-4 w-4 text-emerald-600" />
               {periodType === "exam"
-                ? (examId ? "Ready to save exam report card" : "Pick an exam to enable saving")
-                : `Ready to save ${periodType} report card — ${currentPeriodLabel}`}
+                ? (examId ? "Ready to save exam evaluation" : "Pick an exam to enable saving")
+                : `Ready to save ${periodType} evaluation — ${currentPeriodLabel}`}
             </p>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-muted-foreground mt-0.5">
               {card.is_published
-                ? "Published — visible on student & parent dashboards."
-                : "Save first. Publish separately when ready to release to parents."}
+                ? "Published — live on student and guardian dashboards."
+                : hasUnsavedChanges
+                ? "You have unsaved changes. Click Save or press Ctrl+S."
+                : "Saved as draft. Click Publish when ready to release."}
             </p>
           </div>
-          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
-            <Button variant="outline" size="sm" disabled={periodType === "exam" && !examId} onClick={() => save()}>
-              Save
+
+          <div className="flex items-center gap-2.5 flex-wrap sm:flex-nowrap">
+            <Button
+              onClick={() => save()}
+              disabled={isSaving || (periodType === "exam" && !examId)}
+              className={`font-bold shadow-md gap-2 ${
+                hasUnsavedChanges
+                  ? "bg-emerald-600 hover:bg-emerald-700 text-white ring-2 ring-emerald-400/50 animate-pulse"
+                  : "bg-slate-900 hover:bg-slate-800 text-white"
+              }`}
+            >
+              <Save className="h-4 w-4" /> {isSaving ? "Saving..." : "Save Report Card"}
             </Button>
+
             {card.is_published ? (
-              <Button variant="secondary" size="sm" onClick={() => publishIndividual(false)}>
+              <Button variant="outline" onClick={() => publishIndividual(false)} className="text-xs font-semibold">
                 Unpublish
               </Button>
             ) : (
-              <Button size="sm" className="bg-primary text-primary-foreground font-semibold shadow-xs" disabled={periodType === "exam" && !examId} onClick={() => publishIndividual(true)}>
-                <Send className="mr-1.5 h-3.5 w-3.5" /> Publish to parent
+              <Button
+                onClick={() => publishIndividual(true)}
+                disabled={periodType === "exam" && !examId}
+                className="bg-primary text-white font-bold text-xs gap-1.5 shadow-md"
+              >
+                <Send className="h-3.5 w-3.5" /> Publish to Parent
               </Button>
             )}
+
             <Button
               variant="outline"
-              size="sm"
               disabled={periodType === "exam" && !examId}
               onClick={() => {
                 const enr = enrollments.find((e) => e.student_id === studentId);
                 setPublishSectionId(enr?.class_section_id || "");
                 setPublishDialogOpen(true);
               }}
+              className="text-xs font-semibold gap-1.5"
             >
-              <Users className="mr-1.5 h-3.5 w-3.5" /> Publish whole class
+              <Users className="h-3.5 w-3.5 text-indigo-600" /> Whole Class
             </Button>
           </div>
         </div>
       )}
 
-      {/* Add quiz/test/assignment dialog */}
+      {/* ─── ADD ASSESSMENT DIALOG ─── */}
       <Dialog open={addOpen} onOpenChange={setAddOpen}>
-        <DialogContent>
+        <DialogContent className="rounded-2xl">
           <DialogHeader>
-            <DialogTitle>Add marks entry</DialogTitle>
+            <DialogTitle className="text-lg font-bold">Add Continuous Assessment</DialogTitle>
             <DialogDescription>
-              Quickly log a quiz, test or assignment for this student. It will be reflected in the report card.
+              Quickly record a quiz, test, assignment, or project marks entry for this student.
             </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-3">
+          <div className="grid gap-3 pt-2">
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label>Type</Label>
+                <Label className="text-xs font-semibold">Assessment Type</Label>
                 <Select value={addType} onValueChange={setAddType}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="h-9 font-semibold text-xs"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="quiz">Quiz</SelectItem>
                     <SelectItem value="test">Test</SelectItem>
@@ -1443,53 +1835,53 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
                     <SelectItem value="classwork">Classwork</SelectItem>
                     <SelectItem value="homework">Homework</SelectItem>
                     <SelectItem value="practical">Practical</SelectItem>
-                    <SelectItem value="oral">Oral</SelectItem>
+                    <SelectItem value="oral">Oral Exam</SelectItem>
                     <SelectItem value="presentation">Presentation</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <div>
-                <Label>Date</Label>
-                <Input type="date" value={addDate} onChange={(e) => setAddDate(e.target.value)} />
+                <Label className="text-xs font-semibold">Date</Label>
+                <Input type="date" className="h-9 text-xs" value={addDate} onChange={(e) => setAddDate(e.target.value)} />
               </div>
             </div>
             <div>
-              <Label>Title</Label>
-              <Input value={addTitle} onChange={(e) => setAddTitle(e.target.value)} placeholder="e.g. Chapter 3 quiz" />
+              <Label className="text-xs font-semibold">Assessment Title</Label>
+              <Input className="h-9 text-xs" value={addTitle} onChange={(e) => setAddTitle(e.target.value)} placeholder="e.g. Chapter 4 Trigonometry Quiz" />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label>Marks obtained</Label>
-                <Input type="number" value={addMarks} onChange={(e) => setAddMarks(Number(e.target.value))} />
+                <Label className="text-xs font-semibold">Marks Obtained</Label>
+                <Input type="number" min={0} className="h-9 font-bold text-xs" value={addMarks} onChange={(e) => setAddMarks(Number(e.target.value))} />
               </div>
               <div>
-                <Label>Out of</Label>
-                <Input type="number" value={addMax} onChange={(e) => setAddMax(Number(e.target.value))} />
+                <Label className="text-xs font-semibold">Total Max Marks</Label>
+                <Input type="number" min={1} className="h-9 font-semibold text-xs" value={addMax} onChange={(e) => setAddMax(Number(e.target.value))} />
               </div>
             </div>
           </div>
-          <DialogFooter>
+          <DialogFooter className="gap-2 pt-2">
             <Button variant="outline" onClick={() => setAddOpen(false)}>Cancel</Button>
-            <Button onClick={submitAddAssessment}>Add</Button>
+            <Button onClick={submitAddAssessment} className="font-bold bg-primary text-white">Save Assessment</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Edit assessment dialog */}
+      {/* ─── EDIT ASSESSMENT DIALOG ─── */}
       <Dialog open={!!editAssessmentId} onOpenChange={(o) => !o && setEditAssessmentId(null)}>
-        <DialogContent>
+        <DialogContent className="rounded-2xl">
           <DialogHeader>
-            <DialogTitle>Edit marks entry</DialogTitle>
+            <DialogTitle className="text-lg font-bold">Edit Assessment Entry</DialogTitle>
             <DialogDescription>
-              Update this assessment's details and the current student's marks for it.
+              Update assessment details and student marks.
             </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-3">
+          <div className="grid gap-3 pt-2">
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label>Type</Label>
+                <Label className="text-xs font-semibold">Type</Label>
                 <Select value={editType} onValueChange={setEditType}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="h-9 font-semibold text-xs"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="quiz">Quiz</SelectItem>
                     <SelectItem value="test">Test</SelectItem>
@@ -1498,55 +1890,52 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
                     <SelectItem value="classwork">Classwork</SelectItem>
                     <SelectItem value="homework">Homework</SelectItem>
                     <SelectItem value="practical">Practical</SelectItem>
-                    <SelectItem value="oral">Oral</SelectItem>
+                    <SelectItem value="oral">Oral Exam</SelectItem>
                     <SelectItem value="presentation">Presentation</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <div>
-                <Label>Date</Label>
-                <Input type="date" value={editDate} onChange={(e) => setEditDate(e.target.value)} />
+                <Label className="text-xs font-semibold">Date</Label>
+                <Input type="date" className="h-9 text-xs" value={editDate} onChange={(e) => setEditDate(e.target.value)} />
               </div>
             </div>
             <div>
-              <Label>Title</Label>
-              <Input value={editTitle} onChange={(e) => setEditTitle(e.target.value)} />
+              <Label className="text-xs font-semibold">Title</Label>
+              <Input className="h-9 text-xs" value={editTitle} onChange={(e) => setEditTitle(e.target.value)} />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label>Marks obtained</Label>
-                <Input type="number" value={editMarks} onChange={(e) => setEditMarks(Number(e.target.value))} />
+                <Label className="text-xs font-semibold">Marks Obtained</Label>
+                <Input type="number" min={0} className="h-9 font-bold text-xs" value={editMarks} onChange={(e) => setEditMarks(Number(e.target.value))} />
               </div>
               <div>
-                <Label>Out of</Label>
-                <Input type="number" value={editMax} onChange={(e) => setEditMax(Number(e.target.value))} />
+                <Label className="text-xs font-semibold">Out of (Max)</Label>
+                <Input type="number" min={1} className="h-9 font-semibold text-xs" value={editMax} onChange={(e) => setEditMax(Number(e.target.value))} />
               </div>
             </div>
           </div>
-          <DialogFooter>
+          <DialogFooter className="gap-2 pt-2">
             <Button variant="outline" onClick={() => setEditAssessmentId(null)}>Cancel</Button>
-            <Button onClick={submitEditAssessment}>Save</Button>
+            <Button onClick={submitEditAssessment} className="font-bold bg-primary text-white">Save Changes</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-
-
-      {/* Publish whole class dialog */}
+      {/* ─── PUBLISH WHOLE CLASS DIALOG ─── */}
       <Dialog open={publishDialogOpen} onOpenChange={setPublishDialogOpen}>
-        <DialogContent>
+        <DialogContent className="rounded-2xl">
           <DialogHeader>
-            <DialogTitle>Publish whole class</DialogTitle>
+            <DialogTitle className="text-lg font-bold">Batch Release Section Report Cards</DialogTitle>
             <DialogDescription>
-              Publish or unpublish saved report cards for every student in a section.
-              Only cards that have already been saved will be affected.
+              Publish or unpublish saved academic report cards for all students in a section simultaneously.
             </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-3">
+          <div className="grid gap-3 pt-2">
             <div>
-              <Label>Section</Label>
+              <Label className="text-xs font-semibold">Select Class Section</Label>
               <Select value={publishSectionId} onValueChange={setPublishSectionId}>
-                <SelectTrigger><SelectValue placeholder="Select a section" /></SelectTrigger>
+                <SelectTrigger className="h-9 font-semibold text-xs"><SelectValue placeholder="Select section" /></SelectTrigger>
                 <SelectContent>
                   {sections.map((s) => {
                     const cls = classes.find((c) => c.id === s.class_id);
@@ -1555,20 +1944,18 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
                 </SelectContent>
               </Select>
             </div>
-            <p className="text-xs text-muted-foreground">
-              Scope: <strong>{periodType === "exam" ? (exams.find((e) => e.id === examId)?.name || "Exam") : currentPeriodLabel}</strong>
+            <p className="text-xs text-muted-foreground bg-slate-50 dark:bg-slate-800 p-2.5 rounded-xl border">
+              Target Evaluation: <strong>{periodType === "exam" ? (exams.find((e) => e.id === examId)?.name || "Exam") : currentPeriodLabel}</strong>
             </p>
           </div>
-          <DialogFooter className="gap-2">
-            <Button variant="outline" disabled={publishBusy} onClick={() => publishWholeClass(false)}>Unpublish all</Button>
-            <Button disabled={publishBusy} onClick={() => publishWholeClass(true)}>
-              <Send className="mr-1.5 h-4 w-4" /> Publish all
+          <DialogFooter className="gap-2 pt-2">
+            <Button variant="outline" disabled={publishBusy} onClick={() => publishWholeClass(false)}>Unpublish All</Button>
+            <Button disabled={publishBusy} onClick={() => publishWholeClass(true)} className="font-bold bg-primary text-white gap-1.5">
+              <Send className="h-3.5 w-3.5" /> Publish All Cards
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
     </div>
   );
 }
-
