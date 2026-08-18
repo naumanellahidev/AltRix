@@ -64,13 +64,14 @@ async def list_teachers(
             FROM public.user_roles r
             LEFT JOIN public.profiles p ON p.id = r.user_id
             WHERE r.school_id = :school_id
-              AND (:campus_id IS NULL OR r.campus_id = CAST(:campus_id AS UUID))
               AND r.role IN ('teacher', 'head_teacher', 'faculty', 'instructor')
         """
-        dir_res = await db.execute(text(sql), {
-            "school_id": str(current_user.school_id),
-            "campus_id": str(campus_id) if campus_id else None
-        })
+        params = {"school_id": str(current_user.school_id)}
+        if campus_id:
+            sql += " AND r.campus_id = CAST(:campus_id AS UUID)"
+            params["campus_id"] = str(campus_id)
+
+        dir_res = await db.execute(text(sql), params)
         for r in dir_res.fetchall():
             u_id, d_name, u_email, u_role, u_phone = r[0], r[1], r[2], r[3], r[4]
             u_id_uuid = UUID(str(u_id)) if u_id else None
