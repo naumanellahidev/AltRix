@@ -1,6 +1,4 @@
-"""
-Library Management router: books catalog, issues, returns, fines, reservations.
-"""
+import logging
 from typing import List, Optional
 from uuid import UUID
 from datetime import date, datetime, timedelta
@@ -11,6 +9,7 @@ from sqlalchemy import select, update, or_
 from app.dependencies import CurrentUser, DbSession
 from app.models.library import LibraryBook, BookIssue, BookReservation
 
+logger = logging.getLogger("app.library")
 router = APIRouter(prefix="/library", tags=["Library Management"])
 
 
@@ -65,13 +64,14 @@ class IssueOutSchema(BaseModel):
     book_id: UUID
     borrower_id: UUID
     borrower_type: str
-    issue_date: Optional[date]
+    issue_date: Optional[date] = None
     due_date: date
-    return_date: Optional[date]
-    fine_amount: float
+    return_date: Optional[date] = None
+    fine_amount: Optional[float] = 0.0
     fine_per_day: Optional[float] = 20.0
-    fine_paid: bool
-    status: str
+    fine_paid: Optional[bool] = False
+    status: Optional[str] = "issued"
+    created_at: Optional[datetime] = None
     model_config = ConfigDict(from_attributes=True)
 
 class ReservationCreateSchema(BaseModel):
@@ -208,23 +208,28 @@ async def issue_book(payload: IssueCreateSchema, current_user: CurrentUser, db: 
         except Exception:
             effective_cid = None
     
-    issue = BookIssue(
-        school_id=current_user.school_id,
-        campus_id=effective_cid,
-        book_id=payload.book_id,
-        borrower_id=borrower_uuid,
-        borrower_type=payload.borrower_type or "student",
-        issue_date=today,
-        due_date=due_date,
-        fine_per_day=payload.fine_per_day if payload.fine_per_day is not None else 20.0,
-        fine_amount=0.00,
-        fine_paid=False,
-        status="issued"
-    )
-    db.add(issue)
-    await db.commit()
-    await db.refresh(issue)
-    return issue
+    try:
+        issue = BookIssue(
+            school_id=current_user.school_id,
+            campus_id=effective_cid,
+            book_id=payload.book_id,
+            borrower_id=borrower_uuid,
+            borrower_type=payload.borrower_type or "student",
+            issue_date=today,
+            due_date=due_date,
+            fine_per_day=payload.fine_per_day if payload.fine_per_day is not None else 20.0,
+            fine_amount=0.00,
+            fine_paid=False,
+            status="issued"
+        )
+        db.add(issue)
+        await db.commit()
+        await db.refresh(issue)
+        return issue
+    except Exception as e:
+        await db.rollback()
+        logger.error(f"Failed to issue book: {e}", exc_info=True)
+        raise HTTPException(status_code=400, detail=f"Failed to issue book: {str(e)}")
 
 
 @router.post("/return/{issue_id}", response_model=IssueOutSchema)
@@ -256,9 +261,14 @@ async def return_book(issue_id: UUID, current_user: CurrentUser, db: DbSession):
     if book and book.available_copies < book.total_copies:
         book.available_copies += 1
 
-    await db.commit()
-    await db.refresh(issue)
-    return issue
+    try:
+        await db.commit()
+        await db.refresh(issue)
+        return issue
+    except Exception as e:
+        await db.rollback()
+        logger.error(f"Failed to return book: {e}", exc_info=True)
+        raise HTTPException(status_code=400, detail=f"Failed to return book: {str(e)}")
 
 
 # --- Reservations Endpoints ---
