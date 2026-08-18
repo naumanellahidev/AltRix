@@ -69,6 +69,23 @@ class FirstAidIncidentCreateSchema(BaseModel):
     parent_notified: Optional[bool] = True
 
 
+@router.get("/medical-records", response_model=List[MedicalRecordResponseSchema])
+async def list_medical_records(
+    db: DbSession,
+    current_user: CurrentUser,
+    student_id: Optional[UUID] = Query(None),
+):
+    school_id = current_user.school_id or UUID("00000000-0000-0000-0000-000000000000")
+    try:
+        stmt = select(StudentMedicalRecord).where(StudentMedicalRecord.school_id == school_id)
+        if student_id:
+            stmt = stmt.where(StudentMedicalRecord.student_id == student_id)
+        res = await db.execute(stmt)
+        return list(res.scalars().all())
+    except Exception:
+        return []
+
+
 @router.get("/medical-records/{student_id}", response_model=Optional[MedicalRecordResponseSchema])
 async def get_student_medical_record(
     student_id: UUID,
@@ -119,21 +136,17 @@ async def create_or_update_medical_record(
     return record
 
 
+@router.get("/infirmary", response_model=List[InfirmaryVisitResponseSchema])
 @router.get("/infirmary-logs", response_model=List[InfirmaryVisitResponseSchema])
 async def list_infirmary_visit_logs(
     db: DbSession,
     current_user: CurrentUser,
+    student_id: Optional[UUID] = Query(None),
 ):
     school_id = current_user.school_id or UUID("00000000-0000-0000-0000-000000000000")
     stmt = select(InfirmaryVisitLog).where(InfirmaryVisitLog.school_id == school_id)
-    if current_user.campus_id:
-        from app.models.people import Student
-        try:
-            stmt = stmt.where(InfirmaryVisitLog.student_id.in_(
-                select(Student.id).where(Student.campus_id == UUID(current_user.campus_id))
-            ))
-        except (ValueError, TypeError):
-            pass
+    if student_id:
+        stmt = stmt.where(InfirmaryVisitLog.student_id == student_id)
     stmt = stmt.order_by(InfirmaryVisitLog.visit_date.desc())
     try:
         res = await db.execute(stmt)
@@ -142,6 +155,7 @@ async def list_infirmary_visit_logs(
         return []
 
 
+@router.post("/infirmary", response_model=InfirmaryVisitResponseSchema)
 @router.post("/infirmary-logs", response_model=InfirmaryVisitResponseSchema)
 async def log_infirmary_visit(
     payload: InfirmaryVisitCreateSchema,
@@ -162,6 +176,63 @@ async def log_infirmary_visit(
     await db.commit()
     await db.refresh(visit)
     return visit
+
+
+@router.get("/vaccinations")
+async def list_vaccinations(
+    db: DbSession,
+    current_user: CurrentUser,
+    student_id: Optional[UUID] = Query(None),
+):
+    school_id = current_user.school_id or UUID("00000000-0000-0000-0000-000000000000")
+    try:
+        stmt = select(VaccinationRecord).where(VaccinationRecord.school_id == school_id)
+        if student_id:
+            stmt = stmt.where(VaccinationRecord.student_id == student_id)
+        res = await db.execute(stmt.order_by(VaccinationRecord.administered_date.desc()))
+        records = res.scalars().all()
+        return [
+            {
+                "id": str(r.id),
+                "student_id": str(r.student_id),
+                "vaccine_name": r.vaccine_name,
+                "dose_number": r.dose_number,
+                "administered_date": str(r.administered_date),
+                "status": r.status,
+            }
+            for r in records
+        ]
+    except Exception:
+        return []
+
+
+@router.get("/incidents")
+async def list_incidents(
+    db: DbSession,
+    current_user: CurrentUser,
+    student_id: Optional[UUID] = Query(None),
+):
+    school_id = current_user.school_id or UUID("00000000-0000-0000-0000-000000000000")
+    try:
+        stmt = select(FirstAidIncident).where(FirstAidIncident.school_id == school_id)
+        if student_id:
+            stmt = stmt.where(FirstAidIncident.student_id == student_id)
+        res = await db.execute(stmt.order_by(FirstAidIncident.created_at.desc()))
+        incidents = res.scalars().all()
+        return [
+            {
+                "id": str(i.id),
+                "student_id": str(i.student_id),
+                "incident_type": i.incident_type,
+                "location": i.location,
+                "action_taken": i.action_taken,
+                "parent_notified": i.parent_notified,
+                "created_at": str(i.created_at),
+            }
+            for i in incidents
+        ]
+    except Exception:
+        return []
 
 
 @router.post("/incidents")

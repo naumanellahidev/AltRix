@@ -56,6 +56,8 @@ import CurriculumModule from "@/pages/tenant/modules/CurriculumModule";
 import EventsModule from "@/pages/tenant/modules/EventsModule";
 import GateVisitorModule from "@/pages/tenant/modules/GateVisitorModule";
 import StaffAppraisalModule from "@/pages/tenant/modules/StaffAppraisalModule";
+import StudentWellbeingModule from "@/pages/tenant/modules/StudentWellbeingModule";
+import OwnerInsightsDashboard from "@/pages/tenant/modules/OwnerInsightsDashboard";
 
 import { HrLeavesModule } from "@/pages/tenant/hr-modules/HrLeavesModule";
 import { HrSalariesModule } from "@/pages/tenant/hr-modules/HrSalariesModule";
@@ -117,15 +119,16 @@ export interface ModuleEntry {
  */
 export const MODULE_REGISTRY: Record<string, ModuleEntry> = {
   // Finance
-  fees:     { Component: FeesUnifiedModule },
-  finance:  { Component: FeesUnifiedModule },
-  invoices: { Component: AccountantInvoicesModule },
-  payments: { Component: AccountantPaymentsModule },
-  expenses: { Component: AccountantExpensesModule },
-  payroll:  { Component: AccountantPayrollModule },
-  ledger:   { Component: AccountantLedgerModule },
-  vendors:  { Component: AccountantVendorsModule },
-  tax:      { Component: AccountantTaxModule },
+  fees:         { Component: FeesUnifiedModule },
+  "admin-fees": { Component: FeesUnifiedModule },
+  finance:      { Component: FeesUnifiedModule },
+  invoices:     { Component: AccountantInvoicesModule },
+  payments:     { Component: AccountantPaymentsModule },
+  expenses:     { Component: AccountantExpensesModule },
+  payroll:      { Component: AccountantPayrollModule },
+  ledger:       { Component: AccountantLedgerModule },
+  vendors:      { Component: AccountantVendorsModule },
+  tax:          { Component: AccountantTaxModule },
 
   // Academics
   academic:      { Component: AcademicModule },
@@ -170,6 +173,8 @@ export const MODULE_REGISTRY: Record<string, ModuleEntry> = {
   events:           { Component: EventsModule },
   "gate-visitor":   { Component: GateVisitorModule },
   "staff-appraisals": { Component: StaffAppraisalModule },
+  "student-wellbeing": { Component: StudentWellbeingModule },
+  "owner-insights": { Component: OwnerInsightsDashboard },
   notices:          { Component: NoticesModule,  propsFor: (c) => ({ schoolId: c.schoolId, canManage: true }) },
   holidays:   { Component: HolidaysModule, propsFor: (c) => ({ schoolId: c.schoolId, canManage: isGov(c.roles) }) },
   reports:    { Component: ReportsModule },

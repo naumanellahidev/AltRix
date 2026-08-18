@@ -5,7 +5,7 @@ import uuid
 import secrets
 from typing import List, Optional
 from uuid import UUID
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from pydantic import BaseModel, ConfigDict
 from fastapi import APIRouter, HTTPException, Query, status
 from sqlalchemy import select
@@ -51,6 +51,49 @@ class CertificateOutSchema(BaseModel):
 
 
 # --- Document Vault Endpoints ---
+@router.get("", response_model=List[StudentDocumentOutSchema])
+async def list_documents(
+    current_user: CurrentUser,
+    db: DbSession,
+    owner_type: Optional[str] = Query(None),
+    owner_id: Optional[str] = Query(None),
+    category: Optional[str] = Query(None),
+):
+    if not current_user.school_id:
+        return []
+    try:
+        stmt = select(StudentDocument).where(StudentDocument.school_id == current_user.school_id)
+        if owner_id:
+            try:
+                owner_uuid = UUID(owner_id)
+                stmt = stmt.where(StudentDocument.student_id == owner_uuid)
+            except Exception:
+                pass
+        if category and category.lower() != "all":
+            stmt = stmt.where(StudentDocument.category.ilike(category))
+        res = await db.execute(stmt.order_by(StudentDocument.created_at.desc()))
+        return list(res.scalars().all())
+    except Exception:
+        return []
+
+
+@router.get("/alerts", response_model=List[StudentDocumentOutSchema])
+async def list_document_alerts(current_user: CurrentUser, db: DbSession):
+    if not current_user.school_id:
+        return []
+    try:
+        threshold = date.today() + timedelta(days=30)
+        stmt = select(StudentDocument).where(
+            StudentDocument.school_id == current_user.school_id,
+            StudentDocument.expires_at.isnot(None),
+            StudentDocument.expires_at <= threshold,
+        ).order_by(StudentDocument.expires_at.asc())
+        res = await db.execute(stmt)
+        return list(res.scalars().all())
+    except Exception:
+        return []
+
+
 @router.get("/student/{student_id}", response_model=List[StudentDocumentOutSchema])
 async def list_student_documents(student_id: UUID, current_user: CurrentUser, db: DbSession):
     if not current_user.school_id:

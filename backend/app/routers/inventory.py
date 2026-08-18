@@ -55,7 +55,24 @@ async def list_inventory_items(
 ):
     school_id = current_user.school_id or UUID("00000000-0000-0000-0000-000000000000")
     try:
-        stmt = select(InventoryItem).where(InventoryItem.school_id == school_id)
+        stmt = select(InventoryItem).where(InventoryItem.school_id == school_id).order_by(InventoryItem.item_name)
+        res = await db.execute(stmt)
+        return list(res.scalars().all())
+    except Exception:
+        return []
+
+
+@router.get("/low-stock-alerts", response_model=List[InventoryItemResponseSchema])
+async def list_low_stock_alerts(
+    db: DbSession,
+    current_user: CurrentUser,
+):
+    school_id = current_user.school_id or UUID("00000000-0000-0000-0000-000000000000")
+    try:
+        stmt = select(InventoryItem).where(
+            InventoryItem.school_id == school_id,
+            InventoryItem.available_quantity <= InventoryItem.min_reorder_threshold
+        ).order_by(InventoryItem.available_quantity.asc())
         res = await db.execute(stmt)
         return list(res.scalars().all())
     except Exception:

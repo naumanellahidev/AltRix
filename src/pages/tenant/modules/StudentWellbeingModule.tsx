@@ -141,15 +141,29 @@ export default function StudentWellbeingModule() {
 
   const loadStudents = async () => {
     try {
-      const res = await apiClient.get("/parents/children");
-      setStudents(
-        (res.data || []).map((c: any) => ({
-          id: c.student_id,
-          name: `${c.first_name} ${c.last_name || ""}`.trim(),
-        }))
-      );
-      if (res.data && res.data.length > 0) {
-        setSelectedStudentId(res.data[0].student_id);
+      let res;
+      try {
+        res = await apiClient.get("/students?page_size=200");
+      } catch {
+        res = await apiClient.get("/parents/children").catch(() => ({ data: [] }));
+      }
+      const raw = res?.data;
+      const list = Array.isArray(raw?.data)
+        ? raw.data
+        : Array.isArray(raw?.items)
+        ? raw.items
+        : Array.isArray(raw)
+        ? raw
+        : [];
+      
+      const mapped = list.map((c: any) => ({
+        id: c.id || c.student_id,
+        name: c.full_name || `${c.first_name || ""} ${c.last_name || ""}`.trim() || "Student",
+      }));
+
+      setStudents(mapped);
+      if (mapped.length > 0) {
+        setSelectedStudentId(mapped[0].id);
       }
     } catch (e) {
       console.error(e);

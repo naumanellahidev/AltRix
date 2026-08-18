@@ -73,8 +73,9 @@ export default function GateVisitorModule() {
   const handleVerify = async () => {
     if (!qrInput) return;
     setLoading(true);
+    const cleanToken = qrInput.trim().toUpperCase();
     try {
-      const res = await apiClient.get(`/visitors/verify/${qrInput}`);
+      const res = await apiClient.get(`/visitors/verify/${cleanToken}`);
       setVerificationResult(res.data);
       setGatePhoto(""); // reset captured gate photo
     } catch (err: any) {

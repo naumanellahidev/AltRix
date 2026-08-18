@@ -56,12 +56,10 @@ export default function NoticesModule({ schoolId, canManage = false }: Props) {
   const load = async () => {
     if (!schoolId) return;
     setLoading(true);
-    let query = (api as any)
+    const { data, error } = await (api as any)
       .from("notices")
       .select("*")
-      .eq("school_id", schoolId);
-    if (activeCampusId) query = query.eq("campus_id", activeCampusId);
-    const { data, error } = await query
+      .eq("school_id", schoolId)
       .order("pinned", { ascending: false })
       .order("created_at", { ascending: false });
     if (error) toast.error("Failed to load notices");

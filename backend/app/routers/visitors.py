@@ -207,10 +207,11 @@ async def verify_pass(qr_token: str, current_user: CurrentUser, db: DbSession):
     if not current_user.school_id:
         raise ForbiddenError("No school context")
 
+    token_clean = qr_token.strip().upper()
     res = await db.execute(
         select(VisitorPass).where(
             VisitorPass.school_id == current_user.school_id,
-            VisitorPass.qr_code_token == qr_token,
+            VisitorPass.qr_code_token.ilike(token_clean),
         )
     )
     pass_record = res.scalar_one_or_none()
