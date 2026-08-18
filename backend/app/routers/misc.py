@@ -1042,6 +1042,53 @@ Constraints:
 reports_router = APIRouter(prefix="/reports", tags=["Reports"])
 
 
+async def resolve_effective_school_id(
+    school_id: Optional[str],
+    request: Request,
+    current_user: CurrentUser,
+    db: DbSession,
+) -> Optional[UUID]:
+    """Helper to resolve school UUID from query param, X-School-Id header, user context, or slug."""
+    raw_sid = school_id or request.headers.get("x-school-id") or request.headers.get("X-School-Id") or (str(current_user.school_id) if getattr(current_user, "school_id", None) else None)
+
+    if raw_sid:
+        raw_sid = str(raw_sid).strip()
+        try:
+            return UUID(raw_sid)
+        except (ValueError, TypeError):
+            try:
+                s_res = await db.execute(
+                    text("SELECT id FROM public.schools WHERE slug = :s OR id::text = :s LIMIT 1"),
+                    {"s": raw_sid}
+                )
+                s_row = s_res.fetchone()
+                if s_row and s_row[0]:
+                    return s_row[0]
+            except Exception:
+                try:
+                    await db.rollback()
+                except Exception:
+                    pass
+
+    # Check user's school memberships as fallback
+    if current_user and getattr(current_user, "id", None):
+        try:
+            m_res = await db.execute(
+                text("SELECT school_id FROM public.school_memberships WHERE user_id = :uid AND school_id IS NOT NULL LIMIT 1"),
+                {"uid": current_user.id}
+            )
+            m_row = m_res.fetchone()
+            if m_row and m_row[0]:
+                return m_row[0]
+        except Exception:
+            try:
+                await db.rollback()
+            except Exception:
+                pass
+
+    return current_user.school_id if getattr(current_user, "school_id", None) else None
+
+
 @reports_router.get("/dashboard")
 @cache_response(ttl=60, key_prefix="reports:dashboard")
 async def dashboard_kpis(
@@ -1052,28 +1099,7 @@ async def dashboard_kpis(
     campus_id: Optional[str] = Query(None),
 ):
     """Aggregate dashboard KPIs for a school, scoped to campus if requested."""
-    raw_school_id = school_id or str(current_user.school_id)
-    effective_school_id = None
-    if raw_school_id:
-        try:
-            effective_school_id = UUID(str(raw_school_id))
-        except (ValueError, TypeError):
-            try:
-                s_res = await db.execute(
-                    text("SELECT id FROM public.schools WHERE slug = :s OR id::text = :s LIMIT 1"),
-                    {"s": str(raw_school_id)}
-                )
-                s_row = s_res.fetchone()
-                if s_row:
-                    effective_school_id = s_row[0]
-            except Exception:
-                try:
-                    await db.rollback()
-                except Exception:
-                    pass
-
-    if not effective_school_id:
-        effective_school_id = current_user.school_id
+    effective_school_id = await resolve_effective_school_id(school_id, request, current_user, db)
 
     if not effective_school_id:
         return {}
@@ -1098,7 +1124,7 @@ async def dashboard_kpis(
                     (SELECT COUNT(*) FROM user_roles WHERE school_id = :sid AND role = 'teacher' AND (CAST(:cid AS uuid) IS NULL OR campus_id = CAST(:cid AS uuid))) as total_teachers,
                     (SELECT COUNT(*) FROM admission_applications WHERE school_id = :sid AND (CAST(:cid AS uuid) IS NULL OR campus_id = CAST(:cid AS uuid)) AND status = 'submitted') as pending_admissions,
                     (SELECT COUNT(*) FROM fee_invoices WHERE school_id = :sid AND (CAST(:cid AS uuid) IS NULL OR campus_id = CAST(:cid AS uuid)) AND status NOT IN ('paid', 'cancelled')) as pending_payments,
-                    (SELECT COALESCE(SUM(amount), 0) FROM fee_payments WHERE school_id = :sid AND (CAST(:cid AS uuid) IS NULL OR campus_id = CAST(:cid AS uuid)) AND status = 'success' AND (paid_at >= :mtd_start OR created_at >= :mtd_start)) as collected_fees,
+                    (SELECT COALESCE(SUM(amount), 0) FROM fee_payments WHERE school_id = :sid AND (CAST(:cid AS uuid) IS NULL OR campus_id = CAST(:cid AS uuid)) AND (status IS NULL OR status IN ('success', 'paid', 'completed')) AND (paid_at >= :mtd_start OR created_at >= :mtd_start)) as collected_fees,
                     (SELECT COUNT(*) FROM campuses WHERE school_id = :sid AND is_active = true) as active_campuses,
                     (SELECT COUNT(DISTINCT c.id) FROM academic_classes c LEFT JOIN class_sections cs ON cs.class_id = c.id WHERE c.school_id = :sid AND (CAST(:cid AS uuid) IS NULL OR cs.campus_id = CAST(:cid AS uuid))) as total_classes,
                     (SELECT COUNT(*) FROM class_sections WHERE school_id = :sid AND (CAST(:cid AS uuid) IS NULL OR campus_id = CAST(:cid AS uuid))) as total_sections,
@@ -1106,7 +1132,7 @@ async def dashboard_kpis(
                     (SELECT COUNT(*) FROM crm_leads WHERE school_id = :sid) as total_leads,
                     (SELECT COUNT(*) FROM crm_leads WHERE school_id = :sid AND (status = 'open' OR stage_id IS NOT NULL)) as open_leads,
                     (SELECT COALESCE(SUM(amount), 0) FROM finance_expenses WHERE school_id = :sid AND (expense_date >= :mtd_date OR created_at >= :mtd_start)) as mtd_expenses,
-                    (SELECT COALESCE(SUM(amount), 0) FROM fee_payments WHERE school_id = :sid AND (CAST(:cid AS uuid) IS NULL OR campus_id = CAST(:cid AS uuid)) AND status = 'success' AND (paid_at >= :ytd_start OR created_at >= :ytd_start)) as ytd_collected_fees,
+                    (SELECT COALESCE(SUM(amount), 0) FROM fee_payments WHERE school_id = :sid AND (CAST(:cid AS uuid) IS NULL OR campus_id = CAST(:cid AS uuid)) AND (status IS NULL OR status IN ('success', 'paid', 'completed')) AND (paid_at >= :ytd_start OR created_at >= :ytd_start)) as ytd_collected_fees,
                     (SELECT COALESCE(SUM(amount), 0) FROM finance_expenses WHERE school_id = :sid AND (expense_date >= :ytd_date OR created_at >= :ytd_start)) as ytd_expenses,
                     (SELECT COUNT(*) FROM attendance_entries WHERE school_id = :sid AND (CAST(:cid AS uuid) IS NULL OR campus_id = CAST(:cid AS uuid)) AND created_at >= :d7_start) as total_attendance_d7,
                     (SELECT COUNT(*) FROM attendance_entries WHERE school_id = :sid AND (CAST(:cid AS uuid) IS NULL OR campus_id = CAST(:cid AS uuid)) AND created_at >= :d7_start AND status IN ('present', 'late')) as present_attendance_d7
@@ -1185,33 +1211,45 @@ async def dashboard_kpis(
 
 @reports_router.get("/finance-trend")
 @cache_response(ttl=120, key_prefix="reports:finance-trend")
-async def finance_trend(current_user: CurrentUser, db: DbSession, request: Request):
-    if not current_user.school_id:
+async def finance_trend(
+    current_user: CurrentUser,
+    db: DbSession,
+    request: Request,
+    school_id: Optional[str] = Query(None),
+):
+    effective_school_id = await resolve_effective_school_id(school_id, request, current_user, db)
+    if not effective_school_id:
         return {"payments": [], "expenses": []}
 
-    school_id = current_user.school_id
     mtd_start = datetime.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
 
     try:
-        p_sql = "SELECT amount, paid_at FROM fee_payments WHERE school_id = :sid AND paid_at >= :fdate ORDER BY paid_at ASC"
-        p_res = await db.execute(text(p_sql), {"sid": school_id, "fdate": mtd_start})
+        p_sql = "SELECT amount, COALESCE(paid_at, created_at) as paid_at FROM fee_payments WHERE school_id = :sid AND (status IS NULL OR status IN ('success', 'paid', 'completed')) AND (paid_at >= :fdate OR created_at >= :fdate) ORDER BY COALESCE(paid_at, created_at) ASC"
+        p_res = await db.execute(text(p_sql), {"sid": effective_school_id, "fdate": mtd_start})
         payments = [
             {"amount": float(r[0]) if r[0] is not None else 0.0, "paid_at": r[1].isoformat() if r[1] else ""}
             for r in p_res.fetchall()
         ]
+        if not payments:
+            inv_sql = "SELECT COALESCE(paid_amount, total_amount), created_at FROM fee_invoices WHERE school_id = :sid AND (status = 'paid' OR paid_amount > 0) AND created_at >= :fdate ORDER BY created_at ASC"
+            inv_res = await db.execute(text(inv_sql), {"sid": effective_school_id, "fdate": mtd_start})
+            payments = [
+                {"amount": float(r[0]) if r[0] is not None else 0.0, "paid_at": r[1].isoformat() if r[1] else ""}
+                for r in inv_res.fetchall()
+            ]
     except Exception as e:
-        print("Error fetching trend payments:", e)
+        logger.warning("Error fetching trend payments: %s", e)
         payments = []
 
     try:
         e_sql = "SELECT amount, expense_date FROM finance_expenses WHERE school_id = :sid AND expense_date >= :fdate ORDER BY expense_date ASC"
-        e_res = await db.execute(text(e_sql), {"sid": school_id, "fdate": mtd_start.date()})
+        e_res = await db.execute(text(e_sql), {"sid": effective_school_id, "fdate": mtd_start.date()})
         expenses = [
             {"amount": float(r[0]) if r[0] is not None else 0.0, "expense_date": str(r[1])}
             for r in e_res.fetchall()
         ]
     except Exception as e:
-        print("Error fetching trend expenses:", e)
+        logger.warning("Error fetching trend expenses: %s", e)
         expenses = []
 
     return {"payments": payments, "expenses": expenses}
@@ -1220,16 +1258,20 @@ async def finance_trend(current_user: CurrentUser, db: DbSession, request: Reque
 @reports_router.get("/attendance-summary")
 @cache_response(ttl=120, key_prefix="reports:attendance-summary")
 async def attendance_summary(
-    current_user: CurrentUser, db: DbSession,
+    current_user: CurrentUser,
+    db: DbSession,
     request: Request,
     from_date: Optional[str] = Query(None),
     to_date: Optional[str] = Query(None),
     campus_id: Optional[UUID] = Query(None),
+    school_id: Optional[str] = Query(None),
 ):
     """School-wide attendance summary."""
-    if not current_user.school_id:
-        return {}
-    params = {"school_id": current_user.school_id}
+    effective_school_id = await resolve_effective_school_id(school_id, request, current_user, db)
+    if not effective_school_id:
+        return {"present": 0, "absent": 0, "late": 0, "total": 0, "attendance_rate": 0}
+
+    params = {"school_id": effective_school_id}
     cond = "ae.school_id = :school_id"
     if campus_id:
         cond += " AND ae.campus_id = :campus_id"

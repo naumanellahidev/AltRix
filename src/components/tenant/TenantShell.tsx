@@ -550,19 +550,6 @@ const [voiceOpen, setVoiceOpen] = useState(false);
                   </p>
                 )}
               </div>
-
-
-              <div className="flex items-center gap-3 shrink-0">
-                {schoolId && isStaff && <StaffAttendanceWidget schoolId={schoolId} />}
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleLogout}
-                  className="rounded-xl"
-                >
-                  <LogOut className="mr-2 h-4 w-4" /> Logout
-                </Button>
-              </div>
             </div>
           </header>
           <div className="mb-4 lg:mb-5">

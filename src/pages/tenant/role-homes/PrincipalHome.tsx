@@ -251,61 +251,75 @@ export function PrincipalHome() {
       if (USE_FASTAPI) {
         try {
           const [dashResp, attResp, trendResp] = await Promise.all([
-            apiClient.get("/reports/dashboard"),
-            apiClient.get("/reports/attendance-summary", {
-              params: { from_date: d7.toISOString().split("T")[0] }
+            apiClient.get("/reports/dashboard", {
+              params: { school_id: schoolId }
             }),
-            apiClient.get("/reports/finance-trend")
+            apiClient.get("/reports/attendance-summary", {
+              params: { from_date: d7.toISOString().split("T")[0], school_id: schoolId }
+            }),
+            apiClient.get("/reports/finance-trend", {
+              params: { school_id: schoolId }
+            })
           ]);
 
           const dbKpis = dashResp.data;
           const attSummary = attResp.data;
           const finTrend = trendResp.data;
 
-          setKpis({
-            students: dbKpis.total_students ?? 0,
-            teachers: dbKpis.total_teachers ?? 0,
-            totalStaff: dbKpis.total_staff ?? 0,
-            leads: dbKpis.total_leads ?? 0,
-            openLeads: dbKpis.open_leads ?? 0,
-            attendanceEntries7d: attSummary.total ?? 0,
-            attendancePresent7d: attSummary.present ?? 0,
-            revenueMtd: dbKpis.collected_fees ?? 0,
-            expensesMtd: dbKpis.mtd_expenses ?? 0,
-            pendingInvoices: dbKpis.pending_payments ?? 0,
-            classes: dbKpis.total_classes ?? 0,
-            sections: dbKpis.total_sections ?? 0,
-          });
+          const hasRealData = dbKpis && (
+            (Number(dbKpis.total_students) || 0) > 0 ||
+            (Number(dbKpis.total_teachers) || 0) > 0 ||
+            (Number(dbKpis.total_staff) || 0) > 0 ||
+            (Number(dbKpis.collected_fees) || 0) > 0 ||
+            (Number(dbKpis.total_classes) || 0) > 0
+          );
 
-          // Build day buckets for chart (MTD)
-          const byDay = new Map<string, { revenue: number; expenses: number }>();
-          const fmt = (d: Date) => d.toISOString().slice(5, 10);
-          for (let i = 0; i < 31; i++) {
-            const d = new Date(monthStart);
-            d.setDate(monthStart.getDate() + i);
-            if (d.getMonth() !== monthStart.getMonth()) break;
-            byDay.set(fmt(d), { revenue: 0, expenses: 0 });
+          if (hasRealData) {
+            setKpis({
+              students: Number(dbKpis.total_students) || 0,
+              teachers: Number(dbKpis.total_teachers) || 0,
+              totalStaff: Number(dbKpis.total_staff) || 0,
+              leads: Number(dbKpis.total_leads) || 0,
+              openLeads: Number(dbKpis.open_leads) || 0,
+              attendanceEntries7d: Number(attSummary?.total ?? dbKpis.total_attendance_d7) || 0,
+              attendancePresent7d: Number(attSummary?.present ?? dbKpis.present_attendance_d7) || 0,
+              revenueMtd: Number(dbKpis.collected_fees) || 0,
+              expensesMtd: Number(dbKpis.mtd_expenses) || 0,
+              pendingInvoices: Number(dbKpis.pending_payments) || 0,
+              classes: Number(dbKpis.total_classes) || 0,
+              sections: Number(dbKpis.total_sections) || 0,
+            });
+
+            // Build day buckets for chart (MTD)
+            const byDay = new Map<string, { revenue: number; expenses: number }>();
+            const fmt = (d: Date) => d.toISOString().slice(5, 10);
+            for (let i = 0; i < 31; i++) {
+              const d = new Date(monthStart);
+              d.setDate(monthStart.getDate() + i);
+              if (d.getMonth() !== monthStart.getMonth()) break;
+              byDay.set(fmt(d), { revenue: 0, expenses: 0 });
+            }
+            (finTrend?.payments ?? []).forEach((p: any) => {
+              const dateVal = p.paid_at || p.created_at;
+              if (!dateVal) return;
+              const k = fmt(new Date(dateVal));
+              const cur = byDay.get(k) ?? { revenue: 0, expenses: 0 };
+              cur.revenue += Number(p.amount ?? 0);
+              byDay.set(k, cur);
+            });
+            (finTrend?.expenses ?? []).forEach((e: any) => {
+              const dateVal = e.expense_date || e.created_at;
+              if (!dateVal) return;
+              const k = String(dateVal).slice(5, 10);
+              const cur = byDay.get(k) ?? { revenue: 0, expenses: 0 };
+              cur.expenses += Number(e.amount ?? 0);
+              byDay.set(k, cur);
+            });
+            setTrend(Array.from(byDay.entries()).map(([day, v]) => ({ day, revenue: v.revenue, expenses: v.expenses, cashflow: v.revenue - v.expenses })));
+            fetchedViaFastApi = true;
           }
-          (finTrend.payments ?? []).forEach((p: any) => {
-            const dateVal = p.paid_at || p.created_at;
-            if (!dateVal) return;
-            const k = fmt(new Date(dateVal));
-            const cur = byDay.get(k) ?? { revenue: 0, expenses: 0 };
-            cur.revenue += Number(p.amount ?? 0);
-            byDay.set(k, cur);
-          });
-          (finTrend.expenses ?? []).forEach((e: any) => {
-            const dateVal = e.expense_date || e.created_at;
-            if (!dateVal) return;
-            const k = String(dateVal).slice(5, 10);
-            const cur = byDay.get(k) ?? { revenue: 0, expenses: 0 };
-            cur.expenses += Number(e.amount ?? 0);
-            byDay.set(k, cur);
-          });
-          setTrend(Array.from(byDay.entries()).map(([day, v]) => ({ day, revenue: v.revenue, expenses: v.expenses })));
-          fetchedViaFastApi = true;
         } catch (fastApiErr) {
-          console.warn("FastAPI backend unreachable, using Supabase fallback for PrincipalHome:", fastApiErr);
+          console.warn("FastAPI backend reports call failed, falling back to direct table queries:", fastApiErr);
         }
       }
 

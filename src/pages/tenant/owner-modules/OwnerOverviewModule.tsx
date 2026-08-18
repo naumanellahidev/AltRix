@@ -147,17 +147,24 @@ export function OwnerOverviewModule({ schoolId }: Props) {
             },
           });
           const dbData = dashResp.data;
-          if (dbData && typeof dbData.total_students === "number") {
-            const totalStudents = dbData.total_students ?? 0;
+          const hasRealData = dbData && (
+            (Number(dbData.total_students) || 0) > 0 ||
+            (Number(dbData.total_staff) || 0) > 0 ||
+            (Number(dbData.collected_fees) || 0) > 0 ||
+            (Number(dbData.total_classes) || 0) > 0
+          );
+
+          if (hasRealData) {
+            const totalStudents = Number(dbData.total_students) || 0;
             const activeStudents = totalStudents;
-            const totalStaff = dbData.total_staff ?? 0;
-            const totalTeachers = dbData.total_teachers ?? 0;
-            const openLeads = dbData.open_leads ?? 0;
-            const revenueMtd = dbData.collected_fees ?? 0;
+            const totalStaff = Number(dbData.total_staff) || 0;
+            const totalTeachers = Number(dbData.total_teachers) || 0;
+            const openLeads = Number(dbData.open_leads) || 0;
+            const revenueMtd = Number(dbData.collected_fees) || 0;
             const revenueYtd = typeof dbData.revenue_ytd === "number" ? dbData.revenue_ytd : revenueMtd;
-            const expensesMtd = dbData.mtd_expenses ?? 0;
+            const expensesMtd = Number(dbData.mtd_expenses) || 0;
             const expensesYtd = typeof dbData.expenses_ytd === "number" ? dbData.expenses_ytd : expensesMtd;
-            const pendingInvoices = dbData.pending_payments ?? 0;
+            const pendingInvoices = Number(dbData.pending_payments) || 0;
             const profit = revenueMtd - expensesMtd;
             const profitMargin = revenueMtd > 0 ? Math.round((profit / revenueMtd) * 100) : 0;
             const attendanceRate = typeof dbData.attendance_rate === "number" ? dbData.attendance_rate : 0;
