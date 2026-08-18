@@ -193,6 +193,20 @@ async def list_issues(
                 iss.fine_amount = round(days_overdue * rate, 2)
         return issues
     except Exception as e:
+        err_msg = str(e)
+        if "fine_per_day" in err_msg or "UndefinedColumnError" in err_msg or "campus_id" in err_msg:
+            try:
+                from sqlalchemy import text
+                await db.execute(text("""
+                    ALTER TABLE public.book_issues 
+                        ADD COLUMN IF NOT EXISTS campus_id UUID,
+                        ADD COLUMN IF NOT EXISTS fine_per_day NUMERIC(10, 2) DEFAULT 20.00;
+                """))
+                await db.commit()
+                res = await db.execute(stmt)
+                return list(res.scalars().all())
+            except Exception:
+                pass
         logger.warning(f"Error listing book issues: {e}")
         return []
 
@@ -231,26 +245,45 @@ async def issue_book(payload: IssueCreateSchema, current_user: CurrentUser, db: 
         except Exception:
             effective_cid = None
     
+    issue = BookIssue(
+        school_id=school_uuid,
+        campus_id=effective_cid,
+        book_id=payload.book_id,
+        borrower_id=borrower_uuid,
+        borrower_type=payload.borrower_type or "student",
+        issue_date=today,
+        due_date=due_date,
+        fine_per_day=payload.fine_per_day if payload.fine_per_day is not None else 20.0,
+        fine_amount=0.00,
+        fine_paid=False,
+        status="issued"
+    )
+    
     try:
-        issue = BookIssue(
-            school_id=school_uuid,
-            campus_id=effective_cid,
-            book_id=payload.book_id,
-            borrower_id=borrower_uuid,
-            borrower_type=payload.borrower_type or "student",
-            issue_date=today,
-            due_date=due_date,
-            fine_per_day=payload.fine_per_day if payload.fine_per_day is not None else 20.0,
-            fine_amount=0.00,
-            fine_paid=False,
-            status="issued"
-        )
         db.add(issue)
         await db.commit()
         await db.refresh(issue)
         return issue
     except Exception as e:
         await db.rollback()
+        err_msg = str(e)
+        if "fine_per_day" in err_msg or "UndefinedColumnError" in err_msg or "campus_id" in err_msg:
+            try:
+                from sqlalchemy import text
+                await db.execute(text("""
+                    ALTER TABLE public.book_issues 
+                        ADD COLUMN IF NOT EXISTS campus_id UUID,
+                        ADD COLUMN IF NOT EXISTS fine_per_day NUMERIC(10, 2) DEFAULT 20.00;
+                """))
+                await db.commit()
+                # Retry inserting issue
+                db.add(issue)
+                await db.commit()
+                await db.refresh(issue)
+                return issue
+            except Exception as retry_err:
+                await db.rollback()
+                logger.error(f"Retry after column auto-align failed: {retry_err}", exc_info=True)
         logger.error(f"Failed to issue book: {e}", exc_info=True)
         raise HTTPException(status_code=400, detail=f"Failed to issue book: {str(e)}")
 
@@ -291,6 +324,17 @@ async def return_book(issue_id: UUID, current_user: CurrentUser, db: DbSession):
         return issue
     except Exception as e:
         await db.rollback()
+        err_msg = str(e)
+        if "fine_per_day" in err_msg or "UndefinedColumnError" in err_msg:
+            try:
+                from sqlalchemy import text
+                await db.execute(text("ALTER TABLE public.book_issues ADD COLUMN IF NOT EXISTS fine_per_day NUMERIC(10, 2) DEFAULT 20.00;"))
+                await db.commit()
+                await db.commit()
+                await db.refresh(issue)
+                return issue
+            except Exception:
+                await db.rollback()
         logger.error(f"Failed to return book: {e}", exc_info=True)
         raise HTTPException(status_code=400, detail=f"Failed to return book: {str(e)}")
 

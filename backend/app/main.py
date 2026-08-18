@@ -159,6 +159,38 @@ async def lifespan(app: FastAPI):
                     ADD COLUMN IF NOT EXISTS generated_by UUID;
             """))
             logger.info("Report cards schema columns aligned successfully")
+
+            # Auto-align book_issues & library_books table columns
+            await conn.execute(text("""
+                ALTER TABLE public.book_issues
+                    ADD COLUMN IF NOT EXISTS campus_id UUID,
+                    ADD COLUMN IF NOT EXISTS fine_per_day NUMERIC(10, 2) DEFAULT 20.00;
+                
+                ALTER TABLE public.library_books
+                    ADD COLUMN IF NOT EXISTS campus_id UUID,
+                    ADD COLUMN IF NOT EXISTS barcode VARCHAR(100),
+                    ADD COLUMN IF NOT EXISTS shelf_location VARCHAR(100),
+                    ADD COLUMN IF NOT EXISTS publisher VARCHAR(255),
+                    ADD COLUMN IF NOT EXISTS publication_year INTEGER;
+
+                CREATE TABLE IF NOT EXISTS public.book_reservations (
+                    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    school_id UUID NOT NULL,
+                    campus_id UUID,
+                    book_id UUID NOT NULL,
+                    student_id UUID NOT NULL,
+                    reserved_at TIMESTAMPTZ DEFAULT now(),
+                    status VARCHAR(50) DEFAULT 'active'
+                );
+
+                ALTER TABLE public.school_events
+                    ADD COLUMN IF NOT EXISTS campus_id UUID,
+                    ADD COLUMN IF NOT EXISTS audience VARCHAR(50) DEFAULT 'all',
+                    ADD COLUMN IF NOT EXISTS rsvp_enabled BOOLEAN DEFAULT false,
+                    ADD COLUMN IF NOT EXISTS rsvp_count INTEGER DEFAULT 0,
+                    ADD COLUMN IF NOT EXISTS max_attendees INTEGER;
+            """))
+            logger.info("Library & School Events schema aligned successfully")
             
             # Create system_settings table if it doesn't exist
             await conn.execute(text("""
