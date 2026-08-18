@@ -1364,3 +1364,6 @@ export function InquiriesModule() {
     </div>
   );
 }
+
+export default InquiriesModule;
+

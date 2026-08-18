@@ -1566,3 +1566,6 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
     </div>
   );
 }
+
+export default ReportCardModule;
+

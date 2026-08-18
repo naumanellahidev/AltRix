@@ -1992,3 +1992,6 @@ export function StudentCardsModule() {
     </div>
   );
 }
+
+export default StudentCardsModule;
+

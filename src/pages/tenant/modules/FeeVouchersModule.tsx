@@ -1969,7 +1969,7 @@ function GenerateVoucherDialog({
           totalAmount += Number((inv as any).total_amount);
           successCount += 1;
           setDoneCount((c) => c + 1);
-          setResults((r) => [...r, { studentId: st.id, name: studentName, status: "success", invoiceId: invId as string }]);
+          setResults((r) => [...r, { studentId: st.id, name: studentName, status: "success", invoiceId: inv?.id || (inv as any)?.invoice_number || "" }]);
         } catch (err: any) {
           console.error("voucher failed for", st.id, err);
           setFailCount((c) => c + 1);
@@ -1980,7 +1980,7 @@ function GenerateVoucherDialog({
       await (api as any)
         .from("fee_voucher_batches")
         .update({ total_students: successCount, total_amount: totalAmount })
-        .eq("id", batch.id);
+        .eq("id", batchId);
 
       setProgress("Building PDF file…");
       if (pdfs.length === 1) {

@@ -612,3 +612,6 @@ export default function EventsModule() {
     </div>
   );
 }
+
+export default EventsModule;
+

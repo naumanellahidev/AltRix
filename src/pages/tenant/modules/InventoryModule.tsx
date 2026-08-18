@@ -344,3 +344,6 @@ export function InventoryModule() {
     </div>
   );
 }
+
+export default InventoryModule;
+

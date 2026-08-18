@@ -78,6 +78,7 @@ export default function ExamsModule({ schoolId, canManage: canManageProp = false
   const [datesheetExam, setDatesheetExam] = useState<Exam | null>(null);
   const [publishExam, setPublishExam] = useState<Exam | null>(null);
   const [gradingExam, setGradingExam] = useState<Exam | null>(null);
+  const [gradingPaper, setGradingPaper] = useState<ExamSubject | null>(null);
   const [admitCardExam, setAdmitCardExam] = useState<Exam | null>(null);
 
   const checkRole = async () => {

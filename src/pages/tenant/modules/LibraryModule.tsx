@@ -1148,3 +1148,6 @@ export function LibraryModule() {
     </div>
   );
 }
+
+export default LibraryModule;
+

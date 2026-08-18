@@ -41,8 +41,6 @@ interface StudentOption {
   roll_number?: string;
   admission_number?: string;
   class_name?: string;
-}
-
 import { useActiveCampus } from "@/hooks/useActiveCampus";
 import { useSession } from "@/hooks/useSession";
 
@@ -495,3 +493,6 @@ export function HostelModule() {
     </div>
   );
 }
+
+export default HostelModule;
+

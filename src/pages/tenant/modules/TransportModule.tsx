@@ -451,3 +451,6 @@ export function TransportModule() {
     </div>
   );
 }
+
+export default TransportModule;
+
