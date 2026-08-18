@@ -1455,9 +1455,9 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
                                 </td>
 
                                 {/* Percentage Badge */}
-                                <td className="py-2.5 px-3 text-center align-middle">
+                                <td className="py-3 px-3 text-center align-middle">
                                   {pct != null ? (
-                                    <span className="inline-block text-center px-2.5 py-1 rounded-md text-xs font-black bg-blue-50 text-blue-700 border border-blue-200 min-w-[46px] leading-tight box-border">
+                                    <span className="inline-flex items-center justify-center min-w-[54px] h-7.5 px-3 rounded-full text-xs font-black bg-blue-50 text-blue-700 border border-blue-200 leading-none shadow-2xs box-border">
                                       {pct}%
                                     </span>
                                   ) : (
@@ -1466,9 +1466,9 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
                                 </td>
 
                                 {/* Grade Badge */}
-                                <td className="py-2.5 px-3 text-center align-middle">
+                                <td className="py-3 px-3 text-center align-middle">
                                   {grade ? (
-                                    <span className={`inline-block text-center px-2.5 py-1 rounded-md text-xs font-black border min-w-[36px] leading-tight box-border ${getGradeBadge(grade)}`}>
+                                    <span className={`inline-flex items-center justify-center min-w-[42px] h-7.5 px-2.5 rounded-full text-xs font-black border leading-none shadow-2xs box-border ${getGradeBadge(grade)}`}>
                                       {grade}
                                     </span>
                                   ) : (
@@ -1477,7 +1477,7 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
                                 </td>
 
                                 {/* Remarks Input */}
-                                <td className="py-2 px-4 print:hidden">
+                                <td className="py-2.5 px-4 print:hidden">
                                   {canManage ? (
                                     <Input
                                       className="h-8.5 text-xs border-slate-200 focus:bg-white rounded-lg"
@@ -1504,20 +1504,20 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
 
                           {/* ─── SUMMARY TOTALS ROW ─── */}
                           <tr className="bg-slate-100/90 font-extrabold border-t-2 border-slate-300 text-slate-900">
-                            <td className="py-3 px-4 uppercase text-xs tracking-wider font-black">CUMULATIVE TOTAL</td>
-                            <td className="py-3 px-3 text-center text-sm font-black text-slate-900">{totals.total}</td>
-                            <td className="py-3 px-3 text-center text-sm font-bold text-slate-600">{totals.max}</td>
-                            <td className="py-3 px-3 text-center text-sm font-black text-primary align-middle">
-                              <span className="inline-block text-center px-2.5 py-1 rounded-md text-xs font-black bg-blue-100 text-blue-800 border border-blue-300 min-w-[46px] leading-tight box-border">
+                            <td className="py-3.5 px-4 uppercase text-xs tracking-wider font-black">CUMULATIVE TOTAL</td>
+                            <td className="py-3.5 px-3 text-center text-sm font-black text-slate-900">{totals.total}</td>
+                            <td className="py-3.5 px-3 text-center text-sm font-bold text-slate-600">{totals.max}</td>
+                            <td className="py-3.5 px-3 text-center text-sm font-black text-primary align-middle">
+                              <span className="inline-flex items-center justify-center min-w-[54px] h-7.5 px-3 rounded-full text-xs font-black bg-blue-100 text-blue-800 border border-blue-300 leading-none shadow-2xs box-border">
                                 {totals.pct}%
                               </span>
                             </td>
-                            <td className="py-3 px-3 text-center align-middle">
-                              <span className={`inline-block text-center px-2.5 py-1 rounded-md text-xs font-black border min-w-[36px] leading-tight box-border ${getGradeBadge(totals.grade)}`}>
+                            <td className="py-3.5 px-3 text-center align-middle">
+                              <span className={`inline-flex items-center justify-center min-w-[42px] h-7.5 px-2.5 rounded-full text-xs font-black border leading-none shadow-2xs box-border ${getGradeBadge(totals.grade)}`}>
                                 {totals.grade}
                               </span>
                             </td>
-                            <td className="py-3 px-4 print:hidden"></td>
+                            <td className="py-3.5 px-4 print:hidden"></td>
                           </tr>
                         </tbody>
                       </table>
@@ -1525,35 +1525,35 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
                   </div>
 
                   {/* ─── LUXURY KPI METRIC TILES (NON-COLLAPSING PADDED CARDS) ─── */}
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5 sm:gap-4">
-                    <div className="rounded-2xl bg-gradient-to-br from-blue-50 to-indigo-50/50 p-4 sm:p-5 border border-blue-200/90 shadow-2xs flex flex-col justify-between min-h-[105px] box-border">
-                      <p className="text-[10px] sm:text-[11px] font-extrabold uppercase tracking-wider text-blue-700 leading-snug">Percentage Score</p>
-                      <p className="font-display text-2xl sm:text-3xl font-black text-blue-800 my-1 sm:my-1.5 leading-none">{totals.pct}%</p>
-                      <div className="w-full bg-blue-200/80 h-2 rounded-full overflow-hidden mt-auto">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-5">
+                    <div className="rounded-2xl bg-gradient-to-br from-blue-50 to-indigo-50/60 p-5 sm:p-6 border border-blue-200/90 shadow-2xs flex flex-col justify-between min-h-[145px] sm:min-h-[150px] box-border">
+                      <p className="text-[11px] sm:text-xs font-extrabold uppercase tracking-wider text-blue-700 leading-snug">Percentage Score</p>
+                      <p className="font-display text-3xl sm:text-4xl font-black text-blue-800 my-2 leading-none">{totals.pct}%</p>
+                      <div className="w-full bg-blue-200/80 h-2.5 rounded-full overflow-hidden mt-auto">
                         <div className="bg-blue-600 h-full rounded-full transition-all" style={{ width: `${Math.min(100, totals.pct)}%` }} />
                       </div>
                     </div>
 
-                    <div className="rounded-2xl bg-gradient-to-br from-amber-50 to-orange-50/50 p-4 sm:p-5 border border-amber-200/90 shadow-2xs flex flex-col justify-between min-h-[105px] box-border">
-                      <p className="text-[10px] sm:text-[11px] font-extrabold uppercase tracking-wider text-amber-700 leading-snug">Aggregate Marks</p>
-                      <p className="font-display text-2xl sm:text-3xl font-black text-amber-800 my-1 sm:my-1.5 leading-none">
-                        {totals.total} <span className="text-xs sm:text-sm font-bold text-amber-600">/ {totals.max}</span>
+                    <div className="rounded-2xl bg-gradient-to-br from-amber-50 to-orange-50/60 p-5 sm:p-6 border border-amber-200/90 shadow-2xs flex flex-col justify-between min-h-[145px] sm:min-h-[150px] box-border">
+                      <p className="text-[11px] sm:text-xs font-extrabold uppercase tracking-wider text-amber-700 leading-snug">Aggregate Marks</p>
+                      <p className="font-display text-3xl sm:text-4xl font-black text-amber-800 my-2 leading-none">
+                        {totals.total} <span className="text-sm sm:text-base font-bold text-amber-600">/ {totals.max}</span>
                       </p>
-                      <p className="text-[10px] sm:text-[11px] text-amber-700/90 font-semibold leading-tight mt-auto truncate">{subjects.length} Evaluated Subjects</p>
+                      <p className="text-[11px] sm:text-xs text-amber-800/90 font-bold leading-normal mt-auto pt-1">{subjects.length} Evaluated Subjects</p>
                     </div>
 
-                    <div className="rounded-2xl bg-gradient-to-br from-emerald-50 to-teal-50/50 p-4 sm:p-5 border border-emerald-200/90 shadow-2xs flex flex-col justify-between min-h-[105px] box-border">
-                      <p className="text-[10px] sm:text-[11px] font-extrabold uppercase tracking-wider text-emerald-700 leading-snug">Overall Grade</p>
-                      <p className="font-display text-2xl sm:text-3xl font-black text-emerald-800 my-1 sm:my-1.5 leading-none">{totals.grade}</p>
-                      <p className="text-[10px] sm:text-[11px] text-emerald-700/90 font-semibold leading-tight mt-auto truncate">Standard Grading Scale</p>
+                    <div className="rounded-2xl bg-gradient-to-br from-emerald-50 to-teal-50/60 p-5 sm:p-6 border border-emerald-200/90 shadow-2xs flex flex-col justify-between min-h-[145px] sm:min-h-[150px] box-border">
+                      <p className="text-[11px] sm:text-xs font-extrabold uppercase tracking-wider text-emerald-700 leading-snug">Overall Grade</p>
+                      <p className="font-display text-3xl sm:text-4xl font-black text-emerald-800 my-2 leading-none">{totals.grade}</p>
+                      <p className="text-[11px] sm:text-xs text-emerald-800/90 font-bold leading-normal mt-auto pt-1">Standard Grading Scale</p>
                     </div>
 
-                    <div className="rounded-2xl bg-gradient-to-br from-purple-50 to-fuchsia-50/50 p-4 sm:p-5 border border-purple-200/90 shadow-2xs flex flex-col justify-between min-h-[105px] box-border">
-                      <p className="text-[10px] sm:text-[11px] font-extrabold uppercase tracking-wider text-purple-700 leading-snug">Attendance Rate</p>
-                      <p className="font-display text-2xl sm:text-3xl font-black text-purple-800 my-1 sm:my-1.5 leading-none">
+                    <div className="rounded-2xl bg-gradient-to-br from-purple-50 to-fuchsia-50/60 p-5 sm:p-6 border border-purple-200/90 shadow-2xs flex flex-col justify-between min-h-[145px] sm:min-h-[150px] box-border">
+                      <p className="text-[11px] sm:text-xs font-extrabold uppercase tracking-wider text-purple-700 leading-snug">Attendance Rate</p>
+                      <p className="font-display text-3xl sm:text-4xl font-black text-purple-800 my-2 leading-none">
                         {card.attendance_percentage != null ? `${card.attendance_percentage}%` : "—"}
                       </p>
-                      <p className="text-[10px] sm:text-[11px] text-purple-700/90 font-semibold leading-tight mt-auto truncate">Synced from daily roll call</p>
+                      <p className="text-[11px] sm:text-xs text-purple-800/90 font-bold leading-normal mt-auto pt-1">Synced from daily roll call</p>
                     </div>
                   </div>
 

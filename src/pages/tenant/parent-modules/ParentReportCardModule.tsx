@@ -308,7 +308,7 @@ export default function ParentReportCardModule({ child, schoolId }: ParentReport
                               <span className="text-muted-foreground text-xs">/{entry.max_marks || 100}</span>
                             </TableCell>
                             <TableCell className="text-center align-middle">
-                              <span className="inline-block text-center px-2.5 py-0.5 rounded-md text-xs font-black border border-primary/30 text-primary bg-primary/5 min-w-[36px] leading-tight box-border">
+                              <span className="inline-flex items-center justify-center min-w-[42px] h-7 px-2.5 rounded-full text-xs font-black border border-primary/30 text-primary bg-primary/5 leading-none box-border shadow-2xs">
                                 {entry.grade || "N/A"}
                               </span>
                             </TableCell>
@@ -332,7 +332,7 @@ export default function ParentReportCardModule({ child, schoolId }: ParentReport
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <div className="bg-gradient-to-br from-primary/5 to-accent/5 p-5 rounded-2xl border border-primary/10 flex flex-col justify-between box-border min-h-[110px]">
+                  <div className="bg-gradient-to-br from-primary/5 to-accent/5 p-5.5 rounded-2xl border border-primary/10 flex flex-col justify-between box-border min-h-[135px]">
                     <span className="text-xs uppercase font-semibold tracking-wider text-muted-foreground">
                       Final Score Card
                     </span>
@@ -351,7 +351,7 @@ export default function ParentReportCardModule({ child, schoolId }: ParentReport
                       </div>
                       <div className="flex justify-between items-center">
                         <span className="text-sm text-muted-foreground">Overall Evaluation</span>
-                        <span className="inline-block text-center font-black bg-primary text-primary-foreground px-3 py-1 rounded-md text-xs min-w-[40px] leading-tight box-border">
+                        <span className="inline-flex items-center justify-center font-black bg-primary text-primary-foreground px-3 h-7 rounded-full text-xs min-w-[42px] leading-none box-border shadow-2xs">
                           {detail.report_card.overall_grade || "N/A"}
                         </span>
                       </div>
