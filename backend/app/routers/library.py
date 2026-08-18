@@ -190,12 +190,23 @@ async def issue_book(payload: IssueCreateSchema, current_user: CurrentUser, db: 
         raise HTTPException(status_code=400, detail="No copies currently available for issue")
 
     # Decrement available copies
-    book.available_copies -= 1
+    book.available_copies = max(0, book.available_copies - 1)
     
     today = date.today()
     due_date = today + timedelta(days=payload.due_days or 14)
     borrower_uuid = _parse_or_generate_uuid(payload.borrower_id)
-    effective_cid = payload.campus_id if getattr(payload, "campus_id", None) else (current_user.campus_id or book.campus_id)
+    
+    raw_cid = payload.campus_id if getattr(payload, "campus_id", None) else (current_user.campus_id or book.campus_id)
+    effective_cid = None
+    if raw_cid:
+        try:
+            cid_uuid = UUID(str(raw_cid))
+            from app.models.campus import Campus
+            res_camp = await db.execute(select(Campus.id).where(Campus.id == cid_uuid, Campus.school_id == current_user.school_id))
+            if res_camp.scalar_one_or_none():
+                effective_cid = cid_uuid
+        except Exception:
+            effective_cid = None
     
     issue = BookIssue(
         school_id=current_user.school_id,

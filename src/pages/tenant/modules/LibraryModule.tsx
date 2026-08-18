@@ -332,12 +332,16 @@ export function LibraryModule() {
       toast.error("Select a book and borrower");
       return;
     }
-    const issuePayload = { 
-      ...newIssue,
+    const issuePayload: any = { 
+      book_id: newIssue.book_id,
+      borrower_id: String(newIssue.borrower_id),
+      borrower_type: newIssue.borrower_type || "student",
       due_days: Number(newIssue.due_days) || 14,
       fine_per_day: Number(newIssue.fine_per_day) || 20,
-      ...(activeCampusId ? { campus_id: activeCampusId } : {})
     };
+    if (activeCampusId && activeCampusId !== "all" && activeCampusId !== "null" && activeCampusId !== "undefined") {
+      issuePayload.campus_id = activeCampusId;
+    }
     setShowIssueModal(false);
 
     // Optimistic UI Update: decrement available copies instantly

@@ -712,3 +712,6 @@ app.include_router(custom_domains_router, prefix=_PREFIX)
 app.include_router(financial_forecasting_router, prefix=_PREFIX)
 app.include_router(vps_storage_router, prefix=_PREFIX)
 app.include_router(vps_db_router, prefix=_PREFIX)
+from app.routers.search import router as search_router
+app.include_router(search_router, prefix=_PREFIX)
+

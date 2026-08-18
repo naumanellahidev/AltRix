@@ -48,13 +48,14 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { apiClient } from "@/lib/api-client";
 
 type Props = {
   basePath: string; // e.g. "/beacon/principal" or "/beacon/teacher"
 };
 
 type SearchResult = {
-  entity: "students" | "staff" | "leads" | "classes" | "transport" | "library" | "inventory";
+  entity: "students" | "parents" | "staff" | "leads" | "classes" | "transport" | "library" | "inventory";
   id: string;
   title: string;
   subtitle: string;
@@ -129,9 +130,9 @@ export function GlobalCommandPalette({ basePath }: Props) {
     }
   }, [open]);
 
-  // Search across all entities in parallel
+  // Search across all entities
   const performSearch = useCallback(async () => {
-    if (!schoolId || !debouncedQuery) {
+    if (!debouncedQuery) {
       setResults([]);
       return;
     }
@@ -139,9 +140,51 @@ export function GlobalCommandPalette({ basePath }: Props) {
     setSearching(true);
     const q = debouncedQuery.toLowerCase();
 
+    // 1. Primary: High-speed FastAPI global search
+    try {
+      const resp = await apiClient.get("/search/global", { params: { q, limit: 35 } });
+      if (resp.data?.results && Array.isArray(resp.data.results) && resp.data.results.length > 0) {
+        const mappedResults: SearchResult[] = resp.data.results.map((r: any) => {
+          let url = r.url;
+          if (!url) {
+            if (r.entity === "students") url = `${basePath}/academic?studentId=${r.id}`;
+            else if (r.entity === "parents") url = `${basePath}/parent-notes`;
+            else if (r.entity === "staff") url = `${basePath}/users?userId=${r.id}`;
+            else if (r.entity === "classes") url = `${basePath}/academic?classId=${r.id}`;
+            else if (r.entity === "leads") url = `${basePath}/crm?leadId=${r.id}`;
+            else if (r.entity === "transport") url = `${basePath}/transport`;
+            else if (r.entity === "library") url = `${basePath}/library`;
+            else if (r.entity === "inventory") url = `${basePath}/inventory`;
+            else url = basePath;
+          }
+          return {
+            entity: r.entity,
+            id: r.id,
+            title: r.title,
+            subtitle: r.subtitle,
+            status: r.status,
+            url,
+          };
+        });
+        setResults(mappedResults);
+        setSearching(false);
+        return;
+      }
+    } catch (err) {
+      console.warn("FastAPI global search fallback:", err);
+    }
+
+    // 2. Fallback: Direct safe entity queries (resilient with try/catch)
+    if (!schoolId) {
+      setResults([]);
+      setSearching(false);
+      return;
+    }
+
     try {
       const [
         studentsRes,
+        parentsRes,
         staffRes,
         leadsRes,
         classesRes,
@@ -152,32 +195,44 @@ export function GlobalCommandPalette({ basePath }: Props) {
         // 1. Students
         api
           .from("students")
-          .select("id, first_name, last_name, admission_number, roll_number, status")
+          .select("id, first_name, last_name, admission_number, roll_number, status, phone")
           .eq("school_id", schoolId)
-          .or(`first_name.ilike.%${q}%,last_name.ilike.%${q}%,admission_number.ilike.%${q}%,roll_number.ilike.%${q}%`)
-          .limit(6),
-        // 2. Staff / Users
+          .or(`first_name.ilike.%${q}%,last_name.ilike.%${q}%,admission_number.ilike.%${q}%,roll_number.ilike.%${q}%,phone.ilike.%${q}%`)
+          .limit(8)
+          .catch(() => ({ data: [] })),
+        // 2. Parents (from students parent details)
         api
-          .from("school_memberships")
-          .select("id, user_id, full_name, role_name, email")
+          .from("students")
+          .select("id, first_name, last_name, parent_name, parent_phone, parent_email")
           .eq("school_id", schoolId)
-          .or(`full_name.ilike.%${q}%,role_name.ilike.%${q}%,email.ilike.%${q}%`)
-          .limit(6),
-        // 3. CRM Leads
+          .not("parent_name", "is", null)
+          .or(`parent_name.ilike.%${q}%,parent_phone.ilike.%${q}%,parent_email.ilike.%${q}%`)
+          .limit(8)
+          .catch(() => ({ data: [] })),
+        // 3. Staff & Faculty (from profiles)
+        api
+          .from("profiles")
+          .select("id, display_name, email, phone")
+          .or(`display_name.ilike.%${q}%,email.ilike.%${q}%,phone.ilike.%${q}%`)
+          .limit(8)
+          .catch(() => ({ data: [] })),
+        // 4. CRM Leads
         api
           .from("crm_leads")
           .select("id, student_name, parent_name, phone, status")
           .eq("school_id", schoolId)
           .or(`student_name.ilike.%${q}%,parent_name.ilike.%${q}%,phone.ilike.%${q}%`)
-          .limit(6),
-        // 4. Academic Classes
+          .limit(6)
+          .catch(() => ({ data: [] })),
+        // 5. Academic Classes
         api
           .from("academic_classes")
           .select("id, name, grade_level")
           .eq("school_id", schoolId)
           .ilike("name", `%${q}%`)
-          .limit(4),
-        // 5. Fleet / Vehicles
+          .limit(4)
+          .catch(() => ({ data: [] })),
+        // 6. Fleet / Vehicles
         api
           .from("transport_vehicles")
           .select("id, bus_number, registration_no, driver_name")
@@ -185,15 +240,15 @@ export function GlobalCommandPalette({ basePath }: Props) {
           .or(`bus_number.ilike.%${q}%,registration_no.ilike.%${q}%,driver_name.ilike.%${q}%`)
           .limit(4)
           .catch(() => ({ data: [] })),
-        // 6. Library Books
+        // 7. Library Books
         api
           .from("library_books")
-          .select("id, title, author, isbn")
+          .select("id, title, author, isbn, barcode")
           .eq("school_id", schoolId)
-          .or(`title.ilike.%${q}%,author.ilike.%${q}%,isbn.ilike.%${q}%`)
+          .or(`title.ilike.%${q}%,author.ilike.%${q}%,isbn.ilike.%${q}%,barcode.ilike.%${q}%`)
           .limit(4)
           .catch(() => ({ data: [] })),
-        // 7. Inventory Items
+        // 8. Inventory Items
         api
           .from("inventory_items")
           .select("id, item_name, category, sku")
@@ -208,16 +263,25 @@ export function GlobalCommandPalette({ basePath }: Props) {
         id: s.id,
         title: `${s.first_name || ""} ${s.last_name || ""}`.trim() || "Student",
         subtitle: `Roll: ${s.roll_number || s.admission_number || "N/A"} • Adm: ${s.admission_number || "N/A"}`,
-        status: s.status || "active",
+        status: s.status || "enrolled",
         url: `${basePath}/academic?studentId=${s.id}`,
+      }));
+
+      const parentsList: SearchResult[] = (parentsRes.data || []).map((p: any) => ({
+        entity: "parents",
+        id: p.id,
+        title: p.parent_name || "Parent / Guardian",
+        subtitle: `Child: ${p.first_name || ""} ${p.last_name || ""} • Phone: ${p.parent_phone || p.parent_email || "N/A"}`.trim(),
+        status: "active",
+        url: `${basePath}/parent-notes`,
       }));
 
       const staffList: SearchResult[] = (staffRes.data || []).map((st: any) => ({
         entity: "staff",
-        id: st.id || st.user_id,
-        title: st.full_name || st.email || "Staff Member",
-        subtitle: `${st.role_name || "Employee"} • ${st.email || ""}`,
-        url: `${basePath}/users?userId=${st.user_id || st.id}`,
+        id: st.id,
+        title: st.display_name || st.email || "Staff Member",
+        subtitle: `Staff & Faculty • ${st.email || st.phone || "Active"}`,
+        url: `${basePath}/users?userId=${st.id}`,
       }));
 
       const leadsList: SearchResult[] = (leadsRes.data || []).map((l: any) => ({
@@ -263,6 +327,7 @@ export function GlobalCommandPalette({ basePath }: Props) {
 
       setResults([
         ...studentList,
+        ...parentsList,
         ...staffList,
         ...leadsList,
         ...classesList,
@@ -271,7 +336,7 @@ export function GlobalCommandPalette({ basePath }: Props) {
         ...inventoryList,
       ]);
     } catch (error) {
-      console.error("Global search error:", error);
+      console.error("Global search fallback error:", error);
       setResults([]);
     } finally {
       setSearching(false);
@@ -389,6 +454,8 @@ export function GlobalCommandPalette({ basePath }: Props) {
     switch (entity) {
       case "students":
         return GraduationCap;
+      case "parents":
+        return Users;
       case "staff":
         return UserCircle;
       case "leads":
@@ -417,6 +484,7 @@ export function GlobalCommandPalette({ basePath }: Props) {
   const groupedResults = useMemo(() => {
     const groups: Record<string, SearchResult[]> = {
       students: [],
+      parents: [],
       staff: [],
       leads: [],
       classes: [],
@@ -481,7 +549,7 @@ export function GlobalCommandPalette({ basePath }: Props) {
               const Icon = getEntityIcon(r.entity);
               return (
                 <CommandItem
-                  key={`${r.entity}-${r.id}`}
+                  key={`${r.entity}-${r.id}-${r.title}`}
                   value={`${r.entity}-${r.title}-${r.subtitle}`}
                   onSelect={() => navigateToResult(r)}
                   className="cursor-pointer"
@@ -504,6 +572,34 @@ export function GlobalCommandPalette({ basePath }: Props) {
           </CommandGroup>
         )}
 
+        {/* Search Results - Parents */}
+        {groupedResults.parents.length > 0 && (
+          <CommandGroup heading={`Parents & Guardians (${groupedResults.parents.length})`}>
+            {groupedResults.parents.map((r) => {
+              const Icon = getEntityIcon(r.entity);
+              return (
+                <CommandItem
+                  key={`${r.entity}-${r.id}-${r.title}`}
+                  value={`${r.entity}-${r.title}-${r.subtitle}`}
+                  onSelect={() => navigateToResult(r)}
+                  className="cursor-pointer"
+                >
+                  <Icon className="mr-2.5 h-4 w-4 text-purple-600" />
+                  <div className="flex flex-1 flex-col">
+                    <span className="font-semibold text-slate-900 dark:text-slate-100">{r.title}</span>
+                    {r.subtitle && (
+                      <span className="text-xs text-muted-foreground">{r.subtitle}</span>
+                    )}
+                  </div>
+                  <span className="text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200">
+                    Parent / Guardian
+                  </span>
+                </CommandItem>
+              );
+            })}
+          </CommandGroup>
+        )}
+
         {/* Search Results - Staff */}
         {groupedResults.staff.length > 0 && (
           <CommandGroup heading={`Staff & Faculty (${groupedResults.staff.length})`}>
@@ -511,7 +607,7 @@ export function GlobalCommandPalette({ basePath }: Props) {
               const Icon = getEntityIcon(r.entity);
               return (
                 <CommandItem
-                  key={`${r.entity}-${r.id}`}
+                  key={`${r.entity}-${r.id}-${r.title}`}
                   value={`${r.entity}-${r.title}-${r.subtitle}`}
                   onSelect={() => navigateToResult(r)}
                   className="cursor-pointer"
