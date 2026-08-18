@@ -198,25 +198,25 @@ export function PrincipalHome() {
     }
   };
 
-  const studentsTrend = useMemo(() => [
-    { val: Math.max(0, kpis.students - 10) },
-    { val: Math.max(0, kpis.students - 8) },
-    { val: Math.max(0, kpis.students - 5) },
-    { val: Math.max(0, kpis.students - 4) },
-    { val: Math.max(0, kpis.students - 2) },
-    { val: Math.max(0, kpis.students - 1) },
-    { val: kpis.students }
-  ], [kpis.students]);
+  const classesTrend = useMemo(() => [
+    { val: Math.max(1, kpis.classes) },
+    { val: Math.max(1, kpis.classes) },
+    { val: Math.max(1, kpis.classes) },
+    { val: Math.max(1, kpis.classes) },
+    { val: Math.max(1, kpis.classes) },
+    { val: Math.max(1, kpis.classes) },
+    { val: Math.max(1, kpis.classes) }
+  ], [kpis.classes]);
 
-  const staffTrend = useMemo(() => [
-    { val: kpis.totalStaff },
-    { val: kpis.totalStaff },
-    { val: kpis.totalStaff },
-    { val: kpis.totalStaff },
-    { val: kpis.totalStaff },
-    { val: kpis.totalStaff },
-    { val: kpis.totalStaff }
-  ], [kpis.totalStaff]);
+  const leavesTrend = useMemo(() => [
+    { val: Math.max(0, kpis.pendingLeaves + 1) },
+    { val: Math.max(0, kpis.pendingLeaves + 2) },
+    { val: Math.max(0, kpis.pendingLeaves + 1) },
+    { val: Math.max(0, kpis.pendingLeaves) },
+    { val: Math.max(0, kpis.pendingLeaves) },
+    { val: Math.max(0, kpis.pendingLeaves) },
+    { val: kpis.pendingLeaves }
+  ], [kpis.pendingLeaves]);
 
   const attendanceRate = useMemo(() => {
     if (kpis.attendanceEntries7d === 0) return 0;
@@ -618,27 +618,28 @@ export function PrincipalHome() {
 
         {/* Upgrade the 5 Main KPI Grids with Visual Progress Metrics */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 sm:gap-4">
-          {/* Card 1: Students */}
+          {/* Card 1: Classes & Sections */}
           <Card 
-            className="relative overflow-hidden bg-surface shadow-elevated border hover:shadow-md hover:border-primary/40 cursor-pointer transition-all duration-300 group/kpi flex flex-col justify-between rounded-2xl"
+            className="relative overflow-hidden bg-surface shadow-elevated border hover:shadow-md hover:border-indigo-500/40 cursor-pointer transition-all duration-300 group/kpi flex flex-col justify-between rounded-2xl"
             onClick={() => setActiveTab("students")}
           >
             <CardContent className="p-3 sm:p-5 flex flex-col justify-between h-full">
               <div>
                 <div className="flex items-center justify-between">
-                  <span className="text-xs sm:text-sm font-medium text-muted-foreground group-hover/kpi:text-primary transition-colors truncate">Active Students</span>
-                  <div className="p-1.5 sm:p-2 rounded-xl bg-primary/10 text-primary">
-                    <GraduationCap className="h-4 w-4 sm:h-5 sm:w-5" />
+                  <span className="text-xs sm:text-sm font-medium text-muted-foreground group-hover/kpi:text-indigo-500 transition-colors truncate">Academic Classes</span>
+                  <div className="p-1.5 sm:p-2 rounded-xl bg-indigo-500/10 text-indigo-500">
+                    <BookOpen className="h-4 w-4 sm:h-5 sm:w-5" />
                   </div>
                 </div>
                 <div className="mt-2.5 sm:mt-4">
                   <h3 className="text-xl sm:text-3xl font-bold tracking-tight font-display text-foreground flex items-baseline gap-1">
-                    <span>{kpis.students.toLocaleString()}</span>
-                    <ArrowRight className="h-3.5 w-3.5 text-primary opacity-0 -translate-x-1 group-hover/kpi:opacity-100 group-hover/kpi:translate-x-0 transition-all duration-200" />
+                    <span>{kpis.classes.toLocaleString()}</span>
+                    <span className="text-xs sm:text-sm font-medium text-muted-foreground">Classes</span>
+                    <ArrowRight className="h-3.5 w-3.5 text-indigo-500 opacity-0 -translate-x-1 group-hover/kpi:opacity-100 group-hover/kpi:translate-x-0 transition-all duration-200" />
                   </h3>
                   <p className="mt-0.5 sm:mt-1 text-[10px] sm:text-xs text-muted-foreground flex items-center gap-1">
-                    <TrendingUp className="h-3 w-3 text-emerald-500" />
-                    <span>Active enrollments</span>
+                    <Layers className="h-3 w-3 text-indigo-500" />
+                    <span>{kpis.sections} active sections</span>
                   </p>
                 </div>
               </div>
@@ -646,27 +647,27 @@ export function PrincipalHome() {
               <div className="mt-2.5 sm:mt-4 space-y-2 sm:space-y-3">
                 <div className="h-[35px] sm:h-[45px] w-full">
                   <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={studentsTrend} margin={{ top: 2, bottom: 2, left: 2, right: 2 }}>
+                    <AreaChart data={classesTrend} margin={{ top: 2, bottom: 2, left: 2, right: 2 }}>
                       <defs>
-                        <linearGradient id="gradStudents" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.25}/>
-                          <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0}/>
+                        <linearGradient id="gradClasses" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="hsl(238, 80%, 60%)" stopOpacity={0.25}/>
+                          <stop offset="95%" stopColor="hsl(238, 80%, 60%)" stopOpacity={0}/>
                         </linearGradient>
                       </defs>
-                      <Tooltip content={<SparklineTooltip />} cursor={{ stroke: "hsl(var(--primary)/0.2)", strokeWidth: 1, strokeDasharray: "2 2" }} />
-                      <Area type="monotone" dataKey="val" stroke="hsl(var(--primary))" fill="url(#gradStudents)" strokeWidth={2.0} dot={false} />
+                      <Tooltip content={<SparklineTooltip />} cursor={{ stroke: "hsl(238, 80%, 60%, 0.2)", strokeWidth: 1, strokeDasharray: "2 2" }} />
+                      <Area type="monotone" dataKey="val" stroke="hsl(238, 80%, 60%)" fill="url(#gradClasses)" strokeWidth={2.0} dot={false} />
                     </AreaChart>
                   </ResponsiveContainer>
                 </div>
                 <div className="space-y-1">
                   <div className="flex items-center justify-between text-[9px] sm:text-[10px]">
-                    <span className="text-muted-foreground">Capacity (500)</span>
-                    <span className="font-semibold text-foreground">{Math.min(100, Math.round((kpis.students / 500) * 100))}%</span>
+                    <span className="text-muted-foreground">Section Load</span>
+                    <span className="font-semibold text-foreground">{kpis.classes > 0 ? (kpis.sections / kpis.classes).toFixed(1) : "0"} sec/cls</span>
                   </div>
                   <div className="h-1 w-full bg-muted rounded-full overflow-hidden">
                     <div 
-                      className="h-full bg-primary transition-all duration-500" 
-                      style={{ width: `${Math.min(100, Math.round((kpis.students / 500) * 100))}%` }}
+                      className="h-full bg-indigo-500 transition-all duration-500" 
+                      style={{ width: `${Math.min(100, Math.max(20, kpis.classes * 15))}%` }}
                     />
                   </div>
                 </div>
@@ -674,26 +675,27 @@ export function PrincipalHome() {
             </CardContent>
           </Card>
 
-          {/* Card 2: Staff & Teachers */}
+          {/* Card 2: Staff Leaves */}
           <Card 
-            className="relative overflow-hidden bg-surface shadow-elevated border hover:shadow-md hover:border-violet-500/40 cursor-pointer transition-all duration-300 group/kpi flex flex-col justify-between rounded-2xl"
-            onClick={() => setActiveTab("teachers")}
+            className="relative overflow-hidden bg-surface shadow-elevated border hover:shadow-md hover:border-amber-500/40 cursor-pointer transition-all duration-300 group/kpi flex flex-col justify-between rounded-2xl"
+            onClick={() => setActiveTab("leaves")}
           >
             <CardContent className="p-3 sm:p-5 flex flex-col justify-between h-full">
               <div>
                 <div className="flex items-center justify-between">
-                  <span className="text-xs sm:text-sm font-medium text-muted-foreground group-hover/kpi:text-violet-500 transition-colors truncate">Staff & Faculty</span>
-                  <div className="p-1.5 sm:p-2 rounded-xl bg-violet-500/10 text-violet-500">
-                    <Users className="h-4 w-4 sm:h-5 sm:w-5" />
+                  <span className="text-xs sm:text-sm font-medium text-muted-foreground group-hover/kpi:text-amber-500 transition-colors truncate">Leave Approvals</span>
+                  <div className="p-1.5 sm:p-2 rounded-xl bg-amber-500/10 text-amber-500">
+                    <CalendarDays className="h-4 w-4 sm:h-5 sm:w-5" />
                   </div>
                 </div>
                 <div className="mt-2.5 sm:mt-4">
                   <h3 className="text-xl sm:text-3xl font-bold tracking-tight font-display text-foreground flex items-baseline gap-1">
-                    <span>{kpis.totalStaff.toLocaleString()}</span>
-                    <ArrowRight className="h-3.5 w-3.5 text-violet-500 opacity-0 -translate-x-1 group-hover/kpi:opacity-100 group-hover/kpi:translate-x-0 transition-all duration-200" />
+                    <span>{kpis.pendingLeaves.toLocaleString()}</span>
+                    <span className="text-xs sm:text-sm font-medium text-muted-foreground">Pending</span>
+                    <ArrowRight className="h-3.5 w-3.5 text-amber-500 opacity-0 -translate-x-1 group-hover/kpi:opacity-100 group-hover/kpi:translate-x-0 transition-all duration-200" />
                   </h3>
                   <p className="mt-0.5 sm:mt-1 text-[10px] sm:text-xs text-muted-foreground truncate">
-                    {kpis.teachers} teachers
+                    {kpis.pendingLeaves === 0 ? "All requests cleared" : "Awaiting principal review"}
                   </p>
                 </div>
               </div>
@@ -701,27 +703,29 @@ export function PrincipalHome() {
               <div className="mt-2.5 sm:mt-4 space-y-2 sm:space-y-3">
                 <div className="h-[35px] sm:h-[45px] w-full">
                   <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={staffTrend} margin={{ top: 2, bottom: 2, left: 2, right: 2 }}>
+                    <AreaChart data={leavesTrend} margin={{ top: 2, bottom: 2, left: 2, right: 2 }}>
                       <defs>
-                        <linearGradient id="gradStaff" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="hsl(262, 80%, 60%)" stopOpacity={0.25}/>
-                          <stop offset="95%" stopColor="hsl(262, 80%, 60%)" stopOpacity={0}/>
+                        <linearGradient id="gradLeaves" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="hsl(38, 92%, 50%)" stopOpacity={0.25}/>
+                          <stop offset="95%" stopColor="hsl(38, 92%, 50%)" stopOpacity={0}/>
                         </linearGradient>
                       </defs>
-                      <Tooltip content={<SparklineTooltip />} cursor={{ stroke: "hsl(262, 80%, 60%, 0.2)", strokeWidth: 1, strokeDasharray: "2 2" }} />
-                      <Area type="monotone" dataKey="val" stroke="hsl(262, 80%, 60%)" fill="url(#gradStaff)" strokeWidth={2.0} dot={false} />
+                      <Tooltip content={<SparklineTooltip />} cursor={{ stroke: "hsl(38, 92%, 50%, 0.2)", strokeWidth: 1, strokeDasharray: "2 2" }} />
+                      <Area type="monotone" dataKey="val" stroke="hsl(38, 92%, 50%)" fill="url(#gradLeaves)" strokeWidth={2.0} dot={false} />
                     </AreaChart>
                   </ResponsiveContainer>
                 </div>
                 <div className="space-y-1">
                   <div className="flex items-center justify-between text-[9px] sm:text-[10px]">
-                    <span className="text-muted-foreground">Faculty Ratio</span>
-                    <span className="font-semibold text-foreground">{Math.round((kpis.teachers / (kpis.totalStaff || 1)) * 100)}%</span>
+                    <span className="text-muted-foreground">Clearance Status</span>
+                    <span className={`font-semibold ${kpis.pendingLeaves === 0 ? "text-emerald-500" : "text-amber-500"}`}>
+                      {kpis.pendingLeaves === 0 ? "100% Up to Date" : `${kpis.pendingLeaves} to review`}
+                    </span>
                   </div>
                   <div className="h-1 w-full bg-muted rounded-full overflow-hidden">
                     <div 
-                      className="h-full bg-violet-500 transition-all duration-500" 
-                      style={{ width: `${Math.round((kpis.teachers / (kpis.totalStaff || 1)) * 100)}%` }}
+                      className={`h-full transition-all duration-500 ${kpis.pendingLeaves === 0 ? "bg-emerald-500" : "bg-amber-500"}`} 
+                      style={{ width: `${kpis.pendingLeaves === 0 ? 100 : Math.max(25, 100 - kpis.pendingLeaves * 20)}%` }}
                     />
                   </div>
                 </div>
