@@ -126,20 +126,71 @@ async def build_scoped_ai_context(
         if not query:
             return ""
         clean_query = query.strip()
-        words = [re.sub(r'[^a-zA-Z0-9]', '', w) for w in clean_query.split()]
+        words = [re.sub(r'[^\w]', '', w, flags=re.UNICODE) for w in clean_query.split()]
         stop_words = {
             "tell", "show", "what", "with", "name", "list", "give", "students", "student", 
             "teachers", "teacher", "class", "classes", "find", "view", "many", "much",
             "have", "about", "which", "where", "please", "could", "would", "from", "school",
-            "are", "the", "for", "and", "how", "who", "all", "our", "today", "this"
+            "are", "the", "for", "and", "how", "who", "all", "our", "today", "this", "only",
+            "absent", "present", "details", "info", "information", "help",
+            # Roman Urdu / Urdu / Hindi question terms
+            "kya", "kia", "kitne", "kitna", "kitni", "batao", "dikhao", "dekhna", "dekhne", 
+            "chahiye", "kon", "kaun", "kahan", "kaise", "hai", "hain", "ke", "ki", "ka", "ko", 
+            "se", "par", "me", "mein", "mera", "meri", "mere", "apna", "apni", "apne", "hum", 
+            "hamare", "hamara", "pas", "karo", "karen", "shukriya", "bhai", "sir", "bachay", 
+            "bachon", "bacha", "talib", "ilm", "ustaad", "ustad", "sirf", "mujhe", "humein",
+            "bhi", "yeh", "woh", "un", "in", "tha", "thi", "the", "kuch", "sab"
         }
-        terms = [w for w in words if len(w) >= 3 and w.lower() not in stop_words]
+        terms = [w for w in words if len(w) >= 2 and w.lower() not in stop_words]
         if not terms:
-            terms = [w for w in words if len(w) >= 3]
+            terms = [w for w in words if len(w) >= 2]
         if not terms:
             return ""
 
         matches: List[str] = []
+
+        # Check for specific Class / Section pattern in query (e.g. "Grade 1", "Class 5", "Section A", "8-A")
+        class_match = re.search(r'(?:class|grade|section)\s*([0-9a-zA-Z\-]+)', clean_query, re.IGNORECASE)
+        if class_match:
+            c_target = class_match.group(1).strip()
+            cls_stu_rows = await fetch_rows("""
+                SELECT s.first_name, s.last_name, s.student_code, s.status, s.gender, s.parent_name, s.parent_phone,
+                       c.name as class_name, cs.name as section_name, s.id as student_id, s.roll_number
+                FROM students s
+                JOIN student_enrollments se ON se.student_id = s.id AND se.end_date IS NULL
+                JOIN class_sections cs ON se.class_section_id = cs.id
+                JOIN academic_classes c ON cs.class_id = c.id
+                WHERE s.school_id = CAST(:sid AS UUID)
+                  AND (c.name ILIKE :cterm OR cs.name ILIKE :cterm)
+                LIMIT 20
+            """, {"sid": school_id, "cterm": f"%{c_target}%"})
+            if cls_stu_rows:
+                matches.append(f"Students in Class/Section matching '{c_target}':")
+                for s in cls_stu_rows:
+                    matches.append(
+                        f"  * {s[0]} {s[1] or ''} (Roll/Code: {s[2] or s[10] or 'N/A'}, Class: {s[7]} {s[8] or ''}, Status: {s[3]}, Parent: {s[5] or 'N/A'}) [Student ID: {s[9]}]"
+                    )
+
+        # Check for Absentee query
+        if any(w in clean_query.lower() for w in ["absent", "absentees", "ghair hazir", "chutti"]):
+            today_str = datetime.now(timezone.utc).strftime('%Y-%m-%d')
+            abs_rows = await fetch_rows("""
+                SELECT s.first_name, s.last_name, c.name, cs.name, ae.status
+                FROM attendance_entries ae
+                JOIN attendance_sessions sess ON ae.session_id = sess.id
+                JOIN students s ON ae.student_id = s.id
+                LEFT JOIN class_sections cs ON sess.class_section_id = cs.id
+                LEFT JOIN academic_classes c ON cs.class_id = c.id
+                WHERE s.school_id = CAST(:sid AS UUID)
+                  AND sess.date = CURRENT_DATE
+                  AND ae.status IN ('absent', 'leave')
+                LIMIT 25
+            """, {"sid": school_id})
+            if abs_rows:
+                matches.append("Today's Absent Students / Leaves:")
+                for ab in abs_rows:
+                    matches.append(f"  * {ab[0]} {ab[1] or ''} ({ab[2] or 'Class'} {ab[3] or ''}) — Status: {ab[4].title()}")
+
         for term in terms[:3]:
             # 1. Search students
             stu_rows = await fetch_rows("""
