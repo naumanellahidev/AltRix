@@ -396,6 +396,10 @@ class SemanticCacheEngine:
 
         except Exception as e:
             logger.warning(f"Semantic cache lookup failed (non-fatal): {e}")
+            try:
+                await db.rollback()
+            except Exception:
+                pass
             return None
 
     async def store(
@@ -480,6 +484,10 @@ class SemanticCacheEngine:
 
         except Exception as e:
             logger.warning(f"Semantic cache store failed (non-fatal): {e}")
+            try:
+                await db.rollback()
+            except Exception:
+                pass
             return None
 
     async def invalidate_by_deps(
@@ -516,6 +524,10 @@ class SemanticCacheEngine:
             return count
         except Exception as e:
             logger.warning(f"Semantic cache invalidation failed (non-fatal): {e}")
+            try:
+                await db.rollback()
+            except Exception:
+                pass
             return 0
 
     async def invalidate_all(
@@ -535,6 +547,10 @@ class SemanticCacheEngine:
             return result.rowcount or 0
         except Exception as e:
             logger.warning(f"Semantic cache full invalidation failed (non-fatal): {e}")
+            try:
+                await db.rollback()
+            except Exception:
+                pass
             return 0
 
     async def track_hit(
@@ -552,6 +568,10 @@ class SemanticCacheEngine:
             """), {"entry_id": entry_id})
         except Exception as e:
             logger.warning(f"Semantic cache hit tracking failed (non-fatal): {e}")
+            try:
+                await db.rollback()
+            except Exception:
+                pass
 
     async def record_hit_stats(
         self,
@@ -572,6 +592,10 @@ class SemanticCacheEngine:
             """), {"school_id": school_id})
         except Exception as e:
             logger.warning(f"Semantic cache hit stat record failed (non-fatal): {e}")
+            try:
+                await db.rollback()
+            except Exception:
+                pass
 
     async def record_miss_stats(
         self,
@@ -591,6 +615,10 @@ class SemanticCacheEngine:
             """), {"school_id": school_id})
         except Exception as e:
             logger.warning(f"Semantic cache miss stat record failed (non-fatal): {e}")
+            try:
+                await db.rollback()
+            except Exception:
+                pass
 
     async def get_stats(
         self,
