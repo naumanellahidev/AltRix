@@ -512,7 +512,7 @@ const [voiceOpen, setVoiceOpen] = useState(false);
     </>
   );
   return (
-    <div className="min-h-screen bg-background pb-20 lg:pb-0 w-full max-w-full overflow-x-hidden">
+    <div className="min-h-screen bg-background pb-20 lg:pb-0 w-full max-w-full overflow-x-clip">
       <GlobalCommandPalette basePath={`/${schoolSlug}/${role}`} />
 
       {/* Luxury Responsive Shell Header */}
@@ -532,14 +532,14 @@ const [voiceOpen, setVoiceOpen] = useState(false);
         onLogout={handleLogout}
       />
 
-      <div className="grid w-full max-w-full grid-cols-1 gap-3 sm:gap-4 px-2.5 sm:px-4 py-3 sm:py-4 lg:grid-cols-[280px_1fr] lg:gap-6 lg:px-6 lg:py-6 min-w-0 overflow-x-hidden">
-        {/* Desktop Sidebar */}
-        <aside className="sticky top-6 hidden self-start max-h-[calc(100vh-3rem)] overflow-y-auto rounded-3xl bg-surface p-4 shadow-elevated lg:block">
+      <div className="mx-auto grid w-full max-w-full grid-cols-1 gap-3 sm:gap-4 px-2.5 sm:px-4 py-3 sm:py-4 lg:grid-cols-[280px_1fr] lg:gap-6 lg:px-6 lg:py-6 min-w-0 items-start overflow-x-clip">
+        {/* Desktop Sidebar - Sticky with independent scroll */}
+        <aside className="sticky top-20 hidden self-start h-[calc(100vh-6rem)] max-h-[calc(100vh-6rem)] overflow-y-auto overscroll-contain rounded-3xl bg-surface p-4 shadow-elevated lg:block custom-sidebar-scrollbar">
           <NavContent />
         </aside>
 
         {/* Main Content */}
-        <section className="min-w-0 w-full max-w-full rounded-2xl bg-surface p-3 sm:p-4 shadow-elevated lg:rounded-3xl lg:p-6 overflow-x-hidden">
+        <section className="min-w-0 w-full max-w-full rounded-2xl bg-surface p-3 sm:p-4 shadow-elevated lg:rounded-3xl lg:p-6 overflow-x-clip">
           <header className="mb-4 hidden lg:mb-6 lg:block">
             <div className="flex items-center justify-between">
               <div className="min-w-0">

@@ -97,9 +97,9 @@ export function SuperAdminShell({ title, subtitle, actions, children }: Props) {
           "linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%)",
       }}
     >
-      {/* Sidebar */}
+      {/* Sidebar - Sticky with independent scroll */}
       <aside
-        className="w-72 shrink-0 border-r border-slate-200/90 flex flex-col backdrop-blur-xl bg-white/90 shadow-sm"
+        className="w-72 shrink-0 border-r border-slate-200/90 flex flex-col backdrop-blur-xl bg-white/90 shadow-sm sticky top-0 h-screen overflow-hidden"
       >
         {/* Brand Header */}
         <div className="p-4 border-b border-slate-200/90 bg-slate-50/50">
@@ -130,7 +130,7 @@ export function SuperAdminShell({ title, subtitle, actions, children }: Props) {
         </div>
 
         {/* Navigation Grid */}
-        <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-6">
+        <nav className="flex-1 overflow-y-auto overscroll-contain px-3 py-4 space-y-6 custom-sidebar-scrollbar">
           {NAV.map((group) => (
             <div key={group.section}>
               <p className="px-3 mb-2 text-[10px] uppercase tracking-widest text-slate-400 font-extrabold">
