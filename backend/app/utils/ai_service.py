@@ -83,6 +83,10 @@ class OllamaAIService:
         if not context_text:
             return data
 
+        def get_sec(pat: str) -> str:
+            m = re.search(rf'{pat}:[^\n]*\n(.*?)(?=\n\n[A-Z\[]|\Z)', context_text, re.DOTALL)
+            return m.group(1).strip() if m else ""
+
         # 1. Parse Role
         role_match = re.search(r'\[Role Context:\s*([^\]]+)\]', context_text)
         if role_match:
@@ -122,57 +126,57 @@ class OllamaAIService:
             data["pending_admissions"] = int(adm_match.group(1))
 
         # 4. Parse Targeted Search Matches
-        match_section = re.search(r'Targeted Search Results.*:\s*\n(.*?)(?=\n\n|\n[A-Z]|\Z)', context_text, re.DOTALL)
-        if match_section:
-            for line in match_section.group(1).strip().split('\n'):
+        sec_matches = get_sec(r'Targeted Search Results.*')
+        if sec_matches and sec_matches != "None":
+            for line in sec_matches.split('\n'):
                 line = line.strip()
                 if line and line != "None":
                     data["search_matches"].append(line)
 
         # 5. Parse Students Directory
-        stu_section = re.search(r'(?:Registered Students Directory|Students in Your Assigned Classes|Your Registered Children|Students Directory).*?:\s*\n(.*?)(?=\n\n|\n[A-Z]|\Z)', context_text, re.DOTALL)
-        if stu_section:
-            for line in stu_section.group(1).strip().split('\n'):
+        sec_stu = get_sec(r'(?:Registered Students Directory|Students in Your Assigned Classes|Your Registered Children|Students Directory).*?')
+        if sec_stu and sec_stu != "None":
+            for line in sec_stu.split('\n'):
                 line = line.strip()
                 if line.startswith('- ') and line[2:].strip() != "None":
                     data["students"].append(line[2:])
 
         # 6. Parse Campuses Directory
-        camp_section = re.search(r'Campuses Directory:\s*\n(.*?)(?=\n\n|\n[A-Z]|\Z)', context_text, re.DOTALL)
-        if camp_section:
-            for line in camp_section.group(1).strip().split('\n'):
+        sec_camp = get_sec(r'Campuses Directory')
+        if sec_camp and sec_camp != "None":
+            for line in sec_camp.split('\n'):
                 line = line.strip()
                 if line.startswith('- '):
                     data["campuses"].append(line[2:])
 
         # 7. Parse Classes and Sections
-        class_section = re.search(r'Classes and Sections Enrollment.*:\s*\n(.*?)(?=\n\n|\n[A-Z]|\Z)', context_text, re.DOTALL)
-        if class_section:
-            for line in class_section.group(1).strip().split('\n'):
+        sec_cls = get_sec(r'Classes and Sections Enrollment.*')
+        if sec_cls and sec_cls != "None":
+            for line in sec_cls.split('\n'):
                 line = line.strip()
                 if line.startswith('- '):
                     data["classes"].append(line[2:])
 
         # 8. Parse Defaulters
-        def_section = re.search(r'Top Outstanding Fee Defaulters:\s*\n(.*?)(?=\n\n|\n[A-Z]|\Z)', context_text, re.DOTALL)
-        if def_section:
-            for line in def_section.group(1).strip().split('\n'):
+        sec_def = get_sec(r'Top Outstanding Fee Defaulters')
+        if sec_def and sec_def != "None":
+            for line in sec_def.split('\n'):
                 line = line.strip()
                 if line.startswith('- ') and line[2:].strip() != "None":
                     data["defaulters"].append(line[2:])
 
         # 9. Parse Recent Payments
-        pay_section = re.search(r'Recent Fee Payments Collected:\s*\n(.*?)(?=\n\n|\n[A-Z]|\Z)', context_text, re.DOTALL)
-        if pay_section:
-            for line in pay_section.group(1).strip().split('\n'):
+        sec_pay = get_sec(r'Recent Fee Payments Collected')
+        if sec_pay and sec_pay != "None":
+            for line in sec_pay.split('\n'):
                 line = line.strip()
                 if line.startswith('- ') and line[2:].strip() != "None":
                     data["recent_payments"].append(line[2:])
 
         # 10. Parse Staff Attendance
-        staff_att_section = re.search(r"Today's Staff Attendance Summary:\s*\n(.*?)(?=\n\n|\n[A-Z]|\Z)", context_text, re.DOTALL)
-        if staff_att_section:
-            for line in staff_att_section.group(1).strip().split('\n'):
+        sec_att = get_sec(r"Today's Staff Attendance Summary")
+        if sec_att and sec_att != "None":
+            for line in sec_att.split('\n'):
                 line = line.strip()
                 if line.startswith('- ') and line[2:].strip() != "None":
                     data["staff_attendance"]["details"].append(line[2:])
@@ -184,41 +188,41 @@ class OllamaAIService:
                         data["staff_attendance"]["unmarked"] += 1
 
         # 11. Parse Staff Directory
-        staff_section = re.search(r"(?:Staff & Teachers Roster|Teachers & Active Staff Directory|Staff Directory):\s*\n(.*?)(?=\n\n|\n[A-Z]|\Z)", context_text, re.DOTALL)
-        if staff_section:
-            for line in staff_section.group(1).strip().split('\n'):
+        sec_staff = get_sec(r"(?:Staff & Teachers Roster|Teachers & Active Staff Directory|Staff Directory)")
+        if sec_staff and sec_staff != "None":
+            for line in sec_staff.split('\n'):
                 line = line.strip()
                 if line.startswith('- ') and line[2:].strip() != "None":
                     data["staff"].append(line[2:])
 
         # 12. Parse Exams
-        exam_section = re.search(r"(?:School Exams & Terms|Exam Results & Marks|Your Exam Grades & Results):\s*\n(.*?)(?=\n\n|\n[A-Z]|\Z)", context_text, re.DOTALL)
-        if exam_section:
-            for line in exam_section.group(1).strip().split('\n'):
+        sec_exam = get_sec(r"(?:School Exams & Terms|Exam Results & Marks|Your Exam Grades & Results)")
+        if sec_exam and sec_exam != "None":
+            for line in sec_exam.split('\n'):
                 line = line.strip()
                 if line.startswith('- ') and line[2:].strip() != "None":
                     data["exams"].append(line[2:])
 
         # 13. Parse Notices / Notifications
-        notices_section = re.search(r"(?:Recent School Announcements / Notices|Recent School Notices):\s*\n(.*?)(?=\n\n|\n[A-Z]|\Z)", context_text, re.DOTALL)
-        if notices_section:
-            for line in notices_section.group(1).strip().split('\n'):
+        sec_notices = get_sec(r"(?:Recent School Announcements / Notices|Recent School Notices)")
+        if sec_notices and sec_notices != "None":
+            for line in sec_notices.split('\n'):
                 line = line.strip()
                 if line.startswith('- ') and line[2:].strip() != "None":
                     data["notices"].append(line[2:])
 
         # 14. Parse Complaints
-        comp_section = re.search(r"Recent ERP Complaints & Feedback:\s*\n(.*?)(?=\n\n|\n[A-Z]|\Z)", context_text, re.DOTALL)
-        if comp_section:
-            for line in comp_section.group(1).strip().split('\n'):
+        sec_comp = get_sec(r"Recent ERP Complaints & Feedback")
+        if sec_comp and sec_comp != "None":
+            for line in sec_comp.split('\n'):
                 line = line.strip()
                 if line.startswith('- ') and line[2:].strip() != "None":
                     data["complaints"].append(line[2:])
 
         # 15. Parse Holidays
-        hol_section = re.search(r"Upcoming Holidays:\s*([^\n]+)", context_text)
-        if hol_section:
-            val = hol_section.group(1).strip()
+        hol_match = re.search(r"Upcoming Holidays:\s*([^\n]+)", context_text)
+        if hol_match:
+            val = hol_match.group(1).strip()
             if val and val != "None":
                 data["holidays"].append(val)
 

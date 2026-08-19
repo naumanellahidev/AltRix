@@ -132,14 +132,14 @@ async def build_scoped_ai_context(
         for term in terms[:3]:
             # Search students
             stu_rows = await fetch_rows("""
-                SELECT s.first_name, s.last_name, s.student_code, s.status, s.gender, s.guardian_name, s.guardian_phone,
+                SELECT s.first_name, s.last_name, s.student_code, s.status, s.gender, s.parent_name, s.parent_phone,
                        c.name as class_name, cs.name as section_name, s.id as student_id
                 FROM students s
                 LEFT JOIN student_enrollments se ON se.student_id = s.id AND se.end_date IS NULL
                 LEFT JOIN class_sections cs ON se.class_section_id = cs.id
                 LEFT JOIN academic_classes c ON cs.class_id = c.id
                 WHERE s.school_id = CAST(:sid AS UUID)
-                  AND (s.first_name ILIKE :term OR s.last_name ILIKE :term OR s.student_code ILIKE :term OR s.guardian_name ILIKE :term OR s.guardian_phone ILIKE :term)
+                  AND (s.first_name ILIKE :term OR s.last_name ILIKE :term OR s.student_code ILIKE :term OR s.parent_name ILIKE :term OR s.parent_phone ILIKE :term)
                 LIMIT 15
             """, {"sid": school_id, "term": f"%{term}%"})
 
@@ -147,7 +147,7 @@ async def build_scoped_ai_context(
                 matches.append(f"Matched Students for '{term}':")
                 for s in stu_rows:
                     matches.append(
-                        f"  * {s[0]} {s[1] or ''} (Code: {s[2] or 'N/A'}, Class: {s[7] or 'Unassigned'} {s[8] or ''}, Status: {s[3]}, Guardian: {s[5] or 'N/A'}, Phone: {s[6] or 'N/A'}) [Student ID: {s[9]}]"
+                        f"  * {s[0]} {s[1] or ''} (Code: {s[2] or 'N/A'}, Class: {s[7] or 'Unassigned'} {s[8] or ''}, Status: {s[3]}, Parent: {s[5] or 'N/A'}, Phone: {s[6] or 'N/A'}) [Student ID: {s[9]}]"
                     )
 
             # Search staff
@@ -188,10 +188,6 @@ async def build_scoped_ai_context(
             return "\n".join([f"- {h[0]} ({h[1]} to {h[2]}) [Type: {h[3] or 'General'}]" for h in rows])
         return "No upcoming holidays scheduled."
 
-    branding_task = asyncio.create_task(get_branding())
-    holidays_task = asyncio.create_task(get_holidays())
-    targeted_search_task = asyncio.create_task(get_targeted_search_matches(user_query))
-
     # =========================================================================
     # ROLE 1: School Owner / Principal / Vice Principal / Super Admin
     # =========================================================================
@@ -218,7 +214,7 @@ async def build_scoped_ai_context(
 
         async def get_students():
             return await fetch_rows(f"""
-                SELECT s.first_name, s.last_name, s.student_code, s.status, c.name, cs.name, s.guardian_name, s.guardian_phone, s.id as student_id
+                SELECT s.first_name, s.last_name, s.student_code, s.status, c.name, cs.name, s.parent_name, s.parent_phone, s.id as student_id
                 FROM students s
                 LEFT JOIN student_enrollments se ON se.student_id = s.id AND se.end_date IS NULL
                 LEFT JOIN class_sections cs ON se.class_section_id = cs.id
@@ -307,12 +303,21 @@ async def build_scoped_ai_context(
                 GROUP BY status
             """, campus_param)
 
-        # Run all data queries in parallel
-        metrics, campuses, students, defaulters, invoices, payments, classes, staff, leaves, notices, crm_stats, branding, holidays, targeted_matches = await asyncio.gather(
-            get_owner_metrics(), get_campuses(), get_students(), get_defaulters(), get_invoices(), get_payments(),
-            get_classes(), get_staff(), get_leaves(), get_notices(), get_crm_stats(),
-            branding_task, holidays_task, targeted_search_task
-        )
+        # Run all data queries sequentially to prevent session concurrency conflicts
+        metrics = await get_owner_metrics()
+        campuses = await get_campuses()
+        students = await get_students()
+        defaulters = await get_defaulters()
+        invoices = await get_invoices()
+        payments = await get_payments()
+        classes = await get_classes()
+        staff = await get_staff()
+        leaves = await get_leaves()
+        notices = await get_notices()
+        crm_stats = await get_crm_stats()
+        branding = await get_branding()
+        holidays = await get_holidays()
+        targeted_matches = await get_targeted_search_matches(user_query)
 
         campuses_str = "\n".join([f"- {r[1]} ({r[2] or 'Main Campus'}) [Campus ID: {r[0]}]: {'Active' if r[3] else 'Inactive'}" for r in campuses])
         students_str = "\n".join([f"- {r[0]} {r[1] or ''} (Code: {r[2] or 'N/A'}, Class: {r[4] or 'Unassigned'} {r[5] or ''}, Status: {r[3]}, Guardian: {r[6] or 'N/A'}) [Student ID: {r[8]}]" for r in students])
@@ -465,11 +470,16 @@ Upcoming Holidays: {holidays}
                 ORDER BY te.day_of_week, te.start_time
             """, {"uid": uid, "sid": school_id})
 
-        sections, students, att, assignments, diary, results, timetable, branding, holidays, targeted_matches = await asyncio.gather(
-            get_teacher_sections(), get_teacher_students(), get_teacher_attendance(),
-            get_teacher_assignments(), get_teacher_diary(), get_teacher_results(),
-            get_teacher_timetable(), branding_task, holidays_task, targeted_search_task
-        )
+        sections = await get_teacher_sections()
+        students = await get_teacher_students()
+        att = await get_teacher_attendance()
+        assignments = await get_teacher_assignments()
+        diary = await get_teacher_diary()
+        results = await get_teacher_results()
+        timetable = await get_teacher_timetable()
+        branding = await get_branding()
+        holidays = await get_holidays()
+        targeted_matches = await get_targeted_search_matches(user_query)
 
         sections_str = "\n".join([f"- {r[1]} Section {r[2]} | Subject: {r[3]} [Section ID: {r[0]}, Subject ID: {r[5]}]" for r in sections])
         students_str = "\n".join([f"- {r[0]} {r[1] or ''} (Code: {r[2] or 'N/A'}, Class: {r[3]} {r[4]}) [Student ID: {r[5]}]" for r in students])
@@ -528,7 +538,8 @@ Upcoming Holidays: {holidays}
 
         children = await get_parent_children()
         if not children:
-            branding, holidays = await asyncio.gather(branding_task, holidays_task)
+            branding = await get_branding()
+            holidays = await get_holidays()
             return f"[Role Context: Parent]\nNo linked children profiles found.\nSchool Branding: {branding}\nUpcoming Holidays: {holidays}"
 
         child_ids = [str(c[0]) for c in children]
@@ -583,10 +594,13 @@ Upcoming Holidays: {holidays}
                 ORDER BY d.entry_date DESC LIMIT 15
             """, {"cids": child_ids})
 
-        att, invoices, results, homework, diary, branding, holidays = await asyncio.gather(
-            get_child_attendance(), get_child_invoices(), get_child_results(),
-            get_child_homework(), get_child_diary(), branding_task, holidays_task
-        )
+        att = await get_child_attendance()
+        invoices = await get_child_invoices()
+        results = await get_child_results()
+        homework = await get_child_homework()
+        diary = await get_child_diary()
+        branding = await get_branding()
+        holidays = await get_holidays()
 
         children_str = "\n".join([f"- Child: {r[1]} {r[2] or ''} (Code: {r[3] or 'N/A'}, Class: {r[4] or 'Unassigned'} {r[5] or ''}) [Student ID: {r[0]}]" for r in children])
         att_str = "\n".join([f"- {r[0]}: {r[2]} on {r[3]} (Period: {r[4] or 'General'})" for r in att])
@@ -639,7 +653,8 @@ Upcoming Holidays: {holidays}
 
         profiles = await get_student_profile()
         if not profiles:
-            branding, holidays = await asyncio.gather(branding_task, holidays_task)
+            branding = await get_branding()
+            holidays = await get_holidays()
             return f"[Role Context: Student]\nStudent profile not found.\nSchool Branding: {branding}\nUpcoming Holidays: {holidays}"
 
         s_id, first_name, last_name, code, class_name, section_name = profiles[0]
@@ -680,10 +695,12 @@ Upcoming Holidays: {holidays}
                 ORDER BY created_at DESC LIMIT 10
             """, {"sid": s_id})
 
-        att, results, homework, invoices, branding, holidays = await asyncio.gather(
-            get_my_attendance(), get_my_results(), get_my_homework(), get_my_invoices(),
-            branding_task, holidays_task
-        )
+        att = await get_my_attendance()
+        results = await get_my_results()
+        homework = await get_my_homework()
+        invoices = await get_my_invoices()
+        branding = await get_branding()
+        holidays = await get_holidays()
 
         att_str = "\n".join([f"- {r[0]} on {r[1]} ({r[2] or 'General'})" for r in att])
         res_str = "\n".join([f"- {r[0]} — {r[1]}: Marks: {r[2]}/{r[3]} (Grade: {r[4]}, Remarks: '{r[5] or 'None'}') [Result ID: {r[6]}, Exam ID: {r[7]}]" for r in results])
@@ -765,10 +782,14 @@ Upcoming Holidays: {holidays}
                 WHERE school_id = CAST(:sid AS UUID) ORDER BY expense_date DESC LIMIT 25
             """, {"sid": school_id})
 
-        metrics, defaulters, invoices, plans, payments, expenses, branding, holidays = await asyncio.gather(
-            get_fin_metrics(), get_acc_defaulters(), get_acc_invoices(), get_acc_plans(),
-            get_acc_payments(), get_acc_expenses(), branding_task, holidays_task
-        )
+        metrics = await get_fin_metrics()
+        defaulters = await get_acc_defaulters()
+        invoices = await get_acc_invoices()
+        plans = await get_acc_plans()
+        payments = await get_acc_payments()
+        expenses = await get_acc_expenses()
+        branding = await get_branding()
+        holidays = await get_holidays()
 
         defaulters_str = "\n".join([f"- {r[0]} {r[1] or ''}: Balance: {format_money(r[2])} (Invoice: {r[3]} [Invoice ID: {r[5]}, Student ID: {r[4]}])" for r in defaulters])
         invoices_str = "\n".join([f"- Inv #{r[0]}: {r[1]} {r[2] or ''} ({r[3] or 'N/A'}-{r[4] or 'N/A'}), Total: {format_money(r[5])}, Paid: {format_money(r[6])}, Due: {to_pkt_date_str(r[7])}, Status: {r[8]} [Invoice ID: {r[11]}, Student ID: {r[10]}]" for r in invoices])
@@ -827,9 +848,11 @@ Upcoming Holidays: {holidays}
                 WHERE sr.school_id = CAST(:sid AS UUID) ORDER BY sr.year DESC, sr.month DESC LIMIT 30
             """, {"sid": school_id})
 
-        staff, leaves, salaries, branding, holidays = await asyncio.gather(
-            get_hr_staff(), get_hr_leaves(), get_hr_salaries(), branding_task, holidays_task
-        )
+        staff = await get_hr_staff()
+        leaves = await get_hr_leaves()
+        salaries = await get_hr_salaries()
+        branding = await get_branding()
+        holidays = await get_holidays()
 
         staff_str = "\n".join([f"- {r[0]} ({r[1] or 'Staff'}, Dept: {r[5] or 'General'}, Email: {r[2] or 'N/A'}) | Status: {'Active' if r[4] else 'Inactive'} [Staff ID: {r[6]}]" for r in staff])
         leaves_str = "\n".join([f"- {r[0]}: {r[2]} to {r[3]} | Reason: '{r[4] or 'None'}' | Status: {r[5]} [Leave ID: {r[6]}]" for r in leaves])
@@ -872,9 +895,11 @@ Upcoming Holidays: {holidays}
                 FROM admission_applications WHERE school_id = CAST(:sid AS UUID) ORDER BY created_at DESC LIMIT 25
             """, {"sid": school_id})
 
-        leads, campaigns, admissions, branding, holidays = await asyncio.gather(
-            get_leads(), get_campaigns(), get_admissions(), branding_task, holidays_task
-        )
+        leads = await get_leads()
+        campaigns = await get_campaigns()
+        admissions = await get_admissions()
+        branding = await get_branding()
+        holidays = await get_holidays()
 
         leads_str = "\n".join([f"- Lead: {r[0]} ({r[1] or 'No Email'}, {r[2] or 'No Phone'}) | Stage: {r[3] or 'Inquiry'} | Source: {r[4] or 'Direct'} | Status: {r[5]} [Lead ID: {r[7]}]" for r in leads])
         campaigns_str = "\n".join([f"- Campaign: '{r[0]}' ({r[1]}) | Status: {r[2]} | Budget: {format_money(r[3])} [Campaign ID: {r[6]}]" for r in campaigns])
@@ -907,9 +932,9 @@ Upcoming Holidays: {holidays}
                 WHERE bn.school_id = CAST(:sid AS UUID) ORDER BY bn.created_at DESC LIMIT 30
             """, {"sid": school_id})
 
-        notes, branding, holidays = await asyncio.gather(
-            get_counseling_notes(), branding_task, holidays_task
-        )
+        notes = await get_counseling_notes()
+        branding = await get_branding()
+        holidays = await get_holidays()
 
         notes_str = "\n".join([f"- Student: {r[0]} {r[1] or ''} | Note: '{r[2]}' ({r[3] or 'None'}) | Type: {r[4]} | Date: {to_pkt_date_str(r[5])} [Note ID: {r[6]}, Student ID: {r[7]}]" for r in notes])
 
@@ -925,5 +950,7 @@ Upcoming Holidays: {holidays}
     # =========================================================================
     # DEFAULT / GUEST FALLBACK
     # =========================================================================
-    branding, holidays = await asyncio.gather(branding_task, holidays_task)
+    branding = await get_branding()
+    holidays = await get_holidays()
     return f"[Role Context: Guest / General User]\nSchool Branding: {branding}\nUpcoming Holidays: {holidays}"
+
