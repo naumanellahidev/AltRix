@@ -106,7 +106,7 @@ class OllamaAIService:
             return data
 
         def get_sec(pat: str) -> str:
-            m = re.search(rf'{pat}:[^\n]*\n(.*?)(?=\n\n[A-Z\[]|\Z)', context_text, re.DOTALL)
+            m = re.search(rf'(?:^|\n)[^\n]*?(?:{pat})[^\n]*?:\s*\n(.*?)(?=\n\n[A-Z\[]|\Z)', context_text, re.DOTALL | re.IGNORECASE)
             return m.group(1).strip() if m else ""
 
         # 1. Parse Role
@@ -160,7 +160,7 @@ class OllamaAIService:
             data["pending_admissions"] = int(adm_match.group(1))
 
         # 4. Parse Targeted Search Matches
-        sec_matches = get_sec(r'Targeted Search Results.*')
+        sec_matches = get_sec(r'Targeted Search Results')
         if sec_matches and sec_matches != "None":
             for line in sec_matches.split('\n'):
                 line = line.strip()
@@ -168,7 +168,7 @@ class OllamaAIService:
                     data["search_matches"].append(line)
 
         # 5. Parse Students Directory
-        sec_stu = get_sec(r'(?:Registered Students Directory|Students in Your Assigned Classes|Your Registered Children|Students Directory).*?')
+        sec_stu = get_sec(r'Registered Students Directory|Students in Your Assigned Classes|Your Registered Children|Students Directory')
         if sec_stu and sec_stu != "None":
             for line in sec_stu.split('\n'):
                 line = line.strip()
@@ -184,7 +184,7 @@ class OllamaAIService:
                     data["campuses"].append(line[2:])
 
         # 7. Parse Classes and Sections
-        sec_cls = get_sec(r'Classes and Sections Enrollment.*')
+        sec_cls = get_sec(r'Classes and Sections Enrollment')
         if sec_cls and sec_cls != "None":
             for line in sec_cls.split('\n'):
                 line = line.strip()
@@ -200,7 +200,7 @@ class OllamaAIService:
                     data["defaulters"].append(line[2:])
 
         # 9. Parse Invoices
-        sec_inv = get_sec(r'(?:Recent Invoices Register|Invoices Register|Your Fee Invoices|Children\'s Fee Invoices)')
+        sec_inv = get_sec(r'Recent Invoices Register|Invoices Register|Your Fee Invoices|Children\'s Fee Invoices')
         if sec_inv and sec_inv != "None":
             for line in sec_inv.split('\n'):
                 line = line.strip()
@@ -216,14 +216,14 @@ class OllamaAIService:
                     data["recent_payments"].append(line[2:])
 
         # 11. Parse Library Books & Issues
-        sec_books = get_sec(r'(?:Books Inventory|Library Books Catalog)')
+        sec_books = get_sec(r'Books Inventory|Library Books Catalog')
         if sec_books and sec_books != "None":
             for line in sec_books.split('\n'):
                 line = line.strip()
                 if line.startswith('- ') and line[2:].strip() != "None":
                     data["library_books"].append(line[2:])
 
-        sec_issues = get_sec(r'(?:Active Book Issues / Overdue|Active & Overdue Book Issues)')
+        sec_issues = get_sec(r'Active Book Issues / Overdue|Active & Overdue Book Issues')
         if sec_issues and sec_issues != "None":
             for line in sec_issues.split('\n'):
                 line = line.strip()
@@ -231,14 +231,14 @@ class OllamaAIService:
                     data["library_issues"].append(line[2:])
 
         # 12. Parse Transport Vehicles & Routes
-        sec_vehicles = get_sec(r'(?:Vehicles|Fleet Vehicles)')
+        sec_vehicles = get_sec(r'Vehicles|Fleet Vehicles')
         if sec_vehicles and sec_vehicles != "None":
             for line in sec_vehicles.split('\n'):
                 line = line.strip()
                 if line.startswith('- ') and line[2:].strip() != "None":
                     data["transport_vehicles"].append(line[2:])
 
-        sec_routes = get_sec(r'(?:Routes|Bus Routes & Schedules|Assigned Transport & School Bus Info)')
+        sec_routes = get_sec(r'Routes|Bus Routes & Schedules|Assigned Transport & School Bus Info')
         if sec_routes and sec_routes != "None":
             for line in sec_routes.split('\n'):
                 line = line.strip()
@@ -253,7 +253,7 @@ class OllamaAIService:
                     data["route_stops"].append(line[2:])
 
         # 13. Parse Staff & Faculty
-        sec_staff = get_sec(r'(?:Staff & Teachers Roster|Teachers & Active Staff Directory|Staff Directory)')
+        sec_staff = get_sec(r'Staff & Teachers Roster|Teachers & Active Staff Directory|Staff Directory')
         if sec_staff and sec_staff != "None":
             for line in sec_staff.split('\n'):
                 line = line.strip()
@@ -261,7 +261,7 @@ class OllamaAIService:
                     data["staff"].append(line[2:])
 
         # 14. Parse Leaves
-        sec_leaves = get_sec(r'(?:Recent Staff Leave Requests|Staff Leave Requests)')
+        sec_leaves = get_sec(r'Recent Staff Leave Requests|Staff Leave Requests')
         if sec_leaves and sec_leaves != "None":
             for line in sec_leaves.split('\n'):
                 line = line.strip()
@@ -269,7 +269,7 @@ class OllamaAIService:
                     data["leaves"].append(line[2:])
 
         # 15. Parse Exams & Marks
-        sec_exam = get_sec(r'(?:School Examination & Gradebook Status|Exam Results & Marks|Your Exam Grades & Results|Children\'s Exam Results)')
+        sec_exam = get_sec(r'School Examination & Gradebook Status|Exam Results & Marks|Your Exam Grades & Results|Children\'s Exam Results')
         if sec_exam and sec_exam != "None":
             for line in sec_exam.split('\n'):
                 line = line.strip()
@@ -277,7 +277,7 @@ class OllamaAIService:
                     data["exams"].append(line[2:])
 
         # 16. Parse Timetable
-        sec_tt = get_sec(r'(?:Your Weekly Teaching Timetable|Your Class Timetable)')
+        sec_tt = get_sec(r'Your Weekly Teaching Timetable|Your Class Timetable')
         if sec_tt and sec_tt != "None":
             for line in sec_tt.split('\n'):
                 line = line.strip()
@@ -285,7 +285,7 @@ class OllamaAIService:
                     data["timetable"].append(line[2:])
 
         # 17. Parse Homework & Tasks
-        sec_hw = get_sec(r'(?:Active Assignments / Homework|Active Homework & Tasks|Your Homework & Active Tasks)')
+        sec_hw = get_sec(r'Active Assignments / Homework|Active Homework & Tasks|Your Homework & Active Tasks')
         if sec_hw and sec_hw != "None":
             for line in sec_hw.split('\n'):
                 line = line.strip()
@@ -293,7 +293,7 @@ class OllamaAIService:
                     data["homework"].append(line[2:])
 
         # 18. Parse Diary
-        sec_diary = get_sec(r'(?:Recent Diary Entries|Recent Class Diary Logs)')
+        sec_diary = get_sec(r'Recent Diary Entries|Recent Class Diary Logs')
         if sec_diary and sec_diary != "None":
             for line in sec_diary.split('\n'):
                 line = line.strip()
@@ -301,7 +301,7 @@ class OllamaAIService:
                     data["diary"].append(line[2:])
 
         # 19. Parse Notices
-        sec_notices = get_sec(r'(?:Recent School Announcements / Notices|Recent School Notices)')
+        sec_notices = get_sec(r'Recent School Announcements / Notices|Recent School Notices')
         if sec_notices and sec_notices != "None":
             for line in sec_notices.split('\n'):
                 line = line.strip()
@@ -309,7 +309,7 @@ class OllamaAIService:
                     data["notices"].append(line[2:])
 
         # 20. Parse Complaints
-        sec_comp = get_sec(r'(?:Recent Complaints & Grievances|Recent ERP Complaints & Feedback)')
+        sec_comp = get_sec(r'Recent Complaints & Grievances|Recent ERP Complaints & Feedback')
         if sec_comp and sec_comp != "None":
             for line in sec_comp.split('\n'):
                 line = line.strip()
@@ -317,7 +317,7 @@ class OllamaAIService:
                     data["complaints"].append(line[2:])
 
         # 21. Parse CRM Leads
-        sec_crm = get_sec(r'(?:Recent CRM Leads & Inquiries|Admissions & CRM Leads Overview)')
+        sec_crm = get_sec(r'Recent CRM Leads & Inquiries|Admissions & CRM Leads Overview')
         if sec_crm and sec_crm != "None":
             for line in sec_crm.split('\n'):
                 line = line.strip()
@@ -337,8 +337,8 @@ class OllamaAIService:
     def generate_smart_fallback(cls, system_prompt: str, user_message: str) -> str:
         """
         Autonomous Cognitive ERP Intelligence Engine:
-        Reads real-time database context, extracts actual operational metrics across all tabs,
-        and constructs an insightful, role-accurate executive response with visual charts and actions.
+        Reads real-time database context, accurately resolves user intent,
+        and constructs a strictly relevant, concise, role-accurate response without irrelevant data dump.
         """
         ctx = cls._parse_context_metrics(system_prompt)
         q = user_message.lower().strip()
@@ -392,50 +392,94 @@ class OllamaAIService:
             )
 
         # ─────────────────────────────────────────────────────────────────────
-        # INTENT 0.1: SPECIFIC SEARCH QUERY (STUDENT, STAFF, BOOK, ROUTE)
+        # INTENT 0.1: SPECIFIC ENTITY SEARCH (STUDENT, STAFF, BOOK, ROUTE, INVOICE)
         # ─────────────────────────────────────────────────────────────────────
         clean_words = [re.sub(r'[^a-zA-Z0-9]', '', w) for w in q.split()]
         stop_words = {
-            "tell", "show", "what", "with", "the", "name", "list", "give", "students", "student",
+            "tell", "show", "what", "with", "name", "names", "list", "give", "students", "student",
             "teachers", "teacher", "class", "classes", "find", "view", "many", "much", "all",
             "have", "about", "which", "where", "please", "could", "would", "from", "school", "are",
-            "how", "who", "any", "our", "this", "that", "there"
+            "how", "who", "any", "our", "this", "that", "there", "the", "for", "and", "in", "is", "of",
+            "question", "answer", "me", "my", "your"
         }
-        search_terms = [w for w in clean_words if len(w) >= 3 and w.lower() not in stop_words]
+        search_terms = [w for w in clean_words if len(w) >= 2 and w.lower() not in stop_words]
 
-        # A: Student Search
-        if search_terms and any(w in q for w in ["student", "students", "name", "who is", "find", "search", "lookup", "roll"]):
-            term = search_terms[0]
-            matching_students = [s for s in ctx["students"] if term in s.lower()]
-            relevant_matches = [m for m in ctx["search_matches"] if term in m.lower() and "Matched Students" in m]
+        # 1. Student Search by name/roll/code
+        if search_terms and any(w in q for w in ["student", "students", "name", "who is", "find", "search", "lookup", "roll", "code", "child", "kid"]):
+            for term in search_terms:
+                matching_students = [s for s in ctx["students"] if term in s.lower()]
+                matching_search = [m for m in ctx["search_matches"] if term in m.lower() and not m.startswith("Matched Transport") and not m.startswith("Matched Library") and not m.startswith("Matched Faculty")]
 
-            if matching_students or relevant_matches:
-                response_parts = [
-                    f"### 🎓 Student Search Results: \"{term.capitalize()}\"\n\n",
-                    f"Here are the student records matching **\"{term}\"** in your active school database:\n\n",
-                ]
-                if matching_students:
-                    for s in matching_students:
-                        clean_s = re.sub(r'\[Student ID: [^\]]+\]', '', s).strip()
-                        response_parts.append(f"- **{clean_s}**\n")
-                elif relevant_matches:
-                    for m in relevant_matches:
+                if matching_students or matching_search:
+                    response_parts = [
+                        f"### 🎓 Student Search Results: \"{term.capitalize()}\"\n\n",
+                        f"Here are the student records matching **\"{term}\"** in your active school database:\n\n",
+                    ]
+                    seen = set()
+                    if matching_students:
+                        for s in matching_students:
+                            clean_s = re.sub(r'\[Student ID: [^\]]+\]', '', s).strip()
+                            if clean_s not in seen:
+                                seen.add(clean_s)
+                                response_parts.append(f"- **{clean_s}**\n")
+                    for m in matching_search:
+                        if m.startswith("Matched"):
+                            continue
                         clean_m = re.sub(r'\[Student ID: [^\]]+\]', '', m).strip()
-                        response_parts.append(f"{clean_m}\n")
+                        clean_m = clean_m.lstrip('* ')
+                        if clean_m and clean_m not in seen:
+                            seen.add(clean_m)
+                            response_parts.append(f"- **{clean_m}**\n")
 
-                response_parts.append(
-                    "\n\nDirect navigation links:\n"
-                    "- Student Directory: `/directory`\n"
-                    "- Academics & Classes: `/academic`\n\n"
-                    '<altrix_action>{"type": "NAVIGATE_TO", "route": "/directory", "label": "Open Student Directory"}</altrix_action>\n'
-                    '<altrix_action>{"type": "NAVIGATE_TO", "route": "/academic", "label": "View Classes & Sections"}</altrix_action>'
-                )
-                return "".join(response_parts)
+                    response_parts.append(
+                        "\nDirect navigation links:\n"
+                        "- Student Directory: `/directory`\n"
+                        "- Academics & Classes: `/academic`\n\n"
+                        '<altrix_action>{"type": "NAVIGATE_TO", "route": "/directory", "label": "Open Student Directory"}</altrix_action>\n'
+                        '<altrix_action>{"type": "NAVIGATE_TO", "route": "/academic", "label": "View Classes & Sections"}</altrix_action>'
+                    )
+                    return "".join(response_parts)
 
         # ─────────────────────────────────────────────────────────────────────
-        # INTENT 1: LIBRARY MANAGEMENT & BOOKS ANALYTICS
+        # INTENT 0.2: STUDENTS DIRECTORY & ACADEMIC CLASSES
         # ─────────────────────────────────────────────────────────────────────
         if any(w in q for w in [
+            "student", "students", "roster", "directory", "enrollment", "enrolled", "child", "children",
+            "class", "classes", "section", "sections"
+        ]) and not any(w in q for w in ["exam", "result", "gradebook", "mark", "marks", "fee", "fees", "invoice", "defaulter", "attendance", "absent"]):
+            tot_students = ctx["total_students"] or len(ctx["students"]) or 0
+            response_parts = [
+                "### 🎓 Student Directory & Academic Enrollment\n\n",
+                f"- **Total Active Enrolled Students:** **{tot_students} Students**\n\n",
+            ]
+
+            if ctx["students"]:
+                response_parts.append("#### 📋 Registered Students Roster:\n")
+                for s in ctx["students"][:15]:
+                    clean_s = re.sub(r'\[Student ID: [^\]]+\]', '', s).strip()
+                    response_parts.append(f"- {clean_s}\n")
+                response_parts.append("\n")
+
+            if ctx["classes"]:
+                response_parts.append("#### 🏫 Classes & Section Breakdown:\n")
+                for c in ctx["classes"]:
+                    clean_c = re.sub(r'\[(?:Section|Class) ID: [^\]]+\]', '', c).strip()
+                    response_parts.append(f"- {clean_c}\n")
+                response_parts.append("\n")
+
+            response_parts.append(
+                "Direct navigation paths:\n"
+                "- Student Directory: `/directory`\n"
+                "- Academics & Classes: `/academic`\n\n"
+                '<altrix_action>{"type": "NAVIGATE_TO", "route": "/directory", "label": "Open Student Directory"}</altrix_action>\n'
+                '<altrix_action>{"type": "NAVIGATE_TO", "route": "/academic", "label": "Manage Classes & Sections"}</altrix_action>'
+            )
+            return "".join(response_parts)
+
+        # ─────────────────────────────────────────────────────────────────────
+        # INTENT 1: LIBRARY MANAGEMENT & BOOKS
+        # ─────────────────────────────────────────────────────────────────────
+        elif any(w in q for w in [
             "library", "book", "books", "borrow", "borrowed", "overdue", "isbn", "shelf", "fine", "fines"
         ]):
             tot_books = ctx["library_books_count"] or len(ctx["library_books"]) or 0
@@ -446,14 +490,14 @@ class OllamaAIService:
 
             if ctx["library_books"]:
                 response_parts.append("#### 📖 Available Book Titles:\n")
-                for b in ctx["library_books"][:6]:
+                for b in ctx["library_books"][:8]:
                     clean_b = re.sub(r'\[Book ID: [^\]]+\]', '', b).strip()
                     response_parts.append(f"{clean_b}\n")
                 response_parts.append("\n")
 
             if ctx["library_issues"]:
                 response_parts.append("#### ⏳ Active & Overdue Book Issues:\n")
-                for iss in ctx["library_issues"][:5]:
+                for iss in ctx["library_issues"][:6]:
                     clean_iss = re.sub(r'\[Issue ID: [^\]]+\]', '', iss).strip()
                     response_parts.append(f"{clean_iss}\n")
                 response_parts.append("\n")
@@ -473,7 +517,7 @@ class OllamaAIService:
             return "".join(response_parts)
 
         # ─────────────────────────────────────────────────────────────────────
-        # INTENT 2: TRANSPORT & FLEET ANALYTICS
+        # INTENT 2: TRANSPORT & FLEET
         # ─────────────────────────────────────────────────────────────────────
         elif any(w in q for w in [
             "transport", "bus", "buses", "vehicle", "vehicles", "route", "routes",
@@ -514,7 +558,7 @@ class OllamaAIService:
         # ─────────────────────────────────────────────────────────────────────
         elif any(w in q for w in [
             "revenue", "fee", "fees", "invoice", "invoices", "payment", "payments",
-            "defaulter", "defaulters", "collected", "unpaid", "voucher", "finance", "money", "income"
+            "defaulter", "defaulters", "collected", "unpaid", "voucher", "finance", "money", "income", "dues", "balance"
         ]):
             collected_str = ctx["collected_fees"] or "Rs. 0.00"
             unpaid_cnt = ctx["pending_invoices_count"] or len(ctx["defaulters"]) or 0
@@ -527,14 +571,14 @@ class OllamaAIService:
 
             if ctx["defaulters"]:
                 response_parts.append("#### ⚠️ Top Outstanding Fee Defaulters:\n")
-                for d in ctx["defaulters"][:5]:
+                for d in ctx["defaulters"][:6]:
                     clean_d = re.sub(r'\[Invoice ID: [^\]]+\]', '', d).strip()
                     response_parts.append(f"- {clean_d}\n")
                 response_parts.append("\n")
 
             if ctx["recent_payments"]:
                 response_parts.append("#### ✅ Recent Fee Collections Recorded:\n")
-                for p in ctx["recent_payments"][:4]:
+                for p in ctx["recent_payments"][:5]:
                     clean_p = re.sub(r'\[Payment ID: [^\]]+\]', '', p).strip()
                     response_parts.append(f"- {clean_p}\n")
                 response_parts.append("\n")
@@ -556,44 +600,32 @@ class OllamaAIService:
             return "".join(response_parts)
 
         # ─────────────────────────────────────────────────────────────────────
-        # INTENT 4: ATTENDANCE / ABSENTEES / PRESENT / TURNOUT
+        # INTENT 4: ATTENDANCE & ABSENTEES
         # ─────────────────────────────────────────────────────────────────────
         elif any(w in q for w in [
-            "attendance", "absent", "absentees", "present", "turnout", "clock in", "clock out", "late"
+            "attendance", "absent", "absentees", "present", "turnout", "attendance rate", "clock in", "biometric"
         ]):
-            staff_att = ctx["staff_attendance"]
-            pres = staff_att["present"]
-            absent = staff_att["absent"]
-            unmarked = staff_att["unmarked"]
-
-            chart_data = [
-                {"status": "Present", "count": pres},
-                {"status": "Absent", "count": absent},
-                {"status": "Unmarked", "count": unmarked},
-            ]
-            chart_tag = f'<altrix_chart type="bar" title="Today\'s Attendance Status" xKey="status" yKeys="count" data=\'{json.dumps(chart_data)}\' />'
-
+            tot_students = ctx["total_students"] or 0
             response_parts = [
-                "### 📋 School Attendance Summary\n\n",
-                "Here is today's real-time attendance report for your school shell:\n\n",
-                f"- **Present Staff:** **{pres}**\n",
-                f"- **Absent Staff:** **{absent}**\n",
-                f"- **Unmarked Records:** **{unmarked}**\n\n",
+                "### 📋 Real-Time Attendance Register\n\n",
+                f"- **Total Active Student Roster:** **{tot_students} Students**\n\n",
             ]
 
-            if staff_att["details"]:
-                response_parts.append("#### 🕒 Today's Staff Clock-In Status:\n")
-                for s in staff_att["details"][:6]:
-                    response_parts.append(f"{s}\n")
-                response_parts.append("\n")
+            if ctx["staff_attendance"]["present"] or ctx["staff_attendance"]["absent"]:
+                sa = ctx["staff_attendance"]
+                response_parts.append(
+                    f"#### 👨‍🏫 Faculty Attendance Turnout Today:\n"
+                    f"- **Present:** {sa['present']} Staff\n"
+                    f"- **Absent:** {sa['absent']} Staff\n"
+                    f"- **Unmarked:** {sa['unmarked']} Staff\n\n"
+                )
 
-            response_parts.append(f"{chart_tag}\n\n")
             response_parts.append(
-                "Access attendance operations:\n"
-                "- Attendance Center: `/attendance`\n"
+                "Direct navigation paths:\n"
+                "- Daily Attendance: `/attendance`\n"
                 "- Staff Attendance: `/staff-attendance`\n\n"
-                '<altrix_action>{"type": "NAVIGATE_TO", "route": "/attendance", "label": "Open Student Attendance Center"}</altrix_action>\n'
-                '<altrix_action>{"type": "NAVIGATE_TO", "route": "/staff-attendance", "label": "Open Staff Attendance Register"}</altrix_action>'
+                '<altrix_action>{"type": "NAVIGATE_TO", "route": "/attendance", "label": "Open Student Attendance"}</altrix_action>\n'
+                '<altrix_action>{"type": "NAVIGATE_TO", "route": "/staff-attendance", "label": "Open Staff Attendance"}</altrix_action>'
             )
             return "".join(response_parts)
 
@@ -611,7 +643,7 @@ class OllamaAIService:
             if ctx["exams"]:
                 response_parts.append("#### 🎯 Registered Exam Terms & Results:\n")
                 for e in ctx["exams"][:6]:
-                    clean_e = re.sub(r'\[Result ID: [^\]]+\]', '', e).strip()
+                    clean_e = re.sub(r'\[Exam ID: [^\]]+\]', '', e).strip()
                     response_parts.append(f"{clean_e}\n")
                 response_parts.append("\n")
             else:
@@ -785,7 +817,7 @@ class OllamaAIService:
         # INTENT 11: CRM / ADMISSIONS / LEADS / CAMPAIGNS
         # ─────────────────────────────────────────────────────────────────────
         elif any(w in q for w in [
-            "lead", "leads", "crm", "admission", "admissions", "inquiry", "inquiries", "campaign"
+            "lead", "leads", "crm", "inquiry", "inquiries", "campaign"
         ]):
             response_parts = [
                 "### 🎯 Admissions Pipeline & CRM Leads\n\n",
@@ -809,6 +841,31 @@ class OllamaAIService:
             return "".join(response_parts)
 
         # ─────────────────────────────────────────────────────────────────────
+        # INTENT 11.5: CAMPUSES & BRANCHES
+        # ─────────────────────────────────────────────────────────────────────
+        elif any(w in q for w in [
+            "campus", "campuses", "branch", "branches", "building", "location", "locations"
+        ]):
+            tot_campuses = ctx["active_campuses"] or len(ctx["campuses"]) or 1
+            response_parts = [
+                "### 🏢 Campus Infrastructure & Branches\n\n",
+                f"- **Total Active Campus Branches:** **{tot_campuses} Campus{'es' if tot_campuses > 1 else ''}**\n\n",
+            ]
+            if ctx["campuses"]:
+                response_parts.append("#### 📍 Campus Directory:\n")
+                for c in ctx["campuses"]:
+                    clean_c = re.sub(r'\[Campus ID: [^\]]+\]', '', c).strip()
+                    response_parts.append(f"{clean_c}\n")
+                response_parts.append("\n")
+
+            response_parts.append(
+                "Manage school campuses:\n"
+                "- Campus Settings: `/admin`\n\n"
+                '<altrix_action>{"type": "NAVIGATE_TO", "route": "/admin", "label": "Open Campus Settings"}</altrix_action>'
+            )
+            return "".join(response_parts)
+
+        # ─────────────────────────────────────────────────────────────────────
         # INTENT 12: ACTIVE SCREEN CONTEXTUAL GUIDANCE
         # ─────────────────────────────────────────────────────────────────────
         if any(w in q for w in [
@@ -827,7 +884,7 @@ class OllamaAIService:
             )
 
         # ─────────────────────────────────────────────────────────────────────
-        # INTENT 13: OVERALL SCHOOL HEALTH / EXECUTIVE PERFORMANCE
+        # INTENT 13: OVERALL SCHOOL HEALTH / EXECUTIVE OVERVIEW
         # ─────────────────────────────────────────────────────────────────────
         tot_students = ctx["total_students"] or len(ctx["students"]) or 0
         tot_teachers = ctx["total_teachers"] or len(ctx["staff"]) or 0
@@ -837,45 +894,54 @@ class OllamaAIService:
         tot_routes = ctx["active_routes_count"] or len(ctx["transport_routes"]) or 0
         tot_books = ctx["library_books_count"] or len(ctx["library_books"]) or 0
 
-        chart_data = [
-            {"metric": "Students", "count": tot_students},
-            {"metric": "Teachers", "count": tot_teachers},
-            {"metric": "Campuses", "count": campuses_cnt},
-            {"metric": "Unpaid Invoices", "count": unpaid_cnt},
-        ]
-        chart_tag = f'<altrix_chart type="bar" title="Live School Operational Indicators" xKey="metric" yKeys="count" data=\'{json.dumps(chart_data)}\' />'
+        # If user explicitly asked for overview / summary / dashboard / health / performance:
+        if any(w in q for w in ["overview", "summary", "dashboard", "health", "performance", "kpi", "status", "all data", "everything"]):
+            chart_data = [
+                {"metric": "Students", "count": tot_students},
+                {"metric": "Teachers", "count": tot_teachers},
+                {"metric": "Campuses", "count": campuses_cnt},
+                {"metric": "Unpaid Invoices", "count": unpaid_cnt},
+            ]
+            chart_tag = f'<altrix_chart type="bar" title="Live School Operational Indicators" xKey="metric" yKeys="count" data=\'{json.dumps(chart_data)}\' />'
 
-        return f"""### 🏫 AltRix Executive Performance Dashboard
+            return f"""### 🏫 AltRix School Operational Summary
 
-Here is your school's live operational health assessment generated directly from your active ERP database:
+Here is your school's live operational overview from your active ERP database:
 
 #### 📊 Core Operational Indicators:
-- 🎓 **Total Active Enrollment:** **{tot_students} Students** across active grades & sections
+- 🎓 **Active Enrollment:** **{tot_students} Students** across active grades & sections
 - 👨‍🏫 **Faculty Strength:** **{tot_teachers} Faculty Members** (Student-to-Teacher Ratio: ~{max(1, round(tot_students / max(1, tot_teachers)))}:1)
-- 🏢 **Campus Infrastructure:** **{campuses_cnt} Active Campus Branch{'es' if campuses_cnt > 1 else ''}**
-- 💳 **Month-to-Date Fee Collections:** **{collected_str}** received
-- 📋 **Outstanding Invoices Pending:** **{unpaid_cnt} Vouchers** require follow-up
+- 🏢 **Campus Branches:** **{campuses_cnt} Active Branch{'es' if campuses_cnt > 1 else ''}**
+- 💳 **MTD Fee Collections:** **{collected_str}** received
+- 📋 **Unpaid Invoices:** **{unpaid_cnt} Vouchers** pending
 - 🚌 **Transport Fleet:** **{tot_routes} Active Routes**
 - 📚 **Library Catalog:** **{tot_books} Book Titles**
 
 {chart_tag}
 
-#### 🔍 Key Operational Insights:
-- **Financial Health:** Fee collection pipeline is active. You can generate automated reminders for pending defaulters.
-- **Academic Operations:** Classes, timetables, and library/transport services are synchronized in real-time.
-- **Staff Attendance:** Daily biometric and manual attendance logs are up-to-date.
-
-You can navigate to specific modules for deep drill-down:
-
-- 📊 Fee & Financial Invoices: `/finance/invoices`
-- 📋 Student & Staff Attendance: `/attendance`
-- 🚌 Transport Hub: `/transport`
-- 📚 Library Module: `/library`
-- 📈 Comprehensive Reports: `/reports`
+You can ask me specific questions about any section (e.g. *"Show bus routes"*, *"List library books"*, *"Who are top defaulters?"*, *"Show student Nauman"*).
 
 <altrix_action>{{"type": "NAVIGATE_TO", "route": "/reports", "label": "Open Detailed School Reports"}}</altrix_action>
 <altrix_action>{{"type": "NAVIGATE_TO", "route": "/finance/invoices", "label": "Review Invoices & Defaulters"}}</altrix_action>
 <altrix_action>{{"type": "NAVIGATE_TO", "route": "/attendance", "label": "Check Realtime Attendance"}}</altrix_action>
+"""
+
+        # General helpful query response if query was not recognized
+        return f"""### 🤖 AltRix AI Copilot
+
+I can help you analyze and retrieve live real-time data across all ERP modules for your school:
+
+- 🎓 **Students & Classes:** Ask *"List students"*, *"Students in class 1"*, or search by name like *"Students with name Nauman"*
+- 💳 **Finance & Fees:** Ask *"Who are the top fee defaulters?"* or *"What is this month's revenue?"*
+- 📚 **Library:** Ask *"What books are in the library?"* or *"Overdue borrowed books"*
+- 🚌 **Transport:** Ask *"What are our bus routes and drivers?"*
+- 👨‍🏫 **Faculty & HR:** Ask *"List of teachers"* or *"Pending leave requests"*
+- 📋 **Attendance & Timetable:** Ask *"Today's absentees"* or *"Scheduled timetable"*
+
+What would you like to check?
+
+<altrix_action>{{"type": "NAVIGATE_TO", "route": "/directory", "label": "Open Student Directory"}}</altrix_action>
+<altrix_action>{{"type": "NAVIGATE_TO", "route": "/finance/invoices", "label": "Open Invoices Ledger"}}</altrix_action>
 """
 
     @classmethod
