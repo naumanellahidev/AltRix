@@ -105,7 +105,7 @@ class OllamaAIService:
             "stream": True,
             "options": {
                 "temperature": 0.2,
-                "num_predict": 1024
+                "num_predict": 512
             }
         }
 
@@ -115,7 +115,7 @@ class OllamaAIService:
         for endpoint in endpoints:
             try:
                 logger.info(f"Connecting to AltRix Ollama Service at {endpoint} with model '{model}'")
-                timeout = httpx.Timeout(90.0, connect=5.0)
+                timeout = httpx.Timeout(120.0, connect=5.0)
                 async with httpx.AsyncClient(timeout=timeout) as client:
                     async with client.stream("POST", endpoint, json=payload, headers=headers) as response:
                         if response.status_code == 200:

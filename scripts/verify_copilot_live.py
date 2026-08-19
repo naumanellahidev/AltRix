@@ -13,7 +13,7 @@ from pathlib import Path
 # Add backend to path
 sys.path.insert(0, "/opt/altrix/current/backend")
 
-from app.database import async_session_factory
+from app.database import AsyncSessionLocal
 from app.utils.ai_context_builder import build_scoped_ai_context
 from app.utils.ai_service import OllamaAIService
 
@@ -33,7 +33,7 @@ async def run_live_verification():
     print("=================================================================")
 
     # 1. Resolve active school
-    async with async_session_factory() as db:
+    async with AsyncSessionLocal() as db:
         from sqlalchemy import text
         s_res = await db.execute(text("SELECT id, name, slug FROM public.schools WHERE slug = 'beaconhouse' OR name ILIKE '%beacon%' LIMIT 1"))
         school = s_res.fetchone()
@@ -131,4 +131,9 @@ __DB_CONTEXT__
 
 
 if __name__ == "__main__":
-    asyncio.run(run_live_verification())
+    import traceback
+    try:
+        asyncio.run(run_live_verification())
+    except Exception as e:
+        print("\n[ERROR IN LIVE VERIFICATION]:", e)
+        traceback.print_exc()
