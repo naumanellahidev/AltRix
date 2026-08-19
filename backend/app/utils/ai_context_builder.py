@@ -31,6 +31,7 @@ async def build_scoped_ai_context(
     active_student_id: Optional[str] = None,
     current_module: Optional[str] = None,
     current_screen: Optional[str] = None,
+    user_query: Optional[str] = None,
 ) -> str:
     """
     Builds a secure, role-isolated, sub-second real-time database context string
@@ -110,6 +111,63 @@ async def build_scoped_ai_context(
                 pass
             return []
 
+    # Dynamic Targeted Record Search based on user natural query
+    async def get_targeted_search_matches(query: Optional[str]) -> str:
+        if not query:
+            return ""
+        import re
+        words = [re.sub(r'[^a-zA-Z0-9]', '', w) for w in query.split()]
+        stop_words = {
+            "tell", "show", "what", "with", "name", "list", "give", "students", "student", 
+            "teachers", "teacher", "class", "classes", "find", "view", "many", "much",
+            "have", "about", "which", "where", "please", "could", "would", "from", "school"
+        }
+        terms = [w for w in words if len(w) >= 3 and w.lower() not in stop_words]
+        if not terms:
+            terms = [w for w in words if len(w) >= 3]
+        if not terms:
+            return ""
+
+        matches: List[str] = []
+        for term in terms[:3]:
+            # Search students
+            stu_rows = await fetch_rows("""
+                SELECT s.first_name, s.last_name, s.student_code, s.status, s.gender, s.guardian_name, s.guardian_phone,
+                       c.name as class_name, cs.name as section_name, s.id as student_id
+                FROM students s
+                LEFT JOIN student_enrollments se ON se.student_id = s.id AND se.end_date IS NULL
+                LEFT JOIN class_sections cs ON se.class_section_id = cs.id
+                LEFT JOIN academic_classes c ON cs.class_id = c.id
+                WHERE s.school_id = CAST(:sid AS UUID)
+                  AND (s.first_name ILIKE :term OR s.last_name ILIKE :term OR s.student_code ILIKE :term OR s.guardian_name ILIKE :term OR s.guardian_phone ILIKE :term)
+                LIMIT 15
+            """, {"sid": school_id, "term": f"%{term}%"})
+
+            if stu_rows:
+                matches.append(f"Matched Students for '{term}':")
+                for s in stu_rows:
+                    matches.append(
+                        f"  * {s[0]} {s[1] or ''} (Code: {s[2] or 'N/A'}, Class: {s[7] or 'Unassigned'} {s[8] or ''}, Status: {s[3]}, Guardian: {s[5] or 'N/A'}, Phone: {s[6] or 'N/A'}) [Student ID: {s[9]}]"
+                    )
+
+            # Search staff
+            staff_rows = await fetch_rows("""
+                SELECT full_name, position, email, phone, is_active, department, id as staff_id
+                FROM hr_staff_directory
+                WHERE school_id = CAST(:sid AS UUID)
+                  AND (full_name ILIKE :term OR email ILIKE :term OR phone ILIKE :term OR position ILIKE :term)
+                LIMIT 10
+            """, {"sid": school_id, "term": f"%{term}%"})
+
+            if staff_rows:
+                matches.append(f"Matched Faculty/Staff for '{term}':")
+                for st in staff_rows:
+                    matches.append(
+                        f"  * {st[0]} ({st[1] or 'Staff'}, Dept: {st[5] or 'General'}, Email: {st[2] or 'N/A'}, Phone: {st[3] or 'N/A'}) [Staff ID: {st[6]}]"
+                    )
+
+        return "\n".join(matches) if matches else ""
+
     # Common School Branding and Holidays queries (cached or fast)
     async def get_branding():
         rows = await fetch_rows(
@@ -132,6 +190,7 @@ async def build_scoped_ai_context(
 
     branding_task = asyncio.create_task(get_branding())
     holidays_task = asyncio.create_task(get_holidays())
+    targeted_search_task = asyncio.create_task(get_targeted_search_matches(user_query))
 
     # =========================================================================
     # ROLE 1: School Owner / Principal / Vice Principal / Super Admin
@@ -156,6 +215,18 @@ async def build_scoped_ai_context(
 
         async def get_campuses():
             return await fetch_rows("SELECT id, name, address, is_active FROM campuses WHERE school_id = CAST(:sid AS UUID) ORDER BY name", {"sid": school_id})
+
+        async def get_students():
+            return await fetch_rows(f"""
+                SELECT s.first_name, s.last_name, s.student_code, s.status, c.name, cs.name, s.guardian_name, s.guardian_phone, s.id as student_id
+                FROM students s
+                LEFT JOIN student_enrollments se ON se.student_id = s.id AND se.end_date IS NULL
+                LEFT JOIN class_sections cs ON se.class_section_id = cs.id
+                LEFT JOIN academic_classes c ON cs.class_id = c.id
+                WHERE s.school_id = CAST(:sid AS UUID) {campus_filter}
+                ORDER BY s.first_name ASC, s.last_name ASC
+                LIMIT 100
+            """, campus_param)
 
         async def get_defaulters():
             return await fetch_rows(f"""
@@ -237,13 +308,14 @@ async def build_scoped_ai_context(
             """, campus_param)
 
         # Run all data queries in parallel
-        metrics, campuses, defaulters, invoices, payments, classes, staff, leaves, notices, crm_stats, branding, holidays = await asyncio.gather(
-            get_owner_metrics(), get_campuses(), get_defaulters(), get_invoices(), get_payments(),
+        metrics, campuses, students, defaulters, invoices, payments, classes, staff, leaves, notices, crm_stats, branding, holidays, targeted_matches = await asyncio.gather(
+            get_owner_metrics(), get_campuses(), get_students(), get_defaulters(), get_invoices(), get_payments(),
             get_classes(), get_staff(), get_leaves(), get_notices(), get_crm_stats(),
-            branding_task, holidays_task
+            branding_task, holidays_task, targeted_search_task
         )
 
         campuses_str = "\n".join([f"- {r[1]} ({r[2] or 'Main Campus'}) [Campus ID: {r[0]}]: {'Active' if r[3] else 'Inactive'}" for r in campuses])
+        students_str = "\n".join([f"- {r[0]} {r[1] or ''} (Code: {r[2] or 'N/A'}, Class: {r[4] or 'Unassigned'} {r[5] or ''}, Status: {r[3]}, Guardian: {r[6] or 'N/A'}) [Student ID: {r[8]}]" for r in students])
         defaulters_str = "\n".join([f"- {r[0]} {r[1] or ''} (Class: {r[4] or 'Unassigned'}, Section: {r[5] or 'Unassigned'}): Outstanding: {format_money(r[2])} (Invoice: {r[3]} [Invoice ID: {r[7]}, Student ID: {r[6]}])" for r in defaulters])
         invoices_str = "\n".join([f"- Inv #{r[0]}: {r[1]} {r[2] or ''} ({r[3] or 'N/A'}-{r[4] or 'N/A'}), Total: {format_money(r[5])}, Paid: {format_money(r[6])}, Due: {to_pkt_date_str(r[7])}, Status: {r[8]} [Invoice ID: {r[11]}, Student ID: {r[10]}]" for r in invoices])
         payments_str = "\n".join([f"- Received: {format_money(r[0])} via {r[1]} on {to_pkt_date_str(r[2])} | Status: {r[3]} | Student: {r[4]} {r[5] or ''} [Payment ID: {r[6]}, Invoice ID: {r[7] or 'N/A'}]" for r in payments])
@@ -263,6 +335,12 @@ Live Executive KPIs:
 - Total Teachers Count: {metrics[1]}
 - MTD Fee Collections (Received): {format_money(metrics[3])}
 - Unpaid Invoices Count: {metrics[2]}
+
+Targeted Search Results for Current Query:
+{targeted_matches or 'None'}
+
+Registered Students Directory (Active Roster):
+{students_str or 'None'}
 
 Campuses Directory:
 {campuses_str or 'None'}
@@ -387,10 +465,10 @@ Upcoming Holidays: {holidays}
                 ORDER BY te.day_of_week, te.start_time
             """, {"uid": uid, "sid": school_id})
 
-        sections, students, att, assignments, diary, results, timetable, branding, holidays = await asyncio.gather(
+        sections, students, att, assignments, diary, results, timetable, branding, holidays, targeted_matches = await asyncio.gather(
             get_teacher_sections(), get_teacher_students(), get_teacher_attendance(),
             get_teacher_assignments(), get_teacher_diary(), get_teacher_results(),
-            get_teacher_timetable(), branding_task, holidays_task
+            get_teacher_timetable(), branding_task, holidays_task, targeted_search_task
         )
 
         sections_str = "\n".join([f"- {r[1]} Section {r[2]} | Subject: {r[3]} [Section ID: {r[0]}, Subject ID: {r[5]}]" for r in sections])
@@ -405,6 +483,9 @@ Upcoming Holidays: {holidays}
 [Role Context: School Teacher]
 Assigned Classes & Subjects:
 {sections_str or 'None'}
+
+Targeted Search Results for Current Query:
+{targeted_matches or 'None'}
 
 Students in Your Assigned Classes:
 {students_str or 'None'}

@@ -41,6 +41,11 @@ services:
       - APP_ENV=production
       - SECRET_KEY=${SECRET_KEY}
       - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - AI_API_KEY=${AI_API_KEY}
+      - AI_API_BASE=${AI_API_BASE}
+      - AI_PROVIDER=${AI_PROVIDER}
+      - OLLAMA_URL=${OLLAMA_URL}
+      - OLLAMA_API_KEY=${OLLAMA_API_KEY}
     depends_on:
       redis:
         condition: service_healthy
@@ -62,6 +67,11 @@ services:
       - APP_ENV=production
       - SECRET_KEY=${SECRET_KEY}
       - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - AI_API_KEY=${AI_API_KEY}
+      - AI_API_BASE=${AI_API_BASE}
+      - AI_PROVIDER=${AI_PROVIDER}
+      - OLLAMA_URL=${OLLAMA_URL}
+      - OLLAMA_API_KEY=${OLLAMA_API_KEY}
     depends_on:
       redis:
         condition: service_healthy
@@ -83,6 +93,11 @@ services:
       - APP_ENV=production
       - SECRET_KEY=${SECRET_KEY}
       - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - AI_API_KEY=${AI_API_KEY}
+      - AI_API_BASE=${AI_API_BASE}
+      - AI_PROVIDER=${AI_PROVIDER}
+      - OLLAMA_URL=${OLLAMA_URL}
+      - OLLAMA_API_KEY=${OLLAMA_API_KEY}
     depends_on:
       redis:
         condition: service_healthy

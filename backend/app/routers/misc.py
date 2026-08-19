@@ -1487,6 +1487,7 @@ async def fetch_ai_context(
     active_student_id: Optional[str] = None,
     current_module: Optional[str] = None,
     current_screen: Optional[str] = None,
+    user_query: Optional[str] = None,
 ) -> str:
     from app.utils.ai_context_builder import build_scoped_ai_context
     return await build_scoped_ai_context(
@@ -1497,6 +1498,7 @@ async def fetch_ai_context(
         active_student_id=active_student_id,
         current_module=current_module,
         current_screen=current_screen,
+        user_query=user_query,
     )
 
 
@@ -1699,6 +1701,7 @@ async def copilot_chat(
         active_student_id=body.active_student_id,
         current_module=body.current_module,
         current_screen=body.current_screen,
+        user_query=body.message,
     )
     
     # 3. Build System Prompt

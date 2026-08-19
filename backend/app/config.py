@@ -55,7 +55,7 @@ class Settings(BaseSettings):
 
     # AI
     gemini_api_key: str = ""
-    ollama_url: str = "http://altrix_ollama:11434"
+    ollama_url: str = ""
     ollama_api_key: str = ""
     ollama_reasoning_model: str = "qwen2.5:1.5b"
     ollama_general_model: str = "qwen2.5:1.5b"

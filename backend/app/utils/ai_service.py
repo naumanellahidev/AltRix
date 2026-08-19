@@ -2,6 +2,7 @@
 import json
 import logging
 import re
+import os
 import asyncio
 import httpx
 from typing import AsyncGenerator, Dict, List, Optional, Any, cast
@@ -14,29 +15,37 @@ class OllamaAIService:
     """
     Enterprise-grade provider-agnostic AI Copilot Service for AltRix ERP.
     Features:
-    1. Multi-provider LLM streaming (Cloud Ollama, OpenRouter, OpenAI, Groq, DeepSeek, GLM, Gemini).
-    2. Autonomous High-Precision ERP Cognitive Engine when external LLM is offline or unconfigured.
-    3. Strict single-tenant data isolation and role-scoped execution.
-    4. Real-time data extraction directly from active DB context with dynamic chart and action tag generation.
+    1. Multi-provider LLM streaming (Google Gemini, Groq, OpenRouter, OpenAI, DeepSeek, Cloud/Local Ollama).
+    2. Zero-config automatic connection to Google Gemini API (gemini-1.5-flash / gemini-2.0-flash / gemini-1.5-pro).
+    3. Autonomous High-Precision ERP Cognitive Engine when external LLM is offline.
+    4. Strict single-tenant data isolation and role-scoped execution.
+    5. Real-time data extraction directly from active DB context with dynamic chart and action tag generation.
     """
 
     @classmethod
-    def route_model(cls, query: str) -> str:
+    def route_model(cls, query: str, provider: str = "gemini") -> str:
         reasoning_keywords = [
             "compare", "analyze", "trend", "report", "why", "performance",
-            "forecast", "predict", "benchmark", "root cause", "explain"
+            "forecast", "predict", "benchmark", "root cause", "explain", "detailed"
         ]
         query_lower = query.lower()
+        is_reasoning = any(keyword in query_lower for keyword in reasoning_keywords)
 
-        reasoning_default = settings.ollama_reasoning_model or "deepseek-r1"
-        general_default = settings.ollama_general_model or "qwen2.5"
+        if provider == "gemini":
+            if settings.ai_reasoning_model and "gemini" in settings.ai_reasoning_model.lower():
+                return settings.ai_reasoning_model if is_reasoning else (settings.ai_general_model or "gemini-1.5-flash")
+            return "gemini-1.5-pro" if is_reasoning else "gemini-1.5-flash"
 
-        reasoning_model = settings.ai_reasoning_model or reasoning_default
-        general_model = settings.ai_general_model or general_default
+        elif provider == "groq":
+            return "llama-3.3-70b-versatile" if is_reasoning else "llama-3.1-8b-instant"
 
-        if any(keyword in query_lower for keyword in reasoning_keywords):
-            return reasoning_model
-        return general_model
+        elif provider == "openrouter":
+            return "google/gemini-2.0-flash-001" if not is_reasoning else "deepseek/deepseek-r1"
+
+        else:
+            reasoning_default = settings.ollama_reasoning_model or settings.ai_reasoning_model or "deepseek-r1"
+            general_default = settings.ollama_general_model or settings.ai_general_model or "qwen2.5"
+            return reasoning_default if is_reasoning else general_default
 
     @classmethod
     def _parse_context_metrics(cls, context_text: str) -> Dict[str, Any]:
@@ -54,6 +63,7 @@ class OllamaAIService:
             "campuses": cast(List[str], []),
             "classes": cast(List[str], []),
             "students": cast(List[str], []),
+            "search_matches": cast(List[str], []),
             "staff": cast(List[str], []),
             "staff_attendance": {"present": 0, "absent": 0, "unmarked": 0, "details": cast(List[str], [])},
             "defaulters": cast(List[str], []),
@@ -87,19 +97,19 @@ class OllamaAIService:
             data["active_module"] = module_match.group(1).strip()
 
         # 3. Parse Live ERP Metrics
-        students_match = re.search(r'Total Active Students:\s*(\d+)', context_text)
+        students_match = re.search(r'Total Active (?:Enrolled )?Students:\s*(\d+)', context_text)
         if students_match:
             data["total_students"] = int(students_match.group(1))
 
-        campuses_match = re.search(r'Active Campuses:\s*(\d+)', context_text)
+        campuses_match = re.search(r'Active Campuses(?: Count)?:\s*(\d+)', context_text)
         if campuses_match:
             data["active_campuses"] = int(campuses_match.group(1))
 
-        teachers_match = re.search(r'Total Teachers:\s*(\d+)', context_text)
+        teachers_match = re.search(r'Total Teachers(?: Count)?:\s*(\d+)', context_text)
         if teachers_match:
             data["total_teachers"] = int(teachers_match.group(1))
 
-        fees_match = re.search(r'MTD Collected Fees:\s*([^\n]+)', context_text)
+        fees_match = re.search(r'MTD Fee Collections.*:\s*([^\n]+)', context_text)
         if fees_match:
             data["collected_fees"] = fees_match.group(1).strip()
 
@@ -111,7 +121,23 @@ class OllamaAIService:
         if adm_match:
             data["pending_admissions"] = int(adm_match.group(1))
 
-        # 4. Parse Campuses Directory
+        # 4. Parse Targeted Search Matches
+        match_section = re.search(r'Targeted Search Results.*:\s*\n(.*?)(?=\n\n|\n[A-Z]|\Z)', context_text, re.DOTALL)
+        if match_section:
+            for line in match_section.group(1).strip().split('\n'):
+                line = line.strip()
+                if line and line != "None":
+                    data["search_matches"].append(line)
+
+        # 5. Parse Students Directory
+        stu_section = re.search(r'(?:Registered Students Directory|Students in Your Assigned Classes|Your Registered Children|Students Directory).*?:\s*\n(.*?)(?=\n\n|\n[A-Z]|\Z)', context_text, re.DOTALL)
+        if stu_section:
+            for line in stu_section.group(1).strip().split('\n'):
+                line = line.strip()
+                if line.startswith('- ') and line[2:].strip() != "None":
+                    data["students"].append(line[2:])
+
+        # 6. Parse Campuses Directory
         camp_section = re.search(r'Campuses Directory:\s*\n(.*?)(?=\n\n|\n[A-Z]|\Z)', context_text, re.DOTALL)
         if camp_section:
             for line in camp_section.group(1).strip().split('\n'):
@@ -119,23 +145,23 @@ class OllamaAIService:
                 if line.startswith('- '):
                     data["campuses"].append(line[2:])
 
-        # 5. Parse Classes and Sections
-        class_section = re.search(r'Classes and Sections Enrollment Summary:\s*\n(.*?)(?=\n\n|\n[A-Z]|\Z)', context_text, re.DOTALL)
+        # 7. Parse Classes and Sections
+        class_section = re.search(r'Classes and Sections Enrollment.*:\s*\n(.*?)(?=\n\n|\n[A-Z]|\Z)', context_text, re.DOTALL)
         if class_section:
             for line in class_section.group(1).strip().split('\n'):
                 line = line.strip()
                 if line.startswith('- '):
                     data["classes"].append(line[2:])
 
-        # 6. Parse Defaulters
-        def_section = re.search(r'Outstanding Fee Defaulters:\s*\n(.*?)(?=\n\n|\n[A-Z]|\Z)', context_text, re.DOTALL)
+        # 8. Parse Defaulters
+        def_section = re.search(r'Top Outstanding Fee Defaulters:\s*\n(.*?)(?=\n\n|\n[A-Z]|\Z)', context_text, re.DOTALL)
         if def_section:
             for line in def_section.group(1).strip().split('\n'):
                 line = line.strip()
                 if line.startswith('- ') and line[2:].strip() != "None":
                     data["defaulters"].append(line[2:])
 
-        # 7. Parse Recent Payments
+        # 9. Parse Recent Payments
         pay_section = re.search(r'Recent Fee Payments Collected:\s*\n(.*?)(?=\n\n|\n[A-Z]|\Z)', context_text, re.DOTALL)
         if pay_section:
             for line in pay_section.group(1).strip().split('\n'):
@@ -143,7 +169,7 @@ class OllamaAIService:
                 if line.startswith('- ') and line[2:].strip() != "None":
                     data["recent_payments"].append(line[2:])
 
-        # 8. Parse Staff Attendance
+        # 10. Parse Staff Attendance
         staff_att_section = re.search(r"Today's Staff Attendance Summary:\s*\n(.*?)(?=\n\n|\n[A-Z]|\Z)", context_text, re.DOTALL)
         if staff_att_section:
             for line in staff_att_section.group(1).strip().split('\n'):
@@ -157,39 +183,31 @@ class OllamaAIService:
                     else:
                         data["staff_attendance"]["unmarked"] += 1
 
-        # 9. Parse Staff Directory
-        staff_section = re.search(r"Teachers & Active Staff Directory:\s*\n(.*?)(?=\n\n|\n[A-Z]|\Z)", context_text, re.DOTALL)
+        # 11. Parse Staff Directory
+        staff_section = re.search(r"(?:Staff & Teachers Roster|Teachers & Active Staff Directory|Staff Directory):\s*\n(.*?)(?=\n\n|\n[A-Z]|\Z)", context_text, re.DOTALL)
         if staff_section:
             for line in staff_section.group(1).strip().split('\n'):
                 line = line.strip()
                 if line.startswith('- ') and line[2:].strip() != "None":
                     data["staff"].append(line[2:])
 
-        # 10. Parse Exams
-        exam_section = re.search(r"School Exams & Terms:\s*\n(.*?)(?=\n\n|\n[A-Z]|\Z)", context_text, re.DOTALL)
+        # 12. Parse Exams
+        exam_section = re.search(r"(?:School Exams & Terms|Exam Results & Marks|Your Exam Grades & Results):\s*\n(.*?)(?=\n\n|\n[A-Z]|\Z)", context_text, re.DOTALL)
         if exam_section:
             for line in exam_section.group(1).strip().split('\n'):
                 line = line.strip()
                 if line.startswith('- ') and line[2:].strip() != "None":
                     data["exams"].append(line[2:])
 
-        # 11. Parse Notices / Notifications
-        notices_section = re.search(r"Recent School Announcements / Notices:\s*\n(.*?)(?=\n\n|\n[A-Z]|\Z)", context_text, re.DOTALL)
+        # 13. Parse Notices / Notifications
+        notices_section = re.search(r"(?:Recent School Announcements / Notices|Recent School Notices):\s*\n(.*?)(?=\n\n|\n[A-Z]|\Z)", context_text, re.DOTALL)
         if notices_section:
             for line in notices_section.group(1).strip().split('\n'):
                 line = line.strip()
                 if line.startswith('- ') and line[2:].strip() != "None":
                     data["notices"].append(line[2:])
 
-        # 12. Parse Timetable & Scheduled Lectures
-        tt_section = re.search(r"Scheduled Timetable & Today's Lectures:\s*\n(.*?)(?=\n\n|\n[A-Z]|\Z)", context_text, re.DOTALL)
-        if tt_section:
-            for line in tt_section.group(1).strip().split('\n'):
-                line = line.strip()
-                if line.startswith('- ') and line[2:].strip() != "None":
-                    data["classes"].append(line[2:])
-
-        # 13. Parse Complaints
+        # 14. Parse Complaints
         comp_section = re.search(r"Recent ERP Complaints & Feedback:\s*\n(.*?)(?=\n\n|\n[A-Z]|\Z)", context_text, re.DOTALL)
         if comp_section:
             for line in comp_section.group(1).strip().split('\n'):
@@ -197,25 +215,25 @@ class OllamaAIService:
                 if line.startswith('- ') and line[2:].strip() != "None":
                     data["complaints"].append(line[2:])
 
-        # 14. Parse Holidays
-        hol_section = re.search(r"Upcoming Holidays Calendar:\s*\n(.*?)(?=\n\n|\n[A-Z]|\Z)", context_text, re.DOTALL)
+        # 15. Parse Holidays
+        hol_section = re.search(r"Upcoming Holidays:\s*([^\n]+)", context_text)
         if hol_section:
-            for line in hol_section.group(1).strip().split('\n'):
-                line = line.strip()
-                if line.startswith('- ') and line[2:].strip() != "None":
-                    data["holidays"].append(line[2:])
+            val = hol_section.group(1).strip()
+            if val and val != "None":
+                data["holidays"].append(val)
 
         return data
 
     @classmethod
     def generate_smart_fallback(cls, system_prompt: str, user_message: str) -> str:
         """
-        Cognitive ERP Intelligence Engine:
+        Autonomous Cognitive ERP Intelligence Engine:
         Reads real-time database context, extracts actual operational metrics,
         and constructs an insightful, role-accurate executive response with visual charts and actions.
         """
         ctx = cls._parse_context_metrics(system_prompt)
         q = user_message.lower().strip()
+
         # ─────────────────────────────────────────────────────────────────────
         # INTENT 0.0: DIRECT WRITE / MUTATION REQUEST ATTEMPTS (STRICT READ-ONLY SAFETY)
         # ─────────────────────────────────────────────────────────────────────
@@ -259,7 +277,62 @@ class OllamaAIService:
             )
 
         # ─────────────────────────────────────────────────────────────────────
-        # INTENT 0: NOTIFICATIONS / NOTICES / BROADCASTS / ALERTS
+        # INTENT 0.1: SPECIFIC SEARCH QUERY (TARGETED SEARCH MATCHES)
+        # ─────────────────────────────────────────────────────────────────────
+        # Extract meaningful search terms
+        clean_words = [re.sub(r'[^a-zA-Z0-9]', '', w) for w in q.split()]
+        stop_words = {
+            "tell", "show", "what", "with", "the", "name", "list", "give", "students", "student",
+            "teachers", "teacher", "class", "classes", "find", "view", "many", "much", "all",
+            "have", "about", "which", "where", "please", "could", "would", "from", "school", "are"
+        }
+        search_terms = [w for w in clean_words if len(w) >= 3 and w.lower() not in stop_words]
+
+        # If user asked for a specific student/name search (e.g. "students with the name nauman")
+        if search_terms and any(w in q for w in ["student", "students", "name", "who is", "find", "search", "lookup"]):
+            term = search_terms[0]
+            
+            # Check targeted search matches first
+            relevant_matches = [m for m in ctx["search_matches"] if term in m.lower() or not m.startswith("Matched Faculty")]
+            
+            # Check students roster
+            matching_students = [s for s in ctx["students"] if term in s.lower()]
+
+            if matching_students or relevant_matches:
+                response_parts = [
+                    f"### 🎓 Student Search Results: \"{term.capitalize()}\"\n\n",
+                    f"Here are the student records matching **\"{term}\"** in your active school database:\n\n",
+                ]
+                if matching_students:
+                    for s in matching_students:
+                        # Clean ID tags from visible text for clean rendering
+                        clean_s = re.sub(r'\[Student ID: [^\]]+\]', '', s).strip()
+                        response_parts.append(f"- **{clean_s}**\n")
+                elif relevant_matches:
+                    for m in relevant_matches:
+                        clean_m = re.sub(r'\[Student ID: [^\]]+\]', '', m).strip()
+                        response_parts.append(f"{clean_m}\n")
+
+                response_parts.append(
+                    "\n\nDirect navigation links:\n"
+                    "- Student Directory: `/directory`\n"
+                    "- Academics & Classes: `/academic`\n\n"
+                    '<altrix_action>{"type": "NAVIGATE_TO", "route": "/directory", "label": "Open Student Directory"}</altrix_action>\n'
+                    '<altrix_action>{"type": "NAVIGATE_TO", "route": "/academic", "label": "View Classes & Sections"}</altrix_action>'
+                )
+                return "".join(response_parts)
+            else:
+                return (
+                    f"### 🎓 Student Search: \"{term.capitalize()}\"\n\n"
+                    f"No active student records found matching **\"{term}\"** in your school database.\n\n"
+                    f"- Total Enrolled Students: **{ctx['total_students'] or len(ctx['students']) or 0} Active Students**\n"
+                    f"- You can verify the full list in the Student Directory or register a new admission.\n\n"
+                    '<altrix_action>{"type": "NAVIGATE_TO", "route": "/directory", "label": "Open Student Directory"}</altrix_action>\n'
+                    '<altrix_action>{"type": "NAVIGATE_TO", "route": "/admissions", "label": "Open Admissions Desk"}</altrix_action>'
+                )
+
+        # ─────────────────────────────────────────────────────────────────────
+        # INTENT 0.2: NOTIFICATIONS / NOTICES / BROADCASTS / ALERTS
         # ─────────────────────────────────────────────────────────────────────
         if any(w in q for w in [
             "notification", "notifications", "notice", "notices", "announcement",
@@ -267,11 +340,12 @@ class OllamaAIService:
         ]):
             response_parts = [
                 "### 🔔 Recent School Notifications & Announcements\n\n",
-                f"Here are the active broadcast notices for your school shell:\n\n",
+                "Here are the active broadcast notices for your school shell:\n\n",
             ]
             if ctx["notices"]:
                 for n in ctx["notices"][:6]:
-                    response_parts.append(f"{n}\n")
+                    clean_n = re.sub(r'\[Notice ID: [^\]]+\]', '', n).strip()
+                    response_parts.append(f"{clean_n}\n")
             else:
                 response_parts.append("- *No recent unread broadcast notices logged in system.*")
 
@@ -292,11 +366,12 @@ class OllamaAIService:
         ]):
             response_parts = [
                 "### 📅 Today's Scheduled Lectures & Timetable\n\n",
-                f"Here is the active timetable schedule from your ERP database:\n\n",
+                "Here is the active timetable schedule from your ERP database:\n\n",
             ]
             if ctx["classes"]:
                 for c in ctx["classes"][:10]:
-                    response_parts.append(f"{c}\n")
+                    clean_c = re.sub(r'\[Section ID: [^\]]+\]', '', c).strip()
+                    response_parts.append(f"{clean_c}\n")
             else:
                 response_parts.append("- *Scheduled periods and teacher lectures are active in database.*")
 
@@ -316,7 +391,7 @@ class OllamaAIService:
         ]):
             response_parts = [
                 "### ⚠️ ERP Complaints & Feedback Register\n\n",
-                f"Here is the live complaint log for your school:\n\n",
+                "Here is the live complaint log for your school:\n\n",
             ]
             if ctx["complaints"]:
                 for comp in ctx["complaints"][:6]:
@@ -338,7 +413,6 @@ class OllamaAIService:
             "performance", "overall", "health", "how is our school", "how are we doing",
             "overview", "summary", "kpi", "kpis", "stats", "dashboard", "metrics", "progress"
         ]):
-            # Calculate metrics
             tot_students = ctx["total_students"] or len(ctx["students"]) or 0
             tot_teachers = ctx["total_teachers"] or len(ctx["staff"]) or 0
             campuses_cnt = ctx["active_campuses"] or len(ctx["campuses"]) or 1
@@ -346,7 +420,6 @@ class OllamaAIService:
             unpaid_cnt = ctx["pending_invoices_count"] or len(ctx["defaulters"]) or 0
             adm_pending = ctx["pending_admissions"]
 
-            # Staff turnout
             staff_pres = ctx["staff_attendance"]["present"]
             staff_tot = staff_pres + ctx["staff_attendance"]["absent"] + ctx["staff_attendance"]["unmarked"]
             staff_rate_str = f"{round(staff_pres / staff_tot * 100)}%" if staff_tot > 0 else "Active"
@@ -361,7 +434,7 @@ class OllamaAIService:
 
             response_parts = [
                 "### 🏫 AltRix Executive Performance Dashboard\n\n",
-                f"Here is your school's live operational health assessment generated directly from your active ERP database:\n\n",
+                "Here is your school's live operational health assessment generated directly from your active ERP database:\n\n",
                 "#### 📊 Core Operational Indicators:\n",
                 f"- 🎓 **Total Active Enrollment:** **{tot_students} Students** across active grades & sections\n",
                 f"- 👨‍🏫 **Faculty Strength:** **{tot_teachers} Faculty Members** (Student-to-Teacher Ratio: ~{max(1, round(tot_students / max(1, tot_teachers)))}:1)\n",
@@ -378,7 +451,7 @@ class OllamaAIService:
 
             response_parts.append(
                 "#### 🔍 Key Operational Insights:\n"
-                "- **Financial Health:** Fee collection pipeline is active. You can generate automated SMS reminders for pending defaulters.\n"
+                "- **Financial Health:** Fee collection pipeline is active. You can generate automated reminders for pending defaulters.\n"
                 "- **Academic Operations:** Classes and scheduled timetable periods are running normally across campuses.\n"
                 "- **Staff Attendance:** Daily biometric and manual attendance logs are up-to-date.\n\n"
                 "You can navigate to specific modules for deep drill-down:\n\n"
@@ -410,13 +483,15 @@ class OllamaAIService:
             if ctx["defaulters"]:
                 response_parts.append("#### ⚠️ Top Outstanding Fee Defaulters:\n")
                 for d in ctx["defaulters"][:5]:
-                    response_parts.append(f"- {d}\n")
+                    clean_d = re.sub(r'\[Invoice ID: [^\]]+\]', '', d).strip()
+                    response_parts.append(f"- {clean_d}\n")
                 response_parts.append("\n")
 
             if ctx["recent_payments"]:
                 response_parts.append("#### ✅ Recent Fee Collections Recorded:\n")
                 for p in ctx["recent_payments"][:4]:
-                    response_parts.append(f"- {p}\n")
+                    clean_p = re.sub(r'\[Payment ID: [^\]]+\]', '', p).strip()
+                    response_parts.append(f"- {clean_p}\n")
                 response_parts.append("\n")
 
             chart_data = [
@@ -478,7 +553,7 @@ class OllamaAIService:
             return "".join(response_parts)
 
         # ─────────────────────────────────────────────────────────────────────
-        # INTENT 4: STUDENTS / CLASSES / SECTIONS / ENROLLMENT
+        # INTENT 4: STUDENTS / CLASSES / SECTIONS / ENROLLMENT (GENERAL ROSTER)
         # ─────────────────────────────────────────────────────────────────────
         elif any(w in q for w in [
             "student", "students", "class", "classes", "section", "sections", "enrollment", "enrolled"
@@ -490,10 +565,18 @@ class OllamaAIService:
                 f"- **Total Enrolled Students:** **{tot_students} Active Students**\n\n",
             ]
 
+            if ctx["students"]:
+                response_parts.append("#### 📋 Registered Students Sample:\n")
+                for s in ctx["students"][:8]:
+                    clean_s = re.sub(r'\[Student ID: [^\]]+\]', '', s).strip()
+                    response_parts.append(f"- {clean_s}\n")
+                response_parts.append("\n")
+
             if ctx["classes"]:
                 response_parts.append("#### 📚 Class & Section Enrollment Summary:\n")
                 for c in ctx["classes"][:8]:
-                    response_parts.append(f"{c}\n")
+                    clean_c = re.sub(r'\[Section ID: [^\]]+\]', '', c).strip()
+                    response_parts.append(f"{clean_c}\n")
                 response_parts.append("\n")
 
             response_parts.append(
@@ -520,14 +603,16 @@ class OllamaAIService:
 
             if ctx["staff"]:
                 response_parts.append("#### 👥 Active Staff Directory:\n")
-                for s in ctx["staff"][:6]:
-                    response_parts.append(f"{s}\n")
+                for s in ctx["staff"][:8]:
+                    clean_s = re.sub(r'\[Staff ID: [^\]]+\]', '', s).strip()
+                    response_parts.append(f"{clean_s}\n")
                 response_parts.append("\n")
 
             if ctx["leaves"]:
                 response_parts.append("#### 📝 Recent Staff Leave Requests:\n")
                 for l in ctx["leaves"][:4]:
-                    response_parts.append(f"{l}\n")
+                    clean_l = re.sub(r'\[Leave ID: [^\]]+\]', '', l).strip()
+                    response_parts.append(f"{clean_l}\n")
                 response_parts.append("\n")
 
             response_parts.append(
@@ -553,7 +638,8 @@ class OllamaAIService:
             if ctx["exams"]:
                 response_parts.append("#### 🎯 Registered Exam Terms:\n")
                 for e in ctx["exams"][:5]:
-                    response_parts.append(f"{e}\n")
+                    clean_e = re.sub(r'\[Result ID: [^\]]+\]', '', e).strip()
+                    response_parts.append(f"{clean_e}\n")
                 response_parts.append("\n")
             else:
                 response_parts.append("- Academic grade records and terms are configured in the Examination Center.\n\n")
@@ -568,38 +654,7 @@ class OllamaAIService:
             return "".join(response_parts)
 
         # ─────────────────────────────────────────────────────────────────────
-        # INTENT 7: NOTICES / ANNOUNCEMENTS / HOLIDAYS / CALENDAR
-        # ─────────────────────────────────────────────────────────────────────
-        elif any(w in q for w in [
-            "notice", "notices", "announcement", "holiday", "holidays", "event", "events", "calendar"
-        ]):
-            response_parts = [
-                "### 📢 Announcements & School Calendar\n\n",
-            ]
-
-            if ctx["notices"]:
-                response_parts.append("#### 🔔 Recent Announcements:\n")
-                for n in ctx["notices"][:4]:
-                    response_parts.append(f"{n}\n")
-                response_parts.append("\n")
-
-            if ctx["holidays"]:
-                response_parts.append("#### 🏖️ Upcoming Scheduled Holidays:\n")
-                for h in ctx["holidays"][:4]:
-                    response_parts.append(f"{h}\n")
-                response_parts.append("\n")
-
-            response_parts.append(
-                "Communication channels:\n"
-                "- Notices: `/notices`\n"
-                "- Calendar & Holidays: `/holidays`\n\n"
-                '<altrix_action>{"type": "NAVIGATE_TO", "route": "/notices", "label": "Open Notices & Broadcasts"}</altrix_action>\n'
-                '<altrix_action>{"type": "NAVIGATE_TO", "route": "/holidays", "label": "View School Calendar"}</altrix_action>'
-            )
-            return "".join(response_parts)
-
-        # ─────────────────────────────────────────────────────────────────────
-        # INTENT 8: GENERAL ASSISTANT / SHELL-CONNECTED RESPONSE
+        # INTENT 7: GENERAL ASSISTANT / SHELL-CONNECTED RESPONSE
         # ─────────────────────────────────────────────────────────────────────
         else:
             tot_students = ctx["total_students"] or len(ctx["students"]) or 0
@@ -613,7 +668,7 @@ class OllamaAIService:
                 f"Regarding your query on **\"{user_message}\"**:\n\n"
                 f"- **Financial Health:** Month-to-date collections are currently tracking at **{collected_str}**.\n"
                 f"- **Daily Operations:** Classes, staff attendance, and timetable periods are actively running.\n"
-                f"- **Instant Assistance:** You can ask me specific questions like *'Show overall school performance'*, *'What is this month revenue?'*, *'Who are top defaulters?'*, or *'Show today attendance'*.\n\n"
+                f"- **Instant Assistance:** You can ask me specific questions like *'Tell me students with name Nauman'*, *'Show overall school performance'*, *'What is this month revenue?'*, or *'Show today attendance'*.\n\n"
                 "Quick module shortcuts:\n"
                 "- 📊 Fee & Invoices: `/finance/invoices`\n"
                 "- 📋 Student & Staff Attendance: `/attendance`\n"
@@ -631,11 +686,12 @@ class OllamaAIService:
         history: Optional[List[Dict[str, str]]] = None
     ) -> AsyncGenerator[str, None]:
         """
-        Executes streaming AI response.
-        Attempts LLM endpoints first; if offline/unconfigured/error, streams the
-        high-precision cognitive ERP engine response smoothly token-by-token.
+        Executes streaming AI response with multi-provider LLM cascade:
+        1. Google Gemini API (via OpenAI-compatible endpoint or native key).
+        2. Custom OpenAI / Groq / OpenRouter / DeepSeek if configured.
+        3. Local Ollama instance if reachable.
+        4. Autonomous Cognitive ERP Engine as graceful fallback.
         """
-        model = cls.route_model(user_message)
         messages = [{"role": "system", "content": system_prompt}]
         if history:
             for msg in history:
@@ -645,40 +701,98 @@ class OllamaAIService:
 
         success_streamed = False
 
-        # ── 1. Attempt External / Cloud / Ollama LLM if configured ───────────
-        try:
-            target_url = None
-            headers = {"Content-Type": "application/json"}
-            api_key = settings.ollama_api_key or settings.ai_api_key or settings.gemini_api_key
+        # ── Multi-Provider Candidates Construction ───────────────────────────
+        candidates: List[Dict[str, Any]] = []
 
-            if settings.ai_api_base:
-                target_url = f"{settings.ai_api_base.rstrip('/')}/chat/completions"
-                if api_key:
-                    headers["Authorization"] = f"Bearer {api_key}"
-            elif settings.ollama_url:
-                base_url = settings.ollama_url.rstrip('/')
-                target_url = f"{base_url}/chat" if base_url.endswith("/api") else f"{base_url}/api/chat"
-                if api_key:
-                    headers["Authorization"] = f"Bearer {api_key}"
-
-            if target_url:
-                payload = {
+        # Candidate 1: Google Gemini (Highest Priority if key available)
+        gemini_key = (
+            settings.gemini_api_key or 
+            (settings.ai_api_key if (settings.ai_api_key and settings.ai_api_key.startswith("AIzaSy")) else "") or
+            os.environ.get("GEMINI_API_KEY", "")
+        )
+        if gemini_key:
+            model = cls.route_model(user_message, provider="gemini")
+            candidates.append({
+                "provider": "gemini",
+                "url": "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+                "headers": {
+                    "Authorization": f"Bearer {gemini_key}",
+                    "Content-Type": "application/json"
+                },
+                "payload": {
                     "model": model,
                     "messages": messages,
                     "stream": True,
-                    "options": {
-                        "temperature": 0.3 if "r1" in model.lower() or "reason" in model.lower() else 0.7
-                    }
+                    "temperature": 0.3 if "pro" in model.lower() or "r1" in model.lower() else 0.7
                 }
-                timeout = httpx.Timeout(30.0, connect=3.0)
+            })
+
+        # Candidate 2: Custom OpenAI-compatible / Groq / OpenRouter
+        if settings.ai_api_base and settings.ai_api_key:
+            model = cls.route_model(user_message, provider=settings.ai_provider)
+            candidates.append({
+                "provider": settings.ai_provider or "custom",
+                "url": f"{settings.ai_api_base.rstrip('/')}/chat/completions",
+                "headers": {
+                    "Authorization": f"Bearer {settings.ai_api_key}",
+                    "Content-Type": "application/json"
+                },
+                "payload": {
+                    "model": model,
+                    "messages": messages,
+                    "stream": True,
+                    "temperature": 0.7
+                }
+            })
+
+        # Candidate 3: Groq auto-detection
+        if settings.ai_api_key and (settings.ai_api_key.startswith("gsk_") or settings.ai_provider == "groq"):
+            model = cls.route_model(user_message, provider="groq")
+            candidates.append({
+                "provider": "groq",
+                "url": "https://api.groq.com/openai/v1/chat/completions",
+                "headers": {
+                    "Authorization": f"Bearer {settings.ai_api_key}",
+                    "Content-Type": "application/json"
+                },
+                "payload": {
+                    "model": model,
+                    "messages": messages,
+                    "stream": True,
+                }
+            })
+
+        # Candidate 4: Ollama (if explicitly set and not empty)
+        if settings.ollama_url and settings.ollama_url.strip():
+            base_url = settings.ollama_url.rstrip('/')
+            url = f"{base_url}/chat" if base_url.endswith("/api") else f"{base_url}/api/chat"
+            model = cls.route_model(user_message, provider="ollama")
+            headers = {"Content-Type": "application/json"}
+            if settings.ollama_api_key:
+                headers["Authorization"] = f"Bearer {settings.ollama_api_key}"
+            candidates.append({
+                "provider": "ollama",
+                "url": url,
+                "headers": headers,
+                "payload": {
+                    "model": model,
+                    "messages": messages,
+                    "stream": True,
+                }
+            })
+
+        # ── 1. Attempt Streaming Across Candidate Providers ──────────────────
+        for cand in candidates:
+            try:
+                logger.info(f"Connecting to AI Provider: {cand['provider']} ({cand['url']}) with model {cand['payload']['model']}")
+                timeout = httpx.Timeout(45.0, connect=5.0)
                 async with httpx.AsyncClient(timeout=timeout) as client:
-                    async with client.stream("POST", target_url, json=payload, headers=headers) as response:
+                    async with client.stream("POST", cand["url"], json=cand["payload"], headers=cand["headers"]) as response:
                         if response.status_code == 200:
                             async for line in response.aiter_lines():
                                 if not line.strip():
                                     continue
                                 try:
-                                    # Handle OpenAI or Ollama SSE format
                                     clean_line = line.replace("data: ", "").strip()
                                     if clean_line == "[DONE]":
                                         break
@@ -693,23 +807,28 @@ class OllamaAIService:
                                         yield f"data: {json.dumps(sse_data)}\n\n"
                                 except json.JSONDecodeError:
                                     continue
-        except Exception as e:
-            logger.info(f"External LLM stream bypassed: {e}")
+                            
+                            if success_streamed:
+                                break
+                        else:
+                            resp_body = await response.aread()
+                            logger.warning(f"AI Provider {cand['provider']} returned HTTP {response.status_code}: {resp_body.decode('utf-8', 'ignore')[:200]}")
+            except Exception as e:
+                logger.info(f"AI Provider {cand['provider']} streaming attempt bypassed: {e}")
 
         # ── 2. Autonomous Cognitive ERP Reasoning Stream ─────────────────────
         if not success_streamed:
             logger.info("Executing Autonomous Cognitive ERP Intelligence Engine for Copilot")
             generated_response = cls.generate_smart_fallback(system_prompt, user_message)
 
-            # Stream chunks with realistic pacing for interactive UI feel
             words = generated_response.split(" ")
             for i, word in enumerate(words):
                 token = word if i == 0 else " " + word
                 sse_data = {"choices": [{"delta": {"content": token}}]}
                 yield f"data: {json.dumps(sse_data)}\n\n"
-                # Small non-blocking yield tick every few words for fluid streaming animation
                 if i % 3 == 0:
                     await asyncio.sleep(0.01)
 
         yield "data: [DONE]\n\n"
+
 
