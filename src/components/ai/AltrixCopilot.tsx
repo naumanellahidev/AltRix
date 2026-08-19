@@ -132,8 +132,95 @@ const routeNames = [
   "complaints", "parent-notes", "counseling", "attendance-heatmap",
   "reports", "notices", "holidays", "ai-counselor", "messages",
   "collaboration", "support", "at-risk", "behavior", "student-cards",
-  "admin", "schools", "students"
+  "admin", "schools", "students", "directory", "transport", "library",
+  "assignments", "lesson-plans", "branding", "settings"
 ];
+
+const ROLE_SUGGESTIONS: Record<string, string[]> = {
+  school_owner: [
+    "Overall school performance",
+    "Top fee defaulters",
+    "Month-to-date revenue",
+    "Absentees today",
+    "Transport fleet status",
+    "Library inventory overview"
+  ],
+  principal: [
+    "School performance KPI",
+    "Staff attendance today",
+    "Pending leave requests",
+    "Exam results summary",
+    "Bus routes and drivers"
+  ],
+  vice_principal: [
+    "Class-wise attendance",
+    "Scheduled lectures today",
+    "Teacher substitutions",
+    "Active complaints"
+  ],
+  school_admin: [
+    "Total active students",
+    "Outstanding fees summary",
+    "Recent invoices",
+    "Campus branches status"
+  ],
+  teacher: [
+    "My class schedule today",
+    "Attendance in my sections",
+    "Active homework due dates",
+    "Exam marks entry",
+    "Library book catalog"
+  ],
+  parent: [
+    "My children attendance",
+    "Fee invoices & due dates",
+    "Children exam grades",
+    "Today's diary notes",
+    "School bus route & driver"
+  ],
+  student: [
+    "My attendance record",
+    "My exam results",
+    "Homework due this week",
+    "My class timetable",
+    "Library borrowed books"
+  ],
+  accountant: [
+    "Top fee defaulters",
+    "Outstanding fees ledger",
+    "Recent fee collections",
+    "Active fee plans",
+    "Expense breakdown"
+  ],
+  hr_manager: [
+    "Staff directory roster",
+    "Pending staff leave requests",
+    "Staff clock-in turnout",
+    "Monthly payroll status"
+  ],
+  librarian: [
+    "Library books catalog",
+    "Overdue book returns",
+    "Active book issues",
+    "Search library books"
+  ],
+  transport_manager: [
+    "Active bus routes",
+    "Fleet vehicles status",
+    "Driver contact numbers",
+    "Route stops & timings"
+  ],
+  marketing: [
+    "Admissions CRM pipeline",
+    "Recent inquiry leads",
+    "Active campaigns performance"
+  ],
+  counselor: [
+    "Student behavior notes",
+    "Chronic absentee alerts",
+    "Counseling logs"
+  ]
+};
 
 const getRouteLabel = (route: string): string => {
   const clean = route.toLowerCase();
@@ -148,6 +235,10 @@ const getRouteLabel = (route: string): string => {
   if (clean.includes("student-cards") || clean.includes("student_cards")) return "Student ID Cards";
   if (clean.includes("parent-notes") || clean.includes("parent_notes")) return "Parent Notes";
   
+  if (clean.includes("transport") || clean.includes("routes") || clean.includes("vehicles") || clean.includes("fleet")) return "Transport & Fleet";
+  if (clean.includes("library") || clean.includes("books")) return "Library & Books";
+  if (clean.includes("assignments") || clean.includes("homework")) return "Assignments Hub";
+  if (clean.includes("directory")) return "Student Directory";
   if (clean.includes("invoices")) return "Invoices";
   if (clean.includes("payments")) return "Payments";
   if (clean.includes("expenses")) return "Expenses";
@@ -196,6 +287,7 @@ const getRouteLabel = (route: string): string => {
   const lastSegment = route.split("/").filter(Boolean).pop() || route;
   return lastSegment.charAt(0).toUpperCase() + lastSegment.slice(1).replace(/[-_]/g, " ");
 };
+
 
 const extractRoutesFromText = (text: string): string[] => {
   if (!text) return [];

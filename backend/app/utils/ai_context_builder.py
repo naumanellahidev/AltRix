@@ -2,17 +2,27 @@
 """
 AltRix AI Copilot — Enterprise Scoped Context Builder
 Features:
-1. Strict multi-tenant and role-based data isolation (zero data leakage).
-2. Parallel asynchronous database queries via asyncio.gather for sub-30ms context extraction.
+1. Strict multi-tenant and role-based data isolation (zero cross-tenant leakage).
+2. Sequential asynchronous database queries with robust error boundary catching.
 3. 100% read-only data queries with zero mutation capabilities.
-4. Granular role-scoped contexts for all 12 ERP roles (Owner, Principal, Teacher, Parent, Student, Accountant, HR, Marketing, Counselor, Librarian, Transport, Academic Coordinator).
-5. Dynamic campus scoping (when active_campus_id is present).
-6. Smart child/student focus (when active_student_id is present).
+4. Comprehensive role-scoped contexts covering ALL ERP domains:
+   - Academics & Timetables (Classes, Sections, Subjects, Schedules, Lesson Plans, Diary)
+   - Students & Digital Twin (Roster, Guardian/Parent info, Enrollments, Admissions)
+   - Attendance (Daily Students, Daily Staff, Absentees, Percentages)
+   - Finance & Fees (Invoices, Payments, Defaulters, Fee Plans, Expenses)
+   - Exams & Gradebook (Exams, Results, Marks, Grades, Remarks)
+   - Library Management (Books Catalog, Active Issues, Overdue Books, Fines)
+   - Transport & Fleet (Vehicles, Routes, Bus Stops, Driver Contacts, Student Allocations)
+   - HR & Payroll (Staff Directory, Leave Requests, Salary Records)
+   - Communication & CRM (Notices, Complaints, CRM Leads, Campaigns, Holidays)
+5. Screen/Route-aware dynamic context prioritization.
+6. Multi-term targeted search across students, staff, library books, transport routes, and invoices.
 """
 
 import json
 import logging
 import asyncio
+import re
 from datetime import datetime, timezone, timedelta
 from uuid import UUID
 from typing import Optional, List, Any, Dict
@@ -35,7 +45,7 @@ async def build_scoped_ai_context(
 ) -> str:
     """
     Builds a secure, role-isolated, sub-second real-time database context string
-    for the AltRix AI Copilot.
+    for the AltRix AI Copilot covering all tabs, features, and operational modules.
     """
     effective_roles = expand_roles(user.roles if hasattr(user, "roles") else [])
     
@@ -98,7 +108,7 @@ async def build_scoped_ai_context(
         except Exception:
             return str(val)[:10]
 
-    # Safe query executor that captures errors gracefully
+    # Safe query executor that captures errors gracefully without aborting transaction
     async def fetch_rows(sql: str, params: Dict[str, Any]) -> List[Any]:
         try:
             res = await db.execute(text(sql), params)
@@ -111,16 +121,17 @@ async def build_scoped_ai_context(
                 pass
             return []
 
-    # Dynamic Targeted Record Search based on user natural query
+    # Dynamic Targeted Record Search across all ERP entities based on user query
     async def get_targeted_search_matches(query: Optional[str]) -> str:
         if not query:
             return ""
-        import re
-        words = [re.sub(r'[^a-zA-Z0-9]', '', w) for w in query.split()]
+        clean_query = query.strip()
+        words = [re.sub(r'[^a-zA-Z0-9]', '', w) for w in clean_query.split()]
         stop_words = {
             "tell", "show", "what", "with", "name", "list", "give", "students", "student", 
             "teachers", "teacher", "class", "classes", "find", "view", "many", "much",
-            "have", "about", "which", "where", "please", "could", "would", "from", "school"
+            "have", "about", "which", "where", "please", "could", "would", "from", "school",
+            "are", "the", "for", "and", "how", "who", "all", "our", "today", "this"
         }
         terms = [w for w in words if len(w) >= 3 and w.lower() not in stop_words]
         if not terms:
@@ -130,16 +141,16 @@ async def build_scoped_ai_context(
 
         matches: List[str] = []
         for term in terms[:3]:
-            # Search students
+            # 1. Search students
             stu_rows = await fetch_rows("""
                 SELECT s.first_name, s.last_name, s.student_code, s.status, s.gender, s.parent_name, s.parent_phone,
-                       c.name as class_name, cs.name as section_name, s.id as student_id
+                       c.name as class_name, cs.name as section_name, s.id as student_id, s.roll_number
                 FROM students s
                 LEFT JOIN student_enrollments se ON se.student_id = s.id AND se.end_date IS NULL
                 LEFT JOIN class_sections cs ON se.class_section_id = cs.id
                 LEFT JOIN academic_classes c ON cs.class_id = c.id
                 WHERE s.school_id = CAST(:sid AS UUID)
-                  AND (s.first_name ILIKE :term OR s.last_name ILIKE :term OR s.student_code ILIKE :term OR s.parent_name ILIKE :term OR s.parent_phone ILIKE :term)
+                  AND (s.first_name ILIKE :term OR s.last_name ILIKE :term OR s.student_code ILIKE :term OR s.parent_name ILIKE :term OR s.parent_phone ILIKE :term OR s.roll_number ILIKE :term)
                 LIMIT 15
             """, {"sid": school_id, "term": f"%{term}%"})
 
@@ -147,15 +158,15 @@ async def build_scoped_ai_context(
                 matches.append(f"Matched Students for '{term}':")
                 for s in stu_rows:
                     matches.append(
-                        f"  * {s[0]} {s[1] or ''} (Code: {s[2] or 'N/A'}, Class: {s[7] or 'Unassigned'} {s[8] or ''}, Status: {s[3]}, Parent: {s[5] or 'N/A'}, Phone: {s[6] or 'N/A'}) [Student ID: {s[9]}]"
+                        f"  * {s[0]} {s[1] or ''} (Roll/Code: {s[2] or s[10] or 'N/A'}, Class: {s[7] or 'Unassigned'} {s[8] or ''}, Status: {s[3]}, Parent: {s[5] or 'N/A'}, Phone: {s[6] or 'N/A'}) [Student ID: {s[9]}]"
                     )
 
-            # Search staff
+            # 2. Search staff
             staff_rows = await fetch_rows("""
                 SELECT full_name, position, email, phone, is_active, department, id as staff_id
                 FROM hr_staff_directory
                 WHERE school_id = CAST(:sid AS UUID)
-                  AND (full_name ILIKE :term OR email ILIKE :term OR phone ILIKE :term OR position ILIKE :term)
+                  AND (full_name ILIKE :term OR email ILIKE :term OR phone ILIKE :term OR position ILIKE :term OR department ILIKE :term)
                 LIMIT 10
             """, {"sid": school_id, "term": f"%{term}%"})
 
@@ -166,9 +177,59 @@ async def build_scoped_ai_context(
                         f"  * {st[0]} ({st[1] or 'Staff'}, Dept: {st[5] or 'General'}, Email: {st[2] or 'N/A'}, Phone: {st[3] or 'N/A'}) [Staff ID: {st[6]}]"
                     )
 
+            # 3. Search Library Books
+            book_rows = await fetch_rows("""
+                SELECT title, author, isbn, category, total_copies, available_copies, shelf_location, id as book_id
+                FROM library_books
+                WHERE school_id = CAST(:sid AS UUID)
+                  AND (title ILIKE :term OR author ILIKE :term OR isbn ILIKE :term OR category ILIKE :term)
+                LIMIT 10
+            """, {"sid": school_id, "term": f"%{term}%"})
+
+            if book_rows:
+                matches.append(f"Matched Library Books for '{term}':")
+                for b in book_rows:
+                    matches.append(
+                        f"  * '{b[0]}' by {b[1]} (Category: {b[3] or 'General'}, Available: {b[5]}/{b[4]} copies, Shelf: {b[6] or 'N/A'}) [Book ID: {b[7]}]"
+                    )
+
+            # 4. Search Transport Routes & Buses
+            route_rows = await fetch_rows("""
+                SELECT r.route_name, r.route_code, r.start_point, r.end_point, r.monthly_fare, r.status, v.bus_number, v.driver_name, v.driver_phone
+                FROM bus_routes r
+                LEFT JOIN vehicles v ON r.vehicle_id = v.id
+                WHERE r.school_id = CAST(:sid AS UUID)
+                  AND (r.route_name ILIKE :term OR r.route_code ILIKE :term OR r.start_point ILIKE :term OR r.end_point ILIKE :term OR v.bus_number ILIKE :term OR v.driver_name ILIKE :term)
+                LIMIT 10
+            """, {"sid": school_id, "term": f"%{term}%"})
+
+            if route_rows:
+                matches.append(f"Matched Transport Routes/Vehicles for '{term}':")
+                for rt in route_rows:
+                    matches.append(
+                        f"  * Route {rt[0]} ({rt[1] or 'N/A'}): {rt[2]} to {rt[3]} | Bus: {rt[6] or 'Unassigned'} | Driver: {rt[7] or 'N/A'} ({rt[8] or 'N/A'}) | Fare: {format_money(rt[4])} | Status: {rt[5]}"
+                    )
+
+            # 5. Search Fee Invoices
+            inv_rows = await fetch_rows("""
+                SELECT i.invoice_number, s.first_name, s.last_name, i.total_amount, i.paid_amount, i.due_date, i.status, i.id as invoice_id
+                FROM fee_invoices i
+                JOIN students s ON i.student_id = s.id
+                WHERE i.school_id = CAST(:sid AS UUID)
+                  AND (i.invoice_number ILIKE :term OR s.first_name ILIKE :term OR s.last_name ILIKE :term)
+                LIMIT 10
+            """, {"sid": school_id, "term": f"%{term}%"})
+
+            if inv_rows:
+                matches.append(f"Matched Fee Invoices for '{term}':")
+                for iv in inv_rows:
+                    matches.append(
+                        f"  * Invoice #{iv[0]}: {iv[1]} {iv[2] or ''} | Total: {format_money(iv[3])}, Paid: {format_money(iv[4])}, Due: {to_pkt_date_str(iv[5])}, Status: {iv[6]} [Invoice ID: {iv[7]}]"
+                    )
+
         return "\n".join(matches) if matches else ""
 
-    # Common School Branding and Holidays queries (cached or fast)
+    # Common School Branding and Holidays queries
     async def get_branding():
         rows = await fetch_rows(
             "SELECT accent_hue, accent_saturation, accent_lightness, radius_scale FROM public.school_branding WHERE school_id = CAST(:sid AS UUID) LIMIT 1",
@@ -188,12 +249,16 @@ async def build_scoped_ai_context(
             return "\n".join([f"- {h[0]} ({h[1]} to {h[2]}) [Type: {h[3] or 'General'}]" for h in rows])
         return "No upcoming holidays scheduled."
 
+    screen_context_header = (
+        f"- Current Screen/Route: {current_screen or 'General Dashboard'}\n"
+        f"- Current Module: {current_module or 'ERP Overview'}\n"
+    )
+
     # =========================================================================
     # ROLE 1: School Owner / Principal / Vice Principal / Super Admin
     # =========================================================================
     if user.is_super_admin or any(r in effective_roles for r in ["school_owner", "principal", "vice_principal", "school_admin"]):
         mtd_start = datetime.now(timezone.utc).replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-        
         campus_filter = "AND (campus_id = CAST(:cid AS UUID) OR :cid IS NULL)" if active_campus_id else ""
         campus_param = {"sid": school_id, "cid": active_campus_id, "mtd_start": mtd_start}
 
@@ -204,10 +269,13 @@ async def build_scoped_ai_context(
                     (SELECT COUNT(*) FROM user_roles WHERE school_id = CAST(:sid AS UUID) AND role = 'teacher' {campus_filter}) as total_teachers,
                     (SELECT COUNT(*) FROM fee_invoices WHERE school_id = CAST(:sid AS UUID) AND status NOT IN ('paid', 'cancelled') {campus_filter}) as pending_payments,
                     (SELECT COALESCE(SUM(amount), 0) FROM fee_payments WHERE school_id = CAST(:sid AS UUID) AND paid_at >= :mtd_start {campus_filter}) as collected_fees,
-                    (SELECT COUNT(*) FROM campuses WHERE school_id = CAST(:sid AS UUID) AND is_active = true) as active_campuses
+                    (SELECT COUNT(*) FROM campuses WHERE school_id = CAST(:sid AS UUID) AND is_active = true) as active_campuses,
+                    (SELECT COUNT(*) FROM bus_routes WHERE school_id = CAST(:sid AS UUID) AND status = 'active') as active_routes,
+                    (SELECT COUNT(*) FROM library_books WHERE school_id = CAST(:sid AS UUID)) as library_books_count,
+                    (SELECT COUNT(*) FROM complaints WHERE school_id = CAST(:sid AS UUID) AND status IN ('open', 'pending', 'in_progress')) as open_complaints_count
             """
             rows = await fetch_rows(sql, campus_param)
-            return rows[0] if rows else (0, 0, 0, 0, 0)
+            return rows[0] if rows else (0, 0, 0, 0, 0, 0, 0, 0)
 
         async def get_campuses():
             return await fetch_rows("SELECT id, name, address, is_active FROM campuses WHERE school_id = CAST(:sid AS UUID) ORDER BY name", {"sid": school_id})
@@ -296,6 +364,55 @@ async def build_scoped_ai_context(
                 WHERE school_id = CAST(:sid AS UUID) ORDER BY created_at DESC LIMIT 10
             """, {"sid": school_id})
 
+        async def get_exams():
+            return await fetch_rows(f"""
+                SELECT name, term_label, start_date, end_date, status, result_published, id as exam_id
+                FROM exams
+                WHERE school_id = CAST(:sid AS UUID)
+                ORDER BY start_date DESC LIMIT 10
+            """, {"sid": school_id})
+
+        async def get_library_summary():
+            books = await fetch_rows("""
+                SELECT title, author, category, total_copies, available_copies, shelf_location, id as book_id
+                FROM library_books
+                WHERE school_id = CAST(:sid AS UUID)
+                ORDER BY title LIMIT 20
+            """, {"sid": school_id})
+            issues = await fetch_rows("""
+                SELECT b.title, s.first_name, s.last_name, bi.issue_date, bi.due_date, bi.status, bi.fine_amount, bi.id as issue_id
+                FROM book_issues bi
+                JOIN library_books b ON bi.book_id = b.id
+                LEFT JOIN students s ON bi.borrower_id = s.id
+                WHERE bi.school_id = CAST(:sid AS UUID) AND bi.status != 'returned'
+                ORDER BY bi.due_date ASC LIMIT 15
+            """, {"sid": school_id})
+            return books, issues
+
+        async def get_transport_summary():
+            vehicles = await fetch_rows("""
+                SELECT bus_number, registration_no, vehicle_type, seating_capacity, driver_name, driver_phone, status, id as vehicle_id
+                FROM vehicles
+                WHERE school_id = CAST(:sid AS UUID)
+                ORDER BY bus_number
+            """, {"sid": school_id})
+            routes = await fetch_rows("""
+                SELECT r.route_name, r.route_code, r.start_point, r.end_point, r.monthly_fare, r.status, v.bus_number, v.driver_name, v.driver_phone, r.id as route_id
+                FROM bus_routes r
+                LEFT JOIN vehicles v ON r.vehicle_id = v.id
+                WHERE r.school_id = CAST(:sid AS UUID)
+                ORDER BY r.route_name
+            """, {"sid": school_id})
+            return vehicles, routes
+
+        async def get_complaints():
+            return await fetch_rows("""
+                SELECT subject, category, status, priority, created_at, id as complaint_id
+                FROM complaints
+                WHERE school_id = CAST(:sid AS UUID)
+                ORDER BY created_at DESC LIMIT 10
+            """, {"sid": school_id})
+
         async def get_crm_stats():
             return await fetch_rows(f"""
                 SELECT status, COUNT(*) FROM public.crm_leads 
@@ -303,7 +420,7 @@ async def build_scoped_ai_context(
                 GROUP BY status
             """, campus_param)
 
-        # Run all data queries sequentially to prevent session concurrency conflicts
+        # Sequential Data Fetching for zero race conditions
         metrics = await get_owner_metrics()
         campuses = await get_campuses()
         students = await get_students()
@@ -314,13 +431,17 @@ async def build_scoped_ai_context(
         staff = await get_staff()
         leaves = await get_leaves()
         notices = await get_notices()
+        exams = await get_exams()
+        lib_books, lib_issues = await get_library_summary()
+        t_vehicles, t_routes = await get_transport_summary()
+        complaints = await get_complaints()
         crm_stats = await get_crm_stats()
         branding = await get_branding()
         holidays = await get_holidays()
         targeted_matches = await get_targeted_search_matches(user_query)
 
         campuses_str = "\n".join([f"- {r[1]} ({r[2] or 'Main Campus'}) [Campus ID: {r[0]}]: {'Active' if r[3] else 'Inactive'}" for r in campuses])
-        students_str = "\n".join([f"- {r[0]} {r[1] or ''} (Code: {r[2] or 'N/A'}, Class: {r[4] or 'Unassigned'} {r[5] or ''}, Status: {r[3]}, Guardian: {r[6] or 'N/A'}) [Student ID: {r[8]}]" for r in students])
+        students_str = "\n".join([f"- {r[0]} {r[1] or ''} (Code: {r[2] or 'N/A'}, Class: {r[4] or 'Unassigned'} {r[5] or ''}, Status: {r[3]}, Parent: {r[6] or 'N/A'}) [Student ID: {r[8]}]" for r in students])
         defaulters_str = "\n".join([f"- {r[0]} {r[1] or ''} (Class: {r[4] or 'Unassigned'}, Section: {r[5] or 'Unassigned'}): Outstanding: {format_money(r[2])} (Invoice: {r[3]} [Invoice ID: {r[7]}, Student ID: {r[6]}])" for r in defaulters])
         invoices_str = "\n".join([f"- Inv #{r[0]}: {r[1]} {r[2] or ''} ({r[3] or 'N/A'}-{r[4] or 'N/A'}), Total: {format_money(r[5])}, Paid: {format_money(r[6])}, Due: {to_pkt_date_str(r[7])}, Status: {r[8]} [Invoice ID: {r[11]}, Student ID: {r[10]}]" for r in invoices])
         payments_str = "\n".join([f"- Received: {format_money(r[0])} via {r[1]} on {to_pkt_date_str(r[2])} | Status: {r[3]} | Student: {r[4]} {r[5] or ''} [Payment ID: {r[6]}, Invoice ID: {r[7] or 'N/A'}]" for r in payments])
@@ -328,11 +449,18 @@ async def build_scoped_ai_context(
         staff_str = "\n".join([f"- {r[0]} ({r[1] or 'Staff'}, Dept: {r[5] or 'General'}) | Status: {'Active' if r[4] else 'Inactive'} [Staff ID: {r[6]}]" for r in staff])
         leaves_str = "\n".join([f"- {r[0]}: {r[1]} to {r[2]} | Reason: '{r[3] or 'None'}' | Status: {r[4]} [Leave ID: {r[5]}]" for r in leaves])
         notices_str = "\n".join([f"- '{r[1]}' | Audience: {r[3] or 'All'} | Date: {to_pkt_date_str(r[4])} | Details: '{r[2] or 'None'}' [Notice ID: {r[0]}]" for r in notices])
+        exams_str = "\n".join([f"- Exam: {r[0]} ({r[1] or 'Term'}) | Dates: {r[2]} to {r[3]} | Status: {r[4]} | Results Published: {'Yes' if r[5] else 'No'} [Exam ID: {r[6]}]" for r in exams])
+        books_str = "\n".join([f"- '{r[0]}' by {r[1]} ({r[2] or 'General'}) | Available: {r[4]}/{r[3]} copies | Shelf: {r[5] or 'N/A'} [Book ID: {r[6]}]" for r in lib_books])
+        issues_str = "\n".join([f"- Book '{r[0]}' borrowed by {r[1]} {r[2] or ''} | Due: {to_pkt_date_str(r[4])} | Status: {r[5]} | Fine: {format_money(r[6])} [Issue ID: {r[7]}]" for r in lib_issues])
+        vehicles_str = "\n".join([f"- Bus {r[0]} ({r[1] or 'Reg'}): Type: {r[2] or 'Van'}, Capacity: {r[3]} seats | Driver: {r[4] or 'N/A'} ({r[5] or 'N/A'}) | Status: {r[6]} [Vehicle ID: {r[7]}]" for r in t_vehicles])
+        routes_str = "\n".join([f"- Route {r[0]} ({r[1] or 'N/A'}): {r[2]} to {r[3]} | Bus: {r[6] or 'Unassigned'} | Driver: {r[7] or 'N/A'} ({r[8] or 'N/A'}) | Monthly Fare: {format_money(r[4])} | Status: {r[5]} [Route ID: {r[9]}]" for r in t_routes])
+        complaints_str = "\n".join([f"- '{r[0]}' ({r[1] or 'General'}) | Priority: {r[3] or 'Normal'} | Status: {r[2]} [Complaint ID: {r[5]}]" for r in complaints])
         crm_str = ", ".join([f"{r[0] or 'New'}: {r[1]}" for r in crm_stats]) if crm_stats else "None"
 
         return f"""
 [Role Context: School Executive / Owner / Principal]
 Scope: {'Campus ' + str(active_campus_id) if active_campus_id else 'All School Campuses'}
+{screen_context_header}
 
 Live Executive KPIs:
 - Total Active Enrolled Students: {metrics[0]}
@@ -340,6 +468,9 @@ Live Executive KPIs:
 - Total Teachers Count: {metrics[1]}
 - MTD Fee Collections (Received): {format_money(metrics[3])}
 - Unpaid Invoices Count: {metrics[2]}
+- Active Transport Routes Count: {metrics[5]}
+- Library Catalog Books Count: {metrics[6]}
+- Open Complaints / Issues Count: {metrics[7]}
 
 Targeted Search Results for Current Query:
 {targeted_matches or 'None'}
@@ -362,6 +493,21 @@ Recent Invoices Register:
 Recent Fee Payments Collected:
 {payments_str or 'None'}
 
+Library Books Catalog & Active Borrows:
+Books Inventory:
+{books_str or 'None'}
+Active Book Issues / Overdue:
+{issues_str or 'None'}
+
+Transport Fleet & Bus Routes:
+Vehicles:
+{vehicles_str or 'None'}
+Routes:
+{routes_str or 'None'}
+
+School Examination & Gradebook Status:
+{exams_str or 'None'}
+
 Staff & Teachers Roster:
 {staff_str or 'None'}
 
@@ -370,6 +516,9 @@ Recent Staff Leave Requests:
 
 Recent School Notices:
 {notices_str or 'None'}
+
+Recent Complaints & Grievances:
+{complaints_str or 'None'}
 
 Admissions & CRM Leads Overview:
 {crm_str}
@@ -396,7 +545,7 @@ Upcoming Holidays: {holidays}
 
         async def get_teacher_students():
             return await fetch_rows("""
-                SELECT s.first_name, s.last_name, s.student_code, c.name, cs.name, s.id as student_id, c.id as class_id, cs.id as section_id
+                SELECT s.first_name, s.last_name, s.student_code, c.name, cs.name, s.id as student_id, c.id as class_id, cs.id as section_id, s.parent_name, s.parent_phone
                 FROM students s
                 JOIN student_enrollments se ON se.student_id = s.id AND se.end_date IS NULL
                 JOIN class_sections cs ON se.class_section_id = cs.id
@@ -482,7 +631,7 @@ Upcoming Holidays: {holidays}
         targeted_matches = await get_targeted_search_matches(user_query)
 
         sections_str = "\n".join([f"- {r[1]} Section {r[2]} | Subject: {r[3]} [Section ID: {r[0]}, Subject ID: {r[5]}]" for r in sections])
-        students_str = "\n".join([f"- {r[0]} {r[1] or ''} (Code: {r[2] or 'N/A'}, Class: {r[3]} {r[4]}) [Student ID: {r[5]}]" for r in students])
+        students_str = "\n".join([f"- {r[0]} {r[1] or ''} (Code: {r[2] or 'N/A'}, Class: {r[3]} {r[4]}, Parent: {r[8] or 'N/A'}, Phone: {r[9] or 'N/A'}) [Student ID: {r[5]}]" for r in students])
         att_str = "\n".join([f"- {r[0]} {r[1] or ''}: {round(r[2]/r[3]*100, 1)}% attendance ({r[2]}/{r[3]} days present) [Student ID: {r[4]}]" for r in att if r[3] > 0])
         hw_str = "\n".join([f"- '{r[0]}' ({r[1] or 'No details'}) | Due: {r[2]} | Class: {r[4]} {r[5]} [Assignment ID: {r[6]}]" for r in assignments])
         diary_str = "\n".join([f"- '{r[0]}' on {r[2]}: '{r[1] or 'None'}' | Class: {r[3]} {r[4]} [Diary ID: {r[5]}]" for r in diary])
@@ -491,6 +640,8 @@ Upcoming Holidays: {holidays}
 
         return f"""
 [Role Context: School Teacher]
+{screen_context_header}
+
 Assigned Classes & Subjects:
 {sections_str or 'None'}
 
@@ -533,14 +684,14 @@ Upcoming Holidays: {holidays}
                 LEFT JOIN student_enrollments se ON se.student_id = s.id AND se.end_date IS NULL
                 LEFT JOIN class_sections cs ON se.class_section_id = cs.id
                 LEFT JOIN academic_classes c ON cs.class_id = c.id
-                WHERE (sg.user_id = :uid OR s.parent_id = :uid) AND s.school_id = CAST(:sid AS UUID)
+                WHERE (sg.user_id = :uid OR s.parent_id = :uid OR s.profile_id = :uid) AND s.school_id = CAST(:sid AS UUID)
             """, {"uid": uid, "sid": school_id})
 
         children = await get_parent_children()
         if not children:
             branding = await get_branding()
             holidays = await get_holidays()
-            return f"[Role Context: Parent]\nNo linked children profiles found.\nSchool Branding: {branding}\nUpcoming Holidays: {holidays}"
+            return f"[Role Context: Parent]\n{screen_context_header}\nNo linked children profiles found in this school.\nSchool Branding: {branding}\nUpcoming Holidays: {holidays}"
 
         child_ids = [str(c[0]) for c in children]
 
@@ -594,11 +745,23 @@ Upcoming Holidays: {holidays}
                 ORDER BY d.entry_date DESC LIMIT 15
             """, {"cids": child_ids})
 
+        async def get_child_transport():
+            return await fetch_rows("""
+                SELECT s.first_name, s.last_name, r.route_name, st.stop_name, st.estimated_morning_time, st.estimated_evening_time, v.bus_number, v.driver_name, v.driver_phone
+                FROM student_transport_assignments sta
+                JOIN students s ON sta.student_id = s.id
+                JOIN bus_routes r ON sta.route_id = r.id
+                LEFT JOIN bus_stops st ON sta.stop_id = st.id
+                LEFT JOIN vehicles v ON r.vehicle_id = v.id
+                WHERE sta.student_id = ANY(SELECT unnest(CAST(:cids AS UUID[]))) AND sta.status = 'active'
+            """, {"cids": child_ids})
+
         att = await get_child_attendance()
         invoices = await get_child_invoices()
         results = await get_child_results()
         homework = await get_child_homework()
         diary = await get_child_diary()
+        transport = await get_child_transport()
         branding = await get_branding()
         holidays = await get_holidays()
 
@@ -608,9 +771,12 @@ Upcoming Holidays: {holidays}
         res_str = "\n".join([f"- {r[0]}: {r[2]} — {r[3]}: Marks: {r[4]}/{r[5]} (Grade: {r[6]}, Remarks: '{r[7] or 'Good'}') [Result ID: {r[8]}, Exam ID: {r[9]}, Student ID: {r[10]}]" for r in results])
         hw_str = "\n".join([f"- {r[0]}: Homework '{r[2]}' ({r[3] or 'None'}) | Due: {r[4]} | Max Marks: {r[5]} [Assignment ID: {r[6]}]" for r in homework])
         diary_str = "\n".join([f"- {r[0]}: Diary '{r[2]}' on {r[4]}: '{r[3] or 'None'}'" for r in diary])
+        t_str = "\n".join([f"- {r[0]} {r[1] or ''}: Route '{r[2]}' (Stop: {r[3] or 'N/A'}, Pickup: {r[4] or 'N/A'}, Drop: {r[5] or 'N/A'}) | Bus #{r[6] or 'N/A'} | Driver: {r[7] or 'N/A'} ({r[8] or 'N/A'})" for r in transport])
 
         return f"""
 [Role Context: Parent]
+{screen_context_header}
+
 Your Registered Children:
 {children_str}
 
@@ -628,6 +794,9 @@ Active Homework & Tasks:
 
 Recent Class Diary Logs:
 {diary_str or 'None'}
+
+Assigned Transport & School Bus Info:
+{t_str or 'None'}
 
 School Branding: {branding}
 Upcoming Holidays: {holidays}
@@ -655,7 +824,7 @@ Upcoming Holidays: {holidays}
         if not profiles:
             branding = await get_branding()
             holidays = await get_holidays()
-            return f"[Role Context: Student]\nStudent profile not found.\nSchool Branding: {branding}\nUpcoming Holidays: {holidays}"
+            return f"[Role Context: Student]\n{screen_context_header}\nStudent profile not found in this school.\nSchool Branding: {branding}\nUpcoming Holidays: {holidays}"
 
         s_id, first_name, last_name, code, class_name, section_name = profiles[0]
 
@@ -695,10 +864,20 @@ Upcoming Holidays: {holidays}
                 ORDER BY created_at DESC LIMIT 10
             """, {"sid": s_id})
 
+        async def get_my_timetable():
+            return await fetch_rows("""
+                SELECT te.day_of_week, te.subject_name, te.start_time, te.end_time, te.room
+                FROM timetable_entries te
+                JOIN student_enrollments se ON te.class_section_id = se.class_section_id AND se.end_date IS NULL
+                WHERE se.student_id = CAST(:sid AS UUID)
+                ORDER BY te.day_of_week, te.start_time
+            """, {"sid": s_id})
+
         att = await get_my_attendance()
         results = await get_my_results()
         homework = await get_my_homework()
         invoices = await get_my_invoices()
+        timetable = await get_my_timetable()
         branding = await get_branding()
         holidays = await get_holidays()
 
@@ -706,9 +885,12 @@ Upcoming Holidays: {holidays}
         res_str = "\n".join([f"- {r[0]} — {r[1]}: Marks: {r[2]}/{r[3]} (Grade: {r[4]}, Remarks: '{r[5] or 'None'}') [Result ID: {r[6]}, Exam ID: {r[7]}]" for r in results])
         hw_str = "\n".join([f"- '{r[0]}' ({r[1] or 'None'}) | Due: {r[2]} | Max Marks: {r[3]} [Assignment ID: {r[4]}]" for r in homework])
         inv_str = "\n".join([f"- Invoice #{r[0]}: Total: {format_money(r[1])}, Paid: {format_money(r[2])}, Due: {to_pkt_date_str(r[3])}, Status: {r[4]} [Invoice ID: {r[5]}]" for r in invoices])
+        tt_str = "\n".join([f"- Day {r[0]} ({r[2]}-{r[3]}): {r[1]} (Room: {r[4] or 'Main'})" for r in timetable])
 
         return f"""
 [Role Context: Student]
+{screen_context_header}
+
 Name: {first_name} {last_name or ''} (Code: {code or 'N/A'}, Class: {class_name or 'N/A'} {section_name or ''}) [Student ID: {s_id}]
 
 Your Attendance History:
@@ -719,6 +901,9 @@ Your Exam Grades & Results:
 
 Your Homework & Active Tasks:
 {hw_str or 'None'}
+
+Your Class Timetable:
+{tt_str or 'None'}
 
 Your Fee Invoices:
 {inv_str or 'None'}
@@ -735,19 +920,20 @@ Upcoming Holidays: {holidays}
             rows = await fetch_rows("""
                 SELECT 
                     COALESCE(SUM(total_amount - paid_amount), 0) as outstanding,
-                    COALESCE(SUM(paid_amount), 0) as paid
+                    COALESCE(SUM(paid_amount), 0) as paid,
+                    COUNT(*) FILTER (WHERE status != 'paid') as unpaid_count
                 FROM fee_invoices
-                WHERE school_id = CAST(:sid AS UUID) AND status != 'paid' AND student_id != CAST('00000000-0000-0000-0000-000000000000' AS UUID)
+                WHERE school_id = CAST(:sid AS UUID) AND student_id != CAST('00000000-0000-0000-0000-000000000000' AS UUID)
             """, {"sid": school_id})
-            return rows[0] if rows else (0, 0)
+            return rows[0] if rows else (0, 0, 0)
 
         async def get_acc_defaulters():
             return await fetch_rows("""
-                SELECT s.first_name, s.last_name, COALESCE(i.total_amount, 0) - COALESCE(i.paid_amount, 0) as balance, i.invoice_number, s.id as student_id, i.id as invoice_id
+                SELECT s.first_name, s.last_name, COALESCE(i.total_amount, 0) - COALESCE(i.paid_amount, 0) as balance, i.invoice_number, s.id as student_id, i.id as invoice_id, s.parent_name, s.parent_phone
                 FROM fee_invoices i
                 JOIN students s ON i.student_id = s.id
                 WHERE i.school_id = CAST(:sid AS UUID) AND i.status != 'paid' AND i.student_id != CAST('00000000-0000-0000-0000-000000000000' AS UUID)
-                ORDER BY balance DESC LIMIT 20
+                ORDER BY balance DESC LIMIT 25
             """, {"sid": school_id})
 
         async def get_acc_invoices():
@@ -790,8 +976,9 @@ Upcoming Holidays: {holidays}
         expenses = await get_acc_expenses()
         branding = await get_branding()
         holidays = await get_holidays()
+        targeted_matches = await get_targeted_search_matches(user_query)
 
-        defaulters_str = "\n".join([f"- {r[0]} {r[1] or ''}: Balance: {format_money(r[2])} (Invoice: {r[3]} [Invoice ID: {r[5]}, Student ID: {r[4]}])" for r in defaulters])
+        defaulters_str = "\n".join([f"- {r[0]} {r[1] or ''}: Outstanding: {format_money(r[2])} (Invoice: #{r[3]} | Parent: {r[6] or 'N/A'}, Phone: {r[7] or 'N/A'}) [Invoice ID: {r[5]}, Student ID: {r[4]}]" for r in defaulters])
         invoices_str = "\n".join([f"- Inv #{r[0]}: {r[1]} {r[2] or ''} ({r[3] or 'N/A'}-{r[4] or 'N/A'}), Total: {format_money(r[5])}, Paid: {format_money(r[6])}, Due: {to_pkt_date_str(r[7])}, Status: {r[8]} [Invoice ID: {r[11]}, Student ID: {r[10]}]" for r in invoices])
         plans_str = "\n".join([f"- {r[0]} ({r[3]}, {r[1]}): {r[4] or 'Standard'} | {'Active' if r[2] else 'Inactive'} [Fee Plan ID: {r[5]}]" for r in plans])
         payments_str = "\n".join([f"- Received: {format_money(r[0])} via {r[1]} on {to_pkt_date_str(r[2])} | Status: {r[3]} | Student: {r[4]} {r[5] or ''} [Payment ID: {r[6]}, Invoice ID: {r[7] or 'N/A'}]" for r in payments])
@@ -799,9 +986,15 @@ Upcoming Holidays: {holidays}
 
         return f"""
 [Role Context: School Accountant]
+{screen_context_header}
+
 Financial Metrics:
 - Outstanding Receivables: {format_money(metrics[0])}
 - Total Collected Fees: {format_money(metrics[1])}
+- Pending Unpaid Invoices: {metrics[2]}
+
+Targeted Search Results for Current Query:
+{targeted_matches or 'None'}
 
 Top Fee Defaulters:
 {defaulters_str or 'None'}
@@ -853,6 +1046,7 @@ Upcoming Holidays: {holidays}
         salaries = await get_hr_salaries()
         branding = await get_branding()
         holidays = await get_holidays()
+        targeted_matches = await get_targeted_search_matches(user_query)
 
         staff_str = "\n".join([f"- {r[0]} ({r[1] or 'Staff'}, Dept: {r[5] or 'General'}, Email: {r[2] or 'N/A'}) | Status: {'Active' if r[4] else 'Inactive'} [Staff ID: {r[6]}]" for r in staff])
         leaves_str = "\n".join([f"- {r[0]}: {r[2]} to {r[3]} | Reason: '{r[4] or 'None'}' | Status: {r[5]} [Leave ID: {r[6]}]" for r in leaves])
@@ -860,6 +1054,11 @@ Upcoming Holidays: {holidays}
 
         return f"""
 [Role Context: HR Manager]
+{screen_context_header}
+
+Targeted Search Results for Current Query:
+{targeted_matches or 'None'}
+
 Staff Directory:
 {staff_str or 'None'}
 
@@ -874,54 +1073,136 @@ Upcoming Holidays: {holidays}
 """
 
     # =========================================================================
-    # ROLE 7: Marketing / Admissions / CRM Context
+    # ROLE 7: Librarian / Library Manager
     # =========================================================================
-    elif any(r in effective_roles for r in ["marketing", "admissions_officer"]):
-        async def get_leads():
+    elif "librarian" in effective_roles:
+        async def get_all_books():
             return await fetch_rows("""
-                SELECT full_name, email, phone, stage, source, status, created_at, id as lead_id
-                FROM crm_leads WHERE school_id = CAST(:sid AS UUID) ORDER BY created_at DESC LIMIT 30
+                SELECT title, author, isbn, category, total_copies, available_copies, shelf_location, id as book_id
+                FROM library_books WHERE school_id = CAST(:sid AS UUID) ORDER BY title LIMIT 100
             """, {"sid": school_id})
 
-        async def get_campaigns():
+        async def get_all_issues():
             return await fetch_rows("""
-                SELECT name, channel, status, budget, start_date, end_date, id as campaign_id
-                FROM crm_campaigns WHERE school_id = CAST(:sid AS UUID) ORDER BY created_at DESC LIMIT 15
+                SELECT b.title, s.first_name, s.last_name, bi.issue_date, bi.due_date, bi.status, bi.fine_amount, bi.id as issue_id, bi.return_date
+                FROM book_issues bi
+                JOIN library_books b ON bi.book_id = b.id
+                LEFT JOIN students s ON bi.borrower_id = s.id
+                WHERE bi.school_id = CAST(:sid AS UUID)
+                ORDER BY bi.due_date ASC LIMIT 50
             """, {"sid": school_id})
 
-        async def get_admissions():
-            return await fetch_rows("""
-                SELECT applicant_name, grade_applying_for, parent_name, parent_phone, status, created_at, id as app_id
-                FROM admission_applications WHERE school_id = CAST(:sid AS UUID) ORDER BY created_at DESC LIMIT 25
-            """, {"sid": school_id})
-
-        leads = await get_leads()
-        campaigns = await get_campaigns()
-        admissions = await get_admissions()
+        books = await get_all_books()
+        issues = await get_all_issues()
         branding = await get_branding()
         holidays = await get_holidays()
+        targeted_matches = await get_targeted_search_matches(user_query)
 
-        leads_str = "\n".join([f"- Lead: {r[0]} ({r[1] or 'No Email'}, {r[2] or 'No Phone'}) | Stage: {r[3] or 'Inquiry'} | Source: {r[4] or 'Direct'} | Status: {r[5]} [Lead ID: {r[7]}]" for r in leads])
-        campaigns_str = "\n".join([f"- Campaign: '{r[0]}' ({r[1]}) | Status: {r[2]} | Budget: {format_money(r[3])} [Campaign ID: {r[6]}]" for r in campaigns])
-        admissions_str = "\n".join([f"- Applicant: {r[0]} applying for {r[1]} | Parent: {r[2]} ({r[3] or 'N/A'}) | Status: {r[4]} [Application ID: {r[6]}]" for r in admissions])
+        books_str = "\n".join([f"- '{r[0]}' by {r[1]} ({r[3] or 'General'}) | ISBN: {r[2] or 'N/A'} | Available: {r[5]}/{r[4]} | Shelf: {r[6] or 'Main'} [Book ID: {r[7]}]" for r in books])
+        issues_str = "\n".join([f"- Book '{r[0]}' | Borrower: {r[1]} {r[2] or ''} | Due: {to_pkt_date_str(r[4])} | Status: {r[5]} | Fine: {format_money(r[6])} [Issue ID: {r[7]}]" for r in issues])
 
         return f"""
-[Role Context: Marketing & Admissions Officer]
-Recent CRM Leads & Inquiries:
-{leads_str or 'None'}
+[Role Context: School Librarian]
+{screen_context_header}
 
-Active Marketing Campaigns:
-{campaigns_str or 'None'}
+Targeted Search Results for Current Query:
+{targeted_matches or 'None'}
 
-Admission Applications:
-{admissions_str or 'None'}
+Library Books Catalog:
+{books_str or 'None'}
+
+Active & Overdue Book Issues:
+{issues_str or 'None'}
 
 School Branding: {branding}
 Upcoming Holidays: {holidays}
 """
 
     # =========================================================================
-    # ROLE 8: Counselor / Wellbeing
+    # ROLE 8: Transport Manager / Fleet Coordinator
+    # =========================================================================
+    elif "transport_manager" in effective_roles:
+        async def get_transport_fleet():
+            vehicles = await fetch_rows("""
+                SELECT bus_number, registration_no, vehicle_type, seating_capacity, driver_name, driver_phone, conductor_name, conductor_phone, status, id as vehicle_id
+                FROM vehicles WHERE school_id = CAST(:sid AS UUID) ORDER BY bus_number
+            """, {"sid": school_id})
+            routes = await fetch_rows("""
+                SELECT r.route_name, r.route_code, r.start_point, r.end_point, r.morning_departure, r.evening_departure, r.monthly_fare, r.status, v.bus_number, v.driver_name, v.driver_phone, r.id as route_id
+                FROM bus_routes r
+                LEFT JOIN vehicles v ON r.vehicle_id = v.id
+                WHERE r.school_id = CAST(:sid AS UUID) ORDER BY r.route_name
+            """, {"sid": school_id})
+            stops = await fetch_rows("""
+                SELECT bs.stop_name, r.route_name, bs.estimated_morning_time, bs.estimated_evening_time, bs.landmark, bs.id as stop_id
+                FROM bus_stops bs
+                JOIN bus_routes r ON bs.route_id = r.id
+                WHERE r.school_id = CAST(:sid AS UUID) ORDER BY r.route_name, bs.stop_order LIMIT 60
+            """, {"sid": school_id})
+            return vehicles, routes, stops
+
+        vehicles, routes, stops = await get_transport_fleet()
+        branding = await get_branding()
+        holidays = await get_holidays()
+        targeted_matches = await get_targeted_search_matches(user_query)
+
+        v_str = "\n".join([f"- Bus {r[0]} ({r[1] or 'Reg'}): {r[2] or 'Bus'} (Seats: {r[3]}) | Driver: {r[4] or 'N/A'} ({r[5] or 'N/A'}) | Conductor: {r[6] or 'N/A'} ({r[7] or 'N/A'}) | Status: {r[8]} [Vehicle ID: {r[9]}]" for r in vehicles])
+        r_str = "\n".join([f"- Route {r[0]} ({r[1] or 'N/A'}): {r[2]} to {r[3]} (Morning: {r[4] or '07:30'}, Evening: {r[5] or '14:00'}) | Bus #{r[8] or 'N/A'} | Driver: {r[9] or 'N/A'} ({r[10] or 'N/A'}) | Fare: {format_money(r[6])} | Status: {r[7]} [Route ID: {r[11]}]" for r in routes])
+        s_str = "\n".join([f"- Stop '{r[0]}' on Route '{r[1]}' (Morning: {r[2] or 'N/A'}, Evening: {r[3] or 'N/A'}) [Stop ID: {r[5]}]" for r in stops])
+
+        return f"""
+[Role Context: School Transport Manager]
+{screen_context_header}
+
+Targeted Search Results for Current Query:
+{targeted_matches or 'None'}
+
+Fleet Vehicles:
+{v_str or 'None'}
+
+Bus Routes & Schedules:
+{r_str or 'None'}
+
+Route Stops:
+{s_str or 'None'}
+
+School Branding: {branding}
+Upcoming Holidays: {holidays}
+"""
+
+    # =========================================================================
+    # ROLE 9: Marketing / Admissions / CRM Context
+    # =========================================================================
+    elif any(r in effective_roles for r in ["marketing", "admissions_officer"]):
+        async def get_leads():
+            return await fetch_rows("""
+                SELECT full_name, email, phone, stage_id, source, status, created_at, id as lead_id
+                FROM crm_leads WHERE school_id = CAST(:sid AS UUID) ORDER BY created_at DESC LIMIT 30
+            """, {"sid": school_id})
+
+        leads = await get_leads()
+        branding = await get_branding()
+        holidays = await get_holidays()
+        targeted_matches = await get_targeted_search_matches(user_query)
+
+        leads_str = "\n".join([f"- Lead: {r[0]} ({r[1] or 'No Email'}, {r[2] or 'No Phone'}) | Source: {r[4] or 'Direct'} | Status: {r[5]} [Lead ID: {r[7]}]" for r in leads])
+
+        return f"""
+[Role Context: Marketing & Admissions Officer]
+{screen_context_header}
+
+Targeted Search Results for Current Query:
+{targeted_matches or 'None'}
+
+Recent CRM Leads & Inquiries:
+{leads_str or 'None'}
+
+School Branding: {branding}
+Upcoming Holidays: {holidays}
+"""
+
+    # =========================================================================
+    # ROLE 10: Counselor / Wellbeing
     # =========================================================================
     elif "counselor" in effective_roles:
         async def get_counseling_notes():
@@ -935,11 +1216,17 @@ Upcoming Holidays: {holidays}
         notes = await get_counseling_notes()
         branding = await get_branding()
         holidays = await get_holidays()
+        targeted_matches = await get_targeted_search_matches(user_query)
 
         notes_str = "\n".join([f"- Student: {r[0]} {r[1] or ''} | Note: '{r[2]}' ({r[3] or 'None'}) | Type: {r[4]} | Date: {to_pkt_date_str(r[5])} [Note ID: {r[6]}, Student ID: {r[7]}]" for r in notes])
 
         return f"""
 [Role Context: School Counselor]
+{screen_context_header}
+
+Targeted Search Results for Current Query:
+{targeted_matches or 'None'}
+
 Recent Student Wellbeing & Behavior Notes:
 {notes_str or 'None'}
 
@@ -952,5 +1239,15 @@ Upcoming Holidays: {holidays}
     # =========================================================================
     branding = await get_branding()
     holidays = await get_holidays()
-    return f"[Role Context: Guest / General User]\nSchool Branding: {branding}\nUpcoming Holidays: {holidays}"
+    targeted_matches = await get_targeted_search_matches(user_query)
+    return f"""
+[Role Context: Guest / General User]
+{screen_context_header}
+
+Targeted Search Results for Current Query:
+{targeted_matches or 'None'}
+
+School Branding: {branding}
+Upcoming Holidays: {holidays}
+"""
 
