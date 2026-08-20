@@ -525,10 +525,10 @@ async def build_scoped_ai_context(
             """, campus_param)
             if not rows:
                 rows = await fetch_rows("""
-                    SELECT full_name, role as position, email, phone, is_active, 'General' as department, id as staff_id, user_id as linked_user_id
+                    SELECT display_name as full_name, 'Teacher/Staff' as position, email, '' as phone, true as is_active, 'General' as department, user_id as staff_id, user_id as linked_user_id
                     FROM school_user_directory
                     WHERE school_id = CAST(:sid AS UUID)
-                    ORDER BY full_name LIMIT 50
+                    ORDER BY display_name LIMIT 50
                 """, {"sid": school_id})
             return rows
 
