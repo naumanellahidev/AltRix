@@ -149,6 +149,125 @@ async def build_scoped_ai_context(
 
         matches: List[str] = []
 
+        # ── 0. Relational Class & Section Teacher Assignment Search ────────────
+        # Handles queries like:
+        # "Class 3 ko jo teachers assign hain unke naam batao"
+        # "Class 5 ka teacher kaun hai?"
+        # "Section A mein kaun se teachers assigned hain?"
+        # "Grade 8 ke math teacher ka naam batao"
+        # "Which teachers are assigned to Class 3?"
+        is_relational_assignment_query = any(
+            kw in clean_query.lower()
+            for kw in [
+                "teacher", "teachers", "assign", "assigned", "ustaad", "ustad", 
+                "parhate", "padhate", "kaun hai", "kon hai", "who is", "who teaches",
+                "faculty", "incharge", "class teacher"
+            ]
+        )
+
+        class_pattern_match = re.search(r'(?:class|grade|section|jamaat|darja)\s*([0-9a-zA-Z\-]+)', clean_query, re.IGNORECASE)
+        explicit_num_match = re.search(r'\b([1-9]|1[0-2])\b', clean_query)
+
+        if is_relational_assignment_query or class_pattern_match or explicit_num_match:
+            c_target = ""
+            if class_pattern_match:
+                c_target = class_pattern_match.group(1).strip()
+            elif explicit_num_match:
+                c_target = explicit_num_match.group(1).strip()
+
+            c_filter = "AND (c.name ILIKE :cterm OR cs.name ILIKE :cterm OR CAST(c.grade_level AS text) = :gterm)" if c_target else ""
+            c_params = {"sid": school_id, "cterm": f"%{c_target}%", "gterm": c_target} if c_target else {"sid": school_id}
+
+            # 1. Fetch matching academic classes and sections in scope
+            classes_in_scope = await fetch_rows(f"""
+                SELECT c.name as class_name, cs.name as section_name, cs.id as section_id, c.id as class_id, c.grade_level
+                FROM academic_classes c
+                JOIN class_sections cs ON cs.class_id = c.id
+                WHERE c.school_id = CAST(:sid AS UUID) {c_filter}
+                ORDER BY c.name ASC, cs.name ASC
+            """, c_params)
+
+            if classes_in_scope:
+                # 2. Fetch all teacher assignments for these sections
+                assignments_rows = await fetch_rows(f"""
+                    SELECT 
+                        c.name as class_name,
+                        cs.name as section_name,
+                        sub.name as subject_name,
+                        COALESCE(sud.display_name, p.display_name, hr.full_name, 'Assigned Teacher') as teacher_name,
+                        cs.id as section_id
+                    FROM teacher_subject_assignments tsa
+                    JOIN class_sections cs ON cs.id = tsa.class_section_id
+                    JOIN academic_classes c ON c.id = cs.class_id
+                    LEFT JOIN subjects sub ON sub.id = tsa.subject_id
+                    LEFT JOIN school_user_directory sud ON sud.user_id = tsa.teacher_user_id AND sud.school_id = tsa.school_id
+                    LEFT JOIN profiles p ON p.id = tsa.teacher_user_id
+                    LEFT JOIN hr_staff_directory hr ON hr.linked_user_id = tsa.teacher_user_id AND hr.school_id = tsa.school_id
+                    WHERE tsa.school_id = CAST(:sid AS UUID) {c_filter}
+                    ORDER BY c.name ASC, cs.name ASC, sub.name ASC
+                """, c_params)
+
+                assignments_by_sec = {}
+                for r in assignments_rows:
+                    sec_key = (r[0], r[1])
+                    if sec_key not in assignments_by_sec:
+                        assignments_by_sec[sec_key] = []
+                    assignments_by_sec[sec_key].append(f"{r[2] or 'General Subject'} (Teacher: {r[3]})")
+
+                header_label = f"Class-to-Teacher Subject Assignments (Target: '{c_target or 'All Classes'}'):"
+                matches.append(header_label)
+                for cls in classes_in_scope:
+                    sec_key = (cls[0], cls[1])
+                    if sec_key in assignments_by_sec:
+                        unique_teachers = list(dict.fromkeys([
+                            r[3] for r in assignments_rows if r[0] == cls[0] and r[1] == cls[1] and r[3] != 'Assigned Teacher'
+                        ]))
+                        if not unique_teachers:
+                            unique_teachers = list(dict.fromkeys([r[3] for r in assignments_rows if r[0] == cls[0] and r[1] == cls[1]]))
+                        assigned_sub_list = ", ".join(assignments_by_sec[sec_key])
+                        matches.append(
+                            f"  * Class: {cls[0]} (Section {cls[1]}) -> Assigned Teachers: {', '.join(unique_teachers)} [{assigned_sub_list}]"
+                        )
+                    else:
+                        matches.append(
+                            f"  * Class: {cls[0]} (Section {cls[1]}) -> NO TEACHERS ASSIGNED (0 teacher assignments found in school database)."
+                        )
+            elif c_target:
+                matches.append(f"Class/Section Lookup: Class '{c_target}' is not registered in this school.")
+
+        # ── 0b. Subject-to-Teacher Relationship Search ─────────────────────────
+        subject_keywords = [
+            "math", "mathematics", "science", "english", "urdu", "computer", 
+            "physics", "chemistry", "biology", "islamiyat", "pak studies", 
+            "history", "geography", "arabic"
+        ]
+        matched_subjects = [sk for sk in subject_keywords if re.search(r'\b' + re.escape(sk) + r'\b', clean_query, re.IGNORECASE)]
+        if matched_subjects:
+            for subj in matched_subjects:
+                sub_rows = await fetch_rows("""
+                    SELECT 
+                        sub.name as subject_name,
+                        c.name as class_name,
+                        cs.name as section_name,
+                        COALESCE(sud.display_name, p.display_name, hr.full_name, 'Teacher') as teacher_name
+                    FROM teacher_subject_assignments tsa
+                    JOIN subjects sub ON sub.id = tsa.subject_id
+                    JOIN class_sections cs ON cs.id = tsa.class_section_id
+                    JOIN academic_classes c ON c.id = cs.class_id
+                    LEFT JOIN school_user_directory sud ON sud.user_id = tsa.teacher_user_id AND sud.school_id = tsa.school_id
+                    LEFT JOIN profiles p ON p.id = tsa.teacher_user_id
+                    LEFT JOIN hr_staff_directory hr ON hr.linked_user_id = tsa.teacher_user_id AND hr.school_id = tsa.school_id
+                    WHERE tsa.school_id = CAST(:sid AS UUID)
+                      AND sub.name ILIKE :sterm
+                    ORDER BY c.name, cs.name
+                """, {"sid": school_id, "sterm": f"%{subj}%"})
+                if sub_rows:
+                    matches.append(f"Subject '{sub_rows[0][0]}' Teacher Assignments across Classes:")
+                    for sr in sub_rows:
+                        matches.append(f"  * {sr[1]} (Section {sr[2]}): {sr[0]} is taught by {sr[3]}")
+                else:
+                    matches.append(f"Subject '{subj}': No teacher assignments found for this subject in the school.")
+
         # Check for specific Class / Section pattern in query (e.g. "Grade 1", "Class 5", "Section A", "8-A")
         class_match = re.search(r'(?:class|grade|section)\s*([0-9a-zA-Z\-]+)', clean_query, re.IGNORECASE)
         if class_match:
@@ -471,6 +590,49 @@ async def build_scoped_ai_context(
                 GROUP BY status
             """, campus_param)
 
+        async def get_all_teacher_assignments():
+            classes = await fetch_rows(f"""
+                SELECT c.name as class_name, cs.name as section_name, cs.id as section_id, c.id as class_id
+                FROM academic_classes c
+                JOIN class_sections cs ON cs.class_id = c.id
+                WHERE c.school_id = CAST(:sid AS UUID) {campus_filter}
+                ORDER BY c.name ASC, cs.name ASC
+            """, campus_param)
+            
+            assignments = await fetch_rows(f"""
+                SELECT 
+                    c.name as class_name,
+                    cs.name as section_name,
+                    sub.name as subject_name,
+                    COALESCE(sud.display_name, p.display_name, hr.full_name, 'Teacher') as teacher_name
+                FROM teacher_subject_assignments tsa
+                JOIN class_sections cs ON cs.id = tsa.class_section_id
+                JOIN academic_classes c ON c.id = cs.class_id
+                LEFT JOIN subjects sub ON sub.id = tsa.subject_id
+                LEFT JOIN school_user_directory sud ON sud.user_id = tsa.teacher_user_id AND sud.school_id = tsa.school_id
+                LEFT JOIN profiles p ON p.id = tsa.teacher_user_id
+                LEFT JOIN hr_staff_directory hr ON hr.linked_user_id = tsa.teacher_user_id AND hr.school_id = tsa.school_id
+                WHERE tsa.school_id = CAST(:sid AS UUID) {campus_filter}
+                ORDER BY c.name ASC, cs.name ASC, sub.name ASC
+            """, campus_param)
+
+            by_sec = {}
+            for r in assignments:
+                k = (r[0], r[1])
+                if k not in by_sec:
+                    by_sec[k] = []
+                by_sec[k].append(f"{r[2] or 'Subject'} taught by {r[3]}")
+
+            lines = []
+            for cls in classes:
+                k = (cls[0], cls[1])
+                if k in by_sec:
+                    unique_t = list(dict.fromkeys([r[3] for r in assignments if r[0] == cls[0] and r[1] == cls[1]]))
+                    lines.append(f"- Class {cls[0]} Section {cls[1]}: Assigned Teachers: {', '.join(unique_t)} [{', '.join(by_sec[k])}]")
+                else:
+                    lines.append(f"- Class {cls[0]} Section {cls[1]}: No teachers assigned (0 assignments found in database)")
+            return lines
+
         # Sequential Data Fetching for zero race conditions
         metrics = await get_owner_metrics()
         campuses = await get_campuses()
@@ -480,6 +642,7 @@ async def build_scoped_ai_context(
         payments = await get_payments()
         classes = await get_classes()
         staff = await get_staff()
+        teacher_assignments = await get_all_teacher_assignments()
         leaves = await get_leaves()
         notices = await get_notices()
         exams = await get_exams()
@@ -497,6 +660,7 @@ async def build_scoped_ai_context(
         invoices_str = "\n".join([f"- Inv #{r[0]}: {r[1]} {r[2] or ''} ({r[3] or 'N/A'}-{r[4] or 'N/A'}), Total: {format_money(r[5])}, Paid: {format_money(r[6])}, Due: {to_pkt_date_str(r[7])}, Status: {r[8]} [Invoice ID: {r[11]}, Student ID: {r[10]}]" for r in invoices])
         payments_str = "\n".join([f"- Received: {format_money(r[0])} via {r[1]} on {to_pkt_date_str(r[2])} | Status: {r[3]} | Student: {r[4]} {r[5] or ''} [Payment ID: {r[6]}, Invoice ID: {r[7] or 'N/A'}]" for r in payments])
         classes_str = "\n".join([f"- Class {r[0]} Section {r[1]}: {r[2]} students enrolled [Section ID: {r[3]}, Class ID: {r[4]}]" for r in classes])
+        teacher_assignments_str = "\n".join(teacher_assignments)
         staff_str = "\n".join([f"- {r[0]} ({r[1] or 'Staff'}, Dept: {r[5] or 'General'}) | Status: {'Active' if r[4] else 'Inactive'} [Staff ID: {r[6]}]" for r in staff])
         leaves_str = "\n".join([f"- {r[0]}: {r[1]} to {r[2]} | Reason: '{r[3] or 'None'}' | Status: {r[4]} [Leave ID: {r[5]}]" for r in leaves])
         notices_str = "\n".join([f"- '{r[1]}' | Audience: {r[3] or 'All'} | Date: {to_pkt_date_str(r[4])} | Details: '{r[2] or 'None'}' [Notice ID: {r[0]}]" for r in notices])
@@ -534,6 +698,9 @@ Campuses Directory:
 
 Classes and Sections Enrollment Breakdown:
 {classes_str or 'None'}
+
+Class-to-Teacher Subject Assignments (Authorized VPS Records):
+{teacher_assignments_str or 'None'}
 
 Top Outstanding Fee Defaulters:
 {defaulters_str or 'None'}

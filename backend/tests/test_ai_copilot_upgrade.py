@@ -202,3 +202,71 @@ async def test_ollama_offline_graceful_response():
         combined = "".join(stream_chunks)
         assert "AltRix AI Copilot Service Unavailable" in combined
         assert "Ollama" in combined
+
+
+# ==============================================================================
+# TEST 6: Precise Relational Lookups (Class/Section/Subject to Teacher Mapping)
+# ==============================================================================
+
+@pytest.mark.asyncio
+async def test_precise_relationship_lookups():
+    """Verify that relational queries correctly resolve teacher assignments vs unassigned classes."""
+    user = MockUser("p-1", "principal@school.com", ["principal"], "school-uuid-1")
+
+    # Mock DB where Class 1 has teachers assigned and Class 3 has 0 teachers assigned
+    def custom_execute(query, params=None):
+        query_str = str(query)
+        mock_result = MagicMock()
+        if "students s" in query_str:
+            mock_result.fetchall.return_value = []
+        elif "academic_classes" in query_str and "class_sections" in query_str and "teacher_subject_assignments" not in query_str:
+            # Classes in scope
+            if params and "3" in str(params.get("cterm", "")):
+                mock_result.fetchall.return_value = [("Class 3", "Section A", "sec-3-a", "cls-3", None)]
+            elif params and "1" in str(params.get("cterm", "")):
+                mock_result.fetchall.return_value = [("Class 1", "Section A", "sec-1-a", "cls-1", None)]
+            else:
+                mock_result.fetchall.return_value = [
+                    ("Class 1", "Section A", "sec-1-a", "cls-1", None),
+                    ("Class 3", "Section A", "sec-3-a", "cls-3", None),
+                ]
+        elif "teacher_subject_assignments" in query_str:
+            if params and "3" in str(params.get("cterm", "")):
+                # Class 3 has NO teacher assignments
+                mock_result.fetchall.return_value = []
+            else:
+                # Class 1 has Teacher 1 & Teacher 2
+                mock_result.fetchall.return_value = [
+                    ("Class 1", "Section A", "Mathematics", "Teacher 1", "sec-1-a"),
+                    ("Class 1", "Section A", "Science", "Teacher 1", "sec-1-a"),
+                    ("Class 1", "Section A", "English", "Teacher 2", "sec-1-a"),
+                    ("Class 1", "Section A", "Urdu", "Teacher 2", "sec-1-a"),
+                ]
+        else:
+            mock_result.fetchall.return_value = []
+            mock_result.fetchone.return_value = None
+
+        return mock_result
+
+    mock_db = AsyncMock()
+    mock_db.execute = AsyncMock(side_effect=custom_execute)
+
+    # 1. Query Class 3 teachers -> Must explicitly state NO TEACHERS ASSIGNED
+    ctx_class3 = await build_scoped_ai_context(
+        db=mock_db,
+        user=user,
+        school_id="school-uuid-1",
+        user_query="Class 3 ko jo teachers assign hain unke naam batao"
+    )
+    assert "Class: Class 3 (Section Section A) -> NO TEACHERS ASSIGNED" in ctx_class3
+
+    # 2. Query Class 1 teachers -> Must output exact assigned teachers
+    ctx_class1 = await build_scoped_ai_context(
+        db=mock_db,
+        user=user,
+        school_id="school-uuid-1",
+        user_query="Class 1 ke assigned teachers batao"
+    )
+    assert "Class: Class 1 (Section Section A) -> Assigned Teachers: Teacher 1, Teacher 2" in ctx_class1
+    assert "Mathematics (Teacher: Teacher 1)" in ctx_class1
+    assert "English (Teacher: Teacher 2)" in ctx_class1
