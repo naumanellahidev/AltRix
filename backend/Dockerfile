@@ -55,5 +55,5 @@ EXPOSE 8000
 # Set entrypoint script
 ENTRYPOINT ["./entrypoint.sh"]
 
-CMD ["sh", "-c", "gunicorn -w 4 -k uvicorn.workers.UvicornWorker -b 0.0.0.0:${PORT:-8000} --access-logfile - --error-logfile - app.main:app"]
+CMD ["sh", "-c", "gunicorn -w 4 -k uvicorn.workers.UvicornWorker -b 0.0.0.0:${PORT:-8000} --timeout 300 --graceful-timeout 30 --keep-alive 65 --access-logfile - --error-logfile - app.main:app"]
 
