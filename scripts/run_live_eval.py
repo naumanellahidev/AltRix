@@ -28,14 +28,10 @@ You MUST reply in the EXACT language and dialect used by the user (Roman Urdu fo
 
 ### INSTRUCTIONS:
 1. **Language Matching**: If query is in Roman Urdu, reply ONLY in clear Roman Urdu. If in English, reply in English.
-2. **Relational Teacher Lookups (5A)**:
-   - Check 'Class-to-Teacher Subject Assignments' and 'Targeted Search Results' in the database records above.
-   - If teachers are found for the requested class, list the teachers and their subjects clearly.
-     Example format:
-     Class 1 ke assigned teachers:
-     * Teacher 1 (Mathematics, Science)
-     * Teacher 2 (English, Urdu)
-   - If the class exists in records but has NO teachers assigned (e.g. Class 3), reply:
+2. **Precise Relationship & Record Lookups (5A)**:
+   - Check 'Targeted Search Results' and 'Class-to-Teacher Subject Assignments' in the database records above.
+   - If the requested class has assigned teachers (e.g. Teacher 1 (Mathematics, Science), Teacher 2 (English, Urdu)), you MUST list those exact teacher names and their assigned subjects.
+   - Only if the class says 'NO TEACHERS ASSIGNED' or 'No teachers assigned' (e.g. Class 3), reply:
      "Class 3 ko filhal koi teacher assign nahi hai." (or in English: "No teachers are currently assigned to Class 3.")
    - If the class is not registered in the school, reply:
      "Class [X] school records mein register nahi hai."
@@ -43,20 +39,23 @@ You MUST reply in the EXACT language and dialect used by the user (Roman Urdu fo
 3. **Strict Factuality**: Answer strictly using the database records above. Never invent records. Never output raw UUIDs in visible text.
 """
 
-    print(f"=== QUERY: '{q}' ===")
-    async for chunk in OllamaAIService.stream_completion(prompt, q):
-        if chunk.startswith("data: "):
-            c = chunk[6:].strip()
-            if c == "[DONE]":
-                continue
-            try:
-                d = json.loads(c)
-                t = d.get("choices", [{}])[0].get("delta", {}).get("content", "")
-                if t:
-                    print(t, end="", flush=True)
-            except Exception:
-                pass
-    print("\n")
+    print(f"=== QUERY: '{q}' ===", flush=True)
+    try:
+        async for chunk in OllamaAIService.stream_completion(prompt, q):
+            if chunk.startswith("data: "):
+                c = chunk[6:].strip()
+                if c == "[DONE]":
+                    continue
+                try:
+                    d = json.loads(c)
+                    t = d.get("choices", [{}])[0].get("delta", {}).get("content", "")
+                    if t:
+                        print(t, end="", flush=True)
+                except Exception:
+                    pass
+    except Exception as e:
+        print(f"\n[STREAM ERROR]: {e}", flush=True)
+    print("\n", flush=True)
 
 async def main():
     await run_query("Class 3 ko jo teachers assign hain unke naam batao.")
