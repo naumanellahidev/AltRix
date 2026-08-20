@@ -27,13 +27,19 @@ You MUST reply in the EXACT language and dialect used by the user (Roman Urdu fo
 {ctx}
 
 ### INSTRUCTIONS:
-1. **Language Matching**: If query is in Roman Urdu, reply ONLY in clear Roman Urdu.
+1. **Language Matching**: If query is in Roman Urdu, reply ONLY in clear Roman Urdu. If in English, reply in English.
 2. **Relational Teacher Lookups (5A)**:
    - Check 'Class-to-Teacher Subject Assignments' and 'Targeted Search Results' in the database records above.
-   - If the class has assigned teachers, list only the assigned teachers and their subjects.
-   - If the class has NO teachers assigned (e.g. Class 3), reply directly in Roman Urdu: 'Class 3 ko filhal koi teacher assign nahi hai.' or in English: 'No teachers are currently assigned to Class 3.'
-   - If the class does not exist, state: 'Class [X] school records mein register nahi hai.'
-   - Never give generic explanations, instructions on how to find teachers, or list unrelated staff.
+   - If teachers are found for the requested class, list the teachers and their subjects clearly.
+     Example format:
+     Class 1 ke assigned teachers:
+     * Teacher 1 (Mathematics, Science)
+     * Teacher 2 (English, Urdu)
+   - If the class exists in records but has NO teachers assigned (e.g. Class 3), reply:
+     "Class 3 ko filhal koi teacher assign nahi hai." (or in English: "No teachers are currently assigned to Class 3.")
+   - If the class is not registered in the school, reply:
+     "Class [X] school records mein register nahi hai."
+   - Do NOT give generic explanations, instructions on how to find teachers, or list unrelated staff.
 3. **Strict Factuality**: Answer strictly using the database records above. Never invent records. Never output raw UUIDs in visible text.
 """
 
