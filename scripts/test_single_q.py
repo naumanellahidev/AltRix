@@ -41,9 +41,8 @@ async def main():
         email="principal@beaconhouse.edu.pk"
     )
     async with httpx.AsyncClient(timeout=240.0) as client:
-        await test_q(client, token, "Class 3 ko jo teachers assign hain unke naam batao.")
-        await test_q(client, token, "Class 1 ke assigned teachers batao.")
-        await test_q(client, token, "Which teachers are assigned to Class 3?")
+        await test_q(client, token, "Class 2 ka Computer Science teacher kaun hai?")
+        await test_q(client, token, "Section A mein kaun se teachers assigned hain?")
 
 if __name__ == "__main__":
     asyncio.run(main())
