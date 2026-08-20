@@ -43,13 +43,17 @@ class OllamaAIService:
             else:
                 urls.append(f"{raw_url}/api/chat")
         
-        # Standard local Ollama daemon endpoints
-        local_standard = "http://127.0.0.1:11434/api/chat"
-        local_host = "http://localhost:11434/api/chat"
-        if local_standard not in urls:
-            urls.append(local_standard)
-        if local_host not in urls:
-            urls.append(local_host)
+        # Standard local and Docker gateway Ollama endpoints
+        candidate_endpoints = [
+            "http://127.0.0.1:11434/api/chat",
+            "http://172.20.0.1:11434/api/chat",
+            "http://172.17.0.1:11434/api/chat",
+            "http://host.docker.internal:11434/api/chat",
+            "http://localhost:11434/api/chat",
+        ]
+        for ep in candidate_endpoints:
+            if ep not in urls:
+                urls.append(ep)
         return urls
 
     @classmethod
