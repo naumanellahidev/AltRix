@@ -439,7 +439,7 @@ async def build_scoped_ai_context(
             sql = f"""
                 SELECT
                     (SELECT COUNT(*) FROM students WHERE school_id = CAST(:sid AS UUID) AND status IN ('active', 'enrolled') {campus_filter}) as total_students,
-                    (SELECT COUNT(*) FROM user_roles WHERE school_id = CAST(:sid AS UUID) AND role = 'teacher' {campus_filter}) as total_teachers,
+                    (SELECT COUNT(DISTINCT teacher_user_id) FROM teacher_subject_assignments WHERE school_id = CAST(:sid AS UUID)) as total_teachers,
                     (SELECT COUNT(*) FROM fee_invoices WHERE school_id = CAST(:sid AS UUID) AND status NOT IN ('paid', 'cancelled') {campus_filter}) as pending_payments,
                     (SELECT COALESCE(SUM(amount), 0) FROM fee_payments WHERE school_id = CAST(:sid AS UUID) AND paid_at >= :mtd_start {campus_filter}) as collected_fees,
                     (SELECT COUNT(*) FROM campuses WHERE school_id = CAST(:sid AS UUID) AND is_active = true) as active_campuses,
@@ -448,7 +448,9 @@ async def build_scoped_ai_context(
                     (SELECT COUNT(*) FROM complaints WHERE school_id = CAST(:sid AS UUID) AND status IN ('open', 'pending', 'in_progress')) as open_complaints_count
             """
             rows = await fetch_rows(sql, campus_param)
-            return rows[0] if rows else (0, 0, 0, 0, 0, 0, 0, 0)
+            if rows and len(rows[0]) >= 8:
+                return rows[0]
+            return (0, 0, 0, 0, 0, 0, 0, 0)
 
         async def get_campuses():
             return await fetch_rows("SELECT id, name, address, is_active FROM campuses WHERE school_id = CAST(:sid AS UUID) ORDER BY name", {"sid": school_id})
@@ -515,12 +517,20 @@ async def build_scoped_ai_context(
             """, campus_param)
 
         async def get_staff():
-            return await fetch_rows(f"""
+            rows = await fetch_rows(f"""
                 SELECT full_name, position, email, phone, is_active, department, id as staff_id, linked_user_id 
                 FROM hr_staff_directory 
                 WHERE school_id = CAST(:sid AS UUID) {campus_filter}
                 ORDER BY full_name LIMIT 50
             """, campus_param)
+            if not rows:
+                rows = await fetch_rows("""
+                    SELECT full_name, role as position, email, phone, is_active, 'General' as department, id as staff_id, user_id as linked_user_id
+                    FROM school_user_directory
+                    WHERE school_id = CAST(:sid AS UUID)
+                    ORDER BY full_name LIMIT 50
+                """, {"sid": school_id})
+            return rows
 
         async def get_leaves():
             return await fetch_rows(f"""
