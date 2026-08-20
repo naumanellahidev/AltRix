@@ -218,7 +218,7 @@ async def build_scoped_ai_context(
                         teacher_subjects_by_sec[sec_key][t_name] = []
                     teacher_subjects_by_sec[sec_key][t_name].append(sub_name)
 
-                header_label = f"Class-to-Teacher Subject Assignments (Target: '{c_target or 'All Classes'}'):"
+                header_label = f"🎯 DIRECT QUERY ANSWER DATA (High Priority for Class '{c_target or 'All Classes'}'):"
                 matches.append(header_label)
                 for cls in classes_in_scope:
                     sec_key = (cls[0], cls[1])
@@ -236,7 +236,7 @@ async def build_scoped_ai_context(
                             f"  * {c_clean} ({s_clean}): NO TEACHERS ASSIGNED (0 teacher assignments found in school database)."
                         )
             elif c_target:
-                matches.append(f"Class/Section Lookup: Class '{c_target}' is not registered in this school.")
+                matches.append(f"🎯 DIRECT QUERY ANSWER DATA (High Priority):\n  * Class/Section Lookup: Class '{c_target}' is not registered in this school.")
 
         # ── 0b. Subject-to-Teacher Relationship Search ─────────────────────────
         subject_keywords = [
@@ -680,7 +680,7 @@ async def build_scoped_ai_context(
         defaulters_str = "\n".join([f"- {r[0]} {r[1] or ''} (Class: {r[4] or 'Unassigned'}, Section: {r[5] or 'Unassigned'}): Outstanding: {format_money(r[2])} (Invoice: {r[3]} [Invoice ID: {r[7]}, Student ID: {r[6]}])" for r in defaulters])
         invoices_str = "\n".join([f"- Inv #{r[0]}: {r[1]} {r[2] or ''} ({r[3] or 'N/A'}-{r[4] or 'N/A'}), Total: {format_money(r[5])}, Paid: {format_money(r[6])}, Due: {to_pkt_date_str(r[7])}, Status: {r[8]} [Invoice ID: {r[11]}, Student ID: {r[10]}]" for r in invoices])
         payments_str = "\n".join([f"- Received: {format_money(r[0])} via {r[1]} on {to_pkt_date_str(r[2])} | Status: {r[3]} | Student: {r[4]} {r[5] or ''} [Payment ID: {r[6]}, Invoice ID: {r[7] or 'N/A'}]" for r in payments])
-        classes_str = "\n".join([f"- Class {r[0]} Section {r[1]}: {r[2]} students enrolled [Section ID: {r[3]}, Class ID: {r[4]}]" for r in classes])
+        classes_str = "\n".join([f"- {r[0] if str(r[0]).lower().startswith('class') else 'Class ' + str(r[0])} ({r[1] if str(r[1]).lower().startswith('section') else 'Section ' + str(r[1])}): {r[2]} students enrolled [Section ID: {r[3]}, Class ID: {r[4]}]" for r in classes])
         teacher_assignments_str = "\n".join(teacher_assignments)
         staff_str = "\n".join([f"- {r[0]} ({r[1] or 'Staff'}, Dept: {r[5] or 'General'}) | Status: {'Active' if r[4] else 'Inactive'} [Staff ID: {r[6]}]" for r in staff])
         leaves_str = "\n".join([f"- {r[0]}: {r[1]} to {r[2]} | Reason: '{r[3] or 'None'}' | Status: {r[4]} [Leave ID: {r[5]}]" for r in leaves])

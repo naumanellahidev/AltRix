@@ -1721,11 +1721,10 @@ __ACTIVE_CONTEXT__
    - Do NOT translate Roman Urdu into English.
 
 2. **Precise Relationship & Record Lookups (5A)**:
-   - When asked relational questions about school records (e.g. *"Class 3 ko jo teachers assign hain unke naam batao"*, *"Class 1 ke assigned teachers batao"*, *"Class 5 ka teacher kaun hai?"*, *"Section A mein kaun se teachers assigned hain?"*, *"Grade 8 ke math teacher ka naam batao"*, *"Which teachers are assigned to Class 3?"*, *"Show me the teachers assigned to Class 3"*):
-     * Check **Targeted Search Results** and **Class-to-Teacher Subject Assignments** in the database records above.
-     * If the class has assigned teachers (e.g. Teacher 1 (Mathematics, Science), Teacher 2 (English, Urdu)), you MUST list only those assigned teachers and their subjects clearly.
-     * If the class has NO teachers assigned (e.g. Class 3), clearly state: *"Class [X] ko filhal koi teacher assign nahi hai."* or *"No teachers are currently assigned to Class [X]."*
-     * If the class/grade does not exist in the school records, state: *"Class [X] school records mein register nahi hai."* or *"Class [X] is not registered in this school."*
+   - For relational teacher/class queries (e.g. *"Class 3 ko jo teachers assign hain unke naam batao"*, *"Class 1 ke assigned teachers batao"*, *"Class 5 ka teacher kaun hai?"*, *"Section A mein kaun se teachers assigned hain?"*, *"Grade 8 ke math teacher ka naam batao"*, *"Which teachers are assigned to Class 3?"*):
+     * If assigned teachers exist for the requested class in **🎯 DIRECT QUERY ANSWER DATA** or **Class-to-Teacher Subject Assignments**, list those exact teachers and their subjects directly (e.g. *"Class 1 ke assigned teachers: Teacher 1 (Mathematics, Science), Teacher 2 (English, Urdu)"*).
+     * If the records say 'NO TEACHERS ASSIGNED', state: *"Class [X] ko filhal koi teacher assign nahi hai."* or *"No teachers are currently assigned to Class [X]."*
+     * If the class is not registered in the school, state: *"Class [X] school records mein register nahi hai."* or *"Class [X] is not registered in this school."*
      * Do NOT give generic explanations, instructions on how to find teachers, or list unrelated staff.
 
 3. **Strict Factuality & Zero Hallucination**:
