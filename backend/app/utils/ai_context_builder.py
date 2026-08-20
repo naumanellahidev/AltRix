@@ -200,10 +200,10 @@ async def build_scoped_ai_context(
                     JOIN class_sections cs ON cs.id = tsa.class_section_id
                     JOIN academic_classes c ON c.id = cs.class_id
                     LEFT JOIN subjects sub ON sub.id = tsa.subject_id
-                    LEFT JOIN school_user_directory sud ON sud.user_id = tsa.teacher_user_id AND sud.school_id = tsa.school_id
+                    LEFT JOIN school_user_directory sud ON sud.user_id = tsa.teacher_user_id AND sud.school_id = c.school_id
                     LEFT JOIN profiles p ON p.id = tsa.teacher_user_id
-                    LEFT JOIN hr_staff_directory hr ON hr.linked_user_id = tsa.teacher_user_id AND hr.school_id = tsa.school_id
-                    WHERE tsa.school_id = CAST(:sid AS UUID) {c_filter}
+                    LEFT JOIN hr_staff_directory hr ON hr.linked_user_id = tsa.teacher_user_id AND hr.school_id = c.school_id
+                    WHERE c.school_id = CAST(:sid AS UUID) {c_filter}
                     ORDER BY c.name ASC, cs.name ASC, sub.name ASC
                 """, c_params)
 
@@ -254,10 +254,10 @@ async def build_scoped_ai_context(
                     JOIN subjects sub ON sub.id = tsa.subject_id
                     JOIN class_sections cs ON cs.id = tsa.class_section_id
                     JOIN academic_classes c ON c.id = cs.class_id
-                    LEFT JOIN school_user_directory sud ON sud.user_id = tsa.teacher_user_id AND sud.school_id = tsa.school_id
+                    LEFT JOIN school_user_directory sud ON sud.user_id = tsa.teacher_user_id AND sud.school_id = c.school_id
                     LEFT JOIN profiles p ON p.id = tsa.teacher_user_id
-                    LEFT JOIN hr_staff_directory hr ON hr.linked_user_id = tsa.teacher_user_id AND hr.school_id = tsa.school_id
-                    WHERE tsa.school_id = CAST(:sid AS UUID)
+                    LEFT JOIN hr_staff_directory hr ON hr.linked_user_id = tsa.teacher_user_id AND hr.school_id = c.school_id
+                    WHERE c.school_id = CAST(:sid AS UUID)
                       AND sub.name ILIKE :sterm
                     ORDER BY c.name, cs.name
                 """, {"sid": school_id, "sterm": f"%{subj}%"})
