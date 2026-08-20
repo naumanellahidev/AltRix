@@ -222,16 +222,18 @@ async def build_scoped_ai_context(
                 matches.append(header_label)
                 for cls in classes_in_scope:
                     sec_key = (cls[0], cls[1])
+                    c_clean = cls[0] if cls[0].lower().startswith("class") else f"Class {cls[0]}"
+                    s_clean = cls[1] if cls[1].lower().startswith("section") else f"Section {cls[1]}"
                     if sec_key in teacher_subjects_by_sec:
                         t_summary = []
                         for t_name, subs in teacher_subjects_by_sec[sec_key].items():
                             t_summary.append(f"{t_name} ({', '.join(subs)})")
                         matches.append(
-                            f"  * Class {cls[0]} Section {cls[1]}: Assigned Teachers: {'; '.join(t_summary)}"
+                            f"  * {c_clean} ({s_clean}): Assigned Teachers: {'; '.join(t_summary)}"
                         )
                     else:
                         matches.append(
-                            f"  * Class {cls[0]} Section {cls[1]}: NO TEACHERS ASSIGNED (0 teacher assignments found in school database)."
+                            f"  * {c_clean} ({s_clean}): NO TEACHERS ASSIGNED (0 teacher assignments found in school database)."
                         )
             elif c_target:
                 matches.append(f"Class/Section Lookup: Class '{c_target}' is not registered in this school.")
@@ -631,13 +633,15 @@ async def build_scoped_ai_context(
             lines = []
             for cls in classes:
                 k = (cls[0], cls[1])
+                c_clean = cls[0] if cls[0].lower().startswith("class") else f"Class {cls[0]}"
+                s_clean = cls[1] if cls[1].lower().startswith("section") else f"Section {cls[1]}"
                 if k in teacher_subjects_by_sec:
                     t_summary = []
                     for t_name, subs in teacher_subjects_by_sec[k].items():
                         t_summary.append(f"{t_name} ({', '.join(subs)})")
-                    lines.append(f"- Class {cls[0]} Section {cls[1]}: Assigned Teachers: {'; '.join(t_summary)}")
+                    lines.append(f"- {c_clean} ({s_clean}): Assigned Teachers: {'; '.join(t_summary)}")
                 else:
-                    lines.append(f"- Class {cls[0]} Section {cls[1]}: No teachers assigned (0 assignments found in database)")
+                    lines.append(f"- {c_clean} ({s_clean}): No teachers assigned (0 assignments found in database)")
             return lines
 
         # Sequential Data Fetching for zero race conditions
