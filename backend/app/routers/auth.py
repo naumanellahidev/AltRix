@@ -192,9 +192,18 @@ async def login(request: Request, body: LoginRequest, db: DbSession):
     # Load user roles scoped to tenant or any school
     user_roles = []
     try:
-        school_id_header = request.headers.get("X-School-Id")
         import uuid
         uid_obj = uuid.UUID(user_id)
+
+        # Check platform_super_admins
+        res_super = await db.execute(
+            text("SELECT user_id FROM platform_super_admins WHERE user_id = :uid LIMIT 1"),
+            {"uid": uid_obj}
+        )
+        if res_super.fetchone() is not None:
+            user_roles.append("super_admin")
+
+        school_id_header = request.headers.get("X-School-Id")
         if school_id_header:
             try:
                 sid_obj = uuid.UUID(school_id_header)
@@ -210,16 +219,20 @@ async def login(request: Request, body: LoginRequest, db: DbSession):
                     ),
                     {"uid": uid_obj, "sid": sid_obj},
                 )
-                user_roles = [row[0] for row in result_roles.fetchall()]
+                for row in result_roles.fetchall():
+                    if row[0] not in user_roles:
+                        user_roles.append(row[0])
             except (ValueError, TypeError):
                 pass
         
-        if not user_roles:
+        if not user_roles or user_roles == ["super_admin"]:
             res_any = await db.execute(
                 text("SELECT role FROM user_roles WHERE user_id = :uid LIMIT 5"),
                 {"uid": uid_obj}
             )
-            user_roles = [row[0] for row in res_any.fetchall()]
+            for row in res_any.fetchall():
+                if row[0] not in user_roles:
+                    user_roles.append(row[0])
     except Exception as roles_err:
         logger.warning(f"Failed to pre-load user roles for login: {roles_err}")
 
