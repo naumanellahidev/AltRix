@@ -235,7 +235,6 @@ export function UsersModule() {
   const invite = async () => {
     if (!tenant.slug) return;
     if (!email.trim()) return toast.error("Email is required");
-    if (password.trim().length < 8) return toast.error("Password must be at least 8 characters");
 
     if (!allowedRoles.includes(role)) {
       return toast.error("Not allowed: principals/VP create staff; teachers can create students/parents.");
@@ -248,7 +247,6 @@ export function UsersModule() {
         body: {
           schoolSlug: tenant.slug,
           email: email.trim().toLowerCase(),
-          password,
           role,
           displayName: displayName.trim() || undefined,
           campusId: (isOwnerShell && campuses.length > 1) ? selectedFormCampusId : undefined,
@@ -269,6 +267,10 @@ export function UsersModule() {
       }
 
       setCreatedUserId((data as any)?.userId ?? null);
+      toast.success(`Invitation dispatched to ${email}! The staff member will receive a secure activation link.`);
+      setEmail("");
+      setDisplayName("");
+      await refresh();
 
       if (schoolId && user?.id) {
         await api.from("audit_logs").insert({
@@ -946,23 +948,26 @@ export function UsersModule() {
 
       {/* User Creation & Bulk Import Cards */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        {/* Create Single User */}
+        {/* Create Single User / Staff Invitation */}
         <Card className="shadow-elevated border-muted/50 rounded-2xl overflow-hidden flex flex-col justify-between">
           <div>
             <CardHeader>
               <CardTitle className="font-display text-lg flex items-center gap-2">
-                <UserPlus className="h-5 w-5 text-primary shrink-0" /> Create User Account
+                <UserPlus className="h-5 w-5 text-primary shrink-0" /> Send Staff / User Invitation
               </CardTitle>
-              <CardDescription>Direct credential creation with explicit password</CardDescription>
+              <CardDescription>
+                Secure passwordless invitation. Staff member receives a single-use email link to verify and create their password.
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Email</label>
+                  <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Email Address</label>
                   <Input
+                    type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="user@school.com"
+                    placeholder="staff@school.com"
                     className="w-full text-xs sm:text-sm"
                   />
                 </div>
@@ -972,13 +977,13 @@ export function UsersModule() {
                   <Input
                     value={displayName}
                     onChange={(e) => setDisplayName(e.target.value)}
-                    placeholder="Full Name (e.g. John Doe)"
+                    placeholder="Full Name (e.g. Sarah Jenkins)"
                     className="w-full text-xs sm:text-sm"
                   />
                 </div>
 
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Role</label>
+                <div className={`space-y-1.5 ${isOwnerShell && campuses.length > 1 ? "" : "md:col-span-2"}`}>
+                  <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Assigned Role</label>
                   <Select value={role} onValueChange={(v) => setRole(v as EduverseRole)}>
                     <SelectTrigger className="w-full text-xs sm:text-sm">
                       <SelectValue placeholder="Select role" />
@@ -993,20 +998,9 @@ export function UsersModule() {
                   </Select>
                 </div>
 
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Initial Password</label>
-                  <Input
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    type="password"
-                    placeholder="Minimum 8 characters"
-                    className="w-full text-xs sm:text-sm"
-                  />
-                </div>
-
                 {/* Campus Selection Dropdown (Owner Shell and Multi-Campus only) */}
                 {isOwnerShell && campuses.length > 1 && (
-                  <div className="space-y-1.5 md:col-span-2">
+                  <div className="space-y-1.5">
                     <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Campus</label>
                     <Select value={selectedFormCampusId} onValueChange={setSelectedFormCampusId}>
                       <SelectTrigger className="w-full text-xs sm:text-sm">
@@ -1027,7 +1021,7 @@ export function UsersModule() {
           </div>
           <div className="p-6 pt-0">
             <Button variant="hero" size="lg" onClick={invite} disabled={busy} className="w-full rounded-xl transition-all duration-300">
-              <UserPlus className="mr-2 h-4 w-4" /> Create User & Set Password
+              <Mail className="mr-2 h-4 w-4" /> Send Secure Invitation Email
             </Button>
           </div>
         </Card>

@@ -24,6 +24,8 @@ const PlatformSupportPage = lazy(() => import("./pages/platform/PlatformSupportP
 const PlatformAddonsPage = lazy(() => import("./pages/platform/PlatformAddonsPage"));
 const PlatformDatabasePage = lazy(() => import("./pages/platform/PlatformDatabasePage"));
 const PlatformDomainsPage = lazy(() => import("./pages/platform/PlatformDomainsPage"));
+const PlatformEmailPage = lazy(() => import("./pages/platform/PlatformEmailPage"));
+const ActivateAccountPage = lazy(() => import("./pages/ActivateAccountPage"));
 
 const TenantDashboard = lazy(() => import("./pages/tenant/TenantDashboard"));
 const TeacherDashboard = lazy(() => import("./pages/tenant/TeacherDashboard"));
@@ -151,6 +153,8 @@ export default function App() {
               <Route path="/auth/update-password" element={<PlatformUpdatePassword />} />
               <Route path="/auth/recover-master" element={<PlatformRecoverMaster />} />
               <Route path="/reset-password" element={<ResetPassword />} />
+              <Route path="/activate-account" element={<ActivateAccountPage />} />
+              <Route path="/activate-account/:token" element={<ActivateAccountPage />} />
               {/* Global Super Admin (platform-level) */}
               <Route element={<PlatformAdminGuard />}>
                 <Route path="/super_admin" element={<PlatformDashboardPage />} />
@@ -166,6 +170,7 @@ export default function App() {
                 <Route path="/super_admin/addons" element={<PlatformAddonsPage />} />
                 <Route path="/super_admin/database" element={<PlatformDatabasePage />} />
                 <Route path="/super_admin/domains" element={<PlatformDomainsPage />} />
+                <Route path="/super_admin/email" element={<PlatformEmailPage />} />
               </Route>
 
 

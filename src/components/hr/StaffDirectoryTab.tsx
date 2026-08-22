@@ -247,8 +247,9 @@ export function StaffDirectoryTab() {
 
   const sendInvite = async () => {
     if (!inviteFor || !schoolSlug) return;
-    if (!invite.email.trim() || !invite.password.trim()) {
-      toast.error("Email and password are required"); return;
+    if (!invite.email.trim()) {
+      toast.error("Email is required");
+      return;
     }
     setInviting(true);
     try {
@@ -256,25 +257,23 @@ export function StaffDirectoryTab() {
         body: {
           schoolSlug,
           email: invite.email.trim().toLowerCase(),
-          password: invite.password,
           role: invite.role,
           displayName: invite.displayName || inviteFor.full_name,
         },
       });
       if (error) throw error;
       const userId = (data as any)?.userId || (data as any)?.user_id;
-      // Link the directory row to the freshly-created account
       if (userId) {
         await (api as any)
           .from("hr_staff_directory")
-          .update({ linked_user_id: userId, email: invite.email })
+          .update({ linked_user_id: userId, email: invite.email.trim().toLowerCase() })
           .eq("id", inviteFor.id);
       }
-      toast.success("Account created and linked");
+      toast.success(`Invitation email sent to ${invite.email}! Employee can now activate their account.`);
       setInviteFor(null);
       load();
     } catch (e: any) {
-      toast.error(e?.message || "Failed to create account");
+      toast.error(e?.message || "Failed to send invitation");
     } finally {
       setInviting(false);
     }
@@ -630,7 +629,7 @@ export function StaffDirectoryTab() {
       <Dialog open={!!inviteFor} onOpenChange={(o) => !o && setInviteFor(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Create login for {inviteFor?.full_name}</DialogTitle>
+            <DialogTitle>Send Invitation to {inviteFor?.full_name}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             <Field label="Display name">
@@ -638,14 +637,6 @@ export function StaffDirectoryTab() {
             </Field>
             <Field label="Email *">
               <Input type="email" value={invite.email} onChange={(e) => setInvite({ ...invite, email: e.target.value })} />
-            </Field>
-            <Field label="Temporary password *">
-              <Input
-                type="text"
-                value={invite.password}
-                onChange={(e) => setInvite({ ...invite, password: e.target.value })}
-                placeholder="Share securely with the employee"
-              />
             </Field>
             <Field label="Role *">
               <Select value={invite.role} onValueChange={(v) => setInvite({ ...invite, role: v })}>
@@ -658,13 +649,13 @@ export function StaffDirectoryTab() {
               </Select>
             </Field>
             <p className="text-xs text-muted-foreground">
-              An account will be created and linked back to this staff record automatically.
+              A secure single-use invitation email will be sent to the employee. They will click the link to verify and set their own private password.
             </p>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setInviteFor(null)} disabled={inviting}>Cancel</Button>
             <Button onClick={sendInvite} disabled={inviting}>
-              {inviting ? "Creating…" : "Create account"}
+              {inviting ? "Sending…" : "Send Invitation Email"}
             </Button>
           </DialogFooter>
         </DialogContent>

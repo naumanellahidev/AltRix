@@ -8,7 +8,7 @@ Production-hardened with:
 """
 import logging
 from datetime import datetime, timezone
-from typing import List, Any, Dict
+from typing import List, Any, Dict, Optional
 from uuid import UUID
 
 import httpx
@@ -22,6 +22,8 @@ from app.cache import (
     TTL_PERMISSIONS,
     TTL_USER_ROLES,
 )
+from pydantic import BaseModel, Field
+from fastapi import APIRouter, HTTPException, Request, Query, status
 from app.config import settings
 from app.dependencies import CurrentUser, DbSession
 from app.schemas import (
@@ -382,30 +384,204 @@ async def get_me(current_user: CurrentUser, db: DbSession):
     )
 
 
+class PasswordResetVerifyResponse(BaseModel):
+    valid: bool
+    email: Optional[str] = None
+    error: Optional[str] = None
+
+
+class PasswordResetConfirmRequest(BaseModel):
+    token: str
+    password: str = Field(..., min_length=8)
+
+
 @router.post(
     "/password-reset-request",
     response_model=MessageResponse,
     summary="Request password reset",
-    description="Sends a password reset email. Rate limited to 3 requests per 5 minutes per IP.",
+    description="Sends a password reset email via Central Email Service. Rate limited.",
 )
-@limiter.limit("3/5minutes")
-async def request_password_reset(request: Request, email: str, db: DbSession):
-    """Send a password reset email via Supabase Auth. Rate limited."""
-    # TODO: Implement local SMTP email dispatch here.
-    # The actual SMTP dispatch will be configured later.
-    logger.info(f"Mocking password reset request for: {email}")
+@limiter.limit("5/5minutes")
+async def request_password_reset(request: Request, body: dict, db: DbSession):
+    """
+    Generate single-use crypto reset token and send branded reset email.
+    Accepts JSON body: {"email": "..."}
+    """
+    import secrets
+    from datetime import datetime, timezone, timedelta
+    from app.services.email_service import CentralEmailService
 
+    raw_email = body.get("email") if isinstance(body, dict) else str(body)
+    clean_email = (raw_email or "").strip().lower()
+
+    if clean_email and "@" in clean_email:
+        # Check if user exists in auth.users
+        res_u = await db.execute(
+            text("SELECT id, email FROM auth.users WHERE LOWER(TRIM(email)) = :email LIMIT 1"),
+            {"email": clean_email}
+        )
+        user_row = res_u.fetchone()
+
+        if user_row:
+            user_id = user_row.id
+            reset_token = secrets.token_urlsafe(48)
+            expires_at = datetime.now(timezone.utc) + timedelta(hours=1)
+            ip_addr = request.client.host if request.client else "unknown"
+
+            # Invalidate prior pending resets
+            await db.execute(
+                text("UPDATE public.password_resets SET status = 'revoked' WHERE user_id = :uid AND status = 'pending'"),
+                {"uid": user_id}
+            )
+
+            # Insert new reset token
+            await db.execute(
+                text("""
+                    INSERT INTO public.password_resets (token, user_id, email, status, expires_at, ip_address)
+                    VALUES (:token, :uid, :email, 'pending', :expires_at, :ip)
+                """),
+                {
+                    "token": reset_token,
+                    "uid": user_id,
+                    "email": clean_email,
+                    "expires_at": expires_at,
+                    "ip": ip_addr,
+                }
+            )
+            await db.commit()
+
+            # Construct reset link
+            reset_link = f"https://altrixcore.com/reset-password?token={reset_token}"
+
+            # Dispatch branded reset email
+            await CentralEmailService.send_event(
+                event_name="password_reset",
+                recipient=clean_email,
+                context={
+                    "email": clean_email,
+                    "reset_link": reset_link,
+                    "expires_in": "1 hour",
+                    "support_email": "support@altrixcore.com",
+                },
+                db=db,
+            )
+
+            logger.info(f"Dispatched secure password reset email to: {clean_email}")
+
+        await log_audit_event(
+            db=db,
+            action=AuditAction.PASSWORD_RESET,
+            resource_type="auth",
+            resource_id=clean_email,
+            new_values={"email": clean_email},
+            request=request,
+        )
+
+    # Always return identical response to prevent user enumeration
+    return MessageResponse(message="If an account exists with that email, a password reset link has been sent.")
+
+
+@router.get(
+    "/password-reset-verify",
+    response_model=PasswordResetVerifyResponse,
+    summary="Verify Password Reset Token",
+)
+async def verify_password_reset_token(
+    token: str = Query(..., description="Reset token"),
+    db: DbSession = None,
+):
+    """Verify validity of password reset token."""
+    if not token or len(token.strip()) < 20:
+        return PasswordResetVerifyResponse(valid=False, error="Invalid token format")
+
+    res = await db.execute(
+        text("SELECT id, user_id, email, status, expires_at FROM public.password_resets WHERE token = :token LIMIT 1"),
+        {"token": token.strip()}
+    )
+    row = res.fetchone()
+
+    if not row:
+        return PasswordResetVerifyResponse(valid=False, error="Reset link is invalid or expired.")
+    if row.status == "consumed":
+        return PasswordResetVerifyResponse(valid=False, error="This reset link has already been used.")
+    if row.status == "revoked":
+        return PasswordResetVerifyResponse(valid=False, error="This reset link has been invalidated. Please request a new one.")
+    if row.expires_at and row.expires_at < datetime.now(timezone.utc):
+        return PasswordResetVerifyResponse(valid=False, error="This reset link has expired. Please request a new one.")
+
+    return PasswordResetVerifyResponse(valid=True, email=row.email)
+
+
+@router.post(
+    "/password-reset-confirm",
+    response_model=MessageResponse,
+    summary="Confirm Password Reset",
+)
+@limiter.limit("5/minute")
+async def confirm_password_reset(
+    request: Request,
+    body: PasswordResetConfirmRequest,
+    db: DbSession = None,
+):
+    """Set new password using verified reset token."""
+    token = body.token.strip()
+    pwd = body.password.strip()
+
+    if len(pwd) < 8:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters long")
+
+    res = await db.execute(
+        text("SELECT id, user_id, email, status, expires_at FROM public.password_resets WHERE token = :token LIMIT 1"),
+        {"token": token}
+    )
+    row = res.fetchone()
+
+    if not row or row.status != "pending" or (row.expires_at and row.expires_at < datetime.now(timezone.utc)):
+        raise HTTPException(status_code=400, detail="Invalid or expired reset token")
+
+    user_id = row.user_id
+    email = row.email
+
+    # Update password in auth.users
+    await db.execute(
+        text("UPDATE auth.users SET encrypted_password = crypt(:pwd, gen_salt('bf', 10)), updated_at = NOW() WHERE id = :uid"),
+        {"pwd": pwd, "uid": user_id}
+    )
+
+    # Mark reset token consumed
+    await db.execute(
+        text("UPDATE public.password_resets SET status = 'consumed', consumed_at = NOW() WHERE id = :id"),
+        {"id": row.id}
+    )
+
+    # Invalidate active sessions for security
+    await db.execute(
+        text("UPDATE public.active_sessions SET is_active = FALSE, logged_out_at = NOW(), logout_reason = 'password_reset' WHERE user_id = :uid"),
+        {"uid": user_id}
+    )
+    await db.commit()
+
+    # Dispatch confirmation email
+    from app.services.email_service import CentralEmailService
+    await CentralEmailService.send_event(
+        event_name="password_changed",
+        recipient=email,
+        context={"email": email, "support_email": "support@altrixcore.com"},
+        db=db,
+    )
+
+    # Log audit event
     await log_audit_event(
         db=db,
         action=AuditAction.PASSWORD_RESET,
         resource_type="auth",
-        resource_id=email,
-        new_values={"email": email},
+        resource_id=str(user_id),
+        user_id=str(user_id),
+        new_values={"password_changed": True, "email": email},
         request=request,
     )
 
-    # Always return same message to prevent email enumeration
-    return MessageResponse(message="If an account exists, a reset email will be sent")
+    return MessageResponse(message="Password successfully reset! You can now log in with your new password.")
 
 
 @router.get(

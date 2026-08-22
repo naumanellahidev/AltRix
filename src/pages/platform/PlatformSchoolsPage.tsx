@@ -268,15 +268,13 @@ export default function PlatformSchoolsPage() {
     const s = schools.find((x) => x.id === staffSchoolId);
     if (!s) return toast.error("Select a school");
     if (!staffEmail.trim()) return toast.error("Email is required");
-    if (staffPassword.trim().length < 8) return toast.error("Password must be at least 8 characters");
 
     setCreatingStaff(true);
     try {
-      const { error } = await api.functions.invoke("eduverse-admin-create-user", {
+      const { error } = await api.functions.invoke("eduverse-invite", {
         body: {
           schoolSlug: s.slug,
           email: staffEmail.trim().toLowerCase(),
-          password: staffPassword,
           displayName: staffDisplayName.trim() || undefined,
           role: staffRole,
         },
@@ -285,7 +283,7 @@ export default function PlatformSchoolsPage() {
         toast.error(getDetailFromInvokeError(error) ?? error.message);
         return;
       }
-      toast.success("User created (password set)");
+      toast.success(`Invitation email sent to ${staffEmail}! Staff member will create their password upon activation.`);
       setStaffEmail("");
       setStaffPassword("");
       setStaffDisplayName("");
@@ -893,35 +891,24 @@ export default function PlatformSchoolsPage() {
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                      <div className="space-y-2">
-                        <label className="text-sm font-medium text-slate-900">Email</label>
-                        <Input
-                          className="bg-slate-50 border-slate-300 text-slate-900 placeholder:text-slate-400 focus-visible:ring-blue-500/30 autofill:shadow-none"
-                          value={staffEmail}
-                          onChange={(e) => setStaffEmail(e.target.value)}
-                          placeholder="teacher@school.com"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <label className="text-sm font-medium text-slate-900">Password</label>
-                        <Input
-                          className="bg-slate-50 border-slate-300 text-slate-900 placeholder:text-slate-400 focus-visible:ring-blue-500/30 autofill:shadow-none"
-                          value={staffPassword}
-                          onChange={(e) => setStaffPassword(e.target.value)}
-                          type="password"
-                          placeholder="Minimum 8 characters"
-                        />
-                      </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-slate-900">Email Address</label>
+                      <Input
+                        type="email"
+                        className="bg-slate-50 border-slate-300 text-slate-900 placeholder:text-slate-400 focus-visible:ring-blue-500/30 autofill:shadow-none"
+                        value={staffEmail}
+                        onChange={(e) => setStaffEmail(e.target.value)}
+                        placeholder="teacher@school.com"
+                      />
                     </div>
 
                     <Button
                       size="xl"
                       onClick={createStaffDirect}
                       disabled={creatingStaff}
-                      className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-slate-900 font-bold border border-0 shadow-md shadow-blue-500/10"
+                      className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold border border-0 shadow-md shadow-blue-500/10"
                     >
-                      <UserPlus className="mr-2 h-4 w-4" /> Create user now
+                      <UserPlus className="mr-2 h-4 w-4" /> Send Secure Staff Invitation
                     </Button>
                   </CardContent>
                 </Card>

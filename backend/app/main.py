@@ -743,7 +743,13 @@ app.include_router(tenant_orchestration_router, prefix=_PREFIX)
 app.include_router(custom_domains_router, prefix=_PREFIX)
 app.include_router(financial_forecasting_router, prefix=_PREFIX)
 app.include_router(vps_storage_router, prefix=_PREFIX)
-app.include_router(vps_db_router, prefix=_PREFIX)
+from app.routers.invitations import router as invitations_router
+from app.routers.email_management import router as email_management_router
 from app.routers.search import router as search_router
+
 app.include_router(search_router, prefix=_PREFIX)
+app.include_router(invitations_router, prefix=_PREFIX)
+app.include_router(invitations_router)
+app.include_router(email_management_router, prefix=_PREFIX)
+app.include_router(email_management_router)
 

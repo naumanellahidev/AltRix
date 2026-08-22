@@ -33,7 +33,7 @@ class StaffGovernanceRequest(BaseModel):
 class InviteRequest(BaseModel):
     schoolSlug: str
     email: str
-    password: str
+    password: Optional[str] = None
     role: str
     displayName: Optional[str] = None
     campusId: Optional[str] = None
@@ -282,17 +282,16 @@ async def invite_user(
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Invite / create user with password and assign initial role.
+    Invite / create user with password or send single-use activation email.
     """
     school = await _resolve_school_and_authorize(db, body.schoolSlug, current_user.id)
     school_id = school["id"]
+    school_name = school.get("name", "AltRix Institute")
     invite_email = body.email.strip().lower()
-    pwd = body.password.strip()
+    pwd = (body.password or "").strip()
 
     if "@" not in invite_email:
         raise HTTPException(status_code=400, detail="Invalid email address")
-    if len(pwd) < 8:
-        raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
 
     try:
         actor_uid = uuid.UUID(current_user.id) if isinstance(current_user.id, str) else current_user.id
@@ -337,6 +336,72 @@ async def invite_user(
         if row:
             target_campus_id = row.campus_id
 
+    # If NO password provided, trigger the secure single-use invitation flow
+    if not pwd:
+        import secrets
+        from datetime import datetime, timezone, timedelta
+        from app.services.email_service import CentralEmailService
+
+        token = secrets.token_urlsafe(48)
+        expires_at = datetime.now(timezone.utc) + timedelta(hours=48)
+        invitation_id = uuid.uuid4()
+        display_name = body.displayName or invite_email.split('@')[0]
+
+        # Invalidate prior pending invitations
+        await db.execute(
+            text("""
+                UPDATE public.user_invitations
+                SET status = 'revoked', revoked_at = NOW(), revoked_by_user_id = :aid
+                WHERE LOWER(email) = :email AND school_id = :sid AND status IN ('pending', 'sent', 'opened')
+            """),
+            {"email": invite_email, "sid": school_id, "aid": actor_uid},
+        )
+
+        # Insert new invitation
+        await db.execute(
+            text("""
+                INSERT INTO public.user_invitations (
+                    id, token, email, role, display_name, school_id, campus_id, invited_by_user_id, status, created_at, expires_at
+                ) VALUES (
+                    :id, :token, :email, :role, :displayName, :school_id, :campus_id, :aid, 'sent', NOW(), :expires_at
+                )
+            """),
+            {
+                "id": invitation_id,
+                "token": token,
+                "email": invite_email,
+                "role": body.role,
+                "displayName": display_name,
+                "school_id": school_id,
+                "campus_id": target_campus_id,
+                "aid": actor_uid,
+                "expires_at": expires_at,
+            },
+        )
+        await db.commit()
+
+        # Send invitation email via Central Email Service
+        activation_link = f"https://altrixcore.com/activate-account/{token}"
+        await CentralEmailService.send_event(
+            event_name="staff_invitation",
+            recipient=invite_email,
+            context={
+                "name": display_name,
+                "tenant_name": school_name,
+                "role": body.role.replace("_", " ").title(),
+                "activation_link": activation_link,
+                "expires_in": "48 hours",
+                "support_email": "support@altrixcore.com",
+            },
+            db=db,
+        )
+
+        return {"ok": True, "userId": str(invitation_id), "status": "invited", "invitationId": str(invitation_id)}
+
+    # Direct password creation (legacy fallback)
+    if len(pwd) < 8:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
+
     # Check if user exists in auth.users
     res_u = await db.execute(
         text("SELECT id FROM auth.users WHERE LOWER(TRIM(email)) = :email LIMIT 1"),
@@ -346,7 +411,6 @@ async def invite_user(
 
     if existing_user:
         user_id = existing_user.id
-        # Update password
         await db.execute(
             text("""
                 UPDATE auth.users

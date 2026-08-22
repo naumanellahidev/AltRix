@@ -50,8 +50,32 @@ const ResetPassword = () => {
   const [resendSentTo, setResendSentTo] = useState<string | null>(null);
   const [resendCooldown, setResendCooldown] = useState(0);
 
+  const [resetToken, setResetToken] = useState<string | null>(null);
+
   useEffect(() => {
     const params = getResetUrlParams();
+    const customToken = params.get("token");
+
+    if (customToken) {
+      setResetToken(customToken);
+      const verifyToken = async () => {
+        try {
+          const res = await fetch(`/api/auth/password-reset-verify?token=${encodeURIComponent(customToken)}`);
+          const data = await res.json();
+          if (data.valid) {
+            setLinkSecondsLeft(data.expiresAt ? Math.max(0, Math.floor((new Date(data.expiresAt).getTime() - Date.now()) / 1000)) : RESET_LINK_TTL_SECONDS);
+            setReady(true);
+          } else {
+            setExpired(data.error || "This password reset link is invalid or has expired.");
+          }
+        } catch {
+          setExpired("Unable to verify reset link. Please try again.");
+        }
+      };
+      verifyToken();
+      return;
+    }
+
     const errCode = params.get("error_code") || params.get("error");
     const errDesc = params.get("error_description");
     if (errCode) {
@@ -145,15 +169,27 @@ const ResetPassword = () => {
     }
     setBusy(true);
     try {
-      const { error } = await api.auth.updateUser({ password });
-      if (error) {
-        toast.error(error.message);
-        return;
+      if (resetToken) {
+        const res = await fetch("/api/auth/password-reset-confirm", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token: resetToken, password }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || data.error || "Failed to reset password");
+      } else {
+        const { error } = await api.auth.updateUser({ password });
+        if (error) {
+          toast.error(error.message);
+          return;
+        }
       }
       setDone(true);
       toast.success("Password updated. You can now sign in.");
       await api.auth.signOut();
       setTimeout(() => navigate(returnTo, { replace: true }), 1600);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to update password");
     } finally {
       setBusy(false);
     }
