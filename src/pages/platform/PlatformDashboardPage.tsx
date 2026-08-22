@@ -307,36 +307,38 @@ export default function PlatformDashboardPage() {
           size="sm"
           onClick={refresh}
           disabled={busy}
-          className="bg-white border-slate-300 text-blue-700 hover:bg-blue-50 hover:border-blue-400 font-bold shadow-sm"
+          className="bg-white border-slate-300 text-blue-700 hover:bg-blue-50 hover:border-blue-400 font-bold shadow-xs h-8 sm:h-9 px-2 sm:px-3 text-xs"
         >
-          <RefreshCw className={`h-4 w-4 mr-2 ${busy ? "animate-spin" : ""}`} /> Refresh Telemetry
+          <RefreshCw className={`h-3.5 w-3.5 sm:mr-1.5 ${busy ? "animate-spin" : ""}`} />
+          <span className="hidden sm:inline">Refresh Telemetry</span>
+          <span className="sm:hidden">Refresh</span>
         </Button>
       }
     >
       {/* Hero welcome banner */}
       <div
-        className="relative overflow-hidden rounded-2xl p-6 md:p-8 mb-6 border border-blue-200/80 shadow-md bg-white"
+        className="relative overflow-hidden rounded-2xl p-4 sm:p-6 md:p-8 mb-5 sm:mb-6 border border-blue-200/80 shadow-sm bg-white"
         style={{
           background:
             "linear-gradient(135deg, rgba(37, 99, 235, 0.05) 0%, rgba(99, 102, 241, 0.02) 50%, #ffffff 100%)",
         }}
       >
-        <div className="relative flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+        <div className="relative flex flex-col md:flex-row md:items-center md:justify-between gap-4 sm:gap-6">
           <div>
-            <div className="flex items-center gap-2 text-blue-700 text-[11px] uppercase tracking-[0.25em] font-black mb-2">
-              <Sparkles className="h-4 w-4 text-blue-600 animate-pulse" /> ALTRIX AI EXECUTIVE DIRECTIVE
+            <div className="flex items-center gap-1.5 text-blue-700 text-[10px] sm:text-[11px] uppercase tracking-[0.22em] font-black mb-1.5 sm:mb-2">
+              <Sparkles className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-blue-600 animate-pulse shrink-0" /> ALTRIX AI EXECUTIVE DIRECTIVE
             </div>
-            <h2 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tight">
+            <h2 className="text-xl sm:text-2xl md:text-3xl font-black text-slate-900 tracking-tight">
               {user?.email?.split("@")[0]} · HQ Command Cockpit
             </h2>
-            <p className="text-sm text-slate-600 mt-1.5 max-w-3xl leading-relaxed font-medium">
+            <p className="text-xs sm:text-sm text-slate-600 mt-1 sm:mt-1.5 max-w-3xl leading-relaxed font-medium">
               Full cross-tenant access to all institutional fleets, financial pipelines, and database shards. Monitor real-time SLA latency, trigger live tenant provisioning, or inspect platform security.
             </p>
           </div>
           <div className="flex items-center gap-3 shrink-0">
-            <div className="px-4 py-2.5 rounded-xl bg-white border border-blue-200 text-right shadow-sm">
-              <p className="text-[10px] uppercase tracking-wider text-slate-500 font-bold">Platform Status</p>
-              <p className="text-sm font-black text-blue-700 font-mono flex items-center justify-end gap-1.5 mt-0.5">
+            <div className="px-3.5 py-2 rounded-xl bg-white border border-blue-200 text-left md:text-right shadow-xs w-full sm:w-auto">
+              <p className="text-[9px] sm:text-[10px] uppercase tracking-wider text-slate-500 font-bold">Platform Status</p>
+              <p className="text-xs sm:text-sm font-black text-blue-700 font-mono flex items-center md:justify-end gap-1.5 mt-0.5">
                 <span className="h-2 w-2 rounded-full bg-blue-600 animate-ping" /> 99.99% Operational
               </p>
             </div>
@@ -345,28 +347,28 @@ export default function PlatformDashboardPage() {
       </div>
 
       {/* AI Daily Executive Briefing Widget */}
-      <div className="rounded-2xl border border-blue-200 bg-gradient-to-r from-blue-50/90 via-indigo-50/50 to-white p-5 mb-6 shadow-md relative overflow-hidden">
-        <div className="flex items-center justify-between gap-4 mb-3">
-          <div className="flex items-center gap-2.5">
-            <div className="h-8 w-8 rounded-lg bg-blue-600 text-white flex items-center justify-center shadow-sm">
-              <Sparkles className="h-4 w-4" />
+      <div className="rounded-2xl border border-blue-200 bg-gradient-to-r from-blue-50/90 via-indigo-50/50 to-white p-4 sm:p-5 mb-5 sm:mb-6 shadow-sm relative overflow-hidden">
+        <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
+          <div className="flex items-center gap-2 sm:gap-2.5">
+            <div className="h-7 w-7 sm:h-8 sm:w-8 rounded-lg bg-blue-600 text-white flex items-center justify-center shadow-xs shrink-0">
+              <Sparkles className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             </div>
             <div>
-              <h3 className="text-xs font-black uppercase tracking-wider text-blue-900">Daily AI Executive Briefing</h3>
-              <p className="text-[11px] text-slate-500 font-medium">Automated multi-tenant health & growth summary</p>
+              <h3 className="text-[11px] sm:text-xs font-black uppercase tracking-wider text-blue-900">Daily AI Executive Briefing</h3>
+              <p className="text-[10px] sm:text-[11px] text-slate-500 font-medium">Automated multi-tenant health & growth summary</p>
             </div>
           </div>
-          <span className="text-[10px] font-mono px-2.5 py-1 rounded-full bg-blue-100 text-blue-800 border border-blue-300 font-bold">
+          <span className="text-[9px] sm:text-[10px] font-mono px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full bg-blue-100 text-blue-800 border border-blue-300 font-bold shrink-0">
             Updated Just Now
           </span>
         </div>
-        <p className="text-sm text-slate-800 leading-relaxed font-sans bg-white p-4 rounded-xl border border-slate-200/90 shadow-sm font-medium">
+        <p className="text-xs sm:text-sm text-slate-800 leading-relaxed font-sans bg-white p-3.5 sm:p-4 rounded-xl border border-slate-200/90 shadow-xs font-medium">
           "🚀 <span className="font-extrabold text-slate-900">Platform Growth Surge:</span> Total MRR reached <span className="text-emerald-700 font-mono font-extrabold">$14,250/mo</span> (+18.4% MoM). 3 new campuses onboarded this week with 100% database seeding success. Active daily user headcount passed <span className="text-blue-700 font-mono font-extrabold">{kpis.students.toLocaleString()}</span> registered students across all active schools. Zero critical SLA timeouts in the last 24h."
         </p>
       </div>
 
       {/* Metric Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4 lg:gap-5 mb-5 sm:mb-6">
         <div className="rounded-2xl p-5 border border-slate-200 bg-white hover:border-blue-300 transition-all duration-300 shadow-sm">
           <div className="flex items-center justify-between">
             <p className="text-[11px] uppercase tracking-widest text-slate-500 font-extrabold">Monthly Recurring (MRR)</p>
@@ -427,53 +429,53 @@ export default function PlatformDashboardPage() {
       </div>
 
       {/* Database & System Health Telemetry Bar */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <div className="rounded-xl border border-slate-200 bg-white p-4 flex items-center justify-between shadow-sm">
-          <div className="flex items-center gap-3">
-            <Database className="h-5 w-5 text-blue-600" />
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4 mb-5 sm:mb-6">
+        <div className="rounded-xl border border-slate-200 bg-white p-3.5 sm:p-4 flex items-center justify-between shadow-xs">
+          <div className="flex items-center gap-2.5 sm:gap-3">
+            <Database className="h-4.5 w-4.5 sm:h-5 sm:w-5 text-blue-600 shrink-0" />
             <div>
-              <p className="text-xs text-slate-500 font-semibold">PostgreSQL Database Shards</p>
-              <p className="text-sm font-bold text-slate-900">{dbStats.tablesCount} Schema Tables Active</p>
+              <p className="text-[11px] sm:text-xs text-slate-500 font-semibold">PostgreSQL Database Shards</p>
+              <p className="text-xs sm:text-sm font-bold text-slate-900">{dbStats.tablesCount} Schema Tables Active</p>
             </div>
           </div>
-          <span className="text-[10px] text-blue-800 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded font-mono font-bold">PostgreSQL</span>
+          <span className="text-[9px] sm:text-[10px] text-blue-800 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded font-mono font-bold shrink-0">PostgreSQL</span>
         </div>
 
-        <div className="rounded-xl border border-slate-200 bg-white p-4 flex items-center justify-between shadow-sm">
-          <div className="flex items-center gap-3">
-            <Users2 className="h-5 w-5 text-emerald-600" />
+        <div className="rounded-xl border border-slate-200 bg-white p-3.5 sm:p-4 flex items-center justify-between shadow-xs">
+          <div className="flex items-center gap-2.5 sm:gap-3">
+            <Users2 className="h-4.5 w-4.5 sm:h-5 sm:w-5 text-emerald-600 shrink-0" />
             <div>
-              <p className="text-xs text-slate-500 font-semibold">Live Active Telemetry</p>
-              <p className="text-sm font-bold text-slate-900">~{dbStats.activeUsersCount} Live User Sessions</p>
+              <p className="text-[11px] sm:text-xs text-slate-500 font-semibold">Live Active Telemetry</p>
+              <p className="text-xs sm:text-sm font-bold text-slate-900">~{dbStats.activeUsersCount} Live User Sessions</p>
             </div>
           </div>
-          <span className="text-[10px] text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded font-mono font-bold">Online</span>
+          <span className="text-[9px] sm:text-[10px] text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded font-mono font-bold shrink-0">Online</span>
         </div>
 
-        <div className="rounded-xl border border-slate-200 bg-white p-4 flex items-center justify-between shadow-sm">
-          <div className="flex items-center gap-3">
-            <ShieldCheck className="h-5 w-5 text-indigo-600" />
+        <div className="rounded-xl border border-slate-200 bg-white p-3.5 sm:p-4 flex items-center justify-between shadow-xs sm:col-span-2 md:col-span-1">
+          <div className="flex items-center gap-2.5 sm:gap-3">
+            <ShieldCheck className="h-4.5 w-4.5 sm:h-5 sm:w-5 text-indigo-600 shrink-0" />
             <div>
-              <p className="text-xs text-slate-500 font-semibold">Automated Backup Vault</p>
-              <p className="text-sm font-bold text-slate-900">Status: {dbStats.backupStatus}</p>
+              <p className="text-[11px] sm:text-xs text-slate-500 font-semibold">Automated Backup Vault</p>
+              <p className="text-xs sm:text-sm font-bold text-slate-900">Status: {dbStats.backupStatus}</p>
             </div>
           </div>
-          <span className="text-[10px] text-indigo-800 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded font-mono font-bold">24h Encrypted</span>
+          <span className="text-[9px] sm:text-[10px] text-indigo-800 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded font-mono font-bold shrink-0">24h Encrypted</span>
         </div>
       </div>
 
       {/* Switcher & Global Search Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 mb-5 sm:mb-6">
         {/* School switcher + quick jump */}
-        <div className="rounded-xl border border-slate-200 bg-white p-5 md:p-6 shadow-md flex flex-col justify-between">
+        <div className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5 md:p-6 shadow-sm flex flex-col justify-between">
           <div>
-            <div className="flex items-start justify-between gap-4 mb-4 flex-wrap">
+            <div className="flex items-start justify-between gap-3 mb-3 sm:mb-4 flex-wrap">
               <div>
-                <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                  <Building2 className="h-4.5 w-4.5 text-blue-600" />
+                <h3 className="text-sm sm:text-base font-bold text-slate-900 flex items-center gap-2">
+                  <Building2 className="h-4 w-4 sm:h-4.5 sm:w-4.5 text-blue-600 shrink-0" />
                   <span>School Switcher</span>
                 </h3>
-                <p className="text-xs text-slate-500 mt-0.5 font-medium">
+                <p className="text-[11px] sm:text-xs text-slate-500 mt-0.5 font-medium">
                   Jump directly into any tenant module with full owner-level access.
                 </p>
               </div>
@@ -481,19 +483,19 @@ export default function PlatformDashboardPage() {
                 variant="outline"
                 size="sm"
                 onClick={() => navigate("/super_admin/schools")}
-                className="bg-slate-50 border-slate-200 text-blue-800 hover:bg-blue-50 font-bold"
+                className="bg-slate-50 border-slate-200 text-blue-800 hover:bg-blue-50 font-bold h-7 sm:h-8 text-xs px-2.5"
               >
                 Manage all
               </Button>
             </div>
 
             <Select value={activeSchoolId} onValueChange={setActiveSchoolId}>
-              <SelectTrigger className="bg-slate-50 border-slate-300 text-slate-900 font-bold focus:ring-blue-500/30">
+              <SelectTrigger className="bg-slate-50 border-slate-300 text-slate-900 font-bold focus:ring-blue-500/30 text-xs sm:text-sm h-9">
                 <SelectValue placeholder="Select a school" />
               </SelectTrigger>
               <SelectContent className="bg-white border-slate-200 text-slate-800">
                 {schools.map((s) => (
-                  <SelectItem key={s.id} value={s.id} className="focus:bg-blue-50 font-medium">
+                  <SelectItem key={s.id} value={s.id} className="focus:bg-blue-50 font-medium text-xs sm:text-sm">
                     {s.slug} — {s.name}
                   </SelectItem>
                 ))}
@@ -501,7 +503,7 @@ export default function PlatformDashboardPage() {
             </Select>
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 mt-6">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-4 sm:mt-6">
             {[
               { label: "Workspace", path: "super_admin", icon: ArrowUpRight, hero: true },
               { label: "Academic", path: "super_admin/academic", icon: GraduationCap },
@@ -520,12 +522,12 @@ export default function PlatformDashboardPage() {
                 onClick={() => activeSchool && navigate(`/${activeSchool.slug}/${q.path}`)}
                 className={
                   (q.hero
-                    ? "bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold border-0 shadow-sm "
+                    ? "bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold border-0 shadow-xs "
                     : "bg-slate-50 border-slate-200 text-slate-700 hover:bg-blue-50 hover:text-blue-800 font-medium ") +
-                  "w-full overflow-hidden text-ellipsis whitespace-nowrap min-w-0 flex items-center justify-start text-xs h-8"
+                  "w-full overflow-hidden text-ellipsis whitespace-nowrap min-w-0 flex items-center justify-start text-[11px] sm:text-xs h-8 px-2"
                 }
               >
-                <q.icon className="h-3.5 w-3.5 mr-1.5 shrink-0" />
+                <q.icon className="h-3.5 w-3.5 mr-1 shrink-0" />
                 <span className="truncate">{q.label}</span>
               </Button>
             ))}
@@ -533,17 +535,17 @@ export default function PlatformDashboardPage() {
         </div>
 
         {/* Cross-Tenant Global Search Tool */}
-        <div className="rounded-xl border border-slate-200 bg-white p-5 md:p-6 shadow-md flex flex-col justify-between">
+        <div className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5 md:p-6 shadow-sm flex flex-col justify-between">
           <div>
-            <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-              <Search className="h-4.5 w-4.5 text-blue-600" />
+            <h3 className="text-sm sm:text-base font-bold text-slate-900 flex items-center gap-2">
+              <Search className="h-4 w-4 sm:h-4.5 sm:w-4.5 text-blue-600 shrink-0" />
               <span>Cross-Tenant Global Search</span>
             </h3>
-            <p className="text-xs text-slate-500 mt-0.5 mb-4 font-medium">
+            <p className="text-[11px] sm:text-xs text-slate-500 mt-0.5 mb-3 sm:mb-4 font-medium">
               Query student profiles, registration codes, parents or staff globally across all schools.
             </p>
 
-            <div className="flex gap-2">
+            <div className="flex flex-col xs:flex-row sm:flex-row gap-2">
               <div className="relative flex-1">
                 <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                 <Input
@@ -551,13 +553,13 @@ export default function PlatformDashboardPage() {
                   onChange={(e) => setGlobalSearchQuery(e.target.value)}
                   onKeyDown={handleKeyDown}
                   placeholder="Enter name, email, roll number..."
-                  className="pl-9 h-9 bg-slate-50 border-slate-300 text-slate-900 placeholder:text-slate-400 focus-visible:ring-blue-500/30"
+                  className="pl-9 h-9 bg-slate-50 border-slate-300 text-slate-900 placeholder:text-slate-400 focus-visible:ring-blue-500/30 text-xs sm:text-sm"
                 />
               </div>
               <Button
                 onClick={handleGlobalSearch}
                 disabled={searchingGlobal}
-                className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold h-9 px-4 shrink-0 shadow-sm"
+                className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold h-9 px-4 shrink-0 shadow-xs text-xs sm:text-sm"
               >
                 Search
               </Button>

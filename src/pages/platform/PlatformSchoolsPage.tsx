@@ -406,7 +406,7 @@ export default function PlatformSchoolsPage() {
         {authz === "ok" && (
           <>
             {/* Sub-tabs Navigation */}
-            <div className="flex flex-wrap gap-2 border-b border-slate-200 pb-px mb-6">
+            <div className="flex items-center gap-1 sm:gap-2 overflow-x-auto pb-2 mb-5 sm:mb-6 border-b border-slate-200 no-scrollbar">
               {[
                 { id: "directory", label: "Schools Portfolio", icon: ListFilter },
                 { id: "provisioning", label: "1-Click Provisioner", icon: PlusCircle },
@@ -420,13 +420,13 @@ export default function PlatformSchoolsPage() {
                   <button
                     key={tab.id}
                     onClick={() => setActiveTab(tab.id as any)}
-                    className={`flex items-center gap-2.5 px-4 py-3 text-xs font-bold border-b-2 transition-all duration-200 -mb-px ${
+                    className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 text-xs font-bold border-b-2 transition-all duration-200 -mb-2.5 whitespace-nowrap shrink-0 rounded-t-lg ${
                       active
-                        ? "border-blue-600 text-blue-700 font-extrabold bg-blue-50/80 rounded-t-lg shadow-sm"
+                        ? "border-blue-600 text-blue-700 font-extrabold bg-blue-50/80 shadow-xs"
                         : "border-transparent text-slate-500 hover:text-slate-900 hover:border-slate-300"
                     }`}
                   >
-                    <Icon className={`h-4 w-4 ${active ? "text-blue-600" : "text-slate-400"}`} />
+                    <Icon className={`h-3.5 w-3.5 sm:h-4 sm:w-4 ${active ? "text-blue-600" : "text-slate-400"}`} />
                     {tab.label}
                   </button>
                 );
