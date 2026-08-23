@@ -8,6 +8,7 @@ import uuid
 import logging
 import json
 from typing import Any, Dict, List, Optional
+import bcrypt
 from fastapi import APIRouter, Depends, HTTPException, Header, Request, status
 from pydantic import BaseModel, Field
 from sqlalchemy import text
@@ -131,15 +132,18 @@ async def staff_governance(
         if len(pwd) < 8:
             return {"ok": False, "error": "Password must be at least 8 characters.", "traceId": trace_id}
 
-        # Update password in auth.users using pgcrypto crypt
+        # Securely hash password in Python using bcrypt
+        hashed_pwd = bcrypt.hashpw(pwd.encode("utf-8"), bcrypt.gensalt(10)).decode("utf-8")
+
+        # Update password in auth.users
         await db.execute(
             text("""
                 UPDATE auth.users
-                SET encrypted_password = crypt(:pwd, gen_salt('bf', 10)),
+                SET encrypted_password = :hashed_pwd,
                     updated_at = NOW()
                 WHERE id = :target_id
             """),
-            {"pwd": pwd, "target_id": target_uid}
+            {"hashed_pwd": hashed_pwd, "target_id": target_uid}
         )
 
         # Audit log
@@ -409,48 +413,62 @@ async def invite_user(
     )
     existing_user = res_u.fetchone()
 
+    # Securely hash password in Python using bcrypt
+    hashed_pwd = bcrypt.hashpw(pwd.encode("utf-8"), bcrypt.gensalt(10)).decode("utf-8")
+
     if existing_user:
         user_id = existing_user.id
         await db.execute(
             text("""
                 UPDATE auth.users
-                SET encrypted_password = crypt(:pwd, gen_salt('bf', 10)),
+                SET encrypted_password = :hashed_pwd,
+                    email_confirmed_at = COALESCE(email_confirmed_at, NOW()),
                     updated_at = NOW()
                 WHERE id = :uid
             """),
-            {"pwd": pwd, "uid": user_id}
+            {"hashed_pwd": hashed_pwd, "uid": user_id}
         )
     else:
         user_id = uuid.uuid4()
+        raw_app_meta = json.dumps({"provider": "email", "providers": ["email"]})
+        raw_user_meta = json.dumps({"full_name": body.displayName or invite_email.split('@')[0], "name": body.displayName or invite_email.split('@')[0]})
         await db.execute(
             text("""
                 INSERT INTO auth.users (
-                    id, email, encrypted_password, email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at, aud, role
+                    id, email, encrypted_password, email_confirmed_at,
+                    raw_app_meta_data, raw_user_meta_data, created_at, updated_at, aud, role
                 ) VALUES (
-                    :uid, :email, crypt(:pwd, gen_salt('bf', 10)), NOW(), '{"provider":"email","providers":["email"]}', '{"full_name": :dname}', NOW(), NOW(), 'authenticated', 'authenticated'
+                    :uid, :email, :hashed_pwd, NOW(),
+                    CAST(:app_meta AS jsonb), CAST(:user_meta AS jsonb), NOW(), NOW(), 'authenticated', 'authenticated'
                 )
             """),
-            {"uid": user_id, "email": invite_email, "pwd": pwd, "dname": body.displayName or invite_email.split('@')[0]}
+            {
+                "uid": user_id,
+                "email": invite_email,
+                "hashed_pwd": hashed_pwd,
+                "app_meta": raw_app_meta,
+                "user_meta": raw_user_meta,
+            }
         )
 
-    # Upsert Profile
+    # Upsert Profile (display_name is the DB column)
     await db.execute(
         text("""
-            INSERT INTO public.profiles (id, email, full_name, role, updated_at)
-            VALUES (:uid, :email, :dname, :role, NOW())
+            INSERT INTO public.profiles (id, email, display_name, updated_at)
+            VALUES (:uid, :email, :dname, NOW())
             ON CONFLICT (id) DO UPDATE SET
                 email = EXCLUDED.email,
-                full_name = COALESCE(EXCLUDED.full_name, profiles.full_name),
+                display_name = COALESCE(EXCLUDED.display_name, profiles.display_name),
                 updated_at = NOW()
         """),
-        {"uid": user_id, "email": invite_email, "dname": body.displayName or invite_email.split('@')[0], "role": body.role}
+        {"uid": user_id, "email": invite_email, "dname": body.displayName or invite_email.split('@')[0]}
     )
 
     # Upsert Membership
     await db.execute(
         text("""
-            INSERT INTO public.school_memberships (school_id, user_id, status)
-            VALUES (:sid, :uid, 'active')
+            INSERT INTO public.school_memberships (school_id, user_id, status, created_at)
+            VALUES (:sid, :uid, 'active', NOW())
             ON CONFLICT (school_id, user_id) DO UPDATE SET status = 'active'
         """),
         {"sid": school_id, "uid": user_id}
@@ -459,11 +477,11 @@ async def invite_user(
     # Upsert User Role
     await db.execute(
         text("""
-            INSERT INTO public.user_roles (school_id, user_id, role, campus_id, created_by)
-            VALUES (:sid, :uid, :role, :cid, :aid)
-            ON CONFLICT (school_id, user_id, role) DO UPDATE SET campus_id = COALESCE(:cid, user_roles.campus_id)
+            INSERT INTO public.user_roles (school_id, user_id, role, created_by, created_at)
+            VALUES (:sid, :uid, :role, :aid, NOW())
+            ON CONFLICT (school_id, user_id, role) DO NOTHING
         """),
-        {"sid": school_id, "uid": user_id, "role": body.role, "cid": target_campus_id, "aid": actor_uid}
+        {"sid": school_id, "uid": user_id, "role": body.role, "aid": actor_uid}
     )
 
     # Audit log
@@ -535,30 +553,45 @@ async def bulk_staff_import(
                 {"email": row_email}
             )
             existing = res_u.fetchone()
+            # Securely hash password in Python using bcrypt
+            hashed_pwd = bcrypt.hashpw(pwd.encode("utf-8"), bcrypt.gensalt(10)).decode("utf-8")
             if existing:
                 uid = existing.id
                 await db.execute(
-                    text("UPDATE auth.users SET encrypted_password = crypt(:pwd, gen_salt('bf', 10)), updated_at = NOW() WHERE id = :uid"),
-                    {"pwd": pwd, "uid": uid}
+                    text("UPDATE auth.users SET encrypted_password = :hashed_pwd, email_confirmed_at = COALESCE(email_confirmed_at, NOW()), updated_at = NOW() WHERE id = :uid"),
+                    {"hashed_pwd": hashed_pwd, "uid": uid}
                 )
             else:
                 uid = uuid.uuid4()
+                raw_app_meta = json.dumps({"provider": "email", "providers": ["email"]})
+                raw_user_meta = json.dumps({"full_name": dname or row_email.split('@')[0], "name": dname or row_email.split('@')[0]})
                 await db.execute(
                     text("""
-                        INSERT INTO auth.users (id, email, encrypted_password, email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at, aud, role)
-                        VALUES (:uid, :email, crypt(:pwd, gen_salt('bf', 10)), NOW(), '{"provider":"email"}', '{"full_name": :dname}', NOW(), NOW(), 'authenticated', 'authenticated')
+                        INSERT INTO auth.users (
+                            id, email, encrypted_password, email_confirmed_at,
+                            raw_app_meta_data, raw_user_meta_data, created_at, updated_at, aud, role
+                        ) VALUES (
+                            :uid, :email, :hashed_pwd, NOW(),
+                            CAST(:app_meta AS jsonb), CAST(:user_meta AS jsonb), NOW(), NOW(), 'authenticated', 'authenticated'
+                        )
                     """),
-                    {"uid": uid, "email": row_email, "pwd": pwd, "dname": dname or row_email.split('@')[0]}
+                    {
+                        "uid": uid,
+                        "email": row_email,
+                        "hashed_pwd": hashed_pwd,
+                        "app_meta": raw_app_meta,
+                        "user_meta": raw_user_meta,
+                    }
                 )
 
-            # Profile & Phone
+            # Profile & Phone (display_name is the DB column)
             await db.execute(
                 text("""
-                    INSERT INTO public.profiles (id, email, full_name, phone, updated_at)
+                    INSERT INTO public.profiles (id, email, display_name, phone, updated_at)
                     VALUES (:uid, :email, :dname, :phone, NOW())
                     ON CONFLICT (id) DO UPDATE SET
                         email = EXCLUDED.email,
-                        full_name = COALESCE(EXCLUDED.full_name, profiles.full_name),
+                        display_name = COALESCE(EXCLUDED.display_name, profiles.display_name),
                         phone = COALESCE(EXCLUDED.phone, profiles.phone),
                         updated_at = NOW()
                 """),

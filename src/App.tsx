@@ -155,6 +155,7 @@ export default function App() {
               <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/activate-account" element={<ActivateAccountPage />} />
               <Route path="/activate-account/:token" element={<ActivateAccountPage />} />
+              <Route path="/activate-account/*" element={<ActivateAccountPage />} />
               {/* Global Super Admin (platform-level) */}
               <Route element={<PlatformAdminGuard />}>
                 <Route path="/super_admin" element={<PlatformDashboardPage />} />

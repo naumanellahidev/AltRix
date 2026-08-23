@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
-import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams, useLocation } from "react-router-dom";
 import {
   ShieldCheck,
   CheckCircle2,
@@ -20,6 +20,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
+import { api } from "@/lib/api";
 
 interface InvitationData {
   valid: boolean;
@@ -34,12 +35,29 @@ interface InvitationData {
 
 export default function ActivateAccountPage() {
   const navigate = useNavigate();
-  const params = useParams<{ token?: string }>();
+  const location = useLocation();
+  const params = useParams<{ token?: string; "*": string }>();
   const [searchParams] = useSearchParams();
 
   const token = useMemo(() => {
-    return params.token || searchParams.get("token") || "";
-  }, [params.token, searchParams]);
+    // 1. Search param ?token=...
+    const qToken = searchParams.get("token");
+    if (qToken) return qToken.trim();
+
+    // 2. Wildcard splat parameter
+    const splat = params["*"];
+    if (splat) return splat.trim();
+
+    // 3. Named token parameter
+    if (params.token) return params.token.trim();
+
+    // 4. Raw pathname parsing fallback
+    const match = location.pathname.match(/^\/activate-account\/(.+)$/);
+    if (match && match[1]) {
+      return match[1].trim();
+    }
+    return "";
+  }, [params, searchParams, location.pathname]);
 
   const [loading, setLoading] = useState(true);
   const [invitation, setInvitation] = useState<InvitationData | null>(null);
@@ -112,22 +130,22 @@ export default function ActivateAccountPage() {
         throw new Error(data.detail || data.error || "Account activation failed");
       }
 
-      // Store local session tokens if returned
+      // Establish active session in global auth state
       if (data.access_token) {
-        localStorage.setItem("altrix_token", data.access_token);
-        if (data.refresh_token) {
-          localStorage.setItem("altrix_refresh_token", data.refresh_token);
-        }
+        await api.auth.setSession({
+          access_token: data.access_token,
+          refresh_token: data.refresh_token,
+        });
       }
 
       setActivatedSuccess(true);
       toast.success("Account activated successfully! Welcome to AltRix.");
 
-      // Smooth redirect to tenant workspace hub after 2 seconds
+      // Smooth redirect to tenant workspace hub after 1.5 seconds
       setTimeout(() => {
         const slug = data.schoolSlug || invitation?.schoolSlug || "altrix";
         navigate(`/${slug}/hub`, { replace: true });
-      }, 2000);
+      }, 1500);
     } catch (err: any) {
       toast.error(err.message || "Failed to activate account");
     } finally {

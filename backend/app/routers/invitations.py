@@ -7,11 +7,14 @@ Provides production-grade, cryptographically secure invitation-based onboarding:
 - Self-service password creation during activation
 - Full lifecycle management (Pending, Sent, Opened, Verified, Activated, Expired, Revoked)
 """
+import json
 import logging
 import secrets
 import uuid
 from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, List, Optional
+
+import bcrypt
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel, EmailStr, Field
@@ -359,7 +362,7 @@ async def activate_account(
     if len(pwd) < 8:
         raise HTTPException(status_code=400, detail="Password must be at least 8 characters long")
 
-    # Re-verify token server-side with lock
+    # Re-verify token server-side
     res = await db.execute(
         text("""
             SELECT i.id, i.email, i.role, i.display_name, i.school_id, i.campus_id, i.status, i.expires_at, i.invited_by_user_id
@@ -384,8 +387,10 @@ async def activate_account(
     full_name = body.displayName or invite.display_name or clean_email.split("@")[0]
     assigned_role = invite.role
     school_id = invite.school_id
-    campus_id = invite.campus_id
     actor_uid = invite.invited_by_user_id
+
+    # Securely hash password in Python using bcrypt
+    hashed_pwd = bcrypt.hashpw(pwd.encode("utf-8"), bcrypt.gensalt(10)).decode("utf-8")
 
     # 1. Create or update auth.users
     res_u = await db.execute(
@@ -399,37 +404,47 @@ async def activate_account(
         await db.execute(
             text("""
                 UPDATE auth.users
-                SET encrypted_password = crypt(:pwd, gen_salt('bf', 10)),
+                SET encrypted_password = :hashed_pwd,
                     email_confirmed_at = COALESCE(email_confirmed_at, NOW()),
                     updated_at = NOW()
                 WHERE id = :uid
             """),
-            {"pwd": pwd, "uid": user_id},
+            {"hashed_pwd": hashed_pwd, "uid": user_id},
         )
     else:
         user_id = uuid.uuid4()
+        raw_app_meta = json.dumps({"provider": "email", "providers": ["email"]})
+        raw_user_meta = json.dumps({"full_name": full_name, "name": full_name})
         await db.execute(
             text("""
                 INSERT INTO auth.users (
-                    id, email, encrypted_password, email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at, aud, role
+                    id, email, encrypted_password, email_confirmed_at,
+                    raw_app_meta_data, raw_user_meta_data, created_at, updated_at, aud, role
                 ) VALUES (
-                    :uid, :email, crypt(:pwd, gen_salt('bf', 10)), NOW(), '{"provider":"email","providers":["email"]}', '{"full_name": :name}', NOW(), NOW(), 'authenticated', 'authenticated'
+                    :uid, :email, :hashed_pwd, NOW(),
+                    CAST(:app_meta AS jsonb), CAST(:user_meta AS jsonb), NOW(), NOW(), 'authenticated', 'authenticated'
                 )
             """),
-            {"uid": user_id, "email": clean_email, "pwd": pwd, "name": full_name},
+            {
+                "uid": user_id,
+                "email": clean_email,
+                "hashed_pwd": hashed_pwd,
+                "app_meta": raw_app_meta,
+                "user_meta": raw_user_meta,
+            },
         )
 
-    # 2. Upsert Profiles
+    # 2. Upsert Profiles (display_name is the DB column)
     await db.execute(
         text("""
-            INSERT INTO public.profiles (id, email, full_name, role, updated_at)
-            VALUES (:uid, :email, :name, :role, NOW())
+            INSERT INTO public.profiles (id, email, display_name, updated_at)
+            VALUES (:uid, :email, :name, NOW())
             ON CONFLICT (id) DO UPDATE SET
                 email = EXCLUDED.email,
-                full_name = COALESCE(EXCLUDED.full_name, profiles.full_name),
+                display_name = COALESCE(EXCLUDED.display_name, profiles.display_name),
                 updated_at = NOW()
         """),
-        {"uid": user_id, "email": clean_email, "name": full_name, "role": assigned_role},
+        {"uid": user_id, "email": clean_email, "name": full_name},
     )
 
     # 3. Upsert School Membership & User Role
@@ -445,11 +460,11 @@ async def activate_account(
 
         await db.execute(
             text("""
-                INSERT INTO public.user_roles (school_id, user_id, role, campus_id, created_by, created_at)
-                VALUES (:sid, :uid, :role, :cid, :aid, NOW())
-                ON CONFLICT (school_id, user_id, role) DO UPDATE SET campus_id = COALESCE(:cid, user_roles.campus_id)
+                INSERT INTO public.user_roles (school_id, user_id, role, created_by, created_at)
+                VALUES (:sid, :uid, :role, :aid, NOW())
+                ON CONFLICT (school_id, user_id, role) DO NOTHING
             """),
-            {"sid": school_id, "uid": user_id, "role": assigned_role, "cid": campus_id, "aid": actor_uid},
+            {"sid": school_id, "uid": user_id, "role": assigned_role, "aid": actor_uid},
         )
 
     # 4. Mark Invitation Consumed
@@ -487,7 +502,7 @@ async def activate_account(
     if school_id:
         res_sl = await db.execute(text("SELECT slug FROM public.schools WHERE id = :sid LIMIT 1"), {"sid": school_id})
         row_sl = res_sl.fetchone()
-        if row_sl:
+        if row_sl and row_sl.slug:
             slug = row_sl.slug
 
     return {
