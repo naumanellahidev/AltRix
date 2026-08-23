@@ -53,6 +53,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 import { api } from "@/lib/api";
+import { apiClient } from "@/lib/api-client";
 import { useTenant } from "@/hooks/useTenant";
 import { useSession } from "@/hooks/useSession";
 import { useActiveCampus } from "@/hooks/useActiveCampus";
@@ -200,12 +201,11 @@ export function UsersModule() {
     if (!schoolId) return;
     setInvitationsLoading(true);
     try {
-      const res = await fetch(`/api/auth/invitations/list?school_id=${encodeURIComponent(schoolId)}`);
-      if (res.ok) {
-        const data = await res.json();
-        setInvitations(data || []);
-      }
-    } catch (err) {
+      const res = await apiClient.get<InvitationRecord[]>("/auth/invitations/list", {
+        params: { school_id: schoolId },
+      });
+      setInvitations(res.data || []);
+    } catch (err: any) {
       console.error("Failed to load invitations", err);
     } finally {
       setInvitationsLoading(false);
@@ -305,24 +305,16 @@ export function UsersModule() {
     setBusy(true);
     setCreatedUserId(null);
     try {
-      const res = await fetch("/api/auth/invitations/create", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: email.trim().toLowerCase(),
-          role,
-          displayName: displayName.trim() || undefined,
-          schoolId,
-          schoolSlug: tenant.slug,
-          campusId: (isOwnerShell && campuses.length > 1) ? selectedFormCampusId || undefined : undefined,
-        }),
+      const res = await apiClient.post("/auth/invitations/create", {
+        email: email.trim().toLowerCase(),
+        role,
+        displayName: displayName.trim() || undefined,
+        schoolId,
+        schoolSlug: tenant.slug,
+        campusId: (isOwnerShell && campuses.length > 1) ? selectedFormCampusId || undefined : undefined,
       });
 
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.detail || data.error || "Failed to dispatch invitation");
-      }
-
+      const data = res.data;
       setCreatedUserId(data.invitationId || null);
       toast.success(`Invitation dispatched to ${email}! The staff member will receive an activation email.`);
       setEmail("");
@@ -330,7 +322,8 @@ export function UsersModule() {
       await Promise.all([refresh(), refreshInvitations()]);
       setActiveTab("invitations");
     } catch (e: any) {
-      toast.error(e.message || "Failed to invite user");
+      const msg = e?.response?.data?.detail || e?.response?.data?.error || e.message || "Failed to invite user";
+      toast.error(msg);
     } finally {
       setBusy(false);
     }
@@ -339,17 +332,12 @@ export function UsersModule() {
   const doResendInvitation = async (invitationId: string) => {
     try {
       setBusy(true);
-      const res = await fetch("/api/auth/invitations/resend", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ invitationId }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || data.error || "Failed to resend invitation");
-      toast.success(data.message || "Invitation resent successfully!");
+      const res = await apiClient.post("/auth/invitations/resend", { invitationId });
+      toast.success(res.data?.message || "Invitation resent successfully!");
       await refreshInvitations();
     } catch (e: any) {
-      toast.error(e.message);
+      const msg = e?.response?.data?.detail || e?.response?.data?.error || e.message || "Failed to resend invitation";
+      toast.error(msg);
     } finally {
       setBusy(false);
     }
@@ -360,17 +348,12 @@ export function UsersModule() {
     if (!confirmed) return;
     try {
       setBusy(true);
-      const res = await fetch("/api/auth/invitations/revoke", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ invitationId }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || data.error || "Failed to revoke invitation");
-      toast.success(data.message || "Invitation revoked.");
+      const res = await apiClient.post("/auth/invitations/revoke", { invitationId });
+      toast.success(res.data?.message || "Invitation revoked.");
       await refreshInvitations();
     } catch (e: any) {
-      toast.error(e.message);
+      const msg = e?.response?.data?.detail || e?.response?.data?.error || e.message || "Failed to revoke invitation";
+      toast.error(msg);
     } finally {
       setBusy(false);
     }
@@ -380,23 +363,18 @@ export function UsersModule() {
     if (!editInviteDialog) return;
     try {
       setBusy(true);
-      const res = await fetch("/api/auth/invitations/update", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          invitationId: editInviteDialog.id,
-          displayName: editInviteName.trim() || undefined,
-          role: editInviteRole,
-          campusId: editInviteCampus || undefined,
-        }),
+      const res = await apiClient.put("/auth/invitations/update", {
+        invitationId: editInviteDialog.id,
+        displayName: editInviteName.trim() || undefined,
+        role: editInviteRole,
+        campusId: editInviteCampus || undefined,
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || data.error || "Failed to update invitation");
-      toast.success(data.message || "Invitation updated successfully!");
+      toast.success(res.data?.message || "Invitation updated successfully!");
       setEditInviteDialog(null);
       await refreshInvitations();
     } catch (e: any) {
-      toast.error(e.message);
+      const msg = e?.response?.data?.detail || e?.response?.data?.error || e.message || "Failed to update invitation";
+      toast.error(msg);
     } finally {
       setBusy(false);
     }

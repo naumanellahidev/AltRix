@@ -79,14 +79,19 @@ async def _authorize_invite_manager(
     db: AsyncSession,
     user_id: str,
     school_id: Optional[uuid.UUID],
+    target_role: Optional[str] = None,
+    is_super_admin: bool = False,
 ) -> bool:
-    """Check if current user is Super Admin, School Owner, Principal, VP, or HR Manager."""
+    """Check if current user is Super Admin, School Owner, Principal, VP, or HR Manager (or Teacher for student/parent)."""
+    if is_super_admin:
+        return True
+
     try:
         uid = uuid.UUID(user_id) if isinstance(user_id, str) else user_id
     except ValueError:
         return False
 
-    # 1. Super Admin
+    # 1. Super Admin DB check
     res_sa = await db.execute(
         text("SELECT user_id FROM public.platform_super_admins WHERE user_id = :uid LIMIT 1"),
         {"uid": uid},
@@ -114,8 +119,17 @@ async def _authorize_invite_manager(
         {"uid": uid, "sid": school_id},
     )
     roles = [r[0] for r in res_roles.fetchall()]
-    allowed = {"principal", "vice_principal", "admin", "school_admin", "hr_manager", "school_owner", "super_admin"}
-    return bool(set(roles).intersection(allowed))
+    manager_roles = {"principal", "vice_principal", "admin", "school_admin", "hr_manager", "school_owner", "super_admin"}
+    if bool(set(roles).intersection(manager_roles)):
+        return True
+
+    # If inviting student or parent, teachers and staff are authorized
+    if target_role and target_role.lower() in ("student", "parent"):
+        educator_roles = {"teacher", "academic_coordinator", "counselor"}
+        if bool(set(roles).intersection(educator_roles)):
+            return True
+
+    return False
 
 
 # ---------------------------------------------------------------------------
@@ -174,7 +188,9 @@ async def create_invitation(
             school_slug = row_i.slug
 
     # Permission check
-    is_authorized = await _authorize_invite_manager(db, current_user.id, school_id)
+    is_authorized = await _authorize_invite_manager(
+        db, current_user.id, school_id, target_role=body.role, is_super_admin=current_user.is_super_admin
+    )
     if not is_authorized:
         raise HTTPException(status_code=403, detail="Forbidden: You lack permission to invite staff for this institution")
 
@@ -573,7 +589,9 @@ async def list_invitations(
         except ValueError:
             pass
 
-    is_authorized = await _authorize_invite_manager(db, current_user.id, target_sid)
+    is_authorized = await _authorize_invite_manager(
+        db, current_user.id, target_sid, is_super_admin=current_user.is_super_admin
+    )
     if not is_authorized:
         raise HTTPException(status_code=403, detail="Forbidden")
 
@@ -642,7 +660,9 @@ async def resend_invitation(
     if not row:
         raise HTTPException(status_code=404, detail="Invitation not found")
 
-    is_authorized = await _authorize_invite_manager(db, current_user.id, row.school_id)
+    is_authorized = await _authorize_invite_manager(
+        db, current_user.id, row.school_id, is_super_admin=current_user.is_super_admin
+    )
     if not is_authorized:
         raise HTTPException(status_code=403, detail="Forbidden")
 
@@ -709,7 +729,9 @@ async def revoke_invitation(
     if not row:
         raise HTTPException(status_code=404, detail="Invitation not found")
 
-    is_authorized = await _authorize_invite_manager(db, current_user.id, row.school_id)
+    is_authorized = await _authorize_invite_manager(
+        db, current_user.id, row.school_id, is_super_admin=current_user.is_super_admin
+    )
     if not is_authorized:
         raise HTTPException(status_code=403, detail="Forbidden")
 
@@ -755,7 +777,9 @@ async def update_invitation(
     if row.status not in ("pending", "sent", "opened"):
         raise HTTPException(status_code=400, detail=f"Cannot edit invitation in '{row.status}' status.")
 
-    is_authorized = await _authorize_invite_manager(db, current_user.id, row.school_id)
+    is_authorized = await _authorize_invite_manager(
+        db, current_user.id, row.school_id, target_role=body.role, is_super_admin=current_user.is_super_admin
+    )
     if not is_authorized:
         raise HTTPException(status_code=403, detail="Forbidden")
 
