@@ -41,23 +41,26 @@ export default function ActivateAccountPage() {
   const [searchParams] = useSearchParams();
 
   const token = useMemo(() => {
+    let raw = "";
     // 1. Search param ?token=...
     const qToken = searchParams.get("token");
-    if (qToken) return qToken.trim();
-
+    if (qToken) raw = qToken.trim();
     // 2. Wildcard splat parameter
-    const splat = params["*"];
-    if (splat) return splat.trim();
-
+    else if (params["*"]) raw = params["*"].trim();
     // 3. Named token parameter
-    if (params.token) return params.token.trim();
-
+    else if (params.token) raw = params.token.trim();
     // 4. Raw pathname parsing fallback
-    const match = location.pathname.match(/^\/activate-account\/(.+)$/);
-    if (match && match[1]) {
-      return match[1].trim();
+    else {
+      const match = location.pathname.match(/^\/activate-account\/(.+)$/);
+      if (match && match[1]) raw = match[1].trim();
     }
-    return "";
+
+    // Strip out any trailing path segments like /n/A
+    if (raw.includes("/")) {
+      const parts = raw.split("/").map((p) => p.trim()).filter((p) => p && p !== "n" && p !== "A" && p.toLowerCase() !== "n/a");
+      if (parts.length > 0) return parts[0];
+    }
+    return raw;
   }, [params, searchParams, location.pathname]);
 
   const [loading, setLoading] = useState(true);

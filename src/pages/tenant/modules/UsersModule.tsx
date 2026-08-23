@@ -20,8 +20,26 @@ import {
   Briefcase,
   CheckCircle2,
   Filter,
+  Send,
+  RefreshCw,
+  Copy,
+  Ban,
+  Clock,
+  Eye,
+  MailCheck,
+  Loader2,
+  Sparkles,
 } from "lucide-react";
 import { StaffProfileDialog } from "@/components/hr/StaffProfileDialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -49,6 +67,20 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
+
+export interface InvitationRecord {
+  id: string;
+  email: string;
+  role: string;
+  displayName: string | null;
+  status: "pending" | "sent" | "opened" | "activated" | "expired" | "revoked";
+  schoolName: string | null;
+  campusName: string | null;
+  createdAt: string | null;
+  expiresAt: string | null;
+  openedAt: string | null;
+  consumedAt: string | null;
+}
 
 type DirectoryRow = {
   user_id: string;
@@ -116,10 +148,20 @@ export function UsersModule() {
   const [createdUserId, setCreatedUserId] = useState<string | null>(null);
 
   // Search & Filter states
-  const [activeTab, setActiveTab] = useState<"staff" | "students_parents" | "all">("staff");
+  const [activeTab, setActiveTab] = useState<"staff" | "students_parents" | "all" | "invitations">("staff");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedRoleFilter, setSelectedRoleFilter] = useState<string>("all");
   const [selectedCampusFilter, setSelectedCampusFilter] = useState<string>("all");
+
+  // Invitations management states
+  const [invitations, setInvitations] = useState<InvitationRecord[]>([]);
+  const [invitationsLoading, setInvitationsLoading] = useState(false);
+  const [inviteSearchQuery, setInviteSearchQuery] = useState("");
+  const [inviteStatusFilter, setInviteStatusFilter] = useState<string>("all");
+  const [editInviteDialog, setEditInviteDialog] = useState<InvitationRecord | null>(null);
+  const [editInviteName, setEditInviteName] = useState("");
+  const [editInviteRole, setEditInviteRole] = useState<EduverseRole>("teacher");
+  const [editInviteCampus, setEditInviteCampus] = useState<string>("");
 
   // Sync with activeCampusId from top header
   useEffect(() => {
@@ -153,6 +195,22 @@ export function UsersModule() {
 
   const [govReason, setGovReason] = useState<string>("");
   const [profileDialogUserId, setProfileDialogUserId] = useState<string | null>(null);
+
+  const refreshInvitations = async () => {
+    if (!schoolId) return;
+    setInvitationsLoading(true);
+    try {
+      const res = await fetch(`/api/auth/invitations/list?school_id=${encodeURIComponent(schoolId)}`);
+      if (res.ok) {
+        const data = await res.json();
+        setInvitations(data || []);
+      }
+    } catch (err) {
+      console.error("Failed to load invitations", err);
+    } finally {
+      setInvitationsLoading(false);
+    }
+  };
 
   const refresh = async () => {
     if (!schoolId) return;
@@ -219,10 +277,14 @@ export function UsersModule() {
     setRolesByUser(nextRoles);
     setCampusByUser(nextCampusMap);
     setCampuses(campusList);
+
+    // Also refresh invitations
+    void refreshInvitations();
   };
 
   useEffect(() => {
     void refresh();
+    void refreshInvitations();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [schoolId]);
 
@@ -243,58 +305,109 @@ export function UsersModule() {
     setBusy(true);
     setCreatedUserId(null);
     try {
-      const { data, error } = await api.functions.invoke("eduverse-invite", {
-        body: {
-          schoolSlug: tenant.slug,
+      const res = await fetch("/api/auth/invitations/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
           email: email.trim().toLowerCase(),
           role,
           displayName: displayName.trim() || undefined,
-          campusId: (isOwnerShell && campuses.length > 1) ? selectedFormCampusId : undefined,
-        },
+          schoolId,
+          schoolSlug: tenant.slug,
+          campusId: (isOwnerShell && campuses.length > 1) ? selectedFormCampusId || undefined : undefined,
+        }),
       });
-      if (error) {
-        const raw = (error as any)?.context?.body;
-        let detail: string | null = null;
-        if (typeof raw === "string") {
-          try {
-            const parsed = JSON.parse(raw);
-            detail = parsed?.error ? String(parsed.error) : null;
-          } catch {
-            detail = null;
-          }
-        }
-        return toast.error(detail ?? error.message);
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.detail || data.error || "Failed to dispatch invitation");
       }
 
-      setCreatedUserId((data as any)?.userId ?? null);
-      toast.success(`Invitation dispatched to ${email}! The staff member will receive a secure activation link.`);
+      setCreatedUserId(data.invitationId || null);
+      toast.success(`Invitation dispatched to ${email}! The staff member will receive an activation email.`);
       setEmail("");
       setDisplayName("");
-      await refresh();
-
-      if (schoolId && user?.id) {
-        await api.from("audit_logs").insert({
-          school_id: schoolId,
-          actor_user_id: user.id,
-          action: "staff_invited",
-          resource_type: "user",
-          entity_type: "user",
-          resource_id: (data as any)?.userId ?? null,
-          entity_id: (data as any)?.userId ?? null,
-          metadata: { email: email.trim().toLowerCase(), role },
-        });
-      }
-
-      toast.success("User created successfully!");
-      setEmail("");
-      setDisplayName("");
-      setPassword("");
-      await refresh();
-    } catch (e) {
-      toast.error((e as Error).message);
+      await Promise.all([refresh(), refreshInvitations()]);
+      setActiveTab("invitations");
+    } catch (e: any) {
+      toast.error(e.message || "Failed to invite user");
     } finally {
       setBusy(false);
     }
+  };
+
+  const doResendInvitation = async (invitationId: string) => {
+    try {
+      setBusy(true);
+      const res = await fetch("/api/auth/invitations/resend", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ invitationId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || data.error || "Failed to resend invitation");
+      toast.success(data.message || "Invitation resent successfully!");
+      await refreshInvitations();
+    } catch (e: any) {
+      toast.error(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const doRevokeInvitation = async (invitationId: string) => {
+    const confirmed = window.confirm("Are you sure you want to revoke this invitation? The link will be permanently invalidated.");
+    if (!confirmed) return;
+    try {
+      setBusy(true);
+      const res = await fetch("/api/auth/invitations/revoke", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ invitationId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || data.error || "Failed to revoke invitation");
+      toast.success(data.message || "Invitation revoked.");
+      await refreshInvitations();
+    } catch (e: any) {
+      toast.error(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const doUpdateInvitation = async () => {
+    if (!editInviteDialog) return;
+    try {
+      setBusy(true);
+      const res = await fetch("/api/auth/invitations/update", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          invitationId: editInviteDialog.id,
+          displayName: editInviteName.trim() || undefined,
+          role: editInviteRole,
+          campusId: editInviteCampus || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || data.error || "Failed to update invitation");
+      toast.success(data.message || "Invitation updated successfully!");
+      setEditInviteDialog(null);
+      await refreshInvitations();
+    } catch (e: any) {
+      toast.error(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const openEditInvite = (inv: InvitationRecord) => {
+    setEditInviteDialog(inv);
+    setEditInviteName(inv.displayName || "");
+    setEditInviteRole((inv.role as EduverseRole) || "teacher");
+    const matchingCampus = campuses.find((c) => c.name === inv.campusName);
+    setEditInviteCampus(matchingCampus ? matchingCampus.id : "");
   };
 
   const canGovernStaff = perms.isPlatformSuperAdmin || perms.canManageStaff;
@@ -452,6 +565,35 @@ export function UsersModule() {
     return Array.from(roleSet);
   }, [userCategories, activeTab, rolesByUser]);
 
+  const filteredInvitations = useMemo(() => {
+    return invitations.filter((inv) => {
+      // Status Filter
+      if (inviteStatusFilter === "pending_sent") {
+        if (inv.status !== "pending" && inv.status !== "sent") return false;
+      } else if (inviteStatusFilter !== "opened") {
+        if (inviteStatusFilter !== "all" && inv.status !== inviteStatusFilter) {
+          return false;
+        }
+      } else if (inviteStatusFilter === "opened") {
+        if (inv.status !== "opened") return false;
+      }
+
+      // Search Query Filter
+      if (!inviteSearchQuery.trim()) return true;
+      const q = inviteSearchQuery.toLowerCase();
+      return (
+        inv.email.toLowerCase().includes(q) ||
+        (inv.displayName && inv.displayName.toLowerCase().includes(q)) ||
+        inv.role.toLowerCase().includes(q) ||
+        (inv.campusName && inv.campusName.toLowerCase().includes(q))
+      );
+    });
+  }, [invitations, inviteStatusFilter, inviteSearchQuery]);
+
+  const pendingInvitationsCount = useMemo(() => {
+    return invitations.filter((i) => i.status === "pending" || i.status === "sent" || i.status === "opened").length;
+  }, [invitations]);
+
   return (
     <div className="space-y-6">
       {/* Page Header */}
@@ -461,12 +603,12 @@ export function UsersModule() {
           Staff & User Management
         </h1>
         <p className="text-xs sm:text-sm text-muted-foreground max-w-2xl">
-          Manage system credentials, school-wide roles, logins, and campus assignments across your institution.
+          Manage system credentials, school-wide roles, invitations, and campus assignments across your institution.
         </p>
       </div>
 
       {/* Quick Summary Cards */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card
           onClick={() => {
             setActiveTab("staff");
@@ -534,7 +676,7 @@ export function UsersModule() {
         >
           <CardContent className="p-4 flex items-center justify-between gap-4">
             <div className="space-y-1">
-              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">All Registered Users</p>
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">All Registered</p>
               <div className="flex items-baseline gap-2">
                 <span className="text-2xl font-bold tracking-tight text-foreground font-mono">
                   {userCategories.all.length}
@@ -547,6 +689,32 @@ export function UsersModule() {
             </div>
           </CardContent>
         </Card>
+
+        <Card
+          onClick={() => {
+            setActiveTab("invitations");
+          }}
+          className={`cursor-pointer transition-all duration-300 border rounded-2xl shadow-sm hover:shadow-md hover:-translate-y-0.5 ${
+            activeTab === "invitations"
+              ? "border-amber-500 bg-amber-500/5 ring-1 ring-amber-500"
+              : "border-muted/30 hover:border-amber-500/40 hover:bg-surface-elevated/40"
+          }`}
+        >
+          <CardContent className="p-4 flex items-center justify-between gap-4">
+            <div className="space-y-1">
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Staff Invitations</p>
+              <div className="flex items-baseline gap-2">
+                <span className="text-2xl font-bold tracking-tight text-foreground font-mono">
+                  {pendingInvitationsCount}
+                </span>
+                <span className="text-xs text-amber-600 font-medium">Pending Onboarding</span>
+              </div>
+            </div>
+            <div className="h-10 w-10 rounded-2xl bg-amber-500/10 text-amber-600 flex items-center justify-center border border-amber-500/20 shadow-sm shrink-0">
+              <MailCheck className="h-5 w-5" />
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Main Management Card */}
@@ -555,16 +723,29 @@ export function UsersModule() {
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <CardTitle className="font-display text-lg sm:text-xl flex items-center gap-2">
-                <UserCog className="h-5 w-5 text-primary shrink-0" />
-                Staff & Users Directory
+                {activeTab === "invitations" ? (
+                  <>
+                    <MailCheck className="h-5 w-5 text-amber-500 shrink-0" />
+                    Staff & User Invitations Tracker
+                  </>
+                ) : (
+                  <>
+                    <UserCog className="h-5 w-5 text-primary shrink-0" />
+                    Staff & Users Directory
+                  </>
+                )}
               </CardTitle>
               <CardDescription className="text-xs sm:text-sm">
-                Live search, role assignment, password management, and campus isolation
+                {activeTab === "invitations"
+                  ? "Track pending activation links, resend invitation emails, or edit roles before staff onboard"
+                  : "Live search, role assignment, password management, and campus isolation"}
               </CardDescription>
             </div>
             <div className="flex items-center gap-2 self-start sm:self-auto">
               <Badge variant="outline" className="px-3 py-1 font-mono text-xs">
-                {filteredUsers.length} of {userCategories[activeTab].length} Shown
+                {activeTab === "invitations"
+                  ? `${filteredInvitations.length} of ${invitations.length} Invitations`
+                  : `${filteredUsers.length} of ${userCategories[activeTab]?.length ?? 0} Shown`}
               </Badge>
             </div>
           </div>
@@ -582,7 +763,7 @@ export function UsersModule() {
               }}
               className="w-full lg:w-auto"
             >
-              <TabsList className="grid grid-cols-3 w-full lg:w-auto p-1 bg-surface-elevated/60 border border-muted/30 rounded-xl">
+              <TabsList className="grid grid-cols-2 sm:grid-cols-4 w-full lg:w-auto p-1 bg-surface-elevated/60 border border-muted/30 rounded-xl">
                 <TabsTrigger value="staff" className="gap-1.5 text-xs px-2.5 py-1.5 rounded-lg">
                   <Briefcase className="h-3.5 w-3.5 shrink-0" />
                   <span>Staff ({userCategories.staff.length})</span>
@@ -596,353 +777,570 @@ export function UsersModule() {
                   <Users className="h-3.5 w-3.5 shrink-0" />
                   <span>All ({userCategories.all.length})</span>
                 </TabsTrigger>
+                <TabsTrigger value="invitations" className="gap-1.5 text-xs px-2.5 py-1.5 rounded-lg">
+                  <MailCheck className="h-3.5 w-3.5 shrink-0 text-amber-500" />
+                  <span>Invitations ({pendingInvitationsCount})</span>
+                </TabsTrigger>
               </TabsList>
             </Tabs>
 
-            {/* Search Input & Dropdown Filters */}
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full lg:w-auto">
-              {/* Search Bar */}
-              <div className="relative flex-1 sm:w-64 lg:w-72">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search by name, email, role..."
-                  className="pl-9 pr-8 h-9 text-xs sm:text-sm w-full"
-                />
-                {searchQuery && (
-                  <button
-                    onClick={() => setSearchQuery("")}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                )}
-              </div>
+            {/* Search Input & Dropdown Filters (For Non-Invitations Tabs) */}
+            {activeTab !== "invitations" && (
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full lg:w-auto">
+                {/* Search Bar */}
+                <div className="relative flex-1 sm:w-64 lg:w-72">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Search by name, email, role..."
+                    className="pl-9 pr-8 h-9 text-xs sm:text-sm w-full"
+                  />
+                  {searchQuery && (
+                    <button
+                      onClick={() => setSearchQuery("")}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
 
-              {/* Select Filters Group */}
-              <div className="flex gap-2 flex-1 sm:flex-initial">
-                {/* Role Filter */}
-                <Select value={selectedRoleFilter} onValueChange={setSelectedRoleFilter}>
-                  <SelectTrigger className="h-9 flex-1 sm:w-36 text-xs">
-                    <SelectValue placeholder="All Roles" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Roles</SelectItem>
-                    {activeRolesInCurrentTab.map((r) => (
-                      <SelectItem key={r} value={r}>
-                        {roleLabel[r] ?? r}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-
-                {/* Campus Filter */}
-                {campuses.length > 1 && (
-                  <Select value={selectedCampusFilter} onValueChange={setSelectedCampusFilter}>
-                    <SelectTrigger className="h-9 flex-1 sm:w-40 text-xs">
-                      <SelectValue placeholder="All Campuses" />
+                {/* Select Filters Group */}
+                <div className="flex gap-2 flex-1 sm:flex-initial">
+                  {/* Role Filter */}
+                  <Select value={selectedRoleFilter} onValueChange={setSelectedRoleFilter}>
+                    <SelectTrigger className="h-9 flex-1 sm:w-36 text-xs">
+                      <SelectValue placeholder="All Roles" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">All Campuses</SelectItem>
-                      {campuses.map((c) => (
-                        <SelectItem key={c.id} value={c.id}>
-                          {c.name}
+                      <SelectItem value="all">All Roles</SelectItem>
+                      {activeRolesInCurrentTab.map((r) => (
+                        <SelectItem key={r} value={r}>
+                          {roleLabel[r] ?? r}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
-                )}
+
+                  {/* Campus Filter */}
+                  {campuses.length > 1 && (
+                    <Select value={selectedCampusFilter} onValueChange={setSelectedCampusFilter}>
+                      <SelectTrigger className="h-9 flex-1 sm:w-40 text-xs">
+                        <SelectValue placeholder="All Campuses" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Campuses</SelectItem>
+                        {campuses.map((c) => (
+                          <SelectItem key={c.id} value={c.id}>
+                            {c.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
               </div>
-            </div>
+            )}
           </div>
 
-          {/* Responsive Table Wrapper */}
-          <div className="w-full overflow-x-auto rounded-2xl border bg-surface scrollbar-thin">
-            <div className="min-w-[800px]">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-muted/40 hover:bg-muted/40">
-                    <TableHead className="w-[300px]">User</TableHead>
-                    <TableHead>Phone</TableHead>
-                    <TableHead>Campus</TableHead>
-                    <TableHead>Roles</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredUsers.map((r) => {
-                    const userRoles = rolesByUser[r.user_id] ?? [];
-                    const userCampus = campusByUser[r.user_id];
-                    const isStaffUser = userRoles.some((role) => STAFF_ROLES.includes(role));
+          {/* Conditional View: Invitations vs Users Directory */}
+          {activeTab === "invitations" ? (
+            <div className="space-y-4">
+              {/* Search & Status Filter Bar for Invitations */}
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 border-b pb-4">
+                <div className="relative flex-1 max-w-md">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    value={inviteSearchQuery}
+                    onChange={(e) => setInviteSearchQuery(e.target.value)}
+                    placeholder="Search invitations by name, email, role..."
+                    className="pl-9 pr-8 h-9 text-xs sm:text-sm w-full"
+                  />
+                  {inviteSearchQuery && (
+                    <button
+                      onClick={() => setInviteSearchQuery("")}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
 
-                    return (
-                      <TableRow key={r.user_id} className="hover:bg-muted/20">
-                        <TableCell>
-                          <div className="flex items-center gap-3">
-                            <div
-                              className={`h-9 w-9 rounded-xl flex items-center justify-center font-bold text-xs shrink-0 ${
-                                isStaffUser
-                                  ? "bg-gradient-to-tr from-blue-500/10 to-blue-500/25 text-blue-600 border border-blue-500/20 shadow-sm"
-                                  : "bg-gradient-to-tr from-purple-500/10 to-purple-500/25 text-purple-600 border border-purple-500/20 shadow-sm"
-                              }`}
-                            >
-                              {(r.display_name || r.email || "?").charAt(0).toUpperCase()}
-                            </div>
-                            <div className="min-w-0">
-                              <p className="font-semibold text-sm text-foreground truncate hover:text-primary transition-colors">
-                                {r.display_name || "—"}
-                              </p>
-                              <p className="text-xs text-muted-foreground truncate font-mono">{r.email}</p>
-                            </div>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          {r.phone ? (
-                            <span className="flex items-center gap-1.5 text-xs text-muted-foreground font-mono">
-                              <Phone className="h-3.5 w-3.5 text-muted-foreground/70" />
-                              {r.phone}
-                            </span>
-                          ) : (
-                            <span className="text-xs text-muted-foreground/60">—</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {userCampus ? (
-                            <Badge variant="outline" className="bg-background text-xs font-medium gap-1 rounded-lg">
-                              <Building2 className="h-3 w-3 text-muted-foreground shrink-0" />
-                              {userCampus.name}
-                            </Badge>
-                          ) : (
-                            <span className="text-xs text-muted-foreground/60">School-wide</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex flex-wrap gap-1">
-                            {userRoles.length > 0 ? (
-                              userRoles.map((x) => (
-                                <Badge
-                                  key={x}
-                                  variant={
-                                    x === "principal" || x === "school_owner" || x === "super_admin"
-                                      ? "default"
-                                      : x === "teacher"
-                                      ? "secondary"
-                                      : STUDENT_PARENT_ROLES.includes(x)
-                                      ? "outline"
-                                      : "secondary"
-                                  }
-                                  className="text-[11px] font-medium rounded-lg"
-                                >
-                                  {roleLabel[x] ?? x}
+                <div className="flex items-center gap-2">
+                  <Select value={inviteStatusFilter} onValueChange={setInviteStatusFilter}>
+                    <SelectTrigger className="h-9 w-44 text-xs">
+                      <SelectValue placeholder="All Statuses" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Statuses</SelectItem>
+                      <SelectItem value="pending_sent">Pending & Sent</SelectItem>
+                      <SelectItem value="opened">Opened Link</SelectItem>
+                      <SelectItem value="activated">Activated / Accepted</SelectItem>
+                      <SelectItem value="expired">Expired</SelectItem>
+                      <SelectItem value="revoked">Revoked</SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={refreshInvitations}
+                    disabled={invitationsLoading}
+                    className="h-9 px-3 rounded-xl gap-1.5 text-xs"
+                  >
+                    <RefreshCw className={`h-3.5 w-3.5 ${invitationsLoading ? "animate-spin" : ""}`} />
+                    <span className="hidden sm:inline">Refresh</span>
+                  </Button>
+                </div>
+              </div>
+
+              {/* Invitations Table */}
+              <div className="w-full overflow-x-auto rounded-2xl border bg-surface scrollbar-thin">
+                <div className="min-w-[850px]">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-muted/40 hover:bg-muted/40">
+                        <TableHead className="w-[280px]">Invitee</TableHead>
+                        <TableHead>Assigned Role</TableHead>
+                        <TableHead>Campus</TableHead>
+                        <TableHead>Invitation Status</TableHead>
+                        <TableHead>Sent / Expiry</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredInvitations.map((inv) => {
+                        const isPending = inv.status === "pending" || inv.status === "sent";
+                        const isOpened = inv.status === "opened";
+                        const isActivated = inv.status === "activated";
+                        const isRevoked = inv.status === "revoked";
+                        const isExpired = inv.status === "expired";
+                        const canEdit = isPending || isOpened;
+
+                        return (
+                          <TableRow key={inv.id} className="hover:bg-muted/20">
+                            <TableCell>
+                              <div className="flex items-center gap-3">
+                                <div className="h-9 w-9 rounded-xl bg-gradient-to-tr from-amber-500/10 to-amber-500/25 text-amber-600 border border-amber-500/20 shadow-sm flex items-center justify-center font-bold text-xs shrink-0">
+                                  {(inv.displayName || inv.email || "?").charAt(0).toUpperCase()}
+                                </div>
+                                <div className="min-w-0">
+                                  <p className="font-semibold text-sm text-foreground truncate">
+                                    {inv.displayName || "—"}
+                                  </p>
+                                  <p className="text-xs text-muted-foreground truncate font-mono">{inv.email}</p>
+                                </div>
+                              </div>
+                            </TableCell>
+
+                            <TableCell>
+                              <Badge variant="secondary" className="text-[11px] font-medium rounded-lg uppercase">
+                                {roleLabel[inv.role as EduverseRole] ?? inv.role.replace("_", " ")}
+                              </Badge>
+                            </TableCell>
+
+                            <TableCell>
+                              {inv.campusName ? (
+                                <Badge variant="outline" className="bg-background text-xs font-medium gap-1 rounded-lg">
+                                  <Building2 className="h-3 w-3 text-muted-foreground shrink-0" />
+                                  {inv.campusName}
                                 </Badge>
-                              ))
-                            ) : (
-                              <span className="text-xs text-muted-foreground">—</span>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {canGovernStaff && (
-                            <div className="flex items-center justify-end gap-1">
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
+                              ) : (
+                                <span className="text-xs text-muted-foreground/60">School-wide</span>
+                              )}
+                            </TableCell>
+
+                            <TableCell>
+                              {isActivated ? (
+                                <Badge className="bg-emerald-500/15 text-emerald-600 border-emerald-500/30 gap-1 text-[11px] font-semibold">
+                                  <CheckCircle2 className="h-3 w-3" /> Activated
+                                </Badge>
+                              ) : isOpened ? (
+                                <Badge className="bg-purple-500/15 text-purple-600 border-purple-500/30 gap-1 text-[11px] font-semibold">
+                                  <Eye className="h-3 w-3" /> Link Opened
+                                </Badge>
+                              ) : isRevoked ? (
+                                <Badge variant="destructive" className="gap-1 text-[11px] font-semibold">
+                                  <Ban className="h-3 w-3" /> Revoked
+                                </Badge>
+                              ) : isExpired ? (
+                                <Badge variant="outline" className="text-muted-foreground gap-1 text-[11px]">
+                                  <Clock className="h-3 w-3" /> Expired
+                                </Badge>
+                              ) : (
+                                <Badge className="bg-amber-500/15 text-amber-600 border-amber-500/30 gap-1 text-[11px] font-semibold">
+                                  <Clock className="h-3 w-3 animate-pulse" /> Pending
+                                </Badge>
+                              )}
+                            </TableCell>
+
+                            <TableCell>
+                              <div className="space-y-0.5 text-xs text-muted-foreground">
+                                <p>Sent: {inv.createdAt ? new Date(inv.createdAt).toLocaleDateString() : "—"}</p>
+                                {inv.expiresAt && !isActivated && (
+                                  <p className="text-[10px] text-muted-foreground/75">
+                                    Expires: {new Date(inv.expiresAt).toLocaleDateString()}
+                                  </p>
+                                )}
+                              </div>
+                            </TableCell>
+
+                            <TableCell className="text-right">
+                              <div className="flex items-center justify-end gap-1">
+                                {canEdit && canGovernStaff && (
                                   <Button
                                     variant="ghost"
                                     size="sm"
-                                    className="h-8 w-8 p-0 hover:bg-muted/80 rounded-xl"
+                                    onClick={() => openEditInvite(inv)}
                                     disabled={busy}
-                                    aria-label="Manage user"
+                                    title="Edit Invitation"
+                                    className="h-8 px-2 text-xs rounded-xl gap-1 text-primary hover:bg-primary/10"
                                   >
-                                    <Pencil className="h-4 w-4" />
+                                    <Pencil className="h-3.5 w-3.5" />
+                                    <span className="hidden md:inline">Edit</span>
                                   </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end" className="w-56 rounded-xl shadow-elevated">
-                                  <DropdownMenuLabel className="truncate">{r.email}</DropdownMenuLabel>
-                                  <DropdownMenuSeparator />
-                                  <DropdownMenuItem onSelect={() => setProfileDialogUserId(r.user_id)} className="rounded-lg">
-                                    <Pencil className="mr-2 h-4 w-4" /> Edit Profile
-                                  </DropdownMenuItem>
-                                  <DropdownMenuSub>
-                                    <DropdownMenuSubTrigger className="rounded-lg">
-                                      <UserCog className="mr-2 h-4 w-4" /> Set Role
-                                    </DropdownMenuSubTrigger>
-                                    <DropdownMenuSubContent className="rounded-xl shadow-elevated">
-                                      {allowedRoles.map((x) => (
-                                        <DropdownMenuItem
-                                          key={x}
-                                          className="rounded-lg"
-                                          onSelect={async () => {
-                                            try {
-                                              setBusy(true);
-                                              await governanceInvoke({
-                                                action: "set_roles",
-                                                schoolSlug: tenant.slug,
-                                                targetUserId: r.user_id,
-                                                roles: [x],
-                                                reason: govReason.trim() || undefined,
-                                              });
-                                              toast.success(`Role updated to ${roleLabel[x]}`);
-                                              await refresh();
-                                            } catch (e) {
-                                              toast.error((e as Error).message);
-                                            } finally {
-                                              setBusy(false);
-                                            }
-                                          }}
-                                        >
-                                          {roleLabel[x]}
-                                        </DropdownMenuItem>
-                                      ))}
-                                    </DropdownMenuSubContent>
-                                  </DropdownMenuSub>
-                                  <DropdownMenuItem
-                                    className="rounded-lg"
-                                    onSelect={async () => {
-                                      const next = window.prompt("Set a new password for this user (min 8 chars):");
-                                      if (!next) return;
-                                      if (next.trim().length < 8) return toast.error("Password must be at least 8 characters");
-                                      try {
-                                        setBusy(true);
-                                        await governanceInvoke({
-                                          action: "set_password",
-                                          schoolSlug: tenant.slug,
-                                          targetUserId: r.user_id,
-                                          password: next.trim(),
-                                          reason: govReason.trim() || undefined,
-                                        });
-                                        toast.success("Password updated successfully");
-                                      } catch (e) {
-                                        toast.error((e as Error).message);
-                                      } finally {
-                                        setBusy(false);
-                                      }
-                                    }}
-                                  >
-                                    <KeyRound className="mr-2 h-4 w-4" /> Set Password
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem
-                                    className="rounded-lg"
-                                    onSelect={async () => {
-                                      const next = window.prompt(`Update email for ${r.email}:`, r.email);
-                                      if (!next) return;
-                                      const trimmed = next.trim().toLowerCase();
-                                      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
-                                        return toast.error("Invalid email address");
-                                      }
-                                      if (trimmed === r.email.toLowerCase()) return;
-                                      try {
-                                        setBusy(true);
-                                        await governanceInvoke({
-                                          action: "set_email",
-                                          schoolSlug: tenant.slug,
-                                          targetUserId: r.user_id,
-                                          email: trimmed,
-                                          reason: govReason.trim() || undefined,
-                                        });
-                                        toast.success("Email updated");
-                                        await refresh();
-                                      } catch (e) {
-                                        toast.error((e as Error).message);
-                                      } finally {
-                                        setBusy(false);
-                                      }
-                                    }}
-                                  >
-                                    <Mail className="mr-2 h-4 w-4" /> Set Email
-                                  </DropdownMenuItem>
-                                  <DropdownMenuSeparator />
-                                  <DropdownMenuItem
-                                    className="rounded-lg"
-                                    onSelect={async () => {
-                                      try {
-                                        setBusy(true);
-                                        await governanceInvoke({
-                                          action: "deactivate",
-                                          schoolSlug: tenant.slug,
-                                          targetUserId: r.user_id,
-                                          reason: govReason.trim() || undefined,
-                                        });
-                                        toast.success("User deactivated (roles removed)");
-                                        await refresh();
-                                      } catch (e) {
-                                        toast.error((e as Error).message);
-                                      } finally {
-                                        setBusy(false);
-                                      }
-                                    }}
-                                  >
-                                    <UserMinus className="mr-2 h-4 w-4" /> Deactivate
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem
-                                    className="text-destructive focus:text-destructive rounded-lg"
-                                    onSelect={async () => {
-                                      const confirmed = window.confirm(
-                                        `Delete user ${r.email}? This will remove all their roles and data from this school. This cannot be undone.`
-                                      );
-                                      if (!confirmed) return;
-                                      try {
-                                        setBusy(true);
-                                        await governanceInvoke({
-                                          action: "deactivate",
-                                          schoolSlug: tenant.slug,
-                                          targetUserId: r.user_id,
-                                          reason: govReason.trim() || "User deleted by admin",
-                                        });
-                                        await api
-                                          .from("user_roles")
-                                          .delete()
-                                          .eq("school_id", schoolId!)
-                                          .eq("user_id", r.user_id);
-                                        toast.success("User removed from school");
-                                        await refresh();
-                                      } catch (e) {
-                                        toast.error((e as Error).message);
-                                      } finally {
-                                        setBusy(false);
-                                      }
-                                    }}
-                                  >
-                                    <Trash2 className="mr-2 h-4 w-4" /> Delete
-                                  </DropdownMenuItem>
-                                </DropdownMenuContent>
-                              </DropdownMenu>
+                                )}
 
-                              <StaffProfileDialog
-                                userId={r.user_id}
-                                email={r.email}
-                                displayName={r.display_name}
-                                onUpdated={refresh}
-                                hideTrigger
-                                open={profileDialogUserId === r.user_id}
-                                onOpenChange={(o) => setProfileDialogUserId(o ? r.user_id : null)}
-                              />
+                                {!isActivated && !isRevoked && canGovernStaff && (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => doResendInvitation(inv.id)}
+                                    disabled={busy}
+                                    title="Resend Invitation Email"
+                                    className="h-8 px-2 text-xs rounded-xl gap-1 hover:bg-muted"
+                                  >
+                                    <RefreshCw className="h-3.5 w-3.5" />
+                                    <span className="hidden md:inline">Resend</span>
+                                  </Button>
+                                )}
+
+                                {!isActivated && !isRevoked && canGovernStaff && (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => doRevokeInvitation(inv.id)}
+                                    disabled={busy}
+                                    title="Revoke Invitation"
+                                    className="h-8 px-2 text-xs rounded-xl gap-1 text-destructive hover:bg-destructive/10"
+                                  >
+                                    <Ban className="h-3.5 w-3.5" />
+                                    <span className="hidden md:inline">Revoke</span>
+                                  </Button>
+                                )}
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+
+                      {filteredInvitations.length === 0 && (
+                        <TableRow>
+                          <TableCell colSpan={6} className="py-12 text-center text-muted-foreground">
+                            <div className="flex flex-col items-center justify-center gap-2">
+                              <MailCheck className="h-8 w-8 text-muted-foreground/45" />
+                              <p className="font-medium text-sm">No invitations found matching criteria</p>
+                              <p className="text-xs text-muted-foreground">
+                                Use the "Send Staff / User Invitation" card below to invite new members.
+                              </p>
                             </div>
-                          )}
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
+            </div>
+          ) : (
+            /* Responsive Table Wrapper for Users Directory */
+            <div className="w-full overflow-x-auto rounded-2xl border bg-surface scrollbar-thin">
+              <div className="min-w-[800px]">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-muted/40 hover:bg-muted/40">
+                      <TableHead className="w-[300px]">User</TableHead>
+                      <TableHead>Phone</TableHead>
+                      <TableHead>Campus</TableHead>
+                      <TableHead>Roles</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredUsers.map((r) => {
+                      const userRoles = rolesByUser[r.user_id] ?? [];
+                      const userCampus = campusByUser[r.user_id];
+                      const isStaffUser = userRoles.some((role) => STAFF_ROLES.includes(role));
+
+                      return (
+                        <TableRow key={r.user_id} className="hover:bg-muted/20">
+                          <TableCell>
+                            <div className="flex items-center gap-3">
+                              <div
+                                className={`h-9 w-9 rounded-xl flex items-center justify-center font-bold text-xs shrink-0 ${
+                                  isStaffUser
+                                    ? "bg-gradient-to-tr from-blue-500/10 to-blue-500/25 text-blue-600 border border-blue-500/20 shadow-sm"
+                                    : "bg-gradient-to-tr from-purple-500/10 to-purple-500/25 text-purple-600 border border-purple-500/20 shadow-sm"
+                                }`}
+                              >
+                                {(r.display_name || r.email || "?").charAt(0).toUpperCase()}
+                              </div>
+                              <div className="min-w-0">
+                                <p className="font-semibold text-sm text-foreground truncate hover:text-primary transition-colors">
+                                  {r.display_name || "—"}
+                                </p>
+                                <p className="text-xs text-muted-foreground truncate font-mono">{r.email}</p>
+                              </div>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            {r.phone ? (
+                              <span className="flex items-center gap-1.5 text-xs text-muted-foreground font-mono">
+                                <Phone className="h-3.5 w-3.5 text-muted-foreground/70" />
+                                {r.phone}
+                              </span>
+                            ) : (
+                              <span className="text-xs text-muted-foreground/60">—</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {userCampus ? (
+                              <Badge variant="outline" className="bg-background text-xs font-medium gap-1 rounded-lg">
+                                <Building2 className="h-3 w-3 text-muted-foreground shrink-0" />
+                                {userCampus.name}
+                              </Badge>
+                            ) : (
+                              <span className="text-xs text-muted-foreground/60">School-wide</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex flex-wrap gap-1">
+                              {userRoles.length > 0 ? (
+                                userRoles.map((x) => (
+                                  <Badge
+                                    key={x}
+                                    variant={
+                                      x === "principal" || x === "school_owner" || x === "super_admin"
+                                        ? "default"
+                                        : x === "teacher"
+                                        ? "secondary"
+                                        : STUDENT_PARENT_ROLES.includes(x)
+                                        ? "outline"
+                                        : "secondary"
+                                    }
+                                    className="text-[11px] font-medium rounded-lg"
+                                  >
+                                    {roleLabel[x] ?? x}
+                                  </Badge>
+                                ))
+                              ) : (
+                                <span className="text-xs text-muted-foreground">—</span>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {canGovernStaff && (
+                              <div className="flex items-center justify-end gap-1">
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-8 w-8 p-0 hover:bg-muted/80 rounded-xl"
+                                      disabled={busy}
+                                      aria-label="Manage user"
+                                    >
+                                      <Pencil className="h-4 w-4" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end" className="w-56 rounded-xl shadow-elevated">
+                                    <DropdownMenuLabel className="truncate">{r.email}</DropdownMenuLabel>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem onSelect={() => setProfileDialogUserId(r.user_id)} className="rounded-lg">
+                                      <Pencil className="mr-2 h-4 w-4" /> Edit Profile
+                                    </DropdownMenuItem>
+                                    <DropdownMenuSub>
+                                      <DropdownMenuSubTrigger className="rounded-lg">
+                                        <UserCog className="mr-2 h-4 w-4" /> Set Role
+                                      </DropdownMenuSubTrigger>
+                                      <DropdownMenuSubContent className="rounded-xl shadow-elevated">
+                                        {allowedRoles.map((x) => (
+                                          <DropdownMenuItem
+                                            key={x}
+                                            className="rounded-lg"
+                                            onSelect={async () => {
+                                              try {
+                                                setBusy(true);
+                                                await governanceInvoke({
+                                                  action: "set_roles",
+                                                  schoolSlug: tenant.slug,
+                                                  targetUserId: r.user_id,
+                                                  roles: [x],
+                                                  reason: govReason.trim() || undefined,
+                                                });
+                                                toast.success(`Role updated to ${roleLabel[x]}`);
+                                                await refresh();
+                                              } catch (e) {
+                                                toast.error((e as Error).message);
+                                              } finally {
+                                                setBusy(false);
+                                              }
+                                            }}
+                                          >
+                                            {roleLabel[x]}
+                                          </DropdownMenuItem>
+                                        ))}
+                                      </DropdownMenuSubContent>
+                                    </DropdownMenuSub>
+                                    <DropdownMenuItem
+                                      className="rounded-lg"
+                                      onSelect={async () => {
+                                        const next = window.prompt("Set a new password for this user (min 8 chars):");
+                                        if (!next) return;
+                                        if (next.trim().length < 8) return toast.error("Password must be at least 8 characters");
+                                        try {
+                                          setBusy(true);
+                                          await governanceInvoke({
+                                            action: "set_password",
+                                            schoolSlug: tenant.slug,
+                                            targetUserId: r.user_id,
+                                            password: next.trim(),
+                                            reason: govReason.trim() || undefined,
+                                          });
+                                          toast.success("Password updated successfully");
+                                        } catch (e) {
+                                          toast.error((e as Error).message);
+                                        } finally {
+                                          setBusy(false);
+                                        }
+                                      }}
+                                    >
+                                      <KeyRound className="mr-2 h-4 w-4" /> Set Password
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                      className="rounded-lg"
+                                      onSelect={async () => {
+                                        const next = window.prompt(`Update email for ${r.email}:`, r.email);
+                                        if (!next) return;
+                                        const trimmed = next.trim().toLowerCase();
+                                        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+                                          return toast.error("Invalid email address");
+                                        }
+                                        if (trimmed === r.email.toLowerCase()) return;
+                                        try {
+                                          setBusy(true);
+                                          await governanceInvoke({
+                                            action: "set_email",
+                                            schoolSlug: tenant.slug,
+                                            targetUserId: r.user_id,
+                                            email: trimmed,
+                                            reason: govReason.trim() || undefined,
+                                          });
+                                          toast.success("Email updated");
+                                          await refresh();
+                                        } catch (e) {
+                                          toast.error((e as Error).message);
+                                        } finally {
+                                          setBusy(false);
+                                        }
+                                      }}
+                                    >
+                                      <Mail className="mr-2 h-4 w-4" /> Set Email
+                                    </DropdownMenuItem>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem
+                                      className="rounded-lg"
+                                      onSelect={async () => {
+                                        try {
+                                          setBusy(true);
+                                          await governanceInvoke({
+                                            action: "deactivate",
+                                            schoolSlug: tenant.slug,
+                                            targetUserId: r.user_id,
+                                            reason: govReason.trim() || undefined,
+                                          });
+                                          toast.success("User deactivated (roles removed)");
+                                          await refresh();
+                                        } catch (e) {
+                                          toast.error((e as Error).message);
+                                        } finally {
+                                          setBusy(false);
+                                        }
+                                      }}
+                                    >
+                                      <UserMinus className="mr-2 h-4 w-4" /> Deactivate
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                      className="text-destructive focus:text-destructive rounded-lg"
+                                      onSelect={async () => {
+                                        const confirmed = window.confirm(
+                                          `Delete user ${r.email}? This will remove all their roles and data from this school. This cannot be undone.`
+                                        );
+                                        if (!confirmed) return;
+                                        try {
+                                          setBusy(true);
+                                          await governanceInvoke({
+                                            action: "deactivate",
+                                            schoolSlug: tenant.slug,
+                                            targetUserId: r.user_id,
+                                            reason: govReason.trim() || "User deleted by admin",
+                                          });
+                                          await api
+                                            .from("user_roles")
+                                            .delete()
+                                            .eq("school_id", schoolId!)
+                                            .eq("user_id", r.user_id);
+                                          toast.success("User removed from school");
+                                          await refresh();
+                                        } catch (e) {
+                                          toast.error((e as Error).message);
+                                        } finally {
+                                          setBusy(false);
+                                        }
+                                      }}
+                                    >
+                                      <Trash2 className="mr-2 h-4 w-4" /> Delete
+                                    </DropdownMenuItem>
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+
+                                <StaffProfileDialog
+                                  userId={r.user_id}
+                                  email={r.email}
+                                  displayName={r.display_name}
+                                  onUpdated={refresh}
+                                  hideTrigger
+                                  open={profileDialogUserId === r.user_id}
+                                  onOpenChange={(o) => setProfileDialogUserId(o ? r.user_id : null)}
+                                />
+                              </div>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+
+                    {filteredUsers.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={5} className="py-12 text-center text-muted-foreground">
+                          <div className="flex flex-col items-center justify-center gap-2">
+                            <Users className="h-8 w-8 text-muted-foreground/45" />
+                            <p className="font-medium text-sm">No users found matching your criteria</p>
+                            {searchQuery && (
+                              <Button variant="outline" size="sm" onClick={() => setSearchQuery("")} className="mt-1 rounded-xl">
+                                Clear Search
+                              </Button>
+                            )}
+                          </div>
                         </TableCell>
                       </TableRow>
-                    );
-                  })}
-
-                  {filteredUsers.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={5} className="py-12 text-center text-muted-foreground">
-                        <div className="flex flex-col items-center justify-center gap-2">
-                          <Users className="h-8 w-8 text-muted-foreground/45" />
-                          <p className="font-medium text-sm">No users found matching your criteria</p>
-                          {searchQuery && (
-                            <Button variant="outline" size="sm" onClick={() => setSearchQuery("")} className="mt-1 rounded-xl">
-                              Clear Search
-                            </Button>
-                          )}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
             </div>
-          </div>
+          )}
         </CardContent>
       </Card>
 
@@ -1178,6 +1576,81 @@ export function UsersModule() {
           </Card>
         )}
       </div>
+
+      {/* Edit Invitation Dialog */}
+      <Dialog open={!!editInviteDialog} onOpenChange={(open) => !open && setEditInviteDialog(null)}>
+        <DialogContent className="sm:max-w-md rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-lg font-bold">
+              <Pencil className="h-5 w-5 text-primary" /> Edit Pending Invitation
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Update assigned role, display name, or campus for {editInviteDialog?.email} before they activate.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Email Address</Label>
+              <Input value={editInviteDialog?.email || ""} disabled className="bg-muted/50 font-mono text-xs" />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Display Name</Label>
+              <Input
+                value={editInviteName}
+                onChange={(e) => setEditInviteName(e.target.value)}
+                placeholder="Full Name"
+                className="text-xs sm:text-sm"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Assigned Role</Label>
+              <Select value={editInviteRole} onValueChange={(v) => setEditInviteRole(v as EduverseRole)}>
+                <SelectTrigger className="text-xs sm:text-sm">
+                  <SelectValue placeholder="Select role" />
+                </SelectTrigger>
+                <SelectContent className="rounded-xl shadow-elevated">
+                  {allowedRoles.map((r) => (
+                    <SelectItem key={r} value={r} className="rounded-lg">
+                      {roleLabel[r]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {campuses.length > 1 && (
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Campus</Label>
+                <Select value={editInviteCampus} onValueChange={setEditInviteCampus}>
+                  <SelectTrigger className="text-xs sm:text-sm">
+                    <SelectValue placeholder="School-wide (All Campuses)" />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-xl shadow-elevated">
+                    <SelectItem value="" className="rounded-lg">School-wide (All Campuses)</SelectItem>
+                    {campuses.map((c) => (
+                      <SelectItem key={c.id} value={c.id} className="rounded-lg">
+                        {c.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setEditInviteDialog(null)} className="rounded-xl text-xs">
+              Cancel
+            </Button>
+            <Button variant="hero" onClick={doUpdateInvitation} disabled={busy} className="rounded-xl text-xs">
+              Save Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

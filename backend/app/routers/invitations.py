@@ -65,6 +65,13 @@ class InvitationActionRequest(BaseModel):
     invitationId: str
 
 
+class UpdateInvitationRequest(BaseModel):
+    invitationId: str
+    displayName: Optional[str] = None
+    role: Optional[str] = None
+    campusId: Optional[str] = None
+
+
 # ---------------------------------------------------------------------------
 # Helper: Permission verification
 # ---------------------------------------------------------------------------
@@ -276,63 +283,57 @@ async def create_invitation(
         "expiresAt": expires_at.isoformat(),
         "emailDispatched": email_result["ok"],
     }
-
-
 @router.get(
     "/verify",
     response_model=VerifyInvitationResponse,
-    summary="Validate Invitation Token",
-    description="Public endpoint to verify invitation validity before rendering the activation UI.",
+    summary="Verify Invitation Token",
+    description="Public endpoint: validates an invitation token and returns associated metadata without exposing sensitive credentials.",
 )
 @limiter.limit("30/minute")
 async def verify_invitation(
     request: Request,
-    token: str = Query(..., description="Secure invitation token"),
+    token: str = Query(..., description="Single-use cryptographic token"),
     db: AsyncSession = Depends(get_db),
 ):
-    if not token or len(token.strip()) < 20:
-        return VerifyInvitationResponse(valid=False, error="Invalid token format")
+    token = token.strip()
+    # Handle splat tokens that may include trailing slashes or sub-segments (e.g. token/n/A)
+    if "/" in token:
+        token_parts = [p.strip() for p in token.split("/") if p.strip() and p.strip() != "n" and p.strip() != "A" and p.strip().lower() != "n/a"]
+        if token_parts:
+            token = token_parts[0]
 
     res = await db.execute(
         text("""
-            SELECT i.id, i.email, i.role, i.display_name, i.school_id, i.status, i.expires_at,
+            SELECT i.id, i.email, i.role, i.display_name, i.status, i.expires_at,
                    s.name as school_name, s.slug as school_slug
             FROM public.user_invitations i
             LEFT JOIN public.schools s ON i.school_id = s.id
             WHERE i.token = :token
             LIMIT 1
         """),
-        {"token": token.strip()},
+        {"token": token},
     )
     row = res.fetchone()
 
     if not row:
-        return VerifyInvitationResponse(valid=False, error="Invitation link not found or invalid.")
+        return VerifyInvitationResponse(valid=False, error="Invitation token not found. Please verify your email link.")
 
-    # Check status
     if row.status == "activated":
-        return VerifyInvitationResponse(valid=False, error="This invitation has already been activated. Please log in.")
+        return VerifyInvitationResponse(valid=False, error="This invitation has already been used to activate an account.")
+
     if row.status == "revoked":
-        return VerifyInvitationResponse(valid=False, error="This invitation has been revoked by an administrator.")
-    if row.status == "expired" or (row.expires_at and row.expires_at < datetime.now(timezone.utc)):
-        # Mark expired in DB
+        return VerifyInvitationResponse(valid=False, error="This invitation has been revoked by your school administrator.")
+
+    if row.expires_at and row.expires_at < datetime.now(timezone.utc):
+        return VerifyInvitationResponse(valid=False, error="This invitation has expired. Please ask your administrator to resend the invite.")
+
+    # Mark as opened if first time
+    if row.status == "sent":
         await db.execute(
-            text("UPDATE public.user_invitations SET status = 'expired' WHERE id = :id"),
+            text("UPDATE public.user_invitations SET status = 'opened', opened_at = NOW() WHERE id = :id"),
             {"id": row.id},
         )
         await db.commit()
-        return VerifyInvitationResponse(valid=False, error="This invitation has expired. Please request a new invitation.")
-
-    # Mark as opened if it was sent/pending
-    if row.status in ("pending", "sent"):
-        try:
-            await db.execute(
-                text("UPDATE public.user_invitations SET status = 'opened', opened_at = NOW() WHERE id = :id"),
-                {"id": row.id},
-            )
-            await db.commit()
-        except Exception:
-            pass
 
     return VerifyInvitationResponse(
         valid=True,
@@ -361,6 +362,12 @@ async def activate_account(
 
     if len(pwd) < 8:
         raise HTTPException(status_code=400, detail="Password must be at least 8 characters long")
+
+    # Clean multi-segment tokens if present
+    if "/" in token:
+        token_parts = [p.strip() for p in token.split("/") if p.strip() and p.strip() != "n" and p.strip() != "A" and p.strip().lower() != "n/a"]
+        if token_parts:
+            token = token_parts[0]
 
     # Re-verify token server-side
     res = await db.execute(
@@ -434,38 +441,63 @@ async def activate_account(
             },
         )
 
-    # 2. Upsert Profiles (display_name is the DB column)
-    await db.execute(
-        text("""
-            INSERT INTO public.profiles (id, email, display_name, updated_at)
-            VALUES (:uid, :email, :name, NOW())
-            ON CONFLICT (id) DO UPDATE SET
-                email = EXCLUDED.email,
-                display_name = COALESCE(EXCLUDED.display_name, profiles.display_name),
-                updated_at = NOW()
-        """),
-        {"uid": user_id, "email": clean_email, "name": full_name},
+    # 2. Upsert Profiles safely (check existence first)
+    res_p = await db.execute(
+        text("SELECT id FROM public.profiles WHERE id = :uid LIMIT 1"),
+        {"uid": user_id},
     )
-
-    # 3. Upsert School Membership & User Role
-    if school_id:
+    if res_p.fetchone():
         await db.execute(
             text("""
-                INSERT INTO public.school_memberships (school_id, user_id, status, created_at)
-                VALUES (:sid, :uid, 'active', NOW())
-                ON CONFLICT (school_id, user_id) DO UPDATE SET status = 'active'
+                UPDATE public.profiles
+                SET email = :email,
+                    display_name = COALESCE(:name, display_name),
+                    updated_at = NOW()
+                WHERE id = :uid
             """),
+            {"uid": user_id, "email": clean_email, "name": full_name},
+        )
+    else:
+        await db.execute(
+            text("""
+                INSERT INTO public.profiles (id, email, display_name, created_at, updated_at)
+                VALUES (:uid, :email, :name, NOW(), NOW())
+            """),
+            {"uid": user_id, "email": clean_email, "name": full_name},
+        )
+
+    # 3. Upsert School Membership & User Role safely
+    if school_id:
+        res_mem = await db.execute(
+            text("SELECT id FROM public.school_memberships WHERE school_id = :sid AND user_id = :uid LIMIT 1"),
             {"sid": school_id, "uid": user_id},
         )
+        if not res_mem.fetchone():
+            await db.execute(
+                text("""
+                    INSERT INTO public.school_memberships (id, school_id, user_id, status, created_at)
+                    VALUES (:id, :sid, :uid, 'active', NOW())
+                """),
+                {"id": uuid.uuid4(), "sid": school_id, "uid": user_id},
+            )
+        else:
+            await db.execute(
+                text("UPDATE public.school_memberships SET status = 'active' WHERE school_id = :sid AND user_id = :uid"),
+                {"sid": school_id, "uid": user_id},
+            )
 
-        await db.execute(
-            text("""
-                INSERT INTO public.user_roles (school_id, user_id, role, created_by, created_at)
-                VALUES (:sid, :uid, :role, :aid, NOW())
-                ON CONFLICT (school_id, user_id, role) DO NOTHING
-            """),
-            {"sid": school_id, "uid": user_id, "role": assigned_role, "aid": actor_uid},
+        res_ur = await db.execute(
+            text("SELECT id FROM public.user_roles WHERE school_id = :sid AND user_id = :uid AND role = :role LIMIT 1"),
+            {"sid": school_id, "uid": user_id, "role": assigned_role},
         )
+        if not res_ur.fetchone():
+            await db.execute(
+                text("""
+                    INSERT INTO public.user_roles (id, school_id, user_id, role, created_by, created_at)
+                    VALUES (:id, :sid, :uid, :role, :aid, NOW())
+                """),
+                {"id": uuid.uuid4(), "sid": school_id, "uid": user_id, "role": assigned_role, "aid": actor_uid},
+            )
 
     # 4. Mark Invitation Consumed
     await db.execute(
@@ -696,3 +728,64 @@ async def revoke_invitation(
     await db.commit()
 
     return {"ok": True, "message": f"Invitation for {row.email} revoked successfully."}
+
+
+@router.put(
+    "/update",
+    summary="Update Pending Staff Invitation",
+    description="Updates role, display name, or campus assignment for an existing pending invitation.",
+)
+async def update_invitation(
+    body: UpdateInvitationRequest,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        inv_id = uuid.UUID(body.invitationId)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid invitation ID")
+
+    res = await db.execute(
+        text("SELECT school_id, status, email FROM public.user_invitations WHERE id = :id LIMIT 1"),
+        {"id": inv_id},
+    )
+    row = res.fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail="Invitation not found")
+    if row.status not in ("pending", "sent", "opened"):
+        raise HTTPException(status_code=400, detail=f"Cannot edit invitation in '{row.status}' status.")
+
+    is_authorized = await _authorize_invite_manager(db, current_user.id, row.school_id)
+    if not is_authorized:
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    campus_uid = None
+    if body.campusId:
+        try:
+            campus_uid = uuid.UUID(body.campusId)
+        except ValueError:
+            pass
+
+    updates = []
+    params: Dict[str, Any] = {"id": inv_id}
+
+    if body.displayName is not None:
+        updates.append("display_name = :dname")
+        params["dname"] = body.displayName.strip()
+
+    if body.role is not None:
+        updates.append("role = :role")
+        params["role"] = body.role.strip()
+
+    if body.campusId is not None:
+        updates.append("campus_id = :cid")
+        params["cid"] = campus_uid
+
+    if not updates:
+        return {"ok": True, "message": "No updates provided."}
+
+    sql = f"UPDATE public.user_invitations SET {', '.join(updates)} WHERE id = :id"
+    await db.execute(text(sql), params)
+    await db.commit()
+
+    return {"ok": True, "message": f"Invitation for {row.email} updated successfully."}
