@@ -49,6 +49,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
+import { apiClient } from "@/lib/api-client";
 
 interface Telemetry {
   sent24h: number;
@@ -171,13 +172,10 @@ export default function PlatformEmailPage() {
   // Fetch Overview Data
   const loadOverview = async () => {
     try {
-      const res = await fetch("/api/super_admin/email/overview", {
-        headers: { Authorization: `Bearer ${localStorage.getItem("altrix_token") || ""}` },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setTelemetry(data.telemetry);
-        setRecentLogs(data.recentLogs || []);
+      const res = await apiClient.get("/super_admin/email/overview");
+      if (res.data) {
+        setTelemetry(res.data.telemetry);
+        setRecentLogs(res.data.recentLogs || []);
       }
     } catch (err) {
       console.error("Failed to load email overview:", err);
@@ -187,12 +185,9 @@ export default function PlatformEmailPage() {
   // Fetch Senders
   const loadSenders = async () => {
     try {
-      const res = await fetch("/api/super_admin/email/senders", {
-        headers: { Authorization: `Bearer ${localStorage.getItem("altrix_token") || ""}` },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setSenders(data);
+      const res = await apiClient.get("/super_admin/email/senders");
+      if (res.data) {
+        setSenders(res.data);
       }
     } catch (err) {
       console.error("Failed to load senders:", err);
@@ -202,17 +197,14 @@ export default function PlatformEmailPage() {
   // Fetch Templates
   const loadTemplates = async () => {
     try {
-      const res = await fetch("/api/super_admin/email/templates", {
-        headers: { Authorization: `Bearer ${localStorage.getItem("altrix_token") || ""}` },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setTemplates(data);
-        if (data.length > 0 && !selectedTemplate) {
-          setSelectedTemplate(data[0]);
-          setTemplateEditSubject(data[0].subject);
-          setTemplateEditHtml(data[0].htmlContent);
-          setTemplateEditSenderKey(data[0].senderIdentityKey || "security");
+      const res = await apiClient.get("/super_admin/email/templates");
+      if (res.data) {
+        setTemplates(res.data);
+        if (res.data.length > 0 && !selectedTemplate) {
+          setSelectedTemplate(res.data[0]);
+          setTemplateEditSubject(res.data[0].subject);
+          setTemplateEditHtml(res.data[0].htmlContent);
+          setTemplateEditSenderKey(res.data[0].senderIdentityKey || "security");
         }
       }
     } catch (err) {
@@ -223,12 +215,9 @@ export default function PlatformEmailPage() {
   // Fetch Event Mappings
   const loadMappings = async () => {
     try {
-      const res = await fetch("/api/super_admin/email/mappings", {
-        headers: { Authorization: `Bearer ${localStorage.getItem("altrix_token") || ""}` },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setMappings(data);
+      const res = await apiClient.get("/super_admin/email/mappings");
+      if (res.data) {
+        setMappings(res.data);
       }
     } catch (err) {
       console.error("Failed to load mappings:", err);
@@ -238,18 +227,15 @@ export default function PlatformEmailPage() {
   // Fetch Delivery Logs
   const loadLogs = async (page = 1) => {
     try {
-      let url = `/api/super_admin/email/logs?page=${page}&limit=25`;
-      if (logStatusFilter !== "all") url += `&status=${encodeURIComponent(logStatusFilter)}`;
-      if (logSearch.trim()) url += `&search=${encodeURIComponent(logSearch.trim())}`;
+      const params: any = { page, limit: 25 };
+      if (logStatusFilter !== "all") params.status = logStatusFilter;
+      if (logSearch.trim()) params.search = logSearch.trim();
 
-      const res = await fetch(url, {
-        headers: { Authorization: `Bearer ${localStorage.getItem("altrix_token") || ""}` },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setLogs(data.logs || []);
-        setLogsTotal(data.total || 0);
-        setLogsPage(data.page || 1);
+      const res = await apiClient.get("/super_admin/email/logs", { params });
+      if (res.data) {
+        setLogs(res.data.logs || []);
+        setLogsTotal(res.data.total || 0);
+        setLogsPage(res.data.page || 1);
       }
     } catch (err) {
       console.error("Failed to load email logs:", err);
@@ -278,21 +264,13 @@ export default function PlatformEmailPage() {
   // Live render template preview
   const handlePreview = async () => {
     try {
-      const res = await fetch("/api/super_admin/email/templates/preview", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("altrix_token") || ""}`,
-        },
-        body: JSON.stringify({
-          subject: templateEditSubject,
-          htmlContent: templateEditHtml,
-          variables: {},
-        }),
+      const res = await apiClient.post("/super_admin/email/templates/preview", {
+        subject: templateEditSubject,
+        htmlContent: templateEditHtml,
+        variables: {},
       });
-      if (res.ok) {
-        const data = await res.json();
-        setPreviewHtml(data.renderedHtml);
+      if (res.data?.renderedHtml) {
+        setPreviewHtml(res.data.renderedHtml);
         setPreviewTab("preview");
       }
     } catch (err) {
@@ -305,32 +283,23 @@ export default function PlatformEmailPage() {
     if (!selectedTemplate) return;
     setSavingTemplate(true);
     try {
-      const res = await fetch("/api/super_admin/email/templates", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("altrix_token") || ""}`,
-        },
-        body: JSON.stringify({
-          key: selectedTemplate.key,
-          name: selectedTemplate.name,
-          category: selectedTemplate.category,
-          subject: templateEditSubject,
-          senderIdentityKey: templateEditSenderKey,
-          htmlContent: templateEditHtml,
-          textContent: selectedTemplate.textContent,
-          ctaText: selectedTemplate.ctaText,
-          ctaUrlVariable: selectedTemplate.ctaUrlVariable,
-          availableVariables: selectedTemplate.availableVariables,
-          isActive: selectedTemplate.isActive,
-        }),
+      await apiClient.post("/super_admin/email/templates", {
+        key: selectedTemplate.key,
+        name: selectedTemplate.name,
+        category: selectedTemplate.category,
+        subject: templateEditSubject,
+        senderIdentityKey: templateEditSenderKey,
+        htmlContent: templateEditHtml,
+        textContent: selectedTemplate.textContent,
+        ctaText: selectedTemplate.ctaText,
+        ctaUrlVariable: selectedTemplate.ctaUrlVariable,
+        availableVariables: selectedTemplate.availableVariables,
+        isActive: selectedTemplate.isActive,
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || "Failed to save template");
       toast.success(`Template '${selectedTemplate.name}' saved successfully!`);
       await loadTemplates();
     } catch (err: any) {
-      toast.error(err.message);
+      toast.error(err?.response?.data?.detail || err.message || "Failed to save template");
     } finally {
       setSavingTemplate(false);
     }
@@ -370,34 +339,26 @@ export default function PlatformEmailPage() {
     e.preventDefault();
     setSavingSender(true);
     try {
-      const url = editingSender
-        ? `/api/super_admin/email/senders/${editingSender.id}`
-        : "/api/super_admin/email/senders";
-      const method = editingSender ? "PUT" : "POST";
+      const payload = {
+        key: senderFormKey,
+        name: senderFormName,
+        email: senderFormEmail,
+        replyTo: senderFormReplyTo || undefined,
+        isDefault: senderFormIsDefault,
+        isActive: senderFormIsActive,
+      };
 
-      const res = await fetch(url, {
-        method,
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("altrix_token") || ""}`,
-        },
-        body: JSON.stringify({
-          key: senderFormKey,
-          name: senderFormName,
-          email: senderFormEmail,
-          replyTo: senderFormReplyTo || undefined,
-          isDefault: senderFormIsDefault,
-          isActive: senderFormIsActive,
-        }),
-      });
+      if (editingSender) {
+        await apiClient.put(`/super_admin/email/senders/${editingSender.id}`, payload);
+      } else {
+        await apiClient.post("/super_admin/email/senders", payload);
+      }
 
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || "Failed to save sender");
       toast.success("Sender identity saved successfully!");
       setSenderModalOpen(false);
       await loadSenders();
     } catch (err: any) {
-      toast.error(err.message);
+      toast.error(err?.response?.data?.detail || err.message || "Failed to save sender");
     } finally {
       setSavingSender(false);
     }
@@ -416,25 +377,16 @@ export default function PlatformEmailPage() {
     if (!editingMapping) return;
     setSavingMapping(true);
     try {
-      const res = await fetch(`/api/super_admin/email/mappings/${editingMapping.eventName}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("altrix_token") || ""}`,
-        },
-        body: JSON.stringify({
-          senderIdentityKey: mappingFormSender,
-          templateKey: mappingFormTemplate,
-          description: editingMapping.description,
-        }),
+      await apiClient.put(`/super_admin/email/mappings/${editingMapping.eventName}`, {
+        senderIdentityKey: mappingFormSender,
+        templateKey: mappingFormTemplate,
+        description: editingMapping.description,
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || "Failed to update mapping");
       toast.success(`Event '${editingMapping.eventName}' mapped successfully!`);
       setMappingModalOpen(false);
       await loadMappings();
     } catch (err: any) {
-      toast.error(err.message);
+      toast.error(err?.response?.data?.detail || err.message || "Failed to update mapping");
     } finally {
       setSavingMapping(false);
     }
@@ -447,28 +399,18 @@ export default function PlatformEmailPage() {
 
     setTestSending(true);
     try {
-      const res = await fetch("/api/super_admin/email/test-send", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("altrix_token") || ""}`,
-        },
-        body: JSON.stringify({
-          recipientEmail: testRecipient.trim(),
-          senderIdentityKey: testSenderKey,
-          customSubject: testSubject,
-          customMessage: testMessage,
-        }),
+      await apiClient.post("/super_admin/email/test-send", {
+        recipientEmail: testRecipient.trim(),
+        senderIdentityKey: testSenderKey,
+        customSubject: testSubject,
+        customMessage: testMessage,
       });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || "Test dispatch failed");
 
       toast.success(`Test email successfully sent to ${testRecipient}!`);
       await loadOverview();
       await loadLogs();
     } catch (err: any) {
-      toast.error(err.message || "Failed to dispatch test email");
+      toast.error(err?.response?.data?.detail || err.message || "Failed to dispatch test email");
     } finally {
       setTestSending(false);
     }
