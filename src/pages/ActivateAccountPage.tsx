@@ -21,6 +21,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
+import altrixLogo from "@/assets/altrix-logo.png";
 
 interface InvitationData {
   valid: boolean;
@@ -154,26 +155,27 @@ export default function ActivateAccountPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-center items-center px-4 py-12 relative overflow-hidden selection:bg-blue-600 selection:text-white">
-      {/* Background ambient lighting */}
-      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-blue-600/10 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute bottom-10 right-10 w-[400px] h-[400px] bg-indigo-600/10 rounded-full blur-3xl pointer-events-none" />
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between items-center px-4 py-8 sm:py-12 relative overflow-hidden font-sans selection:bg-blue-600 selection:text-white">
+      {/* Ambient background lighting */}
+      <div className="absolute top-[-10%] left-1/2 -translate-x-1/2 w-[650px] h-[650px] bg-blue-600/15 rounded-full blur-[140px] pointer-events-none" />
+      <div className="absolute bottom-[-10%] right-[-5%] w-[500px] h-[500px] bg-indigo-600/10 rounded-full blur-[140px] pointer-events-none" />
 
       {/* Brand Header */}
-      <div className="mb-8 text-center relative z-10">
-        <div className="inline-flex items-center justify-center gap-2 px-3 py-1.5 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs font-bold uppercase tracking-wider mb-4 shadow-sm">
-          <ShieldCheck className="h-3.5 w-3.5" /> AltRix Identity Verification
+      <header className="w-full flex flex-col items-center justify-center text-center relative z-10 mb-6">
+        <div className="flex items-center justify-center transition-transform duration-300 hover:scale-[1.02] mb-3">
+          <img
+            src={altrixLogo}
+            alt="AltRix Operating System"
+            className="h-12 sm:h-14 md:h-16 w-auto max-w-[240px] sm:max-w-[290px] object-contain filter drop-shadow-md"
+          />
         </div>
-        <h1 className="text-3xl sm:text-4xl font-black tracking-tight text-white">
-          ALT<span className="text-blue-500">RIX</span>
-        </h1>
-        <p className="text-xs text-slate-400 mt-1 uppercase tracking-widest font-semibold">
-          Enterprise Cloud Identity & Staff Activation
-        </p>
-      </div>
+        <div className="inline-flex items-center justify-center gap-1.5 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-[11px] font-bold uppercase tracking-widest shadow-sm">
+          <ShieldCheck className="h-3.5 w-3.5" /> Enterprise Identity & Staff Activation
+        </div>
+      </header>
 
       {/* Main Activation Card */}
-      <Card className="w-full max-w-md bg-slate-900/90 border-slate-800 backdrop-blur-xl shadow-2xl relative z-10 text-slate-100">
+      <Card className="w-full max-w-md bg-slate-900/90 border-slate-800 backdrop-blur-2xl shadow-2xl relative z-10 text-slate-100 rounded-2xl overflow-hidden my-auto">
         {loading ? (
           <CardContent className="py-16 text-center space-y-4">
             <Loader2 className="h-8 w-8 animate-spin text-blue-500 mx-auto" />
@@ -218,18 +220,18 @@ export default function ActivateAccountPage() {
           </CardContent>
         ) : (
           <form onSubmit={handleActivate}>
-            <CardHeader className="pb-4">
+            <CardHeader className="pb-3 pt-6 px-6">
               <CardTitle className="text-xl font-bold text-white flex items-center gap-2">
                 <Sparkles className="h-5 w-5 text-blue-400" /> Activate Your Account
               </CardTitle>
-              <CardDescription className="text-slate-400 text-xs">
-                Welcome, <strong className="text-slate-200">{invitation.displayName || invitation.email}</strong>. Complete your account setup by creating a secure password.
+              <CardDescription className="text-slate-400 text-xs mt-1">
+                Welcome, <strong className="text-slate-200">{invitation.displayName || invitation.email}</strong>. Complete your staff onboarding by setting up your password.
               </CardDescription>
             </CardHeader>
 
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-4 px-6">
               {/* Institution and Role Context */}
-              <div className="p-3.5 rounded-xl bg-slate-950/60 border border-slate-800 space-y-2 text-xs">
+              <div className="p-3.5 rounded-xl bg-slate-950/70 border border-slate-800/80 space-y-2.5 text-xs">
                 <div className="flex items-center justify-between">
                   <span className="text-slate-400 flex items-center gap-1.5">
                     <Building2 className="h-3.5 w-3.5 text-blue-400" /> Institution:
@@ -240,20 +242,20 @@ export default function ActivateAccountPage() {
                   <span className="text-slate-400 flex items-center gap-1.5">
                     <UserCheck className="h-3.5 w-3.5 text-emerald-400" /> Assigned Role:
                   </span>
-                  <Badge variant="secondary" className="bg-blue-500/10 text-blue-300 border-blue-500/20 uppercase font-bold text-[10px]">
+                  <Badge variant="secondary" className="bg-blue-500/10 text-blue-300 border-blue-500/20 uppercase font-bold text-[10px] tracking-wider">
                     {invitation.role?.replace("_", " ")}
                   </Badge>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-slate-400 flex items-center gap-1.5">
-                    <Mail className="h-3.5 w-3.5 text-slate-400" /> Email:
+                    <Mail className="h-3.5 w-3.5 text-slate-400" /> Official Email:
                   </span>
                   <span className="font-mono text-slate-300">{invitation.email}</span>
                 </div>
               </div>
 
               {/* Password Input */}
-              <div className="space-y-2">
+              <div className="space-y-1.5">
                 <Label className="text-xs font-semibold text-slate-300">Create New Password</Label>
                 <div className="relative">
                   <Input
@@ -263,7 +265,7 @@ export default function ActivateAccountPage() {
                     onChange={(e) => setPassword(e.target.value)}
                     required
                     disabled={submitting}
-                    className="bg-slate-950/80 border-slate-700 text-slate-100 pr-10 focus-visible:ring-blue-500 text-sm"
+                    className="bg-slate-950/80 border-slate-700 text-slate-100 pr-10 focus-visible:ring-blue-500 text-sm h-10"
                   />
                   <button
                     type="button"
@@ -276,7 +278,7 @@ export default function ActivateAccountPage() {
               </div>
 
               {/* Confirm Password Input */}
-              <div className="space-y-2">
+              <div className="space-y-1.5">
                 <Label className="text-xs font-semibold text-slate-300">Confirm Password</Label>
                 <Input
                   type={showPassword ? "text" : "password"}
@@ -285,12 +287,12 @@ export default function ActivateAccountPage() {
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   required
                   disabled={submitting}
-                  className="bg-slate-950/80 border-slate-700 text-slate-100 focus-visible:ring-blue-500 text-sm"
+                  className="bg-slate-950/80 border-slate-700 text-slate-100 focus-visible:ring-blue-500 text-sm h-10"
                 />
               </div>
 
               {/* Password Criteria Checklist */}
-              <div className="p-3 rounded-lg bg-slate-950/40 border border-slate-800 space-y-1.5 text-[11px]">
+              <div className="p-3 rounded-lg bg-slate-950/50 border border-slate-800 space-y-1.5 text-[11px]">
                 <div className={`flex items-center gap-1.5 ${hasMinLength ? "text-emerald-400 font-semibold" : "text-slate-500"}`}>
                   <CheckCircle2 className="h-3.5 w-3.5" /> Minimum 8 characters
                 </div>
@@ -308,7 +310,7 @@ export default function ActivateAccountPage() {
               </div>
             </CardContent>
 
-            <CardFooter className="pt-2 flex flex-col gap-3">
+            <CardFooter className="pt-2 pb-6 px-6 flex flex-col gap-3">
               <Button
                 type="submit"
                 disabled={!isPasswordStrong || !passwordsMatch || submitting}
@@ -331,6 +333,13 @@ export default function ActivateAccountPage() {
           </form>
         )}
       </Card>
+
+      {/* Footer */}
+      <footer className="w-full text-center relative z-10 mt-6">
+        <p className="text-[11px] text-slate-500 tracking-wider">
+          © {new Date().getFullYear()} AltRix Institute OS • Enterprise Cloud Identity
+        </p>
+      </footer>
     </div>
   );
 }

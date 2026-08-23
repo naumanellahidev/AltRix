@@ -91,14 +91,29 @@ function applyBranding(schoolId: string, branding: TenantData["branding"]) {
   appliedBrandingCache.set(schoolId, true);
 }
 
+const SYSTEM_RESERVED_SLUGS = new Set([
+  "activate-account",
+  "auth",
+  "super_admin",
+  "platform",
+  "reset-password",
+  "api",
+  "assets",
+  "undefined",
+  "null",
+]);
+
 export function useTenantOptimized(schoolSlug: string | undefined): TenantResult {
   const normalizedSlug = useMemo(
     () => (schoolSlug ?? "").trim().toLowerCase().replace(/[^a-z0-9-]/g, ""),
     [schoolSlug]
   );
 
+  const isSystemSlug = !normalizedSlug || SYSTEM_RESERVED_SLUGS.has(normalizedSlug);
+
   const { data, error, isLoading, isError } = useQuery({
     queryKey: ["tenant", normalizedSlug],
+    enabled: !isSystemSlug,
     queryFn: async (): Promise<TenantData | null> => {
       // Check if offline and return cached data immediately
       if (!navigator.onLine) {

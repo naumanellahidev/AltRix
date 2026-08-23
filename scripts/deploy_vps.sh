@@ -144,8 +144,9 @@ echo "[INFO] Guaranteeing database schema permissions and column migrations for 
 # Try connecting via local postgres user first (if script runs as root)
 sudo -u postgres psql -d altrix -c "
   GRANT USAGE ON SCHEMA auth TO altrix_app;
-  GRANT SELECT ON ALL TABLES IN SCHEMA auth TO altrix_app;
-  ALTER DEFAULT PRIVILEGES IN SCHEMA auth GRANT SELECT ON TABLES TO altrix_app;
+  GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA auth TO altrix_app;
+  GRANT ALL ON ALL SEQUENCES IN SCHEMA auth TO altrix_app;
+  ALTER DEFAULT PRIVILEGES IN SCHEMA auth GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO altrix_app;
   ALTER TABLE IF EXISTS public.book_issues ADD COLUMN IF NOT EXISTS campus_id UUID;
   ALTER TABLE IF EXISTS public.book_issues ADD COLUMN IF NOT EXISTS fine_per_day NUMERIC(10, 2) DEFAULT 20.00;
   ALTER TABLE IF EXISTS public.library_books ADD COLUMN IF NOT EXISTS campus_id UUID;
@@ -170,8 +171,9 @@ for config_file in "/opt/altrix/shared/config/vps_postgresql.env" "/opt/altrix/s
             echo "[INFO] Running schema grants and migrations via admin URL from $(basename ${config_file})..."
             psql "${ADMIN_URL}" -c "
               GRANT USAGE ON SCHEMA auth TO altrix_app;
-              GRANT SELECT ON ALL TABLES IN SCHEMA auth TO altrix_app;
-              ALTER DEFAULT PRIVILEGES IN SCHEMA auth GRANT SELECT ON TABLES TO altrix_app;
+              GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA auth TO altrix_app;
+              GRANT ALL ON ALL SEQUENCES IN SCHEMA auth TO altrix_app;
+              ALTER DEFAULT PRIVILEGES IN SCHEMA auth GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO altrix_app;
               ALTER TABLE IF EXISTS public.book_issues ADD COLUMN IF NOT EXISTS campus_id UUID;
               ALTER TABLE IF EXISTS public.book_issues ADD COLUMN IF NOT EXISTS fine_per_day NUMERIC(10, 2) DEFAULT 20.00;
               ALTER TABLE IF EXISTS public.library_books ADD COLUMN IF NOT EXISTS campus_id UUID;

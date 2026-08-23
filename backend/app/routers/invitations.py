@@ -478,24 +478,26 @@ async def activate_account(
         """),
         {"id": invite.id},
     )
-    await db.commit()
 
-    # Generate JWT Tokens for immediate seamless login
     user_id_str = str(user_id)
-    access_token = create_access_token(user_id=user_id_str, email=clean_email)
-    refresh_token = create_access_token(user_id=user_id_str, email=clean_email)
 
-    # Log audit event
+    # Log audit event within transaction
     await log_audit_event(
         db=db,
         action=AuditAction.LOGIN,
         resource_type="invitation",
         resource_id=str(invite.id),
-        user_id=user_id_str,
-        school_id=str(school_id) if school_id else None,
+        user_id=user_id,
+        school_id=school_id,
         new_values={"activated": True, "email": clean_email, "role": assigned_role},
         request=request,
     )
+
+    await db.commit()
+
+    # Generate JWT Tokens for immediate seamless login
+    access_token = create_access_token(user_id=user_id_str, email=clean_email)
+    refresh_token = create_access_token(user_id=user_id_str, email=clean_email)
 
     # Fetch school slug for client redirection
     slug = "altrix"

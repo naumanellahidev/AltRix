@@ -59,17 +59,31 @@ function cacheTenant(slug: string, data: { id: string; slug: string; name: strin
   }
 }
 
+const SYSTEM_RESERVED_SLUGS = new Set([
+  "activate-account",
+  "auth",
+  "super_admin",
+  "platform",
+  "reset-password",
+  "api",
+  "assets",
+  "undefined",
+  "null",
+]);
+
 export function useTenant(schoolSlug: string | undefined) {
   const normalizedSlug = useMemo(
     () => (schoolSlug ?? "").trim().toLowerCase().replace(/[^a-z0-9-]/g, ""),
     [schoolSlug],
   );
 
+  const isSystemSlug = !normalizedSlug || SYSTEM_RESERVED_SLUGS.has(normalizedSlug);
+
   // Check for cached data for offline support only
   const cachedData = useMemo(() => {
-    if (!normalizedSlug) return null;
+    if (isSystemSlug) return null;
     return getCachedTenant(normalizedSlug);
-  }, [normalizedSlug]);
+  }, [normalizedSlug, isSystemSlug]);
 
   const [state, setState] = useState<TenantState>(() => {
     // Only use cached data on initial render if OFFLINE
@@ -85,7 +99,7 @@ export function useTenant(schoolSlug: string | undefined) {
   });
 
   useEffect(() => {
-    if (!normalizedSlug) return;
+    if (isSystemSlug) return;
 
     // If offline, use cached data immediately
     if (!navigator.onLine) {
