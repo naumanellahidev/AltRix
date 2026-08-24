@@ -11,8 +11,12 @@ def hash_password(password, salt=None):
     return pw_hash, salt
 
 def verify_password(password, stored_hash, salt):
-    test_hash = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt.encode("utf-8"), 200000).hex()
-    return hmac.compare_digest(test_hash, stored_hash)
+    try:
+        salt_str = str(salt or "")
+        test_hash = hashlib.pbkdf2_hmac("sha256", str(password).encode("utf-8"), salt_str.encode("utf-8"), 200000).hex()
+        return hmac.compare_digest(test_hash, str(stored_hash or ""))
+    except Exception:
+        return False
 
 def create_session(username, role, ip, ttl_hours=24):
     token = secrets.token_urlsafe(32)
