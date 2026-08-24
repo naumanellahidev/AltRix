@@ -10,46 +10,62 @@ from datetime import datetime
 auth_bp = Blueprint("auth_bp", __name__)
 
 @auth_bp.route("/api/auth/login", methods=["POST"])
-@rate_limit(max_requests=30, window_seconds=60)
+@rate_limit(max_requests=60, window_seconds=60)
 def login():
-    data = request.get_json(silent=True) or request.json or {}
-    username = (data.get("username") or data.get("email") or "").strip()
-    password = data.get("password", "")
-    ip = request.headers.get("X-Forwarded-For", request.remote_addr) or "127.0.0.1"
+    try:
+        data = request.get_json(silent=True) or request.json or {}
+        username = (data.get("username") or data.get("email") or "").strip()
+        password = data.get("password", "")
+        ip = request.headers.get("X-Forwarded-For", request.remote_addr) or "127.0.0.1"
 
-    if not username or not password:
-        return api_error("Username and password are required", code="INVALID_CREDENTIALS", status_code=400)
+        if not username or not password:
+            return api_error("Username and password are required", code="INVALID_CREDENTIALS", status_code=400)
 
-    clean_user = username.split("@")[0].strip() if "@" in username else username
+        clean_user = username.split("@")[0].strip() if "@" in username else username
 
-    conn = get_db()
-    cur = conn.cursor()
-    admin = cur.execute(
-        "SELECT * FROM control_center_admin WHERE LOWER(username) = LOWER(?) OR LOWER(username) = LOWER(?) OR LOWER(username) = LOWER(?)",
-        (username, clean_user, f"{clean_user}@altrixcore.com")
-    ).fetchone()
-    conn.close()
+        conn = get_db()
+        cur = conn.cursor()
+        
+        # Ensure admin table exists and has default admin
+        try:
+            admin_count = cur.execute("SELECT COUNT(*) FROM control_center_admin").fetchone()[0]
+            if admin_count == 0:
+                from app.database import init_security_tables
+                init_security_tables()
+        except Exception:
+            from app.database import init_security_tables
+            init_security_tables()
+            conn = get_db()
+            cur = conn.cursor()
 
-    if not admin or not verify_password(password, admin["password_hash"], admin["salt"]):
-        log_audit(username, ip, "AUTH_LOGIN", "control_center", "FAILURE", "Invalid credentials")
-        return api_error("Invalid username or password", code="INVALID_CREDENTIALS", status_code=401)
+        admin = cur.execute(
+            "SELECT * FROM control_center_admin WHERE LOWER(username) = LOWER(?) OR LOWER(username) = LOWER(?) OR LOWER(username) = LOWER(?)",
+            (username, clean_user, f"{clean_user}@altrixcore.com")
+        ).fetchone()
+        conn.close()
 
-    token, expires_at = create_session(admin["username"], admin["role"], ip)
-    log_audit(admin["username"], ip, "AUTH_LOGIN", "control_center", "SUCCESS")
+        if not admin or not verify_password(password, admin["password_hash"], admin["salt"]):
+            log_audit(username, ip, "AUTH_LOGIN", "control_center", "FAILURE", "Invalid credentials")
+            return api_error("Invalid username or password", code="INVALID_CREDENTIALS", status_code=401)
 
-    resp, status_code = api_success({
-        "token": token,
-        "user": {
-            "username": admin["username"],
-            "role": admin["role"]
-        },
-        "expires_at": expires_at.isoformat() + "Z"
-    }, message="Authentication successful")
+        token, expires_at = create_session(admin["username"], admin["role"], ip)
+        log_audit(admin["username"], ip, "AUTH_LOGIN", "control_center", "SUCCESS")
 
-    # Set secure HttpOnly cookie
-    response = make_response(resp)
-    response.set_cookie("cc_session", token, httponly=True, samesite="Lax", max_age=86400)
-    return response, status_code
+        resp, status_code = api_success({
+            "token": token,
+            "user": {
+                "username": admin["username"],
+                "role": admin["role"]
+            },
+            "expires_at": expires_at.isoformat() + "Z"
+        }, message="Authentication successful")
+
+        # Set secure HttpOnly cookie
+        response = make_response(resp)
+        response.set_cookie("cc_session", token, httponly=True, samesite="Lax", max_age=86400)
+        return response, status_code
+    except Exception as e:
+        return api_error(f"Login failed: {str(e)}", code="INTERNAL_SERVER_ERROR", status_code=500)
 
 @auth_bp.route("/api/auth/logout", methods=["POST"])
 @require_auth

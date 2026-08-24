@@ -4,19 +4,22 @@ import secrets
 import os
 from datetime import datetime
 
-_default_db = os.environ.get("DB_PATH", "/data/main.db")
-try:
-    if not os.path.exists(os.path.dirname(_default_db)):
-        os.makedirs(os.path.dirname(_default_db), exist_ok=True)
-    DB_PATH = _default_db
-except Exception:
-    _base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    _local_data = os.path.join(_base_dir, "data")
-    os.makedirs(_local_data, exist_ok=True)
-    DB_PATH = os.path.join(_local_data, "main.db")
-
 def get_db():
-    conn = sqlite3.connect(DB_PATH)
+    paths_to_try = [
+        os.environ.get("DB_PATH", "/data/main.db"),
+        os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "main.db"),
+        "/app/data/main.db",
+        "/tmp/mail_control_center.db"
+    ]
+    for p in paths_to_try:
+        try:
+            os.makedirs(os.path.dirname(p), exist_ok=True)
+            conn = sqlite3.connect(p)
+            conn.row_factory = sqlite3.Row
+            return conn
+        except Exception:
+            continue
+    conn = sqlite3.connect(":memory:")
     conn.row_factory = sqlite3.Row
     return conn
 
