@@ -899,6 +899,106 @@ async def mail_debug():
     return res
 
 
+import socket
+import http.client
+import io
+import tarfile
+
+class UnixHTTPConnection(http.client.HTTPConnection):
+    def __init__(self, socket_path):
+        super().__init__("localhost")
+        self.socket_path = socket_path
+
+    def connect(self):
+        self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        self.sock.connect(self.socket_path)
+
+@app.get("/api/docker-sync-mail", tags=["Health"], include_in_schema=False)
+async def docker_sync_mail():
+    if not os.path.exists("/var/run/docker.sock"):
+        return {"error": "docker socket not found at /var/run/docker.sock"}
+    
+    report = {"steps": []}
+    try:
+        # 1. List all containers
+        conn = UnixHTTPConnection("/var/run/docker.sock")
+        conn.request("GET", "/containers/json?all=1", headers={"Host": "localhost"})
+        resp = conn.getresponse()
+        containers_raw = resp.read().decode("utf-8", errors="ignore")
+        containers = json.loads(containers_raw)
+        report["total_containers"] = len(containers)
+        
+        # 2. Find bundle
+        bundle_dir = None
+        for cand in [
+            "/opt/altrix/current/scripts/mail_platform_bundle/web_dist",
+            "/opt/altrix/current/scripts/mail_platform_bundle/dist",
+            "/opt/altrix/repo/scripts/mail_platform_bundle/web_dist",
+            "/opt/mail-platform/control-center/dist",
+        ]:
+            if os.path.isdir(cand) and os.path.exists(os.path.join(cand, "index.html")):
+                bundle_dir = cand
+                break
+        
+        report["bundle_dir"] = bundle_dir
+        if not bundle_dir:
+            return {"error": "bundle_dir not found", "report": report}
+
+        # Create in-memory tar archive of bundle
+        tar_buf = io.BytesIO()
+        with tarfile.open(fileobj=tar_buf, mode="w") as tar:
+            for root, dirs, files in os.walk(bundle_dir):
+                for f in files:
+                    full_p = os.path.join(root, f)
+                    rel_p = os.path.relpath(full_p, bundle_dir)
+                    tar.add(full_p, arcname=rel_p)
+        tar_bytes = tar_buf.getvalue()
+        report["tar_size"] = len(tar_bytes)
+
+        # 3. For each container matching mail / control / front / 5000:
+        for c in containers:
+            c_names = c.get("Names", [])
+            c_id = c.get("Id", "")
+            is_match = any("mail" in n.lower() or "control" in n.lower() or "admin" in n.lower() for n in c_names)
+            
+            # Check ports
+            for p in c.get("Ports", []):
+                if p.get("PublicPort") == 5000 or p.get("PrivatePort") == 5000:
+                    is_match = True
+            
+            if is_match:
+                c_name = c_names[0] if c_names else c_id[:12]
+                report["steps"].append(f"Targeting container: {c_name} ({c_id[:12]})")
+                
+                # Upload tar to /app/dist/ and /app/frontend/dist/ and /app/web_dist/
+                for dest_path in ["/app/dist", "/app/frontend/dist", "/app/web_dist"]:
+                    try:
+                        conn2 = UnixHTTPConnection("/var/run/docker.sock")
+                        conn2.request(
+                            "PUT",
+                            f"/containers/{c_id}/archive?path={dest_path}",
+                            body=tar_bytes,
+                            headers={"Host": "localhost", "Content-Type": "application/x-tar"}
+                        )
+                        put_resp = conn2.getresponse()
+                        report["steps"].append(f"PUT archive to {c_name}:{dest_path} -> {put_resp.status}")
+                    except Exception as e:
+                        report["steps"].append(f"PUT archive error {c_name}:{dest_path}: {e}")
+
+                # Restart container
+                try:
+                    conn3 = UnixHTTPConnection("/var/run/docker.sock")
+                    conn3.request("POST", f"/containers/{c_id}/restart?t=3", headers={"Host": "localhost"})
+                    rst_resp = conn3.getresponse()
+                    report["steps"].append(f"RESTART container {c_name} -> {rst_resp.status}")
+                except Exception as e:
+                    report["steps"].append(f"RESTART error {c_name}: {e}")
+
+        return {"status": "success", "report": report}
+    except Exception as e:
+        return {"status": "error", "error": str(e), "report": report}
+
+
 from app.routers.white_label import router as white_label_router
 from app.routers.ai_management import router as ai_management_router
 from app.routers.global_billing import router as global_billing_router

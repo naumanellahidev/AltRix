@@ -401,6 +401,8 @@ docker run -d \
     -e GIT_COMMIT_SHA="${TARGET_SHA}" \
     -e APP_ENV=production \
     -v /opt/altrix/shared/config/production.env:/app/.env:ro \
+    -v /opt/altrix:/opt/altrix:ro \
+    -v /var/run/docker.sock:/var/run/docker.sock \
     "altrix-backend:${SHORT_SHA}"
 
 echo "[INFO] Deploying altrix_celery_worker container..."
