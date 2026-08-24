@@ -507,20 +507,25 @@ if [ -d "${MAIL_BUNDLE_DIR}" ]; then
 fi
 
 # 2. Inject bundle into ALL Docker containers on the machine
-CONTAINERS=$(docker ps --format '{{.Names}}' 2>/dev/null || sudo docker ps --format '{{.Names}}' 2>/dev/null || docker ps -q 2>/dev/null || true)
-echo "[INFO] Detected Docker containers: ${CONTAINERS}"
-for c in ${CONTAINERS}; do
-    echo "[INFO] Injecting web_dist into container: ${c}..."
-    for inner_dir in /app/dist /app/frontend/dist /app/build /app/static /var/www /static /dist; do
+echo "[INFO] Finding port 5000 container..."
+PORT_5000_CONTAINERS=$(docker ps --filter "publish=5000" --format "{{.ID}}" 2>/dev/null || sudo docker ps --filter "publish=5000" --format "{{.ID}}" 2>/dev/null || true)
+ALL_CONTAINERS=$(docker ps -q 2>/dev/null || sudo docker ps -q 2>/dev/null || true)
+
+TARGETS="${PORT_5000_CONTAINERS} ${ALL_CONTAINERS}"
+for c in ${TARGETS}; do
+    [ -z "${c}" ] && continue
+    CNAME=$(docker inspect --format '{{.Name}}' "${c}" 2>/dev/null || echo "${c}")
+    echo "[INFO] Injecting web_dist into container ${c} (${CNAME})..."
+    for inner_dir in /app/dist /app/frontend/dist /app/web_dist /app/static /var/www /static; do
         docker exec "${c}" mkdir -p "${inner_dir}" 2>/dev/null || sudo docker exec "${c}" mkdir -p "${inner_dir}" 2>/dev/null || true
         docker cp "${MAIL_DIST_SRC}/." "${c}:${inner_dir}/" 2>/dev/null || sudo docker cp "${MAIL_DIST_SRC}/." "${c}:${inner_dir}/" 2>/dev/null || true
     done
     docker cp "${MAIL_BUNDLE_DIR}/app/." "${c}:/app/app/" 2>/dev/null || sudo docker cp "${MAIL_BUNDLE_DIR}/app/." "${c}:/app/app/" 2>/dev/null || true
     docker cp "${MAIL_BUNDLE_DIR}/server.py" "${c}:/app/server.py" 2>/dev/null || sudo docker cp "${MAIL_BUNDLE_DIR}/server.py" "${c}:/app/server.py" 2>/dev/null || true
     
-    # If container is mail/control related, restart it
-    if echo "${c}" | grep -qiE "mail|control|admin|webmail|front|5000"; then
-        echo "[INFO] Restarting container: ${c}..."
+    # Restart all containers except altrix_backend
+    if ! echo "${CNAME}" | grep -q "altrix_backend"; then
+        echo "[INFO] Restarting container ${c} (${CNAME})..."
         docker restart "${c}" 2>&1 || sudo docker restart "${c}" 2>&1 || true
     fi
 done
