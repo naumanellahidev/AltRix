@@ -822,6 +822,55 @@ async def system_status():
     return result
 
 
+@app.get(
+    "/api/mail-debug",
+    tags=["Health"],
+    summary="Mail platform live diagnostic",
+    include_in_schema=False,
+)
+async def mail_debug():
+    import urllib.request
+    import os
+    res = {}
+    
+    # 1. Probe port 5000 root
+    try:
+        req = urllib.request.Request("http://127.0.0.1:5000/", headers={"User-Agent": "Altrix-Diag"})
+        with urllib.request.urlopen(req, timeout=3) as resp:
+            res["port_5000_root"] = {
+                "status": resp.status,
+                "content_preview": resp.read().decode(errors="ignore")[:600]
+            }
+    except Exception as e:
+        res["port_5000_root_error"] = str(e)
+
+    # 2. Probe port 5000 api/health
+    try:
+        req = urllib.request.Request("http://127.0.0.1:5000/api/health", headers={"User-Agent": "Altrix-Diag"})
+        with urllib.request.urlopen(req, timeout=3) as resp:
+            res["port_5000_api_health"] = {
+                "status": resp.status,
+                "body": resp.read().decode(errors="ignore")
+            }
+    except Exception as e:
+        res["port_5000_api_health_error"] = str(e)
+
+    # 3. Check directories
+    res["opt_mail_platform_exists"] = os.path.exists("/opt/mail-platform")
+    res["opt_mail_dist_files"] = []
+    for d in ["/opt/mail-platform/control-center/dist", "/opt/mail-platform/control-center/frontend/dist", "/opt/mail-platform/repo/dist"]:
+        if os.path.exists(d):
+            try:
+                res["opt_mail_dist_files"].append({
+                    "dir": d,
+                    "files": os.listdir(d)
+                })
+            except Exception as e:
+                res["opt_mail_dist_files"].append({"dir": d, "error": str(e)})
+
+    return res
+
+
 from app.routers.white_label import router as white_label_router
 from app.routers.ai_management import router as ai_management_router
 from app.routers.global_billing import router as global_billing_router
