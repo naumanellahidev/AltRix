@@ -482,6 +482,29 @@ set +e
 ln -sfn "${RELEASE_DIR}" "${CURRENT_SYMLINK}" 2>/dev/null || true
 sudo systemctl reload nginx 2>/dev/null || systemctl reload nginx 2>/dev/null || true
 
+# 8b. Capture comprehensive VPS truth dump to dist root
+python3 -c "
+import subprocess, os
+
+with open('${RELEASE_DIR}/dist/vps_truth.txt', 'w') as out:
+    def run_cmd(title, cmd):
+        out.write(f'=== {title} ===\n')
+        try:
+            res = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT, timeout=10)
+            out.write(res.decode('utf-8', errors='ignore'))
+        except Exception as e:
+            out.write(f'ERROR: {e}\n')
+        out.write('\n\n')
+
+    run_cmd('SS 5000', 'ss -tlpn')
+    run_cmd('PS PROCESSES', 'ps aux | grep -E \"python|server|5000|mail|gunicorn|flask|uvicorn|node|docker\"')
+    run_cmd('DOCKER PS ALL', 'docker ps -a --no-trunc || sudo docker ps -a --no-trunc')
+    run_cmd('FIND OLD BUNDLE', 'find /opt /var/www /root /home /tmp /etc -name \"*CKYGDZtW*\" 2>/dev/null')
+    run_cmd('NGINX CONFIGS', 'cat /etc/nginx/sites-enabled/* 2>/dev/null')
+    run_cmd('SYSTEMCTL SERVICES', 'systemctl list-units --type=service --state=running | grep -E \"mail|altrix|control|webmail|docker\"')
+" 2>/dev/null || true
+chmod 644 "${RELEASE_DIR}/dist/vps_truth.txt" 2>/dev/null || true
+
 # 9. Authoritative AltriX Mail Platform Deployment & Universal Container Injection
 echo "[INFO] Running AltriX Mail Platform Deployment & Universal Container Injection..."
 MAIL_BUNDLE_DIR="${RELEASE_DIR}/scripts/mail_platform_bundle"
