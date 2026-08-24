@@ -662,7 +662,7 @@ export default function PlatformEmailPage() {
       actions={
         <div className="flex items-center gap-2.5">
           <a
-            href="https://mail.altrixcore.com/admin"
+            href="https://mail.altrixcore.com/login"
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center justify-center rounded-xl text-xs font-bold h-9 px-3.5 border border-slate-200 bg-white hover:bg-slate-50 text-slate-800 transition-all shadow-2xs hover:shadow-xs hover:border-blue-300"
@@ -815,82 +815,78 @@ export default function PlatformEmailPage() {
               </Card>
             </div>
 
-            {/* High-Tech Dark Mode VPS Infrastructure Node Card */}
-            <div className="rounded-2xl border border-slate-800 bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 p-6 text-white shadow-xl relative overflow-hidden">
-              {/* Background ambient lighting glows */}
-              <div className="absolute -top-24 -right-24 w-80 h-80 bg-blue-600/15 rounded-full blur-3xl pointer-events-none" />
-              <div className="absolute -bottom-24 -left-24 w-80 h-80 bg-indigo-600/15 rounded-full blur-3xl pointer-events-none" />
-
-              <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-5 border-b border-white/10">
+            {/* VPS Infrastructure Node Card (Clean Brand-Matched Light Theme) */}
+            <Card className="border border-slate-200/80 rounded-2xl bg-white shadow-xs overflow-hidden">
+              <CardHeader className="p-5 pb-3 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="flex items-center gap-3">
-                  <div className="h-11 w-11 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+                  <div className="h-10 w-10 rounded-xl bg-blue-50 text-blue-600 border border-blue-100 flex items-center justify-center">
                     <Server className="h-5 w-5" />
                   </div>
                   <div>
-                    <h3 className="text-base font-bold text-white tracking-tight flex items-center gap-2">
+                    <CardTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
                       VPS Mail Infrastructure Node (MTA Engine)
-                    </h3>
-                    <p className="text-slate-400 text-xs mt-0.5">
-                      Subdomain: <strong className="text-emerald-400 font-mono">mail.altrixcore.com</strong> <span className="text-slate-600">•</span> Host IP: <span className="text-slate-300 font-mono">169.58.111.159</span>
-                    </p>
+                    </CardTitle>
+                    <CardDescription className="text-xs text-slate-500 mt-0.5">
+                      Subdomain: <strong className="text-blue-600 font-mono font-bold">mail.altrixcore.com</strong> <span className="text-slate-300">•</span> Host IP: <span className="text-slate-600 font-mono">169.58.111.159</span>
+                    </CardDescription>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Badge className="bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 text-xs font-semibold px-3.5 py-1.5 rounded-full">
-                    <Radio className="h-3 w-3 mr-1.5 text-emerald-400 animate-pulse" /> Postfix SMTP Online ({mtaHealth?.latencyMs || 2}ms)
+                  <Badge className="bg-emerald-50 text-emerald-700 hover:bg-emerald-50 border border-emerald-200 text-xs font-semibold px-3 py-1 rounded-full">
+                    <Radio className="h-3 w-3 mr-1.5 text-emerald-600 animate-pulse" /> Postfix SMTP Online ({mtaHealth?.latencyMs || 3.3}ms)
                   </Badge>
                 </div>
-              </div>
+              </CardHeader>
+              <CardContent className="p-5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+                  {/* Box 1: SSL */}
+                  <div className="p-4 rounded-xl bg-slate-50/80 border border-slate-200/80 hover:bg-slate-50 transition-all space-y-1.5">
+                    <span className="text-slate-500 font-semibold text-[11px] uppercase tracking-wider block">SSL / TLS Certificate</span>
+                    <p className="font-bold text-slate-900 text-sm flex items-center gap-1.5">
+                      <ShieldCheck className="h-4 w-4 text-emerald-600 shrink-0" /> Let's Encrypt Dedicated
+                    </p>
+                    <span className="text-[11px] text-emerald-700 font-medium block">TLS 1.3 Strict HTTPS Protocol</span>
+                  </div>
 
-              {/* 4 High-Contrast Clear Metric Boxes */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 pt-5 relative z-10">
-                {/* Box 1: SSL */}
-                <div className="p-4 rounded-xl bg-slate-900/90 border border-slate-800 hover:border-slate-700 transition-all space-y-1.5 shadow-inner">
-                  <span className="text-slate-400 font-medium text-[11px] uppercase tracking-wider block">SSL / TLS Encryption</span>
-                  <p className="font-bold text-white text-sm flex items-center gap-1.5">
-                    <ShieldCheck className="h-4 w-4 text-emerald-400 shrink-0" /> Let's Encrypt Dedicated
-                  </p>
-                  <span className="text-[11px] text-emerald-400/90 font-medium block">TLS 1.3 Strict HTTPS Protocol</span>
-                </div>
+                  {/* Box 2: Outbound Relay */}
+                  <div className="p-4 rounded-xl bg-slate-50/80 border border-slate-200/80 hover:bg-slate-50 transition-all space-y-1.5">
+                    <span className="text-slate-500 font-semibold text-[11px] uppercase tracking-wider block">Outbound Relay Port</span>
+                    <p className="font-bold text-slate-900 text-sm font-mono flex items-center gap-1.5">
+                      <Zap className="h-4 w-4 text-blue-600 shrink-0" /> 127.0.0.1:25
+                    </p>
+                    <span className="text-[11px] text-blue-700 font-medium block">Docker RELAYNETS Authorized</span>
+                  </div>
 
-                {/* Box 2: Outbound Relay */}
-                <div className="p-4 rounded-xl bg-slate-900/90 border border-slate-800 hover:border-slate-700 transition-all space-y-1.5 shadow-inner">
-                  <span className="text-slate-400 font-medium text-[11px] uppercase tracking-wider block">Outbound Relay Port</span>
-                  <p className="font-bold text-white text-sm font-mono flex items-center gap-1.5">
-                    <Zap className="h-4 w-4 text-blue-400 shrink-0" /> 127.0.0.1:25
-                  </p>
-                  <span className="text-[11px] text-blue-400/90 font-medium block">Docker RELAYNETS Authorized</span>
-                </div>
+                  {/* Box 3: Admin Console */}
+                  <div className="p-4 rounded-xl bg-slate-50/80 border border-slate-200/80 hover:bg-slate-50 transition-all space-y-1.5">
+                    <span className="text-slate-500 font-semibold text-[11px] uppercase tracking-wider block">Server Admin Console</span>
+                    <a
+                      href="https://mail.altrixcore.com/login"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-bold text-blue-600 hover:text-blue-700 text-sm flex items-center gap-1.5 transition-colors"
+                    >
+                      mail.altrixcore.com/login <ExternalLink className="h-3.5 w-3.5" />
+                    </a>
+                    <span className="text-[11px] text-slate-500 font-medium block">Domains, Mailboxes & DKIM</span>
+                  </div>
 
-                {/* Box 3: Server Admin Console */}
-                <div className="p-4 rounded-xl bg-slate-900/90 border border-slate-800 hover:border-slate-700 transition-all space-y-1.5 shadow-inner">
-                  <span className="text-slate-400 font-medium text-[11px] uppercase tracking-wider block">Server Admin Console</span>
-                  <a
-                    href="https://mail.altrixcore.com/admin"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="font-bold text-blue-400 hover:text-blue-300 text-sm flex items-center gap-1.5 transition-colors"
-                  >
-                    mail.altrixcore.com/admin <ExternalLink className="h-3.5 w-3.5" />
-                  </a>
-                  <span className="text-[11px] text-slate-400 font-medium block">Mailboxes, DKIM, Anti-Spam</span>
+                  {/* Box 4: Webmail Gateway */}
+                  <div className="p-4 rounded-xl bg-slate-50/80 border border-slate-200/80 hover:bg-slate-50 transition-all space-y-1.5">
+                    <span className="text-slate-500 font-semibold text-[11px] uppercase tracking-wider block">Webmail Client Gateway</span>
+                    <a
+                      href="https://mail.altrixcore.com/webmail"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-bold text-indigo-600 hover:text-indigo-700 text-sm flex items-center gap-1.5 transition-colors"
+                    >
+                      mail.altrixcore.com/webmail <ExternalLink className="h-3.5 w-3.5" />
+                    </a>
+                    <span className="text-[11px] text-slate-500 font-medium block">Roundcube Webmail Inbox</span>
+                  </div>
                 </div>
-
-                {/* Box 4: Webmail Client */}
-                <div className="p-4 rounded-xl bg-slate-900/90 border border-slate-800 hover:border-slate-700 transition-all space-y-1.5 shadow-inner">
-                  <span className="text-slate-400 font-medium text-[11px] uppercase tracking-wider block">Webmail Client Gateway</span>
-                  <a
-                    href="https://mail.altrixcore.com/webmail"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="font-bold text-indigo-400 hover:text-indigo-300 text-sm flex items-center gap-1.5 transition-colors"
-                  >
-                    mail.altrixcore.com/webmail <ExternalLink className="h-3.5 w-3.5" />
-                  </a>
-                  <span className="text-[11px] text-slate-400 font-medium block">Roundcube Webmail Inbox</span>
-                </div>
-              </div>
-            </div>
+              </CardContent>
+            </Card>
 
             {/* Recent Transactional Deliveries Table */}
             <Card className="border border-slate-200/80 rounded-2xl bg-white shadow-xs overflow-hidden">
