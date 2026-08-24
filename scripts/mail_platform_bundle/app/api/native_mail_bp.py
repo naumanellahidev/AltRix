@@ -249,7 +249,7 @@ def list_folder_messages(mailbox_email, folder_name):
         return api_error(str(e), code="INTERNAL_SERVER_ERROR", status_code=500)
 
 
-@native_mail_bp.route("/api/mail/mailboxes/<mailbox_email>/folders/<path:folder_name>/messages/<int:message_uid>", methods=["GET"])
+@native_mail_bp.route("/api/mail/mailboxes/<mailbox_email>/folders/<path:folder_name>/messages/<message_uid>", methods=["GET"])
 @require_auth
 def get_message_detail(mailbox_email, folder_name, message_uid):
     try:
@@ -262,17 +262,24 @@ def get_message_detail(mailbox_email, folder_name, message_uid):
             log_audit(principal["username"], ip, "MESSAGE_DETAIL_DENIED", mailbox_email, "FAILURE", f"Unauthorized message fetch UID {message_uid}")
             raise MailboxAccessDeniedError(principal["username"], mailbox_email)
 
+        # Parse integer UID from string if prefixed (e.g., 'INBOX_3' -> 3)
+        raw_uid_str = str(message_uid).split("_")[-1] if "_" in str(message_uid) else str(message_uid)
+        try:
+            parsed_uid = int(raw_uid_str)
+        except ValueError:
+            return api_error(f"Invalid message UID '{message_uid}'", code="INVALID_UID", status_code=400)
+
         mark_read = request.args.get("mark_read", "true").lower() in ["true", "1", "yes"]
 
         # 2. Retrieve Full Message Detail
         detail = message_service.get_message_detail(
             mailbox_email=mailbox_email,
             folder_name=folder_name,
-            message_uid=message_uid,
+            message_uid=parsed_uid,
             mark_read=mark_read
         )
 
-        log_audit(principal["username"], ip, "MESSAGE_READ", mailbox_email, "SUCCESS", f"Folder: {folder_name}, UID: {message_uid}, Subject: {detail.get('subject', '')[:30]}")
+        log_audit(principal["username"], ip, "MESSAGE_READ", mailbox_email, "SUCCESS", f"Folder: {folder_name}, UID: {parsed_uid}, Subject: {detail.get('subject', '')[:30]}")
 
         return api_success(detail)
 
@@ -282,7 +289,7 @@ def get_message_detail(mailbox_email, folder_name, message_uid):
         return api_error(str(e), code="INTERNAL_SERVER_ERROR", status_code=500)
 
 
-@native_mail_bp.route("/api/mail/mailboxes/<mailbox_email>/folders/<path:folder_name>/messages/<int:message_uid>/flags", methods=["PUT"])
+@native_mail_bp.route("/api/mail/mailboxes/<mailbox_email>/folders/<path:folder_name>/messages/<message_uid>/flags", methods=["PUT"])
 @require_auth
 def update_message_flags(mailbox_email, folder_name, message_uid):
     try:
@@ -294,6 +301,12 @@ def update_message_flags(mailbox_email, folder_name, message_uid):
             log_audit(principal["username"], ip, "MESSAGE_FLAGS_DENIED", mailbox_email, "FAILURE", f"Unauthorized flag update UID {message_uid}")
             raise MailboxAccessDeniedError(principal["username"], mailbox_email)
 
+        raw_uid_str = str(message_uid).split("_")[-1] if "_" in str(message_uid) else str(message_uid)
+        try:
+            parsed_uid = int(raw_uid_str)
+        except ValueError:
+            return api_error(f"Invalid message UID '{message_uid}'", code="INVALID_UID", status_code=400)
+
         data = request.json or {}
         action = data.get("action", "")
         if not action:
@@ -302,11 +315,11 @@ def update_message_flags(mailbox_email, folder_name, message_uid):
         result = message_service.set_message_flags(
             mailbox_email=mailbox_email,
             folder_name=folder_name,
-            message_uid=message_uid,
+            message_uid=parsed_uid,
             action=action
         )
 
-        log_audit(principal["username"], ip, "MESSAGE_FLAGS_UPDATED", mailbox_email, "SUCCESS", f"UID {message_uid}, Action: {action}")
+        log_audit(principal["username"], ip, "MESSAGE_FLAGS_UPDATED", mailbox_email, "SUCCESS", f"UID {parsed_uid}, Action: {action}")
         return api_success(result)
 
     except MailServiceError as e:
@@ -315,7 +328,7 @@ def update_message_flags(mailbox_email, folder_name, message_uid):
         return api_error(str(e), code="INTERNAL_SERVER_ERROR", status_code=500)
 
 
-@native_mail_bp.route("/api/mail/mailboxes/<mailbox_email>/folders/<path:folder_name>/messages/<int:message_uid>/attachments/<part_id>", methods=["GET"])
+@native_mail_bp.route("/api/mail/mailboxes/<mailbox_email>/folders/<path:folder_name>/messages/<message_uid>/attachments/<part_id>", methods=["GET"])
 @require_auth
 def download_attachment(mailbox_email, folder_name, message_uid, part_id):
     try:
@@ -327,6 +340,12 @@ def download_attachment(mailbox_email, folder_name, message_uid, part_id):
         if not mail_auth_service.can_access_mailbox(principal, mailbox_email):
             log_audit(principal["username"], ip, "ATTACHMENT_DOWNLOAD_DENIED", mailbox_email, "FAILURE", f"Unauthorized attachment fetch UID {message_uid}, part {part_id}")
             raise MailboxAccessDeniedError(principal["username"], mailbox_email)
+
+        raw_uid_str = str(message_uid).split("_")[-1] if "_" in str(message_uid) else str(message_uid)
+        try:
+            parsed_uid = int(raw_uid_str)
+        except ValueError:
+            return api_error(f"Invalid message UID '{message_uid}'", code="INVALID_UID", status_code=400)
 
         payload, content_type, filename = message_service.get_attachment(
             mailbox_email=mailbox_email,

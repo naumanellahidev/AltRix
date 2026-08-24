@@ -1,7 +1,7 @@
 {
-  "commit": "mail-tab-fix",
-  "timestamp": "2026-08-24T23:17:32.525003Z",
-  "version": "1.0.1",
+  "commit": "message-open-fix",
+  "timestamp": "2026-08-24T23:54:17.976857Z",
+  "version": "1.0.2",
   "environment": "production",
   "service": "altrix-mail-control-center"
 }
