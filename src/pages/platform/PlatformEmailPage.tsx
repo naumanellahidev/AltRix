@@ -33,6 +33,11 @@ import {
   CheckCircle,
   HelpCircle,
   Upload,
+  Sliders,
+  Terminal,
+  Lock,
+  ArrowUpRight,
+  Zap,
 } from "lucide-react";
 import { SuperAdminShell } from "@/components/super-admin/SuperAdminShell";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -653,14 +658,14 @@ export default function PlatformEmailPage() {
   return (
     <SuperAdminShell
       title="Central Email Management HQ"
-      subtitle="Configure AltRix branding, manage sender identities, design responsive templates, and monitor VPS delivery"
+      subtitle="Configure AltRix brand identity, sender aliases, responsive HTML templates & monitor VPS delivery node"
       actions={
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2.5">
           <a
             href="https://mail.altrixcore.com/admin"
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center justify-center rounded-md text-xs font-semibold h-8 px-3 border border-slate-300 bg-white hover:bg-slate-50 text-slate-800 transition-colors shadow-xs hover:border-slate-400"
+            className="inline-flex items-center justify-center rounded-xl text-xs font-bold h-9 px-3.5 border border-slate-200 bg-white hover:bg-slate-50 text-slate-800 transition-all shadow-2xs hover:shadow-xs hover:border-blue-300"
             title="Open Mail Platform Admin Control Center (Domains, Mailboxes, DKIM, Anti-Spam)"
           >
             <ExternalLink className="h-3.5 w-3.5 mr-1.5 text-blue-600" /> Mail Server Admin
@@ -669,7 +674,7 @@ export default function PlatformEmailPage() {
             href="https://mail.altrixcore.com/webmail"
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center justify-center rounded-md text-xs font-semibold h-8 px-3 border border-slate-300 bg-white hover:bg-slate-50 text-slate-800 transition-colors shadow-xs hover:border-slate-400"
+            className="inline-flex items-center justify-center rounded-xl text-xs font-bold h-9 px-3.5 border border-slate-200 bg-white hover:bg-slate-50 text-slate-800 transition-all shadow-2xs hover:shadow-xs hover:border-indigo-300"
             title="Open Roundcube Webmail Inbox (Send & Receive institutional mail)"
           >
             <Inbox className="h-3.5 w-3.5 mr-1.5 text-indigo-600" /> Webmail Client
@@ -687,200 +692,276 @@ export default function PlatformEmailPage() {
               loadMtaHealth();
               toast.success("Refreshed email platform telemetry");
             }}
-            className="text-xs bg-blue-600 hover:bg-blue-700 text-white font-semibold"
+            className="text-xs h-9 px-3.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold rounded-xl shadow-xs hover:shadow-md transition-all"
           >
-            <RefreshCw className="h-3.5 w-3.5 mr-1.5" /> Refresh
+            <RefreshCw className="h-3.5 w-3.5 mr-1.5" /> Refresh Telemetry
           </Button>
         </div>
       }
     >
       <div className="space-y-6">
-        {/* Navigation Tabs */}
+        {/* Navigation Tabs Bar */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid grid-cols-7 max-w-5xl bg-slate-100 p-1 rounded-xl">
-            <TabsTrigger value="overview" className="text-xs font-bold gap-1.5">
+          <TabsList className="grid grid-cols-7 max-w-5xl bg-slate-100/90 p-1.5 rounded-2xl border border-slate-200/60 shadow-2xs">
+            <TabsTrigger value="overview" className="text-xs font-bold gap-1.5 rounded-xl py-2 data-[state=active]:bg-white data-[state=active]:text-blue-600 data-[state=active]:shadow-xs transition-all">
               <Activity className="h-3.5 w-3.5" /> Overview
             </TabsTrigger>
-            <TabsTrigger value="branding" className="text-xs font-bold gap-1.5">
-              <Palette className="h-3.5 w-3.5" /> Branding
+            <TabsTrigger value="branding" className="text-xs font-bold gap-1.5 rounded-xl py-2 data-[state=active]:bg-white data-[state=active]:text-blue-600 data-[state=active]:shadow-xs transition-all">
+              <Palette className="h-3.5 w-3.5" /> Brand Identity
             </TabsTrigger>
-            <TabsTrigger value="senders" className="text-xs font-bold gap-1.5">
-              <Mail className="h-3.5 w-3.5" /> Senders
+            <TabsTrigger value="senders" className="text-xs font-bold gap-1.5 rounded-xl py-2 data-[state=active]:bg-white data-[state=active]:text-blue-600 data-[state=active]:shadow-xs transition-all">
+              <Mail className="h-3.5 w-3.5" /> Sender Profiles
             </TabsTrigger>
-            <TabsTrigger value="templates" className="text-xs font-bold gap-1.5">
-              <FileCode2 className="h-3.5 w-3.5" /> Templates
+            <TabsTrigger value="templates" className="text-xs font-bold gap-1.5 rounded-xl py-2 data-[state=active]:bg-white data-[state=active]:text-blue-600 data-[state=active]:shadow-xs transition-all">
+              <FileCode2 className="h-3.5 w-3.5" /> Template Studio
             </TabsTrigger>
-            <TabsTrigger value="routing" className="text-xs font-bold gap-1.5">
-              <Layers className="h-3.5 w-3.5" /> Routing
+            <TabsTrigger value="routing" className="text-xs font-bold gap-1.5 rounded-xl py-2 data-[state=active]:bg-white data-[state=active]:text-blue-600 data-[state=active]:shadow-xs transition-all">
+              <Layers className="h-3.5 w-3.5" /> Event Routing
             </TabsTrigger>
-            <TabsTrigger value="test_lab" className="text-xs font-bold gap-1.5">
-              <Send className="h-3.5 w-3.5" /> Test Lab
+            <TabsTrigger value="test_lab" className="text-xs font-bold gap-1.5 rounded-xl py-2 data-[state=active]:bg-white data-[state=active]:text-blue-600 data-[state=active]:shadow-xs transition-all">
+              <Send className="h-3.5 w-3.5" /> Live Test Lab
             </TabsTrigger>
-            <TabsTrigger value="logs" className="text-xs font-bold gap-1.5">
-              <ListFilter className="h-3.5 w-3.5" /> Logs
+            <TabsTrigger value="logs" className="text-xs font-bold gap-1.5 rounded-xl py-2 data-[state=active]:bg-white data-[state=active]:text-blue-600 data-[state=active]:shadow-xs transition-all">
+              <ListFilter className="h-3.5 w-3.5" /> Delivery Logs
             </TabsTrigger>
           </TabsList>
 
           {/* 1. OVERVIEW TAB */}
           <TabsContent value="overview" className="mt-6 space-y-6">
+            {/* KPI Top Summary Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <Card className="border-slate-200 shadow-xs bg-white">
-                <CardHeader className="pb-2">
-                  <CardDescription className="text-[11px] uppercase font-bold text-slate-500">24h Dispatched</CardDescription>
-                  <CardTitle className="text-2xl font-black text-slate-900 flex items-center justify-between">
-                    {telemetry?.sent24h ?? 0}
-                    <Badge variant="secondary" className="bg-blue-50 text-blue-700 font-bold text-xs">Live</Badge>
-                  </CardTitle>
+              {/* Card 1: Dispatched */}
+              <Card className="border border-slate-200/80 rounded-2xl bg-white shadow-xs hover:shadow-md hover:border-blue-200 transition-all">
+                <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
+                  <span className="text-[11px] uppercase tracking-wider font-bold text-slate-500">24h Dispatched</span>
+                  <div className="h-9 w-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center ring-4 ring-blue-500/5">
+                    <Send className="h-4 w-4" />
+                  </div>
                 </CardHeader>
-                <CardContent>
-                  <p className="text-xs text-slate-500">All transactional event triggers</p>
+                <CardContent className="pt-1">
+                  <div className="flex items-baseline justify-between">
+                    <span className="text-3xl font-black text-slate-900 tracking-tight">
+                      {telemetry?.sent24h ?? 0}
+                    </span>
+                    <Badge className="bg-blue-50 text-blue-700 hover:bg-blue-50 font-bold text-[10px] uppercase border border-blue-200/60 px-2 py-0.5 rounded-full">
+                      Live Stream
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-2">All transactional event triggers</p>
                 </CardContent>
               </Card>
 
-              <Card className="border-slate-200 shadow-xs bg-white">
-                <CardHeader className="pb-2">
-                  <CardDescription className="text-[11px] uppercase font-bold text-slate-500">24h Success Rate</CardDescription>
-                  <CardTitle className="text-2xl font-black text-emerald-600 flex items-center justify-between">
-                    {telemetry?.successRate24h ?? 100}%
-                    <CheckCircle2 className="h-5 w-5 text-emerald-500" />
-                  </CardTitle>
+              {/* Card 2: Success Rate */}
+              <Card className="border border-slate-200/80 rounded-2xl bg-white shadow-xs hover:shadow-md hover:border-emerald-200 transition-all">
+                <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
+                  <span className="text-[11px] uppercase tracking-wider font-bold text-slate-500">24h Success Rate</span>
+                  <div className="h-9 w-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center ring-4 ring-emerald-500/5">
+                    <CheckCircle2 className="h-4 w-4" />
+                  </div>
                 </CardHeader>
-                <CardContent>
-                  <p className="text-xs text-slate-500">Successful relay through local MTA</p>
+                <CardContent className="pt-1">
+                  <div className="flex items-baseline justify-between">
+                    <span className="text-3xl font-black text-emerald-600 tracking-tight">
+                      {telemetry?.successRate24h ?? 100}%
+                    </span>
+                    <Badge className="bg-emerald-50 text-emerald-700 hover:bg-emerald-50 font-bold text-[10px] uppercase border border-emerald-200/60 px-2 py-0.5 rounded-full">
+                      Optimal
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-2">Successful relay through local MTA</p>
                 </CardContent>
               </Card>
 
-              <Card className="border-slate-200 shadow-xs bg-white">
-                <CardHeader className="pb-2">
-                  <CardDescription className="text-[11px] uppercase font-bold text-slate-500">Configured Senders</CardDescription>
-                  <CardTitle className="text-2xl font-black text-indigo-600 flex items-center justify-between">
-                    {telemetry?.activeSenders ?? senders.length}
-                    <Mail className="h-5 w-5 text-indigo-500" />
-                  </CardTitle>
+              {/* Card 3: Configured Senders */}
+              <Card className="border border-slate-200/80 rounded-2xl bg-white shadow-xs hover:shadow-md hover:border-purple-200 transition-all">
+                <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
+                  <span className="text-[11px] uppercase tracking-wider font-bold text-slate-500">Configured Senders</span>
+                  <div className="h-9 w-9 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center ring-4 ring-purple-500/5">
+                    <Mail className="h-4 w-4" />
+                  </div>
                 </CardHeader>
-                <CardContent>
-                  <p className="text-xs text-slate-500">Official AltRix brand aliases</p>
+                <CardContent className="pt-1">
+                  <div className="flex items-baseline justify-between">
+                    <span className="text-3xl font-black text-purple-600 tracking-tight">
+                      {telemetry?.activeSenders ?? senders.length}
+                    </span>
+                    <Badge className="bg-purple-50 text-purple-700 hover:bg-purple-50 font-bold text-[10px] uppercase border border-purple-200/60 px-2 py-0.5 rounded-full">
+                      Verified
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-2">Official AltRix brand aliases</p>
                 </CardContent>
               </Card>
 
-              <Card className="border-slate-200 shadow-xs bg-white">
-                <CardHeader className="pb-2">
-                  <CardDescription className="text-[11px] uppercase font-bold text-slate-500">Pending Staff Invites</CardDescription>
-                  <CardTitle className="text-2xl font-black text-amber-600 flex items-center justify-between">
-                    {telemetry?.pendingInvitations ?? 0}
-                    <Clock className="h-5 w-5 text-amber-500" />
-                  </CardTitle>
+              {/* Card 4: Pending Invites */}
+              <Card className="border border-slate-200/80 rounded-2xl bg-white shadow-xs hover:shadow-md hover:border-amber-200 transition-all">
+                <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
+                  <span className="text-[11px] uppercase tracking-wider font-bold text-slate-500">Pending Staff Invites</span>
+                  <div className="h-9 w-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center ring-4 ring-amber-500/5">
+                    <Clock className="h-4 w-4" />
+                  </div>
                 </CardHeader>
-                <CardContent>
-                  <p className="text-xs text-slate-500">Active single-use activation tokens</p>
+                <CardContent className="pt-1">
+                  <div className="flex items-baseline justify-between">
+                    <span className="text-3xl font-black text-amber-600 tracking-tight">
+                      {telemetry?.pendingInvitations ?? 0}
+                    </span>
+                    <Badge className="bg-amber-50 text-amber-700 hover:bg-amber-50 font-bold text-[10px] uppercase border border-amber-200/60 px-2 py-0.5 rounded-full">
+                      Tokens Active
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-2">Active single-use activation tokens</p>
                 </CardContent>
               </Card>
             </div>
 
-            {/* Mail Server Node Info Card */}
-            <Card className="border-slate-200 shadow-xs bg-gradient-to-r from-slate-900 via-slate-900 to-indigo-950 text-white">
-              <CardHeader className="pb-3">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                  <div>
-                    <CardTitle className="text-base font-bold text-white flex items-center gap-2">
-                      <Server className="h-4 w-4 text-emerald-400" /> VPS Mail Infrastructure Node
-                    </CardTitle>
-                    <CardDescription className="text-slate-300 text-xs mt-0.5">
-                      Subdomain: <strong className="text-emerald-400">mail.altrixcore.com</strong> (IP: 169.58.111.159)
-                    </CardDescription>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Badge className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-xs font-semibold px-3 py-1">
-                      <Radio className="h-3 w-3 mr-1 animate-pulse" /> Postfix SMTP Online ({mtaHealth?.latencyMs || 2}ms)
-                    </Badge>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-1 text-xs">
-                <div className="p-3 rounded-lg bg-white/5 border border-white/10 space-y-1">
-                  <span className="text-slate-400 font-medium">SSL / TLS Certificate</span>
-                  <p className="font-bold text-white flex items-center gap-1.5">
-                    <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" /> Let's Encrypt (Dedicated)
-                  </p>
-                </div>
-                <div className="p-3 rounded-lg bg-white/5 border border-white/10 space-y-1">
-                  <span className="text-slate-400 font-medium">Outbound Relay Port</span>
-                  <p className="font-bold text-white">127.0.0.1:25 (Docker RELAYNETS)</p>
-                </div>
-                <div className="p-3 rounded-lg bg-white/5 border border-white/10 space-y-1">
-                  <span className="text-slate-400 font-medium">Webmail & Admin Routing</span>
-                  <div className="flex items-center gap-2 pt-0.5">
-                    <a
-                      href="https://mail.altrixcore.com/admin"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="font-bold text-blue-400 hover:text-blue-300 underline flex items-center gap-1"
-                    >
-                      Admin <ExternalLink className="h-3 w-3" />
-                    </a>
-                    <span className="text-slate-500">|</span>
-                    <a
-                      href="https://mail.altrixcore.com/webmail/"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="font-bold text-indigo-400 hover:text-indigo-300 underline flex items-center gap-1"
-                    >
-                      Webmail <ExternalLink className="h-3 w-3" />
-                    </a>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+            {/* High-Tech Dark Mode VPS Infrastructure Node Card */}
+            <div className="rounded-2xl border border-slate-800 bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 p-6 text-white shadow-xl relative overflow-hidden">
+              {/* Background ambient lighting glows */}
+              <div className="absolute -top-24 -right-24 w-80 h-80 bg-blue-600/15 rounded-full blur-3xl pointer-events-none" />
+              <div className="absolute -bottom-24 -left-24 w-80 h-80 bg-indigo-600/15 rounded-full blur-3xl pointer-events-none" />
 
-            {/* Recent Delivery Stream */}
-            <Card className="border-slate-200 shadow-xs bg-white">
-              <CardHeader className="pb-3 flex flex-row items-center justify-between">
-                <div>
-                  <CardTitle className="text-base font-bold text-slate-900">Recent Transactional Deliveries</CardTitle>
-                  <CardDescription className="text-xs text-slate-500">Live stream of outgoing email events</CardDescription>
+              <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-5 border-b border-white/10">
+                <div className="flex items-center gap-3">
+                  <div className="h-11 w-11 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+                    <Server className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-white tracking-tight flex items-center gap-2">
+                      VPS Mail Infrastructure Node (MTA Engine)
+                    </h3>
+                    <p className="text-slate-400 text-xs mt-0.5">
+                      Subdomain: <strong className="text-emerald-400 font-mono">mail.altrixcore.com</strong> <span className="text-slate-600">•</span> Host IP: <span className="text-slate-300 font-mono">169.58.111.159</span>
+                    </p>
+                  </div>
                 </div>
-                <Button variant="ghost" size="sm" onClick={() => setActiveTab("logs")} className="text-xs text-blue-600 font-bold">
-                  View All Logs <ChevronRight className="h-3.5 w-3.5 ml-1" />
+                <div className="flex items-center gap-2">
+                  <Badge className="bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 text-xs font-semibold px-3.5 py-1.5 rounded-full">
+                    <Radio className="h-3 w-3 mr-1.5 text-emerald-400 animate-pulse" /> Postfix SMTP Online ({mtaHealth?.latencyMs || 2}ms)
+                  </Badge>
+                </div>
+              </div>
+
+              {/* 4 High-Contrast Clear Metric Boxes */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 pt-5 relative z-10">
+                {/* Box 1: SSL */}
+                <div className="p-4 rounded-xl bg-slate-900/90 border border-slate-800 hover:border-slate-700 transition-all space-y-1.5 shadow-inner">
+                  <span className="text-slate-400 font-medium text-[11px] uppercase tracking-wider block">SSL / TLS Encryption</span>
+                  <p className="font-bold text-white text-sm flex items-center gap-1.5">
+                    <ShieldCheck className="h-4 w-4 text-emerald-400 shrink-0" /> Let's Encrypt Dedicated
+                  </p>
+                  <span className="text-[11px] text-emerald-400/90 font-medium block">TLS 1.3 Strict HTTPS Protocol</span>
+                </div>
+
+                {/* Box 2: Outbound Relay */}
+                <div className="p-4 rounded-xl bg-slate-900/90 border border-slate-800 hover:border-slate-700 transition-all space-y-1.5 shadow-inner">
+                  <span className="text-slate-400 font-medium text-[11px] uppercase tracking-wider block">Outbound Relay Port</span>
+                  <p className="font-bold text-white text-sm font-mono flex items-center gap-1.5">
+                    <Zap className="h-4 w-4 text-blue-400 shrink-0" /> 127.0.0.1:25
+                  </p>
+                  <span className="text-[11px] text-blue-400/90 font-medium block">Docker RELAYNETS Authorized</span>
+                </div>
+
+                {/* Box 3: Server Admin Console */}
+                <div className="p-4 rounded-xl bg-slate-900/90 border border-slate-800 hover:border-slate-700 transition-all space-y-1.5 shadow-inner">
+                  <span className="text-slate-400 font-medium text-[11px] uppercase tracking-wider block">Server Admin Console</span>
+                  <a
+                    href="https://mail.altrixcore.com/admin"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-bold text-blue-400 hover:text-blue-300 text-sm flex items-center gap-1.5 transition-colors"
+                  >
+                    mail.altrixcore.com/admin <ExternalLink className="h-3.5 w-3.5" />
+                  </a>
+                  <span className="text-[11px] text-slate-400 font-medium block">Mailboxes, DKIM, Anti-Spam</span>
+                </div>
+
+                {/* Box 4: Webmail Client */}
+                <div className="p-4 rounded-xl bg-slate-900/90 border border-slate-800 hover:border-slate-700 transition-all space-y-1.5 shadow-inner">
+                  <span className="text-slate-400 font-medium text-[11px] uppercase tracking-wider block">Webmail Client Gateway</span>
+                  <a
+                    href="https://mail.altrixcore.com/webmail"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-bold text-indigo-400 hover:text-indigo-300 text-sm flex items-center gap-1.5 transition-colors"
+                  >
+                    mail.altrixcore.com/webmail <ExternalLink className="h-3.5 w-3.5" />
+                  </a>
+                  <span className="text-[11px] text-slate-400 font-medium block">Roundcube Webmail Inbox</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Recent Transactional Deliveries Table */}
+            <Card className="border border-slate-200/80 rounded-2xl bg-white shadow-xs overflow-hidden">
+              <CardHeader className="p-5 pb-3 flex flex-row items-center justify-between border-b border-slate-100">
+                <div>
+                  <CardTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
+                    <ListFilter className="h-4 w-4 text-blue-600" /> Recent Transactional Deliveries
+                  </CardTitle>
+                  <CardDescription className="text-xs text-slate-500 mt-0.5">Live audit stream of outgoing platform communications</CardDescription>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setActiveTab("logs")}
+                  className="text-xs h-8 font-bold text-blue-600 border-blue-200 hover:bg-blue-50 rounded-xl"
+                >
+                  View Full Audit Log <ChevronRight className="h-3.5 w-3.5 ml-1" />
                 </Button>
               </CardHeader>
               <CardContent className="p-0">
                 <div className="overflow-x-auto">
                   <table className="w-full text-xs text-left">
-                    <thead className="bg-slate-50 border-y border-slate-200 text-slate-600 uppercase font-bold text-[10px]">
+                    <thead className="bg-slate-50/80 border-b border-slate-100 text-slate-500 uppercase font-bold text-[10px] tracking-wider">
                       <tr>
-                        <th className="py-2.5 px-4">Status</th>
-                        <th className="py-2.5 px-4">Event</th>
-                        <th className="py-2.5 px-4">Recipient</th>
-                        <th className="py-2.5 px-4">Sender Address</th>
-                        <th className="py-2.5 px-4">Subject</th>
-                        <th className="py-2.5 px-4">Dispatched At</th>
+                        <th className="py-3 px-5">Status</th>
+                        <th className="py-3 px-5">Event</th>
+                        <th className="py-3 px-5">Recipient</th>
+                        <th className="py-3 px-5">Sender Identity</th>
+                        <th className="py-3 px-5">Subject</th>
+                        <th className="py-3 px-5 text-right">Dispatched At</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {logs.slice(0, 8).map((item) => (
-                        <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
-                          <td className="py-3 px-4 font-semibold">
-                            {item.status === "sent" || item.status === "delivered" ? (
-                              <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100 text-[10px] uppercase font-bold border-0">
-                                Sent
-                              </Badge>
-                            ) : (
-                              <Badge variant="destructive" className="text-[10px] uppercase font-bold">
-                                Failed
-                              </Badge>
-                            )}
-                          </td>
-                          <td className="py-3 px-4 font-bold text-slate-800">
-                            {item.eventName.replace("_", " ").toUpperCase()}
-                          </td>
-                          <td className="py-3 px-4 font-mono text-slate-700">{item.recipientEmail}</td>
-                          <td className="py-3 px-4 font-mono text-slate-600">{item.senderEmail}</td>
-                          <td className="py-3 px-4 text-slate-700 truncate max-w-xs">{item.subject}</td>
-                          <td className="py-3 px-4 text-slate-400 whitespace-nowrap">
-                            {item.sentAt ? new Date(item.sentAt).toLocaleString() : "-"}
+                      {logs.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="py-12 text-center text-slate-400">
+                            <div className="space-y-2">
+                              <Inbox className="h-8 w-8 text-slate-300 mx-auto" />
+                              <p className="font-semibold text-slate-600">No outgoing transactional emails logged yet</p>
+                              <p className="text-xs text-slate-400">Use the Test Lab tab to send a live test dispatch.</p>
+                            </div>
                           </td>
                         </tr>
-                      ))}
+                      ) : (
+                        logs.slice(0, 8).map((item) => (
+                          <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
+                            <td className="py-3.5 px-5">
+                              {item.status === "sent" || item.status === "delivered" ? (
+                                <Badge className="bg-emerald-50 text-emerald-700 hover:bg-emerald-50 text-[10px] uppercase font-bold border border-emerald-200/80 px-2.5 py-0.5 rounded-full">
+                                  Sent
+                                </Badge>
+                              ) : (
+                                <Badge variant="destructive" className="text-[10px] uppercase font-bold px-2.5 py-0.5 rounded-full">
+                                  Failed
+                                </Badge>
+                              )}
+                            </td>
+                            <td className="py-3.5 px-5 font-bold text-slate-900">
+                              <span className="bg-slate-100 text-slate-800 px-2.5 py-1 rounded-lg text-[11px] font-mono">
+                                {item.eventName.replace("_", " ").toUpperCase()}
+                              </span>
+                            </td>
+                            <td className="py-3.5 px-5 font-mono text-slate-800 font-semibold">{item.recipientEmail}</td>
+                            <td className="py-3.5 px-5 font-mono text-slate-500">{item.senderEmail}</td>
+                            <td className="py-3.5 px-5 text-slate-700 font-medium truncate max-w-xs">{item.subject}</td>
+                            <td className="py-3.5 px-5 text-slate-400 text-right whitespace-nowrap font-mono text-[11px]">
+                              {item.sentAt ? new Date(item.sentAt).toLocaleString() : "—"}
+                            </td>
+                          </tr>
+                        ))
+                      )}
                     </tbody>
                   </table>
                 </div>
@@ -893,12 +974,12 @@ export default function PlatformEmailPage() {
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
               {/* Branding Config Form */}
               <div className="lg:col-span-7">
-                <Card className="border-slate-200 shadow-xs bg-white">
-                  <CardHeader className="pb-3 border-b border-slate-100">
+                <Card className="border border-slate-200/80 rounded-2xl bg-white shadow-xs">
+                  <CardHeader className="p-5 pb-3 border-b border-slate-100">
                     <CardTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
                       <Palette className="h-4 w-4 text-blue-600" /> Global Visual Identity & Email Branding
                     </CardTitle>
-                    <CardDescription className="text-xs text-slate-500">
+                    <CardDescription className="text-xs text-slate-500 mt-0.5">
                       Standardize colors, hosted logo assets, legal disclaimers, and footers across all outgoing transactional emails.
                     </CardDescription>
                   </CardHeader>
@@ -910,7 +991,7 @@ export default function PlatformEmailPage() {
                           <Input
                             value={brandForm.brandName}
                             onChange={(e) => setBrandForm({ ...brandForm, brandName: e.target.value })}
-                            className="text-xs bg-slate-50"
+                            className="text-xs bg-slate-50 border-slate-200 rounded-xl"
                           />
                         </div>
                         <div className="space-y-1.5">
@@ -919,7 +1000,7 @@ export default function PlatformEmailPage() {
                             value={brandForm.headerLogoType}
                             onValueChange={(val) => setBrandForm({ ...brandForm, headerLogoType: val })}
                           >
-                            <SelectTrigger className="text-xs bg-slate-50">
+                            <SelectTrigger className="text-xs bg-slate-50 border-slate-200 rounded-xl">
                               <SelectValue placeholder="Logo Type" />
                             </SelectTrigger>
                             <SelectContent>
@@ -935,7 +1016,7 @@ export default function PlatformEmailPage() {
                         <Input
                           value={brandForm.primaryLogoUrl}
                           onChange={(e) => setBrandForm({ ...brandForm, primaryLogoUrl: e.target.value })}
-                          className="text-xs font-mono bg-slate-50"
+                          className="text-xs font-mono bg-slate-50 border-slate-200 rounded-xl"
                         />
                       </div>
 
@@ -944,7 +1025,7 @@ export default function PlatformEmailPage() {
                         <Input
                           value={brandForm.brandIconUrl}
                           onChange={(e) => setBrandForm({ ...brandForm, brandIconUrl: e.target.value })}
-                          className="text-xs font-mono bg-slate-50"
+                          className="text-xs font-mono bg-slate-50 border-slate-200 rounded-xl"
                         />
                       </div>
 
@@ -956,12 +1037,12 @@ export default function PlatformEmailPage() {
                               type="color"
                               value={brandForm.primaryColor}
                               onChange={(e) => setBrandForm({ ...brandForm, primaryColor: e.target.value })}
-                              className="h-8 w-8 rounded border border-slate-300 p-0 cursor-pointer"
+                              className="h-9 w-9 rounded-xl border border-slate-300 p-0.5 cursor-pointer"
                             />
                             <Input
                               value={brandForm.primaryColor}
                               onChange={(e) => setBrandForm({ ...brandForm, primaryColor: e.target.value })}
-                              className="text-xs font-mono"
+                              className="text-xs font-mono rounded-xl"
                             />
                           </div>
                         </div>
@@ -972,12 +1053,12 @@ export default function PlatformEmailPage() {
                               type="color"
                               value={brandForm.accentColor}
                               onChange={(e) => setBrandForm({ ...brandForm, accentColor: e.target.value })}
-                              className="h-8 w-8 rounded border border-slate-300 p-0 cursor-pointer"
+                              className="h-9 w-9 rounded-xl border border-slate-300 p-0.5 cursor-pointer"
                             />
                             <Input
                               value={brandForm.accentColor}
                               onChange={(e) => setBrandForm({ ...brandForm, accentColor: e.target.value })}
-                              className="text-xs font-mono"
+                              className="text-xs font-mono rounded-xl"
                             />
                           </div>
                         </div>
@@ -988,12 +1069,12 @@ export default function PlatformEmailPage() {
                               type="color"
                               value={brandForm.secondaryColor}
                               onChange={(e) => setBrandForm({ ...brandForm, secondaryColor: e.target.value })}
-                              className="h-8 w-8 rounded border border-slate-300 p-0 cursor-pointer"
+                              className="h-9 w-9 rounded-xl border border-slate-300 p-0.5 cursor-pointer"
                             />
                             <Input
                               value={brandForm.secondaryColor}
                               onChange={(e) => setBrandForm({ ...brandForm, secondaryColor: e.target.value })}
-                              className="text-xs font-mono"
+                              className="text-xs font-mono rounded-xl"
                             />
                           </div>
                         </div>
@@ -1006,7 +1087,7 @@ export default function PlatformEmailPage() {
                             type="email"
                             value={brandForm.supportEmail}
                             onChange={(e) => setBrandForm({ ...brandForm, supportEmail: e.target.value })}
-                            className="text-xs bg-slate-50 font-mono"
+                            className="text-xs bg-slate-50 border-slate-200 rounded-xl font-mono"
                           />
                         </div>
                         <div className="space-y-1.5">
@@ -1014,7 +1095,7 @@ export default function PlatformEmailPage() {
                           <Input
                             value={brandForm.websiteUrl}
                             onChange={(e) => setBrandForm({ ...brandForm, websiteUrl: e.target.value })}
-                            className="text-xs bg-slate-50 font-mono"
+                            className="text-xs bg-slate-50 border-slate-200 rounded-xl font-mono"
                           />
                         </div>
                       </div>
@@ -1024,7 +1105,7 @@ export default function PlatformEmailPage() {
                         <Input
                           value={brandForm.footerText}
                           onChange={(e) => setBrandForm({ ...brandForm, footerText: e.target.value })}
-                          className="text-xs bg-slate-50"
+                          className="text-xs bg-slate-50 border-slate-200 rounded-xl"
                         />
                       </div>
 
@@ -1034,12 +1115,12 @@ export default function PlatformEmailPage() {
                           rows={2}
                           value={brandForm.legalDisclaimer || ""}
                           onChange={(e) => setBrandForm({ ...brandForm, legalDisclaimer: e.target.value })}
-                          className="text-xs bg-slate-50"
+                          className="text-xs bg-slate-50 border-slate-200 rounded-xl"
                         />
                       </div>
                     </CardContent>
-                    <CardFooter className="bg-slate-50 border-t border-slate-100 py-3 flex justify-end">
-                      <Button type="submit" disabled={savingBrand} className="text-xs bg-blue-600 hover:bg-blue-700 text-white font-bold px-5">
+                    <CardFooter className="bg-slate-50/80 border-t border-slate-100 p-4 flex justify-end">
+                      <Button type="submit" disabled={savingBrand} className="text-xs bg-blue-600 hover:bg-blue-700 text-white font-bold px-5 rounded-xl shadow-xs">
                         {savingBrand ? "Saving Branding..." : "Save Branding Configuration"}
                       </Button>
                     </CardFooter>
@@ -1049,22 +1130,22 @@ export default function PlatformEmailPage() {
 
               {/* Brand Asset Library */}
               <div className="lg:col-span-5 space-y-4">
-                <Card className="border-slate-200 shadow-xs bg-white">
-                  <CardHeader className="pb-3 border-b border-slate-100 flex flex-row items-center justify-between">
+                <Card className="border border-slate-200/80 rounded-2xl bg-white shadow-xs">
+                  <CardHeader className="p-5 pb-3 border-b border-slate-100 flex flex-row items-center justify-between">
                     <div>
                       <CardTitle className="text-sm font-bold text-slate-900 flex items-center gap-2">
                         <Image className="h-4 w-4 text-indigo-600" /> Managed Brand Assets
                       </CardTitle>
-                      <CardDescription className="text-xs text-slate-500">Official images used in templates</CardDescription>
+                      <CardDescription className="text-xs text-slate-500 mt-0.5">Official images used in templates</CardDescription>
                     </div>
-                    <Button size="sm" onClick={() => setAssetModalOpen(true)} className="text-xs bg-indigo-600 hover:bg-indigo-700 font-semibold h-8">
+                    <Button size="sm" onClick={() => setAssetModalOpen(true)} className="text-xs bg-indigo-600 hover:bg-indigo-700 font-bold h-8 rounded-xl">
                       <Plus className="h-3.5 w-3.5 mr-1" /> Add Asset
                     </Button>
                   </CardHeader>
                   <CardContent className="p-4 space-y-3">
                     {assets.map((ast) => (
-                      <div key={ast.id} className="p-3 rounded-lg border border-slate-200 bg-slate-50 flex items-center gap-3">
-                        <div className="h-12 w-12 rounded-md bg-slate-900 flex items-center justify-center p-1 overflow-hidden shrink-0 border border-slate-800">
+                      <div key={ast.id} className="p-3.5 rounded-xl border border-slate-200/80 bg-slate-50/60 flex items-center gap-3 hover:bg-slate-50 transition-colors">
+                        <div className="h-12 w-12 rounded-xl bg-slate-900 flex items-center justify-center p-1.5 overflow-hidden shrink-0 border border-slate-800 shadow-xs">
                           <img src={ast.url} alt={ast.name} className="max-h-full max-w-full object-contain" />
                         </div>
                         <div className="flex-1 min-w-0">
@@ -1079,7 +1160,7 @@ export default function PlatformEmailPage() {
                           variant="ghost"
                           size="sm"
                           onClick={() => copyToClipboard(ast.url, ast.id)}
-                          className="h-8 w-8 p-0 text-slate-500 hover:text-blue-600"
+                          className="h-8 w-8 p-0 text-slate-500 hover:text-blue-600 rounded-lg"
                         >
                           {copiedKey === ast.id ? <Check className="h-4 w-4 text-emerald-600" /> : <Copy className="h-4 w-4" />}
                         </Button>
@@ -1093,54 +1174,58 @@ export default function PlatformEmailPage() {
 
           {/* 3. SENDER IDENTITIES TAB */}
           <TabsContent value="senders" className="mt-6 space-y-6">
-            <Card className="border-slate-200 shadow-xs bg-white">
-              <CardHeader className="pb-3 flex flex-row items-center justify-between">
+            <Card className="border border-slate-200/80 rounded-2xl bg-white shadow-xs overflow-hidden">
+              <CardHeader className="p-5 pb-3 flex flex-row items-center justify-between border-b border-slate-100">
                 <div>
-                  <CardTitle className="text-base font-bold text-slate-900">Official AltRix Sender Identities</CardTitle>
-                  <CardDescription className="text-xs text-slate-500">
+                  <CardTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
+                    <Mail className="h-4 w-4 text-blue-600" /> Official AltRix Sender Identities
+                  </CardTitle>
+                  <CardDescription className="text-xs text-slate-500 mt-0.5">
                     Configure authorized outgoing mail addresses mapped to mailboxes on <strong>mail.altrixcore.com</strong>
                   </CardDescription>
                 </div>
-                <Button size="sm" onClick={() => openSenderModal()} className="text-xs bg-blue-600 hover:bg-blue-700 font-semibold">
+                <Button size="sm" onClick={() => openSenderModal()} className="text-xs bg-blue-600 hover:bg-blue-700 font-bold rounded-xl h-8">
                   <Plus className="h-3.5 w-3.5 mr-1.5" /> Add Identity
                 </Button>
               </CardHeader>
               <CardContent className="p-0">
                 <div className="overflow-x-auto">
                   <table className="w-full text-xs text-left">
-                    <thead className="bg-slate-50 border-y border-slate-200 text-slate-600 uppercase font-bold text-[10px]">
+                    <thead className="bg-slate-50/80 border-b border-slate-100 text-slate-500 uppercase font-bold text-[10px] tracking-wider">
                       <tr>
-                        <th className="py-2.5 px-4">Identifier Key</th>
-                        <th className="py-2.5 px-4">Display Name</th>
-                        <th className="py-2.5 px-4">Sender Email Address</th>
-                        <th className="py-2.5 px-4">Reply-To Address</th>
-                        <th className="py-2.5 px-4">Status</th>
-                        <th className="py-2.5 px-4 text-right">Actions</th>
+                        <th className="py-3 px-5">Identifier Key</th>
+                        <th className="py-3 px-5">Display Name</th>
+                        <th className="py-3 px-5">Sender Email Address</th>
+                        <th className="py-3 px-5">Reply-To Address</th>
+                        <th className="py-3 px-5">Status</th>
+                        <th className="py-3 px-5 text-right">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                       {senders.map((s) => (
                         <tr key={s.id} className="hover:bg-slate-50/80 transition-colors">
-                          <td className="py-3 px-4 font-mono font-bold text-blue-700">
+                          <td className="py-3.5 px-5 font-mono font-bold text-blue-700">
                             {s.key}
                             {s.isDefault && (
-                              <Badge className="ml-2 bg-blue-50 text-blue-700 text-[9px] uppercase font-bold border border-blue-200">
+                              <Badge className="ml-2 bg-blue-50 text-blue-700 text-[9px] uppercase font-bold border border-blue-200 rounded-full px-2">
                                 Default
                               </Badge>
                             )}
                           </td>
-                          <td className="py-3 px-4 font-semibold text-slate-800">{s.name}</td>
-                          <td className="py-3 px-4 font-mono text-slate-700">{s.email}</td>
-                          <td className="py-3 px-4 font-mono text-slate-500">{s.replyTo || "—"}</td>
-                          <td className="py-3 px-4">
+                          <td className="py-3.5 px-5 font-semibold text-slate-900">{s.name}</td>
+                          <td className="py-3.5 px-5 font-mono text-slate-700">{s.email}</td>
+                          <td className="py-3.5 px-5 font-mono text-slate-500">{s.replyTo || "—"}</td>
+                          <td className="py-3.5 px-5">
                             {s.isActive ? (
-                              <Badge className="bg-emerald-100 text-emerald-700 text-[10px] font-bold border-0">Active</Badge>
+                              <Badge className="bg-emerald-50 text-emerald-700 text-[10px] font-bold border border-emerald-200/80 rounded-full px-2.5">
+                                Active
+                              </Badge>
                             ) : (
-                              <Badge variant="outline" className="text-slate-400 text-[10px]">Disabled</Badge>
+                              <Badge variant="outline" className="text-slate-400 text-[10px] rounded-full px-2.5">Disabled</Badge>
                             )}
                           </td>
-                          <td className="py-3 px-4 text-right space-x-1">
-                            <Button variant="ghost" size="sm" onClick={() => openSenderModal(s)} className="h-7 px-2 text-xs">
+                          <td className="py-3.5 px-5 text-right space-x-1">
+                            <Button variant="ghost" size="sm" onClick={() => openSenderModal(s)} className="h-7 px-2.5 text-xs rounded-lg">
                               <Edit2 className="h-3.5 w-3.5 text-slate-600" />
                             </Button>
                           </td>
@@ -1156,7 +1241,7 @@ export default function PlatformEmailPage() {
           {/* 4. TEMPLATE STUDIO TAB */}
           <TabsContent value="templates" className="mt-6 space-y-6">
             {/* Category Filter Bar */}
-            <div className="flex flex-wrap items-center gap-1.5 bg-slate-100 p-1.5 rounded-xl">
+            <div className="flex flex-wrap items-center gap-1.5 bg-slate-100/90 p-1.5 rounded-2xl border border-slate-200/60 shadow-2xs">
               {categories.map((cat) => (
                 <button
                   key={cat.key}
@@ -1165,7 +1250,7 @@ export default function PlatformEmailPage() {
                     setSelectedCategory(cat.key);
                     loadTemplates(cat.key);
                   }}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all ${
                     selectedCategory === cat.key
                       ? "bg-white text-blue-700 shadow-xs"
                       : "text-slate-600 hover:text-slate-900"
@@ -1185,22 +1270,22 @@ export default function PlatformEmailPage() {
                     <Card
                       key={tmpl.id}
                       onClick={() => handleSelectTemplate(tmpl)}
-                      className={`cursor-pointer transition-all duration-200 border ${
+                      className={`cursor-pointer transition-all duration-200 border rounded-2xl ${
                         isSelected
-                          ? "border-blue-600 bg-blue-50/50 shadow-xs ring-1 ring-blue-600/30"
-                          : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/50"
+                          ? "border-blue-600 bg-blue-50/50 shadow-xs ring-2 ring-blue-600/20"
+                          : "border-slate-200/80 bg-white hover:border-slate-300 hover:bg-slate-50/50 shadow-2xs"
                       }`}
                     >
-                      <CardHeader className="p-3.5 pb-1.5">
+                      <CardHeader className="p-4 pb-1.5">
                         <div className="flex items-center justify-between">
-                          <Badge variant="secondary" className="text-[10px] font-bold uppercase bg-slate-100 text-slate-700">
+                          <Badge variant="secondary" className="text-[10px] font-bold uppercase bg-slate-100 text-slate-700 rounded-md">
                             {tmpl.category}
                           </Badge>
                           <span className="text-[10px] font-mono text-slate-400">{tmpl.key}</span>
                         </div>
                         <CardTitle className="text-xs font-bold text-slate-900 mt-1">{tmpl.name}</CardTitle>
                       </CardHeader>
-                      <CardContent className="p-3.5 pt-0">
+                      <CardContent className="p-4 pt-0">
                         <p className="text-[11px] text-slate-500 truncate">{tmpl.subject}</p>
                       </CardContent>
                     </Card>
@@ -1211,17 +1296,17 @@ export default function PlatformEmailPage() {
               {/* Right Column: Template Editor & Dual Preview */}
               <div className="lg:col-span-8 space-y-4">
                 {selectedTemplate ? (
-                  <Card className="border-slate-200 shadow-xs bg-white">
-                    <CardHeader className="pb-3 border-b border-slate-100">
+                  <Card className="border border-slate-200/80 rounded-2xl bg-white shadow-xs">
+                    <CardHeader className="p-5 pb-3 border-b border-slate-100">
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                         <div>
                           <CardTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
                             <FileCode2 className="h-4 w-4 text-blue-600" /> {selectedTemplate.name}
-                            <Badge variant="outline" className="text-[10px] font-bold text-blue-700 border-blue-200">
+                            <Badge variant="outline" className="text-[10px] font-bold text-blue-700 border-blue-200 rounded-md">
                               v{selectedTemplate.version || 1}
                             </Badge>
                           </CardTitle>
-                          <CardDescription className="text-xs text-slate-500">
+                          <CardDescription className="text-xs text-slate-500 mt-0.5">
                             Identifier: <code className="bg-slate-100 px-1.5 py-0.5 rounded text-blue-700 font-bold">{selectedTemplate.key}</code>
                           </CardDescription>
                         </div>
@@ -1230,15 +1315,15 @@ export default function PlatformEmailPage() {
                             variant="outline"
                             size="sm"
                             onClick={openVersionHistory}
-                            className="text-xs border-slate-300 font-semibold text-slate-700"
+                            className="text-xs border-slate-300 font-semibold text-slate-700 rounded-xl h-8"
                           >
                             <RotateCcw className="h-3.5 w-3.5 mr-1" /> Revisions
                           </Button>
-                          <div className="flex bg-slate-100 p-0.5 rounded-lg text-xs font-bold">
+                          <div className="flex bg-slate-100 p-0.5 rounded-xl text-xs font-bold">
                             <button
                               type="button"
                               onClick={() => setPreviewTab("edit")}
-                              className={`px-3 py-1 rounded-md transition-all ${
+                              className={`px-3 py-1 rounded-lg transition-all ${
                                 previewTab === "edit" ? "bg-white text-blue-700 shadow-xs" : "text-slate-600 hover:text-slate-900"
                               }`}
                             >
@@ -1247,7 +1332,7 @@ export default function PlatformEmailPage() {
                             <button
                               type="button"
                               onClick={handlePreview}
-                              className={`px-3 py-1 rounded-md transition-all ${
+                              className={`px-3 py-1 rounded-lg transition-all ${
                                 previewTab === "preview" ? "bg-white text-blue-700 shadow-xs" : "text-slate-600 hover:text-slate-900"
                               }`}
                             >
@@ -1258,7 +1343,7 @@ export default function PlatformEmailPage() {
                             size="sm"
                             onClick={handleSaveTemplate}
                             disabled={savingTemplate}
-                            className="text-xs bg-blue-600 hover:bg-blue-700 text-white font-bold"
+                            className="text-xs bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl h-8"
                           >
                             {savingTemplate ? "Saving..." : "Save Template"}
                           </Button>
@@ -1266,7 +1351,7 @@ export default function PlatformEmailPage() {
                       </div>
                     </CardHeader>
 
-                    <CardContent className="p-4 space-y-4">
+                    <CardContent className="p-5 space-y-4">
                       {previewTab === "edit" ? (
                         <>
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1275,13 +1360,13 @@ export default function PlatformEmailPage() {
                               <Input
                                 value={templateEditSubject}
                                 onChange={(e) => setTemplateEditSubject(e.target.value)}
-                                className="text-xs bg-slate-50 border-slate-300"
+                                className="text-xs bg-slate-50 border-slate-200 rounded-xl"
                               />
                             </div>
                             <div className="space-y-1.5">
                               <Label className="text-xs font-bold text-slate-700">Default Sender Address</Label>
                               <Select value={templateEditSenderKey} onValueChange={setTemplateEditSenderKey}>
-                                <SelectTrigger className="text-xs bg-slate-50 border-slate-300">
+                                <SelectTrigger className="text-xs bg-slate-50 border-slate-200 rounded-xl">
                                   <SelectValue placeholder="Select Sender" />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -1300,7 +1385,7 @@ export default function PlatformEmailPage() {
                             <Label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
                               <Sparkles className="h-3.5 w-3.5 text-blue-600" /> Insert Dynamic Variable Tags
                             </Label>
-                            <div className="flex flex-wrap gap-1.5 p-2.5 rounded-lg bg-slate-50 border border-slate-200">
+                            <div className="flex flex-wrap gap-1.5 p-3 rounded-xl bg-slate-50 border border-slate-200/80">
                               {(selectedTemplate.availableVariables.length > 0
                                 ? selectedTemplate.availableVariables
                                 : ["name", "email", "role", "tenant.name", "activation_link", "reset_link", "expires_in", "support_email", "year"]
@@ -1309,7 +1394,7 @@ export default function PlatformEmailPage() {
                                   key={v}
                                   type="button"
                                   onClick={() => insertVariable(v)}
-                                  className="px-2.5 py-1 rounded-md bg-white border border-slate-200 hover:border-blue-500 hover:text-blue-600 text-slate-700 text-[11px] font-mono font-semibold transition-colors shadow-2xs"
+                                  className="px-2.5 py-1 rounded-lg bg-white border border-slate-200 hover:border-blue-500 hover:text-blue-600 text-slate-700 text-[11px] font-mono font-semibold transition-colors shadow-2xs"
                                 >
                                   + &#123;&#123;{v}&#125;&#125;
                                 </button>
@@ -1324,23 +1409,23 @@ export default function PlatformEmailPage() {
                               rows={15}
                               value={templateEditHtml}
                               onChange={(e) => setTemplateEditHtml(e.target.value)}
-                              className="font-mono text-xs leading-relaxed bg-slate-950 text-slate-100 border-slate-800 p-3 rounded-lg"
+                              className="font-mono text-xs leading-relaxed bg-slate-950 text-slate-100 border-slate-800 p-4 rounded-xl shadow-inner"
                             />
                           </div>
                         </>
                       ) : (
                         <div className="space-y-3">
-                          <div className="p-3 bg-slate-100 rounded-lg text-xs flex items-center justify-between">
+                          <div className="p-3.5 bg-slate-100/80 rounded-xl text-xs flex items-center justify-between border border-slate-200/60">
                             <div className="flex items-center gap-2">
-                              <span className="font-semibold text-slate-700">Subject Preview:</span>
+                              <span className="font-semibold text-slate-600">Subject Preview:</span>
                               <span className="font-bold text-slate-900">{templateEditSubject}</span>
                             </div>
-                            <div className="flex items-center gap-1 bg-white p-0.5 rounded-md border border-slate-200">
+                            <div className="flex items-center gap-1 bg-white p-0.5 rounded-lg border border-slate-200 shadow-2xs">
                               <Button
                                 variant="ghost"
                                 size="sm"
                                 onClick={() => setPreviewDevice("desktop")}
-                                className={`h-7 px-2 text-xs ${previewDevice === "desktop" ? "bg-slate-100 text-blue-700 font-bold" : "text-slate-500"}`}
+                                className={`h-7 px-2.5 text-xs rounded-md ${previewDevice === "desktop" ? "bg-slate-100 text-blue-700 font-bold" : "text-slate-500"}`}
                               >
                                 <Monitor className="h-3.5 w-3.5 mr-1" /> Desktop
                               </Button>
@@ -1348,17 +1433,17 @@ export default function PlatformEmailPage() {
                                 variant="ghost"
                                 size="sm"
                                 onClick={() => setPreviewDevice("mobile")}
-                                className={`h-7 px-2 text-xs ${previewDevice === "mobile" ? "bg-slate-100 text-blue-700 font-bold" : "text-slate-500"}`}
+                                className={`h-7 px-2.5 text-xs rounded-md ${previewDevice === "mobile" ? "bg-slate-100 text-blue-700 font-bold" : "text-slate-500"}`}
                               >
                                 <Smartphone className="h-3.5 w-3.5 mr-1" /> Mobile
                               </Button>
                             </div>
                           </div>
-                          <div className="border border-slate-200 rounded-xl overflow-hidden shadow-inner bg-slate-900 p-4 flex justify-center">
+                          <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-inner bg-slate-900 p-4 flex justify-center">
                             <iframe
                               title="Live Email Preview"
                               srcDoc={previewHtml}
-                              className={`rounded-lg bg-white border-0 shadow-lg transition-all duration-300 ${
+                              className={`rounded-xl bg-white border-0 shadow-lg transition-all duration-300 ${
                                 previewDevice === "mobile" ? "w-[380px] min-h-[600px]" : "w-full min-h-[550px]"
                               }`}
                             />
@@ -1368,7 +1453,7 @@ export default function PlatformEmailPage() {
                     </CardContent>
                   </Card>
                 ) : (
-                  <Card className="border-slate-200 shadow-xs bg-white text-center py-16">
+                  <Card className="border border-slate-200/80 rounded-2xl bg-white text-center py-16 shadow-xs">
                     <CardContent className="space-y-3">
                       <FileCode2 className="h-10 w-10 text-slate-300 mx-auto" />
                       <p className="font-bold text-slate-700">Select a template on the left to edit and preview</p>
@@ -1381,44 +1466,46 @@ export default function PlatformEmailPage() {
 
           {/* 5. EVENT ROUTING MATRIX TAB */}
           <TabsContent value="routing" className="mt-6 space-y-6">
-            <Card className="border-slate-200 shadow-xs bg-white">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base font-bold text-slate-900">System Event &rarr; Sender Routing Matrix</CardTitle>
-                <CardDescription className="text-xs text-slate-500">
+            <Card className="border border-slate-200/80 rounded-2xl bg-white shadow-xs overflow-hidden">
+              <CardHeader className="p-5 pb-3 border-b border-slate-100">
+                <CardTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
+                  <Layers className="h-4 w-4 text-blue-600" /> System Event &rarr; Sender Routing Matrix
+                </CardTitle>
+                <CardDescription className="text-xs text-slate-500 mt-0.5">
                   Control which official AltRix sender address and template dynamically handles each application event.
                 </CardDescription>
               </CardHeader>
               <CardContent className="p-0">
                 <div className="overflow-x-auto">
                   <table className="w-full text-xs text-left">
-                    <thead className="bg-slate-50 border-y border-slate-200 text-slate-600 uppercase font-bold text-[10px]">
+                    <thead className="bg-slate-50/80 border-b border-slate-100 text-slate-500 uppercase font-bold text-[10px] tracking-wider">
                       <tr>
-                        <th className="py-2.5 px-4">System Event</th>
-                        <th className="py-2.5 px-4">Description</th>
-                        <th className="py-2.5 px-4">Assigned Sender Identity</th>
-                        <th className="py-2.5 px-4">Assigned Template</th>
-                        <th className="py-2.5 px-4 text-right">Actions</th>
+                        <th className="py-3 px-5">System Event</th>
+                        <th className="py-3 px-5">Description</th>
+                        <th className="py-3 px-5">Assigned Sender Identity</th>
+                        <th className="py-3 px-5">Assigned Template</th>
+                        <th className="py-3 px-5 text-right">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                       {mappings.map((m) => (
                         <tr key={m.eventName} className="hover:bg-slate-50/80 transition-colors">
-                          <td className="py-3 px-4 font-bold text-slate-900">
-                            <span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded font-mono text-[11px]">
+                          <td className="py-3.5 px-5 font-bold text-slate-900">
+                            <span className="bg-blue-50 text-blue-700 px-2.5 py-1 rounded-lg font-mono text-[11px] border border-blue-200/60">
                               {m.eventName}
                             </span>
                           </td>
-                          <td className="py-3 px-4 text-slate-500 max-w-xs">{m.description || "—"}</td>
-                          <td className="py-3 px-4">
-                            <div className="font-semibold text-slate-800">{m.senderName || m.senderIdentityKey}</div>
+                          <td className="py-3.5 px-5 text-slate-500 max-w-xs">{m.description || "—"}</td>
+                          <td className="py-3.5 px-5">
+                            <div className="font-semibold text-slate-900">{m.senderName || m.senderIdentityKey}</div>
                             <div className="text-[11px] font-mono text-slate-400">{m.senderEmail}</div>
                           </td>
-                          <td className="py-3 px-4">
-                            <div className="font-semibold text-slate-800">{m.templateName || m.templateKey}</div>
+                          <td className="py-3.5 px-5">
+                            <div className="font-semibold text-slate-900">{m.templateName || m.templateKey}</div>
                             <div className="text-[11px] text-slate-400 truncate max-w-xs">{m.templateSubject}</div>
                           </td>
-                          <td className="py-3 px-4 text-right">
-                            <Button variant="outline" size="sm" onClick={() => openMappingModal(m)} className="h-7 text-xs font-semibold">
+                          <td className="py-3.5 px-5 text-right">
+                            <Button variant="outline" size="sm" onClick={() => openMappingModal(m)} className="h-7 text-xs font-semibold rounded-lg">
                               Change Mapping
                             </Button>
                           </td>
@@ -1433,12 +1520,12 @@ export default function PlatformEmailPage() {
 
           {/* 6. TEST SEND LAB TAB */}
           <TabsContent value="test_lab" className="mt-6 space-y-6">
-            <Card className="max-w-2xl mx-auto border-slate-200 shadow-xs bg-white">
-              <CardHeader className="pb-3 border-b border-slate-100">
+            <Card className="max-w-2xl mx-auto border border-slate-200/80 rounded-2xl bg-white shadow-xs overflow-hidden">
+              <CardHeader className="p-5 pb-3 border-b border-slate-100">
                 <CardTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
                   <Send className="h-4 w-4 text-blue-600" /> Super Master Admin Test Lab
                 </CardTitle>
-                <CardDescription className="text-xs text-slate-500">
+                <CardDescription className="text-xs text-slate-500 mt-0.5">
                   Safely test email delivery through local Mailu Postfix SMTP without modifying live user states.
                 </CardDescription>
               </CardHeader>
@@ -1452,7 +1539,7 @@ export default function PlatformEmailPage() {
                       placeholder="e.g. naumancheema643@gmail.com"
                       value={testRecipient}
                       onChange={(e) => setTestRecipient(e.target.value)}
-                      className="text-xs bg-slate-50 border-slate-300"
+                      className="text-xs bg-slate-50 border-slate-200 rounded-xl"
                     />
                   </div>
 
@@ -1460,7 +1547,7 @@ export default function PlatformEmailPage() {
                     <div className="space-y-1.5">
                       <Label className="text-xs font-bold text-slate-700">Select Sender Identity</Label>
                       <Select value={testSenderKey} onValueChange={setTestSenderKey}>
-                        <SelectTrigger className="text-xs bg-slate-50 border-slate-300">
+                        <SelectTrigger className="text-xs bg-slate-50 border-slate-200 rounded-xl">
                           <SelectValue placeholder="Select Sender" />
                         </SelectTrigger>
                         <SelectContent>
@@ -1476,7 +1563,7 @@ export default function PlatformEmailPage() {
                     <div className="space-y-1.5">
                       <Label className="text-xs font-bold text-slate-700">Template to Test</Label>
                       <Select value={testTemplateKey} onValueChange={setTestTemplateKey}>
-                        <SelectTrigger className="text-xs bg-slate-50 border-slate-300">
+                        <SelectTrigger className="text-xs bg-slate-50 border-slate-200 rounded-xl">
                           <SelectValue placeholder="Select Template" />
                         </SelectTrigger>
                         <SelectContent>
@@ -1495,7 +1582,7 @@ export default function PlatformEmailPage() {
                     <Input
                       value={testSubject}
                       onChange={(e) => setTestSubject(e.target.value)}
-                      className="text-xs bg-slate-50 border-slate-300"
+                      className="text-xs bg-slate-50 border-slate-200 rounded-xl"
                     />
                   </div>
 
@@ -1505,12 +1592,12 @@ export default function PlatformEmailPage() {
                       rows={3}
                       value={testMessage}
                       onChange={(e) => setTestMessage(e.target.value)}
-                      className="text-xs bg-slate-50 border-slate-300 leading-relaxed"
+                      className="text-xs bg-slate-50 border-slate-200 rounded-xl leading-relaxed"
                     />
                   </div>
                 </CardContent>
-                <CardFooter className="bg-slate-50 border-t border-slate-100 py-3 flex justify-end">
-                  <Button type="submit" disabled={testSending} className="text-xs bg-blue-600 hover:bg-blue-700 text-white font-bold px-5">
+                <CardFooter className="bg-slate-50/80 border-t border-slate-100 p-4 flex justify-end">
+                  <Button type="submit" disabled={testSending} className="text-xs bg-blue-600 hover:bg-blue-700 text-white font-bold px-5 rounded-xl shadow-xs">
                     {testSending ? (
                       <>
                         <RefreshCw className="h-3.5 w-3.5 mr-2 animate-spin" /> Dispatching via Mailu...
@@ -1528,12 +1615,14 @@ export default function PlatformEmailPage() {
 
           {/* 7. DELIVERY LOGS TAB */}
           <TabsContent value="logs" className="mt-6 space-y-6">
-            <Card className="border-slate-200 shadow-xs bg-white">
-              <CardHeader className="pb-3">
+            <Card className="border border-slate-200/80 rounded-2xl bg-white shadow-xs overflow-hidden">
+              <CardHeader className="p-5 pb-3 border-b border-slate-100">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div>
-                    <CardTitle className="text-base font-bold text-slate-900">Email Delivery Audit Trail</CardTitle>
-                    <CardDescription className="text-xs text-slate-500">
+                    <CardTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
+                      <ListFilter className="h-4 w-4 text-blue-600" /> Email Delivery Audit Trail
+                    </CardTitle>
+                    <CardDescription className="text-xs text-slate-500 mt-0.5">
                       Total logged dispatches: <strong>{logsTotal}</strong> (All secret tokens/passwords strictly excluded)
                     </CardDescription>
                   </div>
@@ -1545,7 +1634,7 @@ export default function PlatformEmailPage() {
                         value={logSearch}
                         onChange={(e) => setLogSearch(e.target.value)}
                         onKeyDown={(e) => e.key === "Enter" && loadLogs(1)}
-                        className="text-xs pl-8 bg-slate-50 border-slate-300 h-8"
+                        className="text-xs pl-8 bg-slate-50 border-slate-200 rounded-xl h-8"
                       />
                     </div>
                     <Select
@@ -1555,7 +1644,7 @@ export default function PlatformEmailPage() {
                         setTimeout(() => loadLogs(1), 50);
                       }}
                     >
-                      <SelectTrigger className="text-xs bg-slate-50 border-slate-300 h-8 w-28 font-medium">
+                      <SelectTrigger className="text-xs bg-slate-50 border-slate-200 rounded-xl h-8 w-28 font-medium">
                         <SelectValue placeholder="Status" />
                       </SelectTrigger>
                       <SelectContent>
@@ -1570,49 +1659,51 @@ export default function PlatformEmailPage() {
               <CardContent className="p-0">
                 <div className="overflow-x-auto">
                   <table className="w-full text-xs text-left">
-                    <thead className="bg-slate-50 border-y border-slate-200 text-slate-600 uppercase font-bold text-[10px]">
+                    <thead className="bg-slate-50/80 border-b border-slate-100 text-slate-500 uppercase font-bold text-[10px] tracking-wider">
                       <tr>
-                        <th className="py-2.5 px-4">Status</th>
-                        <th className="py-2.5 px-4">Event Type</th>
-                        <th className="py-2.5 px-4">Recipient</th>
-                        <th className="py-2.5 px-4">Sender Address</th>
-                        <th className="py-2.5 px-4">Subject</th>
-                        <th className="py-2.5 px-4">Message ID</th>
-                        <th className="py-2.5 px-4">Timestamp</th>
+                        <th className="py-3 px-5">Status</th>
+                        <th className="py-3 px-5">Event Type</th>
+                        <th className="py-3 px-5">Recipient</th>
+                        <th className="py-3 px-5">Sender Address</th>
+                        <th className="py-3 px-5">Subject</th>
+                        <th className="py-3 px-5">Message ID</th>
+                        <th className="py-3 px-5 text-right">Timestamp</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                       {logs.length === 0 ? (
                         <tr>
-                          <td colSpan={7} className="py-10 text-center text-slate-400">
+                          <td colSpan={7} className="py-12 text-center text-slate-400">
                             No delivery logs matching the current filter.
                           </td>
                         </tr>
                       ) : (
                         logs.map((l) => (
                           <tr key={l.id} className="hover:bg-slate-50/80 transition-colors">
-                            <td className="py-3 px-4">
+                            <td className="py-3.5 px-5">
                               {l.status === "sent" || l.status === "delivered" ? (
-                                <Badge className="bg-emerald-100 text-emerald-700 text-[10px] uppercase font-bold border-0">
+                                <Badge className="bg-emerald-50 text-emerald-700 hover:bg-emerald-50 text-[10px] uppercase font-bold border border-emerald-200/80 px-2.5 py-0.5 rounded-full">
                                   Sent
                                 </Badge>
                               ) : (
-                                <Badge variant="destructive" className="text-[10px] uppercase font-bold">
+                                <Badge variant="destructive" className="text-[10px] uppercase font-bold px-2.5 py-0.5 rounded-full">
                                   Failed
                                 </Badge>
                               )}
                             </td>
-                            <td className="py-3 px-4 font-bold text-slate-800">
-                              {l.eventName.replace("_", " ").toUpperCase()}
+                            <td className="py-3.5 px-5 font-bold text-slate-900">
+                              <span className="bg-slate-100 text-slate-800 px-2.5 py-1 rounded-lg text-[11px] font-mono">
+                                {l.eventName.replace("_", " ").toUpperCase()}
+                              </span>
                             </td>
-                            <td className="py-3 px-4 font-mono text-slate-700">{l.recipientEmail}</td>
-                            <td className="py-3 px-4 font-mono text-slate-600">{l.senderEmail}</td>
-                            <td className="py-3 px-4 text-slate-700 truncate max-w-xs">{l.subject}</td>
-                            <td className="py-3 px-4 font-mono text-[10px] text-slate-400 truncate max-w-[120px]">
+                            <td className="py-3.5 px-5 font-mono text-slate-800 font-semibold">{l.recipientEmail}</td>
+                            <td className="py-3.5 px-5 font-mono text-slate-500">{l.senderEmail}</td>
+                            <td className="py-3.5 px-5 text-slate-700 truncate max-w-xs">{l.subject}</td>
+                            <td className="py-3.5 px-5 font-mono text-[10px] text-slate-400 truncate max-w-[120px]">
                               {l.messageId || "—"}
                             </td>
-                            <td className="py-3 px-4 text-slate-400 whitespace-nowrap">
-                              {l.sentAt ? new Date(l.sentAt).toLocaleString() : "-"}
+                            <td className="py-3.5 px-5 text-slate-400 text-right whitespace-nowrap font-mono text-[11px]">
+                              {l.sentAt ? new Date(l.sentAt).toLocaleString() : "—"}
                             </td>
                           </tr>
                         ))
@@ -1628,7 +1719,7 @@ export default function PlatformEmailPage() {
 
       {/* SENDER CREATE / EDIT MODAL */}
       <Dialog open={senderModalOpen} onOpenChange={setSenderModalOpen}>
-        <DialogContent className="sm:max-w-md bg-white text-slate-900">
+        <DialogContent className="sm:max-w-md bg-white text-slate-900 rounded-2xl">
           <DialogHeader>
             <DialogTitle className="text-base font-bold">
               {editingSender ? "Edit Sender Identity" : "Add Sender Identity"}
@@ -1646,7 +1737,7 @@ export default function PlatformEmailPage() {
                 placeholder="e.g. security, support, billing"
                 value={senderFormKey}
                 onChange={(e) => setSenderFormKey(e.target.value)}
-                className="text-xs font-mono"
+                className="text-xs font-mono rounded-xl"
               />
             </div>
             <div className="space-y-1.5">
@@ -1656,7 +1747,7 @@ export default function PlatformEmailPage() {
                 placeholder="e.g. AltRix Security HQ"
                 value={senderFormName}
                 onChange={(e) => setSenderFormName(e.target.value)}
-                className="text-xs"
+                className="text-xs rounded-xl"
               />
             </div>
             <div className="space-y-1.5">
@@ -1667,7 +1758,7 @@ export default function PlatformEmailPage() {
                 placeholder="e.g. security@altrixcore.com"
                 value={senderFormEmail}
                 onChange={(e) => setSenderFormEmail(e.target.value)}
-                className="text-xs font-mono"
+                className="text-xs font-mono rounded-xl"
               />
             </div>
             <div className="space-y-1.5">
@@ -1677,7 +1768,7 @@ export default function PlatformEmailPage() {
                 placeholder="e.g. support@altrixcore.com"
                 value={senderFormReplyTo}
                 onChange={(e) => setSenderFormReplyTo(e.target.value)}
-                className="text-xs font-mono"
+                className="text-xs font-mono rounded-xl"
               />
             </div>
             <div className="flex items-center justify-between pt-2">
@@ -1689,10 +1780,10 @@ export default function PlatformEmailPage() {
               <Switch checked={senderFormIsActive} onCheckedChange={setSenderFormIsActive} />
             </div>
             <DialogFooter className="pt-3">
-              <Button type="button" variant="outline" size="sm" onClick={() => setSenderModalOpen(false)}>
+              <Button type="button" variant="outline" size="sm" onClick={() => setSenderModalOpen(false)} className="rounded-xl">
                 Cancel
               </Button>
-              <Button type="submit" size="sm" disabled={savingSender} className="bg-blue-600 hover:bg-blue-700 text-white font-bold">
+              <Button type="submit" size="sm" disabled={savingSender} className="bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl">
                 {savingSender ? "Saving..." : "Save Identity"}
               </Button>
             </DialogFooter>
@@ -1702,7 +1793,7 @@ export default function PlatformEmailPage() {
 
       {/* ASSET CREATE MODAL */}
       <Dialog open={assetModalOpen} onOpenChange={setAssetModalOpen}>
-        <DialogContent className="sm:max-w-md bg-white text-slate-900">
+        <DialogContent className="sm:max-w-md bg-white text-slate-900 rounded-2xl">
           <DialogHeader>
             <DialogTitle className="text-base font-bold">Register Brand Asset</DialogTitle>
             <DialogDescription className="text-xs text-slate-500">
@@ -1717,13 +1808,13 @@ export default function PlatformEmailPage() {
                 placeholder="e.g. AltRix Primary Dark Logo"
                 value={assetName}
                 onChange={(e) => setAssetName(e.target.value)}
-                className="text-xs"
+                className="text-xs rounded-xl"
               />
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs font-bold">Asset Type</Label>
               <Select value={assetType} onValueChange={setAssetType}>
-                <SelectTrigger className="text-xs">
+                <SelectTrigger className="text-xs rounded-xl">
                   <SelectValue placeholder="Select Type" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1741,7 +1832,7 @@ export default function PlatformEmailPage() {
                 placeholder="https://altrixcore.com/altrix-logo.png"
                 value={assetUrl}
                 onChange={(e) => setAssetUrl(e.target.value)}
-                className="text-xs font-mono"
+                className="text-xs font-mono rounded-xl"
               />
             </div>
             <div className="space-y-1.5">
@@ -1750,14 +1841,14 @@ export default function PlatformEmailPage() {
                 placeholder="e.g. 512x140"
                 value={assetDimensions}
                 onChange={(e) => setAssetDimensions(e.target.value)}
-                className="text-xs"
+                className="text-xs rounded-xl"
               />
             </div>
             <DialogFooter className="pt-3">
-              <Button type="button" variant="outline" size="sm" onClick={() => setAssetModalOpen(false)}>
+              <Button type="button" variant="outline" size="sm" onClick={() => setAssetModalOpen(false)} className="rounded-xl">
                 Cancel
               </Button>
-              <Button type="submit" size="sm" disabled={savingAsset} className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold">
+              <Button type="submit" size="sm" disabled={savingAsset} className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl">
                 {savingAsset ? "Registering..." : "Register Asset"}
               </Button>
             </DialogFooter>
@@ -1767,10 +1858,10 @@ export default function PlatformEmailPage() {
 
       {/* EVENT ROUTING MODAL */}
       <Dialog open={mappingModalOpen} onOpenChange={setMappingModalOpen}>
-        <DialogContent className="sm:max-w-md bg-white text-slate-900">
+        <DialogContent className="sm:max-w-md bg-white text-slate-900 rounded-2xl">
           <DialogHeader>
             <DialogTitle className="text-base font-bold">
-              Edit Event Mapping: <code className="text-blue-600">{editingMapping?.eventName}</code>
+              Edit Event Mapping: <code className="text-blue-600 font-bold">{editingMapping?.eventName}</code>
             </DialogTitle>
             <DialogDescription className="text-xs text-slate-500">
               Select which sender address and email template will be automatically used when this event occurs.
@@ -1780,7 +1871,7 @@ export default function PlatformEmailPage() {
             <div className="space-y-1.5">
               <Label className="text-xs font-bold">Sender Identity</Label>
               <Select value={mappingFormSender} onValueChange={setMappingFormSender}>
-                <SelectTrigger className="text-xs">
+                <SelectTrigger className="text-xs rounded-xl">
                   <SelectValue placeholder="Select Sender" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1795,7 +1886,7 @@ export default function PlatformEmailPage() {
             <div className="space-y-1.5">
               <Label className="text-xs font-bold">Email Template</Label>
               <Select value={mappingFormTemplate} onValueChange={setMappingFormTemplate}>
-                <SelectTrigger className="text-xs">
+                <SelectTrigger className="text-xs rounded-xl">
                   <SelectValue placeholder="Select Template" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1809,10 +1900,10 @@ export default function PlatformEmailPage() {
             </div>
           </div>
           <DialogFooter className="pt-3">
-            <Button type="button" variant="outline" size="sm" onClick={() => setMappingModalOpen(false)}>
+            <Button type="button" variant="outline" size="sm" onClick={() => setMappingModalOpen(false)} className="rounded-xl">
               Cancel
             </Button>
-            <Button type="button" size="sm" onClick={handleSaveMapping} disabled={savingMapping} className="bg-blue-600 hover:bg-blue-700 text-white font-bold">
+            <Button type="button" size="sm" onClick={handleSaveMapping} disabled={savingMapping} className="bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl">
               {savingMapping ? "Updating..." : "Update Mapping"}
             </Button>
           </DialogFooter>
@@ -1821,7 +1912,7 @@ export default function PlatformEmailPage() {
 
       {/* VERSION HISTORY MODAL */}
       <Dialog open={versionsModalOpen} onOpenChange={setVersionsModalOpen}>
-        <DialogContent className="sm:max-w-xl bg-white text-slate-900">
+        <DialogContent className="sm:max-w-xl bg-white text-slate-900 rounded-2xl">
           <DialogHeader>
             <DialogTitle className="text-base font-bold flex items-center gap-2">
               <RotateCcw className="h-4 w-4 text-blue-600" /> Revision History: {selectedTemplate?.name}
@@ -1839,19 +1930,19 @@ export default function PlatformEmailPage() {
               </div>
             ) : (
               templateVersions.map((v) => (
-                <div key={v.id} className="p-3.5 rounded-lg border border-slate-200 bg-slate-50 flex items-center justify-between gap-3 text-xs">
+                <div key={v.id} className="p-3.5 rounded-xl border border-slate-200/80 bg-slate-50/60 flex items-center justify-between gap-3 text-xs">
                   <div>
                     <div className="flex items-center gap-2">
-                      <Badge variant="outline" className="text-[10px] font-bold">v{v.version}</Badge>
-                      <span className="font-semibold text-slate-900">{v.subject}</span>
+                      <Badge variant="outline" className="text-[10px] font-bold rounded-md">v{v.version}</Badge>
+                      <span className="font-bold text-slate-900">{v.subject}</span>
                     </div>
-                    <p className="text-[11px] text-slate-400 mt-1">Archived at: {new Date(v.createdAt).toLocaleString()}</p>
+                    <p className="text-[11px] text-slate-400 mt-1 font-mono">Archived at: {new Date(v.createdAt).toLocaleString()}</p>
                   </div>
                   <Button
                     size="sm"
                     variant="outline"
                     onClick={() => handleRestoreVersion(v.id)}
-                    className="text-xs font-bold text-blue-700 border-blue-200 hover:bg-blue-50"
+                    className="text-xs font-bold text-blue-700 border-blue-200 hover:bg-blue-50 rounded-lg"
                   >
                     Restore
                   </Button>
@@ -1860,7 +1951,7 @@ export default function PlatformEmailPage() {
             )}
           </div>
           <DialogFooter>
-            <Button type="button" variant="outline" size="sm" onClick={() => setVersionsModalOpen(false)}>
+            <Button type="button" variant="outline" size="sm" onClick={() => setVersionsModalOpen(false)} className="rounded-xl">
               Close
             </Button>
           </DialogFooter>
