@@ -212,13 +212,35 @@ async def create_invitation(
                 detail=f"User with email '{clean_email}' already exists with an active role in this institution.",
             )
 
-    # Campus ID
+    # Campus ID resolution:
+    # If provided (e.g. by School Owner / Super Admin), use it.
+    # If not provided and actor is a campus manager/principal, auto-detect their campus.
     campus_id: Optional[uuid.UUID] = None
     if body.campusId and body.campusId.strip():
         try:
             campus_id = uuid.UUID(body.campusId.strip())
         except ValueError:
             campus_id = None
+
+    if not campus_id and school_id and not current_user.is_super_admin:
+        try:
+            actor_uid_check = uuid.UUID(current_user.id) if isinstance(current_user.id, str) else current_user.id
+            res_user_campus = await db.execute(
+                text("""
+                    SELECT sca.campus_id
+                    FROM public.staff_campus_assignments sca
+                    JOIN public.campuses c ON sca.campus_id = c.id
+                    WHERE sca.user_id = :uid AND c.school_id = :sid
+                    ORDER BY sca.is_primary DESC, sca.assigned_at DESC
+                    LIMIT 1
+                """),
+                {"uid": actor_uid_check, "sid": school_id},
+            )
+            row_uc = res_user_campus.fetchone()
+            if row_uc and row_uc[0]:
+                campus_id = row_uc[0]
+        except Exception as camp_err:
+            logger.warning(f"Failed to auto-detect inviting user's campus: {camp_err}")
 
     # Generate cryptographically secure opaque token (64 chars)
     token = secrets.token_urlsafe(48)
@@ -515,6 +537,60 @@ async def activate_account(
                 {"id": uuid.uuid4(), "sid": school_id, "uid": user_id, "role": assigned_role},
             )
 
+        # 3b. If a specific campus was designated, bind the user to that campus only
+        if invite.campus_id:
+            try:
+                res_sca = await db.execute(
+                    text("SELECT id FROM public.staff_campus_assignments WHERE user_id = :uid AND campus_id = :cid LIMIT 1"),
+                    {"uid": user_id, "cid": invite.campus_id},
+                )
+                if not res_sca.fetchone():
+                    await db.execute(
+                        text("""
+                            INSERT INTO public.staff_campus_assignments (id, user_id, campus_id, is_primary, assigned_at)
+                            VALUES (:id, :uid, :cid, TRUE, NOW())
+                        """),
+                        {"id": uuid.uuid4(), "uid": user_id, "cid": invite.campus_id},
+                    )
+
+                # Also synchronize hr_staff_directory if staff/teacher
+                if assigned_role in ["teacher", "principal", "vice_principal", "accountant", "counselor", "librarian", "hr_manager", "school_admin", "staff"]:
+                    res_hr = await db.execute(
+                        text("SELECT id FROM public.hr_staff_directory WHERE (linked_user_id = :uid OR LOWER(email) = :email) AND school_id = :sid LIMIT 1"),
+                        {"uid": user_id, "email": clean_email, "sid": school_id},
+                    )
+                    hr_row = res_hr.fetchone()
+                    if hr_row:
+                        await db.execute(
+                            text("""
+                                UPDATE public.hr_staff_directory
+                                SET campus_id = :cid, linked_user_id = :uid, is_active = TRUE, updated_at = NOW()
+                                WHERE id = :id
+                            """),
+                            {"cid": invite.campus_id, "uid": user_id, "id": hr_row.id},
+                        )
+                    else:
+                        await db.execute(
+                            text("""
+                                INSERT INTO public.hr_staff_directory (
+                                    id, school_id, campus_id, full_name, email, position, is_active, linked_user_id, created_at, updated_at
+                                ) VALUES (
+                                    :id, :sid, :cid, :name, :email, :pos, TRUE, :uid, NOW(), NOW()
+                                )
+                            """),
+                            {
+                                "id": uuid.uuid4(),
+                                "sid": school_id,
+                                "cid": invite.campus_id,
+                                "name": full_name or clean_email.split("@")[0],
+                                "email": clean_email,
+                                "pos": assigned_role.replace("_", " ").title(),
+                                "uid": user_id,
+                            },
+                        )
+            except Exception as camp_assign_err:
+                logger.warning(f"Failed to bind user to campus {invite.campus_id} on activation: {camp_assign_err}")
+
     # 4. Mark Invitation Consumed
     await db.execute(
         text("""
@@ -600,7 +676,7 @@ async def list_invitations(
 
     query_str = """
         SELECT i.id, i.email, i.role, i.display_name, i.status, i.created_at, i.expires_at, i.opened_at, i.consumed_at,
-               s.name as school_name, c.name as campus_name
+               i.campus_id, s.name as school_name, c.name as campus_name
         FROM public.user_invitations i
         LEFT JOIN public.schools s ON i.school_id = s.id
         LEFT JOIN public.campuses c ON i.campus_id = c.id
@@ -622,6 +698,7 @@ async def list_invitations(
             "role": r.role,
             "displayName": r.display_name,
             "status": r.status,
+            "campusId": str(r.campus_id) if r.campus_id else None,
             "schoolName": r.school_name,
             "campusName": r.campus_name,
             "createdAt": r.created_at.isoformat() if r.created_at else None,

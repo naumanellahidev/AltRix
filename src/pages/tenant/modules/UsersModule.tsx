@@ -139,7 +139,9 @@ export function UsersModule() {
   const isOwnerShell = location.pathname.includes("/school_owner");
   const [campuses, setCampuses] = useState<{ id: string; name: string }[]>([]);
 
-  // Form states
+  // Form & Dialog modal states
+  const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
+  const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
   const [email, setEmail] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [password, setPassword] = useState("");
@@ -302,6 +304,13 @@ export function UsersModule() {
       return toast.error("Not allowed: principals/VP create staff; teachers can create students/parents.");
     }
 
+    // Determine target campus:
+    // If Owner: use selectedFormCampusId (or all)
+    // If Principal / Campus Manager: prioritize activeCampusId
+    const targetCampusId = isOwnerShell
+      ? (selectedFormCampusId || undefined)
+      : (activeCampusId || selectedFormCampusId || undefined);
+
     setBusy(true);
     setCreatedUserId(null);
     try {
@@ -311,14 +320,15 @@ export function UsersModule() {
         displayName: displayName.trim() || undefined,
         schoolId,
         schoolSlug: tenant.slug,
-        campusId: (isOwnerShell && campuses.length > 1) ? selectedFormCampusId || undefined : undefined,
+        campusId: targetCampusId,
       });
 
       const data = res.data;
       setCreatedUserId(data.invitationId || null);
-      toast.success(`Invitation dispatched to ${email}! The staff member will receive an activation email.`);
+      toast.success(`Invitation dispatched to ${email}! The member will receive an activation email.`);
       setEmail("");
       setDisplayName("");
+      setIsInviteModalOpen(false);
       await Promise.all([refresh(), refreshInvitations()]);
       setActiveTab("invitations");
     } catch (e: any) {
@@ -719,12 +729,35 @@ export function UsersModule() {
                   : "Live search, role assignment, password management, and campus isolation"}
               </CardDescription>
             </div>
-            <div className="flex items-center gap-2 self-start sm:self-auto">
+            <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
               <Badge variant="outline" className="px-3 py-1 font-mono text-xs">
                 {activeTab === "invitations"
                   ? `${filteredInvitations.length} of ${invitations.length} Invitations`
                   : `${filteredUsers.length} of ${userCategories[activeTab]?.length ?? 0} Shown`}
               </Badge>
+
+              <Button
+                variant="hero"
+                size="sm"
+                onClick={() => setIsInviteModalOpen(true)}
+                className="rounded-xl gap-2 font-medium shadow-sm transition-all duration-200"
+              >
+                <UserPlus className="h-4 w-4 shrink-0" />
+                <span>Send Invitation</span>
+              </Button>
+
+              {canGovernStaff && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsBulkModalOpen(true)}
+                  className="rounded-xl gap-2 font-medium border-muted/80 hover:border-primary/40"
+                >
+                  <FileUp className="h-4 w-4 text-primary shrink-0" />
+                  <span className="hidden sm:inline">Bulk CSV Import</span>
+                  <span className="inline sm:hidden">Bulk Import</span>
+                </Button>
+              )}
             </div>
           </div>
         </CardHeader>
@@ -1322,238 +1355,295 @@ export function UsersModule() {
         </CardContent>
       </Card>
 
-      {/* User Creation & Bulk Import Cards */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        {/* Create Single User / Staff Invitation */}
-        <Card className="shadow-elevated border-muted/50 rounded-2xl overflow-hidden flex flex-col justify-between">
-          <div>
-            <CardHeader>
-              <CardTitle className="font-display text-lg flex items-center gap-2">
-                <UserPlus className="h-5 w-5 text-primary shrink-0" /> Send Staff / User Invitation
-              </CardTitle>
-              <CardDescription>
-                Secure passwordless invitation. Staff member receives a single-use email link to verify and create their password.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Email Address</label>
-                  <Input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="staff@school.com"
-                    className="w-full text-xs sm:text-sm"
-                  />
-                </div>
+      {/* 1. Send Invitation Modal Dialog */}
+      <Dialog open={isInviteModalOpen} onOpenChange={setIsInviteModalOpen}>
+        <DialogContent className="sm:max-w-lg rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-lg font-bold">
+              <UserPlus className="h-5 w-5 text-primary" /> Send Staff / User Invitation
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Secure passwordless invitation. The member will receive a single-use email link to verify and create their password.
+            </DialogDescription>
+          </DialogHeader>
 
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Display Name</label>
-                  <Input
-                    value={displayName}
-                    onChange={(e) => setDisplayName(e.target.value)}
-                    placeholder="Full Name (e.g. Sarah Jenkins)"
-                    className="w-full text-xs sm:text-sm"
-                  />
-                </div>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Email Address *</Label>
+              <Input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="staff@school.com"
+                className="text-xs sm:text-sm rounded-xl"
+              />
+            </div>
 
-                <div className={`space-y-1.5 ${isOwnerShell && campuses.length > 1 ? "" : "md:col-span-2"}`}>
-                  <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Assigned Role</label>
-                  <Select value={role} onValueChange={(v) => setRole(v as EduverseRole)}>
-                    <SelectTrigger className="w-full text-xs sm:text-sm">
-                      <SelectValue placeholder="Select role" />
-                    </SelectTrigger>
-                    <SelectContent className="rounded-xl shadow-elevated">
-                      {allowedRoles.map((r) => (
-                        <SelectItem key={r} value={r} className="rounded-lg">
-                          {roleLabel[r]}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Full Name (Display Name)</Label>
+              <Input
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
+                placeholder="Full Name (e.g. Sarah Jenkins)"
+                className="text-xs sm:text-sm rounded-xl"
+              />
+            </div>
 
-                {/* Campus Selection Dropdown (Owner Shell and Multi-Campus only) */}
-                {isOwnerShell && campuses.length > 1 && (
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Campus</label>
-                    <Select value={selectedFormCampusId} onValueChange={setSelectedFormCampusId}>
-                      <SelectTrigger className="w-full text-xs sm:text-sm">
-                        <SelectValue placeholder="Select Campus" />
-                      </SelectTrigger>
-                      <SelectContent className="rounded-xl shadow-elevated">
-                        {campuses.map((c) => (
-                          <SelectItem key={c.id} value={c.id} className="rounded-lg">
-                            {c.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Assigned Role *</Label>
+              <Select value={role} onValueChange={(v) => setRole(v as EduverseRole)}>
+                <SelectTrigger className="text-xs sm:text-sm rounded-xl">
+                  <SelectValue placeholder="Select role" />
+                </SelectTrigger>
+                <SelectContent className="rounded-xl shadow-elevated">
+                  {allowedRoles.map((r) => (
+                    <SelectItem key={r} value={r} className="rounded-lg">
+                      {roleLabel[r]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Campus Assignment Scope */}
+            {isOwnerShell ? (
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Assigned Campus</Label>
+                  <span className="text-[11px] text-primary font-medium">Owner Campus Selector</span>
+                </div>
+                <Select value={selectedFormCampusId} onValueChange={setSelectedFormCampusId}>
+                  <SelectTrigger className="text-xs sm:text-sm rounded-xl">
+                    <SelectValue placeholder="Select Target Campus" />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-xl shadow-elevated">
+                    {campuses.map((c) => (
+                      <SelectItem key={c.id} value={c.id} className="rounded-lg">
+                        {c.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-[11px] text-muted-foreground">
+                  The invited contact will only be activated and placed in this specific campus.
+                </p>
               </div>
-            </CardContent>
-          </div>
-          <div className="p-6 pt-0">
-            <Button variant="hero" size="lg" onClick={invite} disabled={busy} className="w-full rounded-xl transition-all duration-300">
-              <Mail className="mr-2 h-4 w-4" /> Send Secure Invitation Email
-            </Button>
-          </div>
-        </Card>
-
-        {/* Bulk Import */}
-        {canGovernStaff && (
-          <Card className="shadow-elevated border-muted/50 rounded-2xl overflow-hidden flex flex-col justify-between">
-            <div>
-              <CardHeader>
-                <div className="flex items-center justify-between gap-4">
-                  <div>
-                    <CardTitle className="font-display text-lg flex items-center gap-2">
-                      <FileUp className="h-5 w-5 text-primary shrink-0" /> Bulk CSV Import
-                    </CardTitle>
-                    <CardDescription>Batch upload staff or users with initial passwords</CardDescription>
+            ) : activeCampusId || campuses.length > 0 ? (
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Assigned Campus</Label>
+                <div className="p-3 bg-muted/40 border border-muted/70 rounded-xl flex items-center gap-3">
+                  <div className="h-8 w-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                    <Building2 className="h-4 w-4" />
                   </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="rounded-xl text-xs shrink-0"
-                    onClick={() => {
-                      const sample = toCsv([
-                        {
-                          email: "teacher1@school.com",
-                          password: "Teacher@123",
-                          role: "teacher",
-                          display_name: "Teacher One",
-                          phone: "+92 300 1234567",
-                        },
-                        {
-                          email: "vp@school.com",
-                          password: "Vp@123456",
-                          role: "vice_principal;academic_coordinator",
-                          display_name: "VP",
-                          phone: "",
-                        },
-                      ]);
-                      downloadTextFile("staff-import-template.csv", sample, "text/csv");
-                    }}
-                  >
-                    <Download className="mr-2 h-4 w-4 shrink-0" /> Template
-                  </Button>
-                </div>
-              </CardHeader>
-
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Select CSV File</label>
-                    <Input
-                      type="file"
-                      accept=".csv,text/csv"
-                      className="w-full text-xs cursor-pointer file:text-primary file:font-semibold"
-                      onChange={async (e) => {
-                        const file = e.target.files?.[0] ?? null;
-                        setBulkLinksCsv(null);
-                        setBulkResults(null);
-                        if (!file) {
-                          setBulkRows([]);
-                          return;
-                        }
-                        try {
-                          const rows = await parseBulkCsvFile(file);
-                          setBulkRows(rows);
-                          toast.success(`Loaded ${rows.length} rows`);
-                        } catch (err) {
-                          setBulkRows([]);
-                          toast.error((err as Error).message);
-                        }
-                      }}
-                    />
-                    <p className="text-[10px] sm:text-[11px] text-muted-foreground leading-normal mt-1">
-                      Columns: <span className="font-medium text-foreground">email, password, role</span>. Optional:{" "}
-                      <span className="font-medium text-foreground">display_name, phone</span>.
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-semibold text-foreground truncate">
+                      {campuses.find((c) => c.id === (activeCampusId || selectedFormCampusId))?.name || "Assigned Campus"}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground">
+                      Principal invitation: Account will be isolated exclusively to this campus.
                     </p>
                   </div>
-
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Audit Reason (Optional)</label>
-                    <Input
-                      value={govReason}
-                      onChange={(e) => setGovReason(e.target.value)}
-                      placeholder="e.g. Onboarding batch 2026"
-                      className="w-full text-xs sm:text-sm"
-                    />
-                  </div>
                 </div>
-              </CardContent>
-            </div>
+              </div>
+            ) : null}
+          </div>
 
-            <div className="p-6 pt-0">
-              <div className="flex flex-col sm:flex-row gap-2.5">
+          <DialogFooter className="gap-2 sm:gap-0 pt-2">
+            <Button
+              variant="outline"
+              onClick={() => setIsInviteModalOpen(false)}
+              className="rounded-xl text-xs"
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="hero"
+              onClick={invite}
+              disabled={busy || !email.trim()}
+              className="rounded-xl text-xs transition-all duration-300"
+            >
+              {busy ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Sending...
+                </>
+              ) : (
+                <>
+                  <Mail className="mr-2 h-4 w-4" /> Send Secure Invitation Email
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 2. Bulk CSV Import Modal Dialog */}
+      {canGovernStaff && (
+        <Dialog open={isBulkModalOpen} onOpenChange={setIsBulkModalOpen}>
+          <DialogContent className="sm:max-w-xl rounded-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <DialogTitle className="flex items-center gap-2 text-lg font-bold">
+                    <FileUp className="h-5 w-5 text-primary" /> Bulk CSV Import
+                  </DialogTitle>
+                  <DialogDescription className="text-xs text-muted-foreground mt-0.5">
+                    Batch upload staff or users with initial credentials and roles.
+                  </DialogDescription>
+                </div>
                 <Button
                   variant="outline"
-                  disabled={busy || bulkRows.length === 0 || !tenant.slug}
-                  onClick={async () => {
-                    try {
-                      setBusy(true);
-                      setBulkLinksCsv(null);
-                      const res = await bulkInvoke({
-                        mode: "dry_run",
-                        schoolSlug: tenant.slug,
-                        rows: bulkRows,
-                        reason: govReason.trim() || undefined,
-                      });
-                      setBulkResults((res?.results ?? []) as BulkResult[]);
-                      const ok = !!res?.ok;
-                      toast[ok ? "success" : "error"](ok ? "Dry-run OK" : "Dry-run has errors");
-                    } catch (e) {
-                      toast.error((e as Error).message);
-                    } finally {
-                      setBusy(false);
-                    }
+                  size="sm"
+                  className="rounded-xl text-xs shrink-0"
+                  onClick={() => {
+                    const sample = toCsv([
+                      {
+                        email: "teacher1@school.com",
+                        password: "Teacher@123",
+                        role: "teacher",
+                        display_name: "Teacher One",
+                        phone: "+92 300 1234567",
+                      },
+                      {
+                        email: "vp@school.com",
+                        password: "Vp@123456",
+                        role: "vice_principal;academic_coordinator",
+                        display_name: "VP",
+                        phone: "",
+                      },
+                    ]);
+                    downloadTextFile("staff-import-template.csv", sample, "text/csv");
                   }}
-                  className="w-full sm:flex-1 rounded-xl text-xs sm:text-sm"
                 >
-                  <FileUp className="mr-2 h-4 w-4 shrink-0" /> Dry-Run Validate
-                </Button>
-
-                <Button
-                  variant="hero"
-                  disabled={
-                    busy ||
-                    bulkRows.length === 0 ||
-                    !bulkResults ||
-                    bulkResults.some((r) => !r.ok) ||
-                    !tenant.slug
-                  }
-                  onClick={async () => {
-                    try {
-                      setBusy(true);
-                      const res = await bulkInvoke({
-                        mode: "commit",
-                        schoolSlug: tenant.slug,
-                        rows: bulkRows,
-                        reason: govReason.trim() || undefined,
-                      });
-                      const results = (res?.results ?? []) as BulkResult[];
-                      setBulkResults(results);
-                      toast.success("Import committed successfully!");
-                      await refresh();
-                    } catch (e) {
-                      toast.error((e as Error).message);
-                    } finally {
-                      setBusy(false);
-                    }
-                  }}
-                  className="w-full sm:flex-1 rounded-xl text-xs sm:text-sm transition-all duration-300"
-                >
-                  Commit Import
+                  <Download className="mr-2 h-4 w-4 shrink-0" /> Template
                 </Button>
               </div>
+            </DialogHeader>
+
+            <div className="space-y-4 py-2">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Select CSV File *</Label>
+                <Input
+                  type="file"
+                  accept=".csv,text/csv"
+                  className="w-full text-xs cursor-pointer file:text-primary file:font-semibold rounded-xl"
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0] ?? null;
+                    setBulkLinksCsv(null);
+                    setBulkResults(null);
+                    if (!file) {
+                      setBulkRows([]);
+                      return;
+                    }
+                    try {
+                      const rows = await parseBulkCsvFile(file);
+                      setBulkRows(rows);
+                      toast.success(`Loaded ${rows.length} rows`);
+                    } catch (err) {
+                      setBulkRows([]);
+                      toast.error((err as Error).message);
+                    }
+                  }}
+                />
+                <p className="text-[10px] sm:text-[11px] text-muted-foreground leading-normal mt-1">
+                  Columns: <span className="font-medium text-foreground">email, password, role</span>. Optional:{" "}
+                  <span className="font-medium text-foreground">display_name, phone</span>.
+                </p>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Audit Reason (Optional)</Label>
+                <Input
+                  value={govReason}
+                  onChange={(e) => setGovReason(e.target.value)}
+                  placeholder="e.g. Onboarding batch 2026"
+                  className="w-full text-xs sm:text-sm rounded-xl"
+                />
+              </div>
+
+              {bulkResults && (
+                <div className="space-y-2 pt-2 border-t">
+                  <p className="text-xs font-semibold">Validation Results ({bulkResults.length} rows):</p>
+                  <div className="max-h-48 overflow-y-auto rounded-xl border p-2 text-xs space-y-1.5 bg-muted/20">
+                    {bulkResults.map((res, i) => (
+                      <div key={i} className="flex items-center justify-between text-[11px]">
+                        <span className="font-mono">{res.email}</span>
+                        {res.ok ? (
+                          <Badge className="bg-emerald-500/15 text-emerald-600 border-emerald-500/30 text-[10px]">OK</Badge>
+                        ) : (
+                          <span className="text-destructive font-medium">{res.errors.join(", ")}</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
-          </Card>
-        )}
-      </div>
+
+            <DialogFooter className="gap-2 sm:gap-0 pt-2">
+              <Button
+                variant="outline"
+                disabled={busy || bulkRows.length === 0 || !tenant.slug}
+                onClick={async () => {
+                  try {
+                    setBusy(true);
+                    setBulkLinksCsv(null);
+                    const res = await bulkInvoke({
+                      mode: "dry_run",
+                      schoolSlug: tenant.slug,
+                      rows: bulkRows,
+                      reason: govReason.trim() || undefined,
+                    });
+                    setBulkResults((res?.results ?? []) as BulkResult[]);
+                    const ok = !!res?.ok;
+                    toast[ok ? "success" : "error"](ok ? "Dry-run OK" : "Dry-run has errors");
+                  } catch (e) {
+                    toast.error((e as Error).message);
+                  } finally {
+                    setBusy(false);
+                  }
+                }}
+                className="rounded-xl text-xs"
+              >
+                <FileUp className="mr-2 h-4 w-4 shrink-0" /> Dry-Run Validate
+              </Button>
+
+              <Button
+                variant="hero"
+                disabled={
+                  busy ||
+                  bulkRows.length === 0 ||
+                  !bulkResults ||
+                  bulkResults.some((r) => !r.ok) ||
+                  !tenant.slug
+                }
+                onClick={async () => {
+                  try {
+                    setBusy(true);
+                    const res = await bulkInvoke({
+                      mode: "commit",
+                      schoolSlug: tenant.slug,
+                      rows: bulkRows,
+                      reason: govReason.trim() || undefined,
+                    });
+                    const results = (res?.results ?? []) as BulkResult[];
+                    setBulkResults(results);
+                    toast.success("Import committed successfully!");
+                    setIsBulkModalOpen(false);
+                    await refresh();
+                  } catch (e) {
+                    toast.error((e as Error).message);
+                  } finally {
+                    setBusy(false);
+                  }
+                }}
+                className="rounded-xl text-xs transition-all duration-300"
+              >
+                Commit Import
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
 
       {/* Edit Invitation Dialog */}
       <Dialog open={!!editInviteDialog} onOpenChange={(open) => !open && setEditInviteDialog(null)}>
