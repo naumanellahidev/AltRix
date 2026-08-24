@@ -2,13 +2,18 @@
 Super Master Admin Email Management Router for AltRix Cloud OS.
 Provides central platform controls for:
 - System Telemetry, Mailu Service Status & Delivery Analytics
-- Official AltRix Sender Identities (Configured addresses on mail.altrixcore.com)
-- Email Template Studio (CRUD, visual HTML editing, live preview)
+- Global AltRix Email Branding & Asset Management
+- Official AltRix Sender Identities
+- Email Template Studio with Versioning & Rollback
 - Event-to-Sender Dynamic Routing Matrix
-- Test Send Lab
+- Test Send Lab & Live Preview
 - Delivery Audit Logs (Safe from sensitive token leaks)
+- MTA Health & Diagnostics
 """
+import json
 import logging
+import smtplib
+import time
 import uuid
 from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, List, Optional
@@ -20,7 +25,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.dependencies import get_current_user, AuthenticatedUser
-from app.services.email_service import CentralEmailService, interpolate_variables
+from app.services.email_service import CentralEmailService, interpolate_variables, DEFAULT_BRANDING
 
 router = APIRouter(prefix="/super_admin/email", tags=["Super Admin Email Management"])
 logger = logging.getLogger("app.super_admin.email")
@@ -33,6 +38,9 @@ async def _require_super_admin(
     current_user: AuthenticatedUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> AuthenticatedUser:
+    if current_user.is_super_admin:
+        return current_user
+
     try:
         uid = uuid.UUID(current_user.id) if isinstance(current_user.id, str) else current_user.id
     except ValueError:
@@ -42,7 +50,7 @@ async def _require_super_admin(
         text("SELECT user_id FROM public.platform_super_admins WHERE user_id = :uid LIMIT 1"),
         {"uid": uid},
     )
-    if not res.fetchone() and not current_user.is_super_admin:
+    if not res.fetchone():
         raise HTTPException(status_code=403, detail="Super Master Admin access only")
 
     return current_user
@@ -51,8 +59,34 @@ async def _require_super_admin(
 # ---------------------------------------------------------------------------
 # Schemas
 # ---------------------------------------------------------------------------
+class BrandingConfigIn(BaseModel):
+    brandName: str = Field(..., description="Brand display name")
+    primaryLogoUrl: str = Field(..., description="URL to primary brand logo")
+    secondaryLogoUrl: Optional[str] = None
+    brandIconUrl: str = Field(..., description="URL to brand icon mark")
+    headerLogoType: str = Field("primary", description="primary, secondary, icon_text")
+    primaryColor: str = "#0f172a"
+    accentColor: str = "#2563eb"
+    secondaryColor: str = "#64748b"
+    supportEmail: EmailStr = "support@altrixcore.com"
+    contactEmail: EmailStr = "contact@altrixcore.com"
+    websiteUrl: str = "https://altrixcore.com"
+    footerText: str = "Enterprise Identity & Cloud Core Platform"
+    legalDisclaimer: Optional[str] = None
+    socialLinks: Optional[Dict[str, str]] = None
+
+
+class AssetIn(BaseModel):
+    name: str
+    assetType: str = Field(..., description="primary_logo, secondary_logo, brand_icon, header_logo, footer_logo, custom_badge")
+    url: str
+    filename: str
+    dimensions: Optional[str] = None
+    fileSizeBytes: Optional[int] = 0
+
+
 class SenderIdentityIn(BaseModel):
-    key: str = Field(..., description="Unique slug: security, support, no_reply, info, ceo, notifications")
+    key: str = Field(..., description="Unique slug: security, support, no_reply, info, ceo, notifications, billing, system, contact")
     name: str = Field(..., description="Sender Display Name")
     email: EmailStr = Field(..., description="Configured sender address on mail.altrixcore.com")
     replyTo: Optional[str] = None
@@ -84,6 +118,7 @@ class PreviewTemplateRequest(BaseModel):
     htmlContent: str
     subject: str
     variables: Dict[str, Any] = {}
+    schoolSlug: Optional[str] = None
 
 
 class TestSendRequest(BaseModel):
@@ -92,10 +127,11 @@ class TestSendRequest(BaseModel):
     templateKey: Optional[str] = None
     customSubject: Optional[str] = None
     customMessage: Optional[str] = None
+    schoolSlug: Optional[str] = None
 
 
 # ---------------------------------------------------------------------------
-# Endpoints
+# 1. Telemetry & Overview
 # ---------------------------------------------------------------------------
 @router.get(
     "/overview",
@@ -188,7 +224,187 @@ async def get_email_overview(
 
 
 # ---------------------------------------------------------------------------
-# Sender Identities CRUD
+# 2. Global Branding & Assets
+# ---------------------------------------------------------------------------
+@router.get("/branding", summary="Get Global Email Branding Configuration")
+async def get_email_branding(
+    _admin: AuthenticatedUser = Depends(_require_super_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    branding = await CentralEmailService.get_branding(db)
+    return {
+        "ok": True,
+        "branding": {
+            "brandName": branding.get("brand_name"),
+            "primaryLogoUrl": branding.get("primary_logo_url"),
+            "secondaryLogoUrl": branding.get("secondary_logo_url"),
+            "brandIconUrl": branding.get("brand_icon_url"),
+            "headerLogoType": branding.get("header_logo_type"),
+            "primaryColor": branding.get("primary_color"),
+            "accentColor": branding.get("accent_color"),
+            "secondaryColor": branding.get("secondary_color"),
+            "supportEmail": branding.get("support_email"),
+            "contactEmail": branding.get("contact_email"),
+            "websiteUrl": branding.get("website_url"),
+            "footerText": branding.get("footer_text"),
+            "legalDisclaimer": branding.get("legal_disclaimer"),
+            "socialLinks": branding.get("social_links"),
+        },
+    }
+
+
+@router.put("/branding", summary="Update Global Email Branding Configuration")
+async def update_email_branding(
+    body: BrandingConfigIn,
+    _admin: AuthenticatedUser = Depends(_require_super_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    # Upsert single record
+    res_existing = await db.execute(text("SELECT id FROM public.email_branding_config LIMIT 1"))
+    row = res_existing.fetchone()
+
+    if row:
+        await db.execute(
+            text("""
+                UPDATE public.email_branding_config
+                SET brand_name = :brand_name,
+                    primary_logo_url = :primary_logo,
+                    secondary_logo_url = :sec_logo,
+                    brand_icon_url = :icon_url,
+                    header_logo_type = :logo_type,
+                    primary_color = :p_col,
+                    accent_color = :a_col,
+                    secondary_color = :s_col,
+                    support_email = :supp_email,
+                    contact_email = :cont_email,
+                    website_url = :web_url,
+                    footer_text = :ft_text,
+                    legal_disclaimer = :disc,
+                    social_links = CAST(:social AS jsonb),
+                    updated_at = NOW()
+                WHERE id = :id
+            """),
+            {
+                "id": row.id,
+                "brand_name": body.brandName.strip(),
+                "primary_logo": body.primaryLogoUrl.strip(),
+                "sec_logo": body.secondaryLogoUrl.strip() if body.secondaryLogoUrl else None,
+                "icon_url": body.brandIconUrl.strip(),
+                "logo_type": body.headerLogoType,
+                "p_col": body.primaryColor,
+                "a_col": body.accentColor,
+                "s_col": body.secondaryColor,
+                "supp_email": str(body.supportEmail).strip().lower(),
+                "cont_email": str(body.contactEmail).strip().lower(),
+                "web_url": body.websiteUrl.strip(),
+                "ft_text": body.footerText.strip(),
+                "disc": body.legalDisclaimer.strip() if body.legalDisclaimer else None,
+                "social": json.dumps(body.socialLinks or {}),
+            },
+        )
+    else:
+        await db.execute(
+            text("""
+                INSERT INTO public.email_branding_config (
+                    brand_name, primary_logo_url, secondary_logo_url, brand_icon_url,
+                    header_logo_type, primary_color, accent_color, secondary_color,
+                    support_email, contact_email, website_url, footer_text, legal_disclaimer, social_links, updated_at
+                ) VALUES (
+                    :brand_name, :primary_logo, :sec_logo, :icon_url,
+                    :logo_type, :p_col, :a_col, :s_col,
+                    :supp_email, :cont_email, :web_url, :ft_text, :disc, CAST(:social AS jsonb), NOW()
+                )
+            """),
+            {
+                "brand_name": body.brandName.strip(),
+                "primary_logo": body.primaryLogoUrl.strip(),
+                "sec_logo": body.secondaryLogoUrl.strip() if body.secondaryLogoUrl else None,
+                "icon_url": body.brandIconUrl.strip(),
+                "logo_type": body.headerLogoType,
+                "p_col": body.primaryColor,
+                "a_col": body.accentColor,
+                "s_col": body.secondaryColor,
+                "supp_email": str(body.supportEmail).strip().lower(),
+                "cont_email": str(body.contactEmail).strip().lower(),
+                "web_url": body.websiteUrl.strip(),
+                "ft_text": body.footerText.strip(),
+                "disc": body.legalDisclaimer.strip() if body.legalDisclaimer else None,
+                "social": json.dumps(body.socialLinks or {}),
+            },
+        )
+    await db.commit()
+    return {"ok": True, "message": "Global email branding updated successfully"}
+
+
+@router.get("/assets", summary="List Email Assets")
+async def list_email_assets(
+    _admin: AuthenticatedUser = Depends(_require_super_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    res = await db.execute(
+        text("SELECT id, name, asset_type, url, filename, mime_type, file_size_bytes, dimensions, is_active, updated_at FROM public.email_assets ORDER BY asset_type, name ASC")
+    )
+    return [
+        {
+            "id": str(r.id),
+            "name": r.name,
+            "assetType": r.asset_type,
+            "url": r.url,
+            "filename": r.filename,
+            "mimeType": r.mime_type,
+            "fileSizeBytes": r.file_size_bytes,
+            "dimensions": r.dimensions,
+            "isActive": r.is_active,
+            "updatedAt": r.updated_at.isoformat() if r.updated_at else None,
+        }
+        for r in res.fetchall()
+    ]
+
+
+@router.post("/assets", summary="Register or Update Brand Asset")
+async def save_email_asset(
+    body: AssetIn,
+    _admin: AuthenticatedUser = Depends(_require_super_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    asset_id = uuid.uuid4()
+    await db.execute(
+        text("""
+            INSERT INTO public.email_assets (id, name, asset_type, url, filename, file_size_bytes, dimensions, is_active, created_at, updated_at)
+            VALUES (:id, :name, :asset_type, :url, :filename, :size, :dims, TRUE, NOW(), NOW())
+        """),
+        {
+            "id": asset_id,
+            "name": body.name.strip(),
+            "asset_type": body.assetType.strip(),
+            "url": body.url.strip(),
+            "filename": body.filename.strip(),
+            "size": body.fileSizeBytes or 0,
+            "dims": body.dimensions,
+        },
+    )
+    await db.commit()
+    return {"ok": True, "message": f"Asset '{body.name}' registered successfully", "id": str(asset_id)}
+
+
+@router.delete("/assets/{asset_id}", summary="Remove Email Asset")
+async def delete_email_asset(
+    asset_id: str,
+    _admin: AuthenticatedUser = Depends(_require_super_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        aid = uuid.UUID(asset_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid asset UUID")
+
+    await db.execute(text("DELETE FROM public.email_assets WHERE id = :id"), {"id": aid})
+    await db.commit()
+    return {"ok": True, "message": "Email asset removed"}
+
+
+# ---------------------------------------------------------------------------
+# 3. Sender Identities CRUD
 # ---------------------------------------------------------------------------
 @router.get("/senders", summary="List Sender Identities")
 async def list_senders(
@@ -308,24 +524,29 @@ async def delete_sender(
 
 
 # ---------------------------------------------------------------------------
-# Templates CRUD
+# 4. Template Studio CRUD & Versioning
 # ---------------------------------------------------------------------------
 @router.get("/templates", summary="List Email Templates")
 async def list_templates(
+    category: Optional[str] = Query(None),
     _admin: AuthenticatedUser = Depends(_require_super_admin),
     db: AsyncSession = Depends(get_db),
 ):
-    res = await db.execute(
-        text("""
-            SELECT t.id, t.key, t.name, t.category, t.subject, t.sender_identity_key,
-                   t.html_content, t.text_content, t.cta_text, t.cta_url_variable,
-                   t.available_variables, t.is_active, t.updated_at,
-                   s.name as sender_name, s.email as sender_email
-            FROM public.email_templates t
-            LEFT JOIN public.email_sender_identities s ON t.sender_identity_key = s.key
-            ORDER BY t.category, t.name ASC
-        """)
-    )
+    query = """
+        SELECT t.id, t.key, t.name, t.category, t.subject, t.sender_identity_key,
+               t.html_content, t.text_content, t.cta_text, t.cta_url_variable,
+               t.available_variables, t.version, t.is_system, t.is_active, t.updated_at,
+               s.name as sender_name, s.email as sender_email
+        FROM public.email_templates t
+        LEFT JOIN public.email_sender_identities s ON t.sender_identity_key = s.key
+    """
+    params = {}
+    if category and category.strip() and category.lower() != "all":
+        query += " WHERE LOWER(t.category) = :cat"
+        params["cat"] = category.strip().lower()
+
+    query += " ORDER BY t.category, t.name ASC"
+    res = await db.execute(text(query), params)
     return [
         {
             "id": str(r.id),
@@ -341,6 +562,8 @@ async def list_templates(
             "ctaText": r.cta_text,
             "ctaUrlVariable": r.cta_url_variable,
             "availableVariables": r.available_variables or [],
+            "version": getattr(r, "version", 1),
+            "isSystem": getattr(r, "is_system", True),
             "isActive": r.is_active,
             "updatedAt": r.updated_at.isoformat() if r.updated_at else None,
         }
@@ -348,22 +571,55 @@ async def list_templates(
     ]
 
 
-@router.post("/templates", summary="Create or Update Template")
+@router.post("/templates", summary="Create or Update Template (With Version History)")
 async def save_template(
     body: EmailTemplateIn,
-    _admin: AuthenticatedUser = Depends(_require_super_admin),
+    current_user: AuthenticatedUser = Depends(_require_super_admin),
     db: AsyncSession = Depends(get_db),
 ):
-    import json
     clean_key = body.key.strip().lower().replace(" ", "_")
     tmpl_id = uuid.uuid4()
+
+    # Check previous version and archive if changed
+    res_prev = await db.execute(
+        text("SELECT version, subject, html_content, text_content FROM public.email_templates WHERE key = :key LIMIT 1"),
+        {"key": clean_key}
+    )
+    prev_row = res_prev.fetchone()
+    next_version = 1
+
+    if prev_row:
+        prev_ver = getattr(prev_row, "version", 1) or 1
+        next_version = prev_ver + 1
+        # Save to versions archive
+        try:
+            await db.execute(
+                text("""
+                    INSERT INTO public.email_template_versions (
+                        id, template_key, version, subject, html_content, text_content, created_by_user_id, created_at
+                    ) VALUES (
+                        :id, :key, :ver, :subj, :html, :txt, :uid, NOW()
+                    )
+                """),
+                {
+                    "id": uuid.uuid4(),
+                    "key": clean_key,
+                    "ver": prev_ver,
+                    "subj": prev_row.subject,
+                    "html": prev_row.html_content,
+                    "txt": prev_row.text_content,
+                    "uid": uuid.UUID(current_user.id) if isinstance(current_user.id, str) else current_user.id,
+                }
+            )
+        except Exception as ver_err:
+            logger.warning(f"Failed to record template version history: {ver_err}")
 
     await db.execute(
         text("""
             INSERT INTO public.email_templates (
-                id, key, name, category, subject, sender_identity_key, html_content, text_content, cta_text, cta_url_variable, available_variables, is_active, created_at, updated_at
+                id, key, name, category, subject, sender_identity_key, html_content, text_content, cta_text, cta_url_variable, available_variables, version, is_active, created_at, updated_at
             ) VALUES (
-                :id, :key, :name, :category, :subject, :senderKey, :html, :text, :ctaText, :ctaUrl, CAST(:vars AS jsonb), :isActive, NOW(), NOW()
+                :id, :key, :name, :category, :subject, :senderKey, :html, :text, :ctaText, :ctaUrl, CAST(:vars AS jsonb), :ver, :isActive, NOW(), NOW()
             )
             ON CONFLICT (key) DO UPDATE SET
                 name = EXCLUDED.name,
@@ -375,6 +631,7 @@ async def save_template(
                 cta_text = EXCLUDED.cta_text,
                 cta_url_variable = EXCLUDED.cta_url_variable,
                 available_variables = EXCLUDED.available_variables,
+                version = EXCLUDED.version,
                 is_active = EXCLUDED.is_active,
                 updated_at = NOW()
         """),
@@ -390,29 +647,123 @@ async def save_template(
             "ctaText": body.ctaText,
             "ctaUrl": body.ctaUrlVariable,
             "vars": json.dumps(body.availableVariables or []),
+            "ver": next_version,
             "isActive": body.isActive,
         },
     )
     await db.commit()
-    return {"ok": True, "message": f"Email template '{clean_key}' saved successfully"}
+    return {"ok": True, "message": f"Email template '{clean_key}' saved (v{next_version})"}
+
+
+@router.get("/templates/{template_key}/versions", summary="Get Template Revision History")
+async def get_template_versions(
+    template_key: str,
+    _admin: AuthenticatedUser = Depends(_require_super_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    res = await db.execute(
+        text("""
+            SELECT id, template_key, version, subject, html_content, text_content, created_at
+            FROM public.email_template_versions
+            WHERE template_key = :key
+            ORDER BY version DESC
+            LIMIT 20
+        """),
+        {"key": template_key.strip().lower()}
+    )
+    return [
+        {
+            "id": str(r.id),
+            "templateKey": r.template_key,
+            "version": r.version,
+            "subject": r.subject,
+            "htmlContent": r.html_content,
+            "textContent": r.text_content,
+            "createdAt": r.created_at.isoformat() if r.created_at else None,
+        }
+        for r in res.fetchall()
+    ]
+
+
+@router.post("/templates/{template_key}/restore/{version_id}", summary="Restore Previous Template Version")
+async def restore_template_version(
+    template_key: str,
+    version_id: str,
+    current_user: AuthenticatedUser = Depends(_require_super_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        vid = uuid.UUID(version_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid version UUID")
+
+    res = await db.execute(
+        text("SELECT subject, html_content, text_content FROM public.email_template_versions WHERE id = :id AND template_key = :key LIMIT 1"),
+        {"id": vid, "key": template_key}
+    )
+    row = res.fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail="Version record not found")
+
+    await db.execute(
+        text("""
+            UPDATE public.email_templates
+            SET subject = :subj,
+                html_content = :html,
+                text_content = :txt,
+                updated_at = NOW()
+            WHERE key = :key
+        """),
+        {"subj": row.subject, "html": row.html_content, "txt": row.text_content, "key": template_key}
+    )
+    await db.commit()
+    return {"ok": True, "message": f"Restored template '{template_key}' from archived version"}
 
 
 @router.post("/templates/preview", summary="Live Render Template Preview")
 async def preview_template(
     body: PreviewTemplateRequest,
     _admin: AuthenticatedUser = Depends(_require_super_admin),
+    db: AsyncSession = Depends(get_db),
 ):
+    branding = await CentralEmailService.get_branding(db)
+
     sample_context = {
+        "user": {
+            "name": "Dr. Sarah Jenkins",
+            "email": "sarah.jenkins@beacon.edu.pk",
+            "role": "Senior Academic Coordinator",
+        },
+        "tenant": {
+            "name": "Beacon International School",
+            "logo": "https://altrixcore.com/altrix-logo.png",
+            "website": "https://beacon.altrixcore.com",
+            "address": "Campus 1, Academic Avenue, Lahore",
+            "support_email": "admin@beacon.edu.pk",
+        },
+        "brand": {
+            "name": branding.get("brand_name", "AltRix"),
+            "logo": branding.get("primary_logo_url", "https://altrixcore.com/altrix-logo.png"),
+            "icon": branding.get("brand_icon_url", "https://altrixcore.com/altrix-icon.png"),
+            "support_email": branding.get("support_email", "support@altrixcore.com"),
+            "website": branding.get("website_url", "https://altrixcore.com"),
+        },
         "name": "Dr. Sarah Jenkins",
-        "email": "sarah.jenkins@example.com",
+        "email": "sarah.jenkins@beacon.edu.pk",
         "role": "Senior Academic Coordinator",
-        "tenant_name": "Apex International Academy",
+        "tenant_name": "Beacon International School",
+        "tenant_logo": "https://altrixcore.com/altrix-logo.png",
         "activation_link": "https://altrixcore.com/activate-account/sample-secure-token-demo",
         "reset_link": "https://altrixcore.com/reset-password?token=sample-reset-token-demo",
+        "verification_link": "https://altrixcore.com/auth/verify?token=sample-verify-token-demo",
         "expires_in": "48 hours",
-        "support_email": "support@altrixcore.com",
+        "support_email": branding.get("support_email", "support@altrixcore.com"),
         "year": datetime.now(timezone.utc).year,
-        "title": "Quarterly Academic Review",
+        "amount": "PKR 45,000",
+        "invoice_number": "INV-2026-0891",
+        "payment_date": datetime.now(timezone.utc).strftime("%B %d, %Y"),
+        "transaction_ref": "TXN-88429104",
+        "title": "Official Announcement",
         "message": "The system will undergo standard platform maintenance tonight at 02:00 UTC.",
         "subject_text": "Quarterly Academic Review",
     }
@@ -429,7 +780,7 @@ async def preview_template(
 
 
 # ---------------------------------------------------------------------------
-# Event Routing Mappings
+# 5. Event Routing Mappings
 # ---------------------------------------------------------------------------
 @router.get("/mappings", summary="Get Event Routing Mappings")
 async def get_event_mappings(
@@ -492,15 +843,16 @@ async def update_event_mapping(
 
 
 # ---------------------------------------------------------------------------
-# Test Send Lab
+# 6. Test Send Lab
 # ---------------------------------------------------------------------------
-@router.post("/test-send", summary="Send Test Email")
+@router.post("/test-send", summary="Send Live Test Email via VPS SMTP")
 async def test_send_email(
     body: TestSendRequest,
     _admin: AuthenticatedUser = Depends(_require_super_admin),
     db: AsyncSession = Depends(get_db),
 ):
     recipient = str(body.recipientEmail).strip().lower()
+    branding = await CentralEmailService.get_branding(db)
 
     # Load sender identity
     sender_key = body.senderIdentityKey or "security"
@@ -512,28 +864,60 @@ async def test_send_email(
     sender_name = sender_row.name if sender_row else "AltRix Security HQ"
     sender_email = sender_row.email if sender_row else "security@altrixcore.com"
 
-    subject = body.customSubject or "AltRix Central Mail Engine Test Dispatch"
-    message_body = body.customMessage or "This is a verified test dispatch from the AltRix Super Master Admin Email Test Lab."
+    subject = body.customSubject or "AltRix Enterprise Mail Engine Test Dispatch"
+    message_body = body.customMessage or "This is a verified live test dispatch from the AltRix Super Master Admin Email Center."
 
-    html_content = f"""<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"><title>AltRix Test Email</title></head>
-<body style="margin:0;padding:24px;background:#0f172a;font-family:sans-serif;color:#334155;">
-  <div style="max-width:600px;margin:0 auto;background:#ffffff;border-radius:12px;padding:32px;border-top:4px solid #3b82f6;">
-    <h1 style="color:#0f172a;margin-top:0;">ALT<span style="color:#3b82f6;">RIX</span></h1>
-    <span style="background:#eff6ff;color:#1d4ed8;font-size:11px;font-weight:bold;padding:3px 10px;border-radius:9999px;text-transform:uppercase;">Test Dispatch</span>
-    <h2 style="color:#0f172a;margin:16px 0 8px 0;">{subject}</h2>
-    <p style="font-size:15px;line-height:1.6;">{message_body}</p>
-    <div style="background:#f8fafc;border:1px solid #e2e8f0;padding:14px;border-radius:8px;margin:20px 0;font-size:13px;">
-      <p style="margin:2px 0;"><strong>Sender Identity:</strong> {sender_name} &lt;{sender_email}&gt;</p>
-      <p style="margin:2px 0;"><strong>Recipient:</strong> {recipient}</p>
-      <p style="margin:2px 0;"><strong>Timestamp:</strong> {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}</p>
-    </div>
-    <hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0;">
-    <p style="font-size:11px;color:#94a3b8;margin:0;">AltRix Cloud OS &bull; Automated Test Lab</p>
-  </div>
-</body>
-</html>"""
+    # If templateKey specified, render real template
+    if body.templateKey:
+        res_t = await db.execute(
+            text("SELECT subject, html_content, text_content FROM public.email_templates WHERE key = :key LIMIT 1"),
+            {"key": body.templateKey}
+        )
+        row_t = res_t.fetchone()
+        if row_t:
+            ctx = {
+                "name": "Verified Administrator",
+                "email": recipient,
+                "role": "Super Master Admin",
+                "tenant_name": "Beacon International School",
+                "tenant_logo": "https://altrixcore.com/altrix-logo.png",
+                "activation_link": "https://altrixcore.com/activate-account/test-token-preview",
+                "reset_link": "https://altrixcore.com/reset-password?token=test-reset-preview",
+                "expires_in": "48 hours",
+                "support_email": branding.get("support_email", "support@altrixcore.com"),
+                "year": datetime.now(timezone.utc).year,
+                "amount": "PKR 35,000",
+                "invoice_number": "TEST-INV-001",
+                "payment_date": datetime.now(timezone.utc).strftime("%B %d, %Y"),
+                "title": "System Test Dispatch",
+                "message": message_body,
+                "subject_text": subject,
+            }
+            subject = interpolate_variables(row_t.subject, ctx)
+            html_content = interpolate_variables(row_t.html_content, ctx)
+        else:
+            html_content = f"<p>{message_body}</p>"
+    else:
+        # Default branded test shell
+        html_content = build_branded_html_shell(
+            branding=branding,
+            tenant_info={"name": "Beacon International School", "logo_url": "https://altrixcore.com/altrix-logo.png"},
+            title=subject,
+            badge_text="Live Test Dispatch",
+            badge_color="#eff6ff",
+            content_html=f"""
+            <p>{message_body}</p>
+            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 14px; margin: 18px 0; font-size: 13px;">
+              <p style="margin: 3px 0;"><strong>Sender Identity:</strong> {sender_name} &lt;{sender_email}&gt;</p>
+              <p style="margin: 3px 0;"><strong>Recipient:</strong> {recipient}</p>
+              <p style="margin: 3px 0;"><strong>Dispatched At:</strong> {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}</p>
+            </div>
+            """,
+            cta_text="Open Super Admin Email Center",
+            cta_url="https://altrixcore.com/super_admin/email",
+            security_notice="This test message confirms your local VPS Mailu MTA (127.0.0.1:25) pipeline is fully operational.",
+            border_accent_color="#2563eb",
+        )
 
     result = await CentralEmailService.send_raw_test(
         sender_email=sender_email,
@@ -546,7 +930,7 @@ async def test_send_email(
     )
 
     if not result["ok"]:
-        raise HTTPException(status_code=500, detail=f"Failed to send test email: {result.get('error')}")
+        raise HTTPException(status_code=500, detail=f"SMTP dispatch failed: {result.get('error')}")
 
     return {
         "ok": True,
@@ -556,7 +940,7 @@ async def test_send_email(
 
 
 # ---------------------------------------------------------------------------
-# Delivery Logs
+# 7. Delivery Logs
 # ---------------------------------------------------------------------------
 @router.get("/logs", summary="Get Email Delivery Logs")
 async def get_email_logs(
@@ -572,16 +956,16 @@ async def get_email_logs(
     where_clauses = ["1=1"]
     params: Dict[str, Any] = {"limit": limit, "offset": offset}
 
-    if status and status.strip():
+    if status and status.strip() and status.lower() != "all":
         where_clauses.append("status = :status")
         params["status"] = status.strip().lower()
 
-    if event and event.strip():
+    if event and event.strip() and event.lower() != "all":
         where_clauses.append("event_name = :event")
         params["event"] = event.strip().lower()
 
     if search and search.strip():
-        where_clauses.append("(LOWER(recipient_email) LIKE :search OR LOWER(subject) LIKE :search)")
+        where_clauses.append("(LOWER(recipient_email) LIKE :search OR LOWER(subject) LIKE :search OR LOWER(sender_email) LIKE :search)")
         params["search"] = f"%{search.strip().lower()}%"
 
     where_sql = " AND ".join(where_clauses)
@@ -592,7 +976,7 @@ async def get_email_logs(
     res_logs = await db.execute(
         text(f"""
             SELECT id, recipient_email, sender_email, sender_name, event_name, template_key,
-                   subject, status, error_details, message_id, sent_at
+                   subject, status, error_details, message_id, sent_at, metadata
             FROM public.email_logs
             WHERE {where_sql}
             ORDER BY sent_at DESC
@@ -614,6 +998,7 @@ async def get_email_logs(
             "errorDetails": r.error_details,
             "messageId": r.message_id,
             "sentAt": r.sent_at.isoformat() if r.sent_at else None,
+            "metadata": r.metadata if isinstance(r.metadata, dict) else {},
         }
         for r in res_logs.fetchall()
     ]
@@ -624,4 +1009,45 @@ async def get_email_logs(
         "page": page,
         "limit": limit,
         "logs": logs,
+    }
+
+
+# ---------------------------------------------------------------------------
+# 8. MTA Health & Diagnostics
+# ---------------------------------------------------------------------------
+@router.get("/health", summary="Mail Server Engine Health & Diagnostics")
+async def get_email_health(
+    _admin: AuthenticatedUser = Depends(_require_super_admin),
+):
+    t_start = time.time()
+    smtp_status = "UNKNOWN"
+    smtp_latency_ms = 0
+    smtp_banner = ""
+
+    try:
+        with smtplib.SMTP("127.0.0.1", 25, timeout=5) as server:
+            code, msg = server.noop()
+            smtp_latency_ms = round((time.time() - t_start) * 1000, 1)
+            smtp_status = "ONLINE" if code == 250 else f"ERROR ({code})"
+            smtp_banner = msg.decode("utf-8", errors="ignore") if isinstance(msg, bytes) else str(msg)
+    except Exception as e:
+        smtp_status = f"UNREACHABLE ({type(e).__name__})"
+        smtp_latency_ms = round((time.time() - t_start) * 1000, 1)
+
+    return {
+        "ok": True,
+        "mta": {
+            "host": "127.0.0.1",
+            "port": 25,
+            "status": smtp_status,
+            "latencyMs": smtp_latency_ms,
+            "banner": smtp_banner,
+            "domain": "altrixcore.com",
+            "mailuHost": "mail.altrixcore.com",
+            "dnsRecords": {
+                "spf": "v=spf1 mx a:mail.altrixcore.com ~all",
+                "dmarc": "v=DMARC1; p=reject; rua=mailto:dmarc@altrixcore.com",
+                "mx": "10 mail.altrixcore.com",
+            },
+        },
     }
