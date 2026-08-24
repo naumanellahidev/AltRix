@@ -39,7 +39,7 @@ class AuthFailedError(MailServiceError):
         super().__init__(
             message=f"Authentication failure: {detail}",
             code="IMAP_AUTH_FAILED",
-            status_code=401
+            status_code=502
         )
 
 

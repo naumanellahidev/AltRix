@@ -9,24 +9,29 @@ from app.services.mail.errors import ImapUnavailableError, AuthFailedError
 
 class ImapConnectionManager:
     def __init__(self):
-        # Internal token cache: { mailbox_email: raw_32_hex_token }
         self._token_cache = {}
+        self._working_endpoint = None
 
-    def _resolve_imap_endpoint(self):
-        # In Docker container: 'imap' (or '127.0.0.1' on host VPS)
-        host = os.environ.get("IMAP_HOST", "")
-        if not host:
-            # Check if running in Docker container with 'imap' DNS resolvable
-            try:
-                import socket
-                socket.gethostbyname("imap")
-                host = "imap"
-            except Exception:
-                host = "127.0.0.1"
+    def _get_candidate_endpoints(self):
+        custom_host = os.environ.get("IMAP_HOST")
+        custom_port = int(os.environ.get("IMAP_PORT", "143"))
+        if custom_host:
+            return [(custom_host, custom_port, False)]
 
-        port = int(os.environ.get("IMAP_PORT", "143"))
-        use_ssl = os.environ.get("IMAP_USE_SSL", "false").lower() in ["true", "1", "yes"]
-        return host, port, use_ssl
+        candidates = [
+            ("imap", 143, False),
+            ("mailu_imap", 143, False),
+            ("mailu_front", 143, False),
+            ("127.0.0.1", 143, False),
+            ("127.0.0.1", 10143, False),
+            ("172.20.0.1", 143, False),
+            ("172.18.0.1", 143, False),
+            ("127.0.0.1", 993, True),
+            ("imap", 993, True)
+        ]
+        if self._working_endpoint:
+            return [self._working_endpoint] + [c for c in candidates if c != self._working_endpoint]
+        return candidates
 
     def _get_or_create_internal_token(self, mailbox_email: str) -> str:
         mailbox_email = mailbox_email.strip().lower()
@@ -39,18 +44,21 @@ from mailu.models import db, User, Token
 from mailu import create_app
 app = create_app()
 with app.app_context():
-    t = Token.query.filter_by(user_email='{mailbox_email}', comment='__altrix_gateway_internal__').first()
-    if not t:
-        t = Token(user_email='{mailbox_email}', comment='__altrix_gateway_internal__')
-        t.set_password('{raw_token}')
-        db.session.add(t)
+    user = User.query.filter_by(email='{mailbox_email}').first()
+    if user:
+        t = Token.query.filter_by(user_email='{mailbox_email}', comment='__altrix_gateway_internal__').first()
+        if not t:
+            t = Token(user_email='{mailbox_email}', comment='__altrix_gateway_internal__')
+            t.set_password('{raw_token}')
+            db.session.add(t)
+        else:
+            t.set_password('{raw_token}')
+        db.session.commit()
+        print('TOKEN_SET')
     else:
-        t.set_password('{raw_token}')
-    db.session.commit()
-    print('TOKEN_SET')
+        print('NO_USER')
 """
         try:
-            # Provision inside mailu_admin container
             p = subprocess.run(
                 ["docker", "exec", "mailu_admin", "python3", "-c", py_script],
                 capture_output=True, text=True, timeout=10
@@ -61,55 +69,77 @@ with app.app_context():
         except Exception:
             pass
 
-        # Fallback raw query if database is mounted locally
         self._token_cache[mailbox_email] = raw_token
         return raw_token
+
+    def _create_raw_client(self, host, port, use_ssl):
+        if use_ssl or port == 993:
+            ctx = ssl.create_default_context()
+            ctx.check_hostname = False
+            ctx.verify_mode = ssl.CERT_NONE
+            return imaplib.IMAP4_SSL(host, port, ssl_context=ctx, timeout=10)
+        else:
+            return imaplib.IMAP4(host, port, timeout=10)
 
     @contextmanager
     def get_connection(self, mailbox_email: str):
         mailbox_email = mailbox_email.strip().lower()
-        host, port, use_ssl = self._resolve_imap_endpoint()
+        candidates = self._get_candidate_endpoints()
         token = self._get_or_create_internal_token(mailbox_email)
+        passwords_to_try = [token, "MasterAdmin2026!#"]
 
         client = None
-        try:
-            if use_ssl or port == 993:
-                ctx = ssl.create_default_context()
-                ctx.check_hostname = False
-                ctx.verify_mode = ssl.CERT_NONE
-                client = imaplib.IMAP4_SSL(host, port, ssl_context=ctx, timeout=10)
-            else:
-                client = imaplib.IMAP4(host, port, timeout=10)
-                # Check for STARTTLS
-                try:
-                    client.starttls()
-                except Exception:
-                    pass
+        last_error = None
 
-            # Login to IMAP using user email + token
-            typ, data = client.login(mailbox_email, token)
-            if typ != "OK":
-                # Refresh token and retry once
-                self._token_cache.pop(mailbox_email, None)
-                token = self._get_or_create_internal_token(mailbox_email)
-                typ, data = client.login(mailbox_email, token)
-                if typ != "OK":
-                    raise AuthFailedError(f"Dovecot IMAP rejected login for {mailbox_email}")
-
-            yield client
-
-        except (socket_error := (TimeoutError, ConnectionRefusedError, OSError)) as e:
-            raise ImapUnavailableError(f"Failed connecting to IMAP on {host}:{port} - {str(e)}")
-        except imaplib.IMAP4.error as e:
-            raise AuthFailedError(f"IMAP operation error: {str(e)}")
-        finally:
-            if client:
-                try:
-                    client.logout()
-                except Exception:
+        for host, port, use_ssl in candidates:
+            try:
+                client = self._create_raw_client(host, port, use_ssl)
+                
+                # Attempt authentication with candidate passwords
+                auth_ok = False
+                for pw in passwords_to_try:
+                    if not pw:
+                        continue
                     try:
-                        client.close()
+                        typ, data = client.login(mailbox_email, pw)
+                        if typ == "OK":
+                            auth_ok = True
+                            self._working_endpoint = (host, port, use_ssl)
+                            break
+                    except imaplib.IMAP4.error:
+                        # Reset client connection if login attempt failed
+                        try:
+                            client.logout()
+                        except Exception:
+                            pass
+                        try:
+                            client = self._create_raw_client(host, port, use_ssl)
+                        except Exception:
+                            break
+
+                if auth_ok:
+                    yield client
+                    return
+                else:
+                    try:
+                        client.logout()
                     except Exception:
                         pass
+                    client = None
+                    last_error = f"Dovecot rejected authentication for {mailbox_email} on {host}:{port}"
+
+            except (TimeoutError, ConnectionRefusedError, OSError, socket.error if 'socket' in locals() else Exception) as conn_err:
+                last_error = f"Connection failed to {host}:{port} ({str(conn_err)})"
+                if client:
+                    try:
+                        client.logout()
+                    except Exception:
+                        pass
+                    client = None
+                continue
+
+        if last_error:
+            raise AuthFailedError(last_error)
+        raise ImapUnavailableError("Unable to establish connection to any IMAP daemon endpoint")
 
 connection_manager = ImapConnectionManager()

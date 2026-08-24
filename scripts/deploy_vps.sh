@@ -558,7 +558,10 @@ for c in ${TARGETS}; do
     fi
 done
 
-# 3. Reload Nginx
+# 3. Synchronize Nginx Configuration for mail.altrixcore.com
+if [ -f "${RELEASE_DIR}/scripts/setup_mail_subdomain_nginx.sh" ]; then
+    bash "${RELEASE_DIR}/scripts/setup_mail_subdomain_nginx.sh" 2>/dev/null || sudo bash "${RELEASE_DIR}/scripts/setup_mail_subdomain_nginx.sh" 2>/dev/null || true
+fi
 sudo systemctl reload nginx 2>/dev/null || systemctl reload nginx 2>/dev/null || true
 
 # 4. Prune obsolete releases & images

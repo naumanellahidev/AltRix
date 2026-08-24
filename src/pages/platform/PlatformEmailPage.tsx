@@ -657,16 +657,16 @@ export default function PlatformEmailPage() {
       actions={
         <div className="flex items-center gap-2">
           <a
-            href="https://mail.altrixcore.com/"
+            href="https://mail.altrixcore.com/admin"
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center justify-center rounded-md text-xs font-semibold h-8 px-3 border border-slate-300 bg-white hover:bg-slate-50 text-slate-800 transition-colors shadow-xs hover:border-slate-400"
-            title="Open Mail Platform Control Center (Domains, Mailboxes, DKIM, Anti-Spam)"
+            title="Open Mail Platform Admin Control Center (Domains, Mailboxes, DKIM, Anti-Spam)"
           >
             <ExternalLink className="h-3.5 w-3.5 mr-1.5 text-blue-600" /> Mail Server Admin
           </a>
           <a
-            href="https://mail.altrixcore.com/webmail/"
+            href="https://mail.altrixcore.com/webmail"
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center justify-center rounded-md text-xs font-semibold h-8 px-3 border border-slate-300 bg-white hover:bg-slate-50 text-slate-800 transition-colors shadow-xs hover:border-slate-400"
@@ -811,7 +811,7 @@ export default function PlatformEmailPage() {
                   <span className="text-slate-400 font-medium">Webmail & Admin Routing</span>
                   <div className="flex items-center gap-2 pt-0.5">
                     <a
-                      href="https://mail.altrixcore.com/"
+                      href="https://mail.altrixcore.com/admin"
                       target="_blank"
                       rel="noopener noreferrer"
                       className="font-bold text-blue-400 hover:text-blue-300 underline flex items-center gap-1"

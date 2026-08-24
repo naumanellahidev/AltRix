@@ -77,17 +77,51 @@ server {
     client_max_body_size 50M;
 
     # 1. Roundcube Webmail Gateway
-    location /webmail/ {
-        proxy_pass http://127.0.0.1:8080/;
+    location /webmail {
+        proxy_pass http://127.0.0.1:8080/webmail;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header X-Forwarded-Host $host;
         proxy_redirect off;
     }
 
-    # 2. Control Center REST API Backend
+    # 2. Mailu Admin Panel
+    location /admin {
+        proxy_pass http://127.0.0.1:8080/admin;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header X-Forwarded-Host $host;
+    }
+
+    # 3. Mailu SSO Login Gateway
+    location /sso/ {
+        proxy_pass http://127.0.0.1:8080/sso/;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header X-Forwarded-Host $host;
+    }
+
+    # 4. Mailu & Roundcube Static Assets (AdminLTE, CSS, Fonts, Images)
+    location /static/ {
+        proxy_pass http://127.0.0.1:8080/static/;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header X-Forwarded-Host $host;
+    }
+
+    # 5. Control Center REST API Backend
     location /api/ {
         proxy_pass http://127.0.0.1:5000/api/;
         proxy_http_version 1.1;
@@ -95,16 +129,18 @@ server {
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header X-Forwarded-Host $host;
     }
 
-    # 3. Control Center Frontend SPA & Direct Routes (/login, /domains, /mailboxes, etc.)
+    # 6. Default Mailu Reverse Proxy Gateway
     location / {
-        proxy_pass http://127.0.0.1:5000;
+        proxy_pass http://127.0.0.1:8080;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header X-Forwarded-Host $host;
     }
 }
 EOF
