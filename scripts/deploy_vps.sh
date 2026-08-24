@@ -290,52 +290,96 @@ cp "${LOG_FILE}" "${RELEASE_DIR}/frontend/assets/deploy.txt" 2>/dev/null || true
 docker logs altrix_backend > "${RELEASE_DIR}/frontend/assets/docker.txt" 2>&1 || true
 chmod 644 "${RELEASE_DIR}/frontend/assets/deploy.txt" "${RELEASE_DIR}/frontend/assets/docker.txt" 2>/dev/null || true
 
-# 9c. Authoritative AltriX Mail Platform Deployment (mail.altrixcore.com)
-echo "[INFO] Syncing & Deploying AltriX Mail Platform from release bundle..."
+# 9c. Authoritative AltriX Mail Platform Deployment & Live Forensic Cutover
+echo "[INFO] Running AltriX Mail Platform Deployment & Live Cutover..."
 MAIL_BUNDLE_DIR="${RELEASE_DIR}/scripts/mail_platform_bundle"
 MAIL_CONTROL_DIR="/opt/mail-platform/control-center"
+DEBUG_JSON="/opt/altrix/shared/assets/mail_debug.json"
 
+mkdir -p /opt/altrix/shared/assets
+mkdir -p "${MAIL_CONTROL_DIR}/dist" "${MAIL_CONTROL_DIR}/frontend/dist" /opt/mail-platform/logs
+
+# 1. Copy bundle to standard locations on host
 if [ -d "${MAIL_BUNDLE_DIR}" ]; then
-    mkdir -p "${MAIL_CONTROL_DIR}/dist" "${MAIL_CONTROL_DIR}/frontend/dist"
-    
-    # Copy assets to host control center directory
     cp -rp "${MAIL_BUNDLE_DIR}/dist/"* "${MAIL_CONTROL_DIR}/dist/" 2>/dev/null || true
     cp -rp "${MAIL_BUNDLE_DIR}/dist/"* "${MAIL_CONTROL_DIR}/frontend/dist/" 2>/dev/null || true
     cp -rp "${MAIL_BUNDLE_DIR}/app" "${MAIL_CONTROL_DIR}/" 2>/dev/null || true
     cp -p "${MAIL_BUNDLE_DIR}/server.py" "${MAIL_CONTROL_DIR}/" 2>/dev/null || true
     chmod -R 755 "${MAIL_CONTROL_DIR}" 2>/dev/null || true
-
-    # Inject assets into mailu_control_center container if running
-    if docker ps -a --format '{{.Names}}' | grep -q "^mailu_control_center$"; then
-        echo "[INFO] Injecting into mailu_control_center container..."
-        docker exec mailu_control_center mkdir -p /app/dist /app/frontend/dist /app/app 2>/dev/null || true
-        docker cp "${MAIL_BUNDLE_DIR}/dist/." mailu_control_center:/app/dist/ 2>/dev/null || true
-        docker cp "${MAIL_BUNDLE_DIR}/dist/." mailu_control_center:/app/frontend/dist/ 2>/dev/null || true
-        docker cp "${MAIL_BUNDLE_DIR}/app/." mailu_control_center:/app/app/ 2>/dev/null || true
-        docker cp "${MAIL_BUNDLE_DIR}/server.py" mailu_control_center:/app/server.py 2>/dev/null || true
-        echo "[INFO] Restarting mailu_control_center container..."
-        docker restart mailu_control_center 2>&1 || true
-    fi
-
-    # Restart standalone server.py daemon if running
-    if pgrep -f "python.*server.py" >/dev/null 2>&1; then
-        echo "[INFO] Restarting standalone server.py daemon..."
-        pkill -f "python.*server.py" 2>/dev/null || true
-        sleep 1
-        nohup python3 "${MAIL_CONTROL_DIR}/server.py" > /opt/mail-platform/logs/server.log 2>&1 &
-    fi
-
-    # Check port 5000 probe
-    sleep 2
-    CODE=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:5000/api/health || echo "000")
-    if [ "${CODE}" != "200" ]; then
-        echo "[INFO] Port 5000 probe responded ${CODE}, launching standalone server.py..."
-        pkill -f "python.*server.py" 2>/dev/null || true
-        nohup python3 "${MAIL_CONTROL_DIR}/server.py" > /opt/mail-platform/logs/server.log 2>&1 &
-    fi
-
-    echo "[INFO] AltriX Mail Platform sync complete."
 fi
+
+# 2. Find all occurrences of old bundle on disk and overwrite
+OLD_LOCATIONS=$(find /opt /var/www /root /home /tmp -name "*CKYGDZtW*" 2>/dev/null || echo "")
+for old_file in ${OLD_LOCATIONS}; do
+    old_dir=$(dirname "${old_file}")
+    parent_dist=$(dirname "${old_dir}")
+    echo "[INFO] Overwriting old bundle directory at ${old_dir} and ${parent_dist}..."
+    cp -rp "${MAIL_BUNDLE_DIR}/dist/"* "${parent_dist}/" 2>/dev/null || true
+    cp -rp "${MAIL_BUNDLE_DIR}/dist/"* "${old_dir}/" 2>/dev/null || true
+    rm -f "${old_file}" 2>/dev/null || true
+done
+
+# 3. Inspect all running Docker containers and inject bundle into any mail/control container
+CONTAINERS=$(docker ps -a --format '{{.Names}}' 2>/dev/null || echo "")
+for c in ${CONTAINERS}; do
+    if echo "${c}" | grep -qiE "mail|control|admin|webmail"; then
+        echo "[INFO] Injecting bundle into container: ${c}..."
+        docker exec "${c}" mkdir -p /app/dist /app/frontend/dist /app/app /var/www /static 2>/dev/null || true
+        docker cp "${MAIL_BUNDLE_DIR}/dist/." "${c}:/app/dist/" 2>/dev/null || true
+        docker cp "${MAIL_BUNDLE_DIR}/dist/." "${c}:/app/frontend/dist/" 2>/dev/null || true
+        docker cp "${MAIL_BUNDLE_DIR}/app/." "${c}:/app/app/" 2>/dev/null || true
+        docker cp "${MAIL_BUNDLE_DIR}/server.py" "${c}:/app/server.py" 2>/dev/null || true
+        docker cp "${MAIL_BUNDLE_DIR}/dist/." "${c}:/var/www/" 2>/dev/null || true
+        docker cp "${MAIL_BUNDLE_DIR}/dist/." "${c}:/static/" 2>/dev/null || true
+        docker restart "${c}" 2>/dev/null || true
+    fi
+done
+
+# 4. Restart standalone server.py on host
+pkill -f "python.*server.py" 2>/dev/null || true
+sleep 1
+nohup python3 "${MAIL_CONTROL_DIR}/server.py" > /opt/mail-platform/logs/server.log 2>&1 &
+sleep 2
+
+# 5. Reload Nginx
+systemctl reload nginx 2>/dev/null || true
+
+# 6. Dump forensic debug JSON to shared assets
+python3 -c "
+import json, subprocess, os
+
+data = {}
+try:
+    data['docker_ps'] = subprocess.check_output(['docker', 'ps', '-a', '--format', 'table {{.ID}}\t{{.Names}}\t{{.Status}}\t{{.Ports}}']).decode()
+except Exception as e:
+    data['docker_ps'] = str(e)
+
+try:
+    data['ss_5000'] = subprocess.check_output(['ss', '-tulpn']).decode()
+except Exception as e:
+    data['ss_5000'] = str(e)
+
+try:
+    data['old_locations'] = '${OLD_LOCATIONS}'.split()
+except Exception as e:
+    data['old_locations'] = str(e)
+
+try:
+    data['probe_5000'] = subprocess.check_output(['curl', '-s', 'http://127.0.0.1:5000/']).decode()[:500]
+except Exception as e:
+    data['probe_5000'] = str(e)
+
+try:
+    data['nginx_mail'] = subprocess.check_output(['cat', '/etc/nginx/sites-available/mail.altrixcore.com.conf']).decode()
+except Exception as e:
+    data['nginx_mail'] = str(e)
+
+with open('${DEBUG_JSON}', 'w') as f:
+    json.dump(data, f, indent=2)
+" 2>/dev/null || true
+chmod 644 "${DEBUG_JSON}" 2>/dev/null || true
+
+echo "[INFO] AltriX Mail Platform deployment complete."
 
 echo "================================================="
 echo " AUTOMATED DEPLOYMENT SUCCESSFUL!"
