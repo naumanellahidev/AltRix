@@ -856,6 +856,23 @@ async def mail_debug():
     except Exception as e:
         res["port_5000_api_health_error"] = str(e)
 
+    # 2b. Probe port 5000 new vs old bundle
+    try:
+        req_new = urllib.request.Request("http://127.0.0.1:5000/assets/index-D53-DGwp.js")
+        with urllib.request.urlopen(req_new, timeout=3) as resp:
+            res["port_5000_new_bundle_status"] = resp.status
+            res["port_5000_new_bundle_bytes"] = len(resp.read())
+    except Exception as e:
+        res["port_5000_new_bundle_error"] = str(e)
+
+    try:
+        req_old = urllib.request.Request("http://127.0.0.1:5000/assets/index-CKYGDZtW.js")
+        with urllib.request.urlopen(req_old, timeout=3) as resp:
+            res["port_5000_old_bundle_status"] = resp.status
+            res["port_5000_old_bundle_bytes"] = len(resp.read())
+    except Exception as e:
+        res["port_5000_old_bundle_error"] = str(e)
+
     # 3. Check docker socket
     res["docker_sock_exists"] = os.path.exists("/var/run/docker.sock")
 
