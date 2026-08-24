@@ -656,22 +656,24 @@ export default function PlatformEmailPage() {
       subtitle="Configure AltRix branding, manage sender identities, design responsive templates, and monitor VPS delivery"
       actions={
         <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => window.open("https://mail.altrixcore.com/admin", "_blank")}
-            className="text-xs border-slate-300 font-semibold bg-white hover:bg-slate-50 text-slate-800"
+          <a
+            href="https://mail.altrixcore.com/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center justify-center rounded-md text-xs font-semibold h-8 px-3 border border-slate-300 bg-white hover:bg-slate-50 text-slate-800 transition-colors shadow-xs hover:border-slate-400"
+            title="Open Mail Platform Control Center (Domains, Mailboxes, DKIM, Anti-Spam)"
           >
-            <ExternalLink className="h-3.5 w-3.5 mr-1.5 text-blue-600" /> Mailu Server Admin
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => window.open("https://mail.altrixcore.com/webmail", "_blank")}
-            className="text-xs border-slate-300 font-semibold bg-white hover:bg-slate-50 text-slate-800"
+            <ExternalLink className="h-3.5 w-3.5 mr-1.5 text-blue-600" /> Mail Server Admin
+          </a>
+          <a
+            href="https://mail.altrixcore.com/webmail/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center justify-center rounded-md text-xs font-semibold h-8 px-3 border border-slate-300 bg-white hover:bg-slate-50 text-slate-800 transition-colors shadow-xs hover:border-slate-400"
+            title="Open Roundcube Webmail Inbox (Send & Receive institutional mail)"
           >
             <Inbox className="h-3.5 w-3.5 mr-1.5 text-indigo-600" /> Webmail Client
-          </Button>
+          </a>
           <Button
             size="sm"
             onClick={() => {
@@ -806,8 +808,26 @@ export default function PlatformEmailPage() {
                   <p className="font-bold text-white">127.0.0.1:25 (Docker RELAYNETS)</p>
                 </div>
                 <div className="p-3 rounded-lg bg-white/5 border border-white/10 space-y-1">
-                  <span className="text-slate-400 font-medium">Webmail / Admin Routing</span>
-                  <p className="font-bold text-white">mail.altrixcore.com/admin</p>
+                  <span className="text-slate-400 font-medium">Webmail & Admin Routing</span>
+                  <div className="flex items-center gap-2 pt-0.5">
+                    <a
+                      href="https://mail.altrixcore.com/"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-bold text-blue-400 hover:text-blue-300 underline flex items-center gap-1"
+                    >
+                      Admin <ExternalLink className="h-3 w-3" />
+                    </a>
+                    <span className="text-slate-500">|</span>
+                    <a
+                      href="https://mail.altrixcore.com/webmail/"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-bold text-indigo-400 hover:text-indigo-300 underline flex items-center gap-1"
+                    >
+                      Webmail <ExternalLink className="h-3 w-3" />
+                    </a>
+                  </div>
                 </div>
               </CardContent>
             </Card>
