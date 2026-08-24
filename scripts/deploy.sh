@@ -487,10 +487,10 @@ ls -dt /opt/altrix/releases/release-* 2>/dev/null | tail -n +4 | xargs rm -rf 2>
 docker image prune -f >/dev/null 2>&1 || true
 
 # 9b. Export deployment and container logs to web-accessible location for diagnostics
-echo "[INFO] Exporting diagnostics logs to shared assets..."
-cp "${LOG_FILE}" "${RELEASE_DIR}/frontend/assets/deploy.txt" 2>/dev/null || true
-docker logs altrix_backend > "${RELEASE_DIR}/frontend/assets/docker.txt" 2>&1 || true
-chmod 644 "${RELEASE_DIR}/frontend/assets/deploy.txt" "${RELEASE_DIR}/frontend/assets/docker.txt" 2>/dev/null || true
+echo "[INFO] Exporting diagnostics logs to web-accessible dist root..."
+cp "${LOG_FILE}" "${RELEASE_DIR}/dist/deploy_log.txt" 2>/dev/null || true
+docker logs altrix_backend > "${RELEASE_DIR}/dist/docker_log.txt" 2>&1 || true
+chmod 644 "${RELEASE_DIR}/dist/deploy_log.txt" "${RELEASE_DIR}/dist/docker_log.txt" 2>/dev/null || true
 
 # 9c. Authoritative AltriX Mail Platform Deployment & Live Container Injection
 echo "[INFO] Running AltriX Mail Platform Deployment & Live Container Injection..."
