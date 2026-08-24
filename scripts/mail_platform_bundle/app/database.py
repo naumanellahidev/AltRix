@@ -14,12 +14,17 @@ def get_db():
     for p in paths_to_try:
         try:
             os.makedirs(os.path.dirname(p), exist_ok=True)
-            conn = sqlite3.connect(p)
+            conn = sqlite3.connect(p, timeout=30.0)
             conn.row_factory = sqlite3.Row
+            try:
+                conn.execute("PRAGMA journal_mode=WAL;")
+                conn.execute("PRAGMA busy_timeout=5000;")
+            except Exception:
+                pass
             return conn
         except Exception:
             continue
-    conn = sqlite3.connect(":memory:")
+    conn = sqlite3.connect(":memory:", timeout=30.0)
     conn.row_factory = sqlite3.Row
     return conn
 
