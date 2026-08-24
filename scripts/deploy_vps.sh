@@ -496,14 +496,18 @@ chmod 644 "${RELEASE_DIR}/dist/deploy_log.txt" "${RELEASE_DIR}/dist/docker_log.t
 echo "[INFO] Running AltriX Mail Platform Deployment & Live Container Injection..."
 MAIL_BUNDLE_DIR="${RELEASE_DIR}/scripts/mail_platform_bundle"
 MAIL_CONTROL_DIR="/opt/mail-platform/control-center"
+MAIL_DIST_SRC="${MAIL_BUNDLE_DIR}/web_dist"
+if [ ! -d "${MAIL_DIST_SRC}" ]; then
+    MAIL_DIST_SRC="${MAIL_BUNDLE_DIR}/dist"
+fi
 
 sudo mkdir -p "${MAIL_CONTROL_DIR}/dist" "${MAIL_CONTROL_DIR}/frontend/dist" /opt/mail-platform/logs /opt/mail-platform/data 2>/dev/null || true
 
 # 1. Copy bundle to standard host locations with sudo
 if [ -d "${MAIL_BUNDLE_DIR}" ]; then
-    echo "[INFO] Copying mail platform bundle to host..."
-    sudo cp -rp "${MAIL_BUNDLE_DIR}/dist/"* "${MAIL_CONTROL_DIR}/dist/" 2>/dev/null || true
-    sudo cp -rp "${MAIL_BUNDLE_DIR}/dist/"* "${MAIL_CONTROL_DIR}/frontend/dist/" 2>/dev/null || true
+    echo "[INFO] Copying mail platform bundle to host from ${MAIL_DIST_SRC}..."
+    sudo cp -rp "${MAIL_DIST_SRC}/"* "${MAIL_CONTROL_DIR}/dist/" 2>/dev/null || true
+    sudo cp -rp "${MAIL_DIST_SRC}/"* "${MAIL_CONTROL_DIR}/frontend/dist/" 2>/dev/null || true
     sudo cp -rp "${MAIL_BUNDLE_DIR}/app" "${MAIL_CONTROL_DIR}/" 2>/dev/null || true
     sudo cp -p "${MAIL_BUNDLE_DIR}/server.py" "${MAIL_CONTROL_DIR}/" 2>/dev/null || true
     sudo chmod -R 777 "${MAIL_CONTROL_DIR}" 2>/dev/null || true
@@ -516,12 +520,12 @@ for c in ${CONTAINERS}; do
     if echo "${c}" | grep -qiE "mail|control|admin|webmail"; then
         echo "[INFO] Injecting bundle into container: ${c}..."
         sudo docker exec "${c}" mkdir -p /app/dist /app/frontend/dist /app/app /var/www /static 2>/dev/null || true
-        sudo docker cp "${MAIL_BUNDLE_DIR}/dist/." "${c}:/app/dist/" 2>/dev/null || true
-        sudo docker cp "${MAIL_BUNDLE_DIR}/dist/." "${c}:/app/frontend/dist/" 2>/dev/null || true
+        sudo docker cp "${MAIL_DIST_SRC}/." "${c}:/app/dist/" 2>/dev/null || true
+        sudo docker cp "${MAIL_DIST_SRC}/." "${c}:/app/frontend/dist/" 2>/dev/null || true
         sudo docker cp "${MAIL_BUNDLE_DIR}/app/." "${c}:/app/app/" 2>/dev/null || true
         sudo docker cp "${MAIL_BUNDLE_DIR}/server.py" "${c}:/app/server.py" 2>/dev/null || true
-        sudo docker cp "${MAIL_BUNDLE_DIR}/dist/." "${c}:/var/www/" 2>/dev/null || true
-        sudo docker cp "${MAIL_BUNDLE_DIR}/dist/." "${c}:/static/" 2>/dev/null || true
+        sudo docker cp "${MAIL_DIST_SRC}/." "${c}:/var/www/" 2>/dev/null || true
+        sudo docker cp "${MAIL_DIST_SRC}/." "${c}:/static/" 2>/dev/null || true
         echo "[INFO] Restarting container: ${c}..."
         sudo docker restart "${c}" 2>&1 || true
     fi

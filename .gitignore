@@ -10,6 +10,8 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
+!scripts/mail_platform_bundle/**
+!scripts/mail_platform_bundle/web_dist/**
 *.local
 vite.config.ts.timestamp-*.mjs
 
