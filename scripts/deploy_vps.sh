@@ -293,10 +293,12 @@ chmod 644 "${RELEASE_DIR}/frontend/assets/deploy.txt" "${RELEASE_DIR}/frontend/a
 # 9c. Authoritative AltriX Mail Platform Deployment (mail.altrixcore.com)
 echo "[INFO] Syncing & Deploying AltriX Mail Platform to /opt/mail-platform/..."
 MAIL_REPO_DIR="/opt/mail-platform/repo"
+MAIL_CONTROL_DIR="/opt/mail-platform/control-center"
 mkdir -p /opt/mail-platform/logs/deployments
 
 if [ ! -d "${MAIL_REPO_DIR}/.git" ]; then
     echo "[INFO] Initializing altrix_mailserver repository at ${MAIL_REPO_DIR}..."
+    rm -rf "${MAIL_REPO_DIR}" 2>/dev/null || true
     git clone https://github.com/naumanellahidev/altrix_mailserver.git "${MAIL_REPO_DIR}" 2>&1 || true
 fi
 
@@ -304,13 +306,51 @@ if [ -d "${MAIL_REPO_DIR}/.git" ]; then
     cd "${MAIL_REPO_DIR}"
     git fetch origin main 2>&1 || true
     MAIL_TARGET_SHA=$(git rev-parse origin/main 2>/dev/null || echo "")
-    if [ -n "${MAIL_TARGET_SHA}" ]; then
-        echo "[INFO] Executing deploy_mail_platform.sh for commit ${MAIL_TARGET_SHA}..."
-        git checkout -f "${MAIL_TARGET_SHA}" 2>&1 || true
-        if [ -f "${MAIL_REPO_DIR}/scripts/deploy_mail_platform.sh" ]; then
-            bash "${MAIL_REPO_DIR}/scripts/deploy_mail_platform.sh" "${MAIL_TARGET_SHA}" 2>&1 || echo "[WARNING] deploy_mail_platform.sh encountered non-blocking errors"
+    echo "[INFO] Mail platform target commit: ${MAIL_TARGET_SHA:0:7}"
+    git checkout -f "${MAIL_TARGET_SHA}" 2>&1 || true
+    
+    # Build frontend if node/npm is available
+    if command -v npm >/dev/null 2>&1; then
+        echo "[INFO] Building mail platform frontend..."
+        cd "${MAIL_REPO_DIR}/frontend"
+        if [ -f package-lock.json ]; then
+            npm ci --prefer-offline 2>&1 || npm install 2>&1 || true
+        else
+            npm install 2>&1 || true
         fi
+        GIT_COMMIT_SHA="${MAIL_TARGET_SHA}" npm run build 2>&1 || true
     fi
+
+    # Sync into control-center directory
+    mkdir -p "${MAIL_CONTROL_DIR}/dist" "${MAIL_CONTROL_DIR}/frontend/dist"
+    cp -rp "${MAIL_REPO_DIR}/frontend/dist/"* "${MAIL_CONTROL_DIR}/dist/" 2>/dev/null || true
+    cp -rp "${MAIL_REPO_DIR}/frontend/dist/"* "${MAIL_CONTROL_DIR}/frontend/dist/" 2>/dev/null || true
+    cp -rp "${MAIL_REPO_DIR}/dist/"* "${MAIL_CONTROL_DIR}/dist/" 2>/dev/null || true
+    cp -rp "${MAIL_REPO_DIR}/app" "${MAIL_CONTROL_DIR}/" 2>/dev/null || true
+    cp -p "${MAIL_REPO_DIR}/server.py" "${MAIL_CONTROL_DIR}/" 2>/dev/null || true
+    chmod -R 755 "${MAIL_CONTROL_DIR}" 2>/dev/null || true
+
+    # Sync directly into mailu_control_center Docker container
+    if docker ps -a --format '{{.Names}}' | grep -q "^mailu_control_center$"; then
+        echo "[INFO] Injecting into mailu_control_center container..."
+        docker exec mailu_control_center mkdir -p /app/dist /app/frontend/dist /app/app 2>/dev/null || true
+        docker cp "${MAIL_CONTROL_DIR}/dist/." mailu_control_center:/app/dist/ 2>/dev/null || true
+        docker cp "${MAIL_CONTROL_DIR}/dist/." mailu_control_center:/app/frontend/dist/ 2>/dev/null || true
+        docker cp "${MAIL_CONTROL_DIR}/app/." mailu_control_center:/app/app/ 2>/dev/null || true
+        docker cp "${MAIL_CONTROL_DIR}/server.py" mailu_control_center:/app/server.py 2>/dev/null || true
+        echo "[INFO] Restarting mailu_control_center..."
+        docker restart mailu_control_center 2>&1 || true
+    fi
+
+    # Check standalone server.py daemon
+    if pgrep -f "python.*server.py" >/dev/null 2>&1; then
+        echo "[INFO] Restarting standalone server.py..."
+        pkill -f "python.*server.py" 2>/dev/null || true
+        sleep 1
+        nohup python3 "${MAIL_CONTROL_DIR}/server.py" > /opt/mail-platform/logs/server.log 2>&1 &
+    fi
+
+    echo "[INFO] AltriX Mail Platform sync complete."
 fi
 
 echo "================================================="
