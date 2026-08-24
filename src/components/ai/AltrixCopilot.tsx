@@ -586,7 +586,7 @@ export default function AltrixCopilot() {
     if (paramSlug) return paramSlug;
     const parts = location.pathname.split("/").filter(Boolean);
     const first = parts[0];
-    if (!first || ["super_admin", "auth", "reset-password", "platform"].includes(first)) return "";
+    if (!first || ["super_admin", "auth", "reset-password", "platform", "activate-account", "api", "assets"].includes(first)) return "";
     return first;
   }, [paramSlug, location.pathname]);
   const navigate = useNavigate();

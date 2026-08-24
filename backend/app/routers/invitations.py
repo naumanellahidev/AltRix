@@ -509,10 +509,10 @@ async def activate_account(
         if not res_ur.fetchone():
             await db.execute(
                 text("""
-                    INSERT INTO public.user_roles (id, school_id, user_id, role, created_by, created_at)
-                    VALUES (:id, :sid, :uid, :role, :aid, NOW())
+                    INSERT INTO public.user_roles (id, school_id, user_id, role, created_at)
+                    VALUES (:id, :sid, :uid, :role, NOW())
                 """),
-                {"id": uuid.uuid4(), "sid": school_id, "uid": user_id, "role": assigned_role, "aid": actor_uid},
+                {"id": uuid.uuid4(), "sid": school_id, "uid": user_id, "role": assigned_role},
             )
 
     # 4. Mark Invitation Consumed
@@ -529,17 +529,20 @@ async def activate_account(
 
     user_id_str = str(user_id)
 
-    # Log audit event within transaction
-    await log_audit_event(
-        db=db,
-        action=AuditAction.LOGIN,
-        resource_type="invitation",
-        resource_id=str(invite.id),
-        user_id=user_id,
-        school_id=school_id,
-        new_values={"activated": True, "email": clean_email, "role": assigned_role},
-        request=request,
-    )
+    # Log audit event safely
+    try:
+        await log_audit_event(
+            db=db,
+            action=AuditAction.LOGIN,
+            resource_type="invitation",
+            resource_id=str(invite.id),
+            user_id=user_id,
+            school_id=school_id,
+            new_values={"activated": True, "email": clean_email, "role": assigned_role},
+            request=request,
+        )
+    except Exception as audit_err:
+        logger.warning(f"Audit log writing failed during account activation: {audit_err}")
 
     await db.commit()
 

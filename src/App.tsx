@@ -66,10 +66,12 @@ function CopilotWrapper() {
     const parts = location.pathname.split("/").filter(Boolean);
     if (parts.length === 0) return false;
     const first = parts[0];
-    if (["super_admin", "auth", "reset-password", "platform"].includes(first)) return false;
+    if (["super_admin", "auth", "reset-password", "platform", "activate-account", "api", "assets"].includes(first)) return false;
     if (parts[1] === "auth" || parts[1] === "bootstrap") return false;
     return true;
   }, [location.pathname, user]);
+
+  if (!isTenantRoute) return null;
 
   return (
     <div className="no-print print:hidden" data-html2canvas-ignore="true" id="copilot-root">
