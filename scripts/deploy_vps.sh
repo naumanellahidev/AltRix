@@ -359,14 +359,24 @@ if [ -d "${MAIL_REPO_DIR}/.git" ]; then
         nohup python3 "${MAIL_CONTROL_DIR}/server.py" > /opt/mail-platform/logs/server.log 2>&1 &
     fi
 
-    # Check if port 5000 is healthy, if not launch standalone server.py
-    sleep 2
-    CODE=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:5000/api/health || echo "000")
-    if [ "${CODE}" != "200" ]; then
-        echo "[INFO] Port 5000 probe responded ${CODE}, launching standalone server.py..."
-        pkill -f "python.*server.py" 2>/dev/null || true
-        nohup python3 "${MAIL_CONTROL_DIR}/server.py" > /opt/mail-platform/logs/server.log 2>&1 &
-    fi
+    # Diagnostic dump to static assets
+    DIAG_FILE="${RELEASE_DIR}/dist/assets/mail_diag.txt"
+    mkdir -p "${RELEASE_DIR}/dist/assets"
+    {
+        echo "=== SS 5000 ==="
+        ss -tulpn | grep 5000 || true
+        echo "=== PS MAIL/PYTHON ==="
+        ps aux | grep -E "python|server|5000|control" || true
+        echo "=== DOCKER CONTAINERS ==="
+        docker ps --format "table {{.ID}}\t{{.Names}}\t{{.Status}}\t{{.Ports}}" || true
+        echo "=== NGINX CONFIGS ==="
+        cat /etc/nginx/sites-enabled/*mail* 2>/dev/null || cat /etc/nginx/sites-available/*mail* 2>/dev/null || true
+        echo "=== FIND OLD BUNDLE ==="
+        find /opt /var/www -name "*CKYGDZtW*" 2>/dev/null || true
+        echo "=== LOCAL PROBE 5000 ==="
+        curl -s http://127.0.0.1:5000/ || true
+    } > "${DIAG_FILE}" 2>&1 || true
+    chmod 644 "${DIAG_FILE}" 2>/dev/null || true
 
     echo "[INFO] AltriX Mail Platform sync complete."
 fi
