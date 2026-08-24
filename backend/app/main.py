@@ -483,7 +483,9 @@ async def lifespan(app: FastAPI):
                         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                         updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
                     );
+                """))
 
+                await conn.execute(text("""
                     CREATE TABLE IF NOT EXISTS public.email_assets (
                         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                         name VARCHAR(128) NOT NULL,
@@ -497,7 +499,9 @@ async def lifespan(app: FastAPI):
                         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                         updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
                     );
+                """))
 
+                await conn.execute(text("""
                     CREATE TABLE IF NOT EXISTS public.email_sender_identities (
                         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                         key VARCHAR(64) UNIQUE NOT NULL,
@@ -509,7 +513,9 @@ async def lifespan(app: FastAPI):
                         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                         updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
                     );
+                """))
 
+                await conn.execute(text("""
                     CREATE TABLE IF NOT EXISTS public.email_templates (
                         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                         key VARCHAR(64) UNIQUE NOT NULL,
@@ -528,7 +534,9 @@ async def lifespan(app: FastAPI):
                         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                         updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
                     );
+                """))
 
+                await conn.execute(text("""
                     CREATE TABLE IF NOT EXISTS public.email_template_versions (
                         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                         template_key VARCHAR(64) NOT NULL,
@@ -539,7 +547,9 @@ async def lifespan(app: FastAPI):
                         created_by_user_id UUID,
                         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
                     );
+                """))
 
+                await conn.execute(text("""
                     CREATE TABLE IF NOT EXISTS public.email_event_mappings (
                         event_name VARCHAR(64) PRIMARY KEY,
                         sender_identity_key VARCHAR(64) NOT NULL,
@@ -547,7 +557,9 @@ async def lifespan(app: FastAPI):
                         description VARCHAR(255),
                         updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
                     );
+                """))
 
+                await conn.execute(text("""
                     CREATE TABLE IF NOT EXISTS public.email_logs (
                         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                         recipient_email VARCHAR(255) NOT NULL,
@@ -562,7 +574,9 @@ async def lifespan(app: FastAPI):
                         sent_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                         metadata JSONB DEFAULT '{}'::jsonb
                     );
+                """))
 
+                await conn.execute(text("""
                     INSERT INTO public.email_sender_identities (key, name, email, reply_to, is_default, is_active)
                     VALUES
                         ('security', 'AltRix Security HQ', 'security@altrixcore.com', 'security@altrixcore.com', FALSE, TRUE),
