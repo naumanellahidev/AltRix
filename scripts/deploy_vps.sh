@@ -290,6 +290,29 @@ cp "${LOG_FILE}" "${RELEASE_DIR}/frontend/assets/deploy.txt" 2>/dev/null || true
 docker logs altrix_backend > "${RELEASE_DIR}/frontend/assets/docker.txt" 2>&1 || true
 chmod 644 "${RELEASE_DIR}/frontend/assets/deploy.txt" "${RELEASE_DIR}/frontend/assets/docker.txt" 2>/dev/null || true
 
+# 9c. Authoritative AltriX Mail Platform Deployment (mail.altrixcore.com)
+echo "[INFO] Syncing & Deploying AltriX Mail Platform to /opt/mail-platform/..."
+MAIL_REPO_DIR="/opt/mail-platform/repo"
+mkdir -p /opt/mail-platform/logs/deployments
+
+if [ ! -d "${MAIL_REPO_DIR}/.git" ]; then
+    echo "[INFO] Initializing altrix_mailserver repository at ${MAIL_REPO_DIR}..."
+    git clone https://github.com/naumanellahidev/altrix_mailserver.git "${MAIL_REPO_DIR}" 2>&1 || true
+fi
+
+if [ -d "${MAIL_REPO_DIR}/.git" ]; then
+    cd "${MAIL_REPO_DIR}"
+    git fetch origin main 2>&1 || true
+    MAIL_TARGET_SHA=$(git rev-parse origin/main 2>/dev/null || echo "")
+    if [ -n "${MAIL_TARGET_SHA}" ]; then
+        echo "[INFO] Executing deploy_mail_platform.sh for commit ${MAIL_TARGET_SHA}..."
+        git checkout -f "${MAIL_TARGET_SHA}" 2>&1 || true
+        if [ -f "${MAIL_REPO_DIR}/scripts/deploy_mail_platform.sh" ]; then
+            bash "${MAIL_REPO_DIR}/scripts/deploy_mail_platform.sh" "${MAIL_TARGET_SHA}" 2>&1 || echo "[WARNING] deploy_mail_platform.sh encountered non-blocking errors"
+        fi
+    fi
+fi
+
 echo "================================================="
 echo " AUTOMATED DEPLOYMENT SUCCESSFUL!"
 echo " Target Commit: ${TARGET_SHA}"
