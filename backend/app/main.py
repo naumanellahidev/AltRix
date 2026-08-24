@@ -831,6 +831,7 @@ async def system_status():
 async def mail_debug():
     import urllib.request
     import os
+    import subprocess
     res = {}
     
     # 1. Probe port 5000 root
@@ -855,18 +856,28 @@ async def mail_debug():
     except Exception as e:
         res["port_5000_api_health_error"] = str(e)
 
-    # 3. Check directories
-    res["opt_mail_platform_exists"] = os.path.exists("/opt/mail-platform")
-    res["opt_mail_dist_files"] = []
-    for d in ["/opt/mail-platform/control-center/dist", "/opt/mail-platform/control-center/frontend/dist", "/opt/mail-platform/repo/dist"]:
-        if os.path.exists(d):
-            try:
-                res["opt_mail_dist_files"].append({
-                    "dir": d,
-                    "files": os.listdir(d)
-                })
-            except Exception as e:
-                res["opt_mail_dist_files"].append({"dir": d, "error": str(e)})
+    # 3. Check docker socket
+    res["docker_sock_exists"] = os.path.exists("/var/run/docker.sock")
+
+    # 4. Check /opt/altrix and scripts
+    res["deploy_sh_exists"] = os.path.exists("/opt/altrix/scripts/deploy.sh")
+    if res["deploy_sh_exists"]:
+        try:
+            with open("/opt/altrix/scripts/deploy.sh", "r") as f:
+                content = f.read()
+                res["deploy_sh_len"] = len(content)
+                res["deploy_sh_has_mail"] = "mail_platform" in content or "9c" in content or "mailu" in content
+                res["deploy_sh_tail"] = content[-500:]
+        except Exception as e:
+            res["deploy_sh_error"] = str(e)
+
+    # 5. Check if /opt/altrix/current exists and bundle exists
+    res["current_symlink_exists"] = os.path.exists("/opt/altrix/current")
+    if res["current_symlink_exists"]:
+        try:
+            res["bundle_exists_in_current"] = os.path.exists("/opt/altrix/current/scripts/mail_platform_bundle")
+        except Exception as e:
+            res["bundle_exists_in_current_error"] = str(e)
 
     return res
 

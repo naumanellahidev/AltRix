@@ -28,6 +28,8 @@ while true; do
 
     if [ -n "${REMOTE_SHA}" ] && [ "${REMOTE_SHA}" != "${LOCAL_SHA}" ]; then
         echo "[DAEMON] New GitHub commit detected: ${REMOTE_SHA:0:12} (VPS Current: ${LOCAL_SHA:0:12}). Triggering auto-deploy..."
+        cp -p "${REPO_DIR}/scripts/deploy.sh" /opt/altrix/scripts/deploy.sh 2>/dev/null || cp -p "${REPO_DIR}/scripts/deploy_vps.sh" /opt/altrix/scripts/deploy.sh 2>/dev/null || true
+        chmod +x /opt/altrix/scripts/deploy.sh 2>/dev/null || true
         /opt/altrix/scripts/deploy.sh "${REMOTE_SHA}" || echo "[DAEMON ERROR] Auto-deployment failed for commit ${REMOTE_SHA}"
     fi
 
