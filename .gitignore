@@ -12,6 +12,7 @@ dist
 dist-ssr
 !scripts/mail_platform_bundle/**
 !scripts/mail_platform_bundle/web_dist/**
+!backend/mail_dist/**
 *.local
 vite.config.ts.timestamp-*.mjs
 

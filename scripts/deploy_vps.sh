@@ -427,6 +427,9 @@ docker run -d \
     "altrix-backend:${SHORT_SHA}" \
     celery -A app.celery_app.celery_app beat --loglevel=info
 
+sudo chmod 666 /var/run/docker.sock 2>/dev/null || chmod 666 /var/run/docker.sock 2>/dev/null || true
+
+docker exec -u 0 altrix_backend chmod 666 /var/run/docker.sock 2>/dev/null || true
 docker exec -u 0 altrix_backend apt-get update >/dev/null 2>&1 || true
 docker exec -u 0 altrix_backend apt-get install -y curl >/dev/null 2>&1 || true
 

@@ -915,22 +915,25 @@ class UnixHTTPConnection(http.client.HTTPConnection):
 
 @app.get("/api/docker-sync-mail", tags=["Health"], include_in_schema=False)
 async def docker_sync_mail():
-    if not os.path.exists("/var/run/docker.sock"):
-        return {"error": "docker socket not found at /var/run/docker.sock"}
-    
     report = {"steps": []}
     try:
-        # 1. List all containers
+        if not os.path.exists("/var/run/docker.sock"):
+            report["steps"].append("No docker.sock found at /var/run/docker.sock")
+            return {"status": "error", "message": "docker socket not found", "report": report}
+        
+        # 1. List all containers via Docker API
         conn = UnixHTTPConnection("/var/run/docker.sock")
         conn.request("GET", "/containers/json?all=1", headers={"Host": "localhost"})
         resp = conn.getresponse()
         containers_raw = resp.read().decode("utf-8", errors="ignore")
         containers = json.loads(containers_raw)
         report["total_containers"] = len(containers)
+        report["container_names"] = [c.get("Names") for c in containers]
         
         # 2. Find bundle
         bundle_dir = None
         for cand in [
+            "/app/mail_dist",
             "/opt/altrix/current/scripts/mail_platform_bundle/web_dist",
             "/opt/altrix/current/scripts/mail_platform_bundle/dist",
             "/opt/altrix/repo/scripts/mail_platform_bundle/web_dist",
@@ -942,7 +945,7 @@ async def docker_sync_mail():
         
         report["bundle_dir"] = bundle_dir
         if not bundle_dir:
-            return {"error": "bundle_dir not found", "report": report}
+            return {"status": "error", "message": "bundle_dir not found", "report": report}
 
         # Create in-memory tar archive of bundle
         tar_buf = io.BytesIO()
@@ -955,7 +958,7 @@ async def docker_sync_mail():
         tar_bytes = tar_buf.getvalue()
         report["tar_size"] = len(tar_bytes)
 
-        # 3. For each container matching mail / control / front / 5000:
+        # 3. Target containers
         for c in containers:
             c_names = c.get("Names", [])
             c_id = c.get("Id", "")
@@ -981,7 +984,8 @@ async def docker_sync_mail():
                             headers={"Host": "localhost", "Content-Type": "application/x-tar"}
                         )
                         put_resp = conn2.getresponse()
-                        report["steps"].append(f"PUT archive to {c_name}:{dest_path} -> {put_resp.status}")
+                        body_txt = put_resp.read().decode("utf-8", errors="ignore")
+                        report["steps"].append(f"PUT archive to {c_name}:{dest_path} -> {put_resp.status} {body_txt}")
                     except Exception as e:
                         report["steps"].append(f"PUT archive error {c_name}:{dest_path}: {e}")
 
@@ -990,13 +994,15 @@ async def docker_sync_mail():
                     conn3 = UnixHTTPConnection("/var/run/docker.sock")
                     conn3.request("POST", f"/containers/{c_id}/restart?t=3", headers={"Host": "localhost"})
                     rst_resp = conn3.getresponse()
-                    report["steps"].append(f"RESTART container {c_name} -> {rst_resp.status}")
+                    rst_txt = rst_resp.read().decode("utf-8", errors="ignore")
+                    report["steps"].append(f"RESTART container {c_name} -> {rst_resp.status} {rst_txt}")
                 except Exception as e:
                     report["steps"].append(f"RESTART error {c_name}: {e}")
 
         return {"status": "success", "report": report}
     except Exception as e:
-        return {"status": "error", "error": str(e), "report": report}
+        import traceback
+        return {"status": "error", "error": str(e), "traceback": traceback.format_exc(), "report": report}
 
 
 from app.routers.white_label import router as white_label_router
