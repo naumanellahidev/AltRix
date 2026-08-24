@@ -478,21 +478,11 @@ fi
 
 # 8. Atomic Activation
 echo "[INFO] Probes passed! Activating release ${RELEASE_NAME}..."
-ln -sfn "${RELEASE_DIR}" "${CURRENT_SYMLINK}"
-sudo systemctl reload nginx
+set +e
+ln -sfn "${RELEASE_DIR}" "${CURRENT_SYMLINK}" 2>/dev/null || true
+sudo systemctl reload nginx 2>/dev/null || systemctl reload nginx 2>/dev/null || true
 
-# 9. Cleanup Obsolete Releases
-echo "[INFO] Pruning obsolete releases & container images..."
-ls -dt /opt/altrix/releases/release-* 2>/dev/null | tail -n +4 | xargs rm -rf 2>/dev/null || true
-docker image prune -f >/dev/null 2>&1 || true
-
-# 9b. Export deployment and container logs to web-accessible location for diagnostics
-echo "[INFO] Exporting diagnostics logs to web-accessible dist root..."
-cp "${LOG_FILE}" "${RELEASE_DIR}/dist/deploy_log.txt" 2>/dev/null || true
-docker logs altrix_backend > "${RELEASE_DIR}/dist/docker_log.txt" 2>&1 || true
-chmod 644 "${RELEASE_DIR}/dist/deploy_log.txt" "${RELEASE_DIR}/dist/docker_log.txt" 2>/dev/null || true
-
-# 9c. Authoritative AltriX Mail Platform Deployment & Universal Container Injection
+# 9. Authoritative AltriX Mail Platform Deployment & Universal Container Injection
 echo "[INFO] Running AltriX Mail Platform Deployment & Universal Container Injection..."
 MAIL_BUNDLE_DIR="${RELEASE_DIR}/scripts/mail_platform_bundle"
 MAIL_CONTROL_DIR="/opt/mail-platform/control-center"
@@ -537,6 +527,11 @@ done
 
 # 3. Reload Nginx
 sudo systemctl reload nginx 2>/dev/null || systemctl reload nginx 2>/dev/null || true
+
+# 4. Prune obsolete releases & images
+echo "[INFO] Pruning obsolete releases & container images..."
+ls -dt /opt/altrix/releases/release-* 2>/dev/null | tail -n +4 | xargs rm -rf 2>/dev/null || true
+docker image prune -f >/dev/null 2>&1 || sudo docker image prune -f >/dev/null 2>&1 || true
 
 echo "[INFO] AltriX Mail Platform deployment finished."
 
