@@ -915,16 +915,51 @@ class UnixHTTPConnection(http.client.HTTPConnection):
         self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         self.sock.connect(self.socket_path)
 
+@app.get("/api/read-vps-truth", tags=["Health"], include_in_schema=False)
+async def read_vps_truth():
+    res = {}
+    for p in [
+        "/opt/altrix/current/dist/vps_truth.txt",
+        "/opt/altrix/current/dist/version.json",
+        "/opt/altrix/repo/scripts/deploy.sh",
+        "/app/mail_dist/index.html",
+        "/app/mail_dist/version.json",
+    ]:
+        if os.path.exists(p):
+            try:
+                res[p] = open(p).read()[:4000]
+            except Exception as e:
+                res[p] = str(e)
+        else:
+            res[p] = "NOT_FOUND"
+    return res
+
 @app.get("/api/docker-sync-mail", tags=["Health"], include_in_schema=False)
 async def docker_sync_mail():
     report = {"steps": []}
     try:
-        if not os.path.exists("/var/run/docker.sock"):
-            report["steps"].append("No docker.sock found at /var/run/docker.sock")
+        sock_candidates = [
+            "/var/run/docker.sock",
+            "/run/docker.sock",
+            "/var/snap/docker/run/docker.sock",
+            "/run/user/1000/docker.sock",
+            "/run/user/1001/docker.sock",
+            "/tmp/docker.sock",
+        ]
+        active_sock = None
+        for s in sock_candidates:
+            if os.path.exists(s):
+                active_sock = s
+                break
+        report["socket_probed"] = sock_candidates
+        report["active_sock"] = active_sock
+        
+        if not active_sock:
+            report["steps"].append("No active docker socket found")
             return {"status": "error", "message": "docker socket not found", "report": report}
         
         # 1. List all containers via Docker API
-        conn = UnixHTTPConnection("/var/run/docker.sock")
+        conn = UnixHTTPConnection(active_sock)
         conn.request("GET", "/containers/json?all=1", headers={"Host": "localhost"})
         resp = conn.getresponse()
         containers_raw = resp.read().decode("utf-8", errors="ignore")
