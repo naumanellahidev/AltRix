@@ -296,14 +296,23 @@ MAIL_REPO_DIR="/opt/mail-platform/repo"
 MAIL_CONTROL_DIR="/opt/mail-platform/control-center"
 mkdir -p /opt/mail-platform/logs/deployments
 
+# Dynamically extract git token from existing repository if present
+GH_TOKEN=$(git -C /opt/altrix/repo remote get-url origin 2>/dev/null | sed -n 's/.*https:\/\/\([^@]*\)@github\.com.*/\1/p' || echo "")
+if [ -n "${GH_TOKEN}" ]; then
+    MAIL_AUTH_URL="https://${GH_TOKEN}@github.com/naumanellahidev/altrix_mailserver.git"
+else
+    MAIL_AUTH_URL="https://github.com/naumanellahidev/altrix_mailserver.git"
+fi
+
 if [ ! -d "${MAIL_REPO_DIR}/.git" ]; then
     echo "[INFO] Initializing altrix_mailserver repository at ${MAIL_REPO_DIR}..."
     rm -rf "${MAIL_REPO_DIR}" 2>/dev/null || true
-    git clone https://github.com/naumanellahidev/altrix_mailserver.git "${MAIL_REPO_DIR}" 2>&1 || true
+    git clone "${MAIL_AUTH_URL}" "${MAIL_REPO_DIR}" 2>&1 || git clone https://github.com/naumanellahidev/altrix_mailserver.git "${MAIL_REPO_DIR}" 2>&1 || true
 fi
 
 if [ -d "${MAIL_REPO_DIR}/.git" ]; then
     cd "${MAIL_REPO_DIR}"
+    git remote set-url origin "${MAIL_AUTH_URL}" 2>/dev/null || true
     git fetch origin main 2>&1 || true
     MAIL_TARGET_SHA=$(git rev-parse origin/main 2>/dev/null || echo "")
     echo "[INFO] Mail platform target commit: ${MAIL_TARGET_SHA:0:7}"
@@ -323,14 +332,14 @@ if [ -d "${MAIL_REPO_DIR}/.git" ]; then
 
     # Sync into control-center directory
     mkdir -p "${MAIL_CONTROL_DIR}/dist" "${MAIL_CONTROL_DIR}/frontend/dist"
+    cp -rp "${MAIL_REPO_DIR}/dist/"* "${MAIL_CONTROL_DIR}/dist/" 2>/dev/null || true
     cp -rp "${MAIL_REPO_DIR}/frontend/dist/"* "${MAIL_CONTROL_DIR}/dist/" 2>/dev/null || true
     cp -rp "${MAIL_REPO_DIR}/frontend/dist/"* "${MAIL_CONTROL_DIR}/frontend/dist/" 2>/dev/null || true
-    cp -rp "${MAIL_REPO_DIR}/dist/"* "${MAIL_CONTROL_DIR}/dist/" 2>/dev/null || true
     cp -rp "${MAIL_REPO_DIR}/app" "${MAIL_CONTROL_DIR}/" 2>/dev/null || true
     cp -p "${MAIL_REPO_DIR}/server.py" "${MAIL_CONTROL_DIR}/" 2>/dev/null || true
     chmod -R 755 "${MAIL_CONTROL_DIR}" 2>/dev/null || true
 
-    # Sync directly into mailu_control_center Docker container
+    # Sync directly into mailu_control_center Docker container if present
     if docker ps -a --format '{{.Names}}' | grep -q "^mailu_control_center$"; then
         echo "[INFO] Injecting into mailu_control_center container..."
         docker exec mailu_control_center mkdir -p /app/dist /app/frontend/dist /app/app 2>/dev/null || true
@@ -347,6 +356,15 @@ if [ -d "${MAIL_REPO_DIR}/.git" ]; then
         echo "[INFO] Restarting standalone server.py..."
         pkill -f "python.*server.py" 2>/dev/null || true
         sleep 1
+        nohup python3 "${MAIL_CONTROL_DIR}/server.py" > /opt/mail-platform/logs/server.log 2>&1 &
+    fi
+
+    # Check if port 5000 is healthy, if not launch standalone server.py
+    sleep 2
+    CODE=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:5000/api/health || echo "000")
+    if [ "${CODE}" != "200" ]; then
+        echo "[INFO] Port 5000 probe responded ${CODE}, launching standalone server.py..."
+        pkill -f "python.*server.py" 2>/dev/null || true
         nohup python3 "${MAIL_CONTROL_DIR}/server.py" > /opt/mail-platform/logs/server.log 2>&1 &
     fi
 
