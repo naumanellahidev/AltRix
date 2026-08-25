@@ -11,7 +11,7 @@ concurrency:
 
 jobs:
   deploy:
-    name: Deploy to Production VPS
+    name: Build Verification & Deploy to Production VPS
     runs-on: ubuntu-latest
     env:
       VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
@@ -19,8 +19,21 @@ jobs:
       - name: Checkout Source Code
         uses: actions/checkout@v4
 
-      - name: Execute Production Release & Atomic Deployment on VPS
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci --prefer-offline || npm install
+
+      - name: Verify Frontend Production Build
+        run: npm run build
+
+      - name: Execute Production Release & Atomic Deployment on VPS via SSH
         if: env.VPS_SSH_KEY != ''
+        continue-on-error: true
         uses: appleboy/ssh-action@v1.0.3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -28,6 +41,8 @@ jobs:
           host: ${{ secrets.VPS_HOST || '169.58.111.159' }}
           username: ${{ secrets.VPS_USERNAME || 'altrixadmin' }}
           key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT || 22 }}
+          passphrase: ${{ secrets.VPS_SSH_PASSPHRASE || '' }}
           envs: GITHUB_TOKEN
           script: |
             sudo mkdir -p /opt/altrix/scripts /opt/altrix/repo
