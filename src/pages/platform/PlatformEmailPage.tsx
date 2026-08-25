@@ -671,24 +671,24 @@ export default function PlatformEmailPage() {
       title="Central Email Management HQ"
       subtitle="Configure AltRix brand identity, sender aliases, responsive HTML templates & monitor VPS delivery node"
       actions={
-        <div className="flex items-center gap-2.5">
+        <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 w-full sm:w-auto">
           <a
             href="https://mail.altrixcore.com/login"
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center justify-center rounded-xl text-xs font-bold h-9 px-3.5 border border-slate-200 bg-white hover:bg-slate-50 text-slate-800 transition-all shadow-2xs hover:shadow-xs hover:border-blue-300"
+            className="inline-flex items-center justify-center rounded-xl text-xs font-bold h-8 sm:h-9 px-3 border border-slate-200 bg-white hover:bg-slate-50 text-slate-800 transition-all shadow-2xs hover:shadow-xs hover:border-blue-300"
             title="Open Mail Platform Admin Control Center (Domains, Mailboxes, DKIM, Anti-Spam)"
           >
-            <ExternalLink className="h-3.5 w-3.5 mr-1.5 text-blue-600" /> Mail Server Admin
+            <ExternalLink className="h-3.5 w-3.5 mr-1.5 text-blue-600 shrink-0" /> Mail Server Admin
           </a>
           <a
             href="https://mail.altrixcore.com/webmail"
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center justify-center rounded-xl text-xs font-bold h-9 px-3.5 border border-slate-200 bg-white hover:bg-slate-50 text-slate-800 transition-all shadow-2xs hover:shadow-xs hover:border-indigo-300"
+            className="inline-flex items-center justify-center rounded-xl text-xs font-bold h-8 sm:h-9 px-3 border border-slate-200 bg-white hover:bg-slate-50 text-slate-800 transition-all shadow-2xs hover:shadow-xs hover:border-indigo-300"
             title="Open Roundcube Webmail Inbox (Send & Receive institutional mail)"
           >
-            <Inbox className="h-3.5 w-3.5 mr-1.5 text-indigo-600" /> Webmail Client
+            <Inbox className="h-3.5 w-3.5 mr-1.5 text-indigo-600 shrink-0" /> Webmail Client
           </a>
           <Button
             size="sm"
@@ -703,61 +703,63 @@ export default function PlatformEmailPage() {
               loadMtaHealth();
               toast.success("Refreshed email platform telemetry");
             }}
-            className="text-xs h-9 px-3.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold rounded-xl shadow-xs hover:shadow-md transition-all"
+            className="text-xs h-8 sm:h-9 px-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold rounded-xl shadow-xs hover:shadow-md transition-all"
           >
-            <RefreshCw className="h-3.5 w-3.5 mr-1.5" /> Refresh Telemetry
+            <RefreshCw className="h-3.5 w-3.5 mr-1.5 shrink-0" /> Refresh Telemetry
           </Button>
         </div>
       }
     >
       <div className="space-y-6">
-        {/* Navigation Tabs Bar */}
+        {/* Responsive Navigation Tabs Bar */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <div className="bg-white p-1.5 rounded-2xl border border-slate-200/80 shadow-2xs max-w-5xl">
-            <TabsList className="grid grid-cols-7 bg-slate-100/80 p-1 rounded-xl gap-1">
-              <TabsTrigger
-                value="overview"
-                className="text-xs font-bold gap-1.5 rounded-lg py-2 text-slate-600 data-[state=active]:bg-blue-600 data-[state=active]:text-white data-[state=active]:shadow-xs transition-all"
-              >
-                <Activity className="h-3.5 w-3.5" /> Overview
-              </TabsTrigger>
-              <TabsTrigger
-                value="branding"
-                className="text-xs font-bold gap-1.5 rounded-lg py-2 text-slate-600 data-[state=active]:bg-blue-600 data-[state=active]:text-white data-[state=active]:shadow-xs transition-all"
-              >
-                <Palette className="h-3.5 w-3.5" /> Brand Identity
-              </TabsTrigger>
-              <TabsTrigger
-                value="senders"
-                className="text-xs font-bold gap-1.5 rounded-lg py-2 text-slate-600 data-[state=active]:bg-blue-600 data-[state=active]:text-white data-[state=active]:shadow-xs transition-all"
-              >
-                <Mail className="h-3.5 w-3.5" /> Sender Profiles
-              </TabsTrigger>
-              <TabsTrigger
-                value="templates"
-                className="text-xs font-bold gap-1.5 rounded-lg py-2 text-slate-600 data-[state=active]:bg-blue-600 data-[state=active]:text-white data-[state=active]:shadow-xs transition-all"
-              >
-                <FileCode2 className="h-3.5 w-3.5" /> Template Studio
-              </TabsTrigger>
-              <TabsTrigger
-                value="routing"
-                className="text-xs font-bold gap-1.5 rounded-lg py-2 text-slate-600 data-[state=active]:bg-blue-600 data-[state=active]:text-white data-[state=active]:shadow-xs transition-all"
-              >
-                <Layers className="h-3.5 w-3.5" /> Event Routing
-              </TabsTrigger>
-              <TabsTrigger
-                value="test_lab"
-                className="text-xs font-bold gap-1.5 rounded-lg py-2 text-slate-600 data-[state=active]:bg-blue-600 data-[state=active]:text-white data-[state=active]:shadow-xs transition-all"
-              >
-                <Send className="h-3.5 w-3.5" /> Live Test Lab
-              </TabsTrigger>
-              <TabsTrigger
-                value="logs"
-                className="text-xs font-bold gap-1.5 rounded-lg py-2 text-slate-600 data-[state=active]:bg-blue-600 data-[state=active]:text-white data-[state=active]:shadow-xs transition-all"
-              >
-                <ListFilter className="h-3.5 w-3.5" /> Delivery Logs
-              </TabsTrigger>
-            </TabsList>
+          <div className="bg-white p-1 rounded-2xl border border-slate-200/80 shadow-2xs w-full overflow-hidden">
+            <div className="overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] py-0.5">
+              <TabsList className="flex items-center w-max min-w-full bg-slate-100/90 p-1 rounded-xl gap-1 h-auto flex-nowrap">
+                <TabsTrigger
+                  value="overview"
+                  className="text-xs font-bold gap-1.5 rounded-lg py-2 px-3.5 shrink-0 whitespace-nowrap text-slate-600 data-[state=active]:bg-blue-600 data-[state=active]:text-white data-[state=active]:shadow-xs transition-all"
+                >
+                  <Activity className="h-3.5 w-3.5 shrink-0" /> Overview
+                </TabsTrigger>
+                <TabsTrigger
+                  value="branding"
+                  className="text-xs font-bold gap-1.5 rounded-lg py-2 px-3.5 shrink-0 whitespace-nowrap text-slate-600 data-[state=active]:bg-blue-600 data-[state=active]:text-white data-[state=active]:shadow-xs transition-all"
+                >
+                  <Palette className="h-3.5 w-3.5 shrink-0" /> Brand Identity
+                </TabsTrigger>
+                <TabsTrigger
+                  value="senders"
+                  className="text-xs font-bold gap-1.5 rounded-lg py-2 px-3.5 shrink-0 whitespace-nowrap text-slate-600 data-[state=active]:bg-blue-600 data-[state=active]:text-white data-[state=active]:shadow-xs transition-all"
+                >
+                  <Mail className="h-3.5 w-3.5 shrink-0" /> Sender Profiles
+                </TabsTrigger>
+                <TabsTrigger
+                  value="templates"
+                  className="text-xs font-bold gap-1.5 rounded-lg py-2 px-3.5 shrink-0 whitespace-nowrap text-slate-600 data-[state=active]:bg-blue-600 data-[state=active]:text-white data-[state=active]:shadow-xs transition-all"
+                >
+                  <FileCode2 className="h-3.5 w-3.5 shrink-0" /> Template Studio
+                </TabsTrigger>
+                <TabsTrigger
+                  value="routing"
+                  className="text-xs font-bold gap-1.5 rounded-lg py-2 px-3.5 shrink-0 whitespace-nowrap text-slate-600 data-[state=active]:bg-blue-600 data-[state=active]:text-white data-[state=active]:shadow-xs transition-all"
+                >
+                  <Layers className="h-3.5 w-3.5 shrink-0" /> Event Routing
+                </TabsTrigger>
+                <TabsTrigger
+                  value="test_lab"
+                  className="text-xs font-bold gap-1.5 rounded-lg py-2 px-3.5 shrink-0 whitespace-nowrap text-slate-600 data-[state=active]:bg-blue-600 data-[state=active]:text-white data-[state=active]:shadow-xs transition-all"
+                >
+                  <Send className="h-3.5 w-3.5 shrink-0" /> Live Test Lab
+                </TabsTrigger>
+                <TabsTrigger
+                  value="logs"
+                  className="text-xs font-bold gap-1.5 rounded-lg py-2 px-3.5 shrink-0 whitespace-nowrap text-slate-600 data-[state=active]:bg-blue-600 data-[state=active]:text-white data-[state=active]:shadow-xs transition-all"
+                >
+                  <ListFilter className="h-3.5 w-3.5 shrink-0" /> Delivery Logs
+                </TabsTrigger>
+              </TabsList>
+            </div>
           </div>
 
           {/* 1. OVERVIEW TAB */}
@@ -924,10 +926,10 @@ export default function PlatformEmailPage() {
 
             {/* Recent Transactional Deliveries Table */}
             <Card className="border border-slate-200/90 rounded-2xl bg-white shadow-xs overflow-hidden">
-              <CardHeader className="p-5 pb-3 flex flex-row items-center justify-between border-b border-slate-100">
+              <CardHeader className="p-4 sm:p-5 pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100">
                 <div>
                   <CardTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
-                    <ListFilter className="h-4 w-4 text-blue-600" /> Recent Transactional Deliveries
+                    <ListFilter className="h-4 w-4 text-blue-600 shrink-0" /> Recent Transactional Deliveries
                   </CardTitle>
                   <CardDescription className="text-xs text-slate-500 mt-0.5">Live audit stream of outgoing platform communications</CardDescription>
                 </div>
@@ -935,14 +937,14 @@ export default function PlatformEmailPage() {
                   variant="outline"
                   size="sm"
                   onClick={() => setActiveTab("logs")}
-                  className="text-xs h-8 font-bold text-blue-600 border-blue-200 hover:bg-blue-50 rounded-xl"
+                  className="text-xs h-8 font-bold text-blue-600 border-blue-200 hover:bg-blue-50 rounded-xl self-start sm:self-auto"
                 >
                   View Full Audit Log <ChevronRight className="h-3.5 w-3.5 ml-1" />
                 </Button>
               </CardHeader>
               <CardContent className="p-0">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-xs text-left">
+                <div className="overflow-x-auto w-full">
+                  <table className="w-full text-xs text-left min-w-[680px]">
                     <thead className="bg-slate-50/80 border-b border-slate-200/80 text-slate-600 uppercase font-bold text-[10px] tracking-wider">
                       <tr>
                         <th className="py-3.5 px-5 whitespace-nowrap">Status</th>
@@ -1059,7 +1061,7 @@ export default function PlatformEmailPage() {
                         />
                       </div>
 
-                      <div className="grid grid-cols-3 gap-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                         <div className="space-y-1.5">
                           <Label className="text-xs font-bold text-slate-700">Primary Color</Label>
                           <div className="flex items-center gap-2">
@@ -1067,12 +1069,12 @@ export default function PlatformEmailPage() {
                               type="color"
                               value={brandForm.primaryColor}
                               onChange={(e) => setBrandForm({ ...brandForm, primaryColor: e.target.value })}
-                              className="h-9 w-9 rounded-xl border border-slate-300 p-0.5 cursor-pointer"
+                              className="h-9 w-9 rounded-xl border border-slate-300 p-0.5 cursor-pointer shrink-0"
                             />
                             <Input
                               value={brandForm.primaryColor}
                               onChange={(e) => setBrandForm({ ...brandForm, primaryColor: e.target.value })}
-                              className="text-xs font-mono rounded-xl"
+                              className="text-xs font-mono rounded-xl w-full"
                             />
                           </div>
                         </div>
@@ -1083,12 +1085,12 @@ export default function PlatformEmailPage() {
                               type="color"
                               value={brandForm.accentColor}
                               onChange={(e) => setBrandForm({ ...brandForm, accentColor: e.target.value })}
-                              className="h-9 w-9 rounded-xl border border-slate-300 p-0.5 cursor-pointer"
+                              className="h-9 w-9 rounded-xl border border-slate-300 p-0.5 cursor-pointer shrink-0"
                             />
                             <Input
                               value={brandForm.accentColor}
                               onChange={(e) => setBrandForm({ ...brandForm, accentColor: e.target.value })}
-                              className="text-xs font-mono rounded-xl"
+                              className="text-xs font-mono rounded-xl w-full"
                             />
                           </div>
                         </div>
@@ -1099,12 +1101,12 @@ export default function PlatformEmailPage() {
                               type="color"
                               value={brandForm.secondaryColor}
                               onChange={(e) => setBrandForm({ ...brandForm, secondaryColor: e.target.value })}
-                              className="h-9 w-9 rounded-xl border border-slate-300 p-0.5 cursor-pointer"
+                              className="h-9 w-9 rounded-xl border border-slate-300 p-0.5 cursor-pointer shrink-0"
                             />
                             <Input
                               value={brandForm.secondaryColor}
                               onChange={(e) => setBrandForm({ ...brandForm, secondaryColor: e.target.value })}
-                              className="text-xs font-mono rounded-xl"
+                              className="text-xs font-mono rounded-xl w-full"
                             />
                           </div>
                         </div>
@@ -1150,7 +1152,7 @@ export default function PlatformEmailPage() {
                       </div>
                     </CardContent>
                     <CardFooter className="bg-slate-50/80 border-t border-slate-100 p-4 flex justify-end">
-                      <Button type="submit" disabled={savingBrand} className="text-xs bg-blue-600 hover:bg-blue-700 text-white font-bold px-5 rounded-xl shadow-xs">
+                      <Button type="submit" disabled={savingBrand} className="text-xs bg-blue-600 hover:bg-blue-700 text-white font-bold px-5 rounded-xl shadow-xs w-full sm:w-auto">
                         {savingBrand ? "Saving Branding..." : "Save Branding Configuration"}
                       </Button>
                     </CardFooter>
@@ -1161,14 +1163,14 @@ export default function PlatformEmailPage() {
               {/* Brand Asset Library */}
               <div className="lg:col-span-5 space-y-4">
                 <Card className="border border-slate-200/80 rounded-2xl bg-white shadow-xs">
-                  <CardHeader className="p-5 pb-3 border-b border-slate-100 flex flex-row items-center justify-between">
+                  <CardHeader className="p-4 sm:p-5 pb-3 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div>
                       <CardTitle className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                        <Image className="h-4 w-4 text-indigo-600" /> Managed Brand Assets
+                        <Image className="h-4 w-4 text-indigo-600 shrink-0" /> Managed Brand Assets
                       </CardTitle>
                       <CardDescription className="text-xs text-slate-500 mt-0.5">Official images used in templates</CardDescription>
                     </div>
-                    <Button size="sm" onClick={() => setAssetModalOpen(true)} className="text-xs bg-indigo-600 hover:bg-indigo-700 font-bold h-8 rounded-xl">
+                    <Button size="sm" onClick={() => setAssetModalOpen(true)} className="text-xs bg-indigo-600 hover:bg-indigo-700 font-bold h-8 rounded-xl self-start sm:self-auto">
                       <Plus className="h-3.5 w-3.5 mr-1" /> Add Asset
                     </Button>
                   </CardHeader>
@@ -1190,7 +1192,7 @@ export default function PlatformEmailPage() {
                           variant="ghost"
                           size="sm"
                           onClick={() => copyToClipboard(ast.url, ast.id)}
-                          className="h-8 w-8 p-0 text-slate-500 hover:text-blue-600 rounded-lg"
+                          className="h-8 w-8 p-0 text-slate-500 hover:text-blue-600 rounded-lg shrink-0"
                         >
                           {copiedKey === ast.id ? <Check className="h-4 w-4 text-emerald-600" /> : <Copy className="h-4 w-4" />}
                         </Button>
@@ -1205,36 +1207,36 @@ export default function PlatformEmailPage() {
           {/* 3. SENDER IDENTITIES TAB */}
           <TabsContent value="senders" className="mt-6 space-y-6">
             <Card className="border border-slate-200/80 rounded-2xl bg-white shadow-xs overflow-hidden">
-              <CardHeader className="p-5 pb-3 flex flex-row items-center justify-between border-b border-slate-100">
+              <CardHeader className="p-4 sm:p-5 pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100">
                 <div>
                   <CardTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
-                    <Mail className="h-4 w-4 text-blue-600" /> Official AltRix Sender Identities
+                    <Mail className="h-4 w-4 text-blue-600 shrink-0" /> Official AltRix Sender Identities
                   </CardTitle>
                   <CardDescription className="text-xs text-slate-500 mt-0.5">
                     Configure authorized outgoing mail addresses mapped to mailboxes on <strong>mail.altrixcore.com</strong>
                   </CardDescription>
                 </div>
-                <Button size="sm" onClick={() => openSenderModal()} className="text-xs bg-blue-600 hover:bg-blue-700 font-bold rounded-xl h-8">
+                <Button size="sm" onClick={() => openSenderModal()} className="text-xs bg-blue-600 hover:bg-blue-700 font-bold rounded-xl h-8 self-start sm:self-auto">
                   <Plus className="h-3.5 w-3.5 mr-1.5" /> Add Identity
                 </Button>
               </CardHeader>
               <CardContent className="p-0">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-xs text-left">
+                <div className="overflow-x-auto w-full">
+                  <table className="w-full text-xs text-left min-w-[700px]">
                     <thead className="bg-slate-50/80 border-b border-slate-100 text-slate-500 uppercase font-bold text-[10px] tracking-wider">
                       <tr>
-                        <th className="py-3 px-5">Identifier Key</th>
+                        <th className="py-3 px-5 whitespace-nowrap">Identifier Key</th>
                         <th className="py-3 px-5">Display Name</th>
                         <th className="py-3 px-5">Sender Email Address</th>
                         <th className="py-3 px-5">Reply-To Address</th>
-                        <th className="py-3 px-5">Status</th>
-                        <th className="py-3 px-5 text-right">Actions</th>
+                        <th className="py-3 px-5 whitespace-nowrap">Status</th>
+                        <th className="py-3 px-5 text-right whitespace-nowrap">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                       {senders.map((s) => (
                         <tr key={s.id} className="hover:bg-slate-50/80 transition-colors">
-                          <td className="py-3.5 px-5 font-mono font-bold text-blue-700">
+                          <td className="py-3.5 px-5 font-mono font-bold text-blue-700 whitespace-nowrap">
                             {s.key}
                             {s.isDefault && (
                               <Badge className="ml-2 bg-blue-50 text-blue-700 text-[9px] uppercase font-bold border border-blue-200 rounded-full px-2">
@@ -1245,7 +1247,7 @@ export default function PlatformEmailPage() {
                           <td className="py-3.5 px-5 font-semibold text-slate-900">{s.name}</td>
                           <td className="py-3.5 px-5 font-mono text-slate-700">{s.email}</td>
                           <td className="py-3.5 px-5 font-mono text-slate-500">{s.replyTo || "—"}</td>
-                          <td className="py-3.5 px-5">
+                          <td className="py-3.5 px-5 whitespace-nowrap">
                             {s.isActive ? (
                               <Badge className="bg-emerald-50 text-emerald-700 text-[10px] font-bold border border-emerald-200/80 rounded-full px-2.5">
                                 Active
@@ -1254,7 +1256,7 @@ export default function PlatformEmailPage() {
                               <Badge variant="outline" className="text-slate-400 text-[10px] rounded-full px-2.5">Disabled</Badge>
                             )}
                           </td>
-                          <td className="py-3.5 px-5 text-right space-x-1">
+                          <td className="py-3.5 px-5 text-right whitespace-nowrap space-x-1">
                             <Button variant="ghost" size="sm" onClick={() => openSenderModal(s)} className="h-7 px-2.5 text-xs rounded-lg">
                               <Edit2 className="h-3.5 w-3.5 text-slate-600" />
                             </Button>
@@ -1271,40 +1273,42 @@ export default function PlatformEmailPage() {
           {/* 4. TEMPLATE STUDIO TAB */}
           <TabsContent value="templates" className="mt-6 space-y-6">
             {/* Category Filter Bar & Defaults Action */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-100/90 p-1.5 rounded-2xl border border-slate-200/60 shadow-2xs">
-              <div className="flex flex-wrap items-center gap-1.5">
-                {categories.map((cat) => (
-                  <button
-                    key={cat.key}
-                    type="button"
-                    onClick={() => {
-                      setSelectedCategory(cat.key);
-                      loadTemplates(cat.key);
-                    }}
-                    className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                      selectedCategory === cat.key
-                        ? "bg-white text-blue-700 shadow-xs"
-                        : "text-slate-600 hover:text-slate-900"
-                    }`}
-                  >
-                    {cat.label}
-                  </button>
-                ))}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-100/90 p-2 rounded-2xl border border-slate-200/60 shadow-2xs">
+              <div className="overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] w-full sm:w-auto py-0.5">
+                <div className="flex items-center gap-1.5 w-max sm:flex-wrap">
+                  {categories.map((cat) => (
+                    <button
+                      key={cat.key}
+                      type="button"
+                      onClick={() => {
+                        setSelectedCategory(cat.key);
+                        loadTemplates(cat.key);
+                      }}
+                      className={`px-3.5 py-1.5 rounded-xl text-xs font-bold shrink-0 whitespace-nowrap transition-all ${
+                        selectedCategory === cat.key
+                          ? "bg-white text-blue-700 shadow-xs"
+                          : "text-slate-600 hover:text-slate-900"
+                      }`}
+                    >
+                      {cat.label}
+                    </button>
+                  ))}
+                </div>
               </div>
               <Button
                 variant="outline"
                 size="sm"
                 onClick={handleResetTemplatesToDefaults}
-                className="text-xs font-bold text-slate-700 bg-white border-slate-200 hover:bg-slate-50 rounded-xl h-8 shrink-0 mr-1 shadow-2xs"
+                className="text-xs font-bold text-slate-700 bg-white border-slate-200 hover:bg-slate-50 rounded-xl h-8 shrink-0 self-start sm:self-auto shadow-2xs"
                 title="Reset all email templates to the latest official AltRix brand defaults"
               >
-                <RotateCcw className="h-3.5 w-3.5 mr-1.5 text-blue-600" /> Re-sync Brand Defaults
+                <RotateCcw className="h-3.5 w-3.5 mr-1.5 text-blue-600 shrink-0" /> Re-sync Brand Defaults
               </Button>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
               {/* Left Column: Template Selection Cards */}
-              <div className="lg:col-span-4 space-y-2.5 max-h-[780px] overflow-y-auto pr-1">
+              <div className="lg:col-span-4 space-y-2.5 max-h-[320px] lg:max-h-[780px] overflow-y-auto pr-1">
                 {templates.map((tmpl) => {
                   const isSelected = selectedTemplate?.id === tmpl.id;
                   return (
@@ -1338,11 +1342,11 @@ export default function PlatformEmailPage() {
               <div className="lg:col-span-8 space-y-4">
                 {selectedTemplate ? (
                   <Card className="border border-slate-200/80 rounded-2xl bg-white shadow-xs">
-                    <CardHeader className="p-5 pb-3 border-b border-slate-100">
+                    <CardHeader className="p-4 sm:p-5 pb-3 border-b border-slate-100">
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                         <div>
                           <CardTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
-                            <FileCode2 className="h-4 w-4 text-blue-600" /> {selectedTemplate.name}
+                            <FileCode2 className="h-4 w-4 text-blue-600 shrink-0" /> {selectedTemplate.name}
                             <Badge variant="outline" className="text-[10px] font-bold text-blue-700 border-blue-200 rounded-md">
                               v{selectedTemplate.version || 1}
                             </Badge>
@@ -1351,16 +1355,16 @@ export default function PlatformEmailPage() {
                             Identifier: <code className="bg-slate-100 px-1.5 py-0.5 rounded text-blue-700 font-bold">{selectedTemplate.key}</code>
                           </CardDescription>
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 w-full sm:w-auto">
                           <Button
                             variant="outline"
                             size="sm"
                             onClick={openVersionHistory}
-                            className="text-xs border-slate-300 font-semibold text-slate-700 rounded-xl h-8"
+                            className="text-xs border-slate-300 font-semibold text-slate-700 rounded-xl h-8 shrink-0"
                           >
                             <RotateCcw className="h-3.5 w-3.5 mr-1" /> Revisions
                           </Button>
-                          <div className="flex bg-slate-100 p-0.5 rounded-xl text-xs font-bold">
+                          <div className="flex bg-slate-100 p-0.5 rounded-xl text-xs font-bold shrink-0">
                             <button
                               type="button"
                               onClick={() => setPreviewTab("edit")}
@@ -1384,7 +1388,7 @@ export default function PlatformEmailPage() {
                             size="sm"
                             onClick={handleSaveTemplate}
                             disabled={savingTemplate}
-                            className="text-xs bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl h-8"
+                            className="text-xs bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl h-8 shrink-0 ml-auto sm:ml-0"
                           >
                             {savingTemplate ? "Saving..." : "Save Template"}
                           </Button>
@@ -1392,7 +1396,7 @@ export default function PlatformEmailPage() {
                       </div>
                     </CardHeader>
 
-                    <CardContent className="p-5 space-y-4">
+                    <CardContent className="p-4 sm:p-5 space-y-4">
                       {previewTab === "edit" ? (
                         <>
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1424,9 +1428,9 @@ export default function PlatformEmailPage() {
                           {/* Variable Tag Chips */}
                           <div className="space-y-1.5">
                             <Label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                              <Sparkles className="h-3.5 w-3.5 text-blue-600" /> Insert Dynamic Variable Tags
+                              <Sparkles className="h-3.5 w-3.5 text-blue-600 shrink-0" /> Insert Dynamic Variable Tags
                             </Label>
-                            <div className="flex flex-wrap gap-1.5 p-3 rounded-xl bg-slate-50 border border-slate-200/80">
+                            <div className="flex flex-wrap gap-1.5 p-3 rounded-xl bg-slate-50 border border-slate-200/80 max-h-[140px] overflow-y-auto">
                               {(selectedTemplate.availableVariables.length > 0
                                 ? selectedTemplate.availableVariables
                                 : ["name", "email", "role", "tenant.name", "activation_link", "reset_link", "expires_in", "support_email", "year"]
@@ -1450,18 +1454,18 @@ export default function PlatformEmailPage() {
                               rows={15}
                               value={templateEditHtml}
                               onChange={(e) => setTemplateEditHtml(e.target.value)}
-                              className="font-mono text-xs leading-relaxed bg-slate-950 text-slate-100 border-slate-800 p-4 rounded-xl shadow-inner"
+                              className="font-mono text-xs leading-relaxed bg-slate-950 text-slate-100 border-slate-800 p-4 rounded-xl shadow-inner w-full"
                             />
                           </div>
                         </>
                       ) : (
                         <div className="space-y-3">
-                          <div className="p-3.5 bg-slate-100/80 rounded-xl text-xs flex items-center justify-between border border-slate-200/60">
-                            <div className="flex items-center gap-2">
-                              <span className="font-semibold text-slate-600">Subject Preview:</span>
-                              <span className="font-bold text-slate-900">{templateEditSubject}</span>
+                          <div className="p-3 bg-slate-100/80 rounded-xl text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2 border border-slate-200/60">
+                            <div className="flex items-center gap-2 truncate">
+                              <span className="font-semibold text-slate-600 shrink-0">Subject:</span>
+                              <span className="font-bold text-slate-900 truncate">{templateEditSubject}</span>
                             </div>
-                            <div className="flex items-center gap-1 bg-white p-0.5 rounded-lg border border-slate-200 shadow-2xs">
+                            <div className="flex items-center gap-1 bg-white p-0.5 rounded-lg border border-slate-200 shadow-2xs self-start sm:self-auto shrink-0">
                               <Button
                                 variant="ghost"
                                 size="sm"
@@ -1480,12 +1484,12 @@ export default function PlatformEmailPage() {
                               </Button>
                             </div>
                           </div>
-                          <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-inner bg-slate-900 p-4 flex justify-center">
+                          <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-inner bg-slate-900 p-2 sm:p-4 flex justify-center w-full">
                             <iframe
                               title="Live Email Preview"
                               srcDoc={previewHtml}
                               className={`rounded-xl bg-white border-0 shadow-lg transition-all duration-300 ${
-                                previewDevice === "mobile" ? "w-[380px] min-h-[600px]" : "w-full min-h-[550px]"
+                                previewDevice === "mobile" ? "w-[340px] max-w-full min-h-[500px]" : "w-full min-h-[500px]"
                               }`}
                             />
                           </div>
@@ -1508,17 +1512,17 @@ export default function PlatformEmailPage() {
           {/* 5. EVENT ROUTING MATRIX TAB */}
           <TabsContent value="routing" className="mt-6 space-y-6">
             <Card className="border border-slate-200/80 rounded-2xl bg-white shadow-xs overflow-hidden">
-              <CardHeader className="p-5 pb-3 border-b border-slate-100">
+              <CardHeader className="p-4 sm:p-5 pb-3 border-b border-slate-100">
                 <CardTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
-                  <Layers className="h-4 w-4 text-blue-600" /> System Event &rarr; Sender Routing Matrix
+                  <Layers className="h-4 w-4 text-blue-600 shrink-0" /> System Event &rarr; Sender Routing Matrix
                 </CardTitle>
                 <CardDescription className="text-xs text-slate-500 mt-0.5">
                   Control which official AltRix sender address and template dynamically handles each application event.
                 </CardDescription>
               </CardHeader>
               <CardContent className="p-0">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-xs text-left">
+                <div className="overflow-x-auto w-full">
+                  <table className="w-full text-xs text-left min-w-[750px]">
                     <thead className="bg-slate-50/80 border-b border-slate-100 text-slate-500 uppercase font-bold text-[10px] tracking-wider">
                       <tr>
                         <th className="py-3 px-5 whitespace-nowrap">System Event</th>
@@ -1545,7 +1549,7 @@ export default function PlatformEmailPage() {
                             <div className="font-semibold text-slate-900">{m.templateName || m.templateKey}</div>
                             <div className="text-[11px] text-slate-400 truncate max-w-xs">{m.templateSubject}</div>
                           </td>
-                          <td className="py-3.5 px-5 text-right">
+                          <td className="py-3.5 px-5 text-right whitespace-nowrap">
                             <Button variant="outline" size="sm" onClick={() => openMappingModal(m)} className="h-7 text-xs font-semibold rounded-lg">
                               Change Mapping
                             </Button>
@@ -1561,17 +1565,17 @@ export default function PlatformEmailPage() {
 
           {/* 6. TEST SEND LAB TAB */}
           <TabsContent value="test_lab" className="mt-6 space-y-6">
-            <Card className="max-w-2xl mx-auto border border-slate-200/80 rounded-2xl bg-white shadow-xs overflow-hidden">
-              <CardHeader className="p-5 pb-3 border-b border-slate-100">
+            <Card className="max-w-2xl w-full mx-auto border border-slate-200/80 rounded-2xl bg-white shadow-xs overflow-hidden">
+              <CardHeader className="p-4 sm:p-5 pb-3 border-b border-slate-100">
                 <CardTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
-                  <Send className="h-4 w-4 text-blue-600" /> Super Master Admin Test Lab
+                  <Send className="h-4 w-4 text-blue-600 shrink-0" /> Super Master Admin Test Lab
                 </CardTitle>
                 <CardDescription className="text-xs text-slate-500 mt-0.5">
                   Safely test email delivery through local Mailu Postfix SMTP without modifying live user states.
                 </CardDescription>
               </CardHeader>
               <form onSubmit={handleSendTest}>
-                <CardContent className="p-5 space-y-4 text-xs">
+                <CardContent className="p-4 sm:p-5 space-y-4 text-xs">
                   <div className="space-y-1.5">
                     <Label className="text-xs font-bold text-slate-700">Recipient Email Address</Label>
                     <Input
@@ -1638,7 +1642,7 @@ export default function PlatformEmailPage() {
                   </div>
                 </CardContent>
                 <CardFooter className="bg-slate-50/80 border-t border-slate-100 p-4 flex justify-end">
-                  <Button type="submit" disabled={testSending} className="text-xs bg-blue-600 hover:bg-blue-700 text-white font-bold px-5 rounded-xl shadow-xs">
+                  <Button type="submit" disabled={testSending} className="text-xs bg-blue-600 hover:bg-blue-700 text-white font-bold px-5 rounded-xl shadow-xs w-full sm:w-auto">
                     {testSending ? (
                       <>
                         <RefreshCw className="h-3.5 w-3.5 mr-2 animate-spin" /> Dispatching via Mailu...
@@ -1657,25 +1661,25 @@ export default function PlatformEmailPage() {
           {/* 7. DELIVERY LOGS TAB */}
           <TabsContent value="logs" className="mt-6 space-y-6">
             <Card className="border border-slate-200/80 rounded-2xl bg-white shadow-xs overflow-hidden">
-              <CardHeader className="p-5 pb-3 border-b border-slate-100">
+              <CardHeader className="p-4 sm:p-5 pb-3 border-b border-slate-100">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div>
                     <CardTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
-                      <ListFilter className="h-4 w-4 text-blue-600" /> Email Delivery Audit Trail
+                      <ListFilter className="h-4 w-4 text-blue-600 shrink-0" /> Email Delivery Audit Trail
                     </CardTitle>
                     <CardDescription className="text-xs text-slate-500 mt-0.5">
                       Total logged dispatches: <strong>{logsTotal}</strong> (All secret tokens/passwords strictly excluded)
                     </CardDescription>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <div className="relative w-64">
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
+                    <div className="relative w-full sm:w-64">
                       <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
                       <Input
                         placeholder="Search recipient or subject..."
                         value={logSearch}
                         onChange={(e) => setLogSearch(e.target.value)}
                         onKeyDown={(e) => e.key === "Enter" && loadLogs(1)}
-                        className="text-xs pl-8 bg-slate-50 border-slate-200 rounded-xl h-8"
+                        className="text-xs pl-8 bg-slate-50 border-slate-200 rounded-xl h-8 w-full"
                       />
                     </div>
                     <Select
@@ -1685,7 +1689,7 @@ export default function PlatformEmailPage() {
                         setTimeout(() => loadLogs(1), 50);
                       }}
                     >
-                      <SelectTrigger className="text-xs bg-slate-50 border-slate-200 rounded-xl h-8 w-28 font-medium">
+                      <SelectTrigger className="text-xs bg-slate-50 border-slate-200 rounded-xl h-8 w-full sm:w-32 font-medium">
                         <SelectValue placeholder="Status" />
                       </SelectTrigger>
                       <SelectContent>
@@ -1698,8 +1702,8 @@ export default function PlatformEmailPage() {
                 </div>
               </CardHeader>
               <CardContent className="p-0">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-xs text-left">
+                <div className="overflow-x-auto w-full">
+                  <table className="w-full text-xs text-left min-w-[850px]">
                     <thead className="bg-slate-50/80 border-b border-slate-100 text-slate-500 uppercase font-bold text-[10px] tracking-wider">
                       <tr>
                         <th className="py-3 px-5 whitespace-nowrap">Status</th>
@@ -1760,7 +1764,7 @@ export default function PlatformEmailPage() {
 
       {/* SENDER CREATE / EDIT MODAL */}
       <Dialog open={senderModalOpen} onOpenChange={setSenderModalOpen}>
-        <DialogContent className="sm:max-w-md bg-white text-slate-900 rounded-2xl">
+        <DialogContent className="sm:max-w-md max-w-[95vw] w-full bg-white text-slate-900 rounded-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-base font-bold">
               {editingSender ? "Edit Sender Identity" : "Add Sender Identity"}
@@ -1834,7 +1838,7 @@ export default function PlatformEmailPage() {
 
       {/* ASSET CREATE MODAL */}
       <Dialog open={assetModalOpen} onOpenChange={setAssetModalOpen}>
-        <DialogContent className="sm:max-w-md bg-white text-slate-900 rounded-2xl">
+        <DialogContent className="sm:max-w-md max-w-[95vw] w-full bg-white text-slate-900 rounded-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-base font-bold">Register Brand Asset</DialogTitle>
             <DialogDescription className="text-xs text-slate-500">
@@ -1899,7 +1903,7 @@ export default function PlatformEmailPage() {
 
       {/* EVENT ROUTING MODAL */}
       <Dialog open={mappingModalOpen} onOpenChange={setMappingModalOpen}>
-        <DialogContent className="sm:max-w-md bg-white text-slate-900 rounded-2xl">
+        <DialogContent className="sm:max-w-md max-w-[95vw] w-full bg-white text-slate-900 rounded-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-base font-bold">
               Edit Event Mapping: <code className="text-blue-600 font-bold">{editingMapping?.eventName}</code>
@@ -1953,7 +1957,7 @@ export default function PlatformEmailPage() {
 
       {/* VERSION HISTORY MODAL */}
       <Dialog open={versionsModalOpen} onOpenChange={setVersionsModalOpen}>
-        <DialogContent className="sm:max-w-xl bg-white text-slate-900 rounded-2xl">
+        <DialogContent className="sm:max-w-xl max-w-[95vw] w-full bg-white text-slate-900 rounded-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-base font-bold flex items-center gap-2">
               <RotateCcw className="h-4 w-4 text-blue-600" /> Revision History: {selectedTemplate?.name}
