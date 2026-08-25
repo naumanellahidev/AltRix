@@ -945,12 +945,12 @@ export default function PlatformEmailPage() {
                   <table className="w-full text-xs text-left">
                     <thead className="bg-slate-50/80 border-b border-slate-200/80 text-slate-600 uppercase font-bold text-[10px] tracking-wider">
                       <tr>
-                        <th className="py-3.5 px-5">Status</th>
-                        <th className="py-3.5 px-5">Event</th>
+                        <th className="py-3.5 px-5 whitespace-nowrap">Status</th>
+                        <th className="py-3.5 px-5 whitespace-nowrap">Event</th>
                         <th className="py-3.5 px-5">Recipient</th>
                         <th className="py-3.5 px-5">Sender Identity</th>
                         <th className="py-3.5 px-5">Subject</th>
-                        <th className="py-3.5 px-5 text-right">Dispatched At</th>
+                        <th className="py-3.5 px-5 text-right whitespace-nowrap">Dispatched At</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -967,20 +967,20 @@ export default function PlatformEmailPage() {
                       ) : (
                         logs.slice(0, 8).map((item) => (
                           <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
-                            <td className="py-3.5 px-5">
+                            <td className="py-3.5 px-5 whitespace-nowrap">
                               {item.status === "sent" || item.status === "delivered" ? (
-                                <span className="bg-emerald-100 text-emerald-800 font-bold text-[10px] uppercase border border-emerald-300/80 px-2.5 py-0.5 rounded-full inline-block">
+                                <span className="inline-flex items-center bg-emerald-100 text-emerald-800 font-bold text-[10px] uppercase border border-emerald-300/80 px-2.5 py-0.5 rounded-full whitespace-nowrap">
                                   Sent
                                 </span>
                               ) : (
-                                <span className="bg-rose-100 text-rose-800 font-bold text-[10px] uppercase border border-rose-300 px-2.5 py-0.5 rounded-full inline-block">
+                                <span className="inline-flex items-center bg-rose-100 text-rose-800 font-bold text-[10px] uppercase border border-rose-300 px-2.5 py-0.5 rounded-full whitespace-nowrap">
                                   Failed
                                 </span>
                               )}
                             </td>
-                            <td className="py-3.5 px-5 font-bold text-slate-900">
-                              <span className="bg-slate-100 text-slate-800 border border-slate-200/80 px-2.5 py-1 rounded-lg text-[11px] font-mono">
-                                {item.eventName.replace("_", " ").toUpperCase()}
+                            <td className="py-3.5 px-5 whitespace-nowrap font-bold text-slate-900">
+                              <span className="inline-flex items-center whitespace-nowrap bg-slate-100 text-slate-800 border border-slate-200/90 px-3 py-1 rounded-full text-[11px] font-mono font-semibold tracking-wide shadow-2xs">
+                                {item.eventName.replaceAll("_", " ").toUpperCase()}
                               </span>
                             </td>
                             <td className="py-3.5 px-5 font-mono text-slate-800 font-semibold">{item.recipientEmail}</td>
@@ -1521,18 +1521,18 @@ export default function PlatformEmailPage() {
                   <table className="w-full text-xs text-left">
                     <thead className="bg-slate-50/80 border-b border-slate-100 text-slate-500 uppercase font-bold text-[10px] tracking-wider">
                       <tr>
-                        <th className="py-3 px-5">System Event</th>
+                        <th className="py-3 px-5 whitespace-nowrap">System Event</th>
                         <th className="py-3 px-5">Description</th>
                         <th className="py-3 px-5">Assigned Sender Identity</th>
                         <th className="py-3 px-5">Assigned Template</th>
-                        <th className="py-3 px-5 text-right">Actions</th>
+                        <th className="py-3 px-5 text-right whitespace-nowrap">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                       {mappings.map((m) => (
                         <tr key={m.eventName} className="hover:bg-slate-50/80 transition-colors">
-                          <td className="py-3.5 px-5 font-bold text-slate-900">
-                            <span className="bg-blue-50 text-blue-700 px-2.5 py-1 rounded-lg font-mono text-[11px] border border-blue-200/60">
+                          <td className="py-3.5 px-5 whitespace-nowrap font-bold text-slate-900">
+                            <span className="inline-flex items-center whitespace-nowrap bg-blue-50 text-blue-700 px-3 py-1 rounded-full font-mono text-[11px] font-semibold border border-blue-200/70 shadow-2xs">
                               {m.eventName}
                             </span>
                           </td>
@@ -1702,13 +1702,13 @@ export default function PlatformEmailPage() {
                   <table className="w-full text-xs text-left">
                     <thead className="bg-slate-50/80 border-b border-slate-100 text-slate-500 uppercase font-bold text-[10px] tracking-wider">
                       <tr>
-                        <th className="py-3 px-5">Status</th>
-                        <th className="py-3 px-5">Event Type</th>
+                        <th className="py-3 px-5 whitespace-nowrap">Status</th>
+                        <th className="py-3 px-5 whitespace-nowrap">Event Type</th>
                         <th className="py-3 px-5">Recipient</th>
                         <th className="py-3 px-5">Sender Address</th>
                         <th className="py-3 px-5">Subject</th>
                         <th className="py-3 px-5">Message ID</th>
-                        <th className="py-3 px-5 text-right">Timestamp</th>
+                        <th className="py-3 px-5 text-right whitespace-nowrap">Timestamp</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -1721,20 +1721,20 @@ export default function PlatformEmailPage() {
                       ) : (
                         logs.map((l) => (
                           <tr key={l.id} className="hover:bg-slate-50/80 transition-colors">
-                            <td className="py-3.5 px-5">
+                            <td className="py-3.5 px-5 whitespace-nowrap">
                               {l.status === "sent" || l.status === "delivered" ? (
-                                <Badge className="bg-emerald-50 text-emerald-700 hover:bg-emerald-50 text-[10px] uppercase font-bold border border-emerald-200/80 px-2.5 py-0.5 rounded-full">
+                                <Badge className="bg-emerald-50 text-emerald-700 hover:bg-emerald-50 text-[10px] uppercase font-bold border border-emerald-200/80 px-2.5 py-0.5 rounded-full whitespace-nowrap">
                                   Sent
                                 </Badge>
                               ) : (
-                                <Badge variant="destructive" className="text-[10px] uppercase font-bold px-2.5 py-0.5 rounded-full">
+                                <Badge variant="destructive" className="text-[10px] uppercase font-bold px-2.5 py-0.5 rounded-full whitespace-nowrap">
                                   Failed
                                 </Badge>
                               )}
                             </td>
-                            <td className="py-3.5 px-5 font-bold text-slate-900">
-                              <span className="bg-slate-100 text-slate-800 px-2.5 py-1 rounded-lg text-[11px] font-mono">
-                                {l.eventName.replace("_", " ").toUpperCase()}
+                            <td className="py-3.5 px-5 whitespace-nowrap font-bold text-slate-900">
+                              <span className="inline-flex items-center whitespace-nowrap bg-slate-100 text-slate-800 border border-slate-200/90 px-3 py-1 rounded-full text-[11px] font-mono font-semibold tracking-wide shadow-2xs">
+                                {l.eventName.replaceAll("_", " ").toUpperCase()}
                               </span>
                             </td>
                             <td className="py-3.5 px-5 font-mono text-slate-800 font-semibold">{l.recipientEmail}</td>
