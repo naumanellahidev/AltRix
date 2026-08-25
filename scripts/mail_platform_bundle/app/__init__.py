@@ -62,14 +62,12 @@ def create_app():
         response.headers["X-XSS-Protection"] = "1; mode=block"
         return response
 
-    # Universal Reverse Proxy to Mailu Subsystems (SSO, Roundcube Webmail, Admin, and Static Assets)
+    # Universal Reverse Proxy to Mailu Subsystems (SSO, Roundcube Webmail, and Static Assets)
     @app.route("/static/<path:filename>", methods=["GET", "HEAD", "POST"])
     @app.route("/sso", methods=["GET", "HEAD", "POST"])
     @app.route("/sso/<path:filename>", methods=["GET", "HEAD", "POST"])
     @app.route("/webmail", methods=["GET", "HEAD", "POST"])
     @app.route("/webmail/<path:filename>", methods=["GET", "HEAD", "POST"])
-    @app.route("/admin", methods=["GET", "HEAD", "POST"])
-    @app.route("/admin/<path:filename>", methods=["GET", "HEAD", "POST"])
     def proxy_mailu_subsystems(filename=""):
         import requests
         from flask import Response

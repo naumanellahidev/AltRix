@@ -1,7 +1,7 @@
 {
-  "commit": "message-open-fix",
-  "timestamp": "2026-08-24T23:54:17.976857Z",
-  "version": "1.0.2",
+  "commit": "admin-login-unified",
+  "timestamp": "2026-08-25T00:23:36.299372Z",
+  "version": "1.0.3",
   "environment": "production",
   "service": "altrix-mail-control-center"
 }

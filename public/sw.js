@@ -1,7 +1,7 @@
 // PWA Service Worker for AltRix Application
 // Handles offline caching strategy, push notifications, click handlers, and app badges.
 
-const CACHE_NAME = 'altrix-cache-v3';
+const CACHE_NAME = 'altrix-cache-v6';
 const ASSETS_TO_CACHE = [
   '/favicon.ico',
   '/pwa-512.png',
@@ -11,10 +11,11 @@ const ASSETS_TO_CACHE = [
 
 // Install: Cache essential static assets
 self.addEventListener('install', (event) => {
+  self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       return cache.addAll(ASSETS_TO_CACHE);
-    }).then(() => self.skipWaiting())
+    })
   );
 });
 
@@ -50,7 +51,7 @@ self.addEventListener('message', (event) => {
   }
 });
 
-// Fetch: Network-First for HTML/Navigation, Stale-While-Revalidate for static assets, network-only for APIs
+// Fetch: Network-First for Navigation & Assets, Network-Only for APIs
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
 
@@ -66,24 +67,47 @@ self.addEventListener('fetch', (event) => {
   if (event.request.mode === 'navigate' || url.pathname === '/' || url.pathname.endsWith('.html')) {
     event.respondWith(
       fetch(event.request)
+        .then((response) => {
+          if (response && response.status === 200) {
+            const responseClone = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseClone));
+          }
+          return response;
+        })
         .catch(() => caches.match('/index.html') || caches.match('/'))
     );
     return;
   }
 
-  // 2. Static Assets: Cache with Network Update
+  // 2. JavaScript, CSS, and Dynamic Chunks: ALWAYS Network-First with Cache Fallback
+  if (url.pathname.startsWith('/assets/') || url.pathname.endsWith('.js') || url.pathname.endsWith('.css')) {
+    event.respondWith(
+      fetch(event.request)
+        .then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200) {
+            const responseClone = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseClone));
+          }
+          return networkResponse;
+        })
+        .catch(() => caches.match(event.request))
+    );
+    return;
+  }
+
+  // 3. Static Media/Icons: Cache-First
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
       if (cachedResponse) {
-        // Fetch new version in background to update cache
-        fetch(event.request).then((networkResponse) => {
-          if (networkResponse && networkResponse.status === 200) {
-            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, networkResponse));
-          }
-        }).catch(() => {/* Offline fallback */});
         return cachedResponse;
       }
-      return fetch(event.request);
+      return fetch(event.request).then((networkResponse) => {
+        if (networkResponse && networkResponse.status === 200) {
+          const responseClone = networkResponse.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseClone));
+        }
+        return networkResponse;
+      });
     })
   );
 });
