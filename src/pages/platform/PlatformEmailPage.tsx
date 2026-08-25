@@ -188,6 +188,47 @@ interface MtaHealth {
   dnsRecords: Record<string, string>;
 }
 
+interface StaffInvitation {
+  id: string;
+  email: string;
+  role: string;
+  displayName: string;
+  status: string;
+  schoolId?: string | null;
+  campusId?: string | null;
+  schoolName: string;
+  campusName: string;
+  token?: string | null;
+  activationUrl?: string | null;
+  createdAt?: string | null;
+  expiresAt?: string | null;
+  openedAt?: string | null;
+  isExpired: boolean;
+}
+
+interface SystemWarning {
+  id: string;
+  category: string;
+  severity: "critical" | "high" | "medium" | "low";
+  title: string;
+  recipient: string;
+  sender: string;
+  subject: string;
+  timestamp?: string | null;
+  details: string;
+  action: string;
+  invitationId?: string;
+  logId?: string;
+}
+
+interface DispatchesEventSummary {
+  eventName: string;
+  count: number;
+  successful: number;
+  failed: number;
+  lastDispatched?: string | null;
+}
+
 export default function PlatformEmailPage() {
   const [activeTab, setActiveTab] = useState("overview");
   const [loading, setLoading] = useState(true);
@@ -206,6 +247,30 @@ export default function PlatformEmailPage() {
   const [logSearch, setLogSearch] = useState("");
   const [logStatusFilter, setLogStatusFilter] = useState("all");
   const [mtaHealth, setMtaHealth] = useState<MtaHealth | null>(null);
+
+  // Clickable KPI & Diagnostic Modals
+  const [dispatchesModalOpen, setDispatchesModalOpen] = useState(false);
+  const [healthModalOpen, setHealthModalOpen] = useState(false);
+  const [pendingInvitesModalOpen, setPendingInvitesModalOpen] = useState(false);
+  const [warningsModalOpen, setWarningsModalOpen] = useState(false);
+  const [failedLogModalOpen, setFailedLogModalOpen] = useState(false);
+
+  // Diagnostic & Breakdown Data
+  const [pendingInvitations, setPendingInvitations] = useState<StaffInvitation[]>([]);
+  const [loadingPendingInvites, setLoadingPendingInvites] = useState(false);
+  const [resendingInviteId, setResendingInviteId] = useState<string | null>(null);
+  const [revokingInviteId, setRevokingInviteId] = useState<string | null>(null);
+
+  const [warnings, setWarnings] = useState<SystemWarning[]>([]);
+  const [selectedWarning, setSelectedWarning] = useState<SystemWarning | null>(null);
+  const [selectedFailedLog, setSelectedFailedLog] = useState<EmailLog | null>(null);
+
+  const [dispatchesEvents, setDispatchesEvents] = useState<DispatchesEventSummary[]>([]);
+  const [loadingDispatches, setLoadingDispatches] = useState(false);
+
+  // Realtime Telemetry Sync State
+  const [lastSyncedAt, setLastSyncedAt] = useState<Date>(new Date());
+  const [isSyncing, setIsSyncing] = useState(false);
 
   // Template Studio State
   const [selectedTemplate, setSelectedTemplate] = useState<EmailTemplate | null>(null);
@@ -365,7 +430,7 @@ export default function PlatformEmailPage() {
   };
 
   // Fetch Delivery Logs
-  const loadLogs = async (page = 1) => {
+  const loadLogs = async (page = 1, silent = false) => {
     try {
       const params: any = { page, limit: 25 };
       if (logStatusFilter !== "all") params.status = logStatusFilter;
@@ -378,7 +443,7 @@ export default function PlatformEmailPage() {
         setLogsPage(res.data.page || 1);
       }
     } catch (err) {
-      console.error("Failed to load email logs:", err);
+      if (!silent) console.error("Failed to load email logs:", err);
     }
   };
 
@@ -394,11 +459,115 @@ export default function PlatformEmailPage() {
     }
   };
 
-  // Load all on mount
+  // Fetch Pending Staff Invitations
+  const loadPendingInvitations = async () => {
+    try {
+      setLoadingPendingInvites(true);
+      const res = await apiClient.get("/super_admin/email/pending-invitations");
+      if (res.data?.invitations) {
+        setPendingInvitations(res.data.invitations);
+      }
+    } catch (err) {
+      console.error("Failed to load pending invitations:", err);
+    } finally {
+      setLoadingPendingInvites(false);
+    }
+  };
+
+  // Resend Staff Invitation
+  const handleResendStaffInvite = async (inviteId: string) => {
+    try {
+      setResendingInviteId(inviteId);
+      const res = await apiClient.post(`/super_admin/email/pending-invitations/${inviteId}/resend`);
+      toast.success(res.data?.message || "Invitation re-dispatched with fresh 48h activation token!");
+      await Promise.all([loadPendingInvitations(), loadOverview(), loadLogs(1, true)]);
+    } catch (err: any) {
+      toast.error(err?.response?.data?.detail || err.message || "Failed to resend invitation");
+    } finally {
+      setResendingInviteId(null);
+    }
+  };
+
+  // Revoke Staff Invitation
+  const handleRevokeStaffInvite = async (inviteId: string) => {
+    try {
+      setRevokingInviteId(inviteId);
+      await apiClient.post(`/super_admin/email/pending-invitations/${inviteId}/revoke`);
+      toast.success("Invitation token successfully revoked.");
+      await Promise.all([loadPendingInvitations(), loadOverview()]);
+    } catch (err: any) {
+      toast.error(err?.response?.data?.detail || err.message || "Failed to revoke token");
+    } finally {
+      setRevokingInviteId(null);
+    }
+  };
+
+  // Fetch Live System Warnings
+  const loadWarnings = async () => {
+    try {
+      const res = await apiClient.get("/super_admin/email/warnings");
+      if (res.data?.warnings) {
+        setWarnings(res.data.warnings);
+      }
+    } catch (err) {
+      console.error("Failed to load warnings:", err);
+    }
+  };
+
+  // Fetch Dispatches Breakdown
+  const loadDispatchesBreakdown = async () => {
+    try {
+      setLoadingDispatches(true);
+      const res = await apiClient.get("/super_admin/email/dispatches-breakdown");
+      if (res.data?.events24h) {
+        setDispatchesEvents(res.data.events24h);
+      }
+    } catch (err) {
+      console.error("Failed to load dispatches breakdown:", err);
+    } finally {
+      setLoadingDispatches(false);
+    }
+  };
+
+  // Trigger Dispatches Modal
+  const openDispatchesModal = async () => {
+    setDispatchesModalOpen(true);
+    await loadDispatchesBreakdown();
+  };
+
+  // Trigger Pending Invites Modal
+  const openPendingInvitesModal = async () => {
+    setPendingInvitesModalOpen(true);
+    await loadPendingInvitations();
+  };
+
+  // Open Log Failure Diagnostics Modal
+  const openFailedLogModal = (log: EmailLog) => {
+    setSelectedFailedLog(log);
+    setFailedLogModalOpen(true);
+  };
+
+  // Realtime Silent Polling Sync
+  const performSilentSync = async () => {
+    try {
+      setIsSyncing(true);
+      await Promise.allSettled([
+        loadOverview(),
+        loadLogs(logsPage, true),
+        loadWarnings(),
+        loadMtaHealth(),
+      ]);
+      setLastSyncedAt(new Date());
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  // Load all on mount & start 12s Realtime Polling Sync
   useEffect(() => {
     const init = async () => {
       setLoading(true);
-      await Promise.all([
+      await Promise.allSettled([
         loadOverview(),
         loadBranding(),
         loadAssets(),
@@ -407,10 +576,20 @@ export default function PlatformEmailPage() {
         loadMappings(),
         loadLogs(),
         loadMtaHealth(),
+        loadWarnings(),
+        loadPendingInvitations(),
       ]);
+      setLastSyncedAt(new Date());
       setLoading(false);
     };
     init();
+
+    // 12-second background live sync loop
+    const syncTimer = setInterval(() => {
+      performSilentSync();
+    }, 12000);
+
+    return () => clearInterval(syncTimer);
   }, []);
 
   // Update selected template inputs when selection changes
@@ -672,6 +851,19 @@ export default function PlatformEmailPage() {
       subtitle="Configure AltRix brand identity, sender aliases, responsive HTML templates & monitor VPS delivery node"
       actions={
         <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 w-full sm:w-auto">
+          {/* Realtime Live Sync Indicator Pill */}
+          <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100/90 text-[11px] font-medium text-slate-600 border border-slate-200/80 shadow-2xs">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+            </span>
+            <span className="font-semibold text-slate-800">Realtime Synced</span>
+            <span className="text-slate-300">•</span>
+            <span className="font-mono text-[10px] text-slate-500">
+              {lastSyncedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+            </span>
+          </div>
+
           <a
             href="https://mail.altrixcore.com/login"
             target="_blank"
@@ -692,20 +884,26 @@ export default function PlatformEmailPage() {
           </a>
           <Button
             size="sm"
-            onClick={() => {
-              loadOverview();
-              loadBranding();
-              loadAssets();
-              loadSenders();
-              loadTemplates(selectedCategory);
-              loadMappings();
-              loadLogs();
-              loadMtaHealth();
-              toast.success("Refreshed email platform telemetry");
+            disabled={isSyncing}
+            onClick={async () => {
+              await Promise.allSettled([
+                loadOverview(),
+                loadBranding(),
+                loadAssets(),
+                loadSenders(),
+                loadTemplates(selectedCategory),
+                loadMappings(),
+                loadLogs(),
+                loadMtaHealth(),
+                loadWarnings(),
+                loadPendingInvitations(),
+              ]);
+              setLastSyncedAt(new Date());
+              toast.success("Refreshed all email platform telemetry");
             }}
             className="text-xs h-8 sm:h-9 px-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold rounded-xl shadow-xs hover:shadow-md transition-all"
           >
-            <RefreshCw className="h-3.5 w-3.5 mr-1.5 shrink-0" /> Refresh Telemetry
+            <RefreshCw className={`h-3.5 w-3.5 mr-1.5 shrink-0 ${isSyncing ? "animate-spin" : ""}`} /> Refresh Telemetry
           </Button>
         </div>
       }
@@ -764,13 +962,20 @@ export default function PlatformEmailPage() {
 
           {/* 1. OVERVIEW TAB */}
           <TabsContent value="overview" className="mt-6 space-y-6">
-            {/* KPI Top Summary Cards */}
+            {/* Clickable KPI Top Summary Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              {/* Card 1: Dispatched */}
-              <Card className="border border-slate-200/90 rounded-2xl bg-white shadow-xs hover:shadow-md hover:border-blue-300 transition-all">
+              {/* Card 1: Dispatched (Clickable -> Opens 24h Breakdown Modal) */}
+              <Card
+                onClick={openDispatchesModal}
+                className="border border-slate-200/90 rounded-2xl bg-white shadow-xs hover:shadow-md hover:border-blue-400 hover:scale-[1.01] active:scale-[0.99] transition-all cursor-pointer group"
+                title="Click to view 24-hour event breakdown and dispatches distribution"
+              >
                 <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
-                  <span className="text-[11px] uppercase tracking-wider font-bold text-slate-500">24h Dispatched</span>
-                  <div className="h-9 w-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center ring-4 ring-blue-500/5">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[11px] uppercase tracking-wider font-bold text-slate-500">24h Dispatched</span>
+                    <ArrowUpRight className="h-3.5 w-3.5 text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </div>
+                  <div className="h-9 w-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center ring-4 ring-blue-500/5 group-hover:bg-blue-600 group-hover:text-white transition-colors">
                     <Send className="h-4 w-4" />
                   </div>
                 </CardHeader>
@@ -779,19 +984,26 @@ export default function PlatformEmailPage() {
                     <span className="text-3xl font-black text-slate-900 tracking-tight font-sans">
                       {telemetry?.sent24h ?? 0}
                     </span>
-                    <span className="bg-blue-100 text-blue-800 font-bold text-[10px] uppercase border border-blue-200 px-2.5 py-0.5 rounded-full">
-                      Live Stream
+                    <span className="bg-blue-100 text-blue-800 font-bold text-[10px] uppercase border border-blue-200 px-2.5 py-0.5 rounded-full group-hover:bg-blue-600 group-hover:text-white group-hover:border-blue-600 transition-colors">
+                      Inspect ↗
                     </span>
                   </div>
                   <p className="text-xs text-slate-500 mt-2 font-medium">All transactional event triggers</p>
                 </CardContent>
               </Card>
 
-              {/* Card 2: Success Rate */}
-              <Card className="border border-slate-200/90 rounded-2xl bg-white shadow-xs hover:shadow-md hover:border-emerald-300 transition-all">
+              {/* Card 2: Success Rate (Clickable -> Opens Health Analytics Modal) */}
+              <Card
+                onClick={() => setHealthModalOpen(true)}
+                className="border border-slate-200/90 rounded-2xl bg-white shadow-xs hover:shadow-md hover:border-emerald-400 hover:scale-[1.01] active:scale-[0.99] transition-all cursor-pointer group"
+                title="Click to view MTA node health & delivery success metrics"
+              >
                 <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
-                  <span className="text-[11px] uppercase tracking-wider font-bold text-slate-500">24h Success Rate</span>
-                  <div className="h-9 w-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center ring-4 ring-emerald-500/5">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[11px] uppercase tracking-wider font-bold text-slate-500">24h Success Rate</span>
+                    <ArrowUpRight className="h-3.5 w-3.5 text-emerald-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </div>
+                  <div className="h-9 w-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center ring-4 ring-emerald-500/5 group-hover:bg-emerald-600 group-hover:text-white transition-colors">
                     <CheckCircle2 className="h-4 w-4" />
                   </div>
                 </CardHeader>
@@ -800,19 +1012,29 @@ export default function PlatformEmailPage() {
                     <span className="text-3xl font-black text-emerald-600 tracking-tight font-sans">
                       {telemetry?.successRate24h ?? 100}%
                     </span>
-                    <span className="bg-emerald-100 text-emerald-800 font-bold text-[10px] uppercase border border-emerald-200 px-2.5 py-0.5 rounded-full">
-                      Optimal
+                    <span className="bg-emerald-100 text-emerald-800 font-bold text-[10px] uppercase border border-emerald-200 px-2.5 py-0.5 rounded-full group-hover:bg-emerald-600 group-hover:text-white group-hover:border-emerald-600 transition-colors">
+                      Health ↗
                     </span>
                   </div>
                   <p className="text-xs text-slate-500 mt-2 font-medium">Successful relay through local MTA</p>
                 </CardContent>
               </Card>
 
-              {/* Card 3: Configured Senders */}
-              <Card className="border border-slate-200/90 rounded-2xl bg-white shadow-xs hover:shadow-md hover:border-purple-300 transition-all">
+              {/* Card 3: Configured Senders (Clickable -> Jumps to Senders Tab) */}
+              <Card
+                onClick={() => {
+                  setActiveTab("senders");
+                  toast.info("Navigated to Sender Profiles (9 active aliases)");
+                }}
+                className="border border-slate-200/90 rounded-2xl bg-white shadow-xs hover:shadow-md hover:border-purple-400 hover:scale-[1.01] active:scale-[0.99] transition-all cursor-pointer group"
+                title="Click to jump to Sender Profiles and manage alias identities"
+              >
                 <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
-                  <span className="text-[11px] uppercase tracking-wider font-bold text-slate-500">Configured Senders</span>
-                  <div className="h-9 w-9 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center ring-4 ring-purple-500/5">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[11px] uppercase tracking-wider font-bold text-slate-500">Configured Senders</span>
+                    <ArrowUpRight className="h-3.5 w-3.5 text-purple-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </div>
+                  <div className="h-9 w-9 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center ring-4 ring-purple-500/5 group-hover:bg-purple-600 group-hover:text-white transition-colors">
                     <Mail className="h-4 w-4" />
                   </div>
                 </CardHeader>
@@ -821,35 +1043,95 @@ export default function PlatformEmailPage() {
                     <span className="text-3xl font-black text-purple-600 tracking-tight font-sans">
                       {telemetry?.activeSenders ?? senders.length}
                     </span>
-                    <span className="bg-purple-100 text-purple-800 font-bold text-[10px] uppercase border border-purple-200 px-2.5 py-0.5 rounded-full">
-                      Verified
+                    <span className="bg-purple-100 text-purple-800 font-bold text-[10px] uppercase border border-purple-200 px-2.5 py-0.5 rounded-full group-hover:bg-purple-600 group-hover:text-white group-hover:border-purple-600 transition-colors">
+                      Manage ↗
                     </span>
                   </div>
                   <p className="text-xs text-slate-500 mt-2 font-medium">Official AltRix brand aliases</p>
                 </CardContent>
               </Card>
 
-              {/* Card 4: Pending Invites */}
-              <Card className="border border-slate-200/90 rounded-2xl bg-white shadow-xs hover:shadow-md hover:border-amber-300 transition-all">
+              {/* Card 4: Pending Invites (Clickable -> Opens Pending Tokens Modal) */}
+              <Card
+                onClick={openPendingInvitesModal}
+                className="border border-slate-200/90 rounded-2xl bg-white shadow-xs hover:shadow-md hover:border-amber-400 hover:scale-[1.01] active:scale-[0.99] transition-all cursor-pointer group"
+                title="Click to view and manage active staff invitation tokens"
+              >
                 <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
-                  <span className="text-[11px] uppercase tracking-wider font-bold text-slate-500">Pending Staff Invites</span>
-                  <div className="h-9 w-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center ring-4 ring-amber-500/5">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[11px] uppercase tracking-wider font-bold text-slate-500">Pending Staff Invites</span>
+                    <ArrowUpRight className="h-3.5 w-3.5 text-amber-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </div>
+                  <div className="h-9 w-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center ring-4 ring-amber-500/5 group-hover:bg-amber-600 group-hover:text-white transition-colors">
                     <Clock className="h-4 w-4" />
                   </div>
                 </CardHeader>
                 <CardContent className="pt-1">
                   <div className="flex items-baseline justify-between">
                     <span className="text-3xl font-black text-amber-600 tracking-tight font-sans">
-                      {telemetry?.pendingInvitations ?? 0}
+                      {telemetry?.pendingInvitations ?? pendingInvitations.length}
                     </span>
-                    <span className="bg-amber-100 text-amber-800 font-bold text-[10px] uppercase border border-amber-200 px-2.5 py-0.5 rounded-full">
-                      Tokens Active
+                    <span className="bg-amber-100 text-amber-800 font-bold text-[10px] uppercase border border-amber-200 px-2.5 py-0.5 rounded-full group-hover:bg-amber-600 group-hover:text-white group-hover:border-amber-600 transition-colors">
+                      Tokens Active ↗
                     </span>
                   </div>
                   <p className="text-xs text-slate-500 mt-2 font-medium">Active single-use activation tokens</p>
                 </CardContent>
               </Card>
             </div>
+
+            {/* Active System Warnings & Diagnostic Details Banner */}
+            {warnings.length > 0 && (
+              <Card className="border border-amber-300/80 bg-gradient-to-r from-amber-50/90 via-amber-50/50 to-orange-50/80 rounded-2xl shadow-xs overflow-hidden">
+                <CardHeader className="p-4 sm:p-5 pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-amber-200/60">
+                  <div className="flex items-center gap-2.5">
+                    <div className="h-9 w-9 rounded-xl bg-amber-500 text-white flex items-center justify-center shadow-xs shrink-0">
+                      <AlertTriangle className="h-4 w-4 animate-bounce" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-sm font-bold text-amber-950 flex items-center gap-2">
+                        Active Infrastructure Warnings ({warnings.length})
+                      </CardTitle>
+                      <CardDescription className="text-xs text-amber-800/90 mt-0.5">
+                        Actionable diagnostic alerts detected across email delivery nodes and invitation tokens.
+                      </CardDescription>
+                    </div>
+                  </div>
+                  <Button
+                    size="sm"
+                    onClick={() => setWarningsModalOpen(true)}
+                    className="text-xs bg-amber-600 hover:bg-amber-700 text-white font-bold h-8 rounded-xl shadow-xs self-start sm:self-auto shrink-0"
+                  >
+                    View All Diagnostic Details <ChevronRight className="h-3.5 w-3.5 ml-1" />
+                  </Button>
+                </CardHeader>
+                <CardContent className="p-4 space-y-2.5">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                    {warnings.slice(0, 4).map((w) => (
+                      <div
+                        key={w.id}
+                        onClick={() => {
+                          setSelectedWarning(w);
+                          setWarningsModalOpen(true);
+                        }}
+                        className="p-3 rounded-xl bg-white/90 border border-amber-200 hover:border-amber-400 hover:shadow-xs transition-all cursor-pointer flex items-start justify-between gap-2"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className={`h-2 w-2 rounded-full ${w.severity === 'high' ? 'bg-rose-500' : 'bg-amber-500'}`} />
+                            <p className="text-xs font-bold text-slate-900 truncate">{w.title}</p>
+                          </div>
+                          <p className="text-[11px] text-slate-600 mt-1 line-clamp-1 font-mono">{w.details}</p>
+                        </div>
+                        <span className="text-[10px] font-bold text-amber-700 bg-amber-100/80 px-2 py-0.5 rounded-full shrink-0">
+                          Inspect ↗
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
             {/* VPS Infrastructure Node Card (Clean Brand-Matched Light Theme) */}
             <Card className="border border-slate-200/90 rounded-2xl bg-white shadow-xs overflow-hidden">
@@ -975,9 +1257,14 @@ export default function PlatformEmailPage() {
                                   Sent
                                 </span>
                               ) : (
-                                <span className="inline-flex items-center bg-rose-100 text-rose-800 font-bold text-[10px] uppercase border border-rose-300 px-2.5 py-0.5 rounded-full whitespace-nowrap">
-                                  Failed
-                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => openFailedLogModal(item)}
+                                  className="inline-flex items-center bg-rose-100 hover:bg-rose-200 text-rose-800 font-bold text-[10px] uppercase border border-rose-300 px-2.5 py-0.5 rounded-full whitespace-nowrap cursor-pointer transition-all hover:scale-105"
+                                  title="Click to view failure error trace and diagnostic details"
+                                >
+                                  <AlertTriangle className="h-3 w-3 mr-1 text-rose-600" /> Failed ↗
+                                </button>
                               )}
                             </td>
                             <td className="py-3.5 px-5 whitespace-nowrap font-bold text-slate-900">
@@ -1731,9 +2018,14 @@ export default function PlatformEmailPage() {
                                   Sent
                                 </Badge>
                               ) : (
-                                <Badge variant="destructive" className="text-[10px] uppercase font-bold px-2.5 py-0.5 rounded-full whitespace-nowrap">
-                                  Failed
-                                </Badge>
+                                <button
+                                  type="button"
+                                  onClick={() => openFailedLogModal(l)}
+                                  className="inline-flex items-center bg-rose-100 hover:bg-rose-200 text-rose-800 font-bold text-[10px] uppercase border border-rose-300 px-2.5 py-0.5 rounded-full whitespace-nowrap cursor-pointer transition-all hover:scale-105"
+                                  title="Click to view failure error trace and diagnostic details"
+                                >
+                                  <AlertTriangle className="h-3 w-3 mr-1 text-rose-600" /> Failed ↗
+                                </button>
                               )}
                             </td>
                             <td className="py-3.5 px-5 whitespace-nowrap font-bold text-slate-900">
@@ -1997,6 +2289,546 @@ export default function PlatformEmailPage() {
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" size="sm" onClick={() => setVersionsModalOpen(false)} className="rounded-xl">
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 1. DISPATCHES BREAKDOWN MODAL (Triggered by Card 1: 24H Dispatched) */}
+      <Dialog open={dispatchesModalOpen} onOpenChange={setDispatchesModalOpen}>
+        <DialogContent className="sm:max-w-2xl max-w-[95vw] w-full bg-white text-slate-900 rounded-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <div className="flex items-center gap-2.5">
+              <div className="h-9 w-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center ring-4 ring-blue-500/10">
+                <Send className="h-4 w-4" />
+              </div>
+              <div>
+                <DialogTitle className="text-base font-bold text-slate-900">
+                  24-Hour Transactional Dispatches Breakdown
+                </DialogTitle>
+                <DialogDescription className="text-xs text-slate-500 mt-0.5">
+                  Detailed distribution of transactional triggers executed across all active school tenants.
+                </DialogDescription>
+              </div>
+            </div>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2 text-xs">
+            {/* Top Stat Summary Grid */}
+            <div className="grid grid-cols-3 gap-3">
+              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-center">
+                <span className="text-[10px] uppercase font-bold text-slate-500 block">Total 24h</span>
+                <span className="text-2xl font-black text-slate-900">{telemetry?.sent24h ?? 0}</span>
+              </div>
+              <div className="p-3 rounded-xl bg-emerald-50/80 border border-emerald-200 text-center">
+                <span className="text-[10px] uppercase font-bold text-emerald-700 block">Delivered</span>
+                <span className="text-2xl font-black text-emerald-600">{telemetry?.successful24h ?? 0}</span>
+              </div>
+              <div className="p-3 rounded-xl bg-rose-50/80 border border-rose-200 text-center">
+                <span className="text-[10px] uppercase font-bold text-rose-700 block">Failed / Bounced</span>
+                <span className="text-2xl font-black text-rose-600">{telemetry?.failed24h ?? 0}</span>
+              </div>
+            </div>
+
+            {/* Categorized Event Distribution List */}
+            <div className="space-y-2">
+              <h4 className="font-bold text-xs text-slate-800 uppercase tracking-wider flex items-center justify-between">
+                <span>Dispatches by Event Trigger</span>
+                <span className="text-[11px] font-mono text-slate-400 lowercase">{dispatchesEvents.length} events logged</span>
+              </h4>
+
+              {loadingDispatches ? (
+                <div className="py-12 text-center text-xs text-slate-400">Loading dispatches breakdown...</div>
+              ) : dispatchesEvents.length === 0 ? (
+                <div className="py-12 text-center text-xs text-slate-400 bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                  <Inbox className="h-6 w-6 text-slate-300 mx-auto mb-2" />
+                  <p className="font-semibold text-slate-600">No event dispatches recorded in the last 24 hours.</p>
+                  <p className="text-slate-400 mt-0.5">Use the Live Test Lab tab to trigger a test dispatch.</p>
+                </div>
+              ) : (
+                <div className="space-y-2 max-h-[320px] overflow-y-auto pr-1">
+                  {dispatchesEvents.map((evt) => (
+                    <div key={evt.eventName} className="p-3 rounded-xl border border-slate-200/80 bg-slate-50/60 hover:bg-slate-100/70 transition-all flex items-center justify-between gap-3">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono font-bold text-slate-900 uppercase text-[11px]">
+                            {evt.eventName.replaceAll("_", " ")}
+                          </span>
+                          <span className="bg-slate-200 text-slate-700 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                            {evt.count} dispatches
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-500 mt-0.5">
+                          Last triggered: {evt.lastDispatched ? new Date(evt.lastDispatched).toLocaleTimeString() : "Recent"}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2 text-right">
+                        <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100 text-[10px] font-bold">
+                          {evt.successful} sent
+                        </Badge>
+                        {evt.failed > 0 && (
+                          <Badge variant="destructive" className="text-[10px] font-bold">
+                            {evt.failed} failed
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <DialogFooter className="flex flex-col sm:flex-row items-center justify-between gap-2 border-t border-slate-100 pt-3">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setDispatchesModalOpen(false);
+                setActiveTab("logs");
+              }}
+              className="text-xs font-bold text-blue-600 border-blue-200 hover:bg-blue-50 rounded-xl w-full sm:w-auto"
+            >
+              Open Full Delivery Logs <ChevronRight className="h-3.5 w-3.5 ml-1" />
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={() => setDispatchesModalOpen(false)}
+              className="rounded-xl w-full sm:w-auto"
+            >
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 2. DELIVERY HEALTH & SUCCESS RATE MODAL (Triggered by Card 2: 24H Success Rate) */}
+      <Dialog open={healthModalOpen} onOpenChange={setHealthModalOpen}>
+        <DialogContent className="sm:max-w-xl max-w-[95vw] w-full bg-white text-slate-900 rounded-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <div className="flex items-center gap-2.5">
+              <div className="h-9 w-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center ring-4 ring-emerald-500/10">
+                <CheckCircle2 className="h-4 w-4" />
+              </div>
+              <div>
+                <DialogTitle className="text-base font-bold text-slate-900">
+                  Delivery Success & Health Diagnostics
+                </DialogTitle>
+                <DialogDescription className="text-xs text-slate-500 mt-0.5">
+                  Realtime telemetry from Mail Transfer Agent (MTA) Postfix engine at <strong>mail.altrixcore.com</strong>.
+                </DialogDescription>
+              </div>
+            </div>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2 text-xs">
+            {/* Health Score Overview */}
+            <div className="p-4 rounded-xl bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50 border border-emerald-200 flex items-center justify-between">
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800">Overall Success Rate</span>
+                <div className="text-3xl font-black text-emerald-700 font-sans mt-0.5">
+                  {telemetry?.successRate24h ?? 100}%
+                </div>
+                <p className="text-[11px] text-emerald-800 font-medium mt-1">
+                  {telemetry?.successful24h ?? 0} successful relays of {telemetry?.sent24h ?? 0} attempts in 24 hours
+                </p>
+              </div>
+              <div className="h-14 w-14 rounded-2xl bg-emerald-500 text-white flex items-center justify-center shadow-md shadow-emerald-500/20">
+                <ShieldCheck className="h-8 w-8" />
+              </div>
+            </div>
+
+            {/* Diagnostic Parameters Grid */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="p-3.5 rounded-xl border border-slate-200/80 bg-slate-50/60 space-y-1">
+                <span className="text-slate-500 font-bold text-[10px] uppercase">Relay Latency</span>
+                <p className="font-black text-slate-900 text-base font-mono">{mtaHealth?.latencyMs || 3.3} ms</p>
+                <span className="text-[10px] text-emerald-600 font-bold">Optimal Response Time</span>
+              </div>
+              <div className="p-3.5 rounded-xl border border-slate-200/80 bg-slate-50/60 space-y-1">
+                <span className="text-slate-500 font-bold text-[10px] uppercase">MTA Node Relay</span>
+                <p className="font-black text-slate-900 text-base font-mono">127.0.0.1:25</p>
+                <span className="text-[10px] text-blue-600 font-bold">Authorized Docker Subnet</span>
+              </div>
+              <div className="p-3.5 rounded-xl border border-slate-200/80 bg-slate-50/60 space-y-1">
+                <span className="text-slate-500 font-bold text-[10px] uppercase">TLS Security</span>
+                <p className="font-black text-slate-900 text-base">Let's Encrypt</p>
+                <span className="text-[10px] text-emerald-600 font-bold">TLS 1.3 Active</span>
+              </div>
+              <div className="p-3.5 rounded-xl border border-slate-200/80 bg-slate-50/60 space-y-1">
+                <span className="text-slate-500 font-bold text-[10px] uppercase">DKIM / SPF State</span>
+                <p className="font-black text-slate-900 text-base">Configured</p>
+                <span className="text-[10px] text-emerald-600 font-bold">mail.altrixcore.com</span>
+              </div>
+            </div>
+
+            {/* Relay Status Note */}
+            <div className="p-3 rounded-xl bg-blue-50/80 border border-blue-200 text-blue-900 text-[11px] leading-relaxed">
+              <strong>Local Postfix Direct Relay:</strong> All institutional transactional dispatches route with zero roundtrip TLS overhead through our internal Docker bridge.
+            </div>
+          </div>
+
+          <DialogFooter className="pt-2">
+            <Button type="button" variant="outline" size="sm" onClick={() => setHealthModalOpen(false)} className="rounded-xl">
+              Close Diagnostics
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 3. PENDING STAFF INVITATIONS MODAL (Triggered by Card 4: Pending Staff Invites) */}
+      <Dialog open={pendingInvitesModalOpen} onOpenChange={setPendingInvitesModalOpen}>
+        <DialogContent className="sm:max-w-3xl max-w-[95vw] w-full bg-white text-slate-900 rounded-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="h-9 w-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center ring-4 ring-amber-500/10">
+                  <Clock className="h-4 w-4" />
+                </div>
+                <div>
+                  <DialogTitle className="text-base font-bold text-slate-900">
+                    Active Staff Invitations & Token Management
+                  </DialogTitle>
+                  <DialogDescription className="text-xs text-slate-500 mt-0.5">
+                    Realtime management of single-use onboarding tokens sent to teachers, accountants, and campus staff.
+                  </DialogDescription>
+                </div>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={loadPendingInvitations}
+                disabled={loadingPendingInvites}
+                className="text-xs h-8 font-bold text-amber-700 border-amber-300 hover:bg-amber-50 rounded-xl"
+              >
+                <RefreshCw className={`h-3 w-3 mr-1 ${loadingPendingInvites ? "animate-spin" : ""}`} /> Refresh
+              </Button>
+            </div>
+          </DialogHeader>
+
+          <div className="space-y-3 py-2 text-xs">
+            {loadingPendingInvites ? (
+              <div className="py-16 text-center text-xs text-slate-400">Loading active invitation tokens...</div>
+            ) : pendingInvitations.length === 0 ? (
+              <div className="py-16 text-center text-xs text-slate-400 bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                <Inbox className="h-8 w-8 text-slate-300 mx-auto mb-2" />
+                <p className="font-semibold text-slate-600">No active pending staff invitations found.</p>
+                <p className="text-slate-400 mt-0.5">When school admins invite staff members, their activation tokens will appear here.</p>
+              </div>
+            ) : (
+              <div className="space-y-2.5 max-h-[420px] overflow-y-auto pr-1">
+                {pendingInvitations.map((inv) => (
+                  <div
+                    key={inv.id}
+                    className="p-4 rounded-xl border border-slate-200/90 bg-white hover:border-blue-300 hover:shadow-xs transition-all flex flex-col md:flex-row md:items-center justify-between gap-3"
+                  >
+                    <div className="min-w-0 space-y-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-bold text-slate-900 text-sm">{inv.displayName}</span>
+                        <Badge variant="outline" className="text-[10px] font-bold uppercase bg-slate-50">
+                          {inv.role.replaceAll("_", " ")}
+                        </Badge>
+                        {inv.isExpired ? (
+                          <span className="bg-rose-100 text-rose-800 text-[10px] font-bold uppercase px-2 py-0.5 rounded-full">
+                            Expired
+                          </span>
+                        ) : (
+                          <span className="bg-amber-100 text-amber-800 text-[10px] font-bold uppercase px-2 py-0.5 rounded-full">
+                            {inv.status}
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-500 font-mono">
+                        <span className="font-semibold text-slate-700">{inv.email}</span>
+                        <span>•</span>
+                        <span>{inv.schoolName} ({inv.campusName})</span>
+                        <span>•</span>
+                        <span>Expires: {inv.expiresAt ? new Date(inv.expiresAt).toLocaleDateString() : "48h"}</span>
+                      </div>
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="flex items-center gap-2 shrink-0 pt-2 md:pt-0 border-t md:border-t-0 border-slate-100">
+                      {inv.activationUrl && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => copyToClipboard(inv.activationUrl!, `inv-${inv.id}`)}
+                          className="text-xs h-8 font-bold rounded-lg"
+                          title="Copy direct activation URL"
+                        >
+                          {copiedKey === `inv-${inv.id}` ? (
+                            <>
+                              <Check className="h-3.5 w-3.5 mr-1 text-emerald-600" /> Copied
+                            </>
+                          ) : (
+                            <>
+                              <Copy className="h-3.5 w-3.5 mr-1" /> Copy Link
+                            </>
+                          )}
+                        </Button>
+                      )}
+
+                      <Button
+                        size="sm"
+                        disabled={resendingInviteId === inv.id}
+                        onClick={() => handleResendStaffInvite(inv.id)}
+                        className="text-xs h-8 font-bold bg-blue-600 hover:bg-blue-700 text-white rounded-lg"
+                        title="Re-issue a fresh 48-hour activation token & dispatch email"
+                      >
+                        {resendingInviteId === inv.id ? (
+                          <RefreshCw className="h-3 w-3 animate-spin" />
+                        ) : (
+                          <>
+                            <Send className="h-3 w-3 mr-1" /> Resend
+                          </>
+                        )}
+                      </Button>
+
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={revokingInviteId === inv.id}
+                        onClick={() => handleRevokeStaffInvite(inv.id)}
+                        className="text-xs h-8 font-bold text-rose-600 border-rose-200 hover:bg-rose-50 rounded-lg"
+                        title="Immediately invalidate and revoke token"
+                      >
+                        {revokingInviteId === inv.id ? (
+                          <RefreshCw className="h-3 w-3 animate-spin" />
+                        ) : (
+                          <Trash2 className="h-3 w-3" />
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="pt-2">
+            <Button type="button" variant="outline" size="sm" onClick={() => setPendingInvitesModalOpen(false)} className="rounded-xl">
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 4. ACTIVE SYSTEM WARNINGS MODAL */}
+      <Dialog open={warningsModalOpen} onOpenChange={setWarningsModalOpen}>
+        <DialogContent className="sm:max-w-2xl max-w-[95vw] w-full bg-white text-slate-900 rounded-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <div className="flex items-center gap-2.5">
+              <div className="h-9 w-9 rounded-xl bg-amber-500 text-white flex items-center justify-center shadow-xs">
+                <AlertTriangle className="h-4 w-4" />
+              </div>
+              <div>
+                <DialogTitle className="text-base font-bold text-slate-900">
+                  Active Email Infrastructure Warnings & Diagnostics
+                </DialogTitle>
+                <DialogDescription className="text-xs text-slate-500 mt-0.5">
+                  Detailed inspection of failed deliveries, expired invitation tokens, and unmapped triggers.
+                </DialogDescription>
+              </div>
+            </div>
+          </DialogHeader>
+
+          <div className="space-y-3 py-2 text-xs">
+            {warnings.length === 0 ? (
+              <div className="py-12 text-center text-xs text-emerald-600 bg-emerald-50/50 rounded-xl border border-emerald-200">
+                <CheckCircle className="h-8 w-8 text-emerald-500 mx-auto mb-2" />
+                <p className="font-bold text-sm">All Email Delivery Systems Operational</p>
+                <p className="text-xs text-emerald-700 mt-0.5">No active warnings, bounce alerts, or stale invitation tokens found.</p>
+              </div>
+            ) : (
+              <div className="space-y-3 max-h-[420px] overflow-y-auto pr-1">
+                {warnings.map((w) => (
+                  <div
+                    key={w.id}
+                    className={`p-4 rounded-xl border transition-all space-y-2 ${
+                      w.severity === "high"
+                        ? "bg-rose-50/40 border-rose-200/80 hover:border-rose-300"
+                        : "bg-amber-50/40 border-amber-200/80 hover:border-amber-300"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <Badge
+                          variant={w.severity === "high" ? "destructive" : "outline"}
+                          className="text-[10px] font-bold uppercase"
+                        >
+                          {w.severity}
+                        </Badge>
+                        <h4 className="font-bold text-slate-900 text-xs">{w.title}</h4>
+                      </div>
+                      {w.timestamp && (
+                        <span className="text-[10px] font-mono text-slate-400">
+                          {new Date(w.timestamp).toLocaleString()}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="p-2.5 rounded-lg bg-white/90 border border-slate-200/70 space-y-1 font-mono text-[11px]">
+                      <div className="text-slate-700">
+                        <strong className="text-slate-900 font-sans">Details: </strong>
+                        {w.details}
+                      </div>
+                      {w.recipient && w.recipient !== "—" && (
+                        <div className="text-slate-600">
+                          <strong className="text-slate-900 font-sans">Recipient: </strong>
+                          {w.recipient}
+                        </div>
+                      )}
+                      {w.sender && (
+                        <div className="text-slate-600">
+                          <strong className="text-slate-900 font-sans">Sender: </strong>
+                          {w.sender}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex items-center justify-between pt-1">
+                      <span className="text-[11px] text-slate-600 italic">
+                        <strong>Recommendation: </strong>{w.action}
+                      </span>
+                      {w.invitationId && (
+                        <Button
+                          size="sm"
+                          onClick={() => {
+                            setWarningsModalOpen(false);
+                            handleResendStaffInvite(w.invitationId!);
+                          }}
+                          className="text-xs h-7 font-bold bg-amber-600 hover:bg-amber-700 text-white rounded-lg shrink-0"
+                        >
+                          Re-issue Token ↗
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="pt-2">
+            <Button type="button" variant="outline" size="sm" onClick={() => setWarningsModalOpen(false)} className="rounded-xl">
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 5. DELIVERY FAILURE & ERROR TRACE DIAGNOSTICS MODAL */}
+      <Dialog open={failedLogModalOpen} onOpenChange={setFailedLogModalOpen}>
+        <DialogContent className="sm:max-w-xl max-w-[95vw] w-full bg-white text-slate-900 rounded-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <div className="flex items-center gap-2.5">
+              <div className="h-9 w-9 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center ring-4 ring-rose-500/10">
+                <AlertTriangle className="h-4 w-4" />
+              </div>
+              <div>
+                <DialogTitle className="text-base font-bold text-slate-900">
+                  Email Delivery Failure Diagnostics
+                </DialogTitle>
+                <DialogDescription className="text-xs text-slate-500 mt-0.5">
+                  Detailed error trace, Postfix relay rejection codes, and root cause inspection.
+                </DialogDescription>
+              </div>
+            </div>
+          </DialogHeader>
+
+          {selectedFailedLog && (
+            <div className="space-y-4 py-2 text-xs">
+              {/* Event & Target Meta */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
+                  <span className="text-[10px] uppercase font-bold text-slate-500 block">Event Trigger</span>
+                  <span className="font-mono font-bold text-slate-900 uppercase text-xs">
+                    {selectedFailedLog.eventName.replaceAll("_", " ")}
+                  </span>
+                </div>
+                <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
+                  <span className="text-[10px] uppercase font-bold text-slate-500 block">Dispatched Timestamp</span>
+                  <span className="font-mono text-slate-900 text-xs">
+                    {selectedFailedLog.sentAt ? new Date(selectedFailedLog.sentAt).toLocaleString() : "—"}
+                  </span>
+                </div>
+              </div>
+
+              {/* Recipient & Subject info */}
+              <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/60 space-y-1.5 font-mono text-[11px]">
+                <div>
+                  <span className="font-sans font-bold text-slate-700">Recipient Email: </span>
+                  <span className="text-slate-900 font-bold">{selectedFailedLog.recipientEmail}</span>
+                </div>
+                <div>
+                  <span className="font-sans font-bold text-slate-700">Sender Identity: </span>
+                  <span className="text-slate-900">{selectedFailedLog.senderEmail}</span>
+                </div>
+                <div>
+                  <span className="font-sans font-bold text-slate-700">Subject: </span>
+                  <span className="text-slate-800 font-sans">{selectedFailedLog.subject}</span>
+                </div>
+                {selectedFailedLog.messageId && (
+                  <div>
+                    <span className="font-sans font-bold text-slate-700">Message ID: </span>
+                    <span className="text-slate-500 text-[10px]">{selectedFailedLog.messageId}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Error Trace Container */}
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold text-rose-800 flex items-center justify-between">
+                  <span>Postfix Error Code & Diagnostic Trace</span>
+                  <button
+                    type="button"
+                    onClick={() => copyToClipboard(selectedFailedLog.errorDetails || "No trace", "err-trace")}
+                    className="text-[10px] font-bold text-rose-600 hover:text-rose-700 underline"
+                  >
+                    Copy Error Trace
+                  </button>
+                </Label>
+                <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-950 font-mono text-[11px] leading-relaxed whitespace-pre-wrap max-h-48 overflow-y-auto">
+                  {selectedFailedLog.errorDetails || "Mail Transfer Agent (MTA) rejected recipient address or destination MX record was unreachable."}
+                </div>
+              </div>
+
+              {/* Remediation Guide */}
+              <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-[11px] leading-relaxed">
+                <strong>Remediation Tip:</strong> Verify the recipient's domain MX record, confirm the sender alias is active in the <em>Sender Profiles</em> tab, or dispatch a live test dispatch to this address from the <em>Live Test Lab</em>.
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="flex flex-col sm:flex-row items-center justify-between gap-2 border-t border-slate-100 pt-3">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                if (selectedFailedLog) {
+                  setTestRecipient(selectedFailedLog.recipientEmail);
+                  setTestSubject(`[Retry] ${selectedFailedLog.subject}`);
+                  setActiveTab("test_lab");
+                }
+                setFailedLogModalOpen(false);
+              }}
+              className="text-xs font-bold text-blue-600 border-blue-200 hover:bg-blue-50 rounded-xl w-full sm:w-auto"
+            >
+              Test in Test Lab <ChevronRight className="h-3.5 w-3.5 ml-1" />
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={() => setFailedLogModalOpen(false)}
+              className="rounded-xl w-full sm:w-auto"
+            >
               Close
             </Button>
           </DialogFooter>

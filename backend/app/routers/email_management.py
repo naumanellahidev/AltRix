@@ -12,6 +12,7 @@ Provides central platform controls for:
 """
 import json
 import logging
+import secrets
 import smtplib
 import time
 import uuid
@@ -413,6 +414,312 @@ async def get_email_overview(
             },
             "recentLogs": [],
         }
+
+
+# ---------------------------------------------------------------------------
+# 1B. Pending Staff Invitations & Token Management
+# ---------------------------------------------------------------------------
+@router.get(
+    "/pending-invitations",
+    summary="List Active & Pending Staff Invitations",
+    description="Returns all active single-use invitation tokens with campus/school details, expiry, and token state.",
+)
+async def get_pending_invitations(
+    _admin: AuthenticatedUser = Depends(_require_super_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        res = await db.execute(
+            text("""
+                SELECT
+                    i.id,
+                    i.email,
+                    i.role,
+                    i.display_name,
+                    i.status,
+                    i.school_id,
+                    i.campus_id,
+                    i.token,
+                    i.created_at,
+                    i.expires_at,
+                    i.opened_at,
+                    i.consumed_at,
+                    s.name as school_name,
+                    c.name as campus_name
+                FROM public.user_invitations i
+                LEFT JOIN public.schools s ON i.school_id = s.id
+                LEFT JOIN public.campuses c ON i.campus_id = c.id
+                WHERE i.status IN ('pending', 'sent', 'opened')
+                ORDER BY i.created_at DESC
+                LIMIT 100
+            """)
+        )
+        rows = res.fetchall()
+        now = datetime.now(timezone.utc)
+        invitations = []
+        for r in rows:
+            is_expired = False
+            if r.expires_at:
+                exp = r.expires_at if r.expires_at.tzinfo else r.expires_at.replace(tzinfo=timezone.utc)
+                is_expired = exp < now
+
+            invitations.append({
+                "id": str(r.id),
+                "email": r.email,
+                "role": r.role,
+                "displayName": r.display_name or (r.email.split("@")[0] if r.email else "Staff Member"),
+                "status": "expired" if is_expired else r.status,
+                "schoolId": str(r.school_id) if r.school_id else None,
+                "campusId": str(r.campus_id) if r.campus_id else None,
+                "schoolName": r.school_name or "AltRix Institute",
+                "campusName": r.campus_name or "Main Campus",
+                "token": r.token,
+                "activationUrl": f"https://altrixcore.com/activate-account/{r.token}" if r.token else None,
+                "createdAt": r.created_at.isoformat() if r.created_at else None,
+                "expiresAt": r.expires_at.isoformat() if r.expires_at else None,
+                "openedAt": r.opened_at.isoformat() if r.opened_at else None,
+                "isExpired": is_expired,
+            })
+        return {"ok": True, "invitations": invitations, "total": len(invitations)}
+    except Exception as e:
+        logger.error(f"Failed to fetch pending invitations: {e}")
+        return {"ok": True, "invitations": [], "total": 0}
+
+
+@router.post(
+    "/pending-invitations/{invitation_id}/resend",
+    summary="Resend Staff Invitation Token",
+    description="Refreshes single-use invitation token with +48h expiry and dispatches official invitation email.",
+)
+async def resend_staff_invitation(
+    invitation_id: str,
+    _admin: AuthenticatedUser = Depends(_require_super_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        inv_uuid = uuid.UUID(invitation_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid invitation UUID")
+
+    res = await db.execute(
+        text("""
+            SELECT i.id, i.email, i.role, i.display_name, i.school_id, i.status, s.name as school_name
+            FROM public.user_invitations i
+            LEFT JOIN public.schools s ON i.school_id = s.id
+            WHERE i.id = :id
+            LIMIT 1
+        """),
+        {"id": inv_uuid},
+    )
+    row = res.fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail="Staff invitation not found")
+
+    new_token = secrets.token_urlsafe(48)
+    new_expires = datetime.now(timezone.utc) + timedelta(hours=48)
+
+    await db.execute(
+        text("""
+            UPDATE public.user_invitations
+            SET token = :token,
+                expires_at = :expires_at,
+                status = 'sent',
+                created_at = NOW()
+            WHERE id = :id
+        """),
+        {"token": new_token, "expires_at": new_expires, "id": inv_uuid},
+    )
+    await db.commit()
+
+    activation_link = f"https://altrixcore.com/activate-account/{new_token}"
+    email_result = await CentralEmailService.send_event(
+        event_name="staff_invitation",
+        recipient=row.email,
+        context={
+            "name": row.display_name or row.email.split("@")[0],
+            "tenant_name": row.school_name or "AltRix Institute",
+            "role": row.role.replace("_", " ").title() if row.role else "Staff Member",
+            "activation_link": activation_link,
+            "expires_in": "48 hours",
+            "support_email": "support@altrixcore.com",
+        },
+        db=db,
+    )
+
+    return {
+        "ok": True,
+        "message": f"Invitation re-dispatched to {row.email}",
+        "activationUrl": activation_link,
+        "emailResult": email_result,
+    }
+
+
+@router.post(
+    "/pending-invitations/{invitation_id}/revoke",
+    summary="Revoke Staff Invitation Token",
+    description="Revokes and cancels a pending activation token immediately.",
+)
+async def revoke_staff_invitation(
+    invitation_id: str,
+    _admin: AuthenticatedUser = Depends(_require_super_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        inv_uuid = uuid.UUID(invitation_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid invitation UUID")
+
+    await db.execute(
+        text("UPDATE public.user_invitations SET status = 'revoked', updated_at = NOW() WHERE id = :id"),
+        {"id": inv_uuid},
+    )
+    await db.commit()
+    return {"ok": True, "message": "Invitation token successfully revoked"}
+
+
+# ---------------------------------------------------------------------------
+# 1C. Active System Warnings & Diagnostic Details
+# ---------------------------------------------------------------------------
+@router.get(
+    "/warnings",
+    summary="Active Email Infrastructure Warnings & Root Causes",
+    description="Returns detailed diagnostics on failures, stale tokens, and unmapped events.",
+)
+async def get_email_warnings(
+    _admin: AuthenticatedUser = Depends(_require_super_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    await ensure_email_tables_exist(db)
+    warnings = []
+
+    try:
+        # 1. Failed deliveries in last 7 days
+        res_failures = await db.execute(
+            text("""
+                SELECT id, recipient_email, sender_email, event_name, subject, status, error_details, sent_at
+                FROM public.email_logs
+                WHERE status IN ('failed', 'bounced') AND sent_at >= NOW() - INTERVAL '7 days'
+                ORDER BY sent_at DESC
+                LIMIT 20
+            """)
+        )
+        failures = res_failures.fetchall()
+        for f in failures:
+            warnings.append({
+                "id": f"fail-{f.id}",
+                "category": "delivery_failure",
+                "severity": "high",
+                "title": f"Delivery Failed: {f.event_name.replace('_', ' ').title()}",
+                "recipient": f.recipient_email,
+                "sender": f.sender_email,
+                "subject": f.subject,
+                "timestamp": f.sent_at.isoformat() if f.sent_at else None,
+                "details": f.error_details or "Mail relay rejected recipient or Postfix port unreachable",
+                "action": "Check recipient mailbox or re-test via Live Test Lab",
+            })
+
+        # 2. Expired staff invitations still pending
+        res_exp_inv = await db.execute(
+            text("""
+                SELECT i.id, i.email, i.role, i.display_name, i.expires_at, s.name as school_name
+                FROM public.user_invitations i
+                LEFT JOIN public.schools s ON i.school_id = s.id
+                WHERE i.status IN ('pending', 'sent', 'opened') AND i.expires_at < NOW()
+                ORDER BY i.expires_at DESC
+                LIMIT 10
+            """)
+        )
+        exp_inv = res_exp_inv.fetchall()
+        for e in exp_inv:
+            warnings.append({
+                "id": f"inv-{e.id}",
+                "category": "expired_invitation",
+                "severity": "medium",
+                "title": f"Expired Staff Token: {e.email}",
+                "recipient": e.email,
+                "sender": "no-reply@altrixcore.com",
+                "subject": f"Staff Invitation ({e.role})",
+                "timestamp": e.expires_at.isoformat() if e.expires_at else None,
+                "details": f"Single-use activation token for {e.display_name or e.email} has expired without being claimed.",
+                "action": "Click to re-dispatch a fresh 48h invitation token",
+                "invitationId": str(e.id),
+            })
+
+        # 3. Disabled official sender identities
+        res_senders = await db.execute(
+            text("SELECT id, key, name, email FROM public.email_sender_identities WHERE is_active = FALSE")
+        )
+        disabled_senders = res_senders.fetchall()
+        for s in disabled_senders:
+            warnings.append({
+                "id": f"snd-{s.id}",
+                "category": "sender_disabled",
+                "severity": "low",
+                "title": f"Sender Identity Disabled: {s.name}",
+                "recipient": "—",
+                "sender": s.email,
+                "subject": s.key,
+                "timestamp": None,
+                "details": f"Sender identity '{s.key}' ({s.email}) is marked disabled and cannot dispatch mail.",
+                "action": "Re-enable sender in the Sender Profiles tab",
+            })
+
+    except Exception as e:
+        logger.warning(f"Warnings query notice: {e}")
+
+    return {
+        "ok": True,
+        "totalWarnings": len(warnings),
+        "warnings": warnings,
+    }
+
+
+# ---------------------------------------------------------------------------
+# 1D. 24-Hour & 7-Day Dispatches Breakdown
+# ---------------------------------------------------------------------------
+@router.get(
+    "/dispatches-breakdown",
+    summary="Detailed Dispatches Distribution",
+    description="Categorized breakdown of transactional emails by event type and recipient status.",
+)
+async def get_dispatches_breakdown(
+    _admin: AuthenticatedUser = Depends(_require_super_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    await ensure_email_tables_exist(db)
+    try:
+        res_by_event = await db.execute(
+            text("""
+                SELECT
+                    event_name,
+                    COUNT(*) as count,
+                    COUNT(*) FILTER (WHERE status IN ('sent', 'delivered')) as successful,
+                    COUNT(*) FILTER (WHERE status IN ('failed', 'bounced')) as failed,
+                    MAX(sent_at) as last_dispatched
+                FROM public.email_logs
+                WHERE sent_at >= NOW() - INTERVAL '24 hours'
+                GROUP BY event_name
+                ORDER BY count DESC
+            """)
+        )
+        events_24h = [
+            {
+                "eventName": r.event_name,
+                "count": r.count,
+                "successful": r.successful,
+                "failed": r.failed,
+                "lastDispatched": r.last_dispatched.isoformat() if r.last_dispatched else None,
+            }
+            for r in res_by_event.fetchall()
+        ]
+
+        return {
+            "ok": True,
+            "events24h": events_24h,
+        }
+    except Exception as e:
+        logger.warning(f"Dispatches breakdown query notice: {e}")
+        return {"ok": True, "events24h": []}
 
 
 # ---------------------------------------------------------------------------
