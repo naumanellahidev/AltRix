@@ -2,6 +2,7 @@
 
 - **FastAPI Backend Rule**: Always use the FastAPI backend for any backend features in this project (never use Supabase Edge Functions or other serverless technologies).
 - **Realtime Git Sync Rule**: Automatically commit and push all code and configuration changes to GitHub for realtime sync upon completing each task.
+- **Automated VPS Deployment Rule**: Ensure every completed task is automatically pushed to GitHub `main` to trigger the CI/CD pipeline and deploy live on the production VPS without manual intervention.
 
 ---
 
