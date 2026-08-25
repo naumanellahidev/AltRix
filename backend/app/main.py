@@ -822,11 +822,24 @@ async def system_status():
     return result
 
 
-@app.get(
-    "/api/mail-debug",
-    tags=["Health"],
-    summary="Mail platform live diagnostic",
-    include_in_schema=False,
+@app.get("/health", tags=["Health"])
+@app.get("/api/health", tags=["Health"])
+async def health_check():
+    return {"status": "ok", "service": "altrix-backend"}
+
+
+@app.get("/api/version", tags=["Health"])
+async def api_version():
+    commit_sha = "unknown"
+    if os.path.exists("COMMIT_SHA"):
+        try:
+            with open("COMMIT_SHA", "r") as f:
+                commit_sha = f.read().strip()
+        except Exception:
+            pass
+    return {"version": "2.0.0", "commit": commit_sha, "service": "Altrix Core"}
+
+
 from app.routers.white_label import router as white_label_router
 from app.routers.ai_management import router as ai_management_router
 from app.routers.global_billing import router as global_billing_router
