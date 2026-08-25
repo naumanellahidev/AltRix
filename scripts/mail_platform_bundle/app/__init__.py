@@ -62,6 +62,63 @@ def create_app():
         response.headers["X-XSS-Protection"] = "1; mode=block"
         return response
 
+    # Universal Reverse Proxy to Mailu Subsystems (SSO, Roundcube Webmail, Admin, and Static Assets)
+    @app.route("/static/<path:filename>", methods=["GET", "HEAD", "POST"])
+    @app.route("/sso", methods=["GET", "HEAD", "POST"])
+    @app.route("/sso/<path:filename>", methods=["GET", "HEAD", "POST"])
+    @app.route("/webmail", methods=["GET", "HEAD", "POST"])
+    @app.route("/webmail/<path:filename>", methods=["GET", "HEAD", "POST"])
+    @app.route("/admin", methods=["GET", "HEAD", "POST"])
+    @app.route("/admin/<path:filename>", methods=["GET", "HEAD", "POST"])
+    def proxy_mailu_subsystems(filename=""):
+        import requests
+        from flask import Response
+        
+        full_path = request.full_path if request.query_string else request.path
+        target_candidates = [
+            f"http://127.0.0.1:8080{full_path}",
+            f"https://127.0.0.1:8443{full_path}",
+            f"https://front:443{full_path}",
+            f"http://front:80{full_path}",
+            f"http://mailu_admin:80{full_path}",
+            f"http://mailu_front:80{full_path}",
+            f"http://172.20.0.1:8080{full_path}"
+        ]
+
+        headers = {k: v for k, v in request.headers.items() if k.lower() not in ["host", "content-length"]}
+        headers["Host"] = request.host
+        headers["X-Forwarded-For"] = request.headers.get("X-Forwarded-For", request.remote_addr)
+        headers["X-Forwarded-Proto"] = "https"
+        headers["X-Forwarded-Host"] = request.host
+
+        for target in target_candidates:
+            try:
+                resp = requests.request(
+                    method=request.method,
+                    url=target,
+                    headers=headers,
+                    data=request.get_data(),
+                    cookies=request.cookies,
+                    allow_redirects=False,
+                    verify=False,
+                    timeout=8
+                )
+                
+                excluded_headers = ["content-encoding", "content-length", "transfer-encoding", "connection"]
+                response_headers = [
+                    (name, value) for name, value in resp.raw.headers.items()
+                    if name.lower() not in excluded_headers
+                ]
+                
+                return Response(resp.content, resp.status_code, response_headers)
+            except Exception:
+                continue
+
+        if request.path.startswith("/static/"):
+            return jsonify({"error": "Static asset not found"}), 404
+
+        return jsonify({"error": "Mailu upstream service unavailable"}), 502
+
     # SPA & Static Asset Serving
     @app.route("/assets/<path:filename>")
     def serve_assets(filename):
