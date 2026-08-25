@@ -43,16 +43,27 @@ if ! systemctl is-active docker >/dev/null 2>&1; then
 fi
 
 # 2. Source Code Sync
+git config --global --add safe.directory "*" || true
+
+if [ -n "${GITHUB_TOKEN:-}" ]; then
+    AUTH_ORIGIN="https://x-access-token:${GITHUB_TOKEN}@github.com/naumanellahidev/AltRix.git"
+else
+    AUTH_ORIGIN="https://github.com/naumanellahidev/AltRix.git"
+fi
+
 if [ ! -d "${REPO_DIR}/.git" ]; then
     echo "[INFO] Initializing main repository clone..."
     rm -rf "${REPO_DIR}"
-    git clone https://github.com/naumanellahidev/AltRix.git "${REPO_DIR}"
+    git clone "${AUTH_ORIGIN}" "${REPO_DIR}"
 fi
 
 cd "${REPO_DIR}"
+git config --global --add safe.directory "${REPO_DIR}" || true
+git remote set-url origin "${AUTH_ORIGIN}" 2>/dev/null || true
 # Add second repo as remote to fetch commits from both sources
 git remote add altrix2 https://github.com/farhathashmireflections-sys/Altrix-2.git 2>/dev/null || true
-GIT_TERMINAL_PROMPT=0 git fetch origin || echo "[WARNING] Fetch from origin failed"
+
+GIT_TERMINAL_PROMPT=0 git fetch origin "${TARGET_SHA:-main}" 2>/dev/null || GIT_TERMINAL_PROMPT=0 git fetch origin || echo "[WARNING] Fetch from origin failed"
 GIT_TERMINAL_PROMPT=0 git fetch altrix2 2>/dev/null || echo "[INFO] Fetch from altrix2 skipped or unneeded"
 
 if [ -z "${TARGET_SHA}" ]; then
@@ -62,8 +73,12 @@ fi
 echo "[INFO] Target GitHub Commit SHA: ${TARGET_SHA}"
 
 if ! git cat-file -e "${TARGET_SHA}^{commit}" 2>/dev/null; then
-    echo "[ERROR] Commit ${TARGET_SHA} not found in repository!"
-    exit 1
+    echo "[WARNING] Commit ${TARGET_SHA} not found in local cache, fetching explicitly..."
+    GIT_TERMINAL_PROMPT=0 git fetch origin "${TARGET_SHA}" || true
+    if ! git cat-file -e "${TARGET_SHA}^{commit}" 2>/dev/null; then
+        echo "[ERROR] Commit ${TARGET_SHA} not found in repository!"
+        exit 1
+    fi
 fi
 
 SHORT_SHA=${TARGET_SHA:0:12}

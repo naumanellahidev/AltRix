@@ -16,12 +16,12 @@ console.log(' [LIVE CUTOVER] Authoritative Mail Platform Container Injection');
 console.log('================================================================');
 
 function run(cmd, ignoreError = true) {
-  if (process.platform === 'win32' && (cmd.includes('/dev/null') || cmd.includes('sudo') || cmd.includes('systemctl') || cmd.includes('bash '))) {
+  if (process.platform === 'win32') {
     return '';
   }
   try {
     console.log(`[EXEC] ${cmd}`);
-    const out = execSync(cmd, { stdio: 'pipe', encoding: 'utf-8', timeout: 30000 });
+    const out = execSync(cmd, { stdio: 'pipe', encoding: 'utf-8', timeout: 15000 });
     if (out && out.trim()) console.log(`[OUTPUT] ${out.trim()}`);
     return out ? out.trim() : '';
   } catch (err) {
