@@ -130,13 +130,13 @@ def build_branded_html_shell(
   td {{ padding: 0; }}
   img {{ border: 0; outline: none; text-decoration: none; display: block; }}
   .wrapper {{ width: 100%; table-layout: fixed; background-color: #0b1120; padding: 40px 12px; }}
-  .main-card {{ background-color: #ffffff; max-width: 600px; margin: 0 auto; border-radius: 16px; overflow: hidden; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.45); border: 1px solid #1e293b; }}
-  .header {{ background: linear-gradient(145deg, #0f172a 0%, #1e293b 100%); padding: 32px 32px 28px 32px; text-align: center; border-bottom: 3px solid {border_accent_color}; }}
+  .main-card {{ background-color: #ffffff; max-width: 600px; margin: 0 auto; border-radius: 18px; overflow: hidden; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.45); border: 1px solid #1e293b; }}
+  .header {{ background: linear-gradient(145deg, #0f172a 0%, #1e293b 100%); padding: 36px 32px 30px 32px; text-align: center; border-bottom: 3px solid {border_accent_color}; }}
   .content {{ padding: 36px 32px 30px 32px; font-size: 15px; line-height: 1.65; color: #334155; }}
-  .badge {{ display: inline-block; background: {badge_color}; font-size: 11px; font-weight: 800; padding: 4px 12px; border-radius: 9999px; text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 14px; }}
+  .badge {{ display: inline-block; background: {badge_color}; font-size: 11px; font-weight: 800; padding: 5px 14px; border-radius: 9999px; text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 14px; }}
   .title {{ font-size: 22px; font-weight: 800; color: #0f172a; margin: 0 0 14px 0; line-height: 1.3; }}
   .info-box {{ background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 18px; margin: 24px 0; }}
-  .footer {{ background-color: #f8fafc; padding: 26px 32px; text-align: center; font-size: 12px; color: #94a3b8; border-top: 1px solid #e2e8f0; line-height: 1.6; }}
+  .footer {{ background-color: #f8fafc; padding: 28px 32px; text-align: center; font-size: 12px; color: #64748b; border-top: 1px solid #e2e8f0; line-height: 1.6; }}
   @media only screen and (max-width: 600px) {{
     .wrapper {{ padding: 16px 8px !important; }}
     .content {{ padding: 24px 20px !important; }}
@@ -152,7 +152,7 @@ def build_branded_html_shell(
     <tr>
       <td class="header">
         <div style="display: flex; align-items: center; justify-content: center; margin: 0 auto;">
-          <img src="{logo_url}" alt="{brand_name}" style="height: 36px; width: auto; max-width: 190px; margin: 0 auto; display: block;" />
+          <img src="{logo_url}" alt="{brand_name}" style="height: 48px; width: auto; max-width: 240px; margin: 0 auto; display: block; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.15));" />
         </div>
         {tenant_header_block}
       </td>
@@ -170,16 +170,18 @@ def build_branded_html_shell(
     <!-- Brand Footer -->
     <tr>
       <td class="footer">
-        <div style="display: flex; align-items: center; justify-content: center; gap: 6px; margin-bottom: 8px;">
-          <img src="{icon_url}" alt="Icon" style="height: 16px; width: 16px; display: inline-block; vertical-align: middle;" />
-          <strong style="color: #64748b; font-size: 12px;">{brand_name} Cloud OS</strong>
+        <div style="display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 8px;">
+          <img src="{icon_url}" alt="Icon" style="height: 20px; width: 20px; display: inline-block; vertical-align: middle;" />
+          <strong style="color: #0f172a; font-size: 13px;">{brand_name} — The AI-Powered Institute Operating System</strong>
         </div>
-        <p style="margin: 0 0 6px 0;">&copy; {current_year} {brand_name} Operating System &bull; {footer_text}</p>
-        <p style="margin: 0 0 10px 0;">
-          <a href="{website_url}" style="color: #3b82f6; text-decoration: none; font-weight: 600;" target="_blank">Platform Portal</a> &bull; 
-          Support: <a href="mailto:{support_email}" style="color: #3b82f6; text-decoration: none;">{support_email}</a>
+        <p style="margin: 0 0 6px 0; color: #64748b;">&copy; {current_year} {brand_name} Cloud OS &bull; {footer_text} &bull; All rights reserved.</p>
+        <p style="margin: 0 0 8px 0;">
+          <a href="{website_url}" style="color: #2563eb; text-decoration: none; font-weight: 600;" target="_blank">Platform Portal</a> &bull; 
+          Support: <a href="mailto:{support_email}" style="color: #2563eb; text-decoration: none; font-weight: 600;">{support_email}</a> &bull; 
+          <a href="{website_url}/privacy" style="color: #64748b; text-decoration: underline;" target="_blank">Privacy Policy</a> &bull; 
+          <a href="{website_url}/terms" style="color: #64748b; text-decoration: underline;" target="_blank">Terms</a>
         </p>
-        <p style="margin: 0; font-size: 11px; color: #cbd5e1; max-width: 480px; margin: 0 auto;">{legal_disclaimer}</p>
+        <p style="margin: 0; font-size: 11px; color: #94a3b8; max-width: 480px; margin: 0 auto; line-height: 1.4;">{legal_disclaimer}</p>
       </td>
     </tr>
   </table>

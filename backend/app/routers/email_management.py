@@ -926,6 +926,17 @@ async def save_template(
     return {"ok": True, "message": f"Email template '{clean_key}' saved (v{next_version})"}
 
 
+@router.post("/templates/reset-defaults", summary="Reset All Templates to Official AltRix Defaults")
+async def reset_all_templates_to_defaults(
+    _admin: AuthenticatedUser = Depends(_require_super_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    await ensure_email_tables_exist(db)
+    from app.services.email_template_seeds import seed_all_email_templates
+    await seed_all_email_templates(db)
+    return {"ok": True, "message": "All official AltRix email templates successfully updated to latest branding defaults"}
+
+
 @router.get("/templates/{template_key}/versions", summary="Get Template Revision History")
 async def get_template_versions(
     template_key: str,

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, Link } from "react-router-dom";
 import { z } from "zod";
 import { motion, useReducedMotion } from "framer-motion";
 import { Loader2, Sparkles, Shield, Activity, Workflow, Building2, Mail, Lock, Eye, EyeOff, Info, ArrowRight, ArrowLeft, Key } from "lucide-react";
@@ -473,7 +473,7 @@ const TenantAuth = () => {
           <p className="text-xs sm:text-sm text-slate-600">
             Need an institute account?{" "}
             <a
-              href="mailto:sales@altrix.io"
+              href="mailto:contact@altrixcore.com?subject=AltRix%20Institute%20Account%20Inquiry"
               className="text-primary font-semibold hover:underline"
             >
               Contact Sales
@@ -489,15 +489,18 @@ const TenantAuth = () => {
             <img src="/altrix-logo.png" alt="AltRix Logo" className="h-8 sm:h-9 w-auto max-w-[160px] object-contain" />
           </div>
           <div className="flex gap-6 sm:gap-8 justify-center flex-wrap">
-            {["Privacy Policy", "Terms of Service", "Compliance"].map((link) => (
-              <a 
-                key={link} 
-                href="#" 
-                className="text-xs font-semibold text-slate-600 hover:text-primary transition-colors"
-              >
-                {link}
-              </a>
-            ))}
+            <Link to="/privacy" className="text-xs font-semibold text-slate-600 hover:text-primary transition-colors">
+              Privacy Policy
+            </Link>
+            <Link to="/terms" className="text-xs font-semibold text-slate-600 hover:text-primary transition-colors">
+              Terms of Service
+            </Link>
+            <Link to="/compliance" className="text-xs font-semibold text-slate-600 hover:text-primary transition-colors">
+              Compliance
+            </Link>
+            <Link to="/security" className="text-xs font-semibold text-slate-600 hover:text-primary transition-colors">
+              Security
+            </Link>
           </div>
           <p className="text-xs text-slate-500 font-medium">
             © {new Date().getFullYear()} AltRix Institute OS. All rights reserved.

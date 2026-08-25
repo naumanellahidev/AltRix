@@ -41,6 +41,10 @@ const PublicHallTicketVerification = lazy(() => import("./pages/tenant/PublicHal
 const PublicVisitorRegisterPage = lazy(() => import("./pages/tenant/PublicVisitorRegisterPage"));
 const UnifiedHub = lazy(() => import("./pages/tenant/UnifiedHub"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
+const PrivacyPolicyPage = lazy(() => import("./pages/legal/PrivacyPolicyPage"));
+const TermsOfServicePage = lazy(() => import("./pages/legal/TermsOfServicePage"));
+const CompliancePage = lazy(() => import("./pages/legal/CompliancePage"));
+const SecurityPage = lazy(() => import("./pages/legal/SecurityPage"));
 
 import PlatformAdminGuard from "./components/super-admin/PlatformAdminGuard";
 
@@ -66,7 +70,7 @@ function CopilotWrapper() {
     const parts = location.pathname.split("/").filter(Boolean);
     if (parts.length === 0) return false;
     const first = parts[0];
-    if (["super_admin", "auth", "reset-password", "platform", "activate-account", "api", "assets"].includes(first)) return false;
+    if (["super_admin", "auth", "reset-password", "platform", "activate-account", "api", "assets", "privacy", "terms", "compliance", "security", "legal"].includes(first)) return false;
     if (parts[1] === "auth" || parts[1] === "bootstrap") return false;
     return true;
   }, [location.pathname, user]);
@@ -158,6 +162,17 @@ export default function App() {
               <Route path="/activate-account" element={<ActivateAccountPage />} />
               <Route path="/activate-account/:token" element={<ActivateAccountPage />} />
               <Route path="/activate-account/*" element={<ActivateAccountPage />} />
+
+              {/* Public Legal & Trust Pages */}
+              <Route path="/privacy" element={<PrivacyPolicyPage />} />
+              <Route path="/terms" element={<TermsOfServicePage />} />
+              <Route path="/compliance" element={<CompliancePage />} />
+              <Route path="/security" element={<SecurityPage />} />
+              <Route path="/legal/privacy" element={<Navigate to="/privacy" replace />} />
+              <Route path="/legal/terms" element={<Navigate to="/terms" replace />} />
+              <Route path="/legal/compliance" element={<Navigate to="/compliance" replace />} />
+              <Route path="/legal/security" element={<Navigate to="/security" replace />} />
+
               {/* Global Super Admin (platform-level) */}
               <Route element={<PlatformAdminGuard />}>
                 <Route path="/super_admin" element={<PlatformDashboardPage />} />

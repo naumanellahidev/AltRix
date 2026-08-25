@@ -88,9 +88,9 @@ server {
         proxy_redirect off;
     }
 
-    # 2. Mailu Admin Panel
+    # 2. Control Center Admin & Login Portal
     location /admin {
-        proxy_pass http://127.0.0.1:8080/admin;
+        proxy_pass http://127.0.0.1:5000;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;

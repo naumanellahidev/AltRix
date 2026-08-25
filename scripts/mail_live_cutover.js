@@ -16,6 +16,9 @@ console.log(' [LIVE CUTOVER] Authoritative Mail Platform Container Injection');
 console.log('================================================================');
 
 function run(cmd, ignoreError = true) {
+  if (process.platform === 'win32' && (cmd.includes('/dev/null') || cmd.includes('sudo') || cmd.includes('systemctl') || cmd.includes('bash '))) {
+    return '';
+  }
   try {
     console.log(`[EXEC] ${cmd}`);
     const out = execSync(cmd, { stdio: 'pipe', encoding: 'utf-8', timeout: 30000 });
@@ -87,11 +90,16 @@ for (const c of containers) {
   }
 }
 
-// 3. Update master deploy.sh on VPS if writable
+// 3. Update master deploy scripts & Nginx configuration on VPS
 const deployShSrc = path.join(rootDir, 'scripts', 'deploy.sh');
 if (fs.existsSync(deployShSrc)) {
   run(`cp -p "${deployShSrc}" /opt/altrix/scripts/deploy.sh 2>/dev/null || sudo cp -p "${deployShSrc}" /opt/altrix/scripts/deploy.sh 2>/dev/null || true`);
   run(`chmod +x /opt/altrix/scripts/deploy.sh 2>/dev/null || sudo chmod +x /opt/altrix/scripts/deploy.sh 2>/dev/null || true`);
+}
+
+const nginxSetupSrc = path.join(rootDir, 'scripts', 'setup_mail_subdomain_nginx.sh');
+if (fs.existsSync(nginxSetupSrc)) {
+  run(`bash "${nginxSetupSrc}" 2>/dev/null || sudo bash "${nginxSetupSrc}" 2>/dev/null || true`);
 }
 
 // 4. Reload Nginx

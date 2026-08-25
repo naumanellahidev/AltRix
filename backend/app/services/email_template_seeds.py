@@ -20,7 +20,7 @@ def _wrap_body(badge_text: str, badge_color: str, title: str, content: str, cta_
     if cta_text and cta_url:
         cta_html = f"""
         <div style="text-align: center; margin: 32px 0 24px 0;">
-          <a href="{cta_url}" target="_blank" style="display: inline-block; background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%); color: #ffffff !important; font-size: 15px; font-weight: 700; text-decoration: none; padding: 13px 34px; border-radius: 10px; box-shadow: 0 10px 15px -3px rgba(37, 99, 235, 0.35); letter-spacing: 0.2px;">
+          <a href="{cta_url}" target="_blank" style="display: inline-block; background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%); color: #ffffff !important; font-size: 15px; font-weight: 700; text-decoration: none; padding: 14px 36px; border-radius: 12px; box-shadow: 0 10px 15px -3px rgba(37, 99, 235, 0.35); letter-spacing: 0.2px;">
             {cta_text} &rarr;
           </a>
         </div>
@@ -28,8 +28,8 @@ def _wrap_body(badge_text: str, badge_color: str, title: str, content: str, cta_
     notice_html = ""
     if notice:
         notice_html = f"""
-        <div style="font-size: 12px; color: #64748b; background: #f8fafc; padding: 12px 16px; border-radius: 8px; border-left: 3px solid #64748b; margin-top: 24px; line-height: 1.5;">
-          <strong>Security Notice:</strong> {notice}
+        <div style="font-size: 12px; color: #64748b; background: #f8fafc; padding: 14px 18px; border-radius: 10px; border-left: 4px solid #2563eb; margin-top: 24px; line-height: 1.55;">
+          <strong style="color: #0f172a;">Security &amp; Compliance Notice:</strong> {notice}
         </div>
         """
 
@@ -45,13 +45,19 @@ def _wrap_body(badge_text: str, badge_color: str, title: str, content: str, cta_
   td {{ padding: 0; }}
   img {{ border: 0; outline: none; text-decoration: none; display: block; }}
   .wrapper {{ width: 100%; table-layout: fixed; background-color: #0b1120; padding: 40px 12px; }}
-  .main-card {{ background-color: #ffffff; max-width: 600px; margin: 0 auto; border-radius: 16px; overflow: hidden; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.45); border: 1px solid #1e293b; }}
-  .header {{ background: linear-gradient(145deg, #0f172a 0%, #1e293b 100%); padding: 32px 32px 28px 32px; text-align: center; border-bottom: 3px solid #2563eb; }}
+  .main-card {{ background-color: #ffffff; max-width: 600px; margin: 0 auto; border-radius: 18px; overflow: hidden; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.45); border: 1px solid #1e293b; }}
+  .header {{ background: linear-gradient(145deg, #0f172a 0%, #1e293b 100%); padding: 36px 32px 30px 32px; text-align: center; border-bottom: 3px solid #2563eb; }}
   .content {{ padding: 36px 32px 30px 32px; font-size: 15px; line-height: 1.65; color: #334155; }}
-  .badge {{ display: inline-block; background: {badge_color}; font-size: 11px; font-weight: 800; padding: 4px 12px; border-radius: 9999px; text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 14px; color: #0f172a; }}
+  .badge {{ display: inline-block; background: {badge_color}; font-size: 11px; font-weight: 800; padding: 5px 14px; border-radius: 9999px; text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 14px; color: #0f172a; border: 1px solid rgba(0,0,0,0.06); }}
   .title {{ font-size: 22px; font-weight: 800; color: #0f172a; margin: 0 0 14px 0; line-height: 1.3; }}
   .info-box {{ background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 18px; margin: 20px 0; font-size: 14px; }}
-  .footer {{ background-color: #f8fafc; padding: 26px 32px; text-align: center; font-size: 12px; color: #94a3b8; border-top: 1px solid #e2e8f0; line-height: 1.6; }}
+  .footer {{ background-color: #f8fafc; padding: 28px 32px; text-align: center; font-size: 12px; color: #64748b; border-top: 1px solid #e2e8f0; line-height: 1.6; }}
+  @media only screen and (max-width: 600px) {{
+    .wrapper {{ padding: 16px 8px !important; }}
+    .content {{ padding: 24px 20px !important; }}
+    .header {{ padding: 24px 20px !important; }}
+    .footer {{ padding: 20px 16px !important; }}
+  }}
 </style>
 </head>
 <body>
@@ -60,10 +66,10 @@ def _wrap_body(badge_text: str, badge_color: str, title: str, content: str, cta_
     <tr>
       <td class="header">
         <div style="text-align: center; margin: 0 auto;">
-          <img src="{{{{brand.logo}}}}" alt="{{{{brand.name}}}}" style="height: 36px; width: auto; max-width: 190px; margin: 0 auto; display: block;" />
+          <img src="{{{{brand.logo}}}}" alt="{{{{brand.name}}}}" style="height: 48px; width: auto; max-width: 240px; margin: 0 auto; display: block; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.15));" />
         </div>
-        <div style="margin-top: 12px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.12); color: #cbd5e1; font-size: 13px; font-weight: 600;">
-          {{{{tenant.name}}}}
+        <div style="margin-top: 14px; padding: 8px 16px; background: rgba(255,255,255,0.06); border-radius: 8px; border: 1px solid rgba(255,255,255,0.12); color: #cbd5e1; font-size: 13px; font-weight: 600; display: inline-block;">
+          {{{{tenant.name}}}} &bull; AltRix Cloud OS
         </div>
       </td>
     </tr>
@@ -78,12 +84,20 @@ def _wrap_body(badge_text: str, badge_color: str, title: str, content: str, cta_
     </tr>
     <tr>
       <td class="footer">
-        <div style="display: flex; align-items: center; justify-content: center; gap: 6px; margin-bottom: 8px;">
-          <img src="{{{{brand.icon}}}}" alt="Icon" style="height: 16px; width: 16px; display: inline-block; vertical-align: middle;" />
-          <strong style="color: #64748b; font-size: 12px;">{{{{brand.name}}}} Cloud OS</strong>
+        <div style="display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 8px;">
+          <img src="{{{{brand.icon}}}}" alt="Icon" style="height: 20px; width: 20px; display: inline-block; vertical-align: middle;" />
+          <strong style="color: #0f172a; font-size: 13px;">{{{{brand.name}}}} — The AI-Powered Institute Operating System</strong>
         </div>
-        <p style="margin: 0 0 6px 0;">&copy; {{{{year}}}} {{{{brand.name}}}} Operating System &bull; Enterprise Cloud Platform</p>
-        <p style="margin: 0;">Support: <a href="mailto:{{{{support_email}}}}" style="color: #3b82f6; text-decoration: none;">{{{{support_email}}}}</a></p>
+        <p style="margin: 0 0 6px 0; color: #64748b;">&copy; {{{{year}}}} {{{{brand.name}}}} Cloud OS &bull; Enterprise Cloud Platform &bull; All rights reserved.</p>
+        <p style="margin: 0 0 8px 0;">
+          <a href="https://altrixcore.com" style="color: #2563eb; text-decoration: none; font-weight: 600;" target="_blank">Platform Portal</a> &bull; 
+          Support: <a href="mailto:{{{{support_email}}}}" style="color: #2563eb; text-decoration: none; font-weight: 600;">{{{{support_email}}}}</a> &bull; 
+          <a href="https://altrixcore.com/privacy" style="color: #64748b; text-decoration: underline;" target="_blank">Privacy</a> &bull; 
+          <a href="https://altrixcore.com/terms" style="color: #64748b; text-decoration: underline;" target="_blank">Terms</a>
+        </p>
+        <p style="margin: 0; font-size: 11px; color: #94a3b8; max-width: 480px; margin: 0 auto; line-height: 1.4;">
+          This official communication was securely generated by AltRix Cloud OS on behalf of {{{{tenant.name}}}}.
+        </p>
       </td>
     </tr>
   </table>
@@ -691,6 +705,9 @@ async def seed_all_email_templates(db: AsyncSession) -> None:
                     ON CONFLICT (key) DO UPDATE SET
                         name = EXCLUDED.name,
                         category = EXCLUDED.category,
+                        subject = EXCLUDED.subject,
+                        html_content = EXCLUDED.html_content,
+                        text_content = EXCLUDED.text_content,
                         sender_identity_key = EXCLUDED.sender_identity_key,
                         available_variables = EXCLUDED.available_variables,
                         is_system = TRUE,

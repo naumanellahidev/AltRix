@@ -496,6 +496,17 @@ export default function PlatformEmailPage() {
     }
   };
 
+  // Reset all templates to official AltRix defaults
+  const handleResetTemplatesToDefaults = async () => {
+    try {
+      await apiClient.post("/super_admin/email/templates/reset-defaults");
+      toast.success("All templates updated to latest official AltRix branding defaults!");
+      await loadTemplates(selectedCategory);
+    } catch (err: any) {
+      toast.error(err?.response?.data?.detail || err.message || "Failed to reset templates");
+    }
+  };
+
   // Insert variable tag into template
   const insertVariable = (varName: string) => {
     const tag = `{{${varName}}}`;
@@ -1259,25 +1270,36 @@ export default function PlatformEmailPage() {
 
           {/* 4. TEMPLATE STUDIO TAB */}
           <TabsContent value="templates" className="mt-6 space-y-6">
-            {/* Category Filter Bar */}
-            <div className="flex flex-wrap items-center gap-1.5 bg-slate-100/90 p-1.5 rounded-2xl border border-slate-200/60 shadow-2xs">
-              {categories.map((cat) => (
-                <button
-                  key={cat.key}
-                  type="button"
-                  onClick={() => {
-                    setSelectedCategory(cat.key);
-                    loadTemplates(cat.key);
-                  }}
-                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                    selectedCategory === cat.key
-                      ? "bg-white text-blue-700 shadow-xs"
-                      : "text-slate-600 hover:text-slate-900"
-                  }`}
-                >
-                  {cat.label}
-                </button>
-              ))}
+            {/* Category Filter Bar & Defaults Action */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-100/90 p-1.5 rounded-2xl border border-slate-200/60 shadow-2xs">
+              <div className="flex flex-wrap items-center gap-1.5">
+                {categories.map((cat) => (
+                  <button
+                    key={cat.key}
+                    type="button"
+                    onClick={() => {
+                      setSelectedCategory(cat.key);
+                      loadTemplates(cat.key);
+                    }}
+                    className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                      selectedCategory === cat.key
+                        ? "bg-white text-blue-700 shadow-xs"
+                        : "text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    {cat.label}
+                  </button>
+                ))}
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleResetTemplatesToDefaults}
+                className="text-xs font-bold text-slate-700 bg-white border-slate-200 hover:bg-slate-50 rounded-xl h-8 shrink-0 mr-1 shadow-2xs"
+                title="Reset all email templates to the latest official AltRix brand defaults"
+              >
+                <RotateCcw className="h-3.5 w-3.5 mr-1.5 text-blue-600" /> Re-sync Brand Defaults
+              </Button>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
