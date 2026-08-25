@@ -21,7 +21,7 @@ def create_app():
     frontend_dist = os.path.join(base_dir, "frontend", "dist")
     dist_dir = frontend_dist if os.path.isdir(frontend_dist) else os.path.join(base_dir, "dist")
     
-    app = Flask(__name__, static_folder=dist_dir)
+    app = Flask(__name__, static_folder=dist_dir, static_url_path="/_spa_dist")
     
     # Initialize Structured Logger
     structured_logger.init_app(app)
@@ -75,13 +75,19 @@ def create_app():
         from flask import Response
         
         full_path = request.full_path if request.query_string else request.path
+        if full_path.endswith("?"):
+            full_path = full_path[:-1]
+            
         target_candidates = [
-            f"http://127.0.0.1:8080{full_path}",
-            f"https://127.0.0.1:8443{full_path}",
             f"https://front:443{full_path}",
             f"http://front:80{full_path}",
-            f"http://mailu_admin:80{full_path}",
             f"http://mailu_front:80{full_path}",
+            f"http://admin:80{full_path}",
+            f"http://mailu_admin:80{full_path}",
+            f"http://webmail:80{full_path}",
+            f"http://mailu_webmail:80{full_path}",
+            f"http://127.0.0.1:8080{full_path}",
+            f"https://127.0.0.1:8443{full_path}",
             f"http://172.20.0.1:8080{full_path}"
         ]
 
@@ -101,9 +107,13 @@ def create_app():
                     cookies=request.cookies,
                     allow_redirects=False,
                     verify=False,
-                    timeout=8
+                    timeout=5
                 )
                 
+                # If static asset from admin not found, try front
+                if resp.status_code == 404 and ("admin:80" in target):
+                    continue
+
                 excluded_headers = ["content-encoding", "content-length", "transfer-encoding", "connection"]
                 response_headers = [
                     (name, value) for name, value in resp.raw.headers.items()
@@ -140,6 +150,11 @@ def create_app():
                     "message": f"API route '{request.path}' not found"
                 }
             }), 404
+        
+        static_exts = (".css", ".js", ".png", ".jpg", ".jpeg", ".gif", ".svg", ".ico", ".woff", ".woff2", ".ttf", ".eot", ".map")
+        if request.path.lower().endswith(static_exts):
+            return jsonify({"error": "Asset not found"}), 404
+
         return send_from_directory(app.static_folder, "index.html")
 
     @app.route("/")
@@ -158,6 +173,11 @@ def create_app():
                     "message": f"API route '{request.path}' not found"
                 }
             }), 404
+            
+        static_exts = (".css", ".js", ".png", ".jpg", ".jpeg", ".gif", ".svg", ".ico", ".woff", ".woff2", ".ttf", ".eot", ".map")
+        if request.path.lower().endswith(static_exts):
+            return jsonify({"error": "Asset not found"}), 404
+
         return send_from_directory(app.static_folder, "index.html")
 
     return app
