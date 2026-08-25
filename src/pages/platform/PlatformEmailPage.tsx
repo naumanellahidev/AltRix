@@ -702,36 +702,59 @@ export default function PlatformEmailPage() {
       <div className="space-y-6">
         {/* Navigation Tabs Bar */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid grid-cols-7 max-w-5xl bg-slate-100/90 p-1.5 rounded-2xl border border-slate-200/60 shadow-2xs">
-            <TabsTrigger value="overview" className="text-xs font-bold gap-1.5 rounded-xl py-2 data-[state=active]:bg-white data-[state=active]:text-blue-600 data-[state=active]:shadow-xs transition-all">
-              <Activity className="h-3.5 w-3.5" /> Overview
-            </TabsTrigger>
-            <TabsTrigger value="branding" className="text-xs font-bold gap-1.5 rounded-xl py-2 data-[state=active]:bg-white data-[state=active]:text-blue-600 data-[state=active]:shadow-xs transition-all">
-              <Palette className="h-3.5 w-3.5" /> Brand Identity
-            </TabsTrigger>
-            <TabsTrigger value="senders" className="text-xs font-bold gap-1.5 rounded-xl py-2 data-[state=active]:bg-white data-[state=active]:text-blue-600 data-[state=active]:shadow-xs transition-all">
-              <Mail className="h-3.5 w-3.5" /> Sender Profiles
-            </TabsTrigger>
-            <TabsTrigger value="templates" className="text-xs font-bold gap-1.5 rounded-xl py-2 data-[state=active]:bg-white data-[state=active]:text-blue-600 data-[state=active]:shadow-xs transition-all">
-              <FileCode2 className="h-3.5 w-3.5" /> Template Studio
-            </TabsTrigger>
-            <TabsTrigger value="routing" className="text-xs font-bold gap-1.5 rounded-xl py-2 data-[state=active]:bg-white data-[state=active]:text-blue-600 data-[state=active]:shadow-xs transition-all">
-              <Layers className="h-3.5 w-3.5" /> Event Routing
-            </TabsTrigger>
-            <TabsTrigger value="test_lab" className="text-xs font-bold gap-1.5 rounded-xl py-2 data-[state=active]:bg-white data-[state=active]:text-blue-600 data-[state=active]:shadow-xs transition-all">
-              <Send className="h-3.5 w-3.5" /> Live Test Lab
-            </TabsTrigger>
-            <TabsTrigger value="logs" className="text-xs font-bold gap-1.5 rounded-xl py-2 data-[state=active]:bg-white data-[state=active]:text-blue-600 data-[state=active]:shadow-xs transition-all">
-              <ListFilter className="h-3.5 w-3.5" /> Delivery Logs
-            </TabsTrigger>
-          </TabsList>
+          <div className="bg-white p-1.5 rounded-2xl border border-slate-200/80 shadow-2xs max-w-5xl">
+            <TabsList className="grid grid-cols-7 bg-slate-100/80 p-1 rounded-xl gap-1">
+              <TabsTrigger
+                value="overview"
+                className="text-xs font-bold gap-1.5 rounded-lg py-2 text-slate-600 data-[state=active]:bg-blue-600 data-[state=active]:text-white data-[state=active]:shadow-xs transition-all"
+              >
+                <Activity className="h-3.5 w-3.5" /> Overview
+              </TabsTrigger>
+              <TabsTrigger
+                value="branding"
+                className="text-xs font-bold gap-1.5 rounded-lg py-2 text-slate-600 data-[state=active]:bg-blue-600 data-[state=active]:text-white data-[state=active]:shadow-xs transition-all"
+              >
+                <Palette className="h-3.5 w-3.5" /> Brand Identity
+              </TabsTrigger>
+              <TabsTrigger
+                value="senders"
+                className="text-xs font-bold gap-1.5 rounded-lg py-2 text-slate-600 data-[state=active]:bg-blue-600 data-[state=active]:text-white data-[state=active]:shadow-xs transition-all"
+              >
+                <Mail className="h-3.5 w-3.5" /> Sender Profiles
+              </TabsTrigger>
+              <TabsTrigger
+                value="templates"
+                className="text-xs font-bold gap-1.5 rounded-lg py-2 text-slate-600 data-[state=active]:bg-blue-600 data-[state=active]:text-white data-[state=active]:shadow-xs transition-all"
+              >
+                <FileCode2 className="h-3.5 w-3.5" /> Template Studio
+              </TabsTrigger>
+              <TabsTrigger
+                value="routing"
+                className="text-xs font-bold gap-1.5 rounded-lg py-2 text-slate-600 data-[state=active]:bg-blue-600 data-[state=active]:text-white data-[state=active]:shadow-xs transition-all"
+              >
+                <Layers className="h-3.5 w-3.5" /> Event Routing
+              </TabsTrigger>
+              <TabsTrigger
+                value="test_lab"
+                className="text-xs font-bold gap-1.5 rounded-lg py-2 text-slate-600 data-[state=active]:bg-blue-600 data-[state=active]:text-white data-[state=active]:shadow-xs transition-all"
+              >
+                <Send className="h-3.5 w-3.5" /> Live Test Lab
+              </TabsTrigger>
+              <TabsTrigger
+                value="logs"
+                className="text-xs font-bold gap-1.5 rounded-lg py-2 text-slate-600 data-[state=active]:bg-blue-600 data-[state=active]:text-white data-[state=active]:shadow-xs transition-all"
+              >
+                <ListFilter className="h-3.5 w-3.5" /> Delivery Logs
+              </TabsTrigger>
+            </TabsList>
+          </div>
 
           {/* 1. OVERVIEW TAB */}
           <TabsContent value="overview" className="mt-6 space-y-6">
             {/* KPI Top Summary Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {/* Card 1: Dispatched */}
-              <Card className="border border-slate-200/80 rounded-2xl bg-white shadow-xs hover:shadow-md hover:border-blue-200 transition-all">
+              <Card className="border border-slate-200/90 rounded-2xl bg-white shadow-xs hover:shadow-md hover:border-blue-300 transition-all">
                 <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
                   <span className="text-[11px] uppercase tracking-wider font-bold text-slate-500">24h Dispatched</span>
                   <div className="h-9 w-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center ring-4 ring-blue-500/5">
@@ -740,19 +763,19 @@ export default function PlatformEmailPage() {
                 </CardHeader>
                 <CardContent className="pt-1">
                   <div className="flex items-baseline justify-between">
-                    <span className="text-3xl font-black text-slate-900 tracking-tight">
+                    <span className="text-3xl font-black text-slate-900 tracking-tight font-sans">
                       {telemetry?.sent24h ?? 0}
                     </span>
-                    <Badge className="bg-blue-50 text-blue-700 hover:bg-blue-50 font-bold text-[10px] uppercase border border-blue-200/60 px-2 py-0.5 rounded-full">
+                    <span className="bg-blue-100 text-blue-800 font-bold text-[10px] uppercase border border-blue-200 px-2.5 py-0.5 rounded-full">
                       Live Stream
-                    </Badge>
+                    </span>
                   </div>
-                  <p className="text-xs text-slate-500 mt-2">All transactional event triggers</p>
+                  <p className="text-xs text-slate-500 mt-2 font-medium">All transactional event triggers</p>
                 </CardContent>
               </Card>
 
               {/* Card 2: Success Rate */}
-              <Card className="border border-slate-200/80 rounded-2xl bg-white shadow-xs hover:shadow-md hover:border-emerald-200 transition-all">
+              <Card className="border border-slate-200/90 rounded-2xl bg-white shadow-xs hover:shadow-md hover:border-emerald-300 transition-all">
                 <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
                   <span className="text-[11px] uppercase tracking-wider font-bold text-slate-500">24h Success Rate</span>
                   <div className="h-9 w-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center ring-4 ring-emerald-500/5">
@@ -761,19 +784,19 @@ export default function PlatformEmailPage() {
                 </CardHeader>
                 <CardContent className="pt-1">
                   <div className="flex items-baseline justify-between">
-                    <span className="text-3xl font-black text-emerald-600 tracking-tight">
+                    <span className="text-3xl font-black text-emerald-600 tracking-tight font-sans">
                       {telemetry?.successRate24h ?? 100}%
                     </span>
-                    <Badge className="bg-emerald-50 text-emerald-700 hover:bg-emerald-50 font-bold text-[10px] uppercase border border-emerald-200/60 px-2 py-0.5 rounded-full">
+                    <span className="bg-emerald-100 text-emerald-800 font-bold text-[10px] uppercase border border-emerald-200 px-2.5 py-0.5 rounded-full">
                       Optimal
-                    </Badge>
+                    </span>
                   </div>
-                  <p className="text-xs text-slate-500 mt-2">Successful relay through local MTA</p>
+                  <p className="text-xs text-slate-500 mt-2 font-medium">Successful relay through local MTA</p>
                 </CardContent>
               </Card>
 
               {/* Card 3: Configured Senders */}
-              <Card className="border border-slate-200/80 rounded-2xl bg-white shadow-xs hover:shadow-md hover:border-purple-200 transition-all">
+              <Card className="border border-slate-200/90 rounded-2xl bg-white shadow-xs hover:shadow-md hover:border-purple-300 transition-all">
                 <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
                   <span className="text-[11px] uppercase tracking-wider font-bold text-slate-500">Configured Senders</span>
                   <div className="h-9 w-9 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center ring-4 ring-purple-500/5">
@@ -782,19 +805,19 @@ export default function PlatformEmailPage() {
                 </CardHeader>
                 <CardContent className="pt-1">
                   <div className="flex items-baseline justify-between">
-                    <span className="text-3xl font-black text-purple-600 tracking-tight">
+                    <span className="text-3xl font-black text-purple-600 tracking-tight font-sans">
                       {telemetry?.activeSenders ?? senders.length}
                     </span>
-                    <Badge className="bg-purple-50 text-purple-700 hover:bg-purple-50 font-bold text-[10px] uppercase border border-purple-200/60 px-2 py-0.5 rounded-full">
+                    <span className="bg-purple-100 text-purple-800 font-bold text-[10px] uppercase border border-purple-200 px-2.5 py-0.5 rounded-full">
                       Verified
-                    </Badge>
+                    </span>
                   </div>
-                  <p className="text-xs text-slate-500 mt-2">Official AltRix brand aliases</p>
+                  <p className="text-xs text-slate-500 mt-2 font-medium">Official AltRix brand aliases</p>
                 </CardContent>
               </Card>
 
               {/* Card 4: Pending Invites */}
-              <Card className="border border-slate-200/80 rounded-2xl bg-white shadow-xs hover:shadow-md hover:border-amber-200 transition-all">
+              <Card className="border border-slate-200/90 rounded-2xl bg-white shadow-xs hover:shadow-md hover:border-amber-300 transition-all">
                 <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
                   <span className="text-[11px] uppercase tracking-wider font-bold text-slate-500">Pending Staff Invites</span>
                   <div className="h-9 w-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center ring-4 ring-amber-500/5">
@@ -803,23 +826,23 @@ export default function PlatformEmailPage() {
                 </CardHeader>
                 <CardContent className="pt-1">
                   <div className="flex items-baseline justify-between">
-                    <span className="text-3xl font-black text-amber-600 tracking-tight">
+                    <span className="text-3xl font-black text-amber-600 tracking-tight font-sans">
                       {telemetry?.pendingInvitations ?? 0}
                     </span>
-                    <Badge className="bg-amber-50 text-amber-700 hover:bg-amber-50 font-bold text-[10px] uppercase border border-amber-200/60 px-2 py-0.5 rounded-full">
+                    <span className="bg-amber-100 text-amber-800 font-bold text-[10px] uppercase border border-amber-200 px-2.5 py-0.5 rounded-full">
                       Tokens Active
-                    </Badge>
+                    </span>
                   </div>
-                  <p className="text-xs text-slate-500 mt-2">Active single-use activation tokens</p>
+                  <p className="text-xs text-slate-500 mt-2 font-medium">Active single-use activation tokens</p>
                 </CardContent>
               </Card>
             </div>
 
             {/* VPS Infrastructure Node Card (Clean Brand-Matched Light Theme) */}
-            <Card className="border border-slate-200/80 rounded-2xl bg-white shadow-xs overflow-hidden">
-              <CardHeader className="p-5 pb-3 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <Card className="border border-slate-200/90 rounded-2xl bg-white shadow-xs overflow-hidden">
+              <CardHeader className="p-5 pb-4 border-b border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 rounded-xl bg-blue-50 text-blue-600 border border-blue-100 flex items-center justify-center">
+                  <div className="h-10 w-10 rounded-xl bg-blue-50 text-blue-600 border border-blue-100 flex items-center justify-center shadow-2xs">
                     <Server className="h-5 w-5" />
                   </div>
                   <div>
@@ -827,39 +850,39 @@ export default function PlatformEmailPage() {
                       VPS Mail Infrastructure Node (MTA Engine)
                     </CardTitle>
                     <CardDescription className="text-xs text-slate-500 mt-0.5">
-                      Subdomain: <strong className="text-blue-600 font-mono font-bold">mail.altrixcore.com</strong> <span className="text-slate-300">•</span> Host IP: <span className="text-slate-600 font-mono">169.58.111.159</span>
+                      Subdomain: <strong className="text-blue-600 font-mono font-bold">mail.altrixcore.com</strong> <span className="text-slate-300">•</span> Host IP: <span className="text-slate-600 font-mono font-semibold">169.58.111.159</span>
                     </CardDescription>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Badge className="bg-emerald-50 text-emerald-700 hover:bg-emerald-50 border border-emerald-200 text-xs font-semibold px-3 py-1 rounded-full">
+                  <span className="bg-emerald-50 text-emerald-800 border border-emerald-300 text-xs font-bold px-3.5 py-1.5 rounded-full flex items-center shadow-2xs">
                     <Radio className="h-3 w-3 mr-1.5 text-emerald-600 animate-pulse" /> Postfix SMTP Online ({mtaHealth?.latencyMs || 3.3}ms)
-                  </Badge>
+                  </span>
                 </div>
               </CardHeader>
               <CardContent className="p-5">
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                   {/* Box 1: SSL */}
-                  <div className="p-4 rounded-xl bg-slate-50/80 border border-slate-200/80 hover:bg-slate-50 transition-all space-y-1.5">
-                    <span className="text-slate-500 font-semibold text-[11px] uppercase tracking-wider block">SSL / TLS Certificate</span>
+                  <div className="p-4 rounded-xl bg-slate-50/90 border border-slate-200 hover:bg-white hover:shadow-xs transition-all space-y-1.5">
+                    <span className="text-slate-500 font-bold text-[10px] uppercase tracking-wider block">SSL / TLS Certificate</span>
                     <p className="font-bold text-slate-900 text-sm flex items-center gap-1.5">
                       <ShieldCheck className="h-4 w-4 text-emerald-600 shrink-0" /> Let's Encrypt Dedicated
                     </p>
-                    <span className="text-[11px] text-emerald-700 font-medium block">TLS 1.3 Strict HTTPS Protocol</span>
+                    <span className="text-[11px] text-emerald-700 font-semibold block">TLS 1.3 Strict HTTPS Protocol</span>
                   </div>
 
                   {/* Box 2: Outbound Relay */}
-                  <div className="p-4 rounded-xl bg-slate-50/80 border border-slate-200/80 hover:bg-slate-50 transition-all space-y-1.5">
-                    <span className="text-slate-500 font-semibold text-[11px] uppercase tracking-wider block">Outbound Relay Port</span>
+                  <div className="p-4 rounded-xl bg-slate-50/90 border border-slate-200 hover:bg-white hover:shadow-xs transition-all space-y-1.5">
+                    <span className="text-slate-500 font-bold text-[10px] uppercase tracking-wider block">Outbound Relay Port</span>
                     <p className="font-bold text-slate-900 text-sm font-mono flex items-center gap-1.5">
                       <Zap className="h-4 w-4 text-blue-600 shrink-0" /> 127.0.0.1:25
                     </p>
-                    <span className="text-[11px] text-blue-700 font-medium block">Docker RELAYNETS Authorized</span>
+                    <span className="text-[11px] text-blue-700 font-semibold block">Docker RELAYNETS Authorized</span>
                   </div>
 
                   {/* Box 3: Admin Console */}
-                  <div className="p-4 rounded-xl bg-slate-50/80 border border-slate-200/80 hover:bg-slate-50 transition-all space-y-1.5">
-                    <span className="text-slate-500 font-semibold text-[11px] uppercase tracking-wider block">Server Admin Console</span>
+                  <div className="p-4 rounded-xl bg-slate-50/90 border border-slate-200 hover:bg-white hover:shadow-xs transition-all space-y-1.5">
+                    <span className="text-slate-500 font-bold text-[10px] uppercase tracking-wider block">Server Admin Console</span>
                     <a
                       href="https://mail.altrixcore.com/login"
                       target="_blank"
@@ -872,8 +895,8 @@ export default function PlatformEmailPage() {
                   </div>
 
                   {/* Box 4: Webmail Gateway */}
-                  <div className="p-4 rounded-xl bg-slate-50/80 border border-slate-200/80 hover:bg-slate-50 transition-all space-y-1.5">
-                    <span className="text-slate-500 font-semibold text-[11px] uppercase tracking-wider block">Webmail Client Gateway</span>
+                  <div className="p-4 rounded-xl bg-slate-50/90 border border-slate-200 hover:bg-white hover:shadow-xs transition-all space-y-1.5">
+                    <span className="text-slate-500 font-bold text-[10px] uppercase tracking-wider block">Webmail Client Gateway</span>
                     <a
                       href="https://mail.altrixcore.com/webmail"
                       target="_blank"
@@ -889,7 +912,7 @@ export default function PlatformEmailPage() {
             </Card>
 
             {/* Recent Transactional Deliveries Table */}
-            <Card className="border border-slate-200/80 rounded-2xl bg-white shadow-xs overflow-hidden">
+            <Card className="border border-slate-200/90 rounded-2xl bg-white shadow-xs overflow-hidden">
               <CardHeader className="p-5 pb-3 flex flex-row items-center justify-between border-b border-slate-100">
                 <div>
                   <CardTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
@@ -909,14 +932,14 @@ export default function PlatformEmailPage() {
               <CardContent className="p-0">
                 <div className="overflow-x-auto">
                   <table className="w-full text-xs text-left">
-                    <thead className="bg-slate-50/80 border-b border-slate-100 text-slate-500 uppercase font-bold text-[10px] tracking-wider">
+                    <thead className="bg-slate-50/80 border-b border-slate-200/80 text-slate-600 uppercase font-bold text-[10px] tracking-wider">
                       <tr>
-                        <th className="py-3 px-5">Status</th>
-                        <th className="py-3 px-5">Event</th>
-                        <th className="py-3 px-5">Recipient</th>
-                        <th className="py-3 px-5">Sender Identity</th>
-                        <th className="py-3 px-5">Subject</th>
-                        <th className="py-3 px-5 text-right">Dispatched At</th>
+                        <th className="py-3.5 px-5">Status</th>
+                        <th className="py-3.5 px-5">Event</th>
+                        <th className="py-3.5 px-5">Recipient</th>
+                        <th className="py-3.5 px-5">Sender Identity</th>
+                        <th className="py-3.5 px-5">Subject</th>
+                        <th className="py-3.5 px-5 text-right">Dispatched At</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -935,24 +958,24 @@ export default function PlatformEmailPage() {
                           <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
                             <td className="py-3.5 px-5">
                               {item.status === "sent" || item.status === "delivered" ? (
-                                <Badge className="bg-emerald-50 text-emerald-700 hover:bg-emerald-50 text-[10px] uppercase font-bold border border-emerald-200/80 px-2.5 py-0.5 rounded-full">
+                                <span className="bg-emerald-100 text-emerald-800 font-bold text-[10px] uppercase border border-emerald-300/80 px-2.5 py-0.5 rounded-full inline-block">
                                   Sent
-                                </Badge>
+                                </span>
                               ) : (
-                                <Badge variant="destructive" className="text-[10px] uppercase font-bold px-2.5 py-0.5 rounded-full">
+                                <span className="bg-rose-100 text-rose-800 font-bold text-[10px] uppercase border border-rose-300 px-2.5 py-0.5 rounded-full inline-block">
                                   Failed
-                                </Badge>
+                                </span>
                               )}
                             </td>
                             <td className="py-3.5 px-5 font-bold text-slate-900">
-                              <span className="bg-slate-100 text-slate-800 px-2.5 py-1 rounded-lg text-[11px] font-mono">
+                              <span className="bg-slate-100 text-slate-800 border border-slate-200/80 px-2.5 py-1 rounded-lg text-[11px] font-mono">
                                 {item.eventName.replace("_", " ").toUpperCase()}
                               </span>
                             </td>
                             <td className="py-3.5 px-5 font-mono text-slate-800 font-semibold">{item.recipientEmail}</td>
                             <td className="py-3.5 px-5 font-mono text-slate-500">{item.senderEmail}</td>
                             <td className="py-3.5 px-5 text-slate-700 font-medium truncate max-w-xs">{item.subject}</td>
-                            <td className="py-3.5 px-5 text-slate-400 text-right whitespace-nowrap font-mono text-[11px]">
+                            <td className="py-3.5 px-5 text-slate-500 text-right whitespace-nowrap font-mono text-[11px]">
                               {item.sentAt ? new Date(item.sentAt).toLocaleString() : "—"}
                             </td>
                           </tr>
