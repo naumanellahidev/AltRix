@@ -1,7 +1,7 @@
-// PWA Service Worker for AltRix Application
-// Handles offline caching strategy, push notifications, click handlers, and app badges.
+// PWA Service Worker for Altrix Core — The AI-Powered Institute Operating System
+// Handles offline caching strategy, push notifications, click handlers, and instant cache purging.
 
-const CACHE_NAME = 'altrix-cache-v6';
+const CACHE_NAME = 'altrix-core-v8';
 const ASSETS_TO_CACHE = [
   '/favicon.ico',
   '/pwa-512.png',

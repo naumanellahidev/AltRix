@@ -97,7 +97,26 @@ cat <<EOT > "${RELEASE_DIR}/dist/version.json"
 }
 EOT
 
-# 3b. Link assets to shared folder to prevent service worker 404s
+# Inject version.json into dist
+BUILD_TIMESTAMP="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+cat <<EOT > "${RELEASE_DIR}/dist/version.json"
+{
+  "commit": "${TARGET_SHA}",
+  "timestamp": "${BUILD_TIMESTAMP}",
+  "environment": "production-vps"
+}
+EOT
+
+# Dynamically stamp unique cache key into Service Worker
+if [ -f "${RELEASE_DIR}/dist/sw.js" ]; then
+    sed -i "s/const CACHE_NAME = .*/const CACHE_NAME = 'altrix-core-${TARGET_SHA:0:10}-${BUILD_TIMESTAMP//[^0-9]/}';/" "${RELEASE_DIR}/dist/sw.js" 2>/dev/null || true
+fi
+
+# 3b. Clear Nginx proxy cache and purge old build caches
+echo "[INFO] Purging server-side cache directories..."
+rm -rf /var/cache/nginx/* /tmp/nginx* 2>/dev/null || sudo rm -rf /var/cache/nginx/* /tmp/nginx* 2>/dev/null || true
+
+# Link assets to shared folder to prevent service worker 404s
 echo "[INFO] Linking assets to shared folder to prevent service worker 404s..."
 mkdir -p /opt/altrix/shared/assets
 cp -rp "${RELEASE_DIR}/dist/assets/"* /opt/altrix/shared/assets/ 2>/dev/null || true
@@ -105,19 +124,19 @@ rm -rf "${RELEASE_DIR}/dist/assets"
 ln -s /opt/altrix/shared/assets "${RELEASE_DIR}/dist/assets"
 
 # Ensure Nginx/www-data has read permissions to the shared assets folder and symlinks
-chmod -R 755 /opt/altrix/shared
+chmod -R 755 /opt/altrix/shared 2>/dev/null || sudo chmod -R 755 /opt/altrix/shared 2>/dev/null || true
 find /opt/altrix/shared/assets -type f -exec chmod 644 {} + 2>/dev/null || true
 
 # Create fallback files for missing JS/CSS chunks to prevent PWA/Service Worker update failures
 echo "[INFO] Creating asset fallbacks to prevent Service Worker installation blocks..."
-echo "console.warn('AltRix: SW asset fallback');" > /opt/altrix/shared/assets/fallback.js
-echo "/* AltRix: SW asset fallback */" > /opt/altrix/shared/assets/fallback.css
-chmod 644 /opt/altrix/shared/assets/fallback.js /opt/altrix/shared/assets/fallback.css
+echo "console.warn('Altrix Core: SW asset fallback');" > /opt/altrix/shared/assets/fallback.js
+echo "/* Altrix Core: SW asset fallback */" > /opt/altrix/shared/assets/fallback.css
+chmod 644 /opt/altrix/shared/assets/fallback.js /opt/altrix/shared/assets/fallback.css 2>/dev/null || sudo chmod 644 /opt/altrix/shared/assets/fallback.js /opt/altrix/shared/assets/fallback.css 2>/dev/null || true
 
 # Align static caching configuration in Nginx
 if [ -f "${RELEASE_DIR}/scripts/fix_nginx_cache.sh" ]; then
     echo "[INFO] Running Nginx caching configuration update..."
-    bash "${RELEASE_DIR}/scripts/fix_nginx_cache.sh" || echo "[WARNING] Nginx caching config update failed (non-blocking)"
+    bash "${RELEASE_DIR}/scripts/fix_nginx_cache.sh" 2>/dev/null || sudo bash "${RELEASE_DIR}/scripts/fix_nginx_cache.sh" 2>/dev/null || echo "[WARNING] Nginx caching config update failed (non-blocking)"
 fi
 
 # 4. Copy Environment & Build Docker Backend
