@@ -253,7 +253,7 @@ const TenantAuth = () => {
                         </span>
                       </div>
                       <a 
-                        href="/auth" 
+                        href="/" 
                         className="text-xs text-primary hover:text-primary/80 hover:underline font-semibold mt-1.5 inline-block transition-colors"
                       >
                         Not your institute? Switch institute

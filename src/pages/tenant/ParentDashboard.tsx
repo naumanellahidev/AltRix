@@ -284,7 +284,7 @@ const ParentDashboard = () => {
         <p className="text-destructive">{authzMessage}</p>
         <button
           className="text-primary underline"
-          onClick={() => navigate(`/${schoolSlug}/auth`)}
+          onClick={() => navigate(schoolSlug ? `/${schoolSlug}/auth` : "/")}
         >
           Go to Sign In
         </button>

@@ -241,7 +241,7 @@ export default function OwnerDashboard() {
           <button
             onClick={async () => {
               await api.auth.signOut();
-              window.location.href = `/${tenant.slug}/auth`;
+              window.location.href = tenant.slug ? `/${tenant.slug}/auth` : "/";
             }}
             className="mt-6 rounded-xl bg-primary px-6 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
           >

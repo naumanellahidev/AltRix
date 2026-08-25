@@ -1,11 +1,12 @@
 import { useMemo, lazy, Suspense } from "react";
-import { Navigate, Route, Routes, useParams } from "react-router-dom";
+import { Navigate, Route, Routes, useParams, useNavigate } from "react-router-dom";
 
 import { useSession } from "@/hooks/useSession";
 import { useTenantOptimized } from "@/hooks/useTenantOptimized";
 import { useAuthz } from "@/hooks/useAuthz";
 import { useUniversalPrefetch } from "@/hooks/useUniversalPrefetch";
 import { MarketingShell } from "@/components/tenant/MarketingShell";
+import { Button } from "@/components/ui/button";
 
 const MarketingHomeModule = lazy(() => import("@/pages/tenant/marketing-modules/MarketingHomeModule").then(m => ({ default: m.MarketingHomeModule })));
 const MarketingLeadsModule = lazy(() => import("@/pages/tenant/marketing-modules/MarketingLeadsModule").then(m => ({ default: m.MarketingLeadsModule })));
@@ -26,6 +27,7 @@ const DashboardLoader = () => (
 );
 
 const MarketingDashboard = () => {
+  const navigate = useNavigate();
   const { schoolSlug } = useParams();
   
   // Use optimized hooks with caching
@@ -58,7 +60,10 @@ const MarketingDashboard = () => {
       <div className="min-h-screen bg-background flex items-center justify-center p-8">
         <div className="rounded-3xl bg-surface p-8 shadow-elevated max-w-md text-center">
           <h2 className="text-xl font-semibold text-destructive mb-2">Institute Not Found</h2>
-          <p className="text-sm text-muted-foreground">The school you are trying to access does not exist.</p>
+          <p className="text-sm text-muted-foreground mb-4">The school you are trying to access does not exist.</p>
+          <Button variant="outline" onClick={() => navigate(tenant.slug ? `/${tenant.slug}/auth` : "/")}>
+            Return to Login
+          </Button>
         </div>
       </div>
     );
@@ -87,10 +92,13 @@ const MarketingDashboard = () => {
 
   if (authzState === "denied") {
     return (
-      <div className="min-h-screen bg-background p-8">
-        <div className="rounded-3xl bg-surface p-6 shadow-elevated">
-          <p className="font-display text-xl font-semibold tracking-tight">Access Denied</p>
-          <p className="mt-2 text-sm text-muted-foreground">You do not have Marketing/CRM access.</p>
+      <div className="min-h-screen bg-background p-8 flex items-center justify-center">
+        <div className="rounded-3xl bg-surface p-8 shadow-elevated max-w-md text-center">
+          <p className="font-display text-xl font-semibold tracking-tight text-destructive">Access Denied</p>
+          <p className="mt-2 text-sm text-muted-foreground mb-4">You do not have Marketing/CRM access.</p>
+          <Button variant="outline" onClick={() => navigate(tenant.slug ? `/${tenant.slug}/auth` : "/")}>
+            Return to Login
+          </Button>
         </div>
       </div>
     );

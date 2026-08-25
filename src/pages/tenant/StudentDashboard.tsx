@@ -1,5 +1,5 @@
 import { useEffect, useState, lazy, Suspense } from "react";
-import { Navigate, Route, Routes, useParams } from "react-router-dom";
+import { Navigate, Route, Routes, useParams, useNavigate } from "react-router-dom";
 
 import { api } from "@/lib/api";
 import { useSession } from "@/hooks/useSession";
@@ -7,6 +7,7 @@ import { useTenantOptimized } from "@/hooks/useTenantOptimized";
 import { useMyStudentId } from "@/hooks/useMyStudentId";
 import { useUniversalPrefetch } from "@/hooks/useUniversalPrefetch";
 import { StudentShell } from "@/components/tenant/StudentShell";
+import { Button } from "@/components/ui/button";
 
 const StudentHomeModule = lazy(() => import("@/pages/tenant/student-modules/StudentHomeModule").then(m => ({ default: m.StudentHomeModule })));
 const StudentAttendanceModule = lazy(() => import("@/pages/tenant/student-modules/StudentAttendanceModule").then(m => ({ default: m.StudentAttendanceModule })));
@@ -78,6 +79,7 @@ function setCachedStudentAuthz(schoolId: string, userId: string, authorized: boo
 }
 
 const StudentDashboard = () => {
+  const navigate = useNavigate();
   const { schoolSlug } = useParams();
   const tenant = useTenantOptimized(schoolSlug);
   const { user, loading } = useSession();
@@ -214,10 +216,13 @@ const StudentDashboard = () => {
 
   if (authzState === "denied") {
     return (
-      <div className="min-h-screen bg-background p-8">
-        <div className="rounded-3xl bg-surface p-6 shadow-elevated">
-          <p className="font-display text-xl font-semibold tracking-tight">Access Denied</p>
-          <p className="mt-2 text-sm text-muted-foreground">You do not have Student access.</p>
+      <div className="min-h-screen bg-background p-8 flex items-center justify-center">
+        <div className="rounded-3xl bg-surface p-8 shadow-elevated max-w-md text-center">
+          <p className="font-display text-xl font-semibold tracking-tight text-destructive">Access Denied</p>
+          <p className="mt-2 text-sm text-muted-foreground mb-4">You do not have Student access.</p>
+          <Button variant="outline" onClick={() => navigate(tenant.slug ? `/${tenant.slug}/auth` : "/")}>
+            Return to Login
+          </Button>
         </div>
       </div>
     );
@@ -227,13 +232,16 @@ const StudentDashboard = () => {
   // show a clear blocking message for all tabs (otherwise every module looks "empty").
   if (myStudent.status === "error") {
     return (
-      <div className="min-h-screen bg-background p-8">
-        <div className="rounded-3xl bg-surface p-6 shadow-elevated">
-          <p className="font-display text-xl font-semibold tracking-tight">Account Not Linked</p>
+      <div className="min-h-screen bg-background p-8 flex items-center justify-center">
+        <div className="rounded-3xl bg-surface p-8 shadow-elevated max-w-md text-center">
+          <p className="font-display text-xl font-semibold tracking-tight text-destructive">Account Not Linked</p>
           <p className="mt-2 text-sm text-muted-foreground">{myStudent.error}</p>
-          <p className="mt-1 text-xs text-muted-foreground">
+          <p className="mt-1 text-xs text-muted-foreground mb-4">
             Ask your school administration to link your student profile to this login.
           </p>
+          <Button variant="outline" onClick={() => navigate(tenant.slug ? `/${tenant.slug}/auth` : "/")}>
+            Return to Login
+          </Button>
         </div>
       </div>
     );

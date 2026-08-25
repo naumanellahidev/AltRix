@@ -1,10 +1,11 @@
-import { Navigate, Route, Routes, useParams } from "react-router-dom";
+import { Navigate, Route, Routes, useParams, useNavigate } from "react-router-dom";
 import { useMemo, lazy, Suspense } from "react";
 import { useSession } from "@/hooks/useSession";
 import { useTenantOptimized } from "@/hooks/useTenantOptimized";
 import { useAuthz } from "@/hooks/useAuthz";
 import { useUniversalPrefetch } from "@/hooks/useUniversalPrefetch";
 import { HrShell } from "@/components/tenant/HrShell";
+import { Button } from "@/components/ui/button";
 
 const HrHomeModule = lazy(() => import("@/pages/tenant/hr-modules/HrHomeModule").then(m => ({ default: m.HrHomeModule })));
 const HrUsersModule = lazy(() => import("@/pages/tenant/hr-modules/HrUsersModule").then(m => ({ default: m.HrUsersModule })));
@@ -32,6 +33,7 @@ const DashboardLoader = () => (
 );
 
 const HrDashboard = () => {
+  const navigate = useNavigate();
   const { schoolSlug } = useParams();
   const tenant = useTenantOptimized(schoolSlug);
   const { user, loading } = useSession();
@@ -60,7 +62,10 @@ const HrDashboard = () => {
       <div className="min-h-screen bg-background flex items-center justify-center p-8">
         <div className="rounded-3xl bg-surface p-8 shadow-elevated max-w-md text-center">
           <h2 className="text-xl font-semibold text-destructive mb-2">Institute Not Found</h2>
-          <p className="text-sm text-muted-foreground">The school you are trying to access does not exist.</p>
+          <p className="text-sm text-muted-foreground mb-4">The school you are trying to access does not exist.</p>
+          <Button variant="outline" onClick={() => navigate(tenant.slug ? `/${tenant.slug}/auth` : "/")}>
+            Return to Login
+          </Button>
         </div>
       </div>
     );
@@ -90,10 +95,13 @@ const HrDashboard = () => {
 
   if (authzState === "denied") {
     return (
-      <div className="min-h-screen bg-background p-8">
-        <div className="rounded-3xl bg-surface p-6 shadow-elevated">
-          <p className="font-display text-xl font-semibold tracking-tight">Access Denied</p>
-          <p className="mt-2 text-sm text-muted-foreground">You do not have HR Manager access.</p>
+      <div className="min-h-screen bg-background p-8 flex items-center justify-center">
+        <div className="rounded-3xl bg-surface p-8 shadow-elevated max-w-md text-center">
+          <p className="font-display text-xl font-semibold tracking-tight text-destructive">Access Denied</p>
+          <p className="mt-2 text-sm text-muted-foreground mb-4">You do not have HR Manager access.</p>
+          <Button variant="outline" onClick={() => navigate(tenant.slug ? `/${tenant.slug}/auth` : "/")}>
+            Return to Login
+          </Button>
         </div>
       </div>
     );

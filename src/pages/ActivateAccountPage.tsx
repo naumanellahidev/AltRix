@@ -215,7 +215,7 @@ export default function ActivateAccountPage() {
               <Button
                 variant="outline"
                 className="border-slate-700 bg-slate-800/80 hover:bg-slate-800 text-slate-200 text-xs w-full"
-                onClick={() => navigate("/auth")}
+                onClick={() => navigate(invitation?.schoolSlug ? `/${invitation.schoolSlug}/auth` : "/")}
               >
                 Return to Login
               </Button>

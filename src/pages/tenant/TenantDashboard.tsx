@@ -494,7 +494,7 @@ const TenantDashboard = () => {
           <p className="text-sm text-muted-foreground mb-4">
             The school you are trying to access does not exist or is no longer available.
           </p>
-          <Button variant="outline" onClick={() => navigate("/auth")}>
+          <Button variant="outline" onClick={() => navigate(tenant.slug ? `/${tenant.slug}/auth` : "/")}>
             Return to Login
           </Button>
         </div>
@@ -545,7 +545,7 @@ const TenantDashboard = () => {
           <p className="text-sm text-muted-foreground mb-4">
             {authzMessage || "You do not have permission to access this school or role."}
           </p>
-          <Button variant="outline" onClick={() => navigate("/auth")}>
+          <Button variant="outline" onClick={() => navigate(tenant.slug ? `/${tenant.slug}/auth` : "/")}>
             Return to Login
           </Button>
         </div>
@@ -668,7 +668,7 @@ const TenantDashboard = () => {
                   variant="hero"
                   onClick={async () => {
                     await api.auth.signOut();
-                    navigate(`/${tenant.slug}/auth`);
+                    navigate(tenant.slug ? `/${tenant.slug}/auth` : "/");
                   }}
                 >
                   Return to login
