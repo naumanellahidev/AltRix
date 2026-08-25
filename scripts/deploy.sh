@@ -502,89 +502,10 @@ set +e
 ln -sfn "${RELEASE_DIR}" "${CURRENT_SYMLINK}" 2>/dev/null || true
 sudo systemctl reload nginx 2>/dev/null || systemctl reload nginx 2>/dev/null || true
 
-# 8b. Capture comprehensive VPS truth dump to dist root
-python3 -c "
-import subprocess, os
-
-with open('${RELEASE_DIR}/dist/vps_truth.txt', 'w') as out:
-    def run_cmd(title, cmd):
-        out.write(f'=== {title} ===\n')
-        try:
-            res = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT, timeout=10)
-            out.write(res.decode('utf-8', errors='ignore'))
-        except Exception as e:
-            out.write(f'ERROR: {e}\n')
-        out.write('\n\n')
-
-    run_cmd('SS 5000', 'ss -tlpn')
-    run_cmd('PS PROCESSES', 'ps aux | grep -E \"python|server|5000|mail|gunicorn|flask|uvicorn|node|docker\"')
-    run_cmd('DOCKER PS ALL', 'docker ps -a --no-trunc || sudo docker ps -a --no-trunc')
-    run_cmd('FIND OLD BUNDLE', 'find /opt /var/www /root /home /tmp /etc -name \"*CKYGDZtW*\" 2>/dev/null')
-    run_cmd('NGINX CONFIGS', 'cat /etc/nginx/sites-enabled/* 2>/dev/null')
-    run_cmd('SYSTEMCTL SERVICES', 'systemctl list-units --type=service --state=running | grep -E \"mail|altrix|control|webmail|docker\"')
-" 2>/dev/null || true
-chmod 644 "${RELEASE_DIR}/dist/vps_truth.txt" 2>/dev/null || true
-
-# 9. Authoritative AltriX Mail Platform Deployment & Universal Container Injection
-echo "[INFO] Running AltriX Mail Platform Deployment & Universal Container Injection..."
-MAIL_BUNDLE_DIR="${RELEASE_DIR}/scripts/mail_platform_bundle"
-MAIL_CONTROL_DIR="/opt/mail-platform/control-center"
-MAIL_DIST_SRC="${MAIL_BUNDLE_DIR}/web_dist"
-if [ ! -d "${MAIL_DIST_SRC}" ]; then
-    MAIL_DIST_SRC="${MAIL_BUNDLE_DIR}/dist"
-fi
-
-mkdir -p "${MAIL_CONTROL_DIR}/dist" "${MAIL_CONTROL_DIR}/frontend/dist" /opt/mail-platform/logs /opt/mail-platform/data 2>/dev/null || true
-sudo mkdir -p "${MAIL_CONTROL_DIR}/dist" "${MAIL_CONTROL_DIR}/frontend/dist" /opt/mail-platform/logs /opt/mail-platform/data 2>/dev/null || true
-
-# 1. Copy bundle to all possible host locations
-if [ -d "${MAIL_BUNDLE_DIR}" ]; then
-    echo "[INFO] Copying mail platform bundle to host..."
-    for host_dest in "${MAIL_CONTROL_DIR}/dist" "${MAIL_CONTROL_DIR}/frontend/dist" /var/www/mail /opt/mailu/webmail; do
-        mkdir -p "${host_dest}" 2>/dev/null || sudo mkdir -p "${host_dest}" 2>/dev/null || true
-        cp -rp "${MAIL_DIST_SRC}/"* "${host_dest}/" 2>/dev/null || sudo cp -rp "${MAIL_DIST_SRC}/"* "${host_dest}/" 2>/dev/null || true
-    done
-    cp -rp "${MAIL_BUNDLE_DIR}/app" "${MAIL_CONTROL_DIR}/" 2>/dev/null || sudo cp -rp "${MAIL_BUNDLE_DIR}/app" "${MAIL_CONTROL_DIR}/" 2>/dev/null || true
-    cp -p "${MAIL_BUNDLE_DIR}/server.py" "${MAIL_CONTROL_DIR}/" 2>/dev/null || sudo cp -p "${MAIL_BUNDLE_DIR}/server.py" "${MAIL_CONTROL_DIR}/" 2>/dev/null || true
-    chmod -R 777 "${MAIL_CONTROL_DIR}" 2>/dev/null || sudo chmod -R 777 "${MAIL_CONTROL_DIR}" 2>/dev/null || true
-fi
-
-# 2. Inject bundle into ALL Docker containers on the machine
-echo "[INFO] Finding port 5000 container..."
-PORT_5000_CONTAINERS=$(docker ps --filter "publish=5000" --format "{{.ID}}" 2>/dev/null || sudo docker ps --filter "publish=5000" --format "{{.ID}}" 2>/dev/null || true)
-ALL_CONTAINERS=$(docker ps -q 2>/dev/null || sudo docker ps -q 2>/dev/null || true)
-
-TARGETS="${PORT_5000_CONTAINERS} ${ALL_CONTAINERS}"
-for c in ${TARGETS}; do
-    [ -z "${c}" ] && continue
-    CNAME=$(docker inspect --format '{{.Name}}' "${c}" 2>/dev/null || echo "${c}")
-    echo "[INFO] Injecting web_dist into container ${c} (${CNAME})..."
-    for inner_dir in /app/dist /app/frontend/dist /app/web_dist /app/static /var/www /static; do
-        docker exec "${c}" mkdir -p "${inner_dir}" 2>/dev/null || sudo docker exec "${c}" mkdir -p "${inner_dir}" 2>/dev/null || true
-        docker cp "${MAIL_DIST_SRC}/." "${c}:${inner_dir}/" 2>/dev/null || sudo docker cp "${MAIL_DIST_SRC}/." "${c}:${inner_dir}/" 2>/dev/null || true
-    done
-    docker cp "${MAIL_BUNDLE_DIR}/app/." "${c}:/app/app/" 2>/dev/null || sudo docker cp "${MAIL_BUNDLE_DIR}/app/." "${c}:/app/app/" 2>/dev/null || true
-    docker cp "${MAIL_BUNDLE_DIR}/server.py" "${c}:/app/server.py" 2>/dev/null || sudo docker cp "${MAIL_BUNDLE_DIR}/server.py" "${c}:/app/server.py" 2>/dev/null || true
-    
-    # Restart all containers except altrix_backend
-    if ! echo "${CNAME}" | grep -q "altrix_backend"; then
-        echo "[INFO] Restarting container ${c} (${CNAME})..."
-        docker restart "${c}" 2>&1 || sudo docker restart "${c}" 2>&1 || true
-    fi
-done
-
-# 3. Synchronize Nginx Configuration for mail.altrixcore.com
-if [ -f "${RELEASE_DIR}/scripts/setup_mail_subdomain_nginx.sh" ]; then
-    bash "${RELEASE_DIR}/scripts/setup_mail_subdomain_nginx.sh" 2>/dev/null || sudo bash "${RELEASE_DIR}/scripts/setup_mail_subdomain_nginx.sh" 2>/dev/null || true
-fi
-sudo systemctl reload nginx 2>/dev/null || systemctl reload nginx 2>/dev/null || true
-
-# 4. Prune obsolete releases & images
+# 9. Prune obsolete releases & images
 echo "[INFO] Pruning obsolete releases & container images..."
 ls -dt /opt/altrix/releases/release-* 2>/dev/null | tail -n +4 | xargs rm -rf 2>/dev/null || true
 docker image prune -f >/dev/null 2>&1 || sudo docker image prune -f >/dev/null 2>&1 || true
-
-echo "[INFO] AltriX Mail Platform deployment finished."
 
 echo "================================================="
 echo " AUTOMATED DEPLOYMENT SUCCESSFUL!"

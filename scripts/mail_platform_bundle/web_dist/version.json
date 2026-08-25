@@ -1,7 +1,0 @@
-{
-  "commit": "mail-dropdown-ui-fix",
-  "timestamp": "2026-08-25T00:51:25.753708Z",
-  "version": "1.0.4",
-  "environment": "production",
-  "service": "altrix-mail-control-center"
-}

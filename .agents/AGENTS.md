@@ -3,6 +3,8 @@
 - **FastAPI Backend Rule**: Always use the FastAPI backend for any backend features in this project (never use Supabase Edge Functions or other serverless technologies).
 - **Realtime Git Sync Rule**: Automatically commit and push all code and configuration changes to GitHub for realtime sync upon completing each task.
 - **Automated VPS Deployment Rule**: Ensure every completed task is automatically pushed to GitHub `main` to trigger the CI/CD pipeline and deploy live on the production VPS without manual intervention.
+- **Mail Server Isolation Rule**: You are strictly NOT allowed to enter, modify, or inject files into the mail server repository, mail server files, `/opt/mailu`, `/opt/mail-platform`, or `scripts/mail_platform_bundle`. Keep yourself strictly bound to the core Altrix application (`src/`, `backend/`, `public/`, `supabase/`). The mail server is an independent, separate system.
+- **Official Brand Name Rule**: The official platform name is **"Altrix Core — The AI-Powered Institute Operating System"** (or **"Altrix Core"**). Never use "Altrix Cloud OS".
 
 ---
 
