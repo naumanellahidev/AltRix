@@ -23,7 +23,7 @@ export default function PrivacyPolicyPage() {
         <section className="space-y-3">
           <h2 className="text-xl font-bold text-slate-900">1. Scope and Applicability</h2>
           <p>
-            This Privacy Policy governs the collection, processing, storage, and protection of information within <strong>AltRix Cloud OS</strong> (accessible via <code>altrixcore.com</code> and authorized institutional subdomains), operated by AltRix Core Technologies.
+            This Privacy Policy governs the collection, processing, storage, and protection of information within <strong>Altrix Core — The AI-Powered Institute Operating System</strong> (accessible via <code>altrixcore.com</code> and authorized institutional subdomains), operated by Altrix Core Technologies.
           </p>
           <p>
             This policy applies to all users of the platform, including Master Administrators, School Owners, Principals, Campus Directors, Teachers, Accountants, HR Personnel, Students, and Parents/Guardians.

@@ -19,7 +19,7 @@ export default function SecurityPage() {
             </h3>
           </div>
           <p className="text-xs text-slate-300 leading-relaxed">
-            AltRix Cloud OS is hosted on dedicated, hardened VPS compute nodes with strict network attack-surface reduction, automated Fail2Ban rate-limiting, and encrypted MTA local relays.
+            Altrix Core is hosted on dedicated, hardened VPS compute nodes with strict network attack-surface reduction, automated Fail2Ban rate-limiting, and encrypted MTA local relays.
           </p>
         </div>
 

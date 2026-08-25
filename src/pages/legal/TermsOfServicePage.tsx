@@ -4,8 +4,8 @@ import LegalLayout from "./LegalLayout";
 export default function TermsOfServicePage() {
   return (
     <LegalLayout
-      title="AltRix Terms of Service"
-      subtitle="Master Subscription Agreement and Terms of Service governing the use of AltRix Cloud OS by educational institutions and users."
+      title="Altrix Core Terms of Service"
+      subtitle="Master Subscription Agreement and Terms of Service governing the use of Altrix Core — The AI-Powered Institute Operating System by educational institutions and users."
       badge="Service Terms & Agreement"
       lastUpdated="August 25, 2026"
     >
@@ -15,14 +15,14 @@ export default function TermsOfServicePage() {
             📜 Master Subscription Agreement
           </h3>
           <p className="text-xs text-blue-800 leading-relaxed">
-            By provisioning an institutional workspace, subscribing to an enterprise tier, or accessing AltRix Cloud OS, the subscribing school, college, university, or educational network agrees to these Terms of Service.
+            By provisioning an institutional workspace, subscribing to an enterprise tier, or accessing Altrix Core, the subscribing school, college, university, or educational network agrees to these Terms of Service.
           </p>
         </div>
 
         <section className="space-y-3">
           <h2 className="text-xl font-bold text-slate-900">1. Platform Provisioning &amp; Authorized Use</h2>
           <p>
-            AltRix grants the customer a non-exclusive, non-transferable, worldwide right to access and utilize the Cloud OS platform in accordance with the subscribed seat tier and campus limits.
+            Altrix Core grants the customer a non-exclusive, non-transferable, worldwide right to access and utilize the operating platform in accordance with the subscribed seat tier and campus limits.
           </p>
           <ul className="list-disc pl-5 space-y-1.5 text-slate-600">
             <li><strong>Institutional Administration:</strong> Each school owner/master administrator is responsible for maintaining appropriate role-based permissions (Principals, Teachers, Accountants, HR).</li>

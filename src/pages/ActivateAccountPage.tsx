@@ -330,7 +330,7 @@ export default function ActivateAccountPage() {
                 )}
               </Button>
               <p className="text-[10px] text-slate-500 text-center">
-                By activating, you confirm your official identity on the AltRix Cloud OS.
+                By activating, you confirm your official identity on Altrix Core — The AI-Powered Institute Operating System.
               </p>
             </CardFooter>
           </form>

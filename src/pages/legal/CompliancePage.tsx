@@ -39,7 +39,7 @@ export default function CompliancePage() {
             <CheckCircle2 className="h-5 w-5 text-emerald-600" /> Enterprise Compliance Guarantee
           </h3>
           <p className="text-xs text-emerald-800 leading-relaxed">
-            AltRix Cloud OS is built from the ground up to satisfy the strictest global compliance demands for K-12 schools, higher education institutions, multi-campus academies, and examination boards.
+            Altrix Core is built from the ground up to satisfy the strictest global compliance demands for K-12 schools, higher education institutions, multi-campus academies, and examination boards.
           </p>
         </div>
 

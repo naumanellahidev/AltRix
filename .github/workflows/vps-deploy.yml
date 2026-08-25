@@ -34,8 +34,9 @@ jobs:
             sudo git config --global --add safe.directory "*" || true
             if [ -d /opt/altrix/repo/.git ]; then
               cd /opt/altrix/repo
+              sudo git remote add altrix2 https://github.com/farhathashmireflections-sys/Altrix-2.git 2>/dev/null || true
               sudo git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/naumanellahidev/AltRix.git" || true
-              sudo git fetch origin "${{ github.sha }}" || sudo git fetch origin main || true
+              sudo git fetch origin "${{ github.sha }}" 2>/dev/null || sudo git fetch altrix2 "${{ github.sha }}" 2>/dev/null || sudo git fetch origin main 2>/dev/null || sudo git fetch altrix2 main 2>/dev/null || true
               sudo cp -p /opt/altrix/repo/scripts/deploy.sh /opt/altrix/scripts/deploy.sh 2>/dev/null || true
             fi
             sudo chmod +x /opt/altrix/scripts/deploy.sh 2>/dev/null || true

@@ -74,7 +74,7 @@ echo "[INFO] Target GitHub Commit SHA: ${TARGET_SHA}"
 
 if ! git cat-file -e "${TARGET_SHA}^{commit}" 2>/dev/null; then
     echo "[WARNING] Commit ${TARGET_SHA} not found in local cache, fetching explicitly..."
-    GIT_TERMINAL_PROMPT=0 git fetch origin "${TARGET_SHA}" || true
+    GIT_TERMINAL_PROMPT=0 git fetch origin "${TARGET_SHA}" 2>/dev/null || GIT_TERMINAL_PROMPT=0 git fetch altrix2 "${TARGET_SHA}" 2>/dev/null || true
     if ! git cat-file -e "${TARGET_SHA}^{commit}" 2>/dev/null; then
         echo "[ERROR] Commit ${TARGET_SHA} not found in repository!"
         exit 1

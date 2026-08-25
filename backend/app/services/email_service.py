@@ -172,9 +172,9 @@ def build_branded_html_shell(
       <td class="footer">
         <div style="display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 8px;">
           <img src="{icon_url}" alt="Icon" style="height: 20px; width: 20px; display: inline-block; vertical-align: middle;" />
-          <strong style="color: #0f172a; font-size: 13px;">{brand_name} — The AI-Powered Institute Operating System</strong>
+          <strong style="color: #0f172a; font-size: 13px;">Altrix Core — The AI-Powered Institute Operating System</strong>
         </div>
-        <p style="margin: 0 0 6px 0; color: #64748b;">&copy; {current_year} {brand_name} Cloud OS &bull; {footer_text} &bull; All rights reserved.</p>
+        <p style="margin: 0 0 6px 0; color: #64748b;">&copy; {current_year} Altrix Core &bull; The AI-Powered Institute Operating System &bull; All rights reserved.</p>
         <p style="margin: 0 0 8px 0;">
           <a href="{website_url}" style="color: #2563eb; text-decoration: none; font-weight: 600;" target="_blank">Platform Portal</a> &bull; 
           Support: <a href="mailto:{support_email}" style="color: #2563eb; text-decoration: none; font-weight: 600;">{support_email}</a> &bull; 
