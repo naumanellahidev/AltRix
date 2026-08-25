@@ -570,11 +570,34 @@ async def revoke_staff_invitation(
         raise HTTPException(status_code=400, detail="Invalid invitation UUID")
 
     await db.execute(
-        text("UPDATE public.user_invitations SET status = 'revoked', updated_at = NOW() WHERE id = :id"),
+        text("UPDATE public.user_invitations SET status = 'revoked', revoked_at = NOW() WHERE id = :id"),
         {"id": inv_uuid},
     )
     await db.commit()
     return {"ok": True, "message": "Invitation token successfully revoked"}
+
+
+@router.delete(
+    "/pending-invitations/{invitation_id}",
+    summary="Delete Staff Invitation",
+    description="Permanently deletes an invitation token record from the system.",
+)
+async def delete_staff_invitation(
+    invitation_id: str,
+    _admin: AuthenticatedUser = Depends(_require_super_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        inv_uuid = uuid.UUID(invitation_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid invitation UUID")
+
+    await db.execute(
+        text("DELETE FROM public.user_invitations WHERE id = :id"),
+        {"id": inv_uuid},
+    )
+    await db.commit()
+    return {"ok": True, "message": "Invitation successfully deleted"}
 
 
 # ---------------------------------------------------------------------------

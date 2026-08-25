@@ -493,6 +493,7 @@ export default function PlatformEmailPage() {
     try {
       setRevokingInviteId(inviteId);
       await apiClient.post(`/super_admin/email/pending-invitations/${inviteId}/revoke`);
+      setPendingInvitations(prev => prev.filter(inv => inv.id !== inviteId));
       toast.success("Invitation token successfully revoked.");
       await Promise.all([loadPendingInvitations(), loadOverview()]);
     } catch (err: any) {
