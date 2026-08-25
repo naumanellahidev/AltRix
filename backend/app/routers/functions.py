@@ -397,6 +397,7 @@ async def invite_user(
                 "expires_in": "48 hours",
                 "support_email": "support@altrixcore.com",
             },
+            school_id=school_id,
             db=db,
         )
 

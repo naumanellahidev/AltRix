@@ -534,6 +534,10 @@ async def lifespan(app: FastAPI):
                         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                         updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
                     );
+
+                    ALTER TABLE public.email_templates
+                        ADD COLUMN IF NOT EXISTS version INT NOT NULL DEFAULT 1,
+                        ADD COLUMN IF NOT EXISTS is_system BOOLEAN NOT NULL DEFAULT TRUE;
                 """))
 
                 await conn.execute(text("""

@@ -543,6 +543,7 @@ async def resend_staff_invitation(
             "expires_in": "48 hours",
             "support_email": "support@altrixcore.com",
         },
+        school_id=row.school_id,
         db=db,
     )
 
