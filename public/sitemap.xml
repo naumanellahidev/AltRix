@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xmlns:image="http://www.google.com/schemas/sitemap-image/1.1"
+        xsi:schemaLocation="http://www.sitemaps.org/schemas/sitemap/0.9
+        http://www.sitemaps.org/schemas/sitemap/0.9/sitemap.xsd">
+
+  <!-- Core Landing & Presentation -->
+  <url>
+    <loc>https://altrixcore.com/</loc>
+    <lastmod>2026-08-26</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>1.0</priority>
+    <image:image>
+      <image:loc>https://altrixcore.com/altrix-logo.png</image:loc>
+      <image:title>Altrix Core — The AI-Powered Institute Operating System</image:title>
+      <image:caption>All-in-one institute operating system with AI copilots, multi-campus governance, finance, and academics.</image:caption>
+    </image:image>
+  </url>
+
+  <!-- Security Architecture -->
+  <url>
+    <loc>https://altrixcore.com/security</loc>
+    <lastmod>2026-08-26</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+  </url>
+
+  <!-- Compliance & Certifications -->
+  <url>
+    <loc>https://altrixcore.com/compliance</loc>
+    <lastmod>2026-08-26</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+
+  <!-- Privacy Policy -->
+  <url>
+    <loc>https://altrixcore.com/privacy</loc>
+    <lastmod>2026-08-26</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+
+  <!-- Terms of Service -->
+  <url>
+    <loc>https://altrixcore.com/terms</loc>
+    <lastmod>2026-08-26</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+
+  <!-- Account Activation Portal -->
+  <url>
+    <loc>https://altrixcore.com/activate-account</loc>
+    <lastmod>2026-08-26</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+
+  <!-- Password Reset Portal -->
+  <url>
+    <loc>https://altrixcore.com/reset-password</loc>
+    <lastmod>2026-08-26</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.5</priority>
+  </url>
+
+</urlset>

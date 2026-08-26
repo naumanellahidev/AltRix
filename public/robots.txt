@@ -1,14 +1,84 @@
+# ==============================================================================
+# Altrix Core — The AI-Powered Institute Operating System
+# Canonical Robots.txt for Search Engines & Social Indexers
+# ==============================================================================
+
 User-agent: Googlebot
 Allow: /
+Allow: /privacy
+Allow: /terms
+Allow: /compliance
+Allow: /security
+Allow: /*/inquiry
+Allow: /*/visitor-register
+Allow: /*/verify-ticket/
+Disallow: /super_admin
+Disallow: /super_admin/*
+Disallow: /*/teacher/*
+Disallow: /*/hr/*
+Disallow: /*/accountant/*
+Disallow: /*/marketing/*
+Disallow: /*/student/*
+Disallow: /*/parent/*
+Disallow: /*/school_owner/*
+Disallow: /api/*
 
 User-agent: Bingbot
 Allow: /
+Allow: /privacy
+Allow: /terms
+Allow: /compliance
+Allow: /security
+Allow: /*/inquiry
+Allow: /*/visitor-register
+Allow: /*/verify-ticket/
+Disallow: /super_admin
+Disallow: /super_admin/*
+Disallow: /*/teacher/*
+Disallow: /*/hr/*
+Disallow: /*/accountant/*
+Disallow: /*/marketing/*
+Disallow: /*/student/*
+Disallow: /*/parent/*
+Disallow: /*/school_owner/*
+Disallow: /api/*
 
 User-agent: Twitterbot
 Allow: /
+Allow: /altrix-logo.png
+Allow: /altrix-icon.png
 
 User-agent: facebookexternalhit
 Allow: /
+Allow: /altrix-logo.png
+Allow: /altrix-icon.png
+
+User-agent: LinkedInBot
+Allow: /
+Allow: /altrix-logo.png
+Allow: /altrix-icon.png
 
 User-agent: *
 Allow: /
+Allow: /privacy
+Allow: /terms
+Allow: /compliance
+Allow: /security
+Allow: /*/inquiry
+Allow: /*/visitor-register
+Allow: /*/verify-ticket/
+Disallow: /super_admin
+Disallow: /super_admin/*
+Disallow: /*/teacher/*
+Disallow: /*/hr/*
+Disallow: /*/accountant/*
+Disallow: /*/marketing/*
+Disallow: /*/student/*
+Disallow: /*/parent/*
+Disallow: /*/school_owner/*
+Disallow: /api/*
+
+# ==============================================================================
+# Canonical Sitemap Index
+# ==============================================================================
+Sitemap: https://altrixcore.com/sitemap.xml
