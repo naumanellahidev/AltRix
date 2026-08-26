@@ -300,7 +300,9 @@ export function TeacherHome() {
       let resolvedPeriodLabel: string | null = null;
       if (timetableData && timetableData.length > 0) {
         for (const entry of timetableData) {
-          const period = entry.timetable_periods as any;
+          if (!entry) continue;
+          const rawPeriod = entry.timetable_periods;
+          const period = Array.isArray(rawPeriod) ? rawPeriod[0] : rawPeriod;
           const startTime = period?.start_time || "00:00:00";
           const endTime = period?.end_time || "23:59:59";
           if (nowTime >= startTime && nowTime <= endTime) {
@@ -313,7 +315,9 @@ export function TeacherHome() {
         // If not currently in any class, pick the next upcoming one
         if (!resolvedSectionId) {
           for (const entry of timetableData) {
-            const period = entry.timetable_periods as any;
+            if (!entry) continue;
+            const rawPeriod = entry.timetable_periods;
+            const period = Array.isArray(rawPeriod) ? rawPeriod[0] : rawPeriod;
             const startTime = period?.start_time || "00:00:00";
             if (nowTime < startTime) {
               resolvedSectionId = entry.class_section_id;

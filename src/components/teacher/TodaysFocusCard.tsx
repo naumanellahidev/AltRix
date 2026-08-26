@@ -68,18 +68,20 @@ export function TodaysFocusCard({ schoolId, schoolSlug, sectionIds }: Props) {
       if (timetableEntries && timetableEntries.length > 0) {
         for (let i = 0; i < timetableEntries.length; i++) {
           const entry = timetableEntries[i];
-          const period = entry.timetable_periods as { label: string; start_time: string | null; end_time: string | null };
-          const startTime = period.start_time || "00:00:00";
-          const endTime = period.end_time || "23:59:59";
+          if (!entry) continue;
+          const rawPeriod = entry.timetable_periods;
+          const period = Array.isArray(rawPeriod) ? rawPeriod[0] : rawPeriod;
+          const startTime = period?.start_time || "00:00:00";
+          const endTime = period?.end_time || "23:59:59";
 
           if (now >= startTime && now <= endTime) {
-            currentPeriod = period.label;
+            currentPeriod = period?.label || `Period ${i + 1}`;
             currentSubject = entry.subject_name;
             currentRoom = entry.room;
           } else if (now < startTime && !nextPeriod) {
-            nextPeriod = period.label;
+            nextPeriod = period?.label || `Period ${i + 1}`;
             nextSubject = entry.subject_name;
-            nextPeriodTime = startTime.slice(0, 5);
+            nextPeriodTime = startTime ? startTime.slice(0, 5) : "--:--";
           }
         }
       }

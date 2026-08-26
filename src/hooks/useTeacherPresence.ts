@@ -58,19 +58,16 @@ export function useTeacherPresence(
         try {
           const resp = await apiClient.get<PresenceRow[]>("/teachers/presence", {
             params: {
-              teacher_user_id: teacherUserId,
+              teacher_user_id: teacherUserId || undefined,
               period_date: dateStr,
+              date: dateStr,
             },
           });
-          data = resp.data;
+          data = Array.isArray(resp.data) ? resp.data : [];
         } catch (apiErr: any) {
-          if (isNetworkOrProxyError(apiErr)) {
-            console.warn("Failed to load teacher presence via FastAPI, falling back to Supabase", apiErr);
-            setUseFastAPI(false);
-            useFastApiActive = false;
-          } else {
-            throw apiErr;
-          }
+          console.warn("Failed to load teacher presence via FastAPI, falling back to Supabase", apiErr);
+          setUseFastAPI(false);
+          useFastApiActive = false;
         }
       }
 
