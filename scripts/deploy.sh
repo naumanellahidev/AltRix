@@ -129,9 +129,9 @@ cp -rp "${RELEASE_DIR}/dist/assets/"* /opt/altrix/shared/assets/ 2>/dev/null || 
 rm -rf "${RELEASE_DIR}/dist/assets"
 ln -s /opt/altrix/shared/assets "${RELEASE_DIR}/dist/assets"
 
-# Ensure Nginx/www-data has read permissions to the shared assets folder and symlinks
-chmod -R 755 /opt/altrix/shared 2>/dev/null || sudo chmod -R 755 /opt/altrix/shared 2>/dev/null || true
-find /opt/altrix/shared/assets -type f -exec chmod 644 {} + 2>/dev/null || true
+# Ensure Nginx/www-data has read permissions to the shared assets folder and dist
+chmod -R 755 /opt/altrix/shared "${RELEASE_DIR}/dist" 2>/dev/null || sudo chmod -R 755 /opt/altrix/shared "${RELEASE_DIR}/dist" 2>/dev/null || true
+find /opt/altrix/shared/assets "${RELEASE_DIR}/dist" -type f -exec chmod 644 {} + 2>/dev/null || true
 
 # Create fallback files for missing JS/CSS chunks to prevent PWA/Service Worker update failures
 echo "[INFO] Creating asset fallbacks to prevent Service Worker installation blocks..."

@@ -926,3 +926,68 @@ app.include_router(email_management_router)
 app.include_router(platform_router, prefix=_PREFIX)
 app.include_router(platform_router)
 
+# ── Google Search Console Verification & SEO Static Fallback Routes ───────────
+from fastapi.responses import HTMLResponse, PlainTextResponse, Response
+
+@app.get("/googlee1ba351e20a405c4.html", response_class=HTMLResponse)
+@app.get("/api/googlee1ba351e20a405c4.html", response_class=HTMLResponse)
+async def google_verification_direct():
+    return HTMLResponse(
+        content="google-site-verification: googlee1ba351e20a405c4.html",
+        status_code=200,
+        headers={"Content-Type": "text/html; charset=utf-8"}
+    )
+
+@app.get("/robots.txt", response_class=PlainTextResponse)
+@app.get("/api/robots.txt", response_class=PlainTextResponse)
+async def robots_txt_direct():
+    content = """User-agent: *
+Allow: /
+Disallow: /admin/
+Disallow: /super_admin/
+Disallow: /api/
+
+User-agent: Googlebot
+Allow: /
+Allow: /auth
+Allow: /admissions
+
+User-agent: Bingbot
+Allow: /
+
+Sitemap: https://altrixcore.com/sitemap.xml
+"""
+    return PlainTextResponse(content=content, status_code=200)
+
+@app.get("/sitemap.xml")
+@app.get("/api/sitemap.xml")
+async def sitemap_xml_direct():
+    try:
+        with open("/opt/altrix/current/dist/sitemap.xml", "r", encoding="utf-8") as f:
+            xml_data = f.read()
+            return Response(content=xml_data, media_type="application/xml")
+    except Exception:
+        fallback_xml = """<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://altrixcore.com/</loc>
+    <lastmod>2026-08-26</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>1.0</priority>
+  </url>
+  <url>
+    <loc>https://altrixcore.com/auth</loc>
+    <lastmod>2026-08-26</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://altrixcore.com/admissions</loc>
+    <lastmod>2026-08-26</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+  </url>
+</urlset>"""
+        return Response(content=fallback_xml, media_type="application/xml")
+
+
