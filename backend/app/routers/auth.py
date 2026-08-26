@@ -34,6 +34,8 @@ from app.utils.audit import log_audit_event, AuditAction
 from app.utils.permissions import expand_roles
 from app.utils.rate_limit import limiter
 
+from app.utils.jwt import create_access_token, create_refresh_token, decode_supabase_token
+
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 logger = logging.getLogger("app.auth")
 
@@ -52,12 +54,10 @@ async def login(request: Request, body: LoginRequest, db: DbSession):
     """
     from app.utils.brute_force import check_brute_force, record_failed_attempt, clear_failed_attempts, detect_suspicious_login
     import hashlib
+    import bcrypt
 
     # 1. Brute-force check BEFORE attempting auth
     await check_brute_force(request, body.email)
-
-    import bcrypt
-    from app.utils.jwt import create_access_token
 
     # Query auth.users directly on the VPS (case-insensitive & whitespace trimmed)
     result = await db.execute(
