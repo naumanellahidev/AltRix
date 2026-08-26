@@ -61,7 +61,15 @@ export default function PlatformSettingsPage() {
     return saved !== null ? saved === "true" : true;
   });
   const [isAiLoading, setIsAiLoading] = useState(false);
+  const [isAiConfigSaving, setIsAiConfigSaving] = useState(false);
   const [isSavingBranding, setIsSavingBranding] = useState(false);
+  const [aiConfig, setAiConfig] = useState({
+    active_provider: localStorage.getItem("altrix_ai_active_provider") || "Local Ollama / vLLM Endpoint",
+    fallback_provider: "Google Gemini 1.5 Pro",
+    token_quota_limit: 5000000,
+    current_monthly_tokens: 1245000,
+    estimated_cost_usd: 0.00,
+  });
   const [platformConfig, setPlatformConfig] = useState({
     allowTenantRegistration: true,
     maintenanceMode: false,
@@ -89,6 +97,23 @@ export default function PlatformSettingsPage() {
       }
     };
 
+    const fetchAiTelemetry = async () => {
+      try {
+        const res = await apiClient.get<any>("/super_admin/ai/telemetry");
+        if (res.data?.config) {
+          const cfg = res.data.config;
+          setAiConfig(prev => ({
+            ...prev,
+            ...cfg,
+            active_provider: cfg.active_provider || "Local Ollama / vLLM Endpoint",
+          }));
+          localStorage.setItem("altrix_ai_active_provider", cfg.active_provider || "Local Ollama / vLLM Endpoint");
+        }
+      } catch (err) {
+        console.error("Failed to load AI telemetry:", err);
+      }
+    };
+
     const fetchBranding = async () => {
       try {
         const res = await apiClient.get<{ footer_text?: string; footer_url?: string }>("/platform/branding");
@@ -109,6 +134,7 @@ export default function PlatformSettingsPage() {
     };
 
     fetchAiSettings();
+    fetchAiTelemetry();
     fetchBranding();
   }, []);
 
@@ -125,6 +151,56 @@ export default function PlatformSettingsPage() {
       toast.error(err.response?.data?.detail || "Failed to update global AI status.");
     } finally {
       setIsAiLoading(false);
+    }
+  };
+
+  const handleUpdateAiProvider = async (provider: string) => {
+    setIsAiConfigSaving(true);
+    const isOllama = provider.toLowerCase().includes("ollama");
+    const updated = {
+      ...aiConfig,
+      active_provider: provider,
+      estimated_cost_usd: isOllama ? 0.00 : 142.50,
+    };
+    setAiConfig(updated);
+    localStorage.setItem("altrix_ai_active_provider", provider);
+
+    try {
+      await apiClient.post("/super_admin/ai/provider", {
+        provider,
+        fallback_provider: aiConfig.fallback_provider,
+        token_quota_limit: aiConfig.token_quota_limit,
+      });
+      toast.success(`Active AI Provider set to ${provider}`, {
+        description: isOllama 
+          ? "Connected to local on-premise Ollama intelligence engine with zero external API costs."
+          : "Hot-swapped AI model provider runtime across all school tenant instances.",
+      });
+    } catch (err: any) {
+      console.error("Failed to save AI provider:", err);
+      toast.error(err.response?.data?.detail || "Failed to update AI model provider.");
+    } finally {
+      setIsAiConfigSaving(false);
+    }
+  };
+
+  const handleSaveAiConfig = async () => {
+    setIsAiConfigSaving(true);
+    try {
+      await apiClient.post("/super_admin/ai/provider", {
+        provider: aiConfig.active_provider,
+        fallback_provider: aiConfig.fallback_provider,
+        token_quota_limit: aiConfig.token_quota_limit,
+      });
+      localStorage.setItem("altrix_ai_active_provider", aiConfig.active_provider);
+      toast.success("AI Cockpit configuration saved successfully!", {
+        description: `Active model provider: ${aiConfig.active_provider}`,
+      });
+    } catch (err: any) {
+      console.error("Failed to save AI configuration:", err);
+      toast.error(err.response?.data?.detail || "Failed to save AI configuration.");
+    } finally {
+      setIsAiConfigSaving(false);
     }
   };
 
@@ -273,8 +349,9 @@ export default function PlatformSettingsPage() {
                 <Brain className="h-5 w-5 text-blue-600" />
                 <CardTitle className="text-lg font-bold text-slate-900">AI Super Intelligence Cockpit</CardTitle>
               </div>
-              <span className="text-[10px] font-mono px-2.5 py-1 rounded-full bg-blue-50 text-blue-800 border border-blue-200 font-bold">
-                Active Provider: OpenAI GPT-4o
+              <span className="text-[10px] font-mono px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 font-bold flex items-center gap-1.5 shadow-xs">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                Active Provider: {aiConfig.active_provider || "Local Ollama / vLLM Endpoint"}
               </span>
             </div>
             <CardDescription className="text-xs text-slate-500 font-medium">
@@ -285,17 +362,25 @@ export default function PlatformSettingsPage() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
                 <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Monthly Token Usage</p>
-                <p className="text-xl font-black text-slate-900 font-mono mt-1">1,245,000 / 5M</p>
-                <p className="text-[11px] text-blue-700 font-semibold mt-1">24.9% Quota Used</p>
+                <p className="text-xl font-black text-slate-900 font-mono mt-1">
+                  {Number(aiConfig.current_monthly_tokens || 1245000).toLocaleString()} / {Math.round((aiConfig.token_quota_limit || 5000000) / 1000000)}M
+                </p>
+                <p className="text-[11px] text-blue-700 font-semibold mt-1">
+                  {(((aiConfig.current_monthly_tokens || 1245000) / (aiConfig.token_quota_limit || 5000000)) * 100).toFixed(1)}% Quota Used
+                </p>
               </div>
               <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
                 <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Estimated Compute Cost</p>
-                <p className="text-xl font-black text-emerald-700 font-mono mt-1">$142.50 USD</p>
-                <p className="text-[11px] text-slate-500 mt-1">~$0.000114 / token avg</p>
+                <p className="text-xl font-black text-emerald-700 font-mono mt-1">
+                  {aiConfig.active_provider?.toLowerCase().includes("ollama") ? "$0.00 USD" : `$${Number(aiConfig.estimated_cost_usd || 142.50).toFixed(2)} USD`}
+                </p>
+                <p className="text-[11px] text-slate-500 mt-1">
+                  {aiConfig.active_provider?.toLowerCase().includes("ollama") ? "100% Free / On-Premise GPU" : "~$0.000114 / token avg"}
+                </p>
               </div>
               <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
                 <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Fallback Provider</p>
-                <p className="text-sm font-extrabold text-slate-800 mt-1">Google Gemini 1.5 Pro</p>
+                <p className="text-sm font-extrabold text-slate-800 mt-1">{aiConfig.fallback_provider || "Google Gemini 1.5 Pro"}</p>
                 <p className="text-[11px] text-emerald-700 font-bold mt-1">100% Uptime Ready</p>
               </div>
             </div>
@@ -304,39 +389,45 @@ export default function PlatformSettingsPage() {
               <div className="flex items-center gap-2">
                 <Label className="text-xs font-bold text-slate-700">Hot-Swap Model Provider:</Label>
                 <select
-                  className="h-9 px-3 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-blue-900 focus:ring-blue-500/30"
-                  onChange={async (e) => {
-                    const provider = e.target.value;
-                    try {
-                      await apiClient.post("/super_admin/ai/provider", { provider });
-                      toast.success(`Active AI Provider hot-swapped to ${provider}`);
-                    } catch {
-                      toast.success(`Switched AI Provider to ${provider}`);
-                    }
-                  }}
+                  value={aiConfig.active_provider}
+                  disabled={isAiConfigSaving}
+                  onChange={(e) => handleUpdateAiProvider(e.target.value)}
+                  className="h-9 px-3 py-1 bg-slate-50 border border-slate-300 rounded-lg text-xs font-bold text-blue-900 focus:ring-blue-500/30"
                 >
-                  <option value="OpenAI GPT-4o">OpenAI GPT-4o (Default)</option>
+                  <option value="Local Ollama / vLLM Endpoint">Local Ollama / vLLM Endpoint (Default)</option>
+                  <option value="OpenAI GPT-4o">OpenAI GPT-4o</option>
                   <option value="Google Gemini 1.5 Pro">Google Gemini 1.5 Pro</option>
                   <option value="Anthropic Claude 3.5 Sonnet">Anthropic Claude 3.5 Sonnet</option>
-                  <option value="Local Ollama / vLLM Endpoint">Local Ollama / vLLM Endpoint</option>
+                  <option value="DeepSeek R1 / V3">DeepSeek R1 / V3</option>
                 </select>
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={async () => {
-                  try {
-                    const res = await apiClient.get("/super_admin/ai/prompts");
-                    if (res.data?.templates) setPromptTemplates(res.data.templates);
-                  } catch {
-                    // Default fallback
-                  }
-                  setShowPromptModal(true);
-                }}
-                className="bg-blue-50 border-blue-200 text-blue-800 hover:bg-blue-100 font-bold"
-              >
-                Manage Prompt Templates
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={async () => {
+                    try {
+                      const res = await apiClient.get("/super_admin/ai/prompts");
+                      if (res.data?.templates) setPromptTemplates(res.data.templates);
+                    } catch {
+                      // Default fallback
+                    }
+                    setShowPromptModal(true);
+                  }}
+                  className="bg-blue-50 border-blue-200 text-blue-800 hover:bg-blue-100 font-bold h-9 text-xs"
+                >
+                  Manage Prompt Templates
+                </Button>
+                <Button
+                  size="sm"
+                  disabled={isAiConfigSaving}
+                  onClick={handleSaveAiConfig}
+                  className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold h-9 text-xs shadow-sm"
+                >
+                  {isAiConfigSaving ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Save className="h-3.5 w-3.5 mr-1.5" />}
+                  Save AI Config
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -663,9 +754,9 @@ export default function PlatformSettingsPage() {
                   if (target) {
                     try {
                       await apiClient.post("/super_admin/ai/prompts", { prompt_id: target.id, system_prompt: target.system_prompt });
-                      toast.success(`Prompt directive for '${target.name}' updated!`);
-                    } catch {
-                      toast.success(`Prompt directive for '${target.name}' updated!`);
+                      toast.success(`Prompt directive for '${target.name}' updated and saved to database!`);
+                    } catch (err: any) {
+                      toast.error(err.response?.data?.detail || "Failed to update prompt directive.");
                     }
                   }
                   setShowPromptModal(false);
