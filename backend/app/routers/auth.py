@@ -134,7 +134,7 @@ async def login(request: Request, body: LoginRequest, db: DbSession):
     
     # Generate local tokens
     access_token = create_access_token(user_id=user_id, email=email)
-    refresh_token = create_access_token(user_id=user_id, email=email)
+    refresh_token = create_refresh_token(user_id=user_id, email=email)
 
     # Clear brute-force counters on success
     ip = request.client.host if request.client else None
@@ -335,7 +335,7 @@ async def refresh_token(body: dict, request: Request):
             detail="refresh_token is required in request body",
         )
 
-    from app.utils.jwt import decode_supabase_token, create_access_token
+    from app.utils.jwt import decode_supabase_token, create_access_token, create_refresh_token
     try:
         payload = await decode_supabase_token(token)
         user_id_raw = payload.get("sub")
@@ -355,7 +355,7 @@ async def refresh_token(body: dict, request: Request):
 
     # Generate new local tokens
     access_token = create_access_token(user_id=user_id_str, email=email_str)
-    new_refresh_token = create_access_token(user_id=user_id_str, email=email_str)
+    new_refresh_token = create_refresh_token(user_id=user_id_str, email=email_str)
     
     return LoginResponse(
         access_token=access_token,

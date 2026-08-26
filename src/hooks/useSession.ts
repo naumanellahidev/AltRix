@@ -16,6 +16,12 @@ interface CachedSession {
 
 function getCachedUser(): User | null {
   try {
+    const token = localStorage.getItem("access_token");
+    if (!token && navigator.onLine) {
+      localStorage.removeItem(SESSION_CACHE_KEY);
+      return null;
+    }
+
     const cached = localStorage.getItem(SESSION_CACHE_KEY);
     if (!cached) return null;
     
@@ -68,7 +74,19 @@ export function useSession() {
       setSession(nextSession);
       setUser(nextSession?.user ?? null);
       cacheUser(nextSession?.user ?? null);
+      setLoading(false);
     });
+
+    const handleCustomAuthChange = (e: Event) => {
+      const custom = e as CustomEvent;
+      const nextSession = custom.detail?.session ?? null;
+      setSession(nextSession);
+      setUser(nextSession?.user ?? null);
+      cacheUser(nextSession?.user ?? null);
+      setLoading(false);
+    };
+
+    window.addEventListener("eduverse:auth-state-change", handleCustomAuthChange);
 
     api.auth
       .getSession()
@@ -85,11 +103,18 @@ export function useSession() {
           if (cached) {
             setUser(cached);
           }
+        } else {
+          setUser(null);
+          setSession(null);
+          cacheUser(null);
         }
       })
       .finally(() => setLoading(false));
 
-    return () => data.subscription.unsubscribe();
+    return () => {
+      data.subscription.unsubscribe();
+      window.removeEventListener("eduverse:auth-state-change", handleCustomAuthChange);
+    };
   }, []);
 
   return { session, user, loading };

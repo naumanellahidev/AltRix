@@ -47,17 +47,20 @@ export default function PlatformAuth() {
 
   // Handle location state for access denied redirects
   const deniedState = location.state as { denied?: boolean; message?: string } | null;
+  const isDenied = Boolean(deniedState?.denied);
+
   useEffect(() => {
     if (deniedState?.denied) {
-      setMessage(deniedState.message || "Access denied. Master Super Admin only.");
-      // Clear location state so the message doesn't persist forever
+      setMessage(deniedState.message || "Please sign in to access the control center.");
+      void api.auth.signOut();
       navigate(location.pathname, { replace: true, state: {} });
     }
   }, [deniedState, navigate, location.pathname]);
 
   useEffect(() => {
-    if (loading) return;
-    if (user) {
+    if (loading || isDenied) return;
+    const token = localStorage.getItem("access_token");
+    if (user && token) {
       const emailLower = user.email?.toLowerCase() ?? "";
       if (emailLower !== MASTER_SUPER_ADMIN_EMAIL.toLowerCase()) {
         (async () => {
@@ -68,7 +71,7 @@ export default function PlatformAuth() {
         navigate("/super_admin", { replace: true });
       }
     }
-  }, [loading, user, navigate]);
+  }, [loading, user, navigate, isDenied]);
 
   useEffect(() => {
     const tick = () => setResetCooldown(email.trim() ? getResetCooldownRemaining(email) : 0);

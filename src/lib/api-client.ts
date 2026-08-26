@@ -145,6 +145,18 @@ export function isNetworkOrProxyError(error: any): boolean {
   );
 }
 
+let isRefreshing = false;
+let refreshSubscribers: Array<(token: string | null, error?: any) => void> = [];
+
+function subscribeTokenRefresh(cb: (token: string | null, error?: any) => void) {
+  refreshSubscribers.push(cb);
+}
+
+function onTokenRefreshed(token: string | null, error?: any) {
+  refreshSubscribers.forEach((cb) => cb(token, error));
+  refreshSubscribers = [];
+}
+
 // Response interceptor to handle authorization expiration (401)
 apiClient.interceptors.response.use(
   (response) => response,
@@ -153,18 +165,89 @@ apiClient.interceptors.response.use(
       console.warn("VPS API Proxy Warning:", error);
     }
 
-    if (error.response?.status === 401 && error.config && !error.config._retry) {
-      error.config._retry = true;
-      try {
-        const { data } = await api.auth.getSession();
-        if (data.session?.access_token) {
-          error.config.headers.Authorization = `Bearer ${data.session.access_token}`;
-          return apiClient.request(error.config);
+    const originalRequest = error.config;
+    const isAuthEndpoint = originalRequest?.url?.includes("/auth/login") ||
+                           originalRequest?.url?.includes("/auth/refresh") ||
+                           originalRequest?.url?.includes("/auth/logout");
+
+    if (error.response?.status === 401 && originalRequest && !originalRequest._retry && !isAuthEndpoint) {
+      originalRequest._retry = true;
+      const refreshToken = localStorage.getItem("refresh_token");
+
+      if (!refreshToken) {
+        // No refresh token available, purge invalid session
+        localStorage.removeItem("access_token");
+        localStorage.removeItem("refresh_token");
+        localStorage.removeItem("eduverse_session_cache");
+        localStorage.removeItem("eduverse_authz_cache_v2");
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(
+            new CustomEvent("eduverse:auth-state-change", {
+              detail: { event: "SIGNED_OUT", session: null },
+            })
+          );
         }
-      } catch (refreshError) {
-        console.error("Token refresh failed:", refreshError);
+        return Promise.reject(error);
+      }
+
+      if (isRefreshing) {
+        return new Promise((resolve, reject) => {
+          subscribeTokenRefresh((newToken: string | null, refreshErr?: any) => {
+            if (newToken) {
+              originalRequest.headers.Authorization = `Bearer ${newToken}`;
+              resolve(apiClient.request(originalRequest));
+            } else {
+              reject(refreshErr || error);
+            }
+          });
+        });
+      }
+
+      isRefreshing = true;
+
+      try {
+        const baseUrl = apiClient.defaults.baseURL || "/api";
+        const refreshRes = await fetch(`${baseUrl}/auth/refresh`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ refresh_token: refreshToken }),
+        });
+
+        if (!refreshRes.ok) {
+          throw new Error(`Refresh failed with status ${refreshRes.status}`);
+        }
+
+        const data = await refreshRes.json();
+        if (data?.access_token) {
+          localStorage.setItem("access_token", data.access_token);
+          if (data.refresh_token) {
+            localStorage.setItem("refresh_token", data.refresh_token);
+          }
+          isRefreshing = false;
+          onTokenRefreshed(data.access_token);
+          originalRequest.headers.Authorization = `Bearer ${data.access_token}`;
+          return apiClient.request(originalRequest);
+        } else {
+          throw new Error("Invalid refresh response");
+        }
+      } catch (refreshErr) {
+        isRefreshing = false;
+        onTokenRefreshed(null, refreshErr);
+        localStorage.removeItem("access_token");
+        localStorage.removeItem("refresh_token");
+        localStorage.removeItem("eduverse_session_cache");
+        localStorage.removeItem("eduverse_authz_cache_v2");
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(
+            new CustomEvent("eduverse:auth-state-change", {
+              detail: { event: "SIGNED_OUT", session: null },
+            })
+          );
+        }
+        return Promise.reject(error);
       }
     }
+
     return Promise.reject(error);
   }
 );

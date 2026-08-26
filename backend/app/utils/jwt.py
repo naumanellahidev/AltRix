@@ -34,6 +34,25 @@ def create_access_token(user_id: str, email: str, role: str = "authenticated") -
     return jwt.encode(payload, settings.supabase_jwt_secret, algorithm="HS256")
 
 
+def create_refresh_token(user_id: str, email: str, role: str = "authenticated") -> str:
+    """Create a new local JWT refresh token with long-lived lifetime (e.g. 30 days)."""
+    expire = datetime.now(tz=timezone.utc) + timedelta(days=settings.refresh_token_expire_days)
+    
+    payload = {
+        "aud": "authenticated",
+        "exp": int(expire.timestamp()),
+        "iat": int(datetime.now(tz=timezone.utc).timestamp()),
+        "sub": str(user_id),
+        "email": email,
+        "phone": "",
+        "token_type": "refresh",
+        "role": role,
+        "session_id": str(uuid.uuid4())
+    }
+    
+    return jwt.encode(payload, settings.supabase_jwt_secret, algorithm="HS256")
+
+
 async def decode_supabase_token(token: str) -> Dict[str, Any]:
     """
     Decode and validate a local or existing Supabase JWT.

@@ -90,18 +90,28 @@ export function usePlatformSuperAdmin(userId: string | null | undefined): Platfo
         }
       } catch (err: any) {
         if (!cancelled) {
+          const isUnauthorized = err.response?.status === 401;
           const isNetwork = 
             err.code === "ERR_NETWORK" || 
             err.message?.toLowerCase().includes("network") ||
             err.response?.status === 502 ||
             (USE_FASTAPI && !err.response);
 
+          if (isUnauthorized) {
+            localStorage.removeItem("access_token");
+            localStorage.removeItem("refresh_token");
+            localStorage.removeItem("eduverse_session_cache");
+            localStorage.removeItem("eduverse_authz_cache_v2");
+          }
+
           setState({
             loading: false,
             allowed: false,
-            message: isNetwork 
+            message: isUnauthorized
+              ? "Session expired. Please sign in again."
+              : isNetwork 
               ? "FastAPI Backend is unreachable. Please verify that the backend server is running on port 8000."
-              : (err.response?.data?.message || err.message || "Failed to verify platform super admin."),
+              : (err.response?.data?.detail || err.response?.data?.message || err.message || "Failed to verify platform super admin."),
             isNetworkError: isNetwork,
           });
         }

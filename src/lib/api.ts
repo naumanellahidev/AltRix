@@ -407,6 +407,28 @@ function parseJwt(token: string) {
 
 // ─── Main Native Client API ──────────────────────────────────────────────────
 
+export type AuthChangeEvent = 'SIGNED_IN' | 'SIGNED_OUT' | 'TOKEN_REFRESHED' | 'USER_UPDATED' | 'INITIAL_SESSION';
+export type AuthStateCallback = (event: AuthChangeEvent, session: any) => void;
+
+const authStateListeners = new Set<AuthStateCallback>();
+
+export function notifyAuthStateChange(event: AuthChangeEvent, session: any) {
+  authStateListeners.forEach((cb) => {
+    try {
+      cb(event, session);
+    } catch (err) {
+      console.warn("Auth state callback error:", err);
+    }
+  });
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(
+      new CustomEvent("eduverse:auth-state-change", {
+        detail: { event, session },
+      })
+    );
+  }
+}
+
 export const api = {
   db: (table: string) => new VpsQueryBuilder(table),
   from: (table: string) => new VpsQueryBuilder(table),
@@ -491,7 +513,8 @@ export const api = {
       } catch (e) {
         console.warn("Failed to fetch fresh user info in setSession", e);
       }
-      
+
+      notifyAuthStateChange('SIGNED_IN', fullSession);
       return { data: { user: fullSession.user, session: fullSession }, error: null };
     },
     signInWithPassword: async (credentials: any) => {
@@ -513,13 +536,16 @@ export const api = {
             user_metadata: payload.user_metadata || {}
           } : (resp.data.user || { id: resp.data.user_id, email: resp.data.email });
           
+          const sessionObj = {
+            access_token: resp.data.access_token,
+            refresh_token: resp.data.refresh_token,
+            user
+          };
+
+          notifyAuthStateChange('SIGNED_IN', sessionObj);
           return {
             data: {
-              session: {
-                access_token: resp.data.access_token,
-                refresh_token: resp.data.refresh_token,
-                user
-              },
+              session: sessionObj,
               user
             },
             error: null
@@ -539,6 +565,9 @@ export const api = {
       }
       localStorage.removeItem('access_token');
       localStorage.removeItem('refresh_token');
+      localStorage.removeItem('eduverse_session_cache');
+      localStorage.removeItem('eduverse_authz_cache_v2');
+      notifyAuthStateChange('SIGNED_OUT', null);
       return { error: null };
     },
     updateUser: async (attributes: any) => {
@@ -550,8 +579,17 @@ export const api = {
     verifyOtp: async (params: any) => {
       return { data: { session: { access_token: 'dummy-otp-token' } }, error: null };
     },
-    onAuthStateChange: (callback: any) => {
-      return { data: { subscription: { unsubscribe: () => {} } } };
+    onAuthStateChange: (callback: (event: AuthChangeEvent, session: any) => void) => {
+      authStateListeners.add(callback);
+      return {
+        data: {
+          subscription: {
+            unsubscribe: () => {
+              authStateListeners.delete(callback);
+            }
+          }
+        }
+      };
     }
   },
   
