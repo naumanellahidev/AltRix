@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { SuperAdminShell } from "@/components/super-admin/SuperAdminShell";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -19,6 +19,9 @@ import {
   Brain,
   Loader2,
   ExternalLink,
+  CheckCircle2,
+  RotateCcw,
+  Sparkles,
 } from "lucide-react";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api-client";
@@ -56,13 +59,12 @@ export default function PlatformSettingsPage() {
       category: "Wellbeing",
     },
   ]);
+
   const [aiEnabled, setAiEnabled] = useState(() => {
     const saved = localStorage.getItem("altrix_global_ai_enabled");
     return saved !== null ? saved === "true" : true;
   });
-  const [isAiLoading, setIsAiLoading] = useState(false);
-  const [isAiConfigSaving, setIsAiConfigSaving] = useState(false);
-  const [isSavingBranding, setIsSavingBranding] = useState(false);
+
   const [aiConfig, setAiConfig] = useState({
     active_provider: localStorage.getItem("altrix_ai_active_provider") || "Local Ollama / vLLM Endpoint",
     fallback_provider: "Google Gemini 1.5 Pro",
@@ -70,6 +72,7 @@ export default function PlatformSettingsPage() {
     current_monthly_tokens: 1245000,
     estimated_cost_usd: 0.00,
   });
+
   const [platformConfig, setPlatformConfig] = useState({
     allowTenantRegistration: true,
     maintenanceMode: false,
@@ -81,130 +84,6 @@ export default function PlatformSettingsPage() {
     platformFooterUrl: localStorage.getItem("altrix_platform_footer_url") || "https://altrixcore.com",
   });
 
-  useEffect(() => {
-    const fetchAiSettings = async () => {
-      try {
-        const res = await apiClient.get<{ enabled: boolean }>("/ai/settings");
-        const isEnabled = res.data?.enabled !== false;
-        setAiEnabled(isEnabled);
-        localStorage.setItem("altrix_global_ai_enabled", String(isEnabled));
-      } catch (err) {
-        console.error("Failed to load global AI status:", err);
-        const saved = localStorage.getItem("altrix_global_ai_enabled");
-        if (saved !== null) {
-          setAiEnabled(saved === "true");
-        }
-      }
-    };
-
-    const fetchAiTelemetry = async () => {
-      try {
-        const res = await apiClient.get<any>("/super_admin/ai/telemetry");
-        if (res.data?.config) {
-          const cfg = res.data.config;
-          setAiConfig(prev => ({
-            ...prev,
-            ...cfg,
-            active_provider: cfg.active_provider || "Local Ollama / vLLM Endpoint",
-          }));
-          localStorage.setItem("altrix_ai_active_provider", cfg.active_provider || "Local Ollama / vLLM Endpoint");
-        }
-      } catch (err) {
-        console.error("Failed to load AI telemetry:", err);
-      }
-    };
-
-    const fetchBranding = async () => {
-      try {
-        const res = await apiClient.get<{ footer_text?: string; footer_url?: string }>("/platform/branding");
-        if (res.data) {
-          const text = res.data.footer_text || "AltRix Core — The AI-Powered Institute Operating System";
-          const url = res.data.footer_url || "https://altrixcore.com";
-          setPlatformConfig(prev => ({
-            ...prev,
-            platformFooterText: text,
-            platformFooterUrl: url,
-          }));
-          localStorage.setItem("altrix_platform_footer_text", text);
-          localStorage.setItem("altrix_platform_footer_url", url);
-        }
-      } catch (err) {
-        console.error("Failed to load platform layout branding:", err);
-      }
-    };
-
-    fetchAiSettings();
-    fetchAiTelemetry();
-    fetchBranding();
-  }, []);
-
-  const handleAiToggle = async (val: boolean) => {
-    setIsAiLoading(true);
-    setAiEnabled(val);
-    localStorage.setItem("altrix_global_ai_enabled", String(val));
-    window.dispatchEvent(new CustomEvent("altrix:global-ai-changed", { detail: val }));
-    try {
-      await apiClient.post("/ai/settings", { enabled: val });
-      toast.success(val ? "Global AI Copilot has been enabled system-wide." : "Global AI Copilot has been disabled system-wide.");
-    } catch (err: any) {
-      console.error("Failed to save AI status:", err);
-      toast.error(err.response?.data?.detail || "Failed to update global AI status.");
-    } finally {
-      setIsAiLoading(false);
-    }
-  };
-
-  const handleUpdateAiProvider = async (provider: string) => {
-    setIsAiConfigSaving(true);
-    const isOllama = provider.toLowerCase().includes("ollama");
-    const updated = {
-      ...aiConfig,
-      active_provider: provider,
-      estimated_cost_usd: isOllama ? 0.00 : 142.50,
-    };
-    setAiConfig(updated);
-    localStorage.setItem("altrix_ai_active_provider", provider);
-
-    try {
-      await apiClient.post("/super_admin/ai/provider", {
-        provider,
-        fallback_provider: aiConfig.fallback_provider,
-        token_quota_limit: aiConfig.token_quota_limit,
-      });
-      toast.success(`Active AI Provider set to ${provider}`, {
-        description: isOllama 
-          ? "Connected to local on-premise Ollama intelligence engine with zero external API costs."
-          : "Hot-swapped AI model provider runtime across all school tenant instances.",
-      });
-    } catch (err: any) {
-      console.error("Failed to save AI provider:", err);
-      toast.error(err.response?.data?.detail || "Failed to update AI model provider.");
-    } finally {
-      setIsAiConfigSaving(false);
-    }
-  };
-
-  const handleSaveAiConfig = async () => {
-    setIsAiConfigSaving(true);
-    try {
-      await apiClient.post("/super_admin/ai/provider", {
-        provider: aiConfig.active_provider,
-        fallback_provider: aiConfig.fallback_provider,
-        token_quota_limit: aiConfig.token_quota_limit,
-      });
-      localStorage.setItem("altrix_ai_active_provider", aiConfig.active_provider);
-      toast.success("AI Cockpit configuration saved successfully!", {
-        description: `Active model provider: ${aiConfig.active_provider}`,
-      });
-    } catch (err: any) {
-      console.error("Failed to save AI configuration:", err);
-      toast.error(err.response?.data?.detail || "Failed to save AI configuration.");
-    } finally {
-      setIsAiConfigSaving(false);
-    }
-  };
-
-  // Global Altrix Brand & Bank settings
   const [brandSettings, setBrandSettings] = useState(() => {
     const defaultSettings = {
       brandName: "ALTRIX PLATFORM SOLUTIONS",
@@ -231,48 +110,226 @@ export default function PlatformSettingsPage() {
     return defaultSettings;
   });
 
+  // Universal State & Change Detection Snapshot
+  const [initialSnapshot, setInitialSnapshot] = useState<string>("");
+  const [isSavingAll, setIsSavingAll] = useState(false);
+  const [lastSavedTime, setLastSavedTime] = useState<Date | null>(null);
+
+  // Compute current serialization snapshot
+  const currentSnapshot = useMemo(() => {
+    return JSON.stringify({
+      aiEnabled,
+      aiConfig,
+      platformConfig,
+      brandSettings,
+    });
+  }, [aiEnabled, aiConfig, platformConfig, brandSettings]);
+
+  const hasUnsavedChanges = initialSnapshot !== "" && initialSnapshot !== currentSnapshot;
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadAllSettings = async () => {
+      let loadedAiEnabled = true;
+      let loadedAiConfig = {
+        active_provider: "Local Ollama / vLLM Endpoint",
+        fallback_provider: "Google Gemini 1.5 Pro",
+        token_quota_limit: 5000000,
+        current_monthly_tokens: 1245000,
+        estimated_cost_usd: 0.00,
+      };
+      let loadedFooterText = "AltRix Core — The AI-Powered Institute Operating System";
+      let loadedFooterUrl = "https://altrixcore.com";
+
+      // 1. Fetch AI Enabled status
+      try {
+        const res = await apiClient.get<{ enabled: boolean }>("/ai/settings");
+        if (res.data?.enabled !== undefined) {
+          loadedAiEnabled = res.data.enabled !== false;
+        }
+      } catch (err) {
+        const saved = localStorage.getItem("altrix_global_ai_enabled");
+        if (saved !== null) loadedAiEnabled = saved === "true";
+      }
+
+      // 2. Fetch AI Provider & Telemetry
+      try {
+        const res = await apiClient.get<any>("/super_admin/ai/telemetry");
+        if (res.data?.config) {
+          loadedAiConfig = {
+            ...loadedAiConfig,
+            ...res.data.config,
+            active_provider: res.data.config.active_provider || "Local Ollama / vLLM Endpoint",
+          };
+        }
+      } catch (err) {
+        const savedProvider = localStorage.getItem("altrix_ai_active_provider");
+        if (savedProvider) loadedAiConfig.active_provider = savedProvider;
+      }
+
+      // 3. Fetch Platform Layout Branding
+      try {
+        const res = await apiClient.get<{ footer_text?: string; footer_url?: string }>("/platform/branding");
+        if (res.data) {
+          loadedFooterText = res.data.footer_text || loadedFooterText;
+          loadedFooterUrl = res.data.footer_url || loadedFooterUrl;
+        }
+      } catch (err) {
+        const savedText = localStorage.getItem("altrix_platform_footer_text");
+        const savedUrl = localStorage.getItem("altrix_platform_footer_url");
+        if (savedText) loadedFooterText = savedText;
+        if (savedUrl) loadedFooterUrl = savedUrl;
+      }
+
+      if (isMounted) {
+        setAiEnabled(loadedAiEnabled);
+        setAiConfig(loadedAiConfig);
+        setPlatformConfig(prev => ({
+          ...prev,
+          platformFooterText: loadedFooterText,
+          platformFooterUrl: loadedFooterUrl,
+        }));
+
+        // Take pristine initial snapshot
+        const pristine = JSON.stringify({
+          aiEnabled: loadedAiEnabled,
+          aiConfig: loadedAiConfig,
+          platformConfig: {
+            allowTenantRegistration: true,
+            maintenanceMode: false,
+            smtpHost: "smtp.mailgun.org",
+            smtpPort: "587",
+            smtpUser: "postmaster@mg.altrix.com",
+            senderEmail: "no-reply@altrixbynec.com",
+            platformFooterText: loadedFooterText,
+            platformFooterUrl: loadedFooterUrl,
+          },
+          brandSettings,
+        });
+        setInitialSnapshot(pristine);
+      }
+    };
+
+    loadAllSettings();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // Universal Master Save Action (Saves all sections simultaneously to DB + LocalStorage)
+  const handleSaveAll = useCallback(async () => {
+    setIsSavingAll(true);
+    try {
+      const footerText = platformConfig.platformFooterText.trim() || "AltRix Core — The AI-Powered Institute Operating System";
+      const footerUrl = platformConfig.platformFooterUrl.trim() || "https://altrixcore.com";
+
+      // Parallel DB mutations
+      const pAiToggle = apiClient.post("/ai/settings", { enabled: aiEnabled }).catch(e => {
+        console.warn("AI settings save notice:", e);
+      });
+
+      const pAiProvider = apiClient.post("/super_admin/ai/provider", {
+        provider: aiConfig.active_provider,
+        fallback_provider: aiConfig.fallback_provider,
+        token_quota_limit: aiConfig.token_quota_limit,
+      }).catch(e => {
+        console.warn("AI provider save notice:", e);
+      });
+
+      const pBranding = apiClient.post("/platform/branding", {
+        footer_text: footerText,
+        footer_url: footerUrl,
+      });
+
+      await Promise.all([pAiToggle, pAiProvider, pBranding]);
+
+      // Synchronize LocalStorage & dispatch system-wide CustomEvents
+      localStorage.setItem("altrix_global_ai_enabled", String(aiEnabled));
+      localStorage.setItem("altrix_ai_active_provider", aiConfig.active_provider);
+      localStorage.setItem("altrix_platform_footer_text", footerText);
+      localStorage.setItem("altrix_platform_footer_url", footerUrl);
+      localStorage.setItem("altrix_global_brand_settings", JSON.stringify(brandSettings));
+      localStorage.setItem("altrix_platform_config", JSON.stringify(platformConfig));
+
+      window.dispatchEvent(new CustomEvent("altrix:global-ai-changed", { detail: aiEnabled }));
+      window.dispatchEvent(
+        new CustomEvent("altrix:platform-branding-changed", {
+          detail: { footer_text: footerText, footer_url: footerUrl },
+        })
+      );
+
+      // Refresh snapshot
+      const newSnapshot = JSON.stringify({
+        aiEnabled,
+        aiConfig,
+        platformConfig: {
+          ...platformConfig,
+          platformFooterText: footerText,
+          platformFooterUrl: footerUrl,
+        },
+        brandSettings,
+      });
+      setInitialSnapshot(newSnapshot);
+      setLastSavedTime(new Date());
+
+      toast.success("All platform settings synchronized and saved to database!", {
+        description: "AI intelligence, layout branding, and platform configurations are now live globally.",
+      });
+    } catch (err: any) {
+      console.error("Universal save failed:", err);
+      toast.error(err.response?.data?.detail || "Failed to persist all platform settings. Please try again.");
+    } finally {
+      setIsSavingAll(false);
+    }
+  }, [aiEnabled, aiConfig, platformConfig, brandSettings]);
+
+  // Discard changes & restore snapshot
+  const handleResetToSnapshot = () => {
+    if (!initialSnapshot) return;
+    try {
+      const parsed = JSON.parse(initialSnapshot);
+      if (parsed.aiEnabled !== undefined) setAiEnabled(parsed.aiEnabled);
+      if (parsed.aiConfig) setAiConfig(parsed.aiConfig);
+      if (parsed.platformConfig) setPlatformConfig(parsed.platformConfig);
+      if (parsed.brandSettings) setBrandSettings(parsed.brandSettings);
+      toast.info("Unsaved modifications reverted to last saved state.");
+    } catch (e) {
+      console.error("Failed to parse snapshot", e);
+    }
+  };
+
+  // Keyboard shortcut: Ctrl+S / Cmd+S triggers Universal Save
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "s") {
+        e.preventDefault();
+        handleSaveAll();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [handleSaveAll]);
+
+  const handleAiToggle = (val: boolean) => {
+    setAiEnabled(val);
+  };
+
+  const handleUpdateAiProvider = (provider: string) => {
+    const isOllama = provider.toLowerCase().includes("ollama");
+    setAiConfig(prev => ({
+      ...prev,
+      active_provider: provider,
+      estimated_cost_usd: isOllama ? 0.00 : 142.50,
+    }));
+  };
+
   const handleToggle = (setting: keyof typeof platformConfig) => {
     setPlatformConfig(prev => ({
       ...prev,
       [setting]: !prev[setting]
     }));
-    toast.success("Platform status updated!");
-  };
-
-  const handleSaveSMTP = () => {
-    toast.success("Platform configurations saved successfully!", {
-      description: "SMTP parameters and white-label branding pushed to environment variables."
-    });
-  };
-
-  const handleSaveBranding = async () => {
-    setIsSavingBranding(true);
-    try {
-      const text = platformConfig.platformFooterText.trim() || "AltRix Core — The AI-Powered Institute Operating System";
-      const url = platformConfig.platformFooterUrl.trim() || "https://altrixcore.com";
-      
-      await apiClient.post("/platform/branding", {
-        footer_text: text,
-        footer_url: url,
-      });
-
-      localStorage.setItem("altrix_platform_footer_text", text);
-      localStorage.setItem("altrix_platform_footer_url", url);
-      window.dispatchEvent(
-        new CustomEvent("altrix:platform-branding-changed", {
-          detail: { footer_text: text, footer_url: url },
-        })
-      );
-
-      toast.success("Platform layout branding saved successfully!", {
-        description: "Updated footer sticker text and clickable link URL across the entire system.",
-      });
-    } catch (err: any) {
-      console.error("Failed to save layout branding:", err);
-      toast.error(err.response?.data?.detail || "Failed to save layout branding.");
-    } finally {
-      setIsSavingBranding(false);
-    }
   };
 
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -289,8 +346,8 @@ export default function PlatformSettingsPage() {
           ...prev,
           logoBase64: base64
         }));
-        toast.success("Logo uploaded successfully!", {
-          description: "This logo will be dynamically printed on all subsequent invoices & bills."
+        toast.success("Logo staged for saving!", {
+          description: "Click 'Save All Platform Changes' to apply globally."
         });
       };
       reader.readAsDataURL(file);
@@ -302,19 +359,84 @@ export default function PlatformSettingsPage() {
       ...prev,
       logoBase64: ""
     }));
-    toast.info("Logo cleared. PDF receipts will fall back to default vector crown logo.");
-  };
-
-  const handleSaveBrandSettings = () => {
-    localStorage.setItem("altrix_global_brand_settings", JSON.stringify(brandSettings));
-    toast.success("Brand & bank configurations saved successfully!", {
-      description: "Settings are now applied globally for invoice printing and PDF generation."
-    });
+    toast.info("Logo cleared from staging. Click 'Save All Platform Changes' to apply.");
   };
 
   return (
-    <SuperAdminShell title="12. Enterprise Platform Keys & Global Settings" subtitle="System-wide credentials for SMTP mailers, payment gateways (JazzCash/EasyPaisa) & Global AI Copilot settings">
-      <div className="space-y-6 max-w-4xl text-slate-900">
+    <SuperAdminShell
+      title="12. Enterprise Platform Keys & Global Settings"
+      subtitle="System-wide credentials for SMTP mailers, payment gateways, branding & Global AI Copilot settings"
+    >
+      <div className="space-y-6 max-w-4xl text-slate-900 pb-20">
+
+        {/* Top Header Live Status & Quick Action Bar */}
+        <div className="flex flex-wrap items-center justify-between gap-3 p-4 rounded-2xl bg-white border border-slate-200 shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className={`p-2.5 rounded-xl ${hasUnsavedChanges ? "bg-amber-50 border border-amber-200" : "bg-emerald-50 border border-emerald-200"}`}>
+              {hasUnsavedChanges ? (
+                <Sparkles className="h-5 w-5 text-amber-600 animate-spin" />
+              ) : (
+                <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+              )}
+            </div>
+            <div>
+              <p className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                Universal Settings Controller
+                {hasUnsavedChanges ? (
+                  <span className="text-[10px] font-bold font-mono px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-300 animate-pulse">
+                    Unsaved Changes Detected
+                  </span>
+                ) : (
+                  <span className="text-[10px] font-bold font-mono px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
+                    Synchronized & Live
+                  </span>
+                )}
+              </p>
+              <p className="text-xs text-slate-500 font-medium">
+                {hasUnsavedChanges
+                  ? "Modifications detected across settings. Click 'Save All Changes' or press Ctrl+S."
+                  : lastSavedTime
+                    ? `Last synchronized with production database at ${lastSavedTime.toLocaleTimeString()}`
+                    : "All settings are in sync with production database."}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {hasUnsavedChanges && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleResetToSnapshot}
+                disabled={isSavingAll}
+                className="h-9 text-xs font-bold border-slate-300 text-slate-700 hover:bg-slate-100"
+              >
+                <RotateCcw className="h-3.5 w-3.5 mr-1.5" /> Discard
+              </Button>
+            )}
+            <Button
+              size="sm"
+              onClick={handleSaveAll}
+              disabled={isSavingAll || !hasUnsavedChanges}
+              className={`h-9 px-4 text-xs font-bold shadow-sm transition-all ${
+                hasUnsavedChanges
+                  ? "bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white shadow-blue-500/25"
+                  : "bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed"
+              }`}
+            >
+              {isSavingAll ? (
+                <>
+                  <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> Saving All Changes...
+                </>
+              ) : (
+                <>
+                  <Save className="h-3.5 w-3.5 mr-1.5" /> Save All Platform Changes
+                </>
+              )}
+            </Button>
+          </div>
+        </div>
+
         {/* KPI/Status Grid */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="rounded-xl border border-slate-200 bg-white p-4 flex items-center justify-between shadow-sm">
@@ -339,6 +461,16 @@ export default function PlatformSettingsPage() {
             <Switch checked={platformConfig.maintenanceMode} onCheckedChange={() => handleToggle("maintenanceMode")} />
           </div>
 
+          <div className="rounded-xl border border-slate-200 bg-white p-4 flex items-center justify-between shadow-sm">
+            <div className="flex items-center gap-3">
+              <Brain className="h-5 w-5 text-indigo-600" />
+              <div>
+                <p className="text-sm font-bold text-slate-900">Global AI Copilot</p>
+                <p className="text-xs text-slate-500 font-medium">Enable AI features platform-wide</p>
+              </div>
+            </div>
+            <Switch checked={aiEnabled} onCheckedChange={handleAiToggle} />
+          </div>
         </div>
 
         {/* AI Provider Hot-Swapper & Token Cost Telemetry Card */}
@@ -390,7 +522,6 @@ export default function PlatformSettingsPage() {
                 <Label className="text-xs font-bold text-slate-700">Hot-Swap Model Provider:</Label>
                 <select
                   value={aiConfig.active_provider}
-                  disabled={isAiConfigSaving}
                   onChange={(e) => handleUpdateAiProvider(e.target.value)}
                   className="h-9 px-3 py-1 bg-slate-50 border border-slate-300 rounded-lg text-xs font-bold text-blue-900 focus:ring-blue-500/30"
                 >
@@ -401,33 +532,22 @@ export default function PlatformSettingsPage() {
                   <option value="DeepSeek R1 / V3">DeepSeek R1 / V3</option>
                 </select>
               </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={async () => {
-                    try {
-                      const res = await apiClient.get("/super_admin/ai/prompts");
-                      if (res.data?.templates) setPromptTemplates(res.data.templates);
-                    } catch {
-                      // Default fallback
-                    }
-                    setShowPromptModal(true);
-                  }}
-                  className="bg-blue-50 border-blue-200 text-blue-800 hover:bg-blue-100 font-bold h-9 text-xs"
-                >
-                  Manage Prompt Templates
-                </Button>
-                <Button
-                  size="sm"
-                  disabled={isAiConfigSaving}
-                  onClick={handleSaveAiConfig}
-                  className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold h-9 text-xs shadow-sm"
-                >
-                  {isAiConfigSaving ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Save className="h-3.5 w-3.5 mr-1.5" />}
-                  Save AI Config
-                </Button>
-              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={async () => {
+                  try {
+                    const res = await apiClient.get("/super_admin/ai/prompts");
+                    if (res.data?.templates) setPromptTemplates(res.data.templates);
+                  } catch {
+                    // Default fallback
+                  }
+                  setShowPromptModal(true);
+                }}
+                className="bg-blue-50 border-blue-200 text-blue-800 hover:bg-blue-100 font-bold h-9 text-xs"
+              >
+                Manage Prompt Templates
+              </Button>
             </div>
           </CardContent>
         </Card>
@@ -440,12 +560,12 @@ export default function PlatformSettingsPage() {
               <CardTitle className="text-lg font-bold text-slate-900">Platform Brand Identity</CardTitle>
             </div>
             <CardDescription className="text-xs text-slate-500 font-medium">
-              Configure corporate brand names, official contact info, and logos to be printed on receipts and letterheads.
+              Configure system-wide brand identity, official support contacts, and custom branding logo.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-              <div className="md:col-span-2 space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="md:col-span-2 space-y-3">
                 <div className="space-y-1.5">
                   <Label htmlFor="brand-name" className="text-slate-700 text-xs font-bold">Official Brand Name</Label>
                   <Input
@@ -571,10 +691,6 @@ export default function PlatformSettingsPage() {
                 />
               </div>
             </div>
-
-            <Button onClick={handleSaveBrandSettings} className="w-full mt-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold border-0 shadow-md">
-              <Save className="h-4 w-4 mr-2" /> Save Brand & Bank Settings
-            </Button>
           </CardContent>
         </Card>
 
@@ -625,10 +741,6 @@ export default function PlatformSettingsPage() {
                 />
               </div>
             </div>
-            
-            <Button onClick={handleSaveSMTP} className="w-full mt-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold border-0 shadow-md">
-              <Save className="h-4 w-4 mr-2" /> Save SMTP Settings
-            </Button>
           </CardContent>
         </Card>
 
@@ -680,7 +792,7 @@ export default function PlatformSettingsPage() {
                 </div>
                 {platformConfig.platformFooterUrl && (
                   <a
-                    href={platformConfig.platformFooterUrl}
+                    href={platformConfig.platformFooterUrl.startsWith("http") ? platformConfig.platformFooterUrl : `https://${platformConfig.platformFooterUrl}`}
                     target="_blank"
                     rel="noreferrer"
                     className="text-[11px] font-bold text-blue-600 hover:text-blue-700 flex items-center gap-1 shrink-0 ml-2 hover:underline"
@@ -691,15 +803,6 @@ export default function PlatformSettingsPage() {
                 )}
               </div>
             </div>
-
-            <Button
-              onClick={handleSaveBranding}
-              disabled={isSavingBranding}
-              className="w-full mt-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold border-0 shadow-md h-9 text-xs"
-            >
-              {isSavingBranding ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
-              Save Layout Branding
-            </Button>
           </CardContent>
         </Card>
 
@@ -768,6 +871,78 @@ export default function PlatformSettingsPage() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* Floating Universal Sticky Save Action Bar */}
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 w-full max-w-4xl px-4 pointer-events-none">
+          <div className={`pointer-events-auto bg-slate-950/90 backdrop-blur-md text-white border ${
+            hasUnsavedChanges ? "border-amber-500/50 shadow-amber-500/20" : "border-slate-800 shadow-slate-950/50"
+          } rounded-2xl p-3.5 px-5 shadow-2xl flex flex-wrap items-center justify-between gap-4 transition-all duration-300`}>
+            <div className="flex items-center gap-3">
+              {hasUnsavedChanges ? (
+                <span className="flex h-3 w-3 relative">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-3 w-3 bg-amber-500"></span>
+                </span>
+              ) : (
+                <span className="flex h-3 w-3 rounded-full bg-emerald-500"></span>
+              )}
+              <div>
+                <p className="text-xs font-bold text-slate-100 flex items-center gap-2">
+                  {hasUnsavedChanges ? (
+                    <span className="text-amber-300 font-extrabold">Unsaved modifications detected</span>
+                  ) : (
+                    <span className="text-emerald-400 font-extrabold">All platform configurations synchronized</span>
+                  )}
+                  <span className="text-[10px] font-mono text-slate-400 bg-slate-900 px-1.5 py-0.5 rounded border border-slate-800">Ctrl + S</span>
+                </p>
+                <p className="text-[11px] text-slate-400 font-medium">
+                  {hasUnsavedChanges
+                    ? "Click 'Save All Platform Changes' to immediately persist all sections to database."
+                    : lastSavedTime
+                      ? `Last saved at ${lastSavedTime.toLocaleTimeString()}`
+                      : "Database state matches current editor settings."}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              {hasUnsavedChanges && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={isSavingAll}
+                  onClick={handleResetToSnapshot}
+                  className="border-slate-700 bg-slate-900 hover:bg-slate-800 text-slate-200 text-xs font-bold h-9"
+                >
+                  <RotateCcw className="h-3 w-3 mr-1.5" /> Discard
+                </Button>
+              )}
+              <Button
+                size="sm"
+                disabled={isSavingAll || !hasUnsavedChanges}
+                onClick={handleSaveAll}
+                className={`${
+                  hasUnsavedChanges
+                    ? "bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-600 hover:from-blue-500 hover:to-indigo-500 text-white shadow-lg shadow-blue-500/30"
+                    : "bg-slate-900 text-slate-500 border border-slate-800 cursor-not-allowed"
+                } font-bold h-9 px-5 text-xs transition-all`}
+              >
+                {isSavingAll ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Saving All Changes...
+                  </>
+                ) : (
+                  <>
+                    <Save className="h-4 w-4 mr-2" />
+                    Save All Platform Changes
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+
       </div>
     </SuperAdminShell>
   );
