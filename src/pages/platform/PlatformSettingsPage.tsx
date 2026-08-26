@@ -18,6 +18,7 @@ import {
   Image,
   Brain,
   Loader2,
+  ExternalLink,
 } from "lucide-react";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api-client";
@@ -60,6 +61,7 @@ export default function PlatformSettingsPage() {
     return saved !== null ? saved === "true" : true;
   });
   const [isAiLoading, setIsAiLoading] = useState(false);
+  const [isSavingBranding, setIsSavingBranding] = useState(false);
   const [platformConfig, setPlatformConfig] = useState({
     allowTenantRegistration: true,
     maintenanceMode: false,
@@ -67,7 +69,8 @@ export default function PlatformSettingsPage() {
     smtpPort: "587",
     smtpUser: "postmaster@mg.altrix.com",
     senderEmail: "no-reply@altrixbynec.com",
-    platformFooterText: "AltRix - Institute Operating System"
+    platformFooterText: localStorage.getItem("altrix_platform_footer_text") || "AltRix Core — The AI-Powered Institute Operating System",
+    platformFooterUrl: localStorage.getItem("altrix_platform_footer_url") || "https://altrixcore.com",
   });
 
   useEffect(() => {
@@ -85,7 +88,28 @@ export default function PlatformSettingsPage() {
         }
       }
     };
+
+    const fetchBranding = async () => {
+      try {
+        const res = await apiClient.get<{ footer_text?: string; footer_url?: string }>("/platform/branding");
+        if (res.data) {
+          const text = res.data.footer_text || "AltRix Core — The AI-Powered Institute Operating System";
+          const url = res.data.footer_url || "https://altrixcore.com";
+          setPlatformConfig(prev => ({
+            ...prev,
+            platformFooterText: text,
+            platformFooterUrl: url,
+          }));
+          localStorage.setItem("altrix_platform_footer_text", text);
+          localStorage.setItem("altrix_platform_footer_url", url);
+        }
+      } catch (err) {
+        console.error("Failed to load platform layout branding:", err);
+      }
+    };
+
     fetchAiSettings();
+    fetchBranding();
   }, []);
 
   const handleAiToggle = async (val: boolean) => {
@@ -143,6 +167,36 @@ export default function PlatformSettingsPage() {
     toast.success("Platform configurations saved successfully!", {
       description: "SMTP parameters and white-label branding pushed to environment variables."
     });
+  };
+
+  const handleSaveBranding = async () => {
+    setIsSavingBranding(true);
+    try {
+      const text = platformConfig.platformFooterText.trim() || "AltRix Core — The AI-Powered Institute Operating System";
+      const url = platformConfig.platformFooterUrl.trim() || "https://altrixcore.com";
+      
+      await apiClient.post("/platform/branding", {
+        footer_text: text,
+        footer_url: url,
+      });
+
+      localStorage.setItem("altrix_platform_footer_text", text);
+      localStorage.setItem("altrix_platform_footer_url", url);
+      window.dispatchEvent(
+        new CustomEvent("altrix:platform-branding-changed", {
+          detail: { footer_text: text, footer_url: url },
+        })
+      );
+
+      toast.success("Platform layout branding saved successfully!", {
+        description: "Updated footer sticker text and clickable link URL across the entire system.",
+      });
+    } catch (err: any) {
+      console.error("Failed to save layout branding:", err);
+      toast.error(err.response?.data?.detail || "Failed to save layout branding.");
+    } finally {
+      setIsSavingBranding(false);
+    }
   };
 
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -494,7 +548,9 @@ export default function PlatformSettingsPage() {
               <Settings className="h-5 w-5 text-blue-600" />
               <CardTitle className="text-lg font-bold text-slate-900">Platform Layout Branding</CardTitle>
             </div>
-            <CardDescription className="text-xs text-slate-500 font-medium">Configure global footer details and sticker logs</CardDescription>
+            <CardDescription className="text-xs text-slate-500 font-medium">
+              Configure global footer details, sticker text, and clickable destination URL
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
@@ -502,9 +558,57 @@ export default function PlatformSettingsPage() {
               <Input
                 className="bg-slate-50 border-slate-300 text-slate-900 placeholder:text-slate-400 focus-visible:ring-blue-500/30 h-9"
                 value={platformConfig.platformFooterText}
+                placeholder="e.g. AltRix Core — The AI-Powered Institute Operating System"
                 onChange={(e) => setPlatformConfig(prev => ({ ...prev, platformFooterText: e.target.value }))}
               />
             </div>
+
+            <div className="space-y-2">
+              <Label className="text-sm font-bold text-slate-700">Footer Link URL</Label>
+              <div className="relative">
+                <Globe className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <Input
+                  className="pl-9 bg-slate-50 border-slate-300 text-slate-900 placeholder:text-slate-400 focus-visible:ring-blue-500/30 h-9"
+                  value={platformConfig.platformFooterUrl}
+                  placeholder="https://altrixcore.com"
+                  onChange={(e) => setPlatformConfig(prev => ({ ...prev, platformFooterUrl: e.target.value }))}
+                />
+              </div>
+              <p className="text-[11px] text-slate-500">The external destination or internal route opened when users click on the footer sticker.</p>
+            </div>
+
+            {/* Live Sticker Preview */}
+            <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-1.5">
+              <Label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Live Sticker Preview</Label>
+              <div className="flex items-center justify-between p-2.5 bg-white border border-slate-200 rounded-lg shadow-xs">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                  <span className="text-xs font-semibold text-slate-700 truncate">
+                    {platformConfig.platformFooterText || "AltRix Core — The AI-Powered Institute Operating System"}
+                  </span>
+                </div>
+                {platformConfig.platformFooterUrl && (
+                  <a
+                    href={platformConfig.platformFooterUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-[11px] font-bold text-blue-600 hover:text-blue-700 flex items-center gap-1 shrink-0 ml-2 hover:underline"
+                  >
+                    <ExternalLink className="h-3 w-3" />
+                    <span>Open URL</span>
+                  </a>
+                )}
+              </div>
+            </div>
+
+            <Button
+              onClick={handleSaveBranding}
+              disabled={isSavingBranding}
+              className="w-full mt-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold border-0 shadow-md h-9 text-xs"
+            >
+              {isSavingBranding ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
+              Save Layout Branding
+            </Button>
           </CardContent>
         </Card>
 

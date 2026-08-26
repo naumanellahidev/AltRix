@@ -2183,3 +2183,69 @@ async def get_monitoring_stats(current_user: CurrentUser, db: DbSession):
         "avg_processing_time_ms": round(avg_processing_time_ms, 2),
         "subscriber_statuses": worker_map
     }
+
+
+# ─── PLATFORM BRANDING ────────────────────────────────────────────────────────
+platform_router = APIRouter(prefix="/platform", tags=["Platform Settings"])
+
+
+class PlatformBrandingSchema(BaseModel):
+    footer_text: Optional[str] = "AltRix Core — The AI-Powered Institute Operating System"
+    footer_url: Optional[str] = "https://altrixcore.com"
+
+
+@platform_router.get("/branding")
+async def get_platform_branding(db: DbSession):
+    """Retrieve global layout branding (footer sticker text & url)."""
+    try:
+        res = await db.execute(text("SELECT value FROM public.system_settings WHERE key = 'platform_layout_branding'"))
+        row = res.fetchone()
+        if row and row[0]:
+            val = row[0]
+            if isinstance(val, str):
+                try:
+                    val = json.loads(val)
+                except Exception:
+                    pass
+            if isinstance(val, dict):
+                return {
+                    "footer_text": val.get("footer_text", "AltRix Core — The AI-Powered Institute Operating System"),
+                    "footer_url": val.get("footer_url", "https://altrixcore.com"),
+                }
+    except Exception as e:
+        logger.warning(f"Error fetching platform layout branding: {e}")
+    return {
+        "footer_text": "AltRix Core — The AI-Powered Institute Operating System",
+        "footer_url": "https://altrixcore.com"
+    }
+
+
+@platform_router.post("/branding")
+async def update_platform_branding(
+    body: PlatformBrandingSchema,
+    current_user: CurrentUser,
+    db: DbSession,
+):
+    """Update global layout branding (Super Admin only)."""
+    user_roles = current_user.roles or []
+    is_admin = current_user.is_super_admin or "super_admin" in user_roles or "platform_owner" in user_roles
+    if not is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only platform super administrators can modify layout branding."
+        )
+    payload = {
+        "footer_text": (body.footer_text or "").strip() or "AltRix Core — The AI-Powered Institute Operating System",
+        "footer_url": (body.footer_url or "").strip() or "https://altrixcore.com",
+    }
+    await db.execute(
+        text("""
+            INSERT INTO public.system_settings (key, value, updated_at)
+            VALUES ('platform_layout_branding', :val::jsonb, NOW())
+            ON CONFLICT (key) DO UPDATE SET value = :val::jsonb, updated_at = NOW()
+        """),
+        {"val": json.dumps(payload)}
+    )
+    await db.commit()
+    return {"status": "success", "data": payload}
+

@@ -48,6 +48,7 @@ from app.routers.misc import (
     ai_router,
     reports_router,
     events_router,
+    platform_router,
 )
 from app.routers.realtime import router as realtime_router
 from app.routers.collaboration import router as collaboration_router
@@ -918,4 +919,6 @@ app.include_router(invitations_router, prefix=_PREFIX)
 app.include_router(invitations_router)
 app.include_router(email_management_router, prefix=_PREFIX)
 app.include_router(email_management_router)
+app.include_router(platform_router, prefix=_PREFIX)
+app.include_router(platform_router)
 
