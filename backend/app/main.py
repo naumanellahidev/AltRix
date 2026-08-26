@@ -193,7 +193,7 @@ async def lifespan(app: FastAPI):
             """))
             logger.info("Library & School Events schema aligned successfully")
             
-            # Create system_settings table if it doesn't exist
+            # Create system_settings table if it doesn't exist and ensure schema alignment
             await conn.execute(text("""
                 CREATE TABLE IF NOT EXISTS public.system_settings (
                     key VARCHAR PRIMARY KEY,
@@ -201,11 +201,15 @@ async def lifespan(app: FastAPI):
                     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()),
                     updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
                 );
+                ALTER TABLE public.system_settings ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
+                ALTER TABLE public.system_settings DISABLE ROW LEVEL SECURITY;
             """))
-            # Seed default AI status
+            # Seed default AI status & platform branding
             await conn.execute(text("""
                 INSERT INTO public.system_settings (key, value)
-                VALUES ('global_ai_control', '{"enabled": true}')
+                VALUES 
+                    ('global_ai_control', '{"enabled": true}'),
+                    ('platform_layout_branding', '{"footer_text": "AltRix Core — The AI-Powered Institute Operating System", "footer_url": "https://altrixcore.com"}')
                 ON CONFLICT (key) DO NOTHING;
             """))
             logger.info("System settings database table initialized successfully")

@@ -2198,7 +2198,7 @@ class PlatformBrandingSchema(BaseModel):
 async def get_platform_branding(db: DbSession):
     """Retrieve global layout branding (footer sticker text & url)."""
     try:
-        res = await db.execute(text("SELECT value FROM public.system_settings WHERE key = 'platform_layout_branding'"))
+        res = await db.execute(text("SELECT value FROM public.system_settings WHERE key = 'platform_layout_branding' LIMIT 1"))
         row = res.fetchone()
         if row and row[0]:
             val = row[0]
@@ -2214,6 +2214,10 @@ async def get_platform_branding(db: DbSession):
                 }
     except Exception as e:
         logger.warning(f"Error fetching platform layout branding: {e}")
+        try:
+            await db.rollback()
+        except Exception:
+            pass
     return {
         "footer_text": "AltRix Core — The AI-Powered Institute Operating System",
         "footer_url": "https://altrixcore.com"
@@ -2238,14 +2242,40 @@ async def update_platform_branding(
         "footer_text": (body.footer_text or "").strip() or "AltRix Core — The AI-Powered Institute Operating System",
         "footer_url": (body.footer_url or "").strip() or "https://altrixcore.com",
     }
-    await db.execute(
-        text("""
-            INSERT INTO public.system_settings (key, value, updated_at)
-            VALUES ('platform_layout_branding', :val::jsonb, NOW())
-            ON CONFLICT (key) DO UPDATE SET value = :val::jsonb, updated_at = NOW()
-        """),
-        {"val": json.dumps(payload)}
-    )
-    await db.commit()
+    val_json = json.dumps(payload)
+    try:
+        await db.execute(
+            text("""
+                INSERT INTO public.system_settings (key, value)
+                VALUES ('platform_layout_branding', :val)
+                ON CONFLICT (key) DO UPDATE SET value = :val
+            """),
+            {"val": val_json}
+        )
+        await db.commit()
+    except Exception as e:
+        logger.warning(f"Failed standard upsert for platform_layout_branding, retrying update/insert fallback: {e}")
+        try:
+            await db.rollback()
+        except Exception:
+            pass
+        try:
+            res = await db.execute(text("SELECT key FROM public.system_settings WHERE key = 'platform_layout_branding'"))
+            if res.fetchone():
+                await db.execute(text("UPDATE public.system_settings SET value = :val WHERE key = 'platform_layout_branding'"), {"val": val_json})
+            else:
+                await db.execute(text("INSERT INTO public.system_settings (key, value) VALUES ('platform_layout_branding', :val)"), {"val": val_json})
+            await db.commit()
+        except Exception as ex2:
+            logger.error(f"Fallback update_platform_branding failed: {ex2}")
+            try:
+                await db.rollback()
+            except Exception:
+                pass
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to update layout branding in database: {ex2}"
+            )
+
     return {"status": "success", "data": payload}
 
