@@ -1655,56 +1655,7 @@ async def copilot_chat(
         active_student_id=body.active_student_id,
     )
 
-    # ── Semantic Cache Lookup ──────────────────────────────────────────────────
-    # Replaces MD5 exact-match with semantic similarity search.
-    # Security: school_id + role_key exact match enforced inside find_similar().
-    is_personal_query = any(
-        kw in f" {body.message.lower()} "
-        for kw in [
-            " my ", " mine ", " meri ", " mera ", " mere ", " mujhe ", " apna ", " apni ", " apne ",
-            " i teach ", " assigned to me ", " my assigned ", " who am i ", " my profile ", " my details ",
-            " my classes ", " my subjects ", " my attendance ", " my salary ", " my pay ", " my children ",
-            " my fees ", " my timetable ", " my schedule ", " my leaves ", " my homework ", " my results "
-        ]
-    )
-
-    _sem_hit = None
-    if not is_personal_query:
-        _sem_hit = await semantic_cache.find_similar(
-            db=db,
-            school_id=effective_school_id or "",
-            query=body.message,
-            roles=current_user.roles or [],
-            module=body.current_module,
-            campus_id=body.active_campus_id if body.active_campus_id else None,
-        )
-    if _sem_hit is not None:
-        # Fire-and-forget tracking (non-blocking)
-        import asyncio
-        async def _track():
-            try:
-                await semantic_cache.track_hit(db, _sem_hit.entry_id)
-                await semantic_cache.record_hit_stats(db, effective_school_id or "")
-                await db.commit()
-            except Exception:
-                pass
-        asyncio.ensure_future(_track())
-
-        async def _cached_event_generator():
-            if _sem_hit.response_text.startswith("data: "):
-                for block in _sem_hit.response_text.split("\n\n"):
-                    if block.strip():
-                        yield block.strip() + "\n\n"
-            else:
-                words = _sem_hit.response_text.split(" ")
-                for i, word in enumerate(words):
-                    token = word if i == 0 else " " + word
-                    sse_data = {"choices": [{"delta": {"content": token}}]}
-                    yield f"data: {json.dumps(sse_data)}\n\n"
-                yield "data: [DONE]\n\n"
-        return StreamingResponse(_cached_event_generator(), media_type="text/event-stream")
-
-    # 2. Fetch scoped DB context based on role permissions
+    # 2. Fetch scoped DB context based on role permissions (100% Realtime Synced Live Execution)
     db_context = await fetch_ai_context(
         db=db,
         user=current_user,
@@ -1766,47 +1717,14 @@ __ACTIVE_CONTEXT__
         .replace("__DB_CONTEXT__", db_context or "")
     )
 
-    # 5. Stream response from OllamaAIService
-    # Capture resolved context values for closure
-    _school_id  = effective_school_id or ""
-    _roles      = list(current_user.roles or [])
-    _module     = body.current_module
-    _screen     = body.current_screen
-    _campus_id  = body.active_campus_id if body.active_campus_id else None
-    _query      = body.message
-
+    # 5. Stream response directly from OllamaAIService in real time
     async def event_generator():
-        full_response: list[str] = []
         async for chunk in OllamaAIService.stream_completion(
             system_prompt=system_prompt,
             user_message=body.message,
             history=body.history,
         ):
-            full_response.append(chunk)
             yield chunk
-
-        # ── Store in Semantic Cache (non-blocking, fail-safe) ─────────────
-        complete_text = "".join(full_response)
-        if complete_text and len(complete_text.strip()) >= 30:
-            try:
-                ct    = classify_cache_type(_query, _module)
-                deps  = classify_data_deps(_query, _module)
-                await semantic_cache.store(
-                    db=db,
-                    school_id=_school_id,
-                    query=_query,
-                    response=complete_text,
-                    roles=_roles,
-                    module=_module,
-                    screen=_screen,
-                    campus_id=_campus_id,
-                    cache_type=ct,
-                    data_deps=deps,
-                )
-                await semantic_cache.record_miss_stats(db, _school_id)
-                await db.commit()
-            except Exception:
-                pass  # Cache failure NEVER breaks the user response
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
