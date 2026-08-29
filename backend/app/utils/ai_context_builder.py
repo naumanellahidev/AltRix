@@ -665,7 +665,33 @@ async def build_scoped_ai_context(
         t_vehicles, t_routes = await get_transport_summary()
         complaints = await get_complaints()
         crm_stats = await get_crm_stats()
-        branding = await get_branding()
+        # Personal Teacher Assignments for Executive if applicable
+        personal_teacher_assignments = await fetch_rows("""
+            WITH teacher_ids AS (
+                SELECT :uid::text AS tid
+                UNION
+                SELECT user_id::text FROM public.teachers WHERE (user_id = :uid OR id::text = :uid OR email = :uemail) AND school_id = CAST(:sid AS UUID)
+                UNION
+                SELECT linked_user_id::text FROM public.hr_staff_directory WHERE (linked_user_id = :uid OR email = :uemail) AND school_id = CAST(:sid AS UUID)
+                UNION
+                SELECT id::text FROM public.profiles WHERE id = :uid OR email = :uemail
+            ),
+            active_tids AS (
+                SELECT DISTINCT tid FROM teacher_ids WHERE tid IS NOT NULL AND tid != ''
+            )
+            SELECT DISTINCT c.name, cs.name, COALESCE(sub.name, tp.subject_name, 'General Subject')
+            FROM class_sections cs
+            JOIN academic_classes c ON cs.class_id = c.id
+            LEFT JOIN teacher_assignments ta ON ta.class_section_id = cs.id AND ta.teacher_user_id::text IN (SELECT tid FROM active_tids)
+            LEFT JOIN teacher_subject_assignments tsa ON tsa.class_section_id = cs.id AND tsa.teacher_user_id::text IN (SELECT tid FROM active_tids)
+            LEFT JOIN subjects sub ON tsa.subject_id = sub.id
+            LEFT JOIN timetable_periods tp ON tp.class_section_id = cs.id AND tp.teacher_user_id::text IN (SELECT tid FROM active_tids)
+            WHERE (ta.id IS NOT NULL OR tsa.id IS NOT NULL OR tp.id IS NOT NULL)
+              AND cs.school_id = CAST(:sid AS UUID)
+            ORDER BY c.name, cs.name
+        """, {"uid": str(user.id), "uemail": getattr(user, "email", "") or "", "sid": school_id})
+        personal_sections_str = "\n".join([f"- {r[0]} ({r[1] if str(r[1]).lower().startswith('section') else 'Section ' + str(r[1])}) — Subject: {r[2]}" for r in personal_teacher_assignments])
+
         holidays = await get_holidays()
         targeted_matches = await get_targeted_search_matches(user_query)
 
@@ -701,6 +727,9 @@ Live Executive KPIs:
 - Active Transport Routes Count: {metrics[5]}
 - Library Catalog Books Count: {metrics[6]}
 - Open Complaints / Issues Count: {metrics[7]}
+
+Your Personal Assigned Teaching Classes & Subjects (if you also teach):
+{personal_sections_str or 'None (You are an administrator with full school-wide oversight)'}
 
 Targeted Search Results for Current Query:
 {targeted_matches or 'None'}
@@ -755,12 +784,7 @@ Recent Complaints & Grievances:
 
 Admissions & CRM Leads Overview:
 {crm_str}
-
-School Branding: {branding}
-Upcoming Holidays: {holidays}
 """
-
-    # =========================================================================
     # =========================================================================
     # ROLE 2: Teacher Context (Strictly Scoped to Assigned Classes & Subjects)
     # =========================================================================
@@ -769,135 +793,278 @@ Upcoming Holidays: {holidays}
         uemail = getattr(user, "email", "") or ""
         t_param = {"uid": uid, "uemail": uemail, "sid": school_id}
 
-        # Unified helper to get all assigned section IDs for this teacher
-        sec_rows = await fetch_rows("""
-            SELECT DISTINCT cs.id
-            FROM class_sections cs
-            LEFT JOIN teacher_subject_assignments tsa ON tsa.class_section_id = cs.id AND (
-                tsa.teacher_user_id = :uid 
-                OR tsa.teacher_user_id IN (SELECT user_id FROM teachers WHERE user_id = :uid OR id::text = :uid OR email = :uemail)
-                OR tsa.teacher_user_id IN (SELECT linked_user_id FROM hr_staff_directory WHERE linked_user_id = :uid OR email = :uemail)
-                OR tsa.teacher_user_id IN (SELECT id FROM profiles WHERE id = :uid OR email = :uemail)
-            )
-            LEFT JOIN timetable_periods tp ON tp.class_section_id = cs.id AND (
-                tp.teacher_user_id = :uid 
-                OR tp.teacher_user_id IN (SELECT user_id FROM teachers WHERE user_id = :uid OR id::text = :uid OR email = :uemail)
-                OR tp.teacher_user_id IN (SELECT linked_user_id FROM hr_staff_directory WHERE linked_user_id = :uid OR email = :uemail)
-                OR tp.teacher_user_id IN (SELECT id FROM profiles WHERE id = :uid OR email = :uemail)
-            )
-            WHERE (tsa.id IS NOT NULL OR tp.id IS NOT NULL)
-              AND cs.school_id = CAST(:sid AS UUID)
-        """, t_param)
-        assigned_section_ids = [str(r[0]) for r in sec_rows if r and r[0]]
-
         async def get_teacher_sections():
-            tsa_rows = await fetch_rows("""
-                SELECT tsa.class_section_id, c.name, cs.name, COALESCE(sub.name, 'General Subject'), tsa.id as assignment_id, tsa.subject_id, c.id as class_id
-                FROM teacher_subject_assignments tsa
-                JOIN class_sections cs ON tsa.class_section_id = cs.id
-                JOIN academic_classes c ON cs.class_id = c.id
-                LEFT JOIN subjects sub ON tsa.subject_id = sub.id
-                WHERE (
-                    tsa.teacher_user_id = :uid 
-                    OR tsa.teacher_user_id IN (SELECT user_id FROM teachers WHERE user_id = :uid OR id::text = :uid OR email = :uemail)
-                    OR tsa.teacher_user_id IN (SELECT linked_user_id FROM hr_staff_directory WHERE linked_user_id = :uid OR email = :uemail)
-                    OR tsa.teacher_user_id IN (SELECT id FROM profiles WHERE id = :uid OR email = :uemail)
-                ) AND tsa.school_id = CAST(:sid AS UUID)
-            """, t_param)
-            if tsa_rows:
-                return tsa_rows
-
             return await fetch_rows("""
-                SELECT DISTINCT tp.class_section_id, c.name, cs.name, COALESCE(tp.subject_name, 'General Subject'), tp.id as assignment_id, NULL as subject_id, c.id as class_id
-                FROM timetable_periods tp
-                JOIN class_sections cs ON tp.class_section_id = cs.id
-                JOIN academic_classes c ON cs.class_id = c.id
-                WHERE (
-                    tp.teacher_user_id = :uid 
-                    OR tp.teacher_user_id IN (SELECT user_id FROM teachers WHERE user_id = :uid OR id::text = :uid OR email = :uemail)
-                    OR tp.teacher_user_id IN (SELECT linked_user_id FROM hr_staff_directory WHERE linked_user_id = :uid OR email = :uemail)
-                    OR tp.teacher_user_id IN (SELECT id FROM profiles WHERE id = :uid OR email = :uemail)
-                ) AND c.school_id = CAST(:sid AS UUID)
+                WITH teacher_ids AS (
+                    SELECT :uid::text AS tid
+                    UNION
+                    SELECT user_id::text FROM public.teachers WHERE (user_id = :uid OR id::text = :uid OR email = :uemail) AND school_id = CAST(:sid AS UUID)
+                    UNION
+                    SELECT linked_user_id::text FROM public.hr_staff_directory WHERE (linked_user_id = :uid OR email = :uemail) AND school_id = CAST(:sid AS UUID)
+                    UNION
+                    SELECT id::text FROM public.profiles WHERE id = :uid OR email = :uemail
+                ),
+                active_tids AS (
+                    SELECT DISTINCT tid FROM teacher_ids WHERE tid IS NOT NULL AND tid != ''
+                ),
+                all_sections_raw AS (
+                    -- 1. Class / Section Assignments (teacher_assignments)
+                    SELECT 
+                        ta.class_section_id,
+                        c.name AS class_name,
+                        cs.name AS section_name,
+                        COALESCE(
+                            (SELECT string_agg(DISTINCT sub.name, ', ') 
+                             FROM teacher_subject_assignments tsa2 
+                             JOIN subjects sub ON tsa2.subject_id = sub.id 
+                             WHERE tsa2.class_section_id = ta.class_section_id 
+                               AND tsa2.teacher_user_id::text IN (SELECT tid FROM active_tids)
+                            ),
+                            (SELECT string_agg(DISTINCT tp.subject_name, ', ')
+                             FROM timetable_periods tp
+                             WHERE tp.class_section_id = ta.class_section_id
+                               AND tp.teacher_user_id::text IN (SELECT tid FROM active_tids)
+                            ),
+                            'All Subjects (Class Teacher)'
+                        ) AS subject_name,
+                        ta.id::text AS assignment_id,
+                        c.id AS class_id
+                    FROM teacher_assignments ta
+                    JOIN class_sections cs ON ta.class_section_id = cs.id
+                    JOIN academic_classes c ON cs.class_id = c.id
+                    WHERE ta.teacher_user_id::text IN (SELECT tid FROM active_tids)
+                      AND ta.school_id = CAST(:sid AS UUID)
+
+                    UNION
+
+                    -- 2. Specific Subject Assignments (teacher_subject_assignments)
+                    SELECT 
+                        tsa.class_section_id,
+                        c.name AS class_name,
+                        cs.name AS section_name,
+                        COALESCE(sub.name, 'Assigned Subject') AS subject_name,
+                        tsa.id::text AS assignment_id,
+                        c.id AS class_id
+                    FROM teacher_subject_assignments tsa
+                    JOIN class_sections cs ON tsa.class_section_id = cs.id
+                    JOIN academic_classes c ON cs.class_id = c.id
+                    LEFT JOIN subjects sub ON tsa.subject_id = sub.id
+                    WHERE tsa.teacher_user_id::text IN (SELECT tid FROM active_tids)
+                      AND tsa.school_id = CAST(:sid AS UUID)
+
+                    UNION
+
+                    -- 3. Timetable Schedule Periods (timetable_periods)
+                    SELECT 
+                        tp.class_section_id,
+                        c.name AS class_name,
+                        cs.name AS section_name,
+                        COALESCE(tp.subject_name, 'General Subject') AS subject_name,
+                        tp.id::text AS assignment_id,
+                        c.id AS class_id
+                    FROM timetable_periods tp
+                    JOIN class_sections cs ON tp.class_section_id = cs.id
+                    JOIN academic_classes c ON cs.class_id = c.id
+                    WHERE tp.teacher_user_id::text IN (SELECT tid FROM active_tids)
+                      AND c.school_id = CAST(:sid AS UUID)
+
+                    UNION
+
+                    -- 4. Timetable Entries (timetable_entries)
+                    SELECT 
+                        te.class_section_id,
+                        c.name AS class_name,
+                        cs.name AS section_name,
+                        COALESCE(te.subject_name, 'General Subject') AS subject_name,
+                        te.id::text AS assignment_id,
+                        c.id AS class_id
+                    FROM timetable_entries te
+                    JOIN class_sections cs ON te.class_section_id = cs.id
+                    JOIN academic_classes c ON cs.class_id = c.id
+                    WHERE te.teacher_user_id::text IN (SELECT tid FROM active_tids)
+                      AND te.school_id = CAST(:sid AS UUID)
+                )
+                SELECT DISTINCT class_section_id, class_name, section_name, subject_name, assignment_id, class_id
+                FROM all_sections_raw
+                ORDER BY class_name, section_name, subject_name
             """, t_param)
 
         async def get_teacher_students():
-            if not assigned_section_ids:
-                return []
             return await fetch_rows("""
+                WITH teacher_ids AS (
+                    SELECT :uid::text AS tid
+                    UNION
+                    SELECT user_id::text FROM public.teachers WHERE (user_id = :uid OR id::text = :uid OR email = :uemail) AND school_id = CAST(:sid AS UUID)
+                    UNION
+                    SELECT linked_user_id::text FROM public.hr_staff_directory WHERE (linked_user_id = :uid OR email = :uemail) AND school_id = CAST(:sid AS UUID)
+                    UNION
+                    SELECT id::text FROM public.profiles WHERE id = :uid OR email = :uemail
+                ),
+                active_tids AS (
+                    SELECT DISTINCT tid FROM teacher_ids WHERE tid IS NOT NULL AND tid != ''
+                )
                 SELECT s.first_name, s.last_name, s.student_code, c.name, cs.name, s.id as student_id, c.id as class_id, cs.id as section_id, s.parent_name, s.parent_phone
                 FROM students s
                 JOIN student_enrollments se ON se.student_id = s.id AND se.end_date IS NULL
                 JOIN class_sections cs ON se.class_section_id = cs.id
                 JOIN academic_classes c ON cs.class_id = c.id
-                WHERE cs.id = ANY(:sec_ids) AND s.status IN ('active', 'enrolled')
+                WHERE cs.id IN (
+                    SELECT class_section_id FROM teacher_assignments WHERE teacher_user_id::text IN (SELECT tid FROM active_tids) AND school_id = CAST(:sid AS UUID)
+                    UNION
+                    SELECT class_section_id FROM teacher_subject_assignments WHERE teacher_user_id::text IN (SELECT tid FROM active_tids) AND school_id = CAST(:sid AS UUID)
+                    UNION
+                    SELECT class_section_id FROM timetable_periods WHERE teacher_user_id::text IN (SELECT tid FROM active_tids)
+                    UNION
+                    SELECT class_section_id FROM timetable_entries WHERE teacher_user_id::text IN (SELECT tid FROM active_tids) AND school_id = CAST(:sid AS UUID)
+                ) AND s.status IN ('active', 'enrolled')
                 ORDER BY c.name, cs.name, s.first_name
                 LIMIT 100
-            """, {"sec_ids": assigned_section_ids, "sid": school_id})
+            """, t_param)
 
         async def get_teacher_attendance():
-            if not assigned_section_ids:
-                return []
             return await fetch_rows("""
+                WITH teacher_ids AS (
+                    SELECT :uid::text AS tid
+                    UNION
+                    SELECT user_id::text FROM public.teachers WHERE (user_id = :uid OR id::text = :uid OR email = :uemail) AND school_id = CAST(:sid AS UUID)
+                    UNION
+                    SELECT linked_user_id::text FROM public.hr_staff_directory WHERE (linked_user_id = :uid OR email = :uemail) AND school_id = CAST(:sid AS UUID)
+                    UNION
+                    SELECT id::text FROM public.profiles WHERE id = :uid OR email = :uemail
+                ),
+                active_tids AS (
+                    SELECT DISTINCT tid FROM teacher_ids WHERE tid IS NOT NULL AND tid != ''
+                )
                 SELECT s.first_name, s.last_name, COUNT(*) FILTER (WHERE ae.status = 'present') as present, COUNT(*) as total, s.id as student_id
                 FROM attendance_entries ae
                 JOIN attendance_sessions sess ON ae.session_id = sess.id
                 JOIN students s ON ae.student_id = s.id
-                WHERE sess.class_section_id = ANY(:sec_ids)
+                WHERE sess.class_section_id IN (
+                    SELECT class_section_id FROM teacher_assignments WHERE teacher_user_id::text IN (SELECT tid FROM active_tids) AND school_id = CAST(:sid AS UUID)
+                    UNION
+                    SELECT class_section_id FROM teacher_subject_assignments WHERE teacher_user_id::text IN (SELECT tid FROM active_tids) AND school_id = CAST(:sid AS UUID)
+                    UNION
+                    SELECT class_section_id FROM timetable_periods WHERE teacher_user_id::text IN (SELECT tid FROM active_tids)
+                    UNION
+                    SELECT class_section_id FROM timetable_entries WHERE teacher_user_id::text IN (SELECT tid FROM active_tids) AND school_id = CAST(:sid AS UUID)
+                )
                 GROUP BY s.id, s.first_name, s.last_name
                 LIMIT 100
-            """, {"sec_ids": assigned_section_ids, "sid": school_id})
+            """, t_param)
 
         async def get_teacher_assignments():
-            if not assigned_section_ids:
-                return []
             return await fetch_rows("""
+                WITH teacher_ids AS (
+                    SELECT :uid::text AS tid
+                    UNION
+                    SELECT user_id::text FROM public.teachers WHERE (user_id = :uid OR id::text = :uid OR email = :uemail) AND school_id = CAST(:sid AS UUID)
+                    UNION
+                    SELECT linked_user_id::text FROM public.hr_staff_directory WHERE (linked_user_id = :uid OR email = :uemail) AND school_id = CAST(:sid AS UUID)
+                    UNION
+                    SELECT id::text FROM public.profiles WHERE id = :uid OR email = :uemail
+                ),
+                active_tids AS (
+                    SELECT DISTINCT tid FROM teacher_ids WHERE tid IS NOT NULL AND tid != ''
+                )
                 SELECT a.title, a.description, a.due_date, a.max_marks, c.name, cs.name, a.id as assignment_id, a.class_section_id
                 FROM assignments a
                 JOIN class_sections cs ON a.class_section_id = cs.id
                 JOIN academic_classes c ON cs.class_id = c.id
-                WHERE a.class_section_id = ANY(:sec_ids) AND a.status = 'active'
+                WHERE cs.id IN (
+                    SELECT class_section_id FROM teacher_assignments WHERE teacher_user_id::text IN (SELECT tid FROM active_tids) AND school_id = CAST(:sid AS UUID)
+                    UNION
+                    SELECT class_section_id FROM teacher_subject_assignments WHERE teacher_user_id::text IN (SELECT tid FROM active_tids) AND school_id = CAST(:sid AS UUID)
+                    UNION
+                    SELECT class_section_id FROM timetable_periods WHERE teacher_user_id::text IN (SELECT tid FROM active_tids)
+                    UNION
+                    SELECT class_section_id FROM timetable_entries WHERE teacher_user_id::text IN (SELECT tid FROM active_tids) AND school_id = CAST(:sid AS UUID)
+                ) AND a.status = 'active'
                 ORDER BY a.due_date DESC LIMIT 15
-            """, {"sec_ids": assigned_section_ids, "sid": school_id})
+            """, t_param)
 
         async def get_teacher_diary():
-            if not assigned_section_ids:
-                return []
             return await fetch_rows("""
+                WITH teacher_ids AS (
+                    SELECT :uid::text AS tid
+                    UNION
+                    SELECT user_id::text FROM public.teachers WHERE (user_id = :uid OR id::text = :uid OR email = :uemail) AND school_id = CAST(:sid AS UUID)
+                    UNION
+                    SELECT linked_user_id::text FROM public.hr_staff_directory WHERE (linked_user_id = :uid OR email = :uemail) AND school_id = CAST(:sid AS UUID)
+                    UNION
+                    SELECT id::text FROM public.profiles WHERE id = :uid OR email = :uemail
+                ),
+                active_tids AS (
+                    SELECT DISTINCT tid FROM teacher_ids WHERE tid IS NOT NULL AND tid != ''
+                )
                 SELECT d.title, d.content, d.entry_date, c.name, cs.name, d.id as diary_id, d.class_section_id, d.subject_id
                 FROM diary_entries d
                 JOIN class_sections cs ON d.class_section_id = cs.id
                 JOIN academic_classes c ON cs.class_id = c.id
-                WHERE d.class_section_id = ANY(:sec_ids)
+                WHERE cs.id IN (
+                    SELECT class_section_id FROM teacher_assignments WHERE teacher_user_id::text IN (SELECT tid FROM active_tids) AND school_id = CAST(:sid AS UUID)
+                    UNION
+                    SELECT class_section_id FROM teacher_subject_assignments WHERE teacher_user_id::text IN (SELECT tid FROM active_tids) AND school_id = CAST(:sid AS UUID)
+                    UNION
+                    SELECT class_section_id FROM timetable_periods WHERE teacher_user_id::text IN (SELECT tid FROM active_tids)
+                    UNION
+                    SELECT class_section_id FROM timetable_entries WHERE teacher_user_id::text IN (SELECT tid FROM active_tids) AND school_id = CAST(:sid AS UUID)
+                )
                 ORDER BY d.entry_date DESC LIMIT 15
-            """, {"sec_ids": assigned_section_ids, "sid": school_id})
+            """, t_param)
 
         async def get_teacher_results():
-            if not assigned_section_ids:
-                return []
             return await fetch_rows("""
+                WITH teacher_ids AS (
+                    SELECT :uid::text AS tid
+                    UNION
+                    SELECT user_id::text FROM public.teachers WHERE (user_id = :uid OR id::text = :uid OR email = :uemail) AND school_id = CAST(:sid AS UUID)
+                    UNION
+                    SELECT linked_user_id::text FROM public.hr_staff_directory WHERE (linked_user_id = :uid OR email = :uemail) AND school_id = CAST(:sid AS UUID)
+                    UNION
+                    SELECT id::text FROM public.profiles WHERE id = :uid OR email = :uemail
+                ),
+                active_tids AS (
+                    SELECT DISTINCT tid FROM teacher_ids WHERE tid IS NOT NULL AND tid != ''
+                )
                 SELECT e.name, s.first_name, s.last_name, COALESCE(sub.name, 'Subject'), er.marks_obtained, er.max_marks, er.grade, er.id as result_id, er.exam_id, s.id as student_id, er.subject_id
                 FROM exam_results er
                 JOIN exams e ON er.exam_id = e.id
                 JOIN students s ON er.student_id = s.id
                 LEFT JOIN subjects sub ON er.subject_id = sub.id
                 WHERE er.student_id IN (
-                    SELECT student_id FROM student_enrollments WHERE class_section_id = ANY(:sec_ids) AND end_date IS NULL
+                    SELECT student_id FROM student_enrollments WHERE class_section_id IN (
+                        SELECT class_section_id FROM teacher_assignments WHERE teacher_user_id::text IN (SELECT tid FROM active_tids) AND school_id = CAST(:sid AS UUID)
+                        UNION
+                        SELECT class_section_id FROM teacher_subject_assignments WHERE teacher_user_id::text IN (SELECT tid FROM active_tids) AND school_id = CAST(:sid AS UUID)
+                        UNION
+                        SELECT class_section_id FROM timetable_periods WHERE teacher_user_id::text IN (SELECT tid FROM active_tids)
+                        UNION
+                        SELECT class_section_id FROM timetable_entries WHERE teacher_user_id::text IN (SELECT tid FROM active_tids) AND school_id = CAST(:sid AS UUID)
+                    ) AND end_date IS NULL
                 )
                 ORDER BY e.name, s.first_name LIMIT 60
-            """, {"sec_ids": assigned_section_ids, "sid": school_id})
+            """, t_param)
 
         async def get_teacher_timetable():
             return await fetch_rows("""
+                WITH teacher_ids AS (
+                    SELECT :uid::text AS tid
+                    UNION
+                    SELECT user_id::text FROM public.teachers WHERE (user_id = :uid OR id::text = :uid OR email = :uemail) AND school_id = CAST(:sid AS UUID)
+                    UNION
+                    SELECT linked_user_id::text FROM public.hr_staff_directory WHERE (linked_user_id = :uid OR email = :uemail) AND school_id = CAST(:sid AS UUID)
+                    UNION
+                    SELECT id::text FROM public.profiles WHERE id = :uid OR email = :uemail
+                ),
+                active_tids AS (
+                    SELECT DISTINCT tid FROM teacher_ids WHERE tid IS NOT NULL AND tid != ''
+                )
                 SELECT te.day_of_week, te.subject_name, te.start_time, te.end_time, c.name, cs.name, te.room, te.id
                 FROM timetable_entries te
                 JOIN class_sections cs ON te.class_section_id = cs.id
                 JOIN academic_classes c ON cs.class_id = c.id
-                WHERE (
-                    te.teacher_user_id = :uid 
-                    OR te.teacher_user_id IN (SELECT user_id FROM teachers WHERE user_id = :uid OR id::text = :uid OR email = :uemail)
-                    OR te.teacher_user_id IN (SELECT linked_user_id FROM hr_staff_directory WHERE linked_user_id = :uid OR email = :uemail)
-                    OR te.teacher_user_id IN (SELECT id FROM profiles WHERE id = :uid OR email = :uemail)
-                ) AND te.school_id = CAST(:sid AS UUID)
+                WHERE te.teacher_user_id::text IN (SELECT tid FROM active_tids)
+                  AND te.school_id = CAST(:sid AS UUID)
                 ORDER BY te.day_of_week, te.start_time
             """, t_param)
 
@@ -908,11 +1075,10 @@ Upcoming Holidays: {holidays}
         diary = await get_teacher_diary()
         results = await get_teacher_results()
         timetable = await get_teacher_timetable()
-        branding = await get_branding()
         holidays = await get_holidays()
         targeted_matches = await get_targeted_search_matches(user_query)
 
-        sections_str = "\n".join([f"- {r[1]} Section {r[2]} | Subject: {r[3]} [Section ID: {r[0]}, Subject ID: {r[5]}]" for r in sections])
+        sections_str = "\n".join([f"- {r[1]} ({r[2] if str(r[2]).lower().startswith('section') else 'Section ' + str(r[2])}) — Subject: {r[3]}" for r in sections])
         students_str = "\n".join([f"- {r[0]} {r[1] or ''} (Code: {r[2] or 'N/A'}, Class: {r[3]} {r[4]}, Parent: {r[8] or 'N/A'}, Phone: {r[9] or 'N/A'}) [Student ID: {r[5]}]" for r in students])
         att_str = "\n".join([f"- {r[0]} {r[1] or ''}: {round(r[2]/r[3]*100, 1)}% attendance ({r[2]}/{r[3]} days present) [Student ID: {r[4]}]" for r in att if r[3] > 0])
         hw_str = "\n".join([f"- '{r[0]}' ({r[1] or 'No details'}) | Due: {r[2]} | Class: {r[4]} {r[5]} [Assignment ID: {r[6]}]" for r in assignments])
@@ -926,9 +1092,6 @@ Upcoming Holidays: {holidays}
 
 Assigned Classes & Subjects:
 {sections_str or 'None'}
-
-Targeted Search Results for Current Query:
-{targeted_matches or 'None'}
 
 Students in Your Assigned Classes:
 {students_str or 'None'}
@@ -948,8 +1111,8 @@ Exam Results & Marks:
 Your Weekly Teaching Timetable:
 {timetable_str or 'None'}
 
-School Branding: {branding}
-Upcoming Holidays: {holidays}
+Targeted Search Results for Current Query:
+{targeted_matches or 'None'}
 """
 
     # =========================================================================
