@@ -1770,7 +1770,15 @@ export default function AltrixCopilot() {
           {/* ── Footer Branding ─────────────────────────────────────────── */}
           <div className="text-center py-1.5 bg-slate-50 border-t border-slate-100">
             <p className="text-[9px] text-slate-400 font-medium tracking-wider uppercase">
-              AltRix AI · Powered by NAUMAN ELLAHI
+              AltRix AI · Powered by{" "}
+              <a
+                href="https://naumanellahi.vercel.app"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary hover:text-blue-700 hover:underline font-bold transition-colors inline-block"
+              >
+                NAUMAN ELLAHI
+              </a>
             </p>
           </div>
         </div>
