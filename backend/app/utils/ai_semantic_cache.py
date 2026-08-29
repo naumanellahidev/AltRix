@@ -311,10 +311,37 @@ class SemanticCacheEngine:
         if not school_id or not query:
             return None
 
+        # PERSONAL INQUIRY PROTECTION: Never serve personal "My ..." queries from shared cache
+        is_personal_query = any(
+            kw in f" {query.lower()} "
+            for kw in [
+                " my ", " mine ", " meri ", " mera ", " mere ", " mujhe ", " apna ", " apni ", " apne ",
+                " i teach ", " assigned to me ", " my assigned ", " who am i ", " my profile ", " my details ",
+                " my classes ", " my subjects ", " my attendance ", " my salary ", " my pay ", " my children ",
+                " my fees ", " my timetable ", " my schedule ", " my leaves ", " my homework ", " my results "
+            ]
+        )
+        if is_personal_query:
+            return None
+
         role_key = build_role_key(roles)
         normalized_q = normalize_query(query)
 
         try:
+            # ── Invalidate any stale personal cache entries from legacy runs ──
+            await db.execute(text("""
+                UPDATE public.ai_semantic_cache
+                SET is_valid = FALSE
+                WHERE school_id = :school_id
+                  AND is_valid = TRUE
+                  AND (
+                      query_text ILIKE '%my assigned%'
+                      OR query_text ILIKE '%my class%'
+                      OR query_text ILIKE '%my subject%'
+                      OR query_text ILIKE '%mere assigned%'
+                      OR response_text ILIKE '%Based on the information provided in your exam results%'
+                  )
+            """), {"school_id": school_id})
             # ── Layer 1: DB-side trigram pre-filter ───────────────────────────
             # pg_trgm similarity() is a built-in Postgres function (no extension needed
             # beyond the pg_trgm module, which is enabled by default in Supabase/RDS).
@@ -423,6 +450,19 @@ class SemanticCacheEngine:
         """
         # SECURITY: never cache super_admin responses
         if "super_admin" in roles:
+            return None
+
+        # PERSONAL INQUIRY PROTECTION: Never store personal "My ..." queries in cache
+        is_personal_query = any(
+            kw in f" {query.lower()} "
+            for kw in [
+                " my ", " mine ", " meri ", " mera ", " mere ", " mujhe ", " apna ", " apni ", " apne ",
+                " i teach ", " assigned to me ", " my assigned ", " who am i ", " my profile ", " my details ",
+                " my classes ", " my subjects ", " my attendance ", " my salary ", " my pay ", " my children ",
+                " my fees ", " my timetable ", " my schedule ", " my leaves ", " my homework ", " my results "
+            ]
+        )
+        if is_personal_query:
             return None
 
         # Don't cache empty or error responses

@@ -981,9 +981,13 @@ Admissions & CRM Leads Overview:
                 WITH teacher_ids AS (
                     SELECT :uid::text AS tid
                     UNION
+                    SELECT id::text FROM public.hr_staff_directory WHERE (linked_user_id = :uid OR email = :uemail OR id::text = :uid) AND school_id = CAST(:sid AS UUID)
+                    UNION
+                    SELECT linked_user_id::text FROM public.hr_staff_directory WHERE (linked_user_id = :uid OR email = :uemail OR id::text = :uid) AND school_id = CAST(:sid AS UUID)
+                    UNION
                     SELECT user_id::text FROM public.teachers WHERE (user_id = :uid OR id::text = :uid OR email = :uemail) AND school_id = CAST(:sid AS UUID)
                     UNION
-                    SELECT linked_user_id::text FROM public.hr_staff_directory WHERE (linked_user_id = :uid OR email = :uemail) AND school_id = CAST(:sid AS UUID)
+                    SELECT id::text FROM public.teachers WHERE (user_id = :uid OR id::text = :uid OR email = :uemail) AND school_id = CAST(:sid AS UUID)
                     UNION
                     SELECT id::text FROM public.profiles WHERE id = :uid OR email = :uemail
                 ),
@@ -1077,9 +1081,13 @@ Admissions & CRM Leads Overview:
                 WITH teacher_ids AS (
                     SELECT :uid::text AS tid
                     UNION
+                    SELECT id::text FROM public.hr_staff_directory WHERE (linked_user_id = :uid OR email = :uemail OR id::text = :uid) AND school_id = CAST(:sid AS UUID)
+                    UNION
+                    SELECT linked_user_id::text FROM public.hr_staff_directory WHERE (linked_user_id = :uid OR email = :uemail OR id::text = :uid) AND school_id = CAST(:sid AS UUID)
+                    UNION
                     SELECT user_id::text FROM public.teachers WHERE (user_id = :uid OR id::text = :uid OR email = :uemail) AND school_id = CAST(:sid AS UUID)
                     UNION
-                    SELECT linked_user_id::text FROM public.hr_staff_directory WHERE (linked_user_id = :uid OR email = :uemail) AND school_id = CAST(:sid AS UUID)
+                    SELECT id::text FROM public.teachers WHERE (user_id = :uid OR id::text = :uid OR email = :uemail) AND school_id = CAST(:sid AS UUID)
                     UNION
                     SELECT id::text FROM public.profiles WHERE id = :uid OR email = :uemail
                 ),
@@ -1109,9 +1117,13 @@ Admissions & CRM Leads Overview:
                 WITH teacher_ids AS (
                     SELECT :uid::text AS tid
                     UNION
+                    SELECT id::text FROM public.hr_staff_directory WHERE (linked_user_id = :uid OR email = :uemail OR id::text = :uid) AND school_id = CAST(:sid AS UUID)
+                    UNION
+                    SELECT linked_user_id::text FROM public.hr_staff_directory WHERE (linked_user_id = :uid OR email = :uemail OR id::text = :uid) AND school_id = CAST(:sid AS UUID)
+                    UNION
                     SELECT user_id::text FROM public.teachers WHERE (user_id = :uid OR id::text = :uid OR email = :uemail) AND school_id = CAST(:sid AS UUID)
                     UNION
-                    SELECT linked_user_id::text FROM public.hr_staff_directory WHERE (linked_user_id = :uid OR email = :uemail) AND school_id = CAST(:sid AS UUID)
+                    SELECT id::text FROM public.teachers WHERE (user_id = :uid OR id::text = :uid OR email = :uemail) AND school_id = CAST(:sid AS UUID)
                     UNION
                     SELECT id::text FROM public.profiles WHERE id = :uid OR email = :uemail
                 ),
@@ -1140,9 +1152,13 @@ Admissions & CRM Leads Overview:
                 WITH teacher_ids AS (
                     SELECT :uid::text AS tid
                     UNION
+                    SELECT id::text FROM public.hr_staff_directory WHERE (linked_user_id = :uid OR email = :uemail OR id::text = :uid) AND school_id = CAST(:sid AS UUID)
+                    UNION
+                    SELECT linked_user_id::text FROM public.hr_staff_directory WHERE (linked_user_id = :uid OR email = :uemail OR id::text = :uid) AND school_id = CAST(:sid AS UUID)
+                    UNION
                     SELECT user_id::text FROM public.teachers WHERE (user_id = :uid OR id::text = :uid OR email = :uemail) AND school_id = CAST(:sid AS UUID)
                     UNION
-                    SELECT linked_user_id::text FROM public.hr_staff_directory WHERE (linked_user_id = :uid OR email = :uemail) AND school_id = CAST(:sid AS UUID)
+                    SELECT id::text FROM public.teachers WHERE (user_id = :uid OR id::text = :uid OR email = :uemail) AND school_id = CAST(:sid AS UUID)
                     UNION
                     SELECT id::text FROM public.profiles WHERE id = :uid OR email = :uemail
                 ),
@@ -1170,9 +1186,13 @@ Admissions & CRM Leads Overview:
                 WITH teacher_ids AS (
                     SELECT :uid::text AS tid
                     UNION
+                    SELECT id::text FROM public.hr_staff_directory WHERE (linked_user_id = :uid OR email = :uemail OR id::text = :uid) AND school_id = CAST(:sid AS UUID)
+                    UNION
+                    SELECT linked_user_id::text FROM public.hr_staff_directory WHERE (linked_user_id = :uid OR email = :uemail OR id::text = :uid) AND school_id = CAST(:sid AS UUID)
+                    UNION
                     SELECT user_id::text FROM public.teachers WHERE (user_id = :uid OR id::text = :uid OR email = :uemail) AND school_id = CAST(:sid AS UUID)
                     UNION
-                    SELECT linked_user_id::text FROM public.hr_staff_directory WHERE (linked_user_id = :uid OR email = :uemail) AND school_id = CAST(:sid AS UUID)
+                    SELECT id::text FROM public.teachers WHERE (user_id = :uid OR id::text = :uid OR email = :uemail) AND school_id = CAST(:sid AS UUID)
                     UNION
                     SELECT id::text FROM public.profiles WHERE id = :uid OR email = :uemail
                 ),
@@ -1196,13 +1216,20 @@ Admissions & CRM Leads Overview:
             """, t_param)
 
         async def get_teacher_results():
+            # If user query is specifically asking about classes or subjects, suppress exam results to prevent noise
+            if user_query and any(k in user_query.lower() for k in ["class", "classes", "subject", "subjects", "assign", "timetable", "schedule"]):
+                return []
             return await fetch_rows("""
                 WITH teacher_ids AS (
                     SELECT :uid::text AS tid
                     UNION
+                    SELECT id::text FROM public.hr_staff_directory WHERE (linked_user_id = :uid OR email = :uemail OR id::text = :uid) AND school_id = CAST(:sid AS UUID)
+                    UNION
+                    SELECT linked_user_id::text FROM public.hr_staff_directory WHERE (linked_user_id = :uid OR email = :uemail OR id::text = :uid) AND school_id = CAST(:sid AS UUID)
+                    UNION
                     SELECT user_id::text FROM public.teachers WHERE (user_id = :uid OR id::text = :uid OR email = :uemail) AND school_id = CAST(:sid AS UUID)
                     UNION
-                    SELECT linked_user_id::text FROM public.hr_staff_directory WHERE (linked_user_id = :uid OR email = :uemail) AND school_id = CAST(:sid AS UUID)
+                    SELECT id::text FROM public.teachers WHERE (user_id = :uid OR id::text = :uid OR email = :uemail) AND school_id = CAST(:sid AS UUID)
                     UNION
                     SELECT id::text FROM public.profiles WHERE id = :uid OR email = :uemail
                 ),

@@ -1658,14 +1658,26 @@ async def copilot_chat(
     # ── Semantic Cache Lookup ──────────────────────────────────────────────────
     # Replaces MD5 exact-match with semantic similarity search.
     # Security: school_id + role_key exact match enforced inside find_similar().
-    _sem_hit = await semantic_cache.find_similar(
-        db=db,
-        school_id=effective_school_id or "",
-        query=body.message,
-        roles=current_user.roles or [],
-        module=body.current_module,
-        campus_id=body.active_campus_id if body.active_campus_id else None,
+    is_personal_query = any(
+        kw in f" {body.message.lower()} "
+        for kw in [
+            " my ", " mine ", " meri ", " mera ", " mere ", " mujhe ", " apna ", " apni ", " apne ",
+            " i teach ", " assigned to me ", " my assigned ", " who am i ", " my profile ", " my details ",
+            " my classes ", " my subjects ", " my attendance ", " my salary ", " my pay ", " my children ",
+            " my fees ", " my timetable ", " my schedule ", " my leaves ", " my homework ", " my results "
+        ]
     )
+
+    _sem_hit = None
+    if not is_personal_query:
+        _sem_hit = await semantic_cache.find_similar(
+            db=db,
+            school_id=effective_school_id or "",
+            query=body.message,
+            roles=current_user.roles or [],
+            module=body.current_module,
+            campus_id=body.active_campus_id if body.active_campus_id else None,
+        )
     if _sem_hit is not None:
         # Fire-and-forget tracking (non-blocking)
         import asyncio
