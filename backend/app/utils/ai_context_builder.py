@@ -149,84 +149,191 @@ async def build_scoped_ai_context(
 
         matches: List[str] = []
 
-        # ── 0. Personal Teacher / Staff Inquiry Check ───────────────────────────
+        # ── 0. Universal Current User Personal Inquiry Resolver ─────────────────
         is_personal_inquiry = any(
-            kw in clean_query.lower()
+            kw in f" {clean_query.lower()} "
             for kw in [
-                "my ", "mine", "meri ", "mera ", "mere ", "mujhe ", "i teach", "assigned to me", "my assigned"
+                " my ", " mine ", " meri ", " mera ", " mere ", " mujhe ", " apna ", " apni ", " apne ",
+                " i teach ", " assigned to me ", " my assigned ", " who am i ", " my profile ", " my details ",
+                " my classes ", " my subjects ", " my attendance ", " my salary ", " my pay ", " my children ",
+                " my fees ", " my timetable ", " my schedule ", " my leaves ", " my homework ", " my results "
             ]
         )
 
-        # Handle direct personal classes & subjects questions
-        if is_personal_inquiry and any(k in clean_query.lower() for k in ["class", "subject", "assign", "teach", "parhate", "padhate", "timetable", "schedule"]):
-            personal_classes = await fetch_rows("""
-                WITH teacher_ids AS (
-                    SELECT :uid::text AS tid
-                    UNION
-                    SELECT user_id::text FROM public.teachers WHERE (user_id = :uid OR id::text = :uid OR email = :uemail) AND school_id = CAST(:sid AS UUID)
-                    UNION
-                    SELECT linked_user_id::text FROM public.hr_staff_directory WHERE (linked_user_id = :uid OR email = :uemail) AND school_id = CAST(:sid AS UUID)
-                    UNION
-                    SELECT id::text FROM public.profiles WHERE id = :uid OR email = :uemail
-                ),
-                active_tids AS (
-                    SELECT DISTINCT tid FROM teacher_ids WHERE tid IS NOT NULL AND tid != ''
-                ),
-                all_personal_sections AS (
+        if is_personal_inquiry:
+            # 1. Personal Classes & Subjects
+            if any(k in clean_query.lower() for k in ["class", "subject", "assign", "teach", "parhate", "padhate", "timetable", "schedule"]):
+                personal_classes = await fetch_rows("""
+                    WITH teacher_ids AS (
+                        SELECT :uid::text AS tid
+                        UNION
+                        SELECT user_id::text FROM public.teachers WHERE (user_id = :uid OR id::text = :uid OR email = :uemail) AND school_id = CAST(:sid AS UUID)
+                        UNION
+                        SELECT linked_user_id::text FROM public.hr_staff_directory WHERE (linked_user_id = :uid OR email = :uemail) AND school_id = CAST(:sid AS UUID)
+                        UNION
+                        SELECT id::text FROM public.profiles WHERE id = :uid OR email = :uemail
+                    ),
+                    active_tids AS (
+                        SELECT DISTINCT tid FROM teacher_ids WHERE tid IS NOT NULL AND tid != ''
+                    ),
+                    all_personal_sections AS (
+                        SELECT 
+                            c.name AS class_name,
+                            cs.name AS section_name,
+                            COALESCE(
+                                (SELECT string_agg(DISTINCT sub.name, ', ') 
+                                 FROM teacher_subject_assignments tsa2 
+                                 JOIN subjects sub ON tsa2.subject_id = sub.id 
+                                 WHERE tsa2.class_section_id = ta.class_section_id 
+                                   AND tsa2.teacher_user_id::text IN (SELECT tid FROM active_tids)
+                                ),
+                                'All Subjects (Class Teacher)'
+                            ) AS subject_name
+                        FROM teacher_assignments ta
+                        JOIN class_sections cs ON ta.class_section_id = cs.id
+                        JOIN academic_classes c ON cs.class_id = c.id
+                        WHERE ta.teacher_user_id::text IN (SELECT tid FROM active_tids)
+                          AND ta.school_id = CAST(:sid AS UUID)
+
+                        UNION
+
+                        SELECT 
+                            c.name AS class_name,
+                            cs.name AS section_name,
+                            COALESCE(sub.name, 'Assigned Subject') AS subject_name
+                        FROM teacher_subject_assignments tsa
+                        JOIN class_sections cs ON tsa.class_section_id = cs.id
+                        JOIN academic_classes c ON cs.class_id = c.id
+                        LEFT JOIN subjects sub ON tsa.subject_id = sub.id
+                        WHERE tsa.teacher_user_id::text IN (SELECT tid FROM active_tids)
+                          AND tsa.school_id = CAST(:sid AS UUID)
+
+                        UNION
+
+                        SELECT 
+                            c.name AS class_name,
+                            cs.name AS section_name,
+                            COALESCE(tp.subject_name, 'General Subject') AS subject_name
+                        FROM timetable_periods tp
+                        JOIN class_sections cs ON tp.class_section_id = cs.id
+                        JOIN academic_classes c ON cs.class_id = c.id
+                        WHERE tp.teacher_user_id::text IN (SELECT tid FROM active_tids)
+                          AND c.school_id = CAST(:sid AS UUID)
+                    )
+                    SELECT DISTINCT class_name, section_name, subject_name
+                    FROM all_personal_sections
+                    ORDER BY class_name, section_name, subject_name
+                """, {"uid": str(user.id), "uemail": getattr(user, "email", "") or "", "sid": school_id})
+
+                if personal_classes:
+                    matches.append("🎯 DIRECT QUERY ANSWER DATA (Your Personal Assigned Classes & Subjects):")
+                    for pc in personal_classes:
+                        c_clean = pc[0] if str(pc[0]).lower().startswith("class") else f"Class {pc[0]}"
+                        s_clean = pc[1] if str(pc[1]).lower().startswith("section") else f"Section {pc[1]}"
+                        matches.append(f"  * {c_clean} ({s_clean}) — Subject: {pc[2]}")
+
+            # 2. Personal Attendance
+            if any(k in clean_query.lower() for k in ["attendance", "hazri", "present", "absent", "late"]):
+                # Staff Attendance
+                staff_att = await fetch_rows("""
                     SELECT 
-                        c.name AS class_name,
-                        cs.name AS section_name,
-                        COALESCE(
-                            (SELECT string_agg(DISTINCT sub.name, ', ') 
-                             FROM teacher_subject_assignments tsa2 
-                             JOIN subjects sub ON tsa2.subject_id = sub.id 
-                             WHERE tsa2.class_section_id = ta.class_section_id 
-                               AND tsa2.teacher_user_id::text IN (SELECT tid FROM active_tids)
-                            ),
-                            'All Subjects (Class Teacher)'
-                        ) AS subject_name
-                    FROM teacher_assignments ta
-                    JOIN class_sections cs ON ta.class_section_id = cs.id
-                    JOIN academic_classes c ON cs.class_id = c.id
-                    WHERE ta.teacher_user_id::text IN (SELECT tid FROM active_tids)
-                      AND ta.school_id = CAST(:sid AS UUID)
+                        COUNT(*) FILTER (WHERE status = 'present') as present_days,
+                        COUNT(*) FILTER (WHERE status = 'absent') as absent_days,
+                        COUNT(*) FILTER (WHERE status = 'late') as late_days,
+                        COUNT(*) as total_records
+                    FROM hr_staff_attendance
+                    WHERE staff_id IN (
+                        SELECT id FROM hr_staff_directory WHERE (linked_user_id = :uid OR email = :uemail) AND school_id = CAST(:sid AS UUID)
+                    )
+                """, {"uid": str(user.id), "uemail": getattr(user, "email", "") or "", "sid": school_id})
+                if staff_att and staff_att[0] and staff_att[0][3] > 0:
+                    r = staff_att[0]
+                    matches.append(f"🎯 DIRECT QUERY ANSWER DATA (Your Staff Attendance): Present: {r[0]} days, Absent: {r[1]} days, Late: {r[2]} days (Total Logged: {r[3]} days)")
 
-                    UNION
-
+                # Student Attendance (if user is student)
+                student_att = await fetch_rows("""
                     SELECT 
-                        c.name AS class_name,
-                        cs.name AS section_name,
-                        COALESCE(sub.name, 'Assigned Subject') AS subject_name
-                    FROM teacher_subject_assignments tsa
-                    JOIN class_sections cs ON tsa.class_section_id = cs.id
-                    JOIN academic_classes c ON cs.class_id = c.id
-                    LEFT JOIN subjects sub ON tsa.subject_id = sub.id
-                    WHERE tsa.teacher_user_id::text IN (SELECT tid FROM active_tids)
-                      AND tsa.school_id = CAST(:sid AS UUID)
+                        COUNT(*) FILTER (WHERE ae.status = 'present') as present_days,
+                        COUNT(*) FILTER (WHERE ae.status = 'absent') as absent_days,
+                        COUNT(*) as total_days
+                    FROM attendance_entries ae
+                    WHERE ae.student_id IN (
+                        SELECT id FROM students WHERE user_id = :uid OR email = :uemail
+                    )
+                """, {"uid": str(user.id), "uemail": getattr(user, "email", "") or ""})
+                if student_att and student_att[0] and student_att[0][2] > 0:
+                    r = student_att[0]
+                    pct = round(r[0] / r[2] * 100, 1)
+                    matches.append(f"🎯 DIRECT QUERY ANSWER DATA (Your Student Attendance): {pct}% ({r[0]}/{r[2]} days present, {r[1]} days absent)")
 
-                    UNION
+            # 3. Personal Salary / Payroll
+            if any(k in clean_query.lower() for k in ["salary", "pay", "payslip", "tankhwah", "tankha", "allowance", "deduction", "payroll"]):
+                staff_sal = await fetch_rows("""
+                    SELECT full_name, position, department, salary, salary_type
+                    FROM hr_staff_directory
+                    WHERE (linked_user_id = :uid OR email = :uemail) AND school_id = CAST(:sid AS UUID)
+                """, {"uid": str(user.id), "uemail": getattr(user, "email", "") or "", "sid": school_id})
+                if staff_sal and staff_sal[0]:
+                    s = staff_sal[0]
+                    matches.append(f"🎯 DIRECT QUERY ANSWER DATA (Your Salary & Payroll): Designation: {s[1] or 'Staff'} ({s[2] or 'General'}), Base Salary: {format_money(s[3] or 0)} ({s[4] or 'Monthly'})")
 
-                    SELECT 
-                        c.name AS class_name,
-                        cs.name AS section_name,
-                        COALESCE(tp.subject_name, 'General Subject') AS subject_name
-                    FROM timetable_periods tp
-                    JOIN class_sections cs ON tp.class_section_id = cs.id
-                    JOIN academic_classes c ON cs.class_id = c.id
-                    WHERE tp.teacher_user_id::text IN (SELECT tid FROM active_tids)
-                      AND c.school_id = CAST(:sid AS UUID)
-                )
-                SELECT DISTINCT class_name, section_name, subject_name
-                FROM all_personal_sections
-                ORDER BY class_name, section_name, subject_name
-            """, {"uid": str(user.id), "uemail": getattr(user, "email", "") or "", "sid": school_id})
+            # 4. Personal Leaves
+            if any(k in clean_query.lower() for k in ["leave", "leaves", "chutti", "chuttiyan", "vacation"]):
+                staff_leaves = await fetch_rows("""
+                    SELECT leave_type, start_date, end_date, reason, status
+                    FROM hr_leave_requests
+                    WHERE staff_id IN (
+                        SELECT id FROM hr_staff_directory WHERE (linked_user_id = :uid OR email = :uemail) AND school_id = CAST(:sid AS UUID)
+                    )
+                    ORDER BY start_date DESC LIMIT 5
+                """, {"uid": str(user.id), "uemail": getattr(user, "email", "") or "", "sid": school_id})
+                if staff_leaves:
+                    matches.append("🎯 DIRECT QUERY ANSWER DATA (Your Leave History):")
+                    for l in staff_leaves:
+                        matches.append(f"  * {l[0] or 'Leave'}: {l[1]} to {l[2]} | Reason: '{l[3] or 'None'}' | Status: {l[4]}")
 
-            if personal_classes:
-                matches.append("🎯 DIRECT QUERY ANSWER DATA (Your Personal Assigned Classes & Subjects):")
-                for pc in personal_classes:
-                    c_clean = pc[0] if str(pc[0]).lower().startswith("class") else f"Class {pc[0]}"
-                    s_clean = pc[1] if str(pc[1]).lower().startswith("section") else f"Section {pc[1]}"
-                    matches.append(f"  * {c_clean} ({s_clean}) — Subject: {pc[2]}")
+            # 5. Personal Fees & Invoices (for Student / Parent)
+            if any(k in clean_query.lower() for k in ["fee", "fees", "invoice", "challan", "dues", "balance", "receipt", "bill"]):
+                user_invoices = await fetch_rows("""
+                    SELECT i.invoice_number, s.first_name, s.last_name, i.total_amount, i.paid_amount, i.due_date, i.status
+                    FROM fee_invoices i
+                    JOIN students s ON i.student_id = s.id
+                    WHERE (s.user_id = :uid OR s.email = :uemail OR s.parent_user_id = :uid OR s.parent_email = :uemail)
+                      AND i.school_id = CAST(:sid AS UUID)
+                    ORDER BY i.due_date DESC LIMIT 5
+                """, {"uid": str(user.id), "uemail": getattr(user, "email", "") or "", "sid": school_id})
+                if user_invoices:
+                    matches.append("🎯 DIRECT QUERY ANSWER DATA (Your Fee Invoices & Dues):")
+                    for iv in user_invoices:
+                        due_bal = float(iv[3] or 0) - float(iv[4] or 0)
+                        matches.append(f"  * Invoice #{iv[0]} ({iv[1]} {iv[2] or ''}): Total: {format_money(iv[3])}, Paid: {format_money(iv[4])}, Remaining Balance: {format_money(due_bal)}, Due Date: {to_pkt_date_str(iv[5])}, Status: {iv[6]}")
+
+            # 6. Personal Children (for Parent)
+            if any(k in clean_query.lower() for k in ["child", "children", "kid", "kids", "bachay", "bache", "beta", "beti", "son", "daughter"]):
+                parent_kids = await fetch_rows("""
+                    SELECT s.first_name, s.last_name, s.student_code, c.name, cs.name, s.status
+                    FROM students s
+                    LEFT JOIN student_enrollments se ON se.student_id = s.id AND se.end_date IS NULL
+                    LEFT JOIN class_sections cs ON se.class_section_id = cs.id
+                    LEFT JOIN academic_classes c ON cs.class_id = c.id
+                    WHERE (s.parent_user_id = :uid OR s.parent_email = :uemail OR s.parent_phone = :uemail)
+                      AND s.school_id = CAST(:sid AS UUID)
+                """, {"uid": str(user.id), "uemail": getattr(user, "email", "") or "", "sid": school_id})
+                if parent_kids:
+                    matches.append("🎯 DIRECT QUERY ANSWER DATA (Your Children):")
+                    for k in parent_kids:
+                        matches.append(f"  * {k[0]} {k[1] or ''} (Code: {k[2] or 'N/A'}, Class: {k[3] or 'Unassigned'} {k[4] or ''}, Status: {k[5]})")
+
+            # 7. Personal Profile & Bio
+            if any(k in clean_query.lower() for k in ["profile", "details", "info", "who am i", "meri details", "mera record"]):
+                user_info = await fetch_rows("""
+                    SELECT full_name, position, department, email, phone, is_active
+                    FROM hr_staff_directory
+                    WHERE (linked_user_id = :uid OR email = :uemail) AND school_id = CAST(:sid AS UUID)
+                """, {"uid": str(user.id), "uemail": getattr(user, "email", "") or "", "sid": school_id})
+                if user_info and user_info[0]:
+                    u = user_info[0]
+                    matches.append(f"🎯 DIRECT QUERY ANSWER DATA (Your Profile & Position): Name: {u[0]}, Designation: {u[1] or 'Staff'} ({u[2] or 'General'}), Email: {u[3] or 'N/A'}, Status: {'Active' if u[5] else 'Inactive'}")
 
         # ── 0a. Relational Class & Section Teacher Assignment Search ────────────
         is_relational_assignment_query = any(
