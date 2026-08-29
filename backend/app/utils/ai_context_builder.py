@@ -149,13 +149,86 @@ async def build_scoped_ai_context(
 
         matches: List[str] = []
 
-        # ── 0. Relational Class & Section Teacher Assignment Search ────────────
-        # Handles queries like:
-        # "Class 3 ko jo teachers assign hain unke naam batao"
-        # "Class 5 ka teacher kaun hai?"
-        # "Section A mein kaun se teachers assigned hain?"
-        # "Grade 8 ke math teacher ka naam batao"
-        # "Which teachers are assigned to Class 3?"
+        # ── 0. Personal Teacher / Staff Inquiry Check ───────────────────────────
+        is_personal_inquiry = any(
+            kw in clean_query.lower()
+            for kw in [
+                "my ", "mine", "meri ", "mera ", "mere ", "mujhe ", "i teach", "assigned to me", "my assigned"
+            ]
+        )
+
+        # Handle direct personal classes & subjects questions
+        if is_personal_inquiry and any(k in clean_query.lower() for k in ["class", "subject", "assign", "teach", "parhate", "padhate", "timetable", "schedule"]):
+            personal_classes = await fetch_rows("""
+                WITH teacher_ids AS (
+                    SELECT :uid::text AS tid
+                    UNION
+                    SELECT user_id::text FROM public.teachers WHERE (user_id = :uid OR id::text = :uid OR email = :uemail) AND school_id = CAST(:sid AS UUID)
+                    UNION
+                    SELECT linked_user_id::text FROM public.hr_staff_directory WHERE (linked_user_id = :uid OR email = :uemail) AND school_id = CAST(:sid AS UUID)
+                    UNION
+                    SELECT id::text FROM public.profiles WHERE id = :uid OR email = :uemail
+                ),
+                active_tids AS (
+                    SELECT DISTINCT tid FROM teacher_ids WHERE tid IS NOT NULL AND tid != ''
+                ),
+                all_personal_sections AS (
+                    SELECT 
+                        c.name AS class_name,
+                        cs.name AS section_name,
+                        COALESCE(
+                            (SELECT string_agg(DISTINCT sub.name, ', ') 
+                             FROM teacher_subject_assignments tsa2 
+                             JOIN subjects sub ON tsa2.subject_id = sub.id 
+                             WHERE tsa2.class_section_id = ta.class_section_id 
+                               AND tsa2.teacher_user_id::text IN (SELECT tid FROM active_tids)
+                            ),
+                            'All Subjects (Class Teacher)'
+                        ) AS subject_name
+                    FROM teacher_assignments ta
+                    JOIN class_sections cs ON ta.class_section_id = cs.id
+                    JOIN academic_classes c ON cs.class_id = c.id
+                    WHERE ta.teacher_user_id::text IN (SELECT tid FROM active_tids)
+                      AND ta.school_id = CAST(:sid AS UUID)
+
+                    UNION
+
+                    SELECT 
+                        c.name AS class_name,
+                        cs.name AS section_name,
+                        COALESCE(sub.name, 'Assigned Subject') AS subject_name
+                    FROM teacher_subject_assignments tsa
+                    JOIN class_sections cs ON tsa.class_section_id = cs.id
+                    JOIN academic_classes c ON cs.class_id = c.id
+                    LEFT JOIN subjects sub ON tsa.subject_id = sub.id
+                    WHERE tsa.teacher_user_id::text IN (SELECT tid FROM active_tids)
+                      AND tsa.school_id = CAST(:sid AS UUID)
+
+                    UNION
+
+                    SELECT 
+                        c.name AS class_name,
+                        cs.name AS section_name,
+                        COALESCE(tp.subject_name, 'General Subject') AS subject_name
+                    FROM timetable_periods tp
+                    JOIN class_sections cs ON tp.class_section_id = cs.id
+                    JOIN academic_classes c ON cs.class_id = c.id
+                    WHERE tp.teacher_user_id::text IN (SELECT tid FROM active_tids)
+                      AND c.school_id = CAST(:sid AS UUID)
+                )
+                SELECT DISTINCT class_name, section_name, subject_name
+                FROM all_personal_sections
+                ORDER BY class_name, section_name, subject_name
+            """, {"uid": str(user.id), "uemail": getattr(user, "email", "") or "", "sid": school_id})
+
+            if personal_classes:
+                matches.append("🎯 DIRECT QUERY ANSWER DATA (Your Personal Assigned Classes & Subjects):")
+                for pc in personal_classes:
+                    c_clean = pc[0] if str(pc[0]).lower().startswith("class") else f"Class {pc[0]}"
+                    s_clean = pc[1] if str(pc[1]).lower().startswith("section") else f"Section {pc[1]}"
+                    matches.append(f"  * {c_clean} ({s_clean}) — Subject: {pc[2]}")
+
+        # ── 0a. Relational Class & Section Teacher Assignment Search ────────────
         is_relational_assignment_query = any(
             kw in clean_query.lower()
             for kw in [
@@ -165,18 +238,23 @@ async def build_scoped_ai_context(
             ]
         )
 
-        class_pattern_match = re.search(r'(?:class|grade|section|jamaat|darja)\s*([0-9a-zA-Z\-]+)', clean_query, re.IGNORECASE)
-        explicit_num_match = re.search(r'\b([1-9]|1[0-2])\b', clean_query)
+        # Match specific class designations like "Class 3", "Grade 8", "Section B", "Class KG"
+        class_pattern_match = re.search(r'\b(?:class|grade|section|jamaat|darja)\s+([0-9]+|[a-zA-Z]\b|playgroup|nursery|prep|kg[12]?|kindergarten)', clean_query, re.IGNORECASE)
+        explicit_num_match = re.search(r'\b([1-9]|1[0-2])\b', clean_query) if not is_personal_inquiry else None
 
-        if is_relational_assignment_query or class_pattern_match or explicit_num_match:
-            c_target = ""
-            if class_pattern_match:
-                c_target = class_pattern_match.group(1).strip()
-            elif explicit_num_match:
-                c_target = explicit_num_match.group(1).strip()
+        c_target = ""
+        if class_pattern_match:
+            candidate = class_pattern_match.group(1).strip()
+            stopwords = {"es", "s", "and", "or", "in", "the", "ko", "ki", "ka", "ke", "mein", "par", "all", "sab", "list", "show", "subjects", "subject", "teacher", "teachers", "batao", "bataen", "hain", "hai"}
+            if candidate.lower() not in stopwords:
+                c_target = candidate
+        elif explicit_num_match and not is_personal_inquiry:
+            c_target = explicit_num_match.group(1).strip()
 
-            c_filter = "AND (c.name ILIKE :cterm OR cs.name ILIKE :cterm OR CAST(c.grade_level AS text) = :gterm)" if c_target else ""
-            c_params = {"sid": school_id, "cterm": f"%{c_target}%", "gterm": c_target} if c_target else {"sid": school_id}
+        # Only run class-specific relational lookup if not a general personal "my classes" query
+        if c_target:
+            c_filter = "AND (c.name ILIKE :cterm OR cs.name ILIKE :cterm OR CAST(c.grade_level AS text) = :gterm)"
+            c_params = {"sid": school_id, "cterm": f"%{c_target}%", "gterm": c_target}
 
             # 1. Fetch matching academic classes and sections in scope
             classes_in_scope = await fetch_rows(f"""
@@ -193,7 +271,7 @@ async def build_scoped_ai_context(
                     SELECT 
                         c.name as class_name,
                         cs.name as section_name,
-                        sub.name as subject_name,
+                        COALESCE(sub.name, 'General Subject') as subject_name,
                         COALESCE(sud.display_name, p.display_name, hr.full_name, 'Assigned Teacher') as teacher_name,
                         cs.id as section_id
                     FROM teacher_subject_assignments tsa
@@ -218,7 +296,7 @@ async def build_scoped_ai_context(
                         teacher_subjects_by_sec[sec_key][t_name] = []
                     teacher_subjects_by_sec[sec_key][t_name].append(sub_name)
 
-                header_label = f"🎯 DIRECT QUERY ANSWER DATA (High Priority for Class '{c_target or 'All Classes'}'):"
+                header_label = f"🎯 DIRECT QUERY ANSWER DATA (Class '{c_target}'):"
                 matches.append(header_label)
                 for cls in classes_in_scope:
                     sec_key = (cls[0], cls[1])
@@ -235,8 +313,6 @@ async def build_scoped_ai_context(
                         matches.append(
                             f"  * {c_clean} ({s_clean}): NO TEACHERS ASSIGNED (0 teacher assignments found in school database)."
                         )
-            elif c_target:
-                matches.append(f"🎯 DIRECT QUERY ANSWER DATA (High Priority):\n  * Class/Section Lookup: Class '{c_target}' is not registered in this school.")
 
         # ── 0b. Subject-to-Teacher Relationship Search ─────────────────────────
         subject_keywords = [
