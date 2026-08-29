@@ -71,7 +71,29 @@ class OllamaAIService:
             return settings.ollama_reasoning_model
         if settings.ollama_general_model:
             return settings.ollama_general_model
-        return "qwen2.5:1.5b"
+        return "qwen2.5:3b"
+
+    @classmethod
+    def get_fallback_models(cls, primary_model: str) -> List[str]:
+        """
+        Returns an ordered list of fallback models if primary model is not yet pulled.
+        """
+        candidates = [
+            primary_model,
+            "qwen2.5:3b",
+            "qwen2.5:7b",
+            "deepseek-r1:1.5b",
+            "llama3.2:3b",
+            "qwen2.5:1.5b",
+            "llama3.2:1b",
+            "glm4:latest",
+            "qwen:latest",
+        ]
+        unique_models: List[str] = []
+        for m in candidates:
+            if m and m not in unique_models:
+                unique_models.append(m)
+        return unique_models
 
     @classmethod
     async def stream_completion(
@@ -97,65 +119,76 @@ class OllamaAIService:
         
         messages.append({"role": "user", "content": user_message})
 
-        model = cls.get_model_name(user_message)
+        primary_model = cls.get_model_name(user_message)
+        models_to_try = cls.get_fallback_models(primary_model)
         endpoints = cls.get_ollama_endpoints()
         headers = {"Content-Type": "application/json"}
         if settings.ollama_api_key:
             headers["Authorization"] = f"Bearer {settings.ollama_api_key}"
 
-        payload = {
-            "model": model,
-            "messages": messages,
-            "stream": True,
-            "options": {
-                "temperature": 0.2,
-                "num_predict": 512
-            }
-        }
-
         streamed_any = False
         last_error: Optional[str] = None
 
+        timeout = httpx.Timeout(connect=8.0, read=300.0, write=30.0, pool=30.0)
+
         for endpoint in endpoints:
-            try:
-                logger.info(f"Connecting to AltRix Ollama Service at {endpoint} with model '{model}'")
-                timeout = httpx.Timeout(connect=10.0, read=300.0, write=30.0, pool=30.0)
-                async with httpx.AsyncClient(timeout=timeout) as client:
-                    async with client.stream("POST", endpoint, json=payload, headers=headers) as response:
-                        if response.status_code == 200:
-                            async for line in response.aiter_lines():
-                                if not line.strip():
+            if streamed_any:
+                break
+            for model in models_to_try:
+                payload = {
+                    "model": model,
+                    "messages": messages,
+                    "stream": True,
+                    "options": {
+                        "temperature": 0.2,
+                        "num_predict": 512
+                    }
+                }
+                try:
+                    logger.info(f"Connecting to AltRix Ollama Service at {endpoint} with model '{model}'")
+                    async with httpx.AsyncClient(timeout=timeout) as client:
+                        async with client.stream("POST", endpoint, json=payload, headers=headers) as response:
+                            if response.status_code == 200:
+                                async for line in response.aiter_lines():
+                                    if not line.strip():
+                                        continue
+                                    try:
+                                        chunk = json.loads(line.strip())
+                                        token = chunk.get("message", {}).get("content", "")
+                                        if token:
+                                            streamed_any = True
+                                            sse_data = {"choices": [{"delta": {"content": token}}]}
+                                            yield f"data: {json.dumps(sse_data)}\n\n"
+                                        if chunk.get("done", False):
+                                            break
+                                    except json.JSONDecodeError:
+                                        continue
+                                
+                                if streamed_any:
+                                    break
+                            else:
+                                resp_body = await response.aread()
+                                err_msg = f"HTTP {response.status_code}: {resp_body.decode('utf-8', 'ignore')[:150]}"
+                                logger.warning(f"Ollama at {endpoint} with model '{model}' returned {err_msg}")
+                                last_error = err_msg
+                                # If model not found (404), try next model candidate on same endpoint
+                                if response.status_code == 404:
                                     continue
-                                try:
-                                    chunk = json.loads(line.strip())
-                                    token = chunk.get("message", {}).get("content", "")
-                                    if token:
-                                        streamed_any = True
-                                        sse_data = {"choices": [{"delta": {"content": token}}]}
-                                        yield f"data: {json.dumps(sse_data)}\n\n"
-                                    if chunk.get("done", False):
-                                        break
-                                except json.JSONDecodeError:
-                                    continue
-                            
-                            if streamed_any:
-                                break
-                        else:
-                            resp_body = await response.aread()
-                            err_msg = f"HTTP {response.status_code}: {resp_body.decode('utf-8', 'ignore')[:150]}"
-                            logger.warning(f"Ollama at {endpoint} returned {err_msg}")
-                            last_error = err_msg
-            except Exception as e:
-                logger.warning(f"Ollama connection to {endpoint} failed: {e}")
-                last_error = str(e)
+                                else:
+                                    break
+                except Exception as e:
+                    logger.warning(f"Ollama connection to {endpoint} failed: {e}")
+                    last_error = str(e)
+                    break
 
         # If Ollama service was completely unreachable or failed
         if not streamed_any:
             logger.error(f"AltRix Ollama AI Service unreachable across all endpoints. Last error: {last_error}")
             err_notice = (
-                "⚠️ **AltRix AI Copilot Service Unavailable**\n\n"
-                "The local AI reasoning service (Ollama) is currently unreachable or starting up. "
-                "Please verify that the Ollama service is active on the server (`systemctl status ollama`).\n\n"
+                "⚠️ **AltRix AI Copilot Service Notice**\n\n"
+                "The local AI reasoning service (Ollama) is starting up or preparing the model.\n\n"
+                "To initialize the model on your server, run:\n"
+                "`ollama pull qwen2.5:3b`\n\n"
                 "You can still navigate directly to modules using the menu or global command bar (`Ctrl+K` / `Cmd+K`)."
             )
             sse_data = {"choices": [{"delta": {"content": err_notice}}]}

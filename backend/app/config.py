@@ -53,14 +53,14 @@ class Settings(BaseSettings):
     jazzcash_return_url: str = ""
     jazzcash_api_url: str = "https://sandbox.jazzcash.com.pk/CustomerPortal/transactionmanagement/merchantform/"
 
-    # AI
+    # AI (Local Ollama Inference Engine - 100% Free & Private)
     gemini_api_key: str = ""
-    ollama_url: str = ""
+    ollama_url: str = "http://127.0.0.1:11434"
     ollama_api_key: str = ""
-    ollama_reasoning_model: str = "qwen2.5:1.5b"
-    ollama_general_model: str = "qwen2.5:1.5b"
+    ollama_reasoning_model: str = "qwen2.5:3b"
+    ollama_general_model: str = "qwen2.5:3b"
 
-    # Cloud AI Flexibility (Railway/Production)
+    # Cloud AI Flexibility
     ai_provider: str = "ollama"  # "ollama", "openrouter", "groq", "deepseek"
     ai_api_key: str = ""
     ai_api_base: str = ""
