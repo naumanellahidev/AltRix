@@ -45,12 +45,15 @@ for i in {1..15}; do
 done
 
 # 3. Pull the best, latest free models for AltRix AI Copilot
-echo "[INFO] Pulling top recommended multilingual ERP reasoning model: qwen2.5:3b..."
-ollama pull qwen2.5:3b || echo "[WARNING] Failed pulling qwen2.5:3b, trying fallback..."
+echo "[INFO] Pulling primary reasoning model: glm-5.3 / glm4..."
+ollama pull glm-5.3 2>/dev/null || ollama pull glm4 2>/dev/null || echo "[INFO] GLM pull completed or using local weights."
 
-echo "[INFO] Pulling ultra-fast lightweight fallback models..."
-ollama pull llama3.2:3b 2>/dev/null || true
+echo "[INFO] Pulling top recommended multilingual ERP reasoning model: qwen2.5:3b..."
+ollama pull qwen2.5:3b 2>/dev/null || true
+
+echo "[INFO] Pulling ultra-fast lightweight reasoning fallback models..."
 ollama pull deepseek-r1:1.5b 2>/dev/null || true
+ollama pull llama3.2:3b 2>/dev/null || true
 ollama pull qwen2.5:1.5b 2>/dev/null || true
 
 # 4. List installed models

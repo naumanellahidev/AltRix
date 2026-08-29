@@ -37,7 +37,7 @@ DEFAULT_PROMPTS = [
 
 class ProviderSwapRequest(BaseModel):
     provider: str
-    fallback_provider: Optional[str] = "Ollama: DeepSeek-R1 (Local Fallback)"
+    fallback_provider: Optional[str] = "Ollama: Qwen 2.5 & DeepSeek-R1 (Local Fallback Cluster)"
     token_quota_limit: Optional[int] = None
 
 class PromptUpdateRequest(BaseModel):
@@ -45,8 +45,8 @@ class PromptUpdateRequest(BaseModel):
     system_prompt: str
 
 DEFAULT_AI_CONFIG = {
-    "active_provider": "Ollama: Qwen 2.5 (3B / 7B) — Multilingual ERP #1",
-    "fallback_provider": "Ollama: DeepSeek-R1 (Local Fallback)",
+    "active_provider": "Ollama: GLM-5.3 — Next-Gen Reasoning (Default)",
+    "fallback_provider": "Ollama: Qwen 2.5 & DeepSeek-R1 (Local Fallback Cluster)",
     "token_quota_limit": 5000000,
     "current_monthly_tokens": 1245000,
     "estimated_cost_usd": 0.00,

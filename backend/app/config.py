@@ -57,8 +57,8 @@ class Settings(BaseSettings):
     gemini_api_key: str = ""
     ollama_url: str = "http://127.0.0.1:11434"
     ollama_api_key: str = ""
-    ollama_reasoning_model: str = "qwen2.5:3b"
-    ollama_general_model: str = "qwen2.5:3b"
+    ollama_reasoning_model: str = "glm-5.3"
+    ollama_general_model: str = "glm-5.3"
 
     # Cloud AI Flexibility
     ai_provider: str = "ollama"  # "ollama", "openrouter", "groq", "deepseek"

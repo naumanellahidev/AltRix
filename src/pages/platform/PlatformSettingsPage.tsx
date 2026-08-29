@@ -66,8 +66,8 @@ export default function PlatformSettingsPage() {
   });
 
   const [aiConfig, setAiConfig] = useState({
-    active_provider: localStorage.getItem("altrix_ai_active_provider") || "Ollama: Qwen 2.5 (3B / 7B) — Multilingual ERP #1",
-    fallback_provider: "Ollama: DeepSeek-R1 (Local Fallback)",
+    active_provider: localStorage.getItem("altrix_ai_active_provider") || "Ollama: GLM-5.3 — Next-Gen Reasoning (Default)",
+    fallback_provider: "Ollama: Qwen 2.5 & DeepSeek-R1 (Local Fallback Cluster)",
     token_quota_limit: 5000000,
     current_monthly_tokens: 1245000,
     estimated_cost_usd: 0.00,
@@ -133,8 +133,8 @@ export default function PlatformSettingsPage() {
     const loadAllSettings = async () => {
       let loadedAiEnabled = true;
       let loadedAiConfig = {
-        active_provider: "Ollama: Qwen 2.5 (3B / 7B) — Multilingual ERP #1",
-        fallback_provider: "Ollama: DeepSeek-R1 (Local Fallback)",
+        active_provider: "Ollama: GLM-5.3 — Next-Gen Reasoning (Default)",
+        fallback_provider: "Ollama: Qwen 2.5 & DeepSeek-R1 (Local Fallback Cluster)",
         token_quota_limit: 5000000,
         current_monthly_tokens: 1245000,
         estimated_cost_usd: 0.00,
@@ -512,7 +512,7 @@ export default function PlatformSettingsPage() {
               </div>
               <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
                 <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Fallback Provider</p>
-                <p className="text-sm font-extrabold text-slate-800 mt-1">{aiConfig.fallback_provider || "Ollama: DeepSeek-R1 (Local Fallback)"}</p>
+                <p className="text-sm font-extrabold text-slate-800 mt-1">{aiConfig.fallback_provider || "Ollama: Qwen 2.5 & DeepSeek-R1 (Local Fallback Cluster)"}</p>
                 <p className="text-[11px] text-emerald-700 font-bold mt-1">100% Uptime Ready</p>
               </div>
             </div>
@@ -525,10 +525,11 @@ export default function PlatformSettingsPage() {
                   onChange={(e) => handleUpdateAiProvider(e.target.value)}
                   className="h-9 px-3 py-1 bg-slate-50 border border-slate-300 rounded-lg text-xs font-bold text-blue-900 focus:ring-blue-500/30"
                 >
-                  <option value="Ollama: Qwen 2.5 (3B / 7B) — Multilingual ERP #1">Ollama: Qwen 2.5 (3B / 7B) — Multilingual ERP #1 (Default)</option>
+                  <option value="Ollama: GLM-5.3 — Next-Gen Reasoning (Default)">Ollama: GLM-5.3 — Next-Gen Reasoning (Default)</option>
+                  <option value="Ollama: GLM-4 / GLM-Edge — General Language Model">Ollama: GLM-4 / GLM-Edge — General Language Model</option>
+                  <option value="Ollama: Qwen 2.5 (3B / 7B) — Multilingual ERP #1">Ollama: Qwen 2.5 (3B / 7B) — Multilingual ERP #1</option>
                   <option value="Ollama: DeepSeek-R1 (1.5B / 7B) — Logic & Deep Reasoning">Ollama: DeepSeek-R1 (1.5B / 7B) — Logic & Deep Reasoning</option>
                   <option value="Ollama: Llama 3.2 (3B) — Ultra-Fast Realtime Response">Ollama: Llama 3.2 (3B) — Ultra-Fast Realtime Response</option>
-                  <option value="Ollama: GLM-4 / GLM-Edge — General Language Model">Ollama: GLM-4 / GLM-Edge — General Language Model</option>
                   <option value="Ollama: Qwen 2.5 (1.5B) — Ultra-Lightweight Core">Ollama: Qwen 2.5 (1.5B) — Ultra-Lightweight Core</option>
                 </select>
               </div>

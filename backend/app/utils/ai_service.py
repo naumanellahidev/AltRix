@@ -71,22 +71,26 @@ class OllamaAIService:
             return settings.ollama_reasoning_model
         if settings.ollama_general_model:
             return settings.ollama_general_model
-        return "qwen2.5:3b"
+        return "glm-5.3"
 
     @classmethod
     def get_fallback_models(cls, primary_model: str) -> List[str]:
         """
-        Returns an ordered list of fallback models if primary model is not yet pulled.
+        Returns an ordered list of high-performance fallback models if primary model is not yet pulled.
+        Ordered strictly by reasoning & multilingual performance.
         """
         candidates = [
             primary_model,
+            "glm-5.3",
+            "glm4:latest",
+            "glm4",
             "qwen2.5:3b",
             "qwen2.5:7b",
             "deepseek-r1:1.5b",
+            "deepseek-r1:7b",
             "llama3.2:3b",
             "qwen2.5:1.5b",
             "llama3.2:1b",
-            "glm4:latest",
             "qwen:latest",
         ]
         unique_models: List[str] = []
