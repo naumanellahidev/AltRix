@@ -1,6 +1,6 @@
 """
 AI analysis background tasks.
-Handles expensive Gemini AI calls asynchronously.
+Handles local Ollama AI reasoning calls asynchronously.
 """
 import asyncio
 import logging
@@ -29,15 +29,12 @@ def run_student_analysis(
 ):
     """
     Run AI analysis for a student (attendance, grades, behavior).
-    Updates ai_student_profiles and ai_academic_predictions.
+    Updates ai_student_profiles and ai_academic_predictions using local Ollama.
     """
     try:
         import asyncio
         from app.config import settings
-
-        if not settings.gemini_api_key:
-            logger.warning("Gemini API key not configured — skipping AI analysis")
-            return {"status": "skipped", "reason": "no_api_key"}
+        from app.utils.ai_service import OllamaAIService
 
         async def _analyze():
             from app.database import get_db_context

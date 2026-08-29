@@ -142,7 +142,16 @@ chmod 644 /opt/altrix/shared/assets/fallback.js /opt/altrix/shared/assets/fallba
 # Align static caching configuration in Nginx
 if [ -f "${RELEASE_DIR}/scripts/fix_nginx_cache.sh" ]; then
     echo "[INFO] Running Nginx caching configuration update..."
-    bash "${RELEASE_DIR}/scripts/fix_nginx_cache.sh" 2>/dev/null || sudo bash "${RELEASE_DIR}/scripts/fix_nginx_cache.sh" 2>/dev/null || echo "[WARNING] Nginx caching config update failed (non-blocking)"
+fi
+
+# Automated Local Ollama Engine Initialization
+if [ -f "${RELEASE_DIR}/scripts/setup_ollama.sh" ]; then
+    if ! curl -s http://127.0.0.1:11434/api/tags &>/dev/null; then
+        echo "[INFO] Initializing Local Ollama AI Engine in background..."
+        bash "${RELEASE_DIR}/scripts/setup_ollama.sh" >/var/log/altrix_ollama_setup.log 2>&1 &
+    else
+        echo "[INFO] Local Ollama AI Engine is active on 127.0.0.1:11434"
+    fi
 fi
 
 # 4. Copy Environment & Build Docker Backend

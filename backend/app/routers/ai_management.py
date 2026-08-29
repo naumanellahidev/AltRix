@@ -37,7 +37,7 @@ DEFAULT_PROMPTS = [
 
 class ProviderSwapRequest(BaseModel):
     provider: str
-    fallback_provider: Optional[str] = "Google Gemini 1.5 Pro"
+    fallback_provider: Optional[str] = "Ollama: DeepSeek-R1 (Local Fallback)"
     token_quota_limit: Optional[int] = None
 
 class PromptUpdateRequest(BaseModel):
@@ -45,8 +45,8 @@ class PromptUpdateRequest(BaseModel):
     system_prompt: str
 
 DEFAULT_AI_CONFIG = {
-    "active_provider": "Local Ollama / vLLM Endpoint",
-    "fallback_provider": "Google Gemini 1.5 Pro",
+    "active_provider": "Ollama: Qwen 2.5 (3B / 7B) — Multilingual ERP #1",
+    "fallback_provider": "Ollama: DeepSeek-R1 (Local Fallback)",
     "token_quota_limit": 5000000,
     "current_monthly_tokens": 1245000,
     "estimated_cost_usd": 0.00,
