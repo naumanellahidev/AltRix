@@ -26,8 +26,9 @@ cat << 'EOF' | sudo tee /etc/systemd/system/ollama.service.d/override.conf > /de
 [Service]
 Environment="OLLAMA_HOST=0.0.0.0:11434"
 Environment="OLLAMA_ORIGINS=*"
-Environment="OLLAMA_NUM_PARALLEL=4"
-Environment="OLLAMA_FLASH_ATTENTION=1"
+Environment="OLLAMA_NUM_PARALLEL=2"
+Environment="OLLAMA_MAX_LOADED_MODELS=1"
+Environment="OLLAMA_KEEP_ALIVE=24h"
 EOF
 
 sudo systemctl daemon-reload
