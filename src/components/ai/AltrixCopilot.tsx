@@ -220,6 +220,10 @@ function renderMarkdown(text: string): string {
   
   let formatted = text;
 
+  // Strip any action tags or internal protocol tags
+  formatted = formatted.replace(/<altrix_action>[\s\S]*?<\/altrix_action>/gi, "");
+  formatted = formatted.replace(/<altrix_chart[\s\S]*?\/>/gi, "");
+
   // Strip raw database UUIDs (e.g., 8ea67280-cd68-45fa-bb2a-fa67623910c2)
   const uuidPattern = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
   formatted = formatted.replace(uuidPattern, "");
@@ -227,6 +231,12 @@ function renderMarkdown(text: string): string {
   // Strip bracketed ID expressions like [ID: ...], [Student ID: ...], or (User ID: ...)
   const bracketedIdPattern = /[\[\(][^\]\)]*\bid\b[^\]\)]*[\]\)]/gi;
   formatted = formatted.replace(bracketedIdPattern, "");
+
+  // Strip markdown links [Label](url) -> Label (clean text, no clickable links)
+  formatted = formatted.replace(/\[([^\]]+)\]\([^\)]+\)/g, "$1");
+
+  // Strip raw URLs
+  formatted = formatted.replace(/https?:\/\/[^\s]+/g, "");
   
   // Handle <think>...</think> block beautifully for reasoning models
   if (formatted.includes("<think>")) {
@@ -1589,42 +1599,11 @@ export default function AltrixCopilot() {
                       <p className="whitespace-pre-wrap break-words">{msg.content}</p>
                     </div>
                   ) : (
-                    <div className="flex flex-col gap-3">
+                    <div className="flex flex-col gap-2">
                       <div
                         className="copilot-msg-content whitespace-normal break-words leading-relaxed"
-                        onClick={handleBubbleClick}
                         dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.content) }}
                       />
-                      {/* Beautiful Global-themed Navigation Buttons */}
-                      {(() => {
-                        const routes = extractRoutesFromText(msg.content);
-                        if (routes.length === 0) return null;
-                        return (
-                          <div className="flex flex-col gap-1.5 pt-2 border-t border-slate-200/60 mt-1">
-                            <div className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider flex items-center gap-1">
-                              <Zap className="h-3 w-3 text-primary animate-pulse" />
-                              <span>Quick Actions & Navigation</span>
-                            </div>
-                            <div className="flex flex-wrap gap-2 mt-0.5">
-                              {routes.map((route) => (
-                                <button
-                                  key={route}
-                                  onClick={(e) => {
-                                    e.preventDefault();
-                                    handleDirectRouteNavigation(route);
-                                  }}
-                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-primary/10 to-indigo-600/10 hover:from-primary/20 hover:to-indigo-600/20 text-primary text-xs font-bold border border-primary/20 hover:border-primary/40 cursor-pointer shadow-xs hover:shadow-sm transition-all duration-300 select-none active:scale-95 align-middle"
-                                >
-                                  <svg className="w-3.5 h-3.5 text-primary" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M13 5l7 7-7 7M5 5l7 7-7 7"></path>
-                                  </svg>
-                                  <span>{getRouteLabel(route)}</span>
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                        );
-                      })()}
                     </div>
                   )}
 
@@ -1643,33 +1622,8 @@ export default function AltrixCopilot() {
                     </button>
                   )}
 
-                  {/* Chart Visual */}
+                  {/* Chart Visual if requested */}
                   {msg.chart && <CopilotChart chart={msg.chart} />}
-
-                  {/* Action Cards */}
-                  {((msg.actions && msg.actions.length > 0) || msg.action) && (
-                    <div className="mt-3 flex flex-col gap-2 w-full">
-                      {(msg.actions && msg.actions.length > 0 ? msg.actions : [msg.action!]).map((action, idx) => {
-                        if (!action) return null;
-                        const meta = ACTION_META[action.type] || ACTION_META.NAVIGATE_TO;
-                        const Icon = meta.icon;
-                        return (
-                          <div key={idx} className={`rounded-xl bg-gradient-to-br ${meta.color} border p-3 flex flex-col gap-2`}>
-                            <div className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-700">
-                              <Icon className="h-3.5 w-3.5" />
-                              <span>{action.label || meta.label}</span>
-                            </div>
-                            <button
-                              onClick={() => handleExecuteActionDirect(action)}
-                              className="w-full text-center bg-white hover:bg-slate-50 text-slate-700 text-[11px] font-semibold rounded-lg py-1.5 px-3 transition-colors cursor-pointer border border-slate-200 shadow-sm"
-                            >
-                              {action.cta || meta.cta}
-                            </button>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
                 </div>
 
                 {/* Timestamp for user */}
