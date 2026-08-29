@@ -1705,7 +1705,7 @@ async def copilot_chat(
     )
     
     # 3. Build System Prompt
-    system_prompt = """You are the **AltRix AI Copilot**, an intelligent, context-aware operational ERP intelligence engine for AltRix Core.
+    system_prompt = """You are the **AltRix AI Copilot**, the high-precision operational ERP intelligence engine for AltRix Core.
 Always reply in the EXACT SAME LANGUAGE and script used by the user (Roman Urdu for Roman Urdu queries, English for English queries, Urdu for Urdu script, Arabic for Arabic queries).
 
 ### LIVE ERP DATABASE RECORDS:
@@ -1714,42 +1714,37 @@ __DB_CONTEXT__
 __ACTIVE_CONTEXT__
 
 ### STRICT OPERATIONAL RULES:
-1. **NO LINKS, NO BUTTONS, NO URLS, NO TAGS**:
-   - Strictly NEVER generate URLs (e.g. `http://...`, `/fees`, `/students`), markdown links `[label](url)`, navigation buttons, or `<altrix_action>` tags in your replies.
+1. **Direct, Laser-Focused Answers**:
+   - Answer ONLY what the user explicitly asks. 
+   - NEVER dump, cite, repeat, or summarize unrelated background sections from the database records (e.g. do NOT mention exam marks, student results, or holidays when the user asks about assigned classes or subjects; do NOT mention fees when asked about attendance).
+   - NEVER output internal section headers like "### School Branding:", "### Active UI Context:", "### Exam Results:", or "Based on the information provided in your exam results...". Start immediately with the direct answer.
+
+2. **No Links, No Buttons, No URLs, No Action Tags**:
+   - Strictly NEVER generate URLs (e.g. `http://...`, `/fees`, `/teachers`), markdown links `[label](url)`, navigation buttons, or `<altrix_action>` tags in your replies.
    - Deliver clean, structured, and informative text, bulleted lists, and markdown tables only.
 
-2. **100% Factuality & Real-Time Sync**:
+3. **100% Factuality & Real-Time Sync**:
    - Ground every number, student count, teacher assignment, fee balance, and attendance rate strictly in the **LIVE ERP DATABASE RECORDS** provided above.
-   - NEVER guess, assume, or hallucinate data. If a specific record or metric is empty, absent, or 0, state it truthfully and accurately in the user's language.
+   - If the user asks for their assigned classes/subjects (Teacher):
+     * Check "Assigned Classes & Subjects" in the records above.
+     * If classes/subjects are listed, state them clearly.
+     * If the records say 'None' or empty, say: "You currently have no classes or subjects assigned in the system." (or in Roman Urdu: "Aap ko filhal koi class ya subject assign nahi hai.").
+     * NEVER invent or guess assignments from student exam results or other tables.
    - NEVER output raw database UUIDs or internal system IDs.
 
-3. **Multilingual Fluency & Language Matching**:
-   - **Roman Urdu**: If the user writes in Roman Urdu (e.g. *"mere students dikhao"*, *"Class 3 ke assigned teachers batao"*, *"kitni fee collect hui hai"*, *"aaj kitne bache absent hain"*), reply in natural, fluent, and polite **Roman Urdu**. Do NOT translate into English.
+4. **Multilingual Fluency & Language Matching**:
+   - **Roman Urdu**: If the user writes in Roman Urdu (e.g. *"mere assigned classes aur subjects batao"*, *"mere students dikhao"*, *"Class 3 ke assigned teachers batao"*, *"kitni fee collect hui hai"*, *"aaj kitne bache absent hain"*), reply in natural, fluent, and polite **Roman Urdu**. Do NOT translate into English.
    - **English**: If the user writes in English, reply in clear, professional **English**.
    - **Urdu Script (اردو)**: If the user writes in Urdu script, reply in standard **Urdu script**.
    - Adapt seamlessly to informal phrasing, short questions, and detailed analytical requests.
-
-4. **Direct, Concise, & High-Signal**:
-   - Answer the user's question directly without unnecessary preambles, introductory filler, or generic disclaimers.
-   - Present quantitative breakdowns with clean markdown lists or tables where appropriate.
 """
 
     # 4. Replace placeholders with actual user details and db_context
     roles_str = ", ".join(current_user.roles) if isinstance(current_user.roles, list) else str(current_user.roles)
     
     active_context_str = ""
-    if body.current_screen:
-        active_context_str += f"- Current Screen/Route: {body.current_screen}\n"
-    if body.current_module:
-        active_context_str += f"- Current Module: {body.current_module}\n"
-    if body.active_campus_id:
-        active_context_str += f"- Active Campus ID: {body.active_campus_id}\n"
-    if body.active_class_section_id:
-        active_context_str += f"- Active Class Section ID: {body.active_class_section_id}\n"
-    if body.active_student_id:
-        active_context_str += f"- Active Student/Child ID: {body.active_student_id}\n"
-    if active_context_str:
-        active_context_str = "**Active UI Context:**\n" + active_context_str + "\n"
+    if body.current_screen or body.current_module:
+        active_context_str = f"<!-- Current UI Screen: {body.current_screen or 'N/A'}, Module: {body.current_module or 'N/A'} -->\n"
 
     system_prompt = (
         system_prompt.replace("__USER_ID__", current_user.id or "")

@@ -403,15 +403,9 @@ async def build_scoped_ai_context(
         return "\n".join(matches) if matches else ""
 
     # Common School Branding and Holidays queries
+    # Common Holidays queries
     async def get_branding():
-        rows = await fetch_rows(
-            "SELECT accent_hue, accent_saturation, accent_lightness, radius_scale FROM public.school_branding WHERE school_id = CAST(:sid AS UUID) LIMIT 1",
-            {"sid": school_id}
-        )
-        if rows:
-            r = rows[0]
-            return f"Accent Hue: {r[0]}, Saturation: {r[1]}%, Lightness: {r[2]}%, Radius Scale: {r[3]}"
-        return "Default Branding"
+        return ""
 
     async def get_holidays():
         rows = await fetch_rows(
@@ -767,86 +761,130 @@ Upcoming Holidays: {holidays}
 """
 
     # =========================================================================
+    # =========================================================================
     # ROLE 2: Teacher Context (Strictly Scoped to Assigned Classes & Subjects)
     # =========================================================================
     elif "teacher" in effective_roles:
         uid = str(user.id)
-        
+        uemail = getattr(user, "email", "") or ""
+        t_param = {"uid": uid, "uemail": uemail, "sid": school_id}
+
+        # Unified helper to get all assigned section IDs for this teacher
+        sec_rows = await fetch_rows("""
+            SELECT DISTINCT cs.id
+            FROM class_sections cs
+            LEFT JOIN teacher_subject_assignments tsa ON tsa.class_section_id = cs.id AND (
+                tsa.teacher_user_id = :uid 
+                OR tsa.teacher_user_id IN (SELECT user_id FROM teachers WHERE user_id = :uid OR id::text = :uid OR email = :uemail)
+                OR tsa.teacher_user_id IN (SELECT linked_user_id FROM hr_staff_directory WHERE linked_user_id = :uid OR email = :uemail)
+                OR tsa.teacher_user_id IN (SELECT id FROM profiles WHERE id = :uid OR email = :uemail)
+            )
+            LEFT JOIN timetable_periods tp ON tp.class_section_id = cs.id AND (
+                tp.teacher_user_id = :uid 
+                OR tp.teacher_user_id IN (SELECT user_id FROM teachers WHERE user_id = :uid OR id::text = :uid OR email = :uemail)
+                OR tp.teacher_user_id IN (SELECT linked_user_id FROM hr_staff_directory WHERE linked_user_id = :uid OR email = :uemail)
+                OR tp.teacher_user_id IN (SELECT id FROM profiles WHERE id = :uid OR email = :uemail)
+            )
+            WHERE (tsa.id IS NOT NULL OR tp.id IS NOT NULL)
+              AND cs.school_id = CAST(:sid AS UUID)
+        """, t_param)
+        assigned_section_ids = [str(r[0]) for r in sec_rows if r and r[0]]
+
         async def get_teacher_sections():
-            return await fetch_rows("""
-                SELECT tsa.class_section_id, c.name, cs.name, sub.name, tsa.id as assignment_id, tsa.subject_id, c.id as class_id
+            tsa_rows = await fetch_rows("""
+                SELECT tsa.class_section_id, c.name, cs.name, COALESCE(sub.name, 'General Subject'), tsa.id as assignment_id, tsa.subject_id, c.id as class_id
                 FROM teacher_subject_assignments tsa
                 JOIN class_sections cs ON tsa.class_section_id = cs.id
                 JOIN academic_classes c ON cs.class_id = c.id
-                JOIN subjects sub ON tsa.subject_id = sub.id
-                WHERE tsa.teacher_user_id = :uid AND tsa.school_id = CAST(:sid AS UUID)
-            """, {"uid": uid, "sid": school_id})
+                LEFT JOIN subjects sub ON tsa.subject_id = sub.id
+                WHERE (
+                    tsa.teacher_user_id = :uid 
+                    OR tsa.teacher_user_id IN (SELECT user_id FROM teachers WHERE user_id = :uid OR id::text = :uid OR email = :uemail)
+                    OR tsa.teacher_user_id IN (SELECT linked_user_id FROM hr_staff_directory WHERE linked_user_id = :uid OR email = :uemail)
+                    OR tsa.teacher_user_id IN (SELECT id FROM profiles WHERE id = :uid OR email = :uemail)
+                ) AND tsa.school_id = CAST(:sid AS UUID)
+            """, t_param)
+            if tsa_rows:
+                return tsa_rows
+
+            return await fetch_rows("""
+                SELECT DISTINCT tp.class_section_id, c.name, cs.name, COALESCE(tp.subject_name, 'General Subject'), tp.id as assignment_id, NULL as subject_id, c.id as class_id
+                FROM timetable_periods tp
+                JOIN class_sections cs ON tp.class_section_id = cs.id
+                JOIN academic_classes c ON cs.class_id = c.id
+                WHERE (
+                    tp.teacher_user_id = :uid 
+                    OR tp.teacher_user_id IN (SELECT user_id FROM teachers WHERE user_id = :uid OR id::text = :uid OR email = :uemail)
+                    OR tp.teacher_user_id IN (SELECT linked_user_id FROM hr_staff_directory WHERE linked_user_id = :uid OR email = :uemail)
+                    OR tp.teacher_user_id IN (SELECT id FROM profiles WHERE id = :uid OR email = :uemail)
+                ) AND c.school_id = CAST(:sid AS UUID)
+            """, t_param)
 
         async def get_teacher_students():
+            if not assigned_section_ids:
+                return []
             return await fetch_rows("""
                 SELECT s.first_name, s.last_name, s.student_code, c.name, cs.name, s.id as student_id, c.id as class_id, cs.id as section_id, s.parent_name, s.parent_phone
                 FROM students s
                 JOIN student_enrollments se ON se.student_id = s.id AND se.end_date IS NULL
                 JOIN class_sections cs ON se.class_section_id = cs.id
                 JOIN academic_classes c ON cs.class_id = c.id
-                WHERE cs.id IN (
-                    SELECT class_section_id FROM teacher_subject_assignments WHERE teacher_user_id = :uid AND school_id = CAST(:sid AS UUID)
-                ) AND s.status IN ('active', 'enrolled')
+                WHERE cs.id = ANY(:sec_ids) AND s.status IN ('active', 'enrolled')
                 ORDER BY c.name, cs.name, s.first_name
                 LIMIT 100
-            """, {"uid": uid, "sid": school_id})
+            """, {"sec_ids": assigned_section_ids, "sid": school_id})
 
         async def get_teacher_attendance():
+            if not assigned_section_ids:
+                return []
             return await fetch_rows("""
                 SELECT s.first_name, s.last_name, COUNT(*) FILTER (WHERE ae.status = 'present') as present, COUNT(*) as total, s.id as student_id
                 FROM attendance_entries ae
                 JOIN attendance_sessions sess ON ae.session_id = sess.id
                 JOIN students s ON ae.student_id = s.id
-                WHERE sess.class_section_id IN (
-                    SELECT class_section_id FROM teacher_subject_assignments WHERE teacher_user_id = :uid AND school_id = CAST(:sid AS UUID)
-                )
+                WHERE sess.class_section_id = ANY(:sec_ids)
                 GROUP BY s.id, s.first_name, s.last_name
                 LIMIT 100
-            """, {"uid": uid, "sid": school_id})
+            """, {"sec_ids": assigned_section_ids, "sid": school_id})
 
         async def get_teacher_assignments():
+            if not assigned_section_ids:
+                return []
             return await fetch_rows("""
                 SELECT a.title, a.description, a.due_date, a.max_marks, c.name, cs.name, a.id as assignment_id, a.class_section_id
                 FROM assignments a
                 JOIN class_sections cs ON a.class_section_id = cs.id
                 JOIN academic_classes c ON cs.class_id = c.id
-                WHERE a.class_section_id IN (
-                    SELECT class_section_id FROM teacher_subject_assignments WHERE teacher_user_id = :uid AND school_id = CAST(:sid AS UUID)
-                ) AND a.status = 'active'
+                WHERE a.class_section_id = ANY(:sec_ids) AND a.status = 'active'
                 ORDER BY a.due_date DESC LIMIT 15
-            """, {"uid": uid, "sid": school_id})
+            """, {"sec_ids": assigned_section_ids, "sid": school_id})
 
         async def get_teacher_diary():
+            if not assigned_section_ids:
+                return []
             return await fetch_rows("""
                 SELECT d.title, d.content, d.entry_date, c.name, cs.name, d.id as diary_id, d.class_section_id, d.subject_id
                 FROM diary_entries d
                 JOIN class_sections cs ON d.class_section_id = cs.id
                 JOIN academic_classes c ON cs.class_id = c.id
-                WHERE d.class_section_id IN (
-                    SELECT class_section_id FROM teacher_subject_assignments WHERE teacher_user_id = :uid AND school_id = CAST(:sid AS UUID)
-                )
+                WHERE d.class_section_id = ANY(:sec_ids)
                 ORDER BY d.entry_date DESC LIMIT 15
-            """, {"uid": uid, "sid": school_id})
+            """, {"sec_ids": assigned_section_ids, "sid": school_id})
 
         async def get_teacher_results():
+            if not assigned_section_ids:
+                return []
             return await fetch_rows("""
-                SELECT e.name, s.first_name, s.last_name, sub.name, er.marks_obtained, er.max_marks, er.grade, er.id as result_id, er.exam_id, s.id as student_id, er.subject_id
+                SELECT e.name, s.first_name, s.last_name, COALESCE(sub.name, 'Subject'), er.marks_obtained, er.max_marks, er.grade, er.id as result_id, er.exam_id, s.id as student_id, er.subject_id
                 FROM exam_results er
                 JOIN exams e ON er.exam_id = e.id
                 JOIN students s ON er.student_id = s.id
-                JOIN subjects sub ON er.subject_id = sub.id
+                LEFT JOIN subjects sub ON er.subject_id = sub.id
                 WHERE er.student_id IN (
-                    SELECT student_id FROM student_enrollments WHERE class_section_id IN (
-                        SELECT class_section_id FROM teacher_subject_assignments WHERE teacher_user_id = :uid AND school_id = CAST(:sid AS UUID)
-                    ) AND end_date IS NULL
+                    SELECT student_id FROM student_enrollments WHERE class_section_id = ANY(:sec_ids) AND end_date IS NULL
                 )
                 ORDER BY e.name, s.first_name LIMIT 60
-            """, {"uid": uid, "sid": school_id})
+            """, {"sec_ids": assigned_section_ids, "sid": school_id})
 
         async def get_teacher_timetable():
             return await fetch_rows("""
@@ -854,9 +892,14 @@ Upcoming Holidays: {holidays}
                 FROM timetable_entries te
                 JOIN class_sections cs ON te.class_section_id = cs.id
                 JOIN academic_classes c ON cs.class_id = c.id
-                WHERE te.teacher_user_id = :uid AND te.school_id = CAST(:sid AS UUID)
+                WHERE (
+                    te.teacher_user_id = :uid 
+                    OR te.teacher_user_id IN (SELECT user_id FROM teachers WHERE user_id = :uid OR id::text = :uid OR email = :uemail)
+                    OR te.teacher_user_id IN (SELECT linked_user_id FROM hr_staff_directory WHERE linked_user_id = :uid OR email = :uemail)
+                    OR te.teacher_user_id IN (SELECT id FROM profiles WHERE id = :uid OR email = :uemail)
+                ) AND te.school_id = CAST(:sid AS UUID)
                 ORDER BY te.day_of_week, te.start_time
-            """, {"uid": uid, "sid": school_id})
+            """, t_param)
 
         sections = await get_teacher_sections()
         students = await get_teacher_students()

@@ -1770,7 +1770,7 @@ export default function AltrixCopilot() {
           {/* ── Footer Branding ─────────────────────────────────────────── */}
           <div className="text-center py-1.5 bg-slate-50 border-t border-slate-100">
             <p className="text-[9px] text-slate-400 font-medium tracking-wider uppercase">
-              AltRix AI · Powered by Qwen &amp; DeepSeek R1
+              AltRix AI · Powered by NAUMAN ELLAHI
             </p>
           </div>
         </div>
