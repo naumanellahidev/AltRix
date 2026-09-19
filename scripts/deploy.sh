@@ -439,6 +439,28 @@ sudo chmod 750 /var/lib/altrix/storage 2>/dev/null || true
 # directory has to be owned by it or every upload and backup fails.
 sudo chown -R 10001:10001 /var/lib/altrix/storage 2>/dev/null || true
 
+# --- SQL migrations ----------------------------------------------------------
+#
+# Applied as the database owner (postgres owns the tables; the app role cannot
+# ALTER them), each once, recorded in public.app_sql_migrations - the same
+# table app/sql_migrations.py reads. Files run in name order; each carries its
+# own BEGIN/COMMIT, so a failure rolls that file back and, with set -e, stops
+# the deploy before any container is replaced.
+echo "[INFO] Applying SQL migrations..."
+PSQL_OWNER=(sudo -n -u postgres psql -d altrix -v ON_ERROR_STOP=1 -q)
+"${PSQL_OWNER[@]}" -c "CREATE TABLE IF NOT EXISTS public.app_sql_migrations (name TEXT PRIMARY KEY, checksum TEXT NOT NULL, applied_at TIMESTAMPTZ NOT NULL DEFAULT now())"
+for MIGRATION_FILE in $(ls "${RELEASE_DIR}/backend/sql_migrations/"*.sql 2>/dev/null | sort); do
+    MIGRATION_NAME=$(basename "${MIGRATION_FILE}")
+    if [ -z "$("${PSQL_OWNER[@]}" -Atc "SELECT 1 FROM public.app_sql_migrations WHERE name = '${MIGRATION_NAME}'")" ]; then
+        echo "[INFO] Applying migration ${MIGRATION_NAME}"
+        "${PSQL_OWNER[@]}" < "${MIGRATION_FILE}"
+        MIGRATION_SUM=$(sha256sum "${MIGRATION_FILE}" | cut -d' ' -f1)
+        "${PSQL_OWNER[@]}" -c "INSERT INTO public.app_sql_migrations (name, checksum) VALUES ('${MIGRATION_NAME}', '${MIGRATION_SUM}')"
+    fi
+done
+# Tables and sequences the migrations created belong to postgres; the app needs them too.
+"${PSQL_OWNER[@]}" -c "GRANT ALL ON ALL TABLES IN SCHEMA public TO altrix_app; GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO altrix_app;"
+
 # --- Schema migration --------------------------------------------------------
 #
 # The schema bootstrap used to run inside every container on boot. With the API,
