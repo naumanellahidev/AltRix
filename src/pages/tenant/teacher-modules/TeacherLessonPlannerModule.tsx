@@ -25,6 +25,8 @@ import {
   Table,
   Edit3,
   Loader2,
+  Printer as PrinterIcon,
+  MessageCircle,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { CurriculumPlannerAI } from "@/components/ai";
@@ -41,7 +43,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { apiClient } from "@/lib/api-client";
-import jsPDF from "jspdf";
+import { lessonPlanAction } from "@/lib/lesson-plan-actions";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -364,108 +366,28 @@ export function TeacherLessonPlannerModule() {
     }
   };
 
-  const handleExportPDF = () => {
+  /** Download, print or share the plan on the school's letterhead. */
+  const handleExportPDF = (kind: "download" | "print" | "share" = "download") => {
     if (!formAiPlanData) return;
-
-    try {
-      const doc = new jsPDF();
-      let y = 20;
-
-      // Title & Header Info
-      doc.setFontSize(22);
-      doc.setTextColor(15, 23, 42); 
-      doc.text("AltRix AI Lesson Plan", 20, y);
-      y += 10;
-
-      doc.setFontSize(14);
-      doc.setTextColor(71, 85, 105); 
-      doc.text(`Topic: ${formAiPlanData?.title || formTopic}`, 20, y);
-      y += 7;
-      doc.text(`Curriculum: ${editingPlanCurriculumType || "N/A"} | Grade: ${editingPlanGradeLevel || "N/A"}`, 20, y);
-      y += 7;
-      doc.text(`Duration: ${editingPlanDuration || 45} minutes | Bloom's levels: ${(editingPlanBlooms || []).join(", ")}`, 20, y);
-      y += 15;
-
-      // Objectives
-      doc.setFontSize(16);
-      doc.setTextColor(30, 41, 59); 
-      doc.text("Learning Objectives", 20, y);
-      y += 8;
-      doc.setFontSize(11);
-      doc.setTextColor(51, 65, 85); 
-      (formAiPlanData?.learningObjectives || []).forEach((obj: string) => {
-        doc.text(`• ${obj}`, 20, y);
-        y += 6;
-      });
-      y += 10;
-
-      // Schedule Table Title
-      doc.setFontSize(16);
-      doc.setTextColor(30, 41, 59);
-      doc.text("Minute-by-Minute Lesson Schedule", 20, y);
-      y += 8;
-
-      doc.setFontSize(10);
-      (formAiPlanData?.schedule || []).forEach((sch: any) => {
-        if (y > 270) {
-          doc.addPage();
-          y = 20;
-        }
-        doc.setFont("Helvetica", "bold");
-        doc.text(`${sch.timeRange} - ${sch.phase}`, 20, y);
-        y += 5;
-        doc.setFont("Helvetica", "normal");
-        const actionText = `Teacher: ${sch.teacherAction}\nStudent: ${sch.studentAction}`;
-        const splitText = doc.splitTextToSize(actionText, 170);
-        doc.text(splitText, 25, y);
-        y += (splitText.length * 5) + 5;
-      });
-
-      // Add New Page for Slides Script
-      if (formAiSlideScript && formAiSlideScript.length > 0) {
-        doc.addPage();
-        y = 20;
-        doc.setFontSize(16);
-        doc.setFont("Helvetica", "bold");
-        doc.text("Classroom Slides Presentation Script", 20, y);
-        y += 10;
-
-        doc.setFontSize(10);
-        formAiSlideScript.forEach((slide: any) => {
-          if (y > 250) {
-            doc.addPage();
-            y = 20;
-          }
-          doc.setFont("Helvetica", "bold");
-          doc.text(`Slide ${slide.slideNumber}: ${slide.title}`, 20, y);
-          y += 5;
-          doc.setFont("Helvetica", "normal");
-          
-          doc.text("Key Points:", 22, y);
-          y += 5;
-          (slide.bulletPoints || []).forEach((bp: string) => {
-            doc.text(`- ${bp}`, 25, y);
-            y += 5;
-          });
-          
-          y += 2;
-          doc.setFont("Helvetica", "oblique");
-          doc.text(`Visual Suggestion: ${slide.visualSuggestion}`, 22, y);
-          y += 5;
-          
-          doc.setFont("Helvetica", "normal");
-          const notesSplit = doc.splitTextToSize(`Speaker Notes: ${slide.speakerNotes}`, 160);
-          doc.text(notesSplit, 22, y);
-          y += (notesSplit.length * 5) + 8;
-        });
-      }
-
-      doc.save(`Lesson_Plan_${formTopic.replace(/\s+/g, "_")}.pdf`);
-      toast.success("PDF exported successfully!");
-    } catch (err: any) {
-      console.error(err);
-      toast.error("Failed to generate PDF document");
-    }
+    const lines = (v: string | null | undefined) => (v ?? "").split(/\r?\n/).map((x) => x.trim()).filter(Boolean);
+    const section = sections.find((sec) => sec.id === selectedSection);
+    void lessonPlanAction(kind, {
+      title: formAiPlanData?.title || formTopic,
+      subject: subjects.find((sub) => sub.id === formSubject)?.name ?? null,
+      classLabel: section ? `${section.class_name} — ${section.name}` : null,
+      curriculum: editingPlanCurriculumType,
+      gradeLevel: editingPlanGradeLevel,
+      durationMinutes: editingPlanDuration,
+      blooms: editingPlanBlooms,
+      date: formDate || null,
+      objectives: formAiPlanData?.learningObjectives?.length ? formAiPlanData.learningObjectives : lines(formObjectives),
+      priorKnowledge: formAiPlanData?.priorKnowledge,
+      materials: formAiPlanData?.materialsNeeded?.length ? formAiPlanData.materialsNeeded : lines(formResources),
+      schedule: formAiPlanData?.schedule,
+      differentiation: formAiPlanData?.differentiationStrategies,
+      homework: formAiPlanData?.homeworkSuggestion || formNotes || null,
+      slides: formAiSlideScript,
+    });
   };
 
   const getPlansForDay = (date: Date) => {
@@ -689,7 +611,25 @@ export function TeacherLessonPlannerModule() {
                         {isEditingAi ? "View Mode" : "Edit Plan"}
                       </Button>
                       <Button
-                        onClick={handleExportPDF}
+                        onClick={() => handleExportPDF("share")}
+                        variant="outline"
+                        size="sm"
+                        className="bg-white border-slate-200 hover:bg-slate-100 text-slate-700 text-xs flex items-center gap-1.5"
+                      >
+                        <MessageCircle className="h-4 w-4" />
+                        WhatsApp
+                      </Button>
+                      <Button
+                        onClick={() => handleExportPDF("print")}
+                        variant="outline"
+                        size="sm"
+                        className="bg-white border-slate-200 hover:bg-slate-100 text-slate-700 text-xs flex items-center gap-1.5"
+                      >
+                        <PrinterIcon className="h-4 w-4" />
+                        Print
+                      </Button>
+                      <Button
+                        onClick={() => handleExportPDF("download")}
                         variant="outline"
                         size="sm"
                         className="bg-white border-slate-200 hover:bg-slate-100 text-slate-700 text-xs flex items-center gap-1.5"

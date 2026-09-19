@@ -38,8 +38,11 @@ import {
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import { documentFileName } from "@/lib/documents/format";
 import { format } from "date-fns";
 import { exportCleanDocumentToPdf } from "@/lib/pdfExportEngine";
+import { apiClient } from "@/lib/api-client";
+import { describe as describeResult, downloadReportCardSet } from "@/lib/documents";
 
 interface Exam { id: string; name: string; term_label: string | null; start_date?: string | null; end_date?: string | null; }
 interface Student { id: string; first_name: string; last_name: string | null; student_code?: string | null; section_id?: string | null; class_id?: string | null; classLabel?: string; }
@@ -725,44 +728,103 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
   const [publishSectionId, setPublishSectionId] = useState<string>("");
   const [publishBusy, setPublishBusy] = useState(false);
 
+  /** The section's saved cards for the selected exam or period. */
+  const sectionCards = async (): Promise<Array<{ id: string; student_id: string; is_published: boolean }>> => {
+    if (!schoolId || !publishSectionId) throw new Error("Select a section");
+    const sectionStudentIds = enrollments
+      .filter((e) => e.class_section_id === publishSectionId)
+      .map((e) => e.student_id);
+    if (sectionStudentIds.length === 0) throw new Error("There are no students in this section");
+
+    let query = (api as any)
+      .from("report_cards")
+      .select("id,student_id,is_published")
+      .eq("school_id", schoolId)
+      .in("student_id", sectionStudentIds);
+    if (periodType === "exam") {
+      if (!examId) throw new Error("Select an exam first");
+      query = query.eq("exam_id", examId);
+    } else {
+      query = query.eq("period_type", periodType).eq("period_label", currentPeriodLabel);
+    }
+    const { data, error } = await query;
+    if (error) throw new Error(error.message);
+    return data ?? [];
+  };
+
+  /**
+   * Publish or withdraw a whole section.
+   *
+   * Publishing goes through the server, which issues each card: a verification
+   * code for its QR and, where the template asks, the principal's digital
+   * sign-off. The old path flipped the published flag directly, so cards
+   * published this way never carried a QR code.
+   */
   const publishWholeClass = async (publish: boolean) => {
-    if (!schoolId) return;
-    if (!publishSectionId) return toast.error("Select a section");
     setPublishBusy(true);
     try {
-      const sectionStudentIds = enrollments
-        .filter((e) => e.class_section_id === publishSectionId)
-        .map((e) => e.student_id);
-      if (sectionStudentIds.length === 0) { toast.error("No students in section"); return; }
-
-      let query = (api as any)
-        .from("report_cards")
-        .update({ is_published: publish, published_at: publish ? new Date().toISOString() : null })
-        .eq("school_id", schoolId)
-        .in("student_id", sectionStudentIds);
-      if (periodType === "exam") {
-        if (!examId) return toast.error("Select an exam first");
-        query = query.eq("exam_id", examId);
-      } else {
-        query = query.eq("period_type", periodType).eq("period_label", currentPeriodLabel);
-      }
-      const { data, error } = await query.select("id,student_id");
-      if (error) return toast.error(error.message);
-      const affected = (data || []).map((r: any) => r.student_id);
-      if (affected.length === 0) {
+      const cards = await sectionCards();
+      if (cards.length === 0) {
         toast.error("No saved report cards found for this section — save students' cards first.");
         return;
       }
-      
-      const cardMap = new Map<string, string>();
-      (data || []).forEach((r: any) => {
-        if (r.id && r.student_id) cardMap.set(r.student_id, r.id);
-      });
-      await notifyPublish(affected, publish, cardMap);
-      
-      toast.success(`${publish ? "Published" : "Unpublished"} ${affected.length} report card${affected.length === 1 ? "" : "s"}`);
+      if (publish) {
+        await apiClient.post("/report-cards/publish-bulk", cards.map((c) => c.id));
+      } else {
+        const { error } = await (api as any)
+          .from("report_cards")
+          .update({ is_published: false })
+          .eq("school_id", schoolId)
+          .in("id", cards.map((c) => c.id));
+        if (error) throw new Error(error.message);
+      }
+      const cardMap = new Map<string, string>(cards.map((c) => [c.student_id, c.id]));
+      await notifyPublish(cards.map((c) => c.student_id), publish, cardMap);
+      toast.success(`${publish ? "Published" : "Withdrew"} ${cards.length} report card${cards.length === 1 ? "" : "s"}`);
       setPublishDialogOpen(false);
+    } catch (e: any) {
+      toast.error(e?.message ?? "Could not update the report cards");
     } finally {
+      setPublishBusy(false);
+    }
+  };
+
+  /** Every card in the section as its own PDF, in one ZIP named after the class and term. */
+  const [classSetProgress, setClassSetProgress] = useState<string | null>(null);
+  const downloadClassSet = async () => {
+    setPublishBusy(true);
+    const id = toast.loading("Collecting report cards…");
+    try {
+      const cards = await sectionCards();
+      if (cards.length === 0) {
+        toast.error("No saved report cards found for this section.", { id });
+        return;
+      }
+      const nameById = new Map(students.map((st) => [st.id, `${st.first_name} ${st.last_name ?? ""}`.trim()]));
+      const section = sections.find((sec) => sec.id === publishSectionId);
+      const cls = classes.find((c) => c.id === section?.class_id);
+      const term = periodType === "exam" ? exams.find((e) => e.id === examId)?.name ?? "Exam" : currentPeriodLabel;
+      const archive = [cls?.name, section?.name, "Report Cards", term].filter(Boolean).join(" - ");
+
+      const result = await downloadReportCardSet(
+        cards.map((c) => ({ id: c.id, label: nameById.get(c.student_id) ?? "Student" })),
+        archive,
+        (done, total, label) => {
+          const text = label ? `Building ${done + 1} of ${total} — ${label}` : `Packing ${total} report cards…`;
+          setClassSetProgress(text);
+          toast.loading(text, { id });
+        },
+      );
+      const unpublished = cards.filter((c) => !c.is_published).length;
+      const draftNote = unpublished ? ` ${unpublished} are drafts and are marked DRAFT.` : "";
+      const { tone, message } = describeResult(result);
+      if (tone === "error") toast.error(message, { id });
+      else if (tone === "warning" || draftNote) toast.warning(`${message}.${draftNote}`, { id, duration: 10000 });
+      else toast.success(`${message} · ${result.produced} report cards`, { id });
+    } catch (e: any) {
+      toast.error(e?.message ?? "Could not build the class set", { id });
+    } finally {
+      setClassSetProgress(null);
       setPublishBusy(false);
     }
   };
@@ -902,9 +964,16 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
   const deleteAssessment = async (id: string) => {
     if (!schoolId) return;
     if (!confirm("Delete this assessment? This removes it and all student marks for it.")) return;
-    await (api as any).from("student_marks").delete().eq("school_id", schoolId).eq("assessment_id", id);
     const { error } = await (api as any).from("academic_assessments").delete().eq("school_id", schoolId).eq("id", id);
-    if (error) return toast.error(error.message);
+    if (error) return toast.error(`The assessment was not deleted: ${error.message}`);
+    const { error: marksError } = await (api as any)
+      .from("student_marks")
+      .delete()
+      .eq("school_id", schoolId)
+      .eq("assessment_id", id);
+    if (marksError) {
+      toast.warning(`The assessment was deleted, but its marks could not be removed: ${marksError.message}`);
+    }
     setAllAssessments((prev) => prev.filter((a) => a.id !== id));
     setAllMarks((prev) => prev.filter((m) => m.assessment_id !== id));
     toast.success("Deleted");
@@ -916,16 +985,22 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
   const exportPdf = async () => {
     const el = document.getElementById("report-card-print");
     if (!el) return toast.error("No report card to export");
-    const name = (studentInfo ? `${studentInfo.first_name}_${studentInfo.last_name || ""}` : "Report_Card").replace(/\s+/g, "_");
+    const name = studentInfo ? [studentInfo.first_name, studentInfo.last_name].filter(Boolean).join(" ") : "Student";
+    const id = toast.loading("Preparing report card PDF…");
     try {
-      await exportCleanDocumentToPdf(el, {
-        filename: `${name}_official_transcript.pdf`,
+      const { pages, warnings } = await exportCleanDocumentToPdf(el, {
+        filename: documentFileName([name, "Official Transcript"], "pdf"),
+        documentTitle: `Report Card — ${studentInfo ? `${studentInfo.first_name} ${studentInfo.last_name ?? ""}`.trim() : "Student"}`,
         orientation: "portrait",
-        scale: 2.5,
+        onProgress: (step) => toast.loading(step, { id }),
       });
-      toast.success("Official report card PDF downloaded successfully!");
+      if (warnings.length) {
+        toast.warning(`Report card downloaded, but: ${warnings.join("; ")}`, { id, duration: 9000 });
+      } else {
+        toast.success(`Report card downloaded · ${pages} page${pages === 1 ? "" : "s"}`, { id });
+      }
     } catch (e: any) {
-      toast.error(e?.message || "Failed to export PDF");
+      toast.error(e?.message ? `Could not create the PDF: ${e.message}` : "Could not create the PDF", { id });
     }
   };
 
@@ -1940,7 +2015,13 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
               Target Evaluation: <strong>{periodType === "exam" ? (exams.find((e) => e.id === examId)?.name || "Exam") : currentPeriodLabel}</strong>
             </p>
           </div>
-          <DialogFooter className="gap-2 pt-2">
+          {classSetProgress && (
+            <p className="text-xs text-muted-foreground" aria-live="polite">{classSetProgress}</p>
+          )}
+          <DialogFooter className="gap-2 pt-2 flex-wrap">
+            <Button variant="outline" disabled={publishBusy || !publishSectionId} onClick={downloadClassSet} className="gap-1.5">
+              <Download className="h-3.5 w-3.5" /> Download class set (ZIP)
+            </Button>
             <Button variant="outline" disabled={publishBusy} onClick={() => publishWholeClass(false)}>Unpublish All</Button>
             <Button disabled={publishBusy} onClick={() => publishWholeClass(true)} className="font-bold bg-primary text-white gap-1.5">
               <Send className="h-3.5 w-3.5" /> Publish All Cards

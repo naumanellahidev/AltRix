@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { Phone, Search, PhoneCall, Copy, Clock, FileText, CheckCircle, RefreshCw, Mail } from "lucide-react";
+import { DataExportMenu } from "@/components/documents/DataExportMenu";
 
 type Lead = {
   id: string;
@@ -283,6 +284,19 @@ export function MarketingCallsModule() {
             className="pl-9 h-9 text-xs w-full"
           />
         </div>
+        <DataExportMenu
+          title="Call Log"
+          rows={filteredLogs.map((l) => ({
+            Lead: leadMap.get(l.lead_id)?.full_name ?? "",
+            Called: String(l.called_at).slice(0, 16).replace("T", " "),
+            Outcome: l.outcome,
+            Duration: formatDuration(l.duration_seconds),
+            Notes: l.notes ?? "",
+          }))}
+          orientation="landscape"
+          disabled={!filteredLogs.length}
+          size="sm"
+        />
         <Button variant="outline" size="sm" className="h-9 px-3 shrink-0" onClick={refresh}>
           <RefreshCw className="h-4 w-4" />
         </Button>

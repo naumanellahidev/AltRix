@@ -21,7 +21,7 @@ except ImportError:
 from sqlalchemy import text
 from app.config import settings
 from app.database import engine
-from app.middleware import LoggingMiddleware
+from app.middleware import LoggingMiddleware, DbIdentityMiddleware
 from app.utils.security import SecurityHeadersMiddleware, CorrelationIdMiddleware
 from app.utils.rate_limit import limiter, rate_limit_exceeded_handler
 from app.utils.error_handlers import register_exception_handlers
@@ -71,6 +71,7 @@ from app.routers.hostel import router as hostel_router
 from app.routers.white_label import router as white_label_router
 from app.routers.vps_storage import router as vps_storage_router
 from app.routers.vps_db import router as vps_db_router
+from app.routers.backups import router as backups_router
 
 # ─── Structured Logging ───────────────────────────────────────────────────────
 logging.basicConfig(
@@ -134,485 +135,29 @@ async def lifespan(app: FastAPI):
     # Initialize Sentry
     _init_sentry()
 
-    # 1. Verify Database Connection & Initialize Settings
+    # 1. Verify the database is reachable.
+    #
+    # Schema DDL used to run here on every boot of every container. It now
+    # lives in app/db_bootstrap.py and runs as an explicit deploy step, so the
+    # API, worker and beat containers no longer race each other for locks on
+    # the same tables — and so the app can eventually stop needing DDL rights
+    # on its database connection. See that module for the full reasoning.
     try:
-        from app.database import Base
-        import app.models  # Register all ORM models
         async with engine.begin() as conn:
-            await conn.execute(text("SELECT 1"))
-            await conn.run_sync(Base.metadata.create_all)
-            logger.info("Database connection ping: SUCCESS (All ORM tables verified/created)")
-
-            # Auto-align report_cards table columns if missing
-            await conn.execute(text("""
-                ALTER TABLE public.report_cards
-                    ADD COLUMN IF NOT EXISTS template_id UUID,
-                    ADD COLUMN IF NOT EXISTS max_total_marks DOUBLE PRECISION,
-                    ADD COLUMN IF NOT EXISTS position_in_class INTEGER,
-                    ADD COLUMN IF NOT EXISTS total_students_in_class INTEGER,
-                    ADD COLUMN IF NOT EXISTS total_present_days INTEGER,
-                    ADD COLUMN IF NOT EXISTS total_school_days INTEGER,
-                    ADD COLUMN IF NOT EXISTS qr_verification_token VARCHAR,
-                    ADD COLUMN IF NOT EXISTS signed_by_name VARCHAR,
-                    ADD COLUMN IF NOT EXISTS signed_by_title VARCHAR,
-                    ADD COLUMN IF NOT EXISTS signed_at TIMESTAMPTZ,
-                    ADD COLUMN IF NOT EXISTS trend_data JSONB DEFAULT '{}'::jsonb,
-                    ADD COLUMN IF NOT EXISTS generated_by UUID;
-            """))
-            logger.info("Report cards schema columns aligned successfully")
-
-            # Auto-align book_issues & library_books table columns
-            await conn.execute(text("""
-                ALTER TABLE public.book_issues
-                    ADD COLUMN IF NOT EXISTS campus_id UUID,
-                    ADD COLUMN IF NOT EXISTS fine_per_day NUMERIC(10, 2) DEFAULT 20.00;
-                
-                ALTER TABLE public.library_books
-                    ADD COLUMN IF NOT EXISTS campus_id UUID,
-                    ADD COLUMN IF NOT EXISTS barcode VARCHAR(100),
-                    ADD COLUMN IF NOT EXISTS shelf_location VARCHAR(100),
-                    ADD COLUMN IF NOT EXISTS publisher VARCHAR(255),
-                    ADD COLUMN IF NOT EXISTS publication_year INTEGER;
-
-                CREATE TABLE IF NOT EXISTS public.book_reservations (
-                    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                    school_id UUID NOT NULL,
-                    campus_id UUID,
-                    book_id UUID NOT NULL,
-                    student_id UUID NOT NULL,
-                    reserved_at TIMESTAMPTZ DEFAULT now(),
-                    status VARCHAR(50) DEFAULT 'active'
-                );
-
-                ALTER TABLE public.school_events
-                    ADD COLUMN IF NOT EXISTS campus_id UUID,
-                    ADD COLUMN IF NOT EXISTS audience VARCHAR(50) DEFAULT 'all',
-                    ADD COLUMN IF NOT EXISTS rsvp_enabled BOOLEAN DEFAULT false,
-                    ADD COLUMN IF NOT EXISTS rsvp_count INTEGER DEFAULT 0,
-                    ADD COLUMN IF NOT EXISTS max_attendees INTEGER;
-            """))
-            logger.info("Library & School Events schema aligned successfully")
-            
-            # Create system_settings table if it doesn't exist and ensure schema alignment
-            await conn.execute(text("""
-                CREATE TABLE IF NOT EXISTS public.system_settings (
-                    key VARCHAR PRIMARY KEY,
-                    value JSONB,
-                    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()),
-                    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
-                );
-                ALTER TABLE public.system_settings ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
-                ALTER TABLE public.system_settings DISABLE ROW LEVEL SECURITY;
-            """))
-            # Seed default AI status & platform branding
-            await conn.execute(text("""
-                INSERT INTO public.system_settings (key, value)
-                VALUES 
-                    ('global_ai_control', '{"enabled": true}'),
-                    ('platform_layout_branding', '{"footer_text": "AltRix Core — The AI-Powered Institute Operating System", "footer_url": "https://altrixcore.com"}')
-                ON CONFLICT (key) DO NOTHING;
-            """))
-            logger.info("System settings database table initialized successfully")
-
-            # Initialize security tables
-            try:
-                await conn.execute(text("""
-                    CREATE TABLE IF NOT EXISTS public.token_blacklist (
-                        jti         VARCHAR PRIMARY KEY,
-                        user_id     UUID NOT NULL,
-                        blacklisted_at TIMESTAMPTZ DEFAULT now(),
-                        expires_at  TIMESTAMPTZ NOT NULL
-                    );
-                """))
-                await conn.execute(text("""
-                    CREATE TABLE IF NOT EXISTS public.active_sessions (
-                        id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                        user_id       UUID NOT NULL,
-                        school_id     UUID,
-                        ip_address    VARCHAR(100),
-                        user_agent    TEXT,
-                        token_hash    VARCHAR(64),
-                        logged_in_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                        last_seen_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                        logged_out_at TIMESTAMPTZ,
-                        logout_reason VARCHAR(50),
-                        is_active     BOOLEAN NOT NULL DEFAULT TRUE
-                    );
-                """))
-                await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_active_sessions_user ON public.active_sessions (user_id);"))
-                await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_active_sessions_active ON public.active_sessions (user_id, is_active);"))
-                await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_active_sessions_school ON public.active_sessions (school_id);"))
-                
-                await conn.execute(text("""
-                    CREATE TABLE IF NOT EXISTS public.security_events (
-                        id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                        event_type    VARCHAR(100) NOT NULL,
-                        user_id       UUID,
-                        school_id     UUID,
-                        ip_address    VARCHAR(100),
-                        user_agent    TEXT,
-                        details       JSONB DEFAULT '{}',
-                        severity      VARCHAR(20) DEFAULT 'info',
-                        resolved      BOOLEAN DEFAULT FALSE,
-                        resolved_at   TIMESTAMPTZ,
-                        created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
-                    );
-                """))
-                await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_security_events_type ON public.security_events (event_type);"))
-                await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_security_events_user ON public.security_events (user_id);"))
-                await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_security_events_created ON public.security_events (created_at DESC);"))
-                await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_security_events_severity ON public.security_events (severity, created_at DESC);"))
-
-                await conn.execute(text("""
-                    CREATE TABLE IF NOT EXISTS public.failed_login_attempts (
-                        id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                        email         VARCHAR(320),
-                        ip_address    VARCHAR(100),
-                        user_agent    TEXT,
-                        failure_reason VARCHAR(200),
-                        attempted_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
-                    );
-                """))
-                await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_failed_logins_email ON public.failed_login_attempts (email, attempted_at DESC);"))
-                await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_failed_logins_ip ON public.failed_login_attempts (ip_address, attempted_at DESC);"))
-                await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_failed_logins_time ON public.failed_login_attempts (attempted_at DESC);"))
-
-                await conn.execute(text("""
-                    CREATE OR REPLACE FUNCTION public.cleanup_security_tables()
-                    RETURNS void AS $$
-                    BEGIN
-                        DELETE FROM public.token_blacklist WHERE expires_at < NOW();
-                        DELETE FROM public.security_events WHERE created_at < NOW() - INTERVAL '90 days';
-                        DELETE FROM public.failed_login_attempts WHERE attempted_at < NOW() - INTERVAL '30 days';
-                        UPDATE public.active_sessions
-                        SET is_active = FALSE, logout_reason = 'timeout'
-                        WHERE is_active = TRUE AND last_seen_at < NOW() - INTERVAL '24 hours';
-                    END;
-                    $$ LANGUAGE plpgsql;
-                """))
-                logger.info("Security tables initialized successfully")
-            except Exception as se_err:
-                logger.error(f"Failed to initialize security tables: {se_err}")
-
-            # ── AI Semantic Cache Tables ──────────────────────────────────────
-            try:
-                # Enable pg_trgm (built-in Postgres extension, no cost, no new infra)
-                await conn.execute(text("CREATE EXTENSION IF NOT EXISTS pg_trgm;"))
-
-                await conn.execute(text("""
-                    CREATE TABLE IF NOT EXISTS public.ai_semantic_cache (
-                        id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                        school_id        UUID NOT NULL REFERENCES public.schools(id) ON DELETE CASCADE,
-                        cache_type       VARCHAR(30)  NOT NULL DEFAULT 'live_erp',
-                        query_text       TEXT         NOT NULL,
-                        query_normalized TEXT         NOT NULL,
-                        query_embedding  JSONB,
-                        role_key         VARCHAR(200) NOT NULL,
-                        module_context   VARCHAR(100),
-                        screen_context   VARCHAR(200),
-                        campus_id        UUID,
-                        response_text    TEXT         NOT NULL,
-                        data_deps        TEXT[]       DEFAULT '{}',
-                        hit_count        INTEGER      DEFAULT 0,
-                        created_at       TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
-                        expires_at       TIMESTAMPTZ  NOT NULL,
-                        last_used_at     TIMESTAMPTZ  DEFAULT NOW(),
-                        is_valid         BOOLEAN      DEFAULT TRUE
-                    );
-                """))
-                # Indexes for fast lookup and invalidation
-                await conn.execute(text(
-                    "CREATE INDEX IF NOT EXISTS idx_ai_sem_cache_school "
-                    "ON public.ai_semantic_cache (school_id, is_valid, expires_at);"
-                ))
-                await conn.execute(text(
-                    "CREATE INDEX IF NOT EXISTS idx_ai_sem_cache_type "
-                    "ON public.ai_semantic_cache (school_id, cache_type, is_valid);"
-                ))
-                # GIN index for trigram similarity search on normalized query
-                await conn.execute(text(
-                    "CREATE INDEX IF NOT EXISTS idx_ai_sem_cache_trgm "
-                    "ON public.ai_semantic_cache USING gin(query_normalized gin_trgm_ops);"
-                ))
-                # GIN index for array-based dependency invalidation
-                await conn.execute(text(
-                    "CREATE INDEX IF NOT EXISTS idx_ai_sem_cache_deps "
-                    "ON public.ai_semantic_cache USING gin(data_deps);"
-                ))
-
-                await conn.execute(text("""
-                    CREATE TABLE IF NOT EXISTS public.ai_cache_stats (
-                        id             UUID    PRIMARY KEY DEFAULT gen_random_uuid(),
-                        school_id      UUID    NOT NULL REFERENCES public.schools(id),
-                        stat_date      DATE    NOT NULL DEFAULT CURRENT_DATE,
-                        cache_hits     INTEGER DEFAULT 0,
-                        cache_misses   INTEGER DEFAULT 0,
-                        ai_calls_saved INTEGER DEFAULT 0,
-                        top_queries    JSONB   DEFAULT '[]',
-                        created_at     TIMESTAMPTZ DEFAULT NOW(),
-                        updated_at     TIMESTAMPTZ DEFAULT NOW(),
-                        UNIQUE (school_id, stat_date)
-                    );
-                """))
-                await conn.execute(text(
-                    "CREATE INDEX IF NOT EXISTS idx_ai_cache_stats_school "
-                    "ON public.ai_cache_stats (school_id, stat_date DESC);"
-                ))
-
-                # Cleanup function: purge expired and old invalid entries
-                await conn.execute(text("""
-                    CREATE OR REPLACE FUNCTION public.cleanup_ai_semantic_cache()
-                    RETURNS void AS $$
-                    BEGIN
-                        DELETE FROM public.ai_semantic_cache
-                        WHERE expires_at < NOW()
-                           OR (is_valid = FALSE AND created_at < NOW() - INTERVAL '7 days');
-                        DELETE FROM public.ai_cache_stats
-                        WHERE stat_date < CURRENT_DATE - INTERVAL '90 days';
-                    END;
-                    $$ LANGUAGE plpgsql;
-                """))
-                logger.info("AI Semantic Cache tables initialized successfully")
-            except Exception as ai_cache_err:
-                logger.error(f"Failed to initialize AI semantic cache tables: {ai_cache_err}")
+            await conn.execute(text('SELECT 1'))
+        logger.info('Database connection ping: SUCCESS')
     except Exception as e:
-        logger.critical(f"Database initialization: FAILED (continuing startup for health endpoint) — {e}")
+        logger.critical(f'Database connection: FAILED (continuing for health endpoint) — {e}')
 
-    # 1.1 Extend notifications table with missing columns if needed
     try:
-        async with engine.begin() as conn:
-            await conn.execute(text("""
-                ALTER TABLE public.app_notifications
-                    ADD COLUMN IF NOT EXISTS icon VARCHAR,
-                    ADD COLUMN IF NOT EXISTS color VARCHAR,
-                    ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}'::jsonb,
-                    ADD COLUMN IF NOT EXISTS archived_at TIMESTAMPTZ,
-                    ADD COLUMN IF NOT EXISTS is_favorite BOOLEAN DEFAULT FALSE,
-                    ADD COLUMN IF NOT EXISTS is_pinned BOOLEAN DEFAULT FALSE;
-            """))
-            await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_notifications_archived_at ON public.app_notifications(user_id, archived_at);"))
-            await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_notifications_is_favorite ON public.app_notifications(user_id, is_favorite);"))
-            await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_notifications_is_pinned ON public.app_notifications(user_id, is_pinned);"))
-            logger.info("Notifications tables verified & extended successfully")
-    except Exception as notif_err:
-        logger.error(f"Failed to extend notifications table at startup: {notif_err}")
-
-    # ── Event Bus Tables Initialization ──────────────────────────────────────────
-    try:
-        async with engine.begin() as conn:
-            # 1. event_store table
-            await conn.execute(text("""
-                CREATE TABLE IF NOT EXISTS public.event_store (
-                    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                    event_name VARCHAR NOT NULL,
-                    category VARCHAR NOT NULL,
-                    school_id UUID REFERENCES schools(id) ON DELETE CASCADE,
-                    campus_id UUID,
-                    user_id UUID,
-                    entity_type VARCHAR,
-                    entity_id UUID,
-                    payload JSONB NOT NULL DEFAULT '{}'::jsonb,
-                    metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
-                    correlation_id UUID NOT NULL,
-                    request_id VARCHAR,
-                    source VARCHAR DEFAULT 'system',
-                    status VARCHAR NOT NULL DEFAULT 'published',
-                    retry_count INTEGER DEFAULT 0,
-                    execution_time_ms INTEGER,
-                    version VARCHAR DEFAULT '1.0.0',
-                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-                );
-            """))
-            await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_event_store_school_created ON public.event_store(school_id, created_at DESC);"))
-            await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_event_store_correlation ON public.event_store(correlation_id);"))
-            await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_event_store_name ON public.event_store(event_name);"))
-            await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_event_store_category ON public.event_store(category);"))
-
-            # 2. event_subscribers_log table
-            await conn.execute(text("""
-                CREATE TABLE IF NOT EXISTS public.event_subscribers_log (
-                    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                    event_id UUID NOT NULL REFERENCES public.event_store(id) ON DELETE CASCADE,
-                    subscriber_name VARCHAR NOT NULL,
-                    status VARCHAR NOT NULL DEFAULT 'pending',
-                    error_message TEXT,
-                    retry_count INTEGER DEFAULT 0,
-                    execution_time_ms INTEGER,
-                    updated_at TIMESTAMPTZ DEFAULT NOW(),
-                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-                );
-            """))
-            await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_event_subscribers_event ON public.event_subscribers_log(event_id);"))
-            await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_event_subscribers_status ON public.event_subscribers_log(status);"))
-
-            # 3. activity_timeline table
-            await conn.execute(text("""
-                CREATE TABLE IF NOT EXISTS public.activity_timeline (
-                    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                    school_id UUID REFERENCES schools(id) ON DELETE CASCADE,
-                    campus_id UUID,
-                    user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
-                    event_name VARCHAR NOT NULL,
-                    title VARCHAR NOT NULL,
-                    description TEXT,
-                    category VARCHAR NOT NULL,
-                    entity_type VARCHAR,
-                    entity_id UUID,
-                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-                );
-            """))
-            await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_activity_timeline_school ON public.activity_timeline(school_id, created_at DESC);"))
-            await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_activity_timeline_user ON public.activity_timeline(user_id);"))
-            logger.info("Event Bus tables verified & created successfully")
-
-            # 4. Email Branding & Template Management System Schema & Seeds
-            try:
-                await conn.execute(text("""
-                    CREATE TABLE IF NOT EXISTS public.email_branding_config (
-                        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                        brand_name VARCHAR(128) NOT NULL DEFAULT 'AltRix',
-                        primary_logo_url VARCHAR(512) NOT NULL DEFAULT 'https://altrixcore.com/altrix-logo.png',
-                        secondary_logo_url VARCHAR(512),
-                        brand_icon_url VARCHAR(512) NOT NULL DEFAULT 'https://altrixcore.com/altrix-icon.png',
-                        header_logo_type VARCHAR(32) NOT NULL DEFAULT 'primary',
-                        primary_color VARCHAR(32) NOT NULL DEFAULT '#0f172a',
-                        accent_color VARCHAR(32) NOT NULL DEFAULT '#2563eb',
-                        secondary_color VARCHAR(32) NOT NULL DEFAULT '#64748b',
-                        support_email VARCHAR(255) NOT NULL DEFAULT 'support@altrixcore.com',
-                        contact_email VARCHAR(255) NOT NULL DEFAULT 'contact@altrixcore.com',
-                        website_url VARCHAR(512) NOT NULL DEFAULT 'https://altrixcore.com',
-                        footer_text TEXT NOT NULL DEFAULT 'Enterprise Identity & Cloud Core Platform',
-                        legal_disclaimer TEXT DEFAULT 'This email was generated by AltRix Cloud OS on behalf of the registered institution. If you received this in error, please contact security immediately.',
-                        social_links JSONB DEFAULT '{"twitter": "https://twitter.com/altrixcore", "linkedin": "https://linkedin.com/company/altrixcore"}'::jsonb,
-                        is_active BOOLEAN NOT NULL DEFAULT TRUE,
-                        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-                    );
-                """))
-
-                await conn.execute(text("""
-                    CREATE TABLE IF NOT EXISTS public.email_assets (
-                        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                        name VARCHAR(128) NOT NULL,
-                        asset_type VARCHAR(64) NOT NULL,
-                        url VARCHAR(512) NOT NULL,
-                        filename VARCHAR(255) NOT NULL,
-                        mime_type VARCHAR(64) DEFAULT 'image/png',
-                        file_size_bytes INT DEFAULT 0,
-                        dimensions VARCHAR(64),
-                        is_active BOOLEAN NOT NULL DEFAULT TRUE,
-                        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-                    );
-                """))
-
-                await conn.execute(text("""
-                    CREATE TABLE IF NOT EXISTS public.email_sender_identities (
-                        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                        key VARCHAR(64) UNIQUE NOT NULL,
-                        name VARCHAR(128) NOT NULL,
-                        email VARCHAR(255) NOT NULL,
-                        reply_to VARCHAR(255),
-                        is_default BOOLEAN NOT NULL DEFAULT FALSE,
-                        is_active BOOLEAN NOT NULL DEFAULT TRUE,
-                        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-                    );
-                """))
-
-                await conn.execute(text("""
-                    CREATE TABLE IF NOT EXISTS public.email_templates (
-                        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                        key VARCHAR(64) UNIQUE NOT NULL,
-                        name VARCHAR(128) NOT NULL,
-                        category VARCHAR(64) NOT NULL,
-                        subject VARCHAR(255) NOT NULL,
-                        sender_identity_key VARCHAR(64),
-                        html_content TEXT NOT NULL,
-                        text_content TEXT,
-                        cta_text VARCHAR(128),
-                        cta_url_variable VARCHAR(128),
-                        available_variables JSONB DEFAULT '[]'::jsonb,
-                        version INT NOT NULL DEFAULT 1,
-                        is_system BOOLEAN NOT NULL DEFAULT TRUE,
-                        is_active BOOLEAN NOT NULL DEFAULT TRUE,
-                        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-                    );
-
-                    ALTER TABLE public.email_templates
-                        ADD COLUMN IF NOT EXISTS version INT NOT NULL DEFAULT 1,
-                        ADD COLUMN IF NOT EXISTS is_system BOOLEAN NOT NULL DEFAULT TRUE;
-                """))
-
-                await conn.execute(text("""
-                    CREATE TABLE IF NOT EXISTS public.email_template_versions (
-                        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                        template_key VARCHAR(64) NOT NULL,
-                        version INT NOT NULL,
-                        subject VARCHAR(255) NOT NULL,
-                        html_content TEXT NOT NULL,
-                        text_content TEXT,
-                        created_by_user_id UUID,
-                        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-                    );
-                """))
-
-                await conn.execute(text("""
-                    CREATE TABLE IF NOT EXISTS public.email_event_mappings (
-                        event_name VARCHAR(64) PRIMARY KEY,
-                        sender_identity_key VARCHAR(64) NOT NULL,
-                        template_key VARCHAR(64) NOT NULL,
-                        description VARCHAR(255),
-                        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-                    );
-                """))
-
-                await conn.execute(text("""
-                    CREATE TABLE IF NOT EXISTS public.email_logs (
-                        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                        recipient_email VARCHAR(255) NOT NULL,
-                        sender_email VARCHAR(255) NOT NULL,
-                        sender_name VARCHAR(128),
-                        event_name VARCHAR(64) NOT NULL,
-                        template_key VARCHAR(64),
-                        subject VARCHAR(255) NOT NULL,
-                        status VARCHAR(30) NOT NULL,
-                        error_details TEXT,
-                        message_id VARCHAR(255),
-                        sent_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                        metadata JSONB DEFAULT '{}'::jsonb
-                    );
-                """))
-
-                await conn.execute(text("""
-                    INSERT INTO public.email_sender_identities (key, name, email, reply_to, is_default, is_active)
-                    VALUES
-                        ('security', 'AltRix Security HQ', 'security@altrixcore.com', 'security@altrixcore.com', FALSE, TRUE),
-                        ('no_reply', 'AltRix Platform System', 'no-reply@altrixcore.com', NULL, TRUE, TRUE),
-                        ('support', 'AltRix Customer Support', 'support@altrixcore.com', 'support@altrixcore.com', FALSE, TRUE),
-                        ('info', 'AltRix Information Desk', 'info@altrixcore.com', 'info@altrixcore.com', FALSE, TRUE),
-                        ('ceo', 'AltRix Executive Office', 'ceo@altrixcore.com', 'ceo@altrixcore.com', FALSE, TRUE),
-                        ('notifications', 'AltRix Cloud Notifications', 'notifications@altrixcore.com', 'no-reply@altrixcore.com', FALSE, TRUE),
-                        ('contact', 'AltRix Direct Contact', 'contact@altrixcore.com', 'contact@altrixcore.com', FALSE, TRUE),
-                        ('billing', 'AltRix Billing & Finance', 'billing@altrixcore.com', 'billing@altrixcore.com', FALSE, TRUE),
-                        ('system', 'AltRix System Engine', 'system@altrixcore.com', NULL, FALSE, TRUE)
-                    ON CONFLICT (key) DO NOTHING;
-                """))
-                logger.info("Email Branding & Template schema initialized successfully")
-            except Exception as email_init_err:
-                logger.error(f"Failed to initialize email branding tables: {email_init_err}")
-    except Exception as eb_err:
-        logger.error(f"Failed to initialize Event Bus tables at startup: {eb_err}")
-
-    # Seed Email Templates in background session
-    try:
-        from app.database import AsyncSessionLocal
-        from app.services.email_template_seeds import seed_all_email_templates
-        async with AsyncSessionLocal() as seed_session:
-            await seed_all_email_templates(seed_session)
-    except Exception as seed_err:
-        logger.warning(f"Template seeder notice: {seed_err}")
+        from app.db_bootstrap import apply_schema_bootstrap, should_run_on_startup
+        if should_run_on_startup():
+            logger.info('Applying schema bootstrap on startup (non-production)')
+            await apply_schema_bootstrap()
+        else:
+            logger.info('Skipping startup DDL; apply it with: python -m app.db_bootstrap')
+    except Exception as e:
+        logger.error(f'Schema bootstrap failed: {e}')
 
     # 2. Verify Database Schema (Migrations check)
     try:
@@ -670,8 +215,8 @@ async def lifespan(app: FastAPI):
     try:
         from app.cache import close_redis
         await close_redis()
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("Optional step failed (%s): %s", "from app.cache import close_redis", exc, exc_info=True)
     try:
         from app.database import engine as _engine
         await _engine.dispose()
@@ -730,22 +275,68 @@ app = FastAPI(
 # ─── Rate Limiter State ───────────────────────────────────────────────────────
 app.state.limiter = limiter
 
-# ─── Middleware (order matters: applied bottom-up) ────────────────────────────
+# ─── Middleware ───────────────────────────────────────────────────────────────
+#
+# Note on order: add_middleware() PREPENDS, so the last one added ends up
+# outermost. The effective stack here is, outermost first:
+#     DbIdentity -> Logging -> CorrelationId -> SecurityHeaders -> CORS -> routes
+# CORS therefore sits innermost despite being added first. That works — preflight
+# requests still reach it — but an exception raised in an outer middleware
+# produces a response without CORS headers, which the browser reports as an
+# opaque CORS failure instead of the real error. Moving CORS to be added last
+# would fix that; left as-is for now to avoid changing request handling here.
 
-# 1. CORS (outermost)
+# 1. CORS
+#
+# allow_credentials=True means every origin accepted here can read authenticated
+# responses. A wildcard over a public hosting domain (*.vercel.app, *.railway.app)
+# therefore hands that ability to anyone who can deploy there, so origins are
+# enumerated explicitly instead.
+#
+# The production frontend reaches the API through a same-origin /api rewrite, so
+# it does not rely on CORS at all; this list exists for the hosted preview
+# deployments and for local development.
+_PRODUCTION_ORIGINS = [
+    "https://altrixcore.com",
+    "https://www.altrixcore.com",
+    "https://alt-rix.vercel.app",
+    "https://altrix.vercel.app",
+    "https://altrix.up.railway.app",
+    "https://altrix-2-production.up.railway.app",
+]
+
+_DEV_ORIGINS = [
+    "http://localhost:5173", "http://localhost:8080", "http://localhost:3000",
+    "http://127.0.0.1:5173", "http://127.0.0.1:8080", "http://127.0.0.1:3000",
+]
+
+_cors_origins = list(dict.fromkeys(
+    [o for o in settings.cors_origins if o and "${{" not in o]
+    + _PRODUCTION_ORIGINS
+    + ([] if settings.is_production else _DEV_ORIGINS)
+))
+
+# White-label tenants get their own domains. Set CORS_ORIGIN_REGEX to an
+# anchored pattern covering those domains only — never a public PaaS suffix.
+_cors_origin_regex = (settings.cors_origin_regex or "").strip() or None
+
+logger.info(
+    f"CORS: {len(_cors_origins)} explicit origin(s)"
+    + (f" + regex {_cors_origin_regex!r}" if _cors_origin_regex else "")
+)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_origins + [
-        "https://alt-rix.vercel.app",
-        "https://altrix.vercel.app",
-        "https://altrix.up.railway.app",
-        "https://altrix-2-production.up.railway.app",
-    ],
-    allow_origin_regex=r"https://.*\.vercel\.app|https://.*\.railway\.app|http://localhost:.*|http://127\.0\.0\.1:.*",
+    allow_origins=_cors_origins,
+    allow_origin_regex=_cors_origin_regex,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=[
+        "Authorization", "Content-Type", "X-School-Id", "X-Campus-Id",
+        "X-Correlation-ID", "X-Requested-With", "Accept",
+    ],
     expose_headers=["X-Process-Time-Ms", "X-Correlation-ID", "Retry-After"],
+    max_age=600,
 )
 
 # 2. Security headers
@@ -756,6 +347,12 @@ app.add_middleware(CorrelationIdMiddleware)
 
 # 4. Request logging + timing
 app.add_middleware(LoggingMiddleware)
+
+# 5. Database identity (innermost): makes the caller's user id visible to
+#    Postgres so row-level security policies, which all route through
+#    auth.uid(), have something to evaluate. Must wrap the route handlers, so it
+#    is added last.
+app.add_middleware(DbIdentityMiddleware)
 
 # ─── Exception Handlers ───────────────────────────────────────────────────────
 register_exception_handlers(app)
@@ -831,22 +428,11 @@ async def system_status():
     return result
 
 
-@app.get("/health", tags=["Health"])
-@app.get("/api/health", tags=["Health"])
-async def health_check():
-    return {"status": "ok", "service": "altrix-backend"}
-
-
-@app.get("/api/version", tags=["Health"])
-async def api_version():
-    commit_sha = "unknown"
-    if os.path.exists("COMMIT_SHA"):
-        try:
-            with open("COMMIT_SHA", "r") as f:
-                commit_sha = f.read().strip()
-        except Exception:
-            pass
-    return {"version": "2.0.0", "commit": commit_sha, "service": "Altrix Core"}
+# NOTE: a second pair of /health and /api/version handlers used to live here.
+# They were unreachable — FastAPI matches the first route registered for a path,
+# and both are already defined above — and the version one referenced `os`
+# without importing it, so it would have raised NameError had it ever run.
+# The reachable definitions are the ones further up this file.
 
 
 from app.routers.white_label import router as white_label_router
@@ -914,6 +500,7 @@ app.include_router(custom_domains_router, prefix=_PREFIX)
 app.include_router(financial_forecasting_router, prefix=_PREFIX)
 app.include_router(vps_storage_router, prefix=_PREFIX)
 app.include_router(vps_db_router, prefix=_PREFIX)
+app.include_router(backups_router, prefix=_PREFIX)
 from app.routers.invitations import router as invitations_router
 from app.routers.email_management import router as email_management_router
 from app.routers.search import router as search_router

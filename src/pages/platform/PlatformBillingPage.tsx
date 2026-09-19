@@ -35,11 +35,18 @@ import {
   Settings,
   Pencil,
   Download,
+  Printer,
+  MessageCircle,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { apiClient } from "@/lib/api-client";
 import { toast } from "sonner";
-import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
+import {
+  downloadPlatformInvoice,
+  printPlatformInvoice,
+  sharePlatformInvoice,
+} from "@/lib/documents/platform-invoice";
+import { describeShare } from "@/lib/documents/deliver";
 
 interface SchoolBillingData {
   id: string;
@@ -587,291 +594,39 @@ export default function PlatformBillingPage() {
     }
   };
 
-  // Luxury vector logo drawing for Altrix receipt
-  const drawAltrixLogo = (doc: jsPDF, x: number, y: number, size: number = 10) => {
-    doc.saveGraphicsState();
-    doc.setFillColor(245, 158, 11);
-    doc.roundedRect(x, y, size, size, size * 0.22, size * 0.22, "F");
-    doc.setFillColor(15, 23, 42);
-    const cx = x + size / 2;
-    const cy = y + size / 2;
-    const scale = size / 10;
-    doc.rect(cx - 2.5 * scale, cy + 1.5 * scale, 5 * scale, 0.8 * scale, "F");
-    doc.triangle(
-      cx - 2.5 * scale, cy + 1.5 * scale,
-      cx - 2.5 * scale, cy - 1.5 * scale,
-      cx - 0.8 * scale, cy + 1.5 * scale,
-      "F"
-    );
-    doc.triangle(
-      cx + 2.5 * scale, cy + 1.5 * scale,
-      cx + 2.5 * scale, cy - 1.5 * scale,
-      cx + 0.8 * scale, cy + 1.5 * scale,
-      "F"
-    );
-    doc.triangle(
-      cx - 1.2 * scale, cy + 1.5 * scale,
-      cx, cy - 2.2 * scale,
-      cx + 1.2 * scale, cy + 1.5 * scale,
-      "F"
-    );
-    doc.restoreGraphicsState();
-  };
-
-  const handlePrintReceipt = (inv: PlatformInvoice) => {
+  /** Invoice (unpaid) or receipt (paid) as a PDF: download, print or share. */
+  const handlePrintReceipt = async (inv: PlatformInvoice, kind: "download" | "print" | "share" = "download") => {
+    const school = schools.find((s) => s.id === inv.school_id);
+    const input = {
+      invoiceNumber: inv.invoice_number,
+      schoolName: inv.school_name,
+      amount: inv.amount,
+      billingDate: inv.billing_date,
+      dueDate: inv.due_date,
+      status: inv.status,
+      paidAt: inv.paid_at ?? null,
+      planTier: school?.plan_tier ?? null,
+      billingCycle: school?.billing_cycle ?? null,
+    };
+    const id = toast.loading(inv.status === "Paid" ? "Preparing the receipt…" : "Preparing the invoice…");
     try {
-      const doc = new jsPDF({ orientation: "portrait" });
-      const pageW = doc.internal.pageSize.getWidth();
-
-      // Load dynamic brand settings from localStorage
-      let brandSettings = {
-        brandName: "ALTRIX PLATFORM SOLUTIONS",
-        supportEmail: "billing@altrix.com",
-        supportUrl: "support.altrix.com",
-        bankName: "Altrix International Trust Bank",
-        accountTitle: "Altrix Platform Solutions Ltd.",
-        accountNumber: "1045-9856-0248-12",
-        iban: "PK85AITB0000104598560248",
-        logoBase64: ""
-      };
-
-      const savedSettings = localStorage.getItem("altrix_global_brand_settings");
-      if (savedSettings) {
-        try {
-          const parsed = JSON.parse(savedSettings);
-          brandSettings = { ...brandSettings, ...parsed };
-        } catch (e) {
-          console.error("Error parsing dynamic brand settings", e);
-        }
+      if (kind === "share") {
+        const outcome = await sharePlatformInvoice(input);
+        const { tone, message } = describeShare(outcome);
+        const note = outcome.warnings.length ? ` Note: ${outcome.warnings.join("; ")}` : "";
+        if (tone === "error") toast.error(message + note, { id });
+        else if (tone === "info") toast.info(message + note, { id, duration: 9000 });
+        else toast.success(message + note, { id });
+        return;
       }
-
-      // Top Luxury Header Banner (Dark Gold Theme)
-      doc.setFillColor(20, 18, 15); // Deep charcoal black
-      doc.rect(0, 0, pageW, 35, "F");
-
-      // Gold bottom outline for header banner
-      doc.setFillColor(212, 175, 55); // Gold line
-      doc.rect(0, 35, pageW, 0.8, "F");
-
-      // Draw custom logo if configured, else default to Altrix Vector Logo
-      let logoDrawn = false;
-      if (brandSettings.logoBase64) {
-        try {
-          doc.addImage(brandSettings.logoBase64, "PNG", 14, 8, 16, 16);
-          logoDrawn = true;
-        } catch (err) {
-          console.error("Failed to render custom logo base64 in invoice, falling back", err);
-        }
-      }
-      if (!logoDrawn) {
-        drawAltrixLogo(doc, 14, 8, 16);
-      }
-
-      // Dynamic Header Info
-      doc.setTextColor(245, 158, 11); // Amber
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(15);
-      doc.text(brandSettings.brandName.toUpperCase(), 34, 15);
-
-      doc.setTextColor(255, 255, 255);
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(8.5);
-      doc.text("Software Licenses & Enterprise Subscriptions", 34, 21);
-
-      doc.setTextColor(161, 161, 170); // zinc-400
-      doc.setFontSize(7.5);
-      doc.text(`${brandSettings.supportEmail}  ·  ${brandSettings.supportUrl}`, 34, 26);
-
-      // "INVOICE / RECEIPT" Label
-      doc.setTextColor(212, 175, 55); // Gold
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(12);
-      doc.text("INVOICE / RECEIPT", pageW - 14, 15, { align: "right" });
-
-      doc.setTextColor(255, 255, 255);
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(8);
-      doc.text("Master Control Panel", pageW - 14, 21, { align: "right" });
-
-      // Double-column details section
-      let y = 48;
-      
-      // Left Column (Client Details)
-      doc.setTextColor(212, 175, 55);
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(8);
-      doc.text("BILLED TO", 14, y);
-
-      doc.setTextColor(15, 23, 42); // slate-900
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(11);
-      doc.text(inv.school_name, 14, y + 6);
-
-      const matchedSchool = schools.find((s) => s.id === inv.school_id);
-      doc.setTextColor(82, 82, 91); // zinc-600
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(9);
-      doc.text(`Subscription Plan: ${matchedSchool?.plan_tier || "Basic"} Tier`, 14, y + 11);
-      doc.text(`Billing Cycle: ${matchedSchool?.billing_cycle || "monthly"}`, 14, y + 16);
-
-      // Right Column (Invoice Details)
-      doc.setTextColor(212, 175, 55);
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(8);
-      doc.text("INVOICE DETAILS", 110, y);
-
-      doc.setTextColor(15, 23, 42);
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(10.5);
-      doc.text(`Invoice #: ${inv.invoice_number}`, 110, y + 6);
-
-      doc.setTextColor(82, 82, 91);
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(9);
-      doc.text(`Billed Date: ${inv.billing_date}`, 110, y + 11);
-      doc.text(`Due Date: ${inv.due_date}`, 110, y + 16);
-
-      // Status Badge Pill
-      doc.text("Payment Status:", 110, y + 22.5);
-      doc.saveGraphicsState();
-      
-      const badgeX = 138;
-      const badgeY = y + 19.5;
-      const badgeW = 20;
-      const badgeH = 4.2;
-
-      if (inv.status === "Paid") {
-        doc.setFillColor(16, 185, 129); // green
-        doc.roundedRect(badgeX, badgeY, badgeW, badgeH, 1, 1, "F");
-        doc.setTextColor(255, 255, 255);
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(7);
-        doc.text("PAID", badgeX + badgeW / 2, badgeY + 3.1, { align: "center" });
-      } else if (inv.status === "Overdue") {
-        doc.setFillColor(239, 68, 68); // red
-        doc.roundedRect(badgeX, badgeY, badgeW, badgeH, 1, 1, "F");
-        doc.setTextColor(255, 255, 255);
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(7);
-        doc.text("OVERDUE", badgeX + badgeW / 2, badgeY + 3.1, { align: "center" });
-      } else {
-        doc.setFillColor(245, 158, 11); // amber
-        doc.roundedRect(badgeX, badgeY, badgeW, badgeH, 1, 1, "F");
-        doc.setTextColor(15, 23, 42);
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(7);
-        doc.text("UNPAID", badgeX + badgeW / 2, badgeY + 3.1, { align: "center" });
-      }
-      doc.restoreGraphicsState();
-
-      // Divider line
-      doc.setDrawColor(228, 228, 231); // zinc-200
-      doc.setLineWidth(0.2);
-      doc.line(14, y + 28, pageW - 14, y + 28);
-
-      // Services Table (jsPDF autoTable)
-      const head = [["DESCRIPTION", "BILLING CYCLE", "LICENSE RATE", "TOTAL AMOUNT"]];
-      const body = [[
-        `Altrix Software Suite - ${matchedSchool?.plan_tier || "Basic"} School License\nFull access to academics, staff payroll, and owner control panel.`,
-        matchedSchool?.billing_cycle || "monthly",
-        `Rs. ${inv.amount.toLocaleString()}`,
-        `Rs. ${inv.amount.toLocaleString()}`
-      ]];
-
-      autoTable(doc, {
-        startY: y + 32,
-        head,
-        body,
-        styles: { fontSize: 8.5, cellPadding: 4, valign: "middle" },
-        headStyles: { fillColor: [212, 175, 55], textColor: [20, 18, 15], fontStyle: "bold" },
-        alternateRowStyles: { fillColor: [250, 249, 245] },
-      });
-
-      let finalY = (doc as any).lastAutoTable?.finalY || (y + 55);
-
-      // Double line border around totals card
-      doc.setDrawColor(212, 175, 55);
-      doc.setLineWidth(0.25);
-      doc.line(110, finalY + 5, pageW - 14, finalY + 5);
-      doc.line(110, finalY + 22, pageW - 14, finalY + 22);
-
-      // Shaded totals background
-      doc.setFillColor(250, 249, 245);
-      doc.rect(110, finalY + 5.2, pageW - 110 - 14, 16.6, "F");
-
-      doc.setTextColor(82, 82, 91);
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(8.5);
-      doc.text("Subtotal:", 112, finalY + 11);
-      doc.text("Rs. " + inv.amount.toLocaleString(), pageW - 16, finalY + 11, { align: "right" });
-
-      doc.setFont("helvetica", "bold");
-      doc.setTextColor(15, 23, 42);
-      doc.setFontSize(9.5);
-      doc.text("Total Paid (PKR):", 112, finalY + 17.5);
-      doc.text("Rs. " + inv.amount.toLocaleString(), pageW - 16, finalY + 17.5, { align: "right" });
-
-      // Bank Details block (bottom left)
-      doc.setFillColor(250, 249, 245);
-      doc.roundedRect(14, finalY + 5, 85, 26, 1.5, 1.5, "F");
-      doc.setDrawColor(212, 175, 55, 0.3);
-      doc.setLineWidth(0.2);
-      doc.roundedRect(14, finalY + 5, 85, 26, 1.5, 1.5, "S");
-
-      doc.setTextColor(212, 175, 55);
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(7.5);
-      doc.text("BANK TRANSFER DETAILS", 18, finalY + 10);
-
-      doc.setTextColor(82, 82, 91);
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(7.5);
-      doc.text(`Bank Name: ${brandSettings.bankName}`, 18, finalY + 15);
-      doc.text(`Account Title: ${brandSettings.accountTitle}`, 18, finalY + 19);
-      doc.text(`A/C Number: ${brandSettings.accountNumber}`, 18, finalY + 23);
-      doc.text(`IBAN: ${brandSettings.iban}`, 18, finalY + 27);
-
-      // Signatures
-      const sigY = finalY + 50;
-      doc.setDrawColor(161, 161, 170);
-      doc.setLineWidth(0.2);
-      doc.line(14, sigY, 70, sigY);
-      doc.line(pageW - 70, sigY, pageW - 14, sigY);
-
-      doc.setTextColor(113, 113, 122);
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(8);
-      doc.text("Super Admin Authorized", 14, sigY + 4);
-      doc.text("Client School Receiver Signature", pageW - 14, sigY + 4, { align: "right" });
-
-      // Verification stamp
-      if (inv.status === "Paid") {
-        doc.saveGraphicsState();
-        doc.setDrawColor(16, 185, 129, 0.4);
-        doc.setLineWidth(0.4);
-        doc.roundedRect(132, finalY + 28, 44, 10, 1, 1, "S");
-        doc.setTextColor(16, 185, 129);
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(9);
-        doc.text("VERIFIED PAID", 154, finalY + 34.5, { align: "center" });
-        doc.restoreGraphicsState();
-      }
-
-      // Terms & Conditions Footer
-      doc.setTextColor(113, 113, 122);
-      doc.setFont("helvetica", "italic");
-      doc.setFontSize(7.5);
-      doc.text(`Thank you for choosing ${brandSettings.brandName}. Payments are due within 15 days of bill generation.`, 14, sigY + 18);
-      doc.text(`This computer-generated receipt is officially validated by the ${brandSettings.brandName} Billing System.`, 14, sigY + 22);
-
-      // bottom decorative bar
-      doc.setFillColor(212, 175, 55);
-      doc.rect(0, 292, pageW, 5, "F");
-
-      doc.save(`Receipt_${inv.invoice_number}.pdf`);
-      toast.success(`Receipt downloaded for ${inv.invoice_number}`);
+      const result: { warnings: string[]; fileName?: string } =
+        kind === "print" ? await printPlatformInvoice(input) : await downloadPlatformInvoice(input);
+      const done = kind === "print" ? "Sent to print" : `Downloaded ${result.fileName}`;
+      if (result.warnings.length) toast.warning(`${done}. Note: ${result.warnings.join("; ")}`, { id, duration: 10000 });
+      else if (kind === "print") toast.dismiss(id);
+      else toast.success(done, { id });
     } catch (e: any) {
-      toast.error(`Receipt download failed: ${e.message}`);
+      toast.error(`The document could not be produced: ${e?.message ?? String(e)}`, { id });
     }
   };
 
@@ -936,11 +691,19 @@ export default function PlatformBillingPage() {
                 <Button
                   size="sm"
                   onClick={async () => {
+                    // The catch used to report success. Combined with apiClient
+                    // never having been imported, every click threw and then
+                    // claimed a dunning sweep had run across all overdue
+                    // accounts — while nothing at all had happened.
                     try {
                       const res = await apiClient.post("/super_admin/billing/dunning/run", { grace_period_days: 5 });
-                      toast.success(res.data.message, { description: `Reminders sent: ${res.data.summary.reminders_sent}, Read-only locks: ${res.data.summary.read_only_locks_applied}` });
-                    } catch {
-                      toast.success("Executed automated dunning sweep across all overdue accounts (5-day grace period)");
+                      toast.success(res.data?.message ?? "Dunning sweep completed", {
+                        description: `Reminders sent: ${res.data?.summary?.reminders_sent ?? 0}, Read-only locks: ${res.data?.summary?.read_only_locks_applied ?? 0}`,
+                      });
+                    } catch (err: any) {
+                      toast.error(
+                        err?.response?.data?.detail ?? "Dunning sweep failed. No reminders were sent.",
+                      );
                     }
                   }}
                   className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-slate-900 font-bold text-xs h-8 shadow-sm"
@@ -1154,9 +917,27 @@ export default function PlatformBillingPage() {
                           <Button
                             variant="ghost"
                             size="icon"
-                            onClick={() => handlePrintReceipt(inv)}
+                            onClick={() => handlePrintReceipt(inv, "share")}
                             className="h-8 w-8 text-slate-400 hover:text-blue-700"
-                            title="Download PDF Receipt"
+                            title={inv.status === "Paid" ? "Share receipt on WhatsApp" : "Share invoice on WhatsApp"}
+                          >
+                            <MessageCircle className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handlePrintReceipt(inv, "print")}
+                            className="h-8 w-8 text-slate-400 hover:text-blue-700"
+                            title={inv.status === "Paid" ? "Print receipt" : "Print invoice"}
+                          >
+                            <Printer className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handlePrintReceipt(inv, "download")}
+                            className="h-8 w-8 text-slate-400 hover:text-blue-700"
+                            title={inv.status === "Paid" ? "Download PDF receipt" : "Download PDF invoice"}
                           >
                             <Download className="h-4 w-4" />
                           </Button>

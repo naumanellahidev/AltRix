@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils";
 import { AttendanceHistoryDialog } from "@/components/attendance/AttendanceHistoryDialog";
 import { StudentAttendanceStatsCard } from "@/components/attendance/StudentAttendanceStatsCard";
 import { AttendancePercentageBadge } from "@/components/attendance/AttendancePercentageBadge";
+import { DataExportMenu } from "@/components/documents/DataExportMenu";
 
 interface Section {
   id: string;
@@ -364,7 +365,7 @@ export function TeacherAttendanceModule() {
               <Input value={periodLabel} onChange={(e) => setPeriodLabel(e.target.value)} className="text-xs rounded-xl mt-1" />
             </div>
             <div className="flex items-end">
-              <Button onClick={loadSession} className="w-full text-xs rounded-xl">
+              <Button onClick={() => loadSession()} className="w-full text-xs rounded-xl">
                 Load Session
               </Button>
             </div>
@@ -383,6 +384,14 @@ export function TeacherAttendanceModule() {
           <CardHeader className="p-4 sm:p-6 pb-2 sm:pb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <CardTitle className="text-base sm:text-lg">Students ({rows.length})</CardTitle>
             <div className="flex flex-wrap gap-2">
+              <DataExportMenu
+                title="Class Attendance"
+                subtitle={[(() => { const s = sections.find((x) => x.id === selectedSection); return s ? `${s.class_name} — ${s.name}` : null; })(), sessionDate].filter(Boolean).join(" · ")}
+                fileNameParts={[(() => { const s = sections.find((x) => x.id === selectedSection); return s ? `${s.class_name} ${s.name}` : null; })(), "Attendance", sessionDate]}
+                rows={rows.map((r, i) => ({ "#": i + 1, Student: [r.first_name, r.last_name].filter(Boolean).join(" "), Status: r.status }))}
+                disabled={!rows.length}
+                size="sm"
+              />
               <Button size="sm" variant="outline" onClick={() => markAll("present")} className="rounded-xl text-xs">
                 All Present
               </Button>

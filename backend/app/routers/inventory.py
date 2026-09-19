@@ -10,6 +10,7 @@ from sqlalchemy import select
 
 from app.dependencies import CurrentUser, DbSession
 from app.models.inventory import InventoryItem, StockTransaction
+from app.utils.pagination import ListPageParams
 
 router = APIRouter(prefix="/inventory", tags=["Inventory Management"])
 
@@ -51,32 +52,26 @@ class StockTransactionCreateSchema(BaseModel):
 @router.get("/items", response_model=List[InventoryItemResponseSchema])
 async def list_inventory_items(
     db: DbSession,
-    current_user: CurrentUser,
+    current_user: CurrentUser, page: ListPageParams,
 ):
     school_id = current_user.school_id or UUID("00000000-0000-0000-0000-000000000000")
-    try:
-        stmt = select(InventoryItem).where(InventoryItem.school_id == school_id).order_by(InventoryItem.item_name)
-        res = await db.execute(stmt)
-        return list(res.scalars().all())
-    except Exception:
-        return []
+    stmt = select(InventoryItem).where(InventoryItem.school_id == school_id).order_by(InventoryItem.item_name)
+    res = await db.execute(page.apply(stmt))
+    return list(res.scalars().all())
 
 
 @router.get("/low-stock-alerts", response_model=List[InventoryItemResponseSchema])
 async def list_low_stock_alerts(
     db: DbSession,
-    current_user: CurrentUser,
+    current_user: CurrentUser, page: ListPageParams,
 ):
     school_id = current_user.school_id or UUID("00000000-0000-0000-0000-000000000000")
-    try:
-        stmt = select(InventoryItem).where(
-            InventoryItem.school_id == school_id,
-            InventoryItem.available_quantity <= InventoryItem.min_reorder_threshold
-        ).order_by(InventoryItem.available_quantity.asc())
-        res = await db.execute(stmt)
-        return list(res.scalars().all())
-    except Exception:
-        return []
+    stmt = select(InventoryItem).where(
+        InventoryItem.school_id == school_id,
+        InventoryItem.available_quantity <= InventoryItem.min_reorder_threshold
+    ).order_by(InventoryItem.available_quantity.asc())
+    res = await db.execute(page.apply(stmt))
+    return list(res.scalars().all())
 
 
 
@@ -141,18 +136,6 @@ async def record_stock_transaction(
     return {"message": "Stock transaction recorded", "available_quantity": item.available_quantity}
 
 
-@router.get("/low-stock-alerts", response_model=List[InventoryItemResponseSchema])
-async def get_low_stock_alerts(
-    db: DbSession,
-    current_user: CurrentUser,
-):
-    school_id = current_user.school_id or UUID("00000000-0000-0000-0000-000000000000")
-    stmt = select(InventoryItem).where(
-        InventoryItem.school_id == school_id,
-        InventoryItem.available_quantity <= InventoryItem.min_reorder_threshold
-    )
-    try:
-        res = await db.execute(stmt)
-        return list(res.scalars().all())
-    except Exception:
-        return []
+# NOTE: a duplicate GET /low-stock-alerts handler lived here, shadowed by the
+# one registered earlier in this file. Removed.
+

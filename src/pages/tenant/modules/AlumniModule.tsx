@@ -12,8 +12,10 @@ import { SearchableSelect } from "@/components/ui/SearchableSelect";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "sonner";
 import {
-  GraduationCap, Plus, Search, RefreshCw, Building, Calendar, Heart, Award, ExternalLink
+  GraduationCap, Plus, Search, RefreshCw, Building, Calendar, Heart, Award, ExternalLink,
+  Users, Briefcase
 } from "lucide-react";
+import { DataExportMenu } from "@/components/documents/DataExportMenu";
 
 interface AlumniProfile {
   id: string;
@@ -238,9 +240,18 @@ export function AlumniModule() {
               <CardTitle className="text-lg font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
                 <GraduationCap className="h-5 w-5 text-blue-600" /> Master Alumni Graduate Roster
               </CardTitle>
+              <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+              <DataExportMenu
+                title="Alumni Directory"
+                rows={filteredAlumni.map((a) => ({ Name: a.full_name, "Graduation year": a.graduation_year, "Higher education": a.higher_education_uni ?? "", Company: a.current_company ?? "", Designation: a.designation ?? "", Email: a.email ?? "", Phone: a.phone ?? "", LinkedIn: a.linkedin_url ?? "" }))}
+                orientation="landscape"
+                disabled={!filteredAlumni.length}
+                size="sm"
+              />
               <Button onClick={() => setShowAddModal(true)} className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-semibold text-xs h-9 self-start sm:self-auto rounded-xl shadow-sm">
                 <Plus className="h-4 w-4 mr-2" /> Register Alumni
               </Button>
+              </div>
             </CardHeader>
             <CardContent className="pt-4 space-y-4">
               {/* Year Filter Pills */}
@@ -306,9 +317,17 @@ export function AlumniModule() {
               <CardTitle className="text-lg font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
                 <Calendar className="h-5 w-5 text-indigo-600" /> Alumni Reunions & Networking Events
               </CardTitle>
+              <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+              <DataExportMenu
+                title="Alumni Events"
+                rows={events.map((e) => ({ Event: e.event_title, Date: e.event_date, Location: e.location ?? "", RSVPs: e.rsvp_count, Description: e.description ?? "" }))}
+                disabled={!events.length}
+                size="sm"
+              />
               <Button onClick={() => setShowEventModal(true)} className="bg-gradient-to-r from-indigo-600 to-blue-600 text-white font-semibold text-xs h-9 self-start sm:self-auto rounded-xl shadow-sm">
                 <Plus className="h-4 w-4 mr-2" /> Schedule Event
               </Button>
+              </div>
             </CardHeader>
             <CardContent className="pt-4">
               {events.length === 0 ? (

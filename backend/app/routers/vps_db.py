@@ -9,6 +9,8 @@ from sqlalchemy import text
 from app.dependencies import CurrentUser, DbSession
 from app.exceptions import ForbiddenError
 from app.cache import get_redis
+from app.utils.db_proxy_policy import authorize_proxy_request
+from app.utils.permissions import expand_roles
 
 logger = logging.getLogger("app.vps_db")
 router = APIRouter(prefix="/vps-db", tags=["Generic DB Proxy"])
@@ -40,6 +42,22 @@ def is_uuid(val: Any) -> bool:
         return True
     except ValueError:
         return False
+
+#: Largest number of rows an unbounded read may return.
+#: A caller that wants more must page explicitly with .range().
+DEFAULT_ROW_LIMIT = 1000
+
+#: Hard ceiling, even for an explicit .limit(). Without it a client could ask
+#: for a million rows and the cap above would be decorative.
+MAX_ROW_LIMIT = 5000
+
+
+def _bounded_limit(requested: int) -> int:
+    """Clamp a caller-supplied limit into something the server can serve."""
+    if requested <= 0:
+        return DEFAULT_ROW_LIMIT
+    return min(requested, MAX_ROW_LIMIT)
+
 
 GLOBAL_TABLES = {
     "users",
@@ -139,25 +157,71 @@ def cast_value(val: Any, data_type: str) -> Any:
         
     return val
 
+#: Database functions the frontend is allowed to invoke through the proxy.
+#: Anything not listed here is rejected — without an allowlist this endpoint
+#: can call any function in the database.
+ALLOWED_RPC_FUNCTIONS = {
+    "can_edit_attendance", "can_manage_finance", "can_manage_staff",
+    "can_manage_students", "can_work_crm", "check_exam_subject_conflicts",
+    "convert_admission_to_student", "create_public_lead", "directory_search",
+    "ensure_default_crm_pipeline", "find_parent_user_by_email",
+    "generate_fee_voucher", "generate_invoice_for_student",
+    "get_at_risk_students", "get_child_teachers_detailed",
+    "get_school_public_by_slug", "get_school_staff_directory",
+    "get_school_user_directory", "has_role", "list_school_user_profiles",
+    "my_student_id", "notify_exam_datesheet_ready",
+    "notify_exam_result_publish", "owner_campuses", "owner_schools_strict",
+    "search_messages", "verify_exam_hall_ticket", "verify_fee_payment_proof",
+}
+
+#: Functions that operate across tenants or expose schema/billing internals.
+SUPER_ADMIN_RPC_FUNCTIONS = {
+    "admin_create_campus", "cron_generate_platform_invoices",
+    "export_table_schema", "list_existing_school_owners",
+}
+
+#: Parameter names that carry the tenant id; always overwritten with the
+#: caller's own school so a tenant cannot aim a function at another school.
+_TENANT_PARAM_NAMES = ("_school_id", "school_id", "p_school_id", "in_school_id")
+
+
 @router.post("/rpc")
 async def execute_rpc(payload: RpcPayload, current_user: CurrentUser, db: DbSession):
     fn = payload.fn
     if not is_valid_identifier(fn):
         raise HTTPException(status_code=400, detail="Invalid function name")
-        
-    try:
-        await db.execute(text("SELECT set_config('request.jwt.claim.sub', :user_id, true)"), {"user_id": current_user.id})
-        await db.execute(text("SELECT set_config('request.jwt.claim.role', :role, true)"), {"role": "authenticated"})
-    except Exception as setting_err:
-        logger.warning(f"Failed to set database proxy JWT claim parameters: {setting_err}")
+
+    if fn in SUPER_ADMIN_RPC_FUNCTIONS:
+        if not current_user.is_super_admin:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Function '{fn}' requires platform administrator access.",
+            )
+    elif fn not in ALLOWED_RPC_FUNCTIONS:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Function '{fn}' is not callable through the data proxy.",
+        )
+
+    # The request identity is published on the connection by get_db(); it used
+    # to be set here with is_local=true, which any mid-request COMMIT discarded.
         
     params = payload.params or {}
     
-    # Enforce tenant isolation for school-scoped functions
+    # Enforce tenant isolation for school-scoped functions: whichever spelling
+    # the function uses, the tenant id always comes from the verified session
+    # rather than from the request body.
     if not current_user.is_super_admin:
-        if "_school_id" in params:
-            params["_school_id"] = str(current_user.school_id)
-            
+        for _tenant_param in _TENANT_PARAM_NAMES:
+            if _tenant_param in params:
+                if not current_user.school_id:
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="No school context. Send the X-School-Id header.",
+                    )
+                params[_tenant_param] = str(current_user.school_id)
+
+
     # Build arguments list for SQL call
     arg_clauses = []
     sql_params = {}
@@ -236,16 +300,53 @@ def parse_or_conditions(or_str: str) -> List[Any]:
             
     return parsed
 
+def build_select_clause(requested: Optional[str], valid_columns: set) -> str:
+    """
+    Turn a Supabase-style select string into a SQL column list.
+
+    Everything returned here is interpolated straight into the statement, so the
+    only strings that may escape this function are ones that passed
+    ``is_valid_identifier`` AND name a real column of the target table. An alias
+    used to be emitted unchecked, which allowed
+    ``select='x", (SELECT ...) AS "y:id'`` to smuggle a subquery into the SQL.
+
+    Anything unrecognised is dropped rather than passed through; if nothing
+    survives, fall back to "*" so the caller still gets the row.
+    """
+    select_clause = requested if requested else "*"
+    if "(" in select_clause:
+        # Embedded relation syntax (Supabase joins) is not supported here.
+        return "*"
+    if select_clause == "*":
+        return "*"
+
+    parsed_cols = []
+    for col_item in select_clause.split(","):
+        col_item = col_item.strip()
+        if not col_item:
+            continue
+        if ":" in col_item:
+            alias, _, actual_col = col_item.partition(":")
+            alias, actual_col = alias.strip(), actual_col.strip()
+            if not (is_valid_identifier(alias) and is_valid_identifier(actual_col)):
+                continue
+            if actual_col in valid_columns:
+                parsed_cols.append(f'"{actual_col}" AS "{alias}"')
+            elif alias in valid_columns:
+                parsed_cols.append(f'"{alias}" AS "{actual_col}"')
+        elif is_valid_identifier(col_item) and col_item in valid_columns:
+            parsed_cols.append(f'"{col_item}"')
+
+    return ", ".join(parsed_cols) if parsed_cols else "*"
+
+
 @router.post("/query")
 async def execute_query(query: QueryPayload, current_user: CurrentUser, db: DbSession):
     if not is_valid_identifier(query.table):
         raise HTTPException(status_code=400, detail="Invalid table name")
 
-    try:
-        await db.execute(text("SELECT set_config('request.jwt.claim.sub', :user_id, true)"), {"user_id": current_user.id})
-        await db.execute(text("SELECT set_config('request.jwt.claim.role', :role, true)"), {"role": "authenticated"})
-    except Exception as setting_err:
-        logger.warning(f"Failed to set database proxy JWT claim parameters: {setting_err}")
+    # The request identity is published on the connection by get_db(); it used
+    # to be set here with is_local=true, which any mid-request COMMIT discarded.
 
     try:
         col_query = text("""
@@ -264,15 +365,44 @@ async def execute_query(query: QueryPayload, current_user: CurrentUser, db: DbSe
         raise HTTPException(status_code=404, detail=f"Table {query.table} not found")
 
     has_school_id = "school_id" in valid_columns
-    
-    if not current_user.is_super_admin:
-        if has_school_id:
-            pass
-        elif query.table not in GLOBAL_TABLES:
-            if query.action in ("insert", "update", "delete", "upsert"):
-                logger.warning(f"Tenant {current_user.school_id} modifying global table {query.table}")
-
     action = query.action or "select"
+
+    # ── Authorization ────────────────────────────────────────────────────────
+    # A caller-supplied filter is anything other than the presentation-only
+    # methods; an update/delete with none of those would cover the whole table.
+    _presentation_methods = {"order", "limit", "range", "single", "maybeSingle"}
+    has_user_filter = any(
+        f.method not in _presentation_methods for f in query.filters
+    )
+
+    # Role values the caller is attempting to write, for role-management tables.
+    payload_roles: set[str] = set()
+    if isinstance(query.payload, dict):
+        if query.payload.get("role"):
+            payload_roles.add(str(query.payload["role"]).strip().lower())
+    elif isinstance(query.payload, list):
+        for _item in query.payload:
+            if isinstance(_item, dict) and _item.get("role"):
+                payload_roles.add(str(_item["role"]).strip().lower())
+
+    authorize_proxy_request(
+        table=query.table,
+        action=action,
+        roles=expand_roles(current_user.roles or []),
+        is_super_admin=current_user.is_super_admin,
+        has_school_id=has_school_id,
+        has_user_filter=has_user_filter,
+        payload_roles=payload_roles,
+    )
+
+    # A tenant user must have a resolved school before touching tenant data,
+    # otherwise the tenant filter below would be built from an empty value.
+    if not current_user.is_super_admin and has_school_id and not current_user.school_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No school context. Send the X-School-Id header.",
+        )
+
     params: Dict[str, Any] = {}
     where_clauses = []
     
@@ -287,16 +417,13 @@ async def execute_query(query: QueryPayload, current_user: CurrentUser, db: DbSe
         try:
             return uuid.UUID(val_str)
         except ValueError:
-            try:
-                s_res = await db.execute(
-                    text("SELECT id FROM public.schools WHERE slug = :s OR id::text = :s LIMIT 1"),
-                    {"s": val_str}
-                )
-                s_row = s_res.fetchone()
-                if s_row:
-                    return s_row[0]
-            except Exception:
-                pass
+            s_res = await db.execute(
+                text("SELECT id FROM public.schools WHERE slug = :s OR id::text = :s LIMIT 1"),
+                {"s": val_str}
+            )
+            s_row = s_res.fetchone()
+            if s_row:
+                return s_row[0]
         return None
 
     if has_school_id and not current_user.is_super_admin:
@@ -323,15 +450,15 @@ async def execute_query(query: QueryPayload, current_user: CurrentUser, db: DbSe
         elif f.method == "limit":
             if f.args:
                 try:
-                    limit_val = int(f.args[0])
+                    limit_val = _bounded_limit(int(f.args[0]))
                     limit_clause = f" LIMIT {limit_val}"
                 except (ValueError, TypeError):
                     pass
         elif f.method == "range":
             if len(f.args) >= 2:
                 try:
-                    offset_val = int(f.args[0])
-                    limit_val = int(f.args[1]) - offset_val + 1
+                    offset_val = max(0, int(f.args[0]))
+                    limit_val = _bounded_limit(int(f.args[1]) - offset_val + 1)
                     limit_clause = f" LIMIT {limit_val} OFFSET {offset_val}"
                 except (ValueError, TypeError):
                     pass
@@ -485,35 +612,64 @@ async def execute_query(query: QueryPayload, current_user: CurrentUser, db: DbSe
     where_sql = (" WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
 
     if action == "select":
-        select_clause = query.select if query.select and query.select != "" else "*"
-        if "(" in select_clause: 
-            select_clause = "*"
-        elif select_clause != "*":
-            parsed_cols = []
-            for col_item in select_clause.split(","):
-                col_item = col_item.strip()
-                if not col_item:
-                    continue
-                if ":" in col_item:
-                    parts = col_item.split(":", 1)
-                    alias, actual_col = parts[0].strip(), parts[1].strip()
-                    if is_valid_identifier(actual_col) and actual_col in valid_columns:
-                        parsed_cols.append(f'"{actual_col}" AS "{alias}"')
-                    elif is_valid_identifier(alias) and alias in valid_columns:
-                        parsed_cols.append(f'"{alias}" AS "{actual_col}"')
-                elif is_valid_identifier(col_item) and col_item in valid_columns:
-                    parsed_cols.append(f'"{col_item}"')
-            if parsed_cols:
-                select_clause = ", ".join(parsed_cols)
-            else:
-                select_clause = "*"
-            
+        # Supabase-style `select(cols, { count: "exact", head: true })`.
+        #
+        # These options were being sent by the frontend and silently dropped, so
+        # `count` came back as "however many rows we happened to return" — wrong
+        # for any table past the row cap — and `head: true` still transferred
+        # every row just to count them. Both are now answered with a real
+        # COUNT(*).
+        opts = query.options or {}
+        wants_count = str(opts.get("count") or "").lower() in ("exact", "planned", "estimated")
+        head_only = bool(opts.get("head"))
+
+        exact_count = None
+        if wants_count:
+            count_sql = f'SELECT count(*) FROM "{query.table}"{where_sql}'
+            try:
+                exact_count = (await db.execute(text(count_sql), params)).scalar()
+            except Exception as e:
+                logger.error(f"DB Proxy Count Error: {e}")
+                return {"data": None, "error": {"message": str(e)}}
+
+            if head_only:
+                # The caller only wanted the number.
+                return {"data": [], "count": exact_count, "error": None}
+
+        select_clause = build_select_clause(query.select, valid_columns)
+
         order_sql = (" ORDER BY " + ", ".join(order_by_clauses)) if order_by_clauses else ""
+
+        # Cap every read. Only 145 of the frontend's several hundred queries set
+        # a limit of their own, so the rest asked for whole tables: a school with
+        # 50,000 attendance rows would serialise all of them into one response,
+        # on every page load. The cap is high enough not to truncate real screens
+        # and low enough that a runaway query cannot take the process down.
+        capped = not limit_clause
+        if capped:
+            limit_clause = f" LIMIT {DEFAULT_ROW_LIMIT + 1}"
+
         sql = f'SELECT {select_clause} FROM "{query.table}"{where_sql}{order_sql}{limit_clause}'
         try:
             res = await db.execute(text(sql), params)
             rows = [dict(r._mapping) for r in res.fetchall()]
-            return {"data": rows, "error": None}
+
+            truncated = False
+            if capped and len(rows) > DEFAULT_ROW_LIMIT:
+                # One extra row was fetched purely to detect this.
+                rows = rows[:DEFAULT_ROW_LIMIT]
+                truncated = True
+                logger.warning(
+                    f"Unbounded read of '{query.table}' hit the {DEFAULT_ROW_LIMIT}-row "
+                    "cap; the caller should paginate."
+                )
+
+            return {
+                "data": rows,
+                "count": exact_count if exact_count is not None else len(rows),
+                "error": None,
+                "truncated": truncated,
+            }
         except Exception as e:
             logger.error(f"DB Proxy Select Error: {e}")
             return {"data": None, "error": {"message": str(e)}}
@@ -537,27 +693,46 @@ async def execute_query(query: QueryPayload, current_user: CurrentUser, db: DbSe
                 if "school_id" not in keys:
                     keys.append("school_id")
                     
-        inserted_rows = []
+        # One statement for the whole batch rather than one per row.
+        #
+        # Every write in the product goes through this endpoint, so marking a
+        # class of 40 present used to be 40 round trips, and a bulk student
+        # import of 500 rows was 500 — each with its own network latency, and
+        # each able to fail halfway leaving a partial import behind.
+        casted_items = []
         for item in items:
-            casted_item = {}
+            casted = {}
             for k in keys:
                 if k in item:
-                    casted_item[k] = cast_value(item[k], columns_types[k])
+                    casted[k] = cast_value(item[k], columns_types[k])
                 elif k == "school_id" and has_school_id:
-                    casted_item["school_id"] = cast_value(current_user.school_id, columns_types["school_id"])
-                    
-            cols = ", ".join(f'"{k}"' for k in keys)
-            vals = ", ".join(f":{k}" for k in keys)
-            sql = f'INSERT INTO "{query.table}" ({cols}) VALUES ({vals}) RETURNING *'
-            try:
-                res = await db.execute(text(sql), casted_item)
-                row = res.fetchone()
-                if row:
-                    inserted_rows.append(dict(row._mapping))
-            except Exception as e:
-                logger.error(f"DB Proxy Insert Error: {e}")
-                return {"data": None, "error": {"message": str(e)}}
-                
+                    casted["school_id"] = cast_value(current_user.school_id, columns_types["school_id"])
+                else:
+                    casted[k] = None
+            casted_items.append(casted)
+
+        cols = ", ".join(f'"{k}"' for k in keys)
+        value_groups = []
+        params_multi: Dict[str, Any] = {}
+        for idx, casted in enumerate(casted_items):
+            placeholders = []
+            for k in keys:
+                name = f"{k}_{idx}"
+                placeholders.append(f":{name}")
+                params_multi[name] = casted.get(k)
+            value_groups.append("(" + ", ".join(placeholders) + ")")
+
+        sql = (
+            f'INSERT INTO "{query.table}" ({cols}) '
+            f'VALUES {", ".join(value_groups)} RETURNING *'
+        )
+        try:
+            res = await db.execute(text(sql), params_multi)
+            inserted_rows = [dict(r._mapping) for r in res.fetchall()]
+        except Exception as e:
+            logger.error(f"DB Proxy Insert Error: {e}")
+            return {"data": None, "error": {"message": str(e)}}
+
         await db.flush()
         await broadcast_mutation(query.table, "insert", current_user.school_id, inserted_rows)
         return {"data": inserted_rows, "error": None}
@@ -643,28 +818,41 @@ async def execute_query(query: QueryPayload, current_user: CurrentUser, db: DbSe
         else:
             conflict_sql = ''
             
-        inserted_rows = []
+        # Batched for the same reason as insert: one statement, not one per row.
+        casted_items = []
         for item in items:
-            casted_item = {}
+            casted = {}
             for k in keys:
                 if k in item:
-                    casted_item[k] = cast_value(item[k], columns_types[k])
+                    casted[k] = cast_value(item[k], columns_types[k])
                 elif k == "school_id" and has_school_id:
-                    casted_item["school_id"] = cast_value(current_user.school_id, columns_types["school_id"])
-                    
-            cols = ", ".join(f'"{k}"' for k in keys)
-            vals = ", ".join(f":{k}" for k in keys)
-            sql = f'INSERT INTO "{query.table}" ({cols}) VALUES ({vals}) {conflict_sql} RETURNING *'
-            
-            try:
-                res = await db.execute(text(sql), casted_item)
-                row = res.fetchone()
-                if row:
-                    inserted_rows.append(dict(row._mapping))
-            except Exception as e:
-                logger.error(f"DB Proxy Upsert Error: {e}")
-                return {"data": None, "error": {"message": str(e)}}
-                
+                    casted["school_id"] = cast_value(current_user.school_id, columns_types["school_id"])
+                else:
+                    casted[k] = None
+            casted_items.append(casted)
+
+        cols = ", ".join(f'"{k}"' for k in keys)
+        value_groups = []
+        params_multi: Dict[str, Any] = {}
+        for idx, casted in enumerate(casted_items):
+            placeholders = []
+            for k in keys:
+                name = f"{k}_{idx}"
+                placeholders.append(f":{name}")
+                params_multi[name] = casted.get(k)
+            value_groups.append("(" + ", ".join(placeholders) + ")")
+
+        sql = (
+            f'INSERT INTO "{query.table}" ({cols}) '
+            f'VALUES {", ".join(value_groups)} {conflict_sql} RETURNING *'
+        )
+        try:
+            res = await db.execute(text(sql), params_multi)
+            inserted_rows = [dict(r._mapping) for r in res.fetchall()]
+        except Exception as e:
+            logger.error(f"DB Proxy Upsert Error: {e}")
+            return {"data": None, "error": {"message": str(e)}}
+
         await db.flush()
         await broadcast_mutation(query.table, "upsert", current_user.school_id, inserted_rows)
         return {"data": inserted_rows, "error": None}

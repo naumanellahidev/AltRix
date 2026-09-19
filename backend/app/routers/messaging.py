@@ -19,6 +19,7 @@ from app.schemas import (
     MessageResponse,
 )
 from app.utils.permissions import expand_roles, can_broadcast_notices
+from app.utils.pagination import ListPageParams
 
 # ─── MESSAGING ────────────────────────────────────────────────────────────────
 messaging_router = APIRouter(prefix="/messages", tags=["Messaging"])
@@ -28,7 +29,7 @@ messaging_router = APIRouter(prefix="/messages", tags=["Messaging"])
 async def list_messages(
     current_user: CurrentUser,
     db: DbSession,
-    sent: bool = Query(False, description="If true, return sent messages"),
+    page: ListPageParams, sent: bool = Query(False, description="If true, return sent messages"),
 ):
     if not current_user.school_id:
         return []
@@ -46,7 +47,7 @@ async def list_messages(
             .where(AdminMessageRecipient.recipient_user_id == current_user.id)
         )
 
-    result = await db.execute(query.order_by(AdminMessage.created_at.desc()))
+    result = await db.execute(page.apply(query.order_by(AdminMessage.created_at.desc())))
     return result.scalars().all()
 
 
@@ -169,7 +170,7 @@ notices_router = APIRouter(prefix="/notices", tags=["Notices"])
 async def list_notices(
     current_user: CurrentUser,
     db: DbSession,
-    campus_id: Optional[UUID] = Query(None),
+    page: ListPageParams, campus_id: Optional[UUID] = Query(None),
     published_only: bool = Query(True),
 ):
     if not current_user.school_id:
@@ -186,7 +187,7 @@ async def list_notices(
         query = query.where(Notice.campus_id == campus_id)
     if published_only:
         query = query.where(Notice.is_published == True)
-    result = await db.execute(query.order_by(Notice.created_at.desc()))
+    result = await db.execute(page.apply(query.order_by(Notice.created_at.desc())))
     return result.scalars().all()
 
 
@@ -249,7 +250,7 @@ diary_router = APIRouter(prefix="/diary", tags=["Diary"])
 async def list_diary(
     current_user: CurrentUser,
     db: DbSession,
-    section_id: Optional[UUID] = Query(None),
+    page: ListPageParams, section_id: Optional[UUID] = Query(None),
     from_date: Optional[str] = Query(None),
     to_date: Optional[str] = Query(None),
     teacher_user_id: Optional[UUID] = Query(None),
@@ -271,7 +272,7 @@ async def list_diary(
         query = query.where(DiaryEntry.entry_date >= from_date)
     if to_date:
         query = query.where(DiaryEntry.entry_date <= to_date)
-    result = await db.execute(query.order_by(DiaryEntry.entry_date.desc()))
+    result = await db.execute(page.apply(query.order_by(DiaryEntry.entry_date.desc())))
     return result.scalars().all()
 
 

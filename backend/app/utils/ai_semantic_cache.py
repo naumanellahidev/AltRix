@@ -357,8 +357,8 @@ class SemanticCacheEngine:
             logger.warning(f"Semantic cache invalidation failed (non-fatal): {e}")
             try:
                 await db.rollback()
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("Optional step failed (%s): %s", "db.rollback", exc, exc_info=True)
             return 0
 
     async def invalidate_all(
@@ -380,8 +380,8 @@ class SemanticCacheEngine:
             logger.warning(f"Semantic cache full invalidation failed (non-fatal): {e}")
             try:
                 await db.rollback()
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("Optional step failed (%s): %s", "db.rollback", exc, exc_info=True)
             return 0
 
     async def track_hit(
@@ -401,8 +401,8 @@ class SemanticCacheEngine:
             logger.warning(f"Semantic cache hit tracking failed (non-fatal): {e}")
             try:
                 await db.rollback()
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("Optional step failed (%s): %s", "db.rollback", exc, exc_info=True)
 
     async def record_hit_stats(
         self,
@@ -425,8 +425,8 @@ class SemanticCacheEngine:
             logger.warning(f"Semantic cache hit stat record failed (non-fatal): {e}")
             try:
                 await db.rollback()
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("Optional step failed (%s): %s", "db.rollback", exc, exc_info=True)
 
     async def record_miss_stats(
         self,
@@ -448,8 +448,8 @@ class SemanticCacheEngine:
             logger.warning(f"Semantic cache miss stat record failed (non-fatal): {e}")
             try:
                 await db.rollback()
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("Optional step failed (%s): %s", "db.rollback", exc, exc_info=True)
 
     async def get_stats(
         self,

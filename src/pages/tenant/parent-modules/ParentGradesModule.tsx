@@ -7,6 +7,8 @@ import { format } from "date-fns";
 import { RefreshCw, WifiOff } from "lucide-react";
 import { useOfflineAssessments, useOfflineStudentMarks, useOfflineSubjects } from "@/hooks/useOfflineData";
 import { OfflineDataBanner } from "@/components/offline/OfflineDataBanner";
+import { DataExportMenu } from "@/components/documents/DataExportMenu";
+import { ratioPercent } from "@/lib/documents/decimal";
 
 interface ParentGradesModuleProps {
   child: ChildInfo | null;
@@ -109,7 +111,24 @@ const ParentGradesModule = ({ child, schoolId }: ParentGradesModuleProps) => {
 
       <Card>
         <CardHeader>
-          <CardTitle>Assessment Results</CardTitle>
+          <div className="flex items-center justify-between gap-2">
+            <CardTitle>Assessment Results</CardTitle>
+            <DataExportMenu
+              title="Assessment Results"
+              subtitle={child ? [child.first_name, child.last_name].filter(Boolean).join(" ") : undefined}
+              fileNameParts={[child ? [child.first_name, child.last_name].filter(Boolean).join(" ") : null, "Assessment Results"]}
+              rows={childGrades.filter(Boolean).map((g: any) => ({
+                Assessment: g.assessment_title,
+                Subject: g.subject_name ?? "",
+                Date: g.assessment_date ? String(g.assessment_date).slice(0, 10) : "",
+                Marks: g.marks != null ? `${g.marks} / ${g.max_marks}` : "Not marked",
+                "%": g.marks != null ? ratioPercent(g.marks, g.max_marks) ?? "" : "",
+                Grade: g.computed_grade ?? "",
+              }))}
+              disabled={!childGrades.length}
+              size="sm"
+            />
+          </div>
         </CardHeader>
         <CardContent>
           {childGrades.length === 0 ? (
@@ -138,7 +157,7 @@ const ParentGradesModule = ({ child, schoolId }: ParentGradesModuleProps) => {
               <TableBody>
                 {childGrades.map((grade) => {
                   if (!grade) return null;
-                  const percentage = Math.round((grade.marks / grade.max_marks) * 100);
+                  const percentage = grade.marks != null ? ratioPercent(grade.marks, grade.max_marks) : null;
                   return (
                     <TableRow key={grade.id}>
                       <TableCell className="font-medium">{grade.assessment_title}</TableCell>
@@ -151,7 +170,7 @@ const ParentGradesModule = ({ child, schoolId }: ParentGradesModuleProps) => {
                           : "—"}
                       </TableCell>
                       <TableCell className="text-right">
-                        {grade.marks} / {grade.max_marks}
+                        {grade.marks != null ? `${grade.marks} / ${grade.max_marks}` : "Not marked"}
                       </TableCell>
                       <TableCell>
                         {grade.computed_grade ? (
@@ -160,7 +179,7 @@ const ParentGradesModule = ({ child, schoolId }: ParentGradesModuleProps) => {
                           </span>
                         ) : "—"}
                       </TableCell>
-                      <TableCell className="text-right font-medium">{percentage}%</TableCell>
+                      <TableCell className="text-right font-medium">{percentage != null ? `${percentage}%` : "—"}</TableCell>
                     </TableRow>
                   );
                 })}

@@ -8,6 +8,7 @@ from sqlalchemy import select, update, or_
 
 from app.dependencies import CurrentUser, DbSession
 from app.models.library import LibraryBook, BookIssue, BookReservation
+from app.utils.pagination import ListPageParams
 
 logger = logging.getLogger("app.library")
 router = APIRouter(prefix="/library", tags=["Library Management"])
@@ -114,7 +115,7 @@ def _parse_or_generate_uuid(val: str) -> UUID:
 async def list_books(
     current_user: CurrentUser,
     db: DbSession,
-    search: Optional[str] = Query(None),
+    page: ListPageParams, search: Optional[str] = Query(None),
     category: Optional[str] = Query(None),
     campus_id: Optional[UUID] = Query(None),
 ):
@@ -135,7 +136,7 @@ async def list_books(
             (LibraryBook.isbn == search)
         )
     try:
-        res = await db.execute(stmt)
+        res = await db.execute(page.apply(stmt))
         return list(res.scalars().all())
     except Exception as e:
         logger.warning(f"Error listing library books: {e}")
@@ -169,6 +170,7 @@ async def create_book(payload: BookCreateSchema, current_user: CurrentUser, db: 
 async def list_issues(
     current_user: CurrentUser,
     db: DbSession,
+    page: ListPageParams,
     status_filter: Optional[str] = Query(None),
     campus_id: Optional[UUID] = Query(None),
 ):
@@ -182,7 +184,7 @@ async def list_issues(
     if status_filter:
         stmt = stmt.where(BookIssue.status == status_filter)
     try:
-        res = await db.execute(stmt)
+        res = await db.execute(page.apply(stmt))
         issues = list(res.scalars().all())
         today = date.today()
         # Automatically compute live overdue fines
@@ -195,18 +197,15 @@ async def list_issues(
     except Exception as e:
         err_msg = str(e)
         if "fine_per_day" in err_msg or "UndefinedColumnError" in err_msg or "campus_id" in err_msg:
-            try:
-                from sqlalchemy import text
-                await db.execute(text("""
-                    ALTER TABLE public.book_issues 
-                        ADD COLUMN IF NOT EXISTS campus_id UUID,
-                        ADD COLUMN IF NOT EXISTS fine_per_day NUMERIC(10, 2) DEFAULT 20.00;
-                """))
-                await db.commit()
-                res = await db.execute(stmt)
-                return list(res.scalars().all())
-            except Exception:
-                pass
+            from sqlalchemy import text
+            await db.execute(text("""
+                ALTER TABLE public.book_issues 
+                    ADD COLUMN IF NOT EXISTS campus_id UUID,
+                    ADD COLUMN IF NOT EXISTS fine_per_day NUMERIC(10, 2) DEFAULT 20.00;
+            """))
+            await db.commit()
+            res = await db.execute(stmt)
+            return list(res.scalars().all())
         logger.warning(f"Error listing book issues: {e}")
         return []
 
@@ -326,7 +325,7 @@ async def return_book(issue_id: UUID, current_user: CurrentUser, db: DbSession):
 async def list_reservations(
     current_user: CurrentUser,
     db: DbSession,
-    campus_id: Optional[UUID] = Query(None),
+    page: ListPageParams, campus_id: Optional[UUID] = Query(None),
 ):
     school_uuid = _to_uuid(current_user.school_id)
     if not school_uuid:
@@ -336,7 +335,7 @@ async def list_reservations(
     if effective_cid:
         stmt = stmt.where(or_(BookReservation.campus_id == effective_cid, BookReservation.campus_id.is_(None)))
     try:
-        res = await db.execute(stmt)
+        res = await db.execute(page.apply(stmt))
         return list(res.scalars().all())
     except Exception as e:
         logger.warning(f"Error listing reservations: {e}")

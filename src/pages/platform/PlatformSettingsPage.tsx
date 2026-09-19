@@ -35,6 +35,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
+import { PLATFORM_BRAND_EXAMPLES, loadPlatformBrand } from "@/lib/platform-brand";
 
 export default function PlatformSettingsPage() {
   const [showPromptModal, setShowPromptModal] = useState(false);
@@ -84,30 +85,11 @@ export default function PlatformSettingsPage() {
     platformFooterUrl: localStorage.getItem("altrix_platform_footer_url") || "https://altrixcore.com",
   });
 
+  // Blank until set: the example bank account used to be pre-filled here and
+  // was printed on school invoices as if it were real.
   const [brandSettings, setBrandSettings] = useState(() => {
-    const defaultSettings = {
-      brandName: "ALTRIX PLATFORM SOLUTIONS",
-      supportEmail: "billing@altrix.com",
-      supportUrl: "support.altrix.com",
-      bankName: "Altrix International Trust Bank",
-      accountTitle: "Altrix Platform Solutions Ltd.",
-      accountNumber: "1045-9856-0248-12",
-      iban: "PK85AITB0000104598560248",
-      logoBase64: ""
-    };
-    const saved = localStorage.getItem("altrix_global_brand_settings");
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        return {
-          ...defaultSettings,
-          ...parsed
-        };
-      } catch (e) {
-        console.error("Error parsing brand settings", e);
-      }
-    }
-    return defaultSettings;
+    const loaded = loadPlatformBrand();
+    return { ...loaded, brandName: loaded.brandName || PLATFORM_BRAND_EXAMPLES.brandName };
   });
 
   // Universal State & Change Detection Snapshot
@@ -583,6 +565,7 @@ export default function PlatformSettingsPage() {
                       id="brand-email"
                       className="bg-slate-50 border-slate-300 text-slate-900 placeholder:text-slate-400 focus-visible:ring-blue-500/30 h-9"
                       value={brandSettings.supportEmail}
+                      placeholder={`e.g. ${PLATFORM_BRAND_EXAMPLES.supportEmail}`}
                       onChange={(e) => setBrandSettings(prev => ({ ...prev, supportEmail: e.target.value }))}
                     />
                   </div>
@@ -592,6 +575,7 @@ export default function PlatformSettingsPage() {
                       id="brand-url"
                       className="bg-slate-50 border-slate-300 text-slate-900 placeholder:text-slate-400 focus-visible:ring-blue-500/30 h-9"
                       value={brandSettings.supportUrl}
+                      placeholder={`e.g. ${PLATFORM_BRAND_EXAMPLES.supportUrl}`}
                       onChange={(e) => setBrandSettings(prev => ({ ...prev, supportUrl: e.target.value }))}
                     />
                   </div>
@@ -658,6 +642,7 @@ export default function PlatformSettingsPage() {
                   id="bank-name"
                   className="bg-slate-50 border-slate-300 text-slate-900 placeholder:text-slate-400 focus-visible:ring-blue-500/30 h-9"
                   value={brandSettings.bankName}
+                  placeholder={`e.g. ${PLATFORM_BRAND_EXAMPLES.bankName}`}
                   onChange={(e) => setBrandSettings(prev => ({ ...prev, bankName: e.target.value }))}
                 />
               </div>
@@ -667,6 +652,7 @@ export default function PlatformSettingsPage() {
                   id="bank-title"
                   className="bg-slate-50 border-slate-300 text-slate-900 placeholder:text-slate-400 focus-visible:ring-blue-500/30 h-9"
                   value={brandSettings.accountTitle}
+                  placeholder={`e.g. ${PLATFORM_BRAND_EXAMPLES.accountTitle}`}
                   onChange={(e) => setBrandSettings(prev => ({ ...prev, accountTitle: e.target.value }))}
                 />
               </div>
@@ -679,6 +665,7 @@ export default function PlatformSettingsPage() {
                   id="bank-number"
                   className="bg-slate-50 border-slate-300 text-slate-900 placeholder:text-slate-400 focus-visible:ring-blue-500/30 h-9"
                   value={brandSettings.accountNumber}
+                  placeholder={`e.g. ${PLATFORM_BRAND_EXAMPLES.accountNumber}`}
                   onChange={(e) => setBrandSettings(prev => ({ ...prev, accountNumber: e.target.value }))}
                 />
               </div>
@@ -688,6 +675,7 @@ export default function PlatformSettingsPage() {
                   id="bank-iban"
                   className="bg-slate-50 border-slate-300 text-slate-900 placeholder:text-slate-400 focus-visible:ring-blue-500/30 h-9"
                   value={brandSettings.iban}
+                  placeholder={`e.g. ${PLATFORM_BRAND_EXAMPLES.iban}`}
                   onChange={(e) => setBrandSettings(prev => ({ ...prev, iban: e.target.value }))}
                 />
               </div>

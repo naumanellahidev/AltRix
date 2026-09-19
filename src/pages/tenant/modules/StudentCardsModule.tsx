@@ -15,10 +15,11 @@ import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { 
   CreditCard, Search, Sliders, Users, Printer, Settings, Edit, 
-  Upload, Check, Shield, User, Calendar, Droplet, Phone, Plus, Loader2, Eye
+  Upload, Check, Shield, User, Calendar, Droplet, Phone, Plus, Loader2, Eye,
+  Download,
 } from "lucide-react";
 import { usePermissions } from "@/lib/permissions";
-import { printStudentCards } from "@/lib/id-card-print";
+import { downloadStudentCards, printStudentCards } from "@/lib/id-card-print";
 
 type CardSettings = {
   id?: string;
@@ -662,6 +663,8 @@ export function StudentCardsModule() {
         .from("student-photos")
         .upload(path, file, { cacheControl: "3600", upsert: true });
 
+      if (uploadErr) throw uploadErr;
+
       const logoUrl = getVPSFileUrl("student-photos", path);
 
       // Save to schools table
@@ -672,7 +675,7 @@ export function StudentCardsModule() {
 
       if (dbErr) throw dbErr;
 
-      setSchoolLogo(pubUrl.publicUrl);
+      setSchoolLogo(logoUrl);
       toast.success("School logo uploaded successfully!");
     } catch (err: any) {
       toast.error("Logo upload failed: " + err.message);
@@ -967,25 +970,18 @@ export function StudentCardsModule() {
     }
   };
 
-  // Printable layout window trigger
-  const handlePrint = async () => {
+  // Print or download the selected students' cards as print-ready sheets.
+  const handleCards = async (mode: "print" | "download") => {
     if (selectedStudentIds.size === 0) {
-      toast.warning("Please select at least one student to print ID cards.");
+      toast.warning("Please select at least one student to make ID cards for.");
       return;
     }
-    const selectedStudents = students.filter(s => selectedStudentIds.has(s.id));
-    try {
-      await printStudentCards(
-        api,
-        schoolId!,
-        selectedStudents,
-        schoolLogo,
-        schoolName
-      );
-    } catch (err: any) {
-      toast.error(err.message);
-    }
+    const selectedStudents = students.filter((s) => selectedStudentIds.has(s.id));
+    const label = `${selectedStudents.length} students`;
+    if (mode === "print") await printStudentCards(api, schoolId!, selectedStudents, null, "", label);
+    else await downloadStudentCards(api, schoolId!, selectedStudents, label);
   };
+  const handlePrint = () => handleCards("print");
 
   // Live card preview styling details
   const currentLayoutClass = settings?.card_layout === "vertical" 
@@ -1028,6 +1024,15 @@ export function StudentCardsModule() {
           >
             <Printer className="h-4 w-4" />
             Print Selected ({selectedStudentIds.size})
+          </Button>
+          <Button
+            variant="outline"
+            className="flex items-center gap-2"
+            onClick={() => handleCards("download")}
+            disabled={selectedStudentIds.size === 0}
+          >
+            <Download className="h-4 w-4" />
+            Download PDF
           </Button>
         </div>
       </div>
@@ -1542,7 +1547,7 @@ export function StudentCardsModule() {
 
                     {/* BACK SIDE */}
                     <IDCard 
-                      student={{ id: "john-doe" }}
+                      student={{ id: "preview", first_name: "Sample Student" }}
                       settings={settings}
                       schoolName={schoolName}
                       schoolLogo={schoolLogo}

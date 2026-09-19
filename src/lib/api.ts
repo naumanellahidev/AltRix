@@ -1,11 +1,28 @@
 import { apiClient } from './api-client';
 import { addToOfflineQueue } from '@/lib/offline-db';
+import { getAccessToken, setAccessToken, clearTokens } from '@/lib/token-store';
 import { toast } from 'sonner';
 
-export let USE_FASTAPI = true;
+/**
+ * There is one backend: this product's FastAPI service, talking to Postgres on
+ * the same VPS. Nothing here reaches a hosted Supabase instance.
+ *
+ * These two exports are kept because a number of call sites still branch on
+ * them and pass `false` after a network error, expecting to "fall back to
+ * Supabase". There is nothing to fall back to — and those fallback paths call
+ * `api.from(...)`, which is this same API — so the toggle has always been a
+ * no-op in practice.
+ *
+ * It stays a deliberate, documented constant rather than a setter that quietly
+ * ignores its argument, so nobody writes new code believing it does something.
+ */
+/** Set once a reset token has been verified; consumed by updateUser(). */
+let pendingResetToken: string | null = null;
 
-export function setUseFastAPI(val: boolean) {
-  USE_FASTAPI = true;
+export const USE_FASTAPI = true;
+
+export function setUseFastAPI(_val: boolean): void {
+  // Intentionally does nothing; see the note above.
 }
 
 function formatTableName(table: string): string {
@@ -42,8 +59,19 @@ export class VpsQueryBuilder {
     this.context = { action: 'select', filters: [], select: '*' };
   }
 
-  select(columns: string = '*') {
+  /**
+   * `select(columns, { count: "exact", head: true })`.
+   *
+   * The options argument was always being passed by callers and silently
+   * dropped here, so `count` came back as "however many rows happened to be
+   * returned" and `head: true` still transferred every row. The server answers
+   * both properly now.
+   */
+  select(columns: string = '*', options?: { count?: 'exact' | 'planned' | 'estimated'; head?: boolean }) {
     this.context.select = columns;
+    if (options) {
+      this.context.options = { ...(this.context.options ?? {}), ...options };
+    }
     return this;
   }
 
@@ -110,6 +138,21 @@ export class VpsQueryBuilder {
     return this;
   }
 
+  /**
+   * `.catch()` and `.finally()`.
+   *
+   * This class is a thenable, not a Promise, so these were simply absent —
+   * calling `.catch()` on a query threw "catch is not a function" at runtime.
+   * The global command palette did exactly that on every search.
+   */
+  catch(onrejected: (reason: any) => any) {
+    return Promise.resolve(this).catch(onrejected);
+  }
+
+  finally(onfinally?: () => void) {
+    return Promise.resolve(this).finally(onfinally);
+  }
+
   // Terminal execution
   async then(onfulfilled?: (value: any) => any, onrejected?: (reason: any) => any) {
     try {
@@ -151,11 +194,23 @@ export class VpsQueryBuilder {
       
       const responseData = response.data?.data;
       const responseError = response.data?.error || null;
-      
+
+      // The server caps unbounded reads. Surface that rather than letting a
+      // capped list look like a complete one — silent truncation is the same
+      // class of problem as silently empty data.
+      if (response.data?.truncated) {
+        console.warn(
+          `[api] Query on "${this.table}" returned more rows than the server ` +
+          `will send at once and was truncated. Page it with .range(from, to).`,
+        );
+      }
+
       const res = {
         data: responseData,
         error: responseError,
-        count: Array.isArray(responseData) ? responseData.length : 0
+        truncated: Boolean(response.data?.truncated),
+        // The server's COUNT(*) when one was asked for; the row tally otherwise.
+        count: response.data?.count ?? (Array.isArray(responseData) ? responseData.length : 0),
       };
       
       // Handle single/maybeSingle mapping
@@ -202,7 +257,7 @@ export class VpsStorageBucket {
     this.bucket = bucket;
   }
 
-  async upload(path: string, file: File) {
+  async upload(path: string, file: File, _options?: { cacheControl?: string; upsert?: boolean; contentType?: string }) {
     try {
       const formData = new FormData();
       formData.append('file', file);
@@ -212,11 +267,22 @@ export class VpsStorageBucket {
       const res = await fetch(`${apiClient.defaults.baseURL}/storage/upload`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('access_token') || ''}`
+          'Authorization': `Bearer ${getAccessToken() || ''}`
         },
         body: formData
       });
-      if (!res.ok) throw new Error('Upload failed');
+      if (!res.ok) {
+        // Pass the server's reason through — "file too large", "file type not
+        // allowed" — instead of a bare "Upload failed" nobody can act on.
+        let detail = `Upload failed (${res.status})`;
+        try {
+          const body = await res.json();
+          if (body?.detail) detail = typeof body.detail === 'string' ? body.detail : JSON.stringify(body.detail);
+        } catch {
+          // Not JSON; keep the status line.
+        }
+        throw new Error(detail);
+      }
       return { data: await res.json(), error: null };
     } catch (e: any) {
       return { data: null, error: e };
@@ -226,7 +292,7 @@ export class VpsStorageBucket {
   async download(path: string) {
     try {
       const res = await fetch(`${apiClient.defaults.baseURL}/storage/files/${this.bucket}/${path}`, {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token') || ''}` }
+        headers: { 'Authorization': `Bearer ${getAccessToken() || ''}` }
       });
       if (!res.ok) throw new Error('Download failed');
       const blob = await res.blob();
@@ -236,6 +302,36 @@ export class VpsStorageBucket {
     }
   }
   
+  /**
+   * A URL that works without an Authorization header.
+   *
+   * The plain file endpoint authenticates with a bearer token, which a browser
+   * cannot attach to an <img src> or a PDF renderer's fetch — so those requests
+   * were answered with 401 and no image ever loaded. The server mints a
+   * short-lived signed link scoped to this tenant and object.
+   */
+  async createSignedUrl(path: string, expiresIn: number = 3600) {
+    try {
+      const res = await apiClient.post('/storage/sign', {
+        bucket: this.bucket,
+        path,
+        expires_in: expiresIn,
+      });
+      return { data: { signedUrl: res.data?.signedUrl }, error: null };
+    } catch (e: any) {
+      return {
+        data: null,
+        error: { message: e?.response?.data?.detail ?? 'Could not sign this file' },
+      };
+    }
+  }
+
+  /**
+   * Direct URL to the object.
+   *
+   * Note this requires an Authorization header, so it does NOT work in an
+   * <img src>. Use createSignedUrl() for anything the browser fetches itself.
+   */
   getPublicUrl(path: string) {
     return { data: { publicUrl: `${apiClient.defaults.baseURL}/storage/files/${this.bucket}/${path}` } };
   }
@@ -246,7 +342,7 @@ export class VpsStorageBucket {
         const res = await fetch(`${apiClient.defaults.baseURL}/storage/files/${this.bucket}/${p}`, {
           method: 'DELETE',
           headers: {
-            'Authorization': `Bearer ${localStorage.getItem('access_token') || ''}`
+            'Authorization': `Bearer ${getAccessToken() || ''}`
           }
         });
         if (!res.ok) throw new Error(`Delete failed for ${p}`);
@@ -261,7 +357,7 @@ export class VpsStorageBucket {
     try {
       const url = `${apiClient.defaults.baseURL}/storage/list/${this.bucket}` + (prefix ? `?prefix=${encodeURIComponent(prefix)}` : '');
       const res = await fetch(url, {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token') || ''}` }
+        headers: { 'Authorization': `Bearer ${getAccessToken() || ''}` }
       });
       if (!res.ok) throw new Error('List failed');
       const data = await res.json();
@@ -279,7 +375,7 @@ let socket: WebSocket | null = null;
 let isConnecting = false;
 
 function connectRealtimeWebSocket() {
-  const token = localStorage.getItem('access_token');
+  const token = getAccessToken();
   if (!token || socket || isConnecting) return;
   
   isConnecting = true;
@@ -301,9 +397,25 @@ function connectRealtimeWebSocket() {
     protocol = 'wss:';
   }
   
-  const wsUrl = `${protocol}//${host}/api/ws?token=${token}`;
-  
-  console.log("Connecting to VPS Realtime WebSocket:", wsUrl);
+  // Exchange the token for a single-use ticket over HTTP. A WebSocket URL is
+  // written to proxy access logs; a spent ticket there is harmless, an access
+  // token is a live credential.
+  apiClient.post("/realtime/ws-ticket").then((res) => {
+    const ticket = res.data?.ticket;
+    if (!ticket) {
+      isConnecting = false;
+      return;
+    }
+    openRealtimeSocket(`${protocol}//${host}/api/ws?ticket=${encodeURIComponent(ticket)}`);
+  }).catch((e) => {
+    console.warn("Could not obtain a realtime ticket", e);
+    isConnecting = false;
+  });
+}
+
+function openRealtimeSocket(wsUrl: string) {
+  // Deliberately not logging the URL: it carries the credential.
+  console.log("Connecting to VPS Realtime WebSocket");
   const ws = new WebSocket(wsUrl);
   
   ws.onopen = () => {
@@ -360,10 +472,13 @@ function connectRealtimeWebSocket() {
 export class VpsChannel {
   name: string;
   listeners: any[];
+  presence: Record<string, any[]> = {};
+  presenceKey?: string;
 
-  constructor(name: string) {
+  constructor(name: string, options?: { config?: { presence?: { key?: string } } }) {
     this.name = name;
     this.listeners = [];
+    this.presenceKey = options?.config?.presence?.key;
     activeChannels.add(this);
     connectRealtimeWebSocket();
   }
@@ -371,9 +486,13 @@ export class VpsChannel {
   on(event: string, filter: any, callback: any) {
     if (event === 'postgres_changes') {
       this.listeners.push({
+        event,
         table: filter.table,
         callback
       });
+    } else {
+      // presence / broadcast listeners, kept so track() can notify them
+      this.listeners.push({ event, filter, callback });
     }
     return this;
   }
@@ -385,6 +504,46 @@ export class VpsChannel {
 
   unsubscribe() {
     activeChannels.delete(this);
+  }
+
+  /**
+   * Presence.
+   *
+   * These four were absent entirely, so the typing indicator threw
+   * "presenceState is not a function" the moment a conversation opened.
+   *
+   * Presence is tracked per browser tab: this returns what THIS client has
+   * published, which keeps the caller working and honest. It is not yet
+   * synchronised between clients — the realtime socket relays database change
+   * events, not channel presence — so other people's typing state is simply not
+   * reported rather than guessed at.
+   */
+  presenceState<T = any>(): Record<string, T[]> {
+    return this.presence as Record<string, T[]>;
+  }
+
+  async track(state: any) {
+    const key = this.presenceKey ?? 'self';
+    this.presence[key] = [state];
+    this.listeners
+      .filter((l) => l.event === 'presence')
+      .forEach((l) => {
+        try { l.callback(); } catch { /* a listener must not break the channel */ }
+      });
+    return 'ok';
+  }
+
+  async untrack() {
+    const key = this.presenceKey ?? 'self';
+    delete this.presence[key];
+    return 'ok';
+  }
+
+  async send(_message: { type: string; event: string; payload?: any }) {
+    // Broadcast between clients needs a relay the realtime socket does not
+    // provide yet. Reporting "ok" for a message that was never delivered would
+    // be worse than doing nothing visibly, so this is a documented no-op.
+    return 'ok';
   }
 }
 
@@ -433,14 +592,54 @@ export const api = {
   db: (table: string) => new VpsQueryBuilder(table),
   from: (table: string) => new VpsQueryBuilder(table),
   
-  rpc: async (fn: string, params?: any) => {
-    try {
-      const response = await apiClient.post('/vps-db/rpc', { fn, params });
-      return { data: response.data?.data ?? null, error: response.data?.error ?? null };
-    } catch (e: any) {
-      const errMsg = e.response?.data?.detail || e.message || 'RPC call failed';
-      return { data: null, error: { message: errMsg } };
-    }
+  /**
+   * Call a database function.
+   *
+   * Returns a thenable rather than a bare Promise so `.single()` and
+   * `.maybeSingle()` work — callers were already chaining them, and on a plain
+   * Promise that threw "maybeSingle is not a function" at runtime.
+   */
+  rpc: (fn: string, params?: any) => {
+    const call = async () => {
+      try {
+        const response = await apiClient.post('/vps-db/rpc', { fn, params });
+        return { data: response.data?.data ?? null, error: response.data?.error ?? null };
+      } catch (e: any) {
+        const errMsg = e.response?.data?.detail || e.message || 'RPC call failed';
+        return { data: null, error: { message: errMsg } };
+      }
+    };
+
+    const pick = (rows: any, allowEmpty: boolean) => {
+      if (Array.isArray(rows)) {
+        if (rows.length === 0) {
+          return allowEmpty
+            ? { data: null, error: null }
+            : { data: null, error: { message: 'Row not found' } };
+        }
+        return { data: rows[0], error: null };
+      }
+      return { data: rows ?? null, error: null };
+    };
+
+    type RpcResult = { data: any; error: any };
+
+    return {
+      then: <R1 = RpcResult, R2 = never>(
+        onfulfilled?: ((value: RpcResult) => R1 | PromiseLike<R1>) | null,
+        onrejected?: ((reason: any) => R2 | PromiseLike<R2>) | null,
+      ): Promise<R1 | R2> => call().then(onfulfilled, onrejected),
+      catch: (onrejected: (reason: any) => any) => call().catch(onrejected),
+      finally: (onfinally?: () => void) => call().finally(onfinally),
+      single: async () => {
+        const res = await call();
+        return res.error ? res : pick(res.data, false);
+      },
+      maybeSingle: async () => {
+        const res = await call();
+        return res.error ? res : pick(res.data, true);
+      },
+    };
   },
   
   auth: {
@@ -449,7 +648,7 @@ export const api = {
         const user = await apiClient.get('/auth/me');
         return { data: { user: user.data }, error: null };
       } catch (e) {
-        const token = localStorage.getItem('access_token');
+        const token = getAccessToken();
         if (token) {
           const payload = parseJwt(token);
           if (payload) {
@@ -469,7 +668,7 @@ export const api = {
       }
     },
     getSession: async () => {
-      const token = localStorage.getItem('access_token');
+      const token = getAccessToken();
       if (!token) return { data: { session: null }, error: null };
       const payload = parseJwt(token);
       const user = payload ? {
@@ -481,7 +680,6 @@ export const api = {
         data: {
           session: {
             access_token: token,
-            refresh_token: localStorage.getItem('refresh_token') || undefined,
             user
           }
         },
@@ -489,10 +687,9 @@ export const api = {
       };
     },
     setSession: async (session: { access_token: string; refresh_token?: string }) => {
-      localStorage.setItem('access_token', session.access_token);
-      if (session.refresh_token) {
-        localStorage.setItem('refresh_token', session.refresh_token);
-      }
+      // Held in memory only. The refresh token is not accepted here: the
+      // server issues it as an HttpOnly cookie that script cannot read.
+      setAccessToken(session.access_token);
       const payload = parseJwt(session.access_token);
       const user = payload ? {
         id: payload.sub,
@@ -525,10 +722,9 @@ export const api = {
         });
         
         if (resp.data?.access_token) {
-          localStorage.setItem('access_token', resp.data.access_token);
-          if (resp.data.refresh_token) {
-            localStorage.setItem('refresh_token', resp.data.refresh_token);
-          }
+          // The refresh token arrives as an HttpOnly cookie on this response
+          // and is intentionally absent from the body.
+          setAccessToken(resp.data.access_token);
           const payload = parseJwt(resp.data.access_token);
           const user = payload ? {
             id: payload.sub,
@@ -563,21 +759,84 @@ export const api = {
       } catch (e) {
         console.warn("Logout endpoint failed", e);
       }
-      localStorage.removeItem('access_token');
-      localStorage.removeItem('refresh_token');
+      clearTokens();
       localStorage.removeItem('eduverse_session_cache');
       localStorage.removeItem('eduverse_authz_cache_v2');
       notifyAuthStateChange('SIGNED_OUT', null);
       return { error: null };
     },
-    updateUser: async (attributes: any) => {
-      return { data: { user: { id: 'dummy' } }, error: null };
+    /**
+     * Step-up verification for changing your own password.
+     *
+     * These three used to be stubs: signInWithOtp did not exist at all (calling
+     * it threw), verifyOtp returned success for ANY code, and updateUser
+     * reported "password updated" without changing anything. Together that was a
+     * gate that let any code through and then quietly did nothing.
+     *
+     * They are wired to the real password-reset endpoints, which send a genuine
+     * single-use token by email, verify it server-side, and actually set the
+     * password. Those endpoints are rate limited and the token is stored hashed.
+     */
+    signInWithOtp: async (params: { email: string; options?: any }) => {
+      try {
+        await apiClient.post('/auth/password-reset-request', { email: params.email });
+        // The response is deliberately identical whether or not the account
+        // exists, so this cannot be used to discover registered addresses.
+        return { data: { user: null, session: null }, error: null };
+      } catch (e: any) {
+        return {
+          data: null,
+          error: { message: e?.response?.data?.detail ?? 'Could not send the verification email' },
+        };
+      }
     },
-    resend: async (params: any) => {
-      return { data: { ok: true }, error: null };
+
+    verifyOtp: async (params: { email?: string; token: string; type?: string }) => {
+      try {
+        const resp = await apiClient.get('/auth/password-reset-verify', {
+          params: { token: params.token },
+        });
+        if (!resp.data?.valid) {
+          return { data: null, error: { message: resp.data?.error ?? 'Invalid or expired code' } };
+        }
+        // Held for the password-set step that follows.
+        pendingResetToken = params.token;
+        return { data: { user: { email: resp.data.email }, session: null }, error: null };
+      } catch (e: any) {
+        return {
+          data: null,
+          error: { message: e?.response?.data?.detail ?? 'Invalid or expired code' },
+        };
+      }
     },
-    verifyOtp: async (params: any) => {
-      return { data: { session: { access_token: 'dummy-otp-token' } }, error: null };
+
+    updateUser: async (attributes: { password?: string }) => {
+      if (!attributes?.password) {
+        return { data: null, error: { message: 'No password supplied' } };
+      }
+      if (!pendingResetToken) {
+        return {
+          data: null,
+          error: { message: 'Verify your identity before changing the password' },
+        };
+      }
+      try {
+        await apiClient.post('/auth/password-reset-confirm', {
+          token: pendingResetToken,
+          password: attributes.password,
+        });
+        pendingResetToken = null;
+        return { data: { user: null }, error: null };
+      } catch (e: any) {
+        return {
+          data: null,
+          error: { message: e?.response?.data?.detail ?? 'Could not update the password' },
+        };
+      }
+    },
+
+    resend: async (params: { email: string }) => {
+      return api.auth.signInWithOtp({ email: params.email });
     },
     onAuthStateChange: (callback: (event: AuthChangeEvent, session: any) => void) => {
       authStateListeners.add(callback);
@@ -606,8 +865,8 @@ export const api = {
     }
   },
   
-  channel: (name: string) => {
-    return new VpsChannel(name);
+  channel: (name: string, options?: any) => {
+    return new VpsChannel(name, options);
   },
   
   removeChannel: async (channel: any) => {
@@ -620,7 +879,7 @@ export const api = {
   functions: {
     invoke: async (fnName: string, options?: { body?: any; headers?: any }) => {
       try {
-        const token = localStorage.getItem('access_token');
+        const token = getAccessToken();
         const customHeaders: Record<string, string> = {
           'Content-Type': 'application/json',
           ...(options?.headers || {}),

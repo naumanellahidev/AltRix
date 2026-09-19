@@ -10,6 +10,7 @@ from sqlalchemy import select
 
 from app.dependencies import CurrentUser, DbSession
 from app.models.alumni import AlumniProfile, AlumniEvent, AlumniDonation
+from app.utils.pagination import ListPageParams
 
 router = APIRouter(prefix="/alumni", tags=["Alumni Network"])
 
@@ -68,15 +69,12 @@ class AlumniDonationCreateSchema(BaseModel):
 @router.get("/directory", response_model=List[AlumniProfileResponseSchema])
 async def list_alumni_directory(
     db: DbSession,
-    current_user: CurrentUser,
+    current_user: CurrentUser, page: ListPageParams,
 ):
     school_id = current_user.school_id or UUID("00000000-0000-0000-0000-000000000000")
-    try:
-        stmt = select(AlumniProfile).where(AlumniProfile.school_id == school_id)
-        res = await db.execute(stmt)
-        return list(res.scalars().all())
-    except Exception:
-        return []
+    stmt = select(AlumniProfile).where(AlumniProfile.school_id == school_id)
+    res = await db.execute(page.apply(stmt))
+    return list(res.scalars().all())
 
 
 @router.post("/register", response_model=AlumniProfileResponseSchema)
@@ -106,15 +104,12 @@ async def register_alumni(
 @router.get("/events", response_model=List[AlumniEventResponseSchema])
 async def list_alumni_events(
     db: DbSession,
-    current_user: CurrentUser,
+    current_user: CurrentUser, page: ListPageParams,
 ):
     school_id = current_user.school_id or UUID("00000000-0000-0000-0000-000000000000")
     stmt = select(AlumniEvent).where(AlumniEvent.school_id == school_id)
-    try:
-        res = await db.execute(stmt)
-        return list(res.scalars().all())
-    except Exception:
-        return []
+    res = await db.execute(page.apply(stmt))
+    return list(res.scalars().all())
 
 
 @router.post("/events", response_model=AlumniEventResponseSchema)

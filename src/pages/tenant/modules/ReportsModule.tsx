@@ -20,8 +20,8 @@ import {
   RotateCcw,
   Loader2
 } from "lucide-react";
-import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
+import { DataExportMenu } from "@/components/documents/DataExportMenu";
+import { exportCSV, exportExcel, exportPDF, rowsFromTable, type PrintOptions } from "@/lib/report-export";
 
 import { api } from "@/lib/api";
 import { useTenant } from "@/hooks/useTenant";
@@ -48,15 +48,6 @@ interface ReportItem {
 }
 
 // Convert HSL to RGB utility
-function hslToRgb(h: number, s: number, l: number): [number, number, number] {
-  s /= 100;
-  l /= 100;
-  const k = (n: number) => (n + h / 30) % 12;
-  const a = s * Math.min(l, 1 - l);
-  const f = (n: number) => l - a * Math.max(-1, Math.min(k(n) - 3, 9 - k(n), 1));
-  return [Math.round(255 * f(0)), Math.round(255 * f(8)), Math.round(255 * f(4))];
-}
-
 // Reports Registry
 const REPORTS_REGISTRY: ReportItem[] = [
   // Finance Category
@@ -269,166 +260,50 @@ export function ReportsModule() {
     return true; // Academics available to all
   };
 
-  // Safe client-side local PDF Generator (autotable) with highly premium aesthetics
-  const handleExportPDF = () => {
-    if (!activeReport || reportRows.length === 0) return toast.error("No data available to export");
-    
-    // Auto-landscape configuration for wide tables (6+ columns)
-    const isLandscape = reportHeaders.length > 5;
-    const doc = new jsPDF(isLandscape ? "l" : "p", "mm", "a4");
-    const pageW = isLandscape ? 297 : 210;
-    const pageH = isLandscape ? 210 : 297;
+  // ── Exports ──────────────────────────────────────────────────────────────
+  // Every format comes from the shared document system: a real .xlsx and a
+  // real PDF on the school's letterhead, named after the report and its scope.
+  // The filter line names the class and section; it used to print their ids.
+  const nameOf = (list: any[], id: string) => (id === "all" ? null : list.find((x) => x.id === id)?.name ?? null);
 
-    // Resolve dynamic branding color
-    const h = brandingDetail?.accent_hue ?? 243;
-    const s = brandingDetail?.accent_saturation ?? 75;
-    const l = brandingDetail?.accent_lightness ?? 59;
-    const [r, g, b] = hslToRgb(h, s, l);
-
-    // Elegant Outer Page Border Frame
-    doc.setDrawColor(r, g, b);
-    doc.setLineWidth(0.5);
-    doc.rect(6, 6, pageW - 12, pageH - 12);
-
-    // Primary premium school branding title banner
-    doc.setFillColor(r, g, b);
-    doc.rect(8, 8, pageW - 16, 28, "F");
-
-    // School Info (Bold Title)
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(16);
-    doc.setTextColor(255, 255, 255);
-    const schoolName = schoolDetail?.name || "AltRix School";
-    doc.text(schoolName, 15, 17);
-
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(8);
-    doc.setTextColor(230, 230, 255);
-    const subTitle = [
-      schoolDetail?.address || "Official School Campus",
-      schoolDetail?.phone ? `Phone: ${schoolDetail.phone}` : "",
-      schoolDetail?.email ? `Email: ${schoolDetail.email}` : ""
-    ].filter(Boolean).join("  |  ");
-    doc.text(subTitle, 15, 22);
-
-    // Report Title
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(11);
-    doc.setTextColor(255, 255, 255);
-    doc.text(`${activeReport.title}`, 15, 30);
-
-    // Generation timestamp & confidentiality tag
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(8);
-    doc.setTextColor(220, 220, 255);
-    doc.text(`Generated on: ${new Date().toLocaleString()}  |  CONFIDENTIAL`, 15, 34);
-
-    // Premium Parameter Summary Box
-    doc.setFillColor(248, 250, 252);
-    doc.rect(8, 38, pageW - 16, 12, "F");
-    doc.setDrawColor(226, 232, 240);
-    doc.rect(8, 38, pageW - 16, 12, "D");
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(8);
-    doc.setTextColor(71, 85, 105);
-    const filterText = `Scope: ${campusFilter === "all" ? "All Campuses" : campuses.find(c => c.id === campusFilter)?.name || "Selected Campus"}  |  Date: ${fromDate} to ${toDate}  |  Class/Section: ${classFilter === "all" ? "All" : classFilter}/${sectionFilter === "all" ? "All" : sectionFilter}`;
-    doc.text(filterText, 14, 45);
-
-    doc.setFont("helvetica", "normal");
-    doc.setTextColor(0, 0, 0);
-
-    // Render autotable grid
-    autoTable(doc, {
-      head: [reportHeaders],
-      body: reportRows,
-      startY: 53,
-      theme: "striped",
-      headStyles: { fillColor: [r, g, b], textColor: [255, 255, 255], fontStyle: "bold", fontSize: isLandscape ? 8 : 9 },
-      styles: { fontSize: isLandscape ? 7 : 8, cellPadding: 3, font: "helvetica" },
-      margin: { left: 8, right: 8, bottom: 20 },
-      didDrawPage: (data) => {
-        // Page border on subsequent pages
-        doc.setDrawColor(r, g, b);
-        doc.setLineWidth(0.5);
-        doc.rect(6, 6, pageW - 12, pageH - 12);
-
-        // Footer on each page
-        doc.setFont("helvetica", "normal");
-        doc.setFontSize(8);
-        doc.setTextColor(100, 116, 139);
-        const str = "Page " + doc.getNumberOfPages();
-        doc.text(str, pageW - 15 - doc.getTextWidth(str), pageH - 10);
-        doc.text("Altrix Enterprise Ledger • System Generated", 15, pageH - 10);
-        
-        doc.setDrawColor(226, 232, 240);
-        doc.line(15, pageH - 13, pageW - 15, pageH - 13);
-      }
-    });
-
-    doc.save(`${activeReport.id}_report_${new Date().toISOString().slice(0, 10)}.pdf`);
-    toast.success("PDF Downloaded successfully!");
-  };
-
-  // Local CSV Exporter
-  const handleExportCSV = () => {
-    if (!activeReport || reportRows.length === 0) return toast.error("No data available to export");
-    
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const escape = (val: any) => {
-      const s = String(val ?? "");
-      if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
-      return s;
+  const reportExport = (): PrintOptions => {
+    const campusName = campusFilter === "all" ? "All campuses" : nameOf(campuses, campusFilter) ?? "Selected campus";
+    const range = `${fromDate} to ${toDate}`;
+    return {
+      title: activeReport?.title ?? "Report",
+      subtitle: range,
+      rows: rowsFromTable(reportHeaders, reportRows),
+      filters: [
+        { label: "Campus", value: campusName },
+        { label: "Class", value: nameOf(classes, classFilter) },
+        { label: "Section", value: nameOf(sections, sectionFilter) },
+        { label: "Subject", value: nameOf(subjects, subjectFilter) },
+      ],
+      orientation: reportHeaders.length > 5 ? "landscape" : "portrait",
+      fileNameParts: [activeReport?.title ?? "Report", campusFilter === "all" ? null : campusName, range],
     };
-
-    const headerLine = reportHeaders.join(",");
-    const bodyLines = reportRows.map((row) => row.map(escape).join(",")).join("\n");
-    const csvContent = `${headerLine}\n${bodyLines}`;
-
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.setAttribute("href", url);
-    link.setAttribute("download", `${activeReport.id}_report_${new Date().toISOString().slice(0, 10)}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-    toast.success("CSV Exported successfully!");
   };
 
-  // Local Branded Excel Spreadsheet Exporter (.xls format compatibility) with Premium styles
-  const handleExportExcel = () => {
+  const runExport = async (kind: "pdf" | "excel" | "csv") => {
     if (!activeReport || reportRows.length === 0) return toast.error("No data available to export");
-
-    const h = brandingDetail?.accent_hue ?? 243;
-    const s = brandingDetail?.accent_saturation ?? 75;
-    const l = brandingDetail?.accent_lightness ?? 59;
-    const [r, g, b] = hslToRgb(h, s, l);
-    const primaryHex = `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}`;
-
-    let html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">`;
-    html += `<head><meta charset="utf-8"/><style>table { border-collapse: collapse; width: 100%; } th { background-color: ${primaryHex}; color: white; font-weight: bold; } th, td { border: 1px solid #cbd5e1; padding: 8px; text-align: left; font-family: sans-serif; font-size: 11px; }</style></head>`;
-    html += `<body><h2>${schoolDetail?.name || "AltRix ERP"}</h2><h3>${activeReport.title}</h3><p>Generated: ${new Date().toLocaleString()}  |  Scope: ${campusFilter === "all" ? "All Campuses" : "Selected Campus"}</p><table><thead><tr>`;
-    reportHeaders.forEach((head) => { html += `<th>${head}</th>`; });
-    html += `</tr></thead><tbody>`;
-    reportRows.forEach((row) => {
-      html += `<tr>`;
-      row.forEach((cell) => { html += `<td>${cell}</td>`; });
-      html += `</tr>`;
-    });
-    html += `</tbody></table></body></html>`;
-
-    const blob = new Blob([html], { type: "application/vnd.ms-excel;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.setAttribute("href", url);
-    link.setAttribute("download", `${activeReport.id}_report_${new Date().toISOString().slice(0, 10)}.xls`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-    toast.success("Excel Spreadsheet Exported successfully!");
+    const id = toast.loading(`Preparing ${kind === "excel" ? "Excel workbook" : kind.toUpperCase()}…`);
+    try {
+      if (kind === "csv") {
+        const name = exportCSV(reportExport().rows, activeReport.title, reportExport().fileNameParts);
+        toast.success(`Downloaded ${name}`, { id });
+        return;
+      }
+      const result = kind === "excel" ? await exportExcel(reportExport()) : await exportPDF(reportExport());
+      if (result.warnings.length) toast.warning(`Downloaded ${result.fileName}, but ${result.warnings.join("; ")}`, { id, duration: 9000 });
+      else toast.success(`Downloaded ${result.fileName}`, { id });
+    } catch (e: any) {
+      toast.error(e?.message ? `Could not export: ${e.message}` : "Could not export", { id });
+    }
   };
+
+  const handleExportPDF = () => runExport("pdf");
+  const handleExportCSV = () => runExport("csv");
+  const handleExportExcel = () => runExport("excel");
 
   // Reset Filters Utility
   const handleClearFilters = () => {
@@ -1134,6 +1009,15 @@ export function ReportsModule() {
                 <Button variant="soft" onClick={handleExportPDF} disabled={reportRows.length === 0} className="rounded-xl border hover:bg-slate-50">
                   <Download className="mr-2 h-4 w-4" /> Export PDF Sheet
                 </Button>
+                {activeReport && reportRows.length > 0 && (
+                  <DataExportMenu
+                    {...reportExport()}
+                    label="Print / Share"
+                    variant="soft"
+                    size="default"
+                    hide={{ excel: true, pdf: true, csv: true, json: true }}
+                  />
+                )}
               </div>
             </CardContent>
           </Card>

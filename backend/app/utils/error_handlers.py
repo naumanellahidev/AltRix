@@ -196,5 +196,5 @@ def _capture_sentry(exc: Exception, request: Request) -> None:
             if corr_id:
                 scope.set_tag("correlation_id", corr_id)
             sentry_sdk.capture_exception(exc)
-    except Exception:
-        pass  # Sentry not configured — silently skip
+    except Exception as exc:
+        logger.warning("Optional step failed (%s): %s", "import sentry_sdk", exc, exc_info=True)

@@ -6,7 +6,10 @@ from uuid import UUID
 from datetime import datetime, timedelta, date, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select, func
+from decimal import Decimal
+from zoneinfo import ZoneInfo
+
+from sqlalchemy import select, func, text
 
 from app.dependencies import CurrentUser, DbSession
 from app.exceptions import ForbiddenError
@@ -15,6 +18,10 @@ from app.models.finance import FeePayment
 from app.models.people import Student, TeacherProfile
 from app.models.misc import Complaint
 from app.schemas import OwnerAiInsightOut
+from app.utils.money import money
+from app.utils.permissions import expand_roles
+
+_PK_TZ = ZoneInfo("Asia/Karachi")
 
 router = APIRouter(prefix="/owner-insights", tags=["Owner Insights"])
 
@@ -22,175 +29,212 @@ router = APIRouter(prefix="/owner-insights", tags=["Owner Insights"])
 @router.get("/summary", response_model=OwnerAiInsightOut)
 async def get_owner_insights_summary(current_user: CurrentUser, db: DbSession):
     """
-    Owner Insights summary. Fetches real dashboard statistics, 
-    calculates linear regression trends, attrition risks, and parent sentiments.
+    The owner's board figures, every one computed from the school's records.
+
+    This endpoint could never succeed — it read `years_experience` and
+    `description`, fields that do not exist — so the screen always fell back
+    to invented numbers, and the endpoint itself invented more: named
+    "faculty" when there were no teachers, a 72% positive parent sentiment and
+    at least 240 "responses" when there were no complaints, and fixed
+    benchmark scores against a "provincial average" from nowhere. Failed and
+    refunded payments counted as revenue.
+
+    Now: collected fees by calendar month (successful payments only) with a
+    linear projection only when there are three months of history to project
+    from; new admissions by month and the current roll; teachers flagged by
+    tenure from their joining date, by name; the tone of parent messages by a
+    stated keyword rule, with the real count; and the school's own rates
+    (fee recovery, attendance, complaint resolution). Anything that cannot be
+    known is null, never a stand-in.
     """
     if not current_user.school_id:
         raise ForbiddenError("No school context")
-        
-    # Check if the user is school owner or admin
-    roles = current_user.roles or []
-    admin_roles = ["super_admin", "school_owner", "principal", "vice_principal"]
-    if not current_user.is_super_admin and not any(r in roles for r in admin_roles):
+    effective = expand_roles(current_user.roles or [])
+    if not current_user.is_super_admin and not any(
+        r in effective for r in ("school_owner", "principal", "vice_principal", "school_admin")
+    ):
         raise ForbiddenError("Accessible only to School Owners and Board Directors")
+    school_id = current_user.school_id
+    today = datetime.now(_PK_TZ).date()
 
-    # 1. Calculate Actual Revenue Trend (last 6 months fee payments)
-    revenue_data = []
-    month_labels = []
-    for i in range(5, -1, -1):
-        target_date = datetime.now(timezone.utc) - timedelta(days=i * 30)
-        start_dt = datetime(target_date.year, target_date.month, 1, tzinfo=timezone.utc)
-        # End date of target month
-        if target_date.month == 12:
-            end_dt = datetime(target_date.year + 1, 1, 1, tzinfo=timezone.utc)
-        else:
-            end_dt = datetime(target_date.year, target_date.month + 1, 1, tzinfo=timezone.utc)
-            
-        pay_res = await db.execute(
-            select(func.sum(FeePayment.amount)).where(
-                FeePayment.school_id == current_user.school_id,
-                FeePayment.paid_at >= start_dt,
-                FeePayment.paid_at < end_dt,
-            )
-        )
-        total = pay_res.scalar() or 0.0
-        month_str = target_date.strftime("%b")
-        month_labels.append(month_str)
-        revenue_data.append(float(total))
+    # 1. Fees collected per calendar month, last six months.
+    months = []
+    y, m = today.year, today.month
+    for _ in range(6):
+        months.append((y, m))
+        y, m = (y - 1, 12) if m == 1 else (y, m - 1)
+    months.reverse()
+    first = datetime(months[0][0], months[0][1], 1, tzinfo=_PK_TZ)
+    rows = await db.execute(
+        text(
+            """
+            SELECT to_char(paid_at AT TIME ZONE 'UTC' + INTERVAL '5 hours', 'YYYY-MM') AS ym, SUM(amount) AS total
+            FROM fee_payments
+            WHERE school_id = CAST(:school AS UUID)
+              AND status IN ('success', 'completed', 'paid')
+              AND paid_at >= :since
+            GROUP BY 1
+            """
+        ),
+        {"school": str(school_id), "since": first},
+    )
+    by_month = {r["ym"]: money(r["total"] or 0) for r in rows.mappings()}
+    labels = [date(yy, mm, 1).strftime("%b %Y") for yy, mm in months]
+    historical = [by_month.get(f"{yy:04d}-{mm:02d}", money(0)) for yy, mm in months]
 
-    # Forecast next 3 months (Simple linear projection)
-    n = len(revenue_data)
-    x = list(range(n))
-    y = revenue_data
-    if n > 1:
-        mean_x = sum(x) / n
-        mean_y = sum(y) / n
-        num = sum((x[j] - mean_x) * (y[j] - mean_y) for j in range(n))
-        den = sum((x[j] - mean_x) ** 2 for j in range(n))
-        slope = num / den if den != 0 else 0
+    forecast_labels, forecast_values = [], []
+    history_months = sum(1 for v in historical if v > 0)
+    if history_months >= 3:
+        xs = list(range(len(historical)))
+        ys = [float(v) for v in historical]
+        mean_x, mean_y = sum(xs) / len(xs), sum(ys) / len(ys)
+        den = sum((x - mean_x) ** 2 for x in xs)
+        slope = sum((x - mean_x) * (yv - mean_y) for x, yv in zip(xs, ys)) / den if den else 0.0
         intercept = mean_y - slope * mean_x
-    else:
-        slope = 0
-        intercept = y[0] if n > 0 else 500000
-
-    forecast_months = []
-    forecast_values = []
-    for i in range(n, n + 3):
-        forecast_val = max(0.0, slope * i + intercept)
-        future_date = datetime.now() + timedelta(days=(i - n + 1) * 30)
-        forecast_months.append(future_date.strftime("%b"))
-        forecast_values.append(round(forecast_val, 2))
-
+        yy, mm = months[-1]
+        for i in range(1, 4):
+            mm2 = (mm - 1 + i) % 12 + 1
+            yy2 = yy + (mm - 1 + i) // 12
+            forecast_labels.append(date(yy2, mm2, 1).strftime("%b %Y"))
+            forecast_values.append(str(money(max(0.0, slope * (len(xs) - 1 + i) + intercept))))
     revenue_forecast = {
-        "labels": month_labels + forecast_months,
-        "historical": revenue_data,
-        "forecast": [None] * n + forecast_values,
+        "labels": labels + forecast_labels,
+        "historical": [str(v) for v in historical],
+        "forecast": [None] * len(historical) + forecast_values,
+        "method": "linear trend of the last six months" if forecast_values else None,
+        "note": None if forecast_values else "At least three months of collections are needed before a projection is shown.",
     }
 
-    # 2. Calculate Enrollment Projections (students registered over time)
-    std_res = await db.execute(
-        select(func.count(Student.id)).where(Student.school_id == current_user.school_id)
+    # 2. Admissions per month and the current roll.
+    rows = await db.execute(
+        text(
+            """
+            SELECT to_char(created_at AT TIME ZONE 'UTC' + INTERVAL '5 hours', 'YYYY-MM') AS ym, COUNT(*) AS n
+            FROM students
+            WHERE school_id = CAST(:school AS UUID) AND created_at >= :since
+            GROUP BY 1
+            """
+        ),
+        {"school": str(school_id), "since": first},
     )
-    current_students = std_res.scalar() or 0
-    # Simple seasonal registration projection
+    admissions = {r["ym"]: int(r["n"]) for r in rows.mappings()}
+    roll = (
+        await db.execute(
+            text(
+                "SELECT COUNT(*) FROM students WHERE school_id = CAST(:school AS UUID) "
+                "AND COALESCE(status, 'active') = 'active'"
+            ),
+            {"school": str(school_id)},
+        )
+    ).scalar() or 0
     enrollment_forecast = {
-        "labels": ["Term 1", "Term 2", "Term 3", "Term 4 (Projected)"],
-        "data": [
-            int(current_students * 0.85),
-            int(current_students * 0.92),
-            current_students,
-            int(current_students * 1.08)
-        ]
+        "labels": labels,
+        "data": [admissions.get(f"{yy:04d}-{mm:02d}", 0) for yy, mm in months],
+        "series": "New admissions",
+        "current_roll": int(roll),
     }
 
-    # 3. Calculate Attrition / Teacher Retention risk lists
-    teachers_res = await db.execute(
-        select(TeacherProfile).where(TeacherProfile.school_id == current_user.school_id)
-    )
-    teachers = teachers_res.scalars().all()
-    teacher_risks = []
+    # 3. Teachers by tenure, from their joining date.
+    teachers = (
+        await db.execute(
+            select(TeacherProfile).where(TeacherProfile.school_id == school_id, TeacherProfile.is_active.is_(True))
+        )
+    ).scalars().all()
+    risks = []
+    unknown_tenure = 0
     for t in teachers:
-        # Mock calculation: if experience is low or salary is below benchmark, mark risk high
-        risk_score = 15
-        key_factor = "Stable retention indicator"
-        if t.years_experience and t.years_experience < 2:
-            risk_score += 40
-            key_factor = "Junior tenure period"
-        
-        risk_category = "low"
-        if risk_score > 50:
-            risk_category = "high"
-        elif risk_score > 30:
-            risk_category = "medium"
-
-        # Lookup name
-        teacher_risks.append({
-            "name": f"Teacher ID: {str(t.id)[:8]}",
-            "experience": t.years_experience or 0,
-            "risk_score": risk_score,
-            "category": risk_category,
-            "factor": key_factor,
-        })
-    # If no teachers, add realistic defaults
-    if not teacher_risks:
-        teacher_risks = [
-            {"name": "Prof. Haris Ali", "experience": 3, "risk_score": 18, "category": "low", "factor": "High classroom satisfaction"},
-            {"name": "Dr. Sana Fatima", "experience": 1, "risk_score": 55, "category": "high", "factor": "Commute distance constraints"},
-            {"name": "Ayesha Khan", "experience": 4, "risk_score": 32, "category": "medium", "factor": "Pending contract renewal review"}
-        ]
-
-    teacher_risk_scores = {
-        "risks": teacher_risks,
-        "average_score": int(sum(r["risk_score"] for r in teacher_risks) / len(teacher_risks)) if teacher_risks else 20
-    }
-
-    # 4. Analyze Sentiments (from complaints description)
-    complaints_res = await db.execute(
-        select(Complaint).where(Complaint.school_id == current_user.school_id)
-    )
-    complaints = complaints_res.scalars().all()
-    pos_count = 0
-    neg_count = 0
-    neu_count = 0
-    
-    positive_words = ["good", "excellent", "great", "thank", "happy", "satisfied", "resolve", "solved"]
-    negative_words = ["bad", "poor", "slow", "issue", "worst", "unhappy", "angry", "delay", "broken"]
-
-    for c in complaints:
-        text = (c.description or "").lower()
-        if any(w in text for w in positive_words):
-            pos_count += 1
-        elif any(w in text for w in negative_words):
-            neg_count += 1
+        if not t.joining_date:
+            unknown_tenure += 1
+            continue
+        years = (today - t.joining_date).days / 365.25
+        if years < 1:
+            category, score, factor = "high", 60, "In first year at the school"
+        elif years < 2:
+            category, score, factor = "medium", 35, "Under two years at the school"
         else:
-            neu_count += 1
+            category, score, factor = "low", 10, "Two years or more at the school"
+        risks.append({
+            "name": t.full_name,
+            "experience": round(years, 1),
+            "risk_score": score,
+            "category": category,
+            "factor": factor,
+        })
+    risks.sort(key=lambda r: -r["risk_score"])
+    teacher_risk_scores = {
+        "risks": risks,
+        "average_score": round(sum(r["risk_score"] for r in risks) / len(risks)) if risks else None,
+        "basis": "Tenure at this school, from each teacher's joining date",
+        "unknown_tenure": unknown_tenure,
+    }
 
-    total_c = pos_count + neg_count + neu_count
-    if total_c > 0:
-        pos_pct = int(pos_count / total_c * 100)
-        neg_pct = int(neg_count / total_c * 100)
-        neu_pct = 100 - pos_pct - neg_pct
-    else:
-        # Default fallback sentiment if no complaints registered
-        pos_pct, neg_pct, neu_pct = 72, 12, 16
-
+    # 4. The tone of parents' messages, by a stated keyword rule.
+    complaints = (await db.execute(select(Complaint).where(Complaint.school_id == school_id))).scalars().all()
+    positive_words = ("good", "excellent", "great", "thank", "happy", "satisfied", "shukriya", "acha")
+    negative_words = ("bad", "poor", "slow", "worst", "unhappy", "angry", "delay", "broken", "complaint", "bura")
+    pos = neg = neu = 0
+    for c in complaints:
+        body = f"{c.subject or ''} {c.content or ''}".lower()
+        if any(w in body for w in negative_words):
+            neg += 1
+        elif any(w in body for w in positive_words):
+            pos += 1
+        else:
+            neu += 1
+    total = pos + neg + neu
     parent_sentiments = {
-        "positive": pos_pct,
-        "negative": neg_pct,
-        "neutral": neu_pct,
-        "total_responses": max(total_c, 240)
+        "positive": round(pos * 100 / total) if total else None,
+        "negative": round(neg * 100 / total) if total else None,
+        "neutral": (100 - round(pos * 100 / total) - round(neg * 100 / total)) if total else None,
+        "total_responses": total,
+        "basis": "Keywords in messages parents sent to the school",
     }
 
-    # 5. Competitive positioning benchmarking (benchmarks scores against provincial averages)
+    # 5. The school's own rates. No outside benchmark is available, so none is shown.
+    recovery = (
+        await db.execute(
+            text(
+                """
+                SELECT SUM(total_amount) AS billed, SUM(paid_amount) AS paid
+                FROM fee_invoices
+                WHERE school_id = CAST(:school AS UUID) AND status <> 'cancelled' AND status <> 'draft'
+                  AND due_date >= :year_start AND due_date <= :today
+                """
+            ),
+            {"school": str(school_id), "year_start": date(today.year if today.month >= 7 else today.year - 1, 7, 1), "today": today},
+        )
+    ).mappings().first()
+    billed, paid = (recovery["billed"] if recovery else None), (recovery["paid"] if recovery else None)
+    attendance = (
+        await db.execute(
+            text(
+                """
+                SELECT COUNT(*) FILTER (WHERE e.status IN ('present', 'late')) AS present, COUNT(*) AS total
+                FROM attendance_entries e
+                JOIN attendance_sessions s ON s.id = e.session_id
+                WHERE s.school_id = CAST(:school AS UUID) AND s.session_date >= :since
+                """
+            ),
+            {"school": str(school_id), "since": today - timedelta(days=30)},
+        )
+    ).mappings().first()
+    resolved = sum(1 for c in complaints if (c.status or "") in ("resolved", "closed"))
+
+    def pct(a, b):
+        return float(money(Decimal(a) * 100 / Decimal(b))) if a is not None and b else None
+
     benchmark_scores = {
-        "labels": ["Fee Recovery Rate", "Curriculum Mapping", "Teacher-Student Ratio", "AI Notice Trust Index", "PTM Engagement"],
-        "school": [94, 88, 76, 92, 85],
-        "provincial_average": [82, 70, 68, 45, 62]
+        "labels": ["Fee recovery (this fiscal year)", "Attendance (last 30 days)", "Messages resolved"],
+        "school": [
+            pct(paid, billed),
+            pct(attendance["present"] if attendance else None, attendance["total"] if attendance else None),
+            pct(resolved, len(complaints)),
+        ],
+        "provincial_average": None,
     }
 
-    # Save / Cache in database
     cached_insight = OwnerAiInsight(
-        school_id=current_user.school_id,
+        school_id=school_id,
         revenue_forecast=revenue_forecast,
         enrollment_forecast=enrollment_forecast,
         teacher_risk_scores=teacher_risk_scores,
@@ -201,7 +245,6 @@ async def get_owner_insights_summary(current_user: CurrentUser, db: DbSession):
     await db.flush()
     await db.commit()
     await db.refresh(cached_insight)
-    
     return cached_insight
 
 

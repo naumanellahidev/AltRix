@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ReportExportMenu } from "@/components/accountant/ReportExportMenu";
 import { printReport } from "@/lib/report-export";
+import { toast } from "sonner";
 
 const COLORS = ["hsl(var(--primary))", "hsl(var(--destructive))", "#10B981", "#F59E0B", "#8B5CF6", "#EC4899"];
 
@@ -198,22 +199,49 @@ export function AccountantReportsModule() {
     { label: "Net Profit", value: netProfit.toLocaleString() },
   ];
 
-  const printAll = () => {
-    const extra = `
-      <h3 style="margin:18px 0 6px;font-size:13px;text-transform:uppercase;letter-spacing:.05em">Cash flow trend</h3>
-      ${cashflowRows.length ? `<table><thead><tr><th>Date</th><th>Revenue</th><th>Expenses</th></tr></thead><tbody>${cashflowRows.map((r) => `<tr><td>${r.date}</td><td>${r.revenue.toLocaleString()}</td><td>${r.expenses.toLocaleString()}</td></tr>`).join("")}</tbody></table>` : "<p style='color:#6b7280;font-size:11px'>No cash flow data.</p>"}
-      <h3 style="margin:18px 0 6px;font-size:13px;text-transform:uppercase;letter-spacing:.05em">Expense breakdown</h3>
-      ${expenseRows.length ? `<table><thead><tr><th>Category</th><th>Amount</th></tr></thead><tbody>${expenseRows.map((r) => `<tr><td>${r.category}</td><td>${r.amount.toLocaleString()}</td></tr>`).join("")}</tbody></table>` : "<p style='color:#6b7280;font-size:11px'>No expense data.</p>"}
-      <h3 style="margin:18px 0 6px;font-size:13px;text-transform:uppercase;letter-spacing:.05em">Profit & Loss</h3>
-    `;
-    printReport({
-      title: "Consolidated Financial Report",
-      subtitle: `${periodLabel} • ${startDate.toLocaleDateString()} – ${endDate.toLocaleDateString()}`,
-      summary,
-      extraHtml: extra,
-      rows: plRows,
-      schoolName: tenant.status === "ready" ? tenant.school?.name ?? schoolSlug : undefined,
-    });
+  /**
+   * The consolidated pack: headline figures, then the P&L, cash flow and
+   * expense breakdown as separate tables. Built from data, never from an HTML
+   * string — the old version pasted expense category names into markup.
+   */
+  const consolidatedReport = () => ({
+    title: "Consolidated Financial Report",
+    subtitle: `${periodLabel} · ${startDate.toLocaleDateString("en-GB")} – ${endDate.toLocaleDateString("en-GB")}`,
+    summary,
+    rows: plRows,
+    sections: [
+      {
+        title: "Cash flow trend",
+        rows: cashflowRows.map((r) => ({ date: r.date, revenue: r.revenue, expenses: r.expenses })),
+        columns: [
+          { header: "Date", key: "date", type: "date" as const },
+          { header: "Revenue", key: "revenue", type: "money" as const, total: "sum" as const },
+          { header: "Expenses", key: "expenses", type: "money" as const, total: "sum" as const },
+        ],
+        emptyMessage: "No cash flow recorded for this period.",
+      },
+      {
+        title: "Expense breakdown",
+        rows: expenseRows.map((r) => ({ category: r.category, amount: r.amount })),
+        columns: [
+          { header: "Category", key: "category" },
+          { header: "Amount", key: "amount", type: "money" as const, total: "sum" as const },
+        ],
+        emptyMessage: "No expenses recorded for this period.",
+      },
+    ],
+    fileNameParts: ["Consolidated Financial Report", periodLabel],
+  });
+
+  const printAll = async () => {
+    const id = toast.loading("Preparing the financial report…");
+    try {
+      const { warnings } = await printReport(consolidatedReport());
+      if (warnings.length) toast.warning(`Sent to print, but: ${warnings.join("; ")}`, { id, duration: 9000 });
+      else toast.dismiss(id);
+    } catch (e: any) {
+      toast.error(e?.message ? `Could not print: ${e.message}` : "Could not print", { id });
+    }
   };
 
   return (

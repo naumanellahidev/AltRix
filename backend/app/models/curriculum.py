@@ -6,7 +6,7 @@ import uuid
 from typing import Optional
 from datetime import datetime
 
-from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, String, Text, JSON
+from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, String, Text, JSON, Numeric
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
@@ -71,7 +71,7 @@ class AssessmentLOMapping(Base):
     school_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("schools.id"), nullable=False)
     assessment_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("academic_assessments.id"), nullable=False)
     learning_outcome_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("learning_outcomes.id"), nullable=False)
-    weightage: Mapped[Optional[float]] = mapped_column(Float, nullable=True)  # How much of this assessment covers this LO
+    weightage: Mapped[Optional[float]] = mapped_column(Numeric(8, 3), nullable=True)  # How much of this assessment covers this LO
     created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=True)
 
 
@@ -86,7 +86,7 @@ class AssessmentCriteria(Base):
 
     criteria_name: Mapped[str] = mapped_column(String, nullable=False)  # "Reading Comprehension", "Problem Solving"
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    max_score: Mapped[float] = mapped_column(Float, nullable=False, default=4)
+    max_score: Mapped[float] = mapped_column(Numeric(8, 3), nullable=False, default=4)
 
     # Rubric levels (JSON array)
     rubric_levels = Column(JSON, nullable=True, default=lambda: [
@@ -108,7 +108,7 @@ class CriteriaScore(Base):
     school_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("schools.id"), nullable=False)
     criteria_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("assessment_criteria.id"), nullable=False)
     student_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("students.id"), nullable=False)
-    score: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    score: Mapped[Optional[float]] = mapped_column(Numeric(8, 3), nullable=True)
     level_achieved: Mapped[Optional[str]] = mapped_column(String, nullable=True)  # "Exceeding", "Meeting", etc.
     teacher_feedback: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     scored_by: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), nullable=True)
@@ -129,9 +129,9 @@ class StrandAssessment(Base):
     academic_year: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     term_label: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 
-    score: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    max_score: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    percentage: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    score: Mapped[Optional[float]] = mapped_column(Numeric(8, 3), nullable=True)
+    max_score: Mapped[Optional[float]] = mapped_column(Numeric(8, 3), nullable=True)
+    percentage: Mapped[Optional[float]] = mapped_column(Numeric(8, 3), nullable=True)
     level: Mapped[Optional[str]] = mapped_column(String, nullable=True)  # "Exceeding", "Meeting", "Approaching", "Beginning"
     grade: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 
@@ -150,9 +150,9 @@ class GradeBoundary(Base):
     preset_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("curriculum_presets.id"), nullable=True)
 
     label: Mapped[str] = mapped_column(String, nullable=False)  # A*, A, B, C, D, E, U (Cambridge) or A+, A, B+... (Punjab)
-    min_percentage: Mapped[float] = mapped_column(Float, nullable=False)
-    max_percentage: Mapped[float] = mapped_column(Float, nullable=False, default=100)
-    gpa_equivalent: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    min_percentage: Mapped[float] = mapped_column(Numeric(8, 3), nullable=False)
+    max_percentage: Mapped[float] = mapped_column(Numeric(8, 3), nullable=False, default=100)
+    gpa_equivalent: Mapped[Optional[float]] = mapped_column(Numeric(8, 3), nullable=True)
     description: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     is_passing: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     sort_order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)

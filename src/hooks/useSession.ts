@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { Session, User } from "@/lib/api";
 import { api } from "@/lib/api";
+import { getAccessToken } from "@/lib/token-store";
 
 const SESSION_CACHE_KEY = "eduverse_session_cache";
 const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours
@@ -16,7 +17,7 @@ interface CachedSession {
 
 function getCachedUser(): User | null {
   try {
-    const token = localStorage.getItem("access_token");
+    const token = getAccessToken();
     if (!token && navigator.onLine) {
       localStorage.removeItem(SESSION_CACHE_KEY);
       return null;

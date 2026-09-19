@@ -55,6 +55,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
+import { DataExportMenu } from "@/components/documents/DataExportMenu";
 
 interface StudentFeeTrackerProps {
   schoolId: string;
@@ -410,6 +411,32 @@ export function StudentFeeTracker({ schoolId }: StudentFeeTrackerProps) {
             <Users className="h-5 w-5" />
             Student Fee Ledger
           </CardTitle>
+          <div className="flex justify-end">
+            <DataExportMenu
+              title="Student Fee Ledger"
+              rows={filteredLedgers.map((l) => ({
+                student: [l.first_name, l.last_name].filter(Boolean).join(" "),
+                code: l.student_code ?? "",
+                invoiced: l.total_invoiced,
+                paid: l.total_paid,
+                outstanding: l.outstanding_balance,
+                overdue: l.overdue_amount,
+                invoices: l.invoice_count,
+              }))}
+              columns={[
+                { header: "Student", key: "student" },
+                { header: "Code", key: "code" },
+                { header: "Invoiced", key: "invoiced", type: "money", total: "sum" },
+                { header: "Paid", key: "paid", type: "money", total: "sum" },
+                { header: "Outstanding", key: "outstanding", type: "money", total: "sum" },
+                { header: "Overdue", key: "overdue", type: "money", total: "sum" },
+                { header: "Invoices", key: "invoices", type: "integer" },
+              ]}
+              orientation="landscape"
+              disabled={!filteredLedgers.length}
+              size="sm"
+            />
+          </div>
         </CardHeader>
         <CardContent>
           <ScrollArea className="h-[500px]">

@@ -14,6 +14,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { toast } from "sonner";
 import { Plus, Lock, CheckCircle2, Wallet, DollarSign, TrendingDown } from "lucide-react";
 import { format } from "date-fns";
+import { DataExportMenu } from "@/components/documents/DataExportMenu";
+import { money } from "@/lib/documents/format";
 
 type Run = {
   id: string; period_year: number; period_month: number; label: string | null;
@@ -193,6 +195,29 @@ function RunsTab({ runs, schoolId, staff, structs, comps, onChange, onSelect, ac
         </Dialog>
       </div>
 
+      <div className="flex justify-end">
+        <DataExportMenu
+          title="Payroll Runs"
+          rows={runs.map((r: Run) => ({
+            period: r.label || `${MONTHS[r.period_month - 1]} ${r.period_year}`,
+            status: r.status,
+            gross: r.total_gross,
+            deductions: r.total_deductions,
+            net: r.total_net,
+            paid: r.paid_at ? String(r.paid_at).slice(0, 10) : "",
+          }))}
+          columns={[
+            { header: "Period", key: "period" },
+            { header: "Status", key: "status" },
+            { header: "Gross", key: "gross", type: "money", total: "sum" },
+            { header: "Deductions", key: "deductions", type: "money", total: "sum" },
+            { header: "Net", key: "net", type: "money", total: "sum" },
+            { header: "Paid on", key: "paid", type: "date" },
+          ]}
+          disabled={!runs.length}
+          size="sm"
+        />
+      </div>
       {runs.length === 0 ? <Card><CardContent className="p-8 text-center text-sm text-muted-foreground">No payroll runs yet.</CardContent></Card> :
         <Card><CardContent className="p-0">
           <Table>
@@ -208,9 +233,9 @@ function RunsTab({ runs, schoolId, staff, structs, comps, onChange, onSelect, ac
                 <TableRow key={r.id} className={activeRun === r.id ? "bg-muted/50" : ""}>
                   <TableCell className="font-medium">{r.label || `${MONTHS[r.period_month - 1]} ${r.period_year}`}</TableCell>
                   <TableCell><Badge variant={r.status === "paid" ? "default" : r.status === "locked" ? "secondary" : "outline"}>{r.status}</Badge></TableCell>
-                  <TableCell className="text-right">{Number(r.total_gross).toLocaleString()}</TableCell>
-                  <TableCell className="text-right">{Number(r.total_deductions).toLocaleString()}</TableCell>
-                  <TableCell className="text-right font-semibold">{Number(r.total_net).toLocaleString()}</TableCell>
+                  <TableCell className="text-right">{money(r.total_gross)}</TableCell>
+                  <TableCell className="text-right">{money(r.total_deductions)}</TableCell>
+                  <TableCell className="text-right font-semibold">{money(r.total_net)}</TableCell>
                   <TableCell>
                     <div className="flex gap-1">
                       <Button size="sm" variant="ghost" onClick={() => onSelect(activeRun === r.id ? null : r.id)}>View</Button>

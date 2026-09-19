@@ -353,8 +353,10 @@ export function HrSalariesModule() {
       periodStart: run.period_start,
       periodEnd: run.period_end,
       paidAt: run.paid_at,
-      baseSalary: salary?.base_salary || run.gross_amount - (salary?.allowances || 0),
-      allowances: salary?.allowances || 0,
+      // Offered to the slip, which itemises only when these add up to this
+      // run's gross; nothing is derived to fill a missing figure.
+      baseSalary: salary?.base_salary ?? null,
+      allowances: salary?.allowances ?? null,
       deductions: run.deductions,
       grossAmount: run.gross_amount,
       netAmount: run.net_amount,
@@ -364,8 +366,12 @@ export function HrSalariesModule() {
       status: run.status,
     };
 
-    openBulkPayslipsPDF([payslip]);
-    toast.success("Payslip generated!");
+    const id = toast.loading("Preparing payslip…");
+    openBulkPayslipsPDF([payslip])
+      .then(({ warnings }) =>
+        warnings.length ? toast.warning(`Sent to print, but: ${warnings.join("; ")}`, { id, duration: 10000 }) : toast.dismiss(id),
+      )
+      .catch((e: any) => toast.error(e?.message ? `Could not produce the payslip: ${e.message}` : "Could not produce the payslip", { id }));
   };
 
   const handleDownloadPayslips = (run: PayRun) => {
@@ -387,8 +393,10 @@ export function HrSalariesModule() {
       periodStart: run.period_start,
       periodEnd: run.period_end,
       paidAt: run.paid_at,
-      baseSalary: salary?.base_salary || run.gross_amount - (salary?.allowances || 0),
-      allowances: salary?.allowances || 0,
+      // Offered to the slip, which itemises only when these add up to this
+      // run's gross; nothing is derived to fill a missing figure.
+      baseSalary: salary?.base_salary ?? null,
+      allowances: salary?.allowances ?? null,
       deductions: run.deductions,
       grossAmount: run.gross_amount,
       netAmount: run.net_amount,
@@ -398,8 +406,14 @@ export function HrSalariesModule() {
       status: run.status,
     };
 
-    downloadBulkPayslipsHTML([payslip], run.period_start, run.period_end);
-    toast.success("Payslip downloaded!");
+    const id = toast.loading("Preparing payslip…");
+    downloadBulkPayslipsHTML([payslip])
+      .then(({ fileName, warnings }) =>
+        warnings.length
+          ? toast.warning(`Downloaded ${fileName}, but: ${warnings.join("; ")}`, { id, duration: 10000 })
+          : toast.success(`Downloaded ${fileName}`, { id }),
+      )
+      .catch((e: any) => toast.error(e?.message ? `Could not produce the payslip: ${e.message}` : "Could not produce the payslip", { id }));
   };
 
   const activeSalaries = salaryRecords.filter((s) => isRecordActive(s));

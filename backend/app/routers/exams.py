@@ -1,12 +1,15 @@
 """
 Exams and results router: exams, datesheets, results, report cards, rooms, seating plans.
 """
+import logging
+from datetime import date
 from typing import List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Query, status, Request, HTTPException
 from app.cache import cache
 from app.utils.cache_decorator import cache_response
+from pydantic import BaseModel, Field
 from sqlalchemy import select, text, false as sa_false
 
 from app.dependencies import CurrentUser, DbSession
@@ -23,6 +26,10 @@ from app.schemas import (
     MessageResponse,
 )
 from app.utils.permissions import expand_roles, ACADEMIC_GOV
+from app.utils.pagination import ListPageParams
+from app.utils.security import get_allowed_student_ids
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/exams", tags=["Exams"])
 
@@ -33,7 +40,7 @@ async def list_exams(
     current_user: CurrentUser,
     db: DbSession,
     request: Request,
-    campus_id: Optional[UUID] = Query(None),
+    page: ListPageParams, campus_id: Optional[UUID] = Query(None),
     academic_year: Optional[str] = Query(None),
 ):
     if not current_user.school_id:
@@ -57,7 +64,7 @@ async def list_exams(
         )
     if academic_year:
         query = query.where(Exam.academic_year == academic_year)
-    result = await db.execute(query.order_by(Exam.start_date.desc()))
+    result = await db.execute(page.apply(query.order_by(Exam.start_date.desc())))
     return result.scalars().all()
 
 
@@ -81,20 +88,84 @@ async def create_exam(body: ExamCreate, current_user: CurrentUser, db: DbSession
         await cache.invalidate_pattern(f"*school_{current_user.school_id}_*reports:dashboard*")
         from app.utils.ai_semantic_cache import semantic_cache as _sc
         await _sc.invalidate_by_deps(db, current_user.school_id, ["exams"])
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("Optional step failed (%s): %s", "cache.invalidate_pattern", exc, exc_info=True)
     return exam
 
 
 # ─── EXAMS SEATING ARRANGEMENTS & ROOMS (Static Routes Before Parameterized /{exam_id}) ──────
+#
+# Rooms and seating plans are written by academic staff only, always inside
+# the caller's school. A plan is generated from the students actually enrolled
+# in the chosen sections; with two or more sections the seats alternate
+# between them like a chessboard so no two neighbours sit the same paper from
+# the same class. Families see only their own children's seats.
+
+
+class SeatingGenerateRequest(BaseModel):
+    exam_id: UUID
+    class_section_ids: List[UUID] = Field(..., min_length=1)
+    room_ids: List[UUID] = Field(..., min_length=1)
+    exam_date: Optional[date] = None
+    start_time: Optional[str] = Field(None, max_length=20)
+    session_label: Optional[str] = Field(None, max_length=120)
+
+
+class InvigilatorRequest(BaseModel):
+    staff_user_id: UUID
+    role: str = Field("primary", pattern="^(primary|secondary|helper)$")
+
+
+def _require_exam_staff(current_user) -> None:
+    if not current_user.school_id:
+        raise ForbiddenError("No school context")
+    if current_user.is_super_admin:
+        return
+    if not any(r in expand_roles(current_user.roles) for r in ACADEMIC_GOV):
+        raise ForbiddenError("Only academic staff manage exam halls and seating")
+
+
+def seat_label(row: int, col: int) -> str:
+    """0-indexed row/column -> "A-1", "B-3", ... "AA-2" past row 26."""
+    letters = ""
+    n = row + 1
+    while n:
+        n, rem = divmod(n - 1, 26)
+        letters = chr(65 + rem) + letters
+    return f"{letters}-{col + 1}"
+
+
+def allocate_seats(sections: List[List[UUID]], rooms: List[tuple]) -> List[tuple]:
+    """
+    Place students in rooms. `sections` is one roll-ordered list of student ids
+    per section; `rooms` is (room_id, rows, cols). Returns (room_id, row, col,
+    student_id). Seat (r, c) is offered first to section (r + c) mod k, so with
+    two or more sections neighbours come from different sections; when that
+    section has run out, the seat goes to whichever section has most left.
+    """
+    queues = [list(s) for s in sections if s]
+    k = len(queues)
+    out = []
+    for room_id, rows, cols in rooms:
+        for r in range(rows):
+            for c in range(cols):
+                if not any(queues):
+                    return out
+                preferred = (r + c) % k
+                q = queues[preferred] if queues[preferred] else max(queues, key=len)
+                out.append((room_id, r, c, q.pop(0)))
+    return out
+
 
 @router.get("/rooms", response_model=List[ExamRoomOut])
-async def list_exam_rooms(current_user: CurrentUser, db: DbSession):
+async def list_exam_rooms(current_user: CurrentUser, db: DbSession, page: ListPageParams):
     """List physical classrooms/halls registered for exams."""
     if not current_user.school_id:
         return []
     res = await db.execute(
-        select(ExamRoom).where(ExamRoom.school_id == current_user.school_id)
+        page.apply(
+            select(ExamRoom).where(ExamRoom.school_id == current_user.school_id).order_by(ExamRoom.room_name)
+        )
     )
     return list(res.scalars().all())
 
@@ -102,11 +173,15 @@ async def list_exam_rooms(current_user: CurrentUser, db: DbSession):
 @router.post("/rooms", response_model=ExamRoomOut, status_code=status.HTTP_201_CREATED)
 async def create_exam_room(body: ExamRoomCreate, current_user: CurrentUser, db: DbSession):
     """Register a new exam room with rows/cols capacities."""
-    if not current_user.school_id:
-        raise ForbiddenError()
+    _require_exam_staff(current_user)
+    name = (body.room_name or "").strip()
+    if not name:
+        raise HTTPException(status_code=422, detail="Give the hall a name")
+    if not (1 <= body.capacity_rows <= 60 and 1 <= body.capacity_cols <= 60):
+        raise HTTPException(status_code=422, detail="Rows and columns must each be between 1 and 60")
     room = ExamRoom(
         school_id=current_user.school_id,
-        room_name=body.room_name,
+        room_name=name,
         capacity_rows=body.capacity_rows,
         capacity_cols=body.capacity_cols,
         total_capacity=body.capacity_rows * body.capacity_cols,
@@ -118,178 +193,326 @@ async def create_exam_room(body: ExamRoomCreate, current_user: CurrentUser, db: 
     return room
 
 
-@router.get("/seating-plans", response_model=List[ExamSeatingPlanOut])
-async def list_seating_plans(current_user: CurrentUser, db: DbSession):
-    """List seating plans along with invigilator roles and assignments lists."""
-    if not current_user.school_id:
+@router.delete("/rooms/{room_id}", response_model=MessageResponse)
+async def delete_exam_room(room_id: UUID, current_user: CurrentUser, db: DbSession):
+    _require_exam_staff(current_user)
+    room = (
+        await db.execute(select(ExamRoom).where(ExamRoom.id == room_id, ExamRoom.school_id == current_user.school_id))
+    ).scalar_one_or_none()
+    if room is None:
+        raise NotFoundError("ExamRoom", str(room_id))
+    in_use = (
+        await db.execute(select(ExamSeatingPlan.id).where(ExamSeatingPlan.room_id == room_id).limit(1))
+    ).first()
+    if in_use:
+        raise HTTPException(status_code=409, detail="This hall has seating plans; delete those first")
+    await db.delete(room)
+    await db.commit()
+    return MessageResponse(message="Hall removed")
+
+
+async def _plans_out(db, school_id, plan_filter=None, student_filter: Optional[List[UUID]] = None) -> list:
+    """Plans with room, exam, invigilators and seats, in a fixed number of queries."""
+    q = select(ExamSeatingPlan).where(ExamSeatingPlan.school_id == school_id)
+    if plan_filter is not None:
+        q = q.where(plan_filter)
+    if student_filter is not None:
+        q = q.where(
+            ExamSeatingPlan.id.in_(
+                select(ExamSeatAssignment.seating_plan_id).where(ExamSeatAssignment.student_id.in_(student_filter))
+            )
+        )
+    plans = list((await db.execute(q.order_by(ExamSeatingPlan.exam_date.desc().nullslast(), ExamSeatingPlan.created_at.desc()))).scalars().all())
+    if not plans:
         return []
-         
-    res = await db.execute(
-        select(ExamSeatingPlan)
-        .where(ExamSeatingPlan.school_id == current_user.school_id)
-        .order_by(ExamSeatingPlan.created_at.desc())
+    plan_ids = [p.id for p in plans]
+
+    rooms = {
+        r.id: r
+        for r in (await db.execute(select(ExamRoom).where(ExamRoom.id.in_({p.room_id for p in plans})))).scalars().all()
+    }
+    exams = {
+        e.id: e
+        for e in (await db.execute(select(Exam).where(Exam.id.in_({p.exam_id for p in plans})))).scalars().all()
+    }
+    seat_q = select(ExamSeatAssignment).where(ExamSeatAssignment.seating_plan_id.in_(plan_ids))
+    if student_filter is not None:
+        seat_q = seat_q.where(ExamSeatAssignment.student_id.in_(student_filter))
+    seats = list((await db.execute(seat_q)).scalars().all())
+
+    people = {}
+    student_ids = list({s.student_id for s in seats})
+    if student_ids:
+        rows = await db.execute(
+            text(
+                """
+                SELECT s.id, s.first_name, s.last_name, s.roll_number,
+                       NULLIF(TRIM(CONCAT_WS(' ', ac.name, cs.name)), '') AS section
+                FROM students s
+                LEFT JOIN LATERAL (
+                    SELECT e.class_section_id FROM student_enrollments e
+                    WHERE e.student_id = s.id AND e.end_date IS NULL
+                    ORDER BY e.start_date DESC NULLS LAST LIMIT 1
+                ) en ON TRUE
+                LEFT JOIN class_sections cs ON cs.id = en.class_section_id
+                LEFT JOIN academic_classes ac ON ac.id = cs.class_id
+                WHERE s.id = ANY(CAST(:ids AS UUID[]))
+                """
+            ),
+            {"ids": [str(i) for i in student_ids]},
+        )
+        for r in rows.mappings():
+            people[r["id"]] = r
+
+    invigilators = list(
+        (await db.execute(select(ExamInvigilator).where(ExamInvigilator.seating_plan_id.in_(plan_ids)))).scalars().all()
     )
-    plans = list(res.scalars().all())
-    
-    out_plans = []
-    for plan in plans:
-        room_res = await db.execute(select(ExamRoom).where(ExamRoom.id == plan.room_id))
-        room = room_res.scalar_one_or_none()
-        room_name = room.room_name if room else "Unknown Room"
+    staff_names = {}
+    if invigilators:
+        try:
+            directory = await db.execute(
+                text("SELECT user_id, display_name, email FROM public.get_school_staff_directory(CAST(:school AS UUID))"),
+                {"school": str(school_id)},
+            )
+            staff_names = {r["user_id"]: (r["display_name"] or r["email"]) for r in directory.mappings()}
+        except Exception as exc:  # the names are a courtesy; the plan still lists the ids
+            logger.warning("Staff directory unavailable for invigilator names: %s", exc)
 
-        assign_res = await db.execute(
-            select(ExamSeatAssignment).where(ExamSeatAssignment.seating_plan_id == plan.id)
-        )
-        assignments = list(assign_res.scalars().all())
-        
-        assignments_out = []
-        for a in assignments:
-            std_res = await db.execute(select(Student).where(Student.id == a.student_id))
-            student = std_res.scalar_one_or_none()
-            if student:
-                assignments_out.append({
-                    "id": a.id,
-                    "seating_plan_id": a.seating_plan_id,
-                    "student_id": a.student_id,
-                    "student_name": f"{student.first_name} {student.last_name or ''}".strip(),
-                    "student_roll": student.roll_number or "N/A",
-                    "student_class": f"Class ID: {str(student.class_id)[:8]}" if student.class_id else "Unassigned",
-                    "row_num": a.row_num,
-                    "col_num": a.col_num,
-                })
-
-        invig_res = await db.execute(
-            select(ExamInvigilator).where(ExamInvigilator.seating_plan_id == plan.id)
-        )
-        invigilators = [{"staff_user_id": i.staff_user_id, "role": i.role} for i in invig_res.scalars().all()]
-        
-        out_plans.append({
-            "id": plan.id,
-            "school_id": plan.school_id,
-            "exam_id": plan.exam_id,
-            "datesheet_id": plan.datesheet_id,
-            "room_id": plan.room_id,
-            "room_name": room_name,
-            "invigilators": invigilators,
-            "assignments": assignments_out,
-            "created_at": plan.created_at,
+    out = []
+    for p in plans:
+        room = rooms.get(p.room_id)
+        exam = exams.get(p.exam_id)
+        plan_seats = []
+        for s in seats:
+            if s.seating_plan_id != p.id:
+                continue
+            person = people.get(s.student_id)
+            name = " ".join(x for x in [person["first_name"], person["last_name"]] if x) if person else ""
+            plan_seats.append({
+                "student_id": s.student_id,
+                "student_name": name or "Student",
+                "roll_number": person["roll_number"] if person else None,
+                "section": person["section"] if person else None,
+                "row": s.row_num,
+                "col": s.col_num,
+                "seat": seat_label(s.row_num, s.col_num),
+            })
+        plan_seats.sort(key=lambda x: (x["row"], x["col"]))
+        out.append({
+            "id": p.id,
+            "exam_id": p.exam_id,
+            "exam_name": exam.name if exam else None,
+            "room_id": p.room_id,
+            "room_name": room.room_name if room else None,
+            "rows": room.capacity_rows if room else None,
+            "cols": room.capacity_cols if room else None,
+            "exam_date": p.exam_date.isoformat() if p.exam_date else None,
+            "start_time": p.start_time,
+            "session_label": p.session_label,
+            "invigilators": [
+                {"staff_user_id": i.staff_user_id, "role": i.role, "name": staff_names.get(i.staff_user_id)}
+                for i in invigilators
+                if i.seating_plan_id == p.id
+            ],
+            "seats": plan_seats,
+            "created_at": p.created_at,
         })
-        
-    return out_plans
+    return out
 
 
-@router.post("/seating-plans/generate")
-async def generate_seating_arrangement(
-    datesheet_id: UUID,
-    room_ids: List[UUID],
+@router.get("/seating-plans")
+async def list_seating_plans(
     current_user: CurrentUser,
     db: DbSession,
+    exam_id: Optional[UUID] = Query(None),
 ):
-    """
-    Algorithmic seating generator. Allocates students to rooms in a grid
-    guaranteeing no two adjacent students belong to the same class section.
-    """
+    """Seating plans of the school: academic staff, and teachers who invigilate."""
     if not current_user.school_id:
-        raise ForbiddenError()
+        raise ForbiddenError("No school context")
+    effective = expand_roles(current_user.roles)
+    if not (current_user.is_super_admin or "teacher" in effective or any(r in effective for r in ACADEMIC_GOV)):
+        raise ForbiddenError("Only staff can see seating plans")
+    return await _plans_out(db, current_user.school_id, ExamSeatingPlan.exam_id == exam_id if exam_id else None)
 
-    ds_res = await db.execute(select(ExamDatesheet).where(ExamDatesheet.id == datesheet_id))
-    datesheet = ds_res.scalar_one_or_none()
-    if not datesheet:
-        raise HTTPException(status_code=404, detail="Datesheet record not found")
 
-    std_res = await db.execute(
-        select(Student).where(
-            Student.school_id == current_user.school_id,
-            Student.class_id == datesheet.class_section_id
-        )
+@router.get("/seating-plans/my")
+async def my_seating(current_user: CurrentUser, db: DbSession, student_id: Optional[UUID] = Query(None)):
+    """A family's own children's seats (or a student's own), nobody else's."""
+    if not current_user.school_id:
+        return []
+    allowed = await get_allowed_student_ids(current_user, db)
+    if allowed is None:
+        if student_id is None:
+            raise HTTPException(status_code=422, detail="Choose a student")
+        ids = [student_id]
+    else:
+        ids = [UUID(str(a)) for a in allowed]
+        if student_id is not None:
+            if student_id not in ids:
+                raise ForbiddenError("You can only see your own children's seats")
+            ids = [student_id]
+    if not ids:
+        return []
+    return await _plans_out(db, current_user.school_id, student_filter=ids)
+
+
+@router.post("/seating-plans/generate", status_code=status.HTTP_201_CREATED)
+async def generate_seating_arrangement(body: SeatingGenerateRequest, current_user: CurrentUser, db: DbSession):
+    """
+    Seat the students of the chosen sections across the chosen halls for one
+    sitting of an exam, alternating sections seat by seat.
+    """
+    _require_exam_staff(current_user)
+    school_id = current_user.school_id
+
+    exam = (
+        await db.execute(select(Exam).where(Exam.id == body.exam_id, Exam.school_id == school_id))
+    ).scalar_one_or_none()
+    if exam is None:
+        raise NotFoundError("Exam", str(body.exam_id))
+
+    section_ids = list(dict.fromkeys(body.class_section_ids))
+    rows = await db.execute(
+        text(
+            """
+            SELECT e.class_section_id, s.id, s.roll_number, s.first_name, s.last_name
+            FROM student_enrollments e
+            JOIN students s ON s.id = e.student_id
+            JOIN class_sections cs ON cs.id = e.class_section_id
+            WHERE e.class_section_id = ANY(CAST(:sections AS UUID[]))
+              AND e.end_date IS NULL
+              AND s.school_id = CAST(:school AS UUID)
+              AND cs.school_id = CAST(:school AS UUID)
+            """
+        ),
+        {"sections": [str(i) for i in section_ids], "school": str(school_id)},
     )
-    students = list(std_res.scalars().all())
-    if not students:
-        raise HTTPException(status_code=400, detail="No students registered for this class section")
-
-    students_sorted = sorted(students, key=lambda s: s.roll_number or "")
-    
-    rooms_res = await db.execute(
-        select(ExamRoom).where(
-            ExamRoom.id.in_(room_ids),
-            ExamRoom.school_id == current_user.school_id
-        )
-    )
-    rooms = list(rooms_res.scalars().all())
-    if not rooms:
-        raise HTTPException(status_code=400, detail="No valid exam rooms selected")
-
-    total_capacity = sum(r.total_capacity for r in rooms)
-    if len(students_sorted) > total_capacity:
-        raise HTTPException(
-            status_code=400, 
-            detail=f"Insufficient room capacity. Total seats: {total_capacity}, required: {len(students_sorted)}"
-        )
-
-    student_index = 0
-    generated_plans = []
-
-    for room in rooms:
-        if student_index >= len(students_sorted):
-            break
-            
-        plan = ExamSeatingPlan(
-            school_id=current_user.school_id,
-            exam_id=datesheet.exam_id,
-            datesheet_id=datesheet.id,
-            room_id=room.id,
-        )
-        db.add(plan)
-        await db.flush()
-
-        rows = room.capacity_rows
-        cols = room.capacity_cols
-        
-        seats = []
-        for r in range(rows):
-            for c in range(cols):
-                seats.append((r, c))
-                
-        seats.sort(key=lambda s: (s[0] + s[1]) % 2)
-
-        for row, col in seats:
-            if student_index >= len(students_sorted):
-                break
-                
-            student = students_sorted[student_index]
-            assign = ExamSeatAssignment(
-                seating_plan_id=plan.id,
-                student_id=student.id,
-                row_num=row,
-                col_num=col,
+    by_section = {sid: [] for sid in section_ids}
+    seen = set()
+    for r in rows.mappings():
+        if r["id"] in seen:
+            continue
+        seen.add(r["id"])
+        by_section.setdefault(UUID(str(r["class_section_id"])), []).append(r)
+    ordered = [
+        [
+            r["id"]
+            for r in sorted(
+                group,
+                key=lambda r: (
+                    (r["roll_number"] or "").zfill(12),
+                    f"{r['first_name'] or ''} {r['last_name'] or ''}",
+                ),
             )
-            db.add(assign)
-            student_index += 1
+        ]
+        for group in by_section.values()
+    ]
+    total_students = sum(len(g) for g in ordered)
+    if not total_students:
+        raise HTTPException(status_code=400, detail="No students are currently enrolled in the chosen sections")
 
-        generated_plans.append(plan.id)
+    room_ids = list(dict.fromkeys(body.room_ids))
+    room_rows = {
+        r.id: r
+        for r in (
+            await db.execute(select(ExamRoom).where(ExamRoom.id.in_(room_ids), ExamRoom.school_id == school_id))
+        ).scalars().all()
+    }
+    if len(room_rows) != len(room_ids):
+        raise HTTPException(status_code=400, detail="One or more halls were not found")
+    rooms = [room_rows[i] for i in room_ids]
+    capacity = sum(r.capacity_rows * r.capacity_cols for r in rooms)
+    if total_students > capacity:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Not enough seats: {total_students} students, {capacity} seats in the chosen halls",
+        )
 
+    placements = allocate_seats(ordered, [(r.id, r.capacity_rows, r.capacity_cols) for r in rooms])
+    plans = {}
+    for room_id, row, col, student_id in placements:
+        if room_id not in plans:
+            plan = ExamSeatingPlan(
+                school_id=school_id,
+                exam_id=exam.id,
+                room_id=room_id,
+                exam_date=body.exam_date,
+                start_time=(body.start_time or "").strip() or None,
+                session_label=(body.session_label or "").strip() or None,
+                created_by=UUID(str(current_user.id)) if current_user.id else None,
+            )
+            db.add(plan)
+            await db.flush()
+            plans[room_id] = plan
+        db.add(ExamSeatAssignment(seating_plan_id=plans[room_id].id, student_id=student_id, row_num=row, col_num=col))
     await db.commit()
-    return {"message": "Seating arrangement generated successfully", "plans": generated_plans}
+    return {
+        "message": f"Seated {total_students} students in {len(plans)} hall(s)",
+        "plans": [p.id for p in plans.values()],
+        "students": total_students,
+    }
 
 
-@router.post("/seating-plans/{plan_id}/invigilators")
-async def assign_invigilator(
-    plan_id: UUID,
-    staff_user_id: UUID,
-    role: str = "primary",
-    current_user: CurrentUser = None,
-    db: DbSession = None,
-):
-    """Assign an invigilator teacher to a seating arrangement hall."""
-    inv = ExamInvigilator(
-        seating_plan_id=plan_id,
-        staff_user_id=staff_user_id,
-        role=role,
-    )
-    db.add(inv)
-    await db.flush()
+@router.delete("/seating-plans/{plan_id}", response_model=MessageResponse)
+async def delete_seating_plan(plan_id: UUID, current_user: CurrentUser, db: DbSession):
+    _require_exam_staff(current_user)
+    plan = (
+        await db.execute(
+            select(ExamSeatingPlan).where(ExamSeatingPlan.id == plan_id, ExamSeatingPlan.school_id == current_user.school_id)
+        )
+    ).scalar_one_or_none()
+    if plan is None:
+        raise NotFoundError("ExamSeatingPlan", str(plan_id))
+    await db.delete(plan)
     await db.commit()
-    return {"message": "Invigilator assigned successfully"}
+    return MessageResponse(message="Seating plan deleted")
+
+
+@router.post("/seating-plans/{plan_id}/invigilators", response_model=MessageResponse)
+async def assign_invigilator(plan_id: UUID, body: InvigilatorRequest, current_user: CurrentUser, db: DbSession):
+    """Assign an invigilator to a hall's seating plan, within the caller's school."""
+    _require_exam_staff(current_user)
+    plan = (
+        await db.execute(
+            select(ExamSeatingPlan).where(ExamSeatingPlan.id == plan_id, ExamSeatingPlan.school_id == current_user.school_id)
+        )
+    ).scalar_one_or_none()
+    if plan is None:
+        raise NotFoundError("ExamSeatingPlan", str(plan_id))
+    exists = (
+        await db.execute(
+            select(ExamInvigilator.id).where(
+                ExamInvigilator.seating_plan_id == plan_id, ExamInvigilator.staff_user_id == body.staff_user_id
+            )
+        )
+    ).first()
+    if not exists:
+        db.add(ExamInvigilator(seating_plan_id=plan_id, staff_user_id=body.staff_user_id, role=body.role))
+        await db.commit()
+    return MessageResponse(message="Invigilator assigned")
+
+
+@router.delete("/seating-plans/{plan_id}/invigilators/{staff_user_id}", response_model=MessageResponse)
+async def remove_invigilator(plan_id: UUID, staff_user_id: UUID, current_user: CurrentUser, db: DbSession):
+    _require_exam_staff(current_user)
+    plan = (
+        await db.execute(
+            select(ExamSeatingPlan.id).where(ExamSeatingPlan.id == plan_id, ExamSeatingPlan.school_id == current_user.school_id)
+        )
+    ).first()
+    if plan is None:
+        raise NotFoundError("ExamSeatingPlan", str(plan_id))
+    row = (
+        await db.execute(
+            select(ExamInvigilator).where(
+                ExamInvigilator.seating_plan_id == plan_id, ExamInvigilator.staff_user_id == staff_user_id
+            )
+        )
+    ).scalar_one_or_none()
+    if row is not None:
+        await db.delete(row)
+        await db.commit()
+    return MessageResponse(message="Invigilator removed")
 
 
 # ─── PARAMETERIZED EXAM ROUTES ──────────────────────────────────────────────────
@@ -410,8 +633,8 @@ async def update_exam(exam_id: UUID, body: ExamCreate, current_user: CurrentUser
         await cache.invalidate_pattern(f"*school_{current_user.school_id}_*pdf:*")
         from app.utils.ai_semantic_cache import semantic_cache as _sc
         await _sc.invalidate_by_deps(db, current_user.school_id, ["exams"])
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("Optional step failed (%s): %s", "cache.invalidate_pattern", exc, exc_info=True)
     return exam
 
 
@@ -436,7 +659,7 @@ async def publish_exam(exam_id: UUID, current_user: CurrentUser, db: DbSession):
         await cache.invalidate_pattern(f"*school_{current_user.school_id}_*pdf:*")
         from app.utils.ai_semantic_cache import semantic_cache as _sc
         await _sc.invalidate_by_deps(db, current_user.school_id, ["exams"])
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("Optional step failed (%s): %s", "cache.invalidate_pattern", exc, exc_info=True)
 
     return exam

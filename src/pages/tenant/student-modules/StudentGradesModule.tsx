@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { RefreshCw, WifiOff } from "lucide-react";
 import { useOfflineAssessments, useOfflineStudentMarks, useOfflineSubjects } from "@/hooks/useOfflineData";
 import { OfflineDataBanner } from "@/components/offline/OfflineDataBanner";
+import { DataExportMenu } from "@/components/documents/DataExportMenu";
+import { ratioPercent } from "@/lib/documents/decimal";
 
 export function StudentGradesModule({ myStudent, schoolId }: { myStudent: any; schoolId: string }) {
   // Use offline-first hooks
@@ -74,12 +76,31 @@ export function StudentGradesModule({ myStudent, schoolId }: { myStudent: any; s
       
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">Your published assessments & marks</p>
+        <div className="flex items-center gap-2">
+        <DataExportMenu
+          title="My Results"
+          rows={publishedAssessments.map((a) => {
+            const m = markByAssessment.get(a.id);
+            const pct = m?.marks != null ? ratioPercent(m.marks, a.maxMarks) : null;
+            return {
+              Assessment: a.title,
+              Subject: a.subjectId ? subjectNameById.get(a.subjectId) ?? "" : "",
+              Date: String(a.assessmentDate).slice(0, 10),
+              Marks: m?.marks != null ? `${m.marks} / ${a.maxMarks}` : "Not marked",
+              "%": pct ?? "",
+              Grade: m?.computedGrade ?? "",
+            };
+          })}
+          disabled={!publishedAssessments.length}
+          size="sm"
+        />
         {!isOffline && (
           <Button variant="outline" size="sm" onClick={handleRefresh}>
             <RefreshCw className="h-4 w-4 mr-1" />
             Refresh
           </Button>
         )}
+        </div>
       </div>
 
       <div className="w-full overflow-x-auto rounded-xl border border-muted/30">
@@ -97,7 +118,7 @@ export function StudentGradesModule({ myStudent, schoolId }: { myStudent: any; s
           <TableBody>
             {publishedAssessments.map((a) => {
               const m = markByAssessment.get(a.id);
-              const percentage = m?.marks != null ? ((m.marks / a.maxMarks) * 100).toFixed(1) : null;
+              const percentage = m?.marks != null ? ratioPercent(m.marks, a.maxMarks) : null;
               return (
                 <TableRow key={a.id}>
                   <TableCell className="font-medium whitespace-nowrap">{a.title}</TableCell>

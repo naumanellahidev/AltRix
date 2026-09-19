@@ -1,3 +1,5 @@
+import { subtract as subtractMoney } from "@/lib/documents/decimal";
+import { DataExportMenu } from "@/components/documents/DataExportMenu";
 import { useEffect, useMemo, useState } from "react";
 import { api } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -33,43 +35,6 @@ interface Props {
   students: Student[];
   expenses: any[];
   onRefresh: () => void;
-}
-
-function csvEscape(v: any) {
-  if (v == null) return "";
-  const s = String(v);
-  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-}
-
-function downloadCsv(filename: string, rows: any[][]) {
-  const csv = rows.map(r => r.map(csvEscape).join(",")).join("\n");
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url; a.download = filename;
-  document.body.appendChild(a); a.click(); document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-}
-
-function printHtml(title: string, bodyHtml: string) {
-  const w = window.open("", "_blank", "width=900,height=700");
-  if (!w) { toast.error("Pop-up blocked. Allow pop-ups to print."); return; }
-  w.document.write(`<!doctype html><html><head><title>${title}</title>
-    <style>
-      body{font-family:-apple-system,Segoe UI,Roboto,sans-serif;color:#0a0a0a;padding:24px}
-      h1{font-size:20px;margin:0 0 4px}
-      .muted{color:#6b7280;font-size:12px}
-      table{width:100%;border-collapse:collapse;margin-top:16px;font-size:12px}
-      th,td{padding:8px 10px;border-bottom:1px solid #e5e7eb;text-align:left}
-      th{background:#f9fafb;font-weight:600}
-      .right{text-align:right}
-      .badge{display:inline-block;padding:2px 8px;border-radius:9999px;font-size:11px;background:#eef2ff;color:#3730a3}
-      .totals{margin-top:16px;font-size:14px}
-      @media print{button{display:none}}
-    </style></head><body>${bodyHtml}
-    <script>setTimeout(()=>window.print(),250)</script>
-    </body></html>`);
-  w.document.close();
 }
 
 export function FeesAnalyticsTab({ schoolId, currency, invoices, payments, students, expenses = [], onRefresh }: Props) {
@@ -274,54 +239,44 @@ export function FeesAnalyticsTab({ schoolId, currency, invoices, payments, stude
     }
   };
 
-  const exportInvoicesCsv = () => {
-    const rows: any[][] = [["Invoice #", "Student", "Period", "Due Date", "Total", "Paid", "Outstanding", "Status"]];
-    filteredInvoices.forEach(i => rows.push([
-      i.invoice_number, sName(i.student_id), i.period_label || "",
-      i.due_date, i.total_amount, i.paid_amount,
-      Math.max(Number(i.total_amount) - Number(i.paid_amount), 0), i.status,
-    ]));
-    downloadCsv(`invoices-${format(new Date(), "yyyyMMdd")}.csv`, rows);
-  };
+  const invoiceExportRows = () =>
+    filteredInvoices.map((i) => ({
+      invoice_number: i.invoice_number,
+      student: sName(i.student_id),
+      period: i.period_label || "",
+      due_date: i.due_date,
+      total: i.total_amount,
+      paid: i.paid_amount,
+      outstanding: subtractMoney(i.total_amount, i.paid_amount),
+      status: i.status,
+    }));
 
-  const exportPaymentsCsv = () => {
-    const rows: any[][] = [["Date", "Amount", "Method", "Status"]];
-    filteredPayments.forEach(p => rows.push([
-      format(new Date(p.paid_at), "yyyy-MM-dd HH:mm"), p.amount, p.method, p.status,
-    ]));
-    downloadCsv(`payments-${format(new Date(), "yyyyMMdd")}.csv`, rows);
-  };
+  const paymentExportRows = () =>
+    filteredPayments.map((p) => ({
+      date: format(new Date(p.paid_at), "yyyy-MM-dd HH:mm"),
+      amount: p.amount,
+      method: p.method,
+      status: p.status,
+    }));
 
-  const exportDefaultersCsv = () => {
-    const rows: any[][] = [["Student", "Phone", "Email", "Outstanding", "Invoices", "Oldest Due"]];
-    defaulters.forEach(d => {
+  const defaulterExportRows = () =>
+    defaulters.map((d) => {
       const s = studentsById[d.student_id];
-      rows.push([sName(d.student_id), s?.parent_phone || "", s?.parent_email || "", d.due, d.invoiceCount, d.oldestDue]);
+      return {
+        student: sName(d.student_id),
+        parent_phone: s?.parent_phone || "",
+        parent_email: s?.parent_email || "",
+        outstanding: d.due,
+        invoices: d.invoiceCount,
+        oldest_due: d.oldestDue,
+      };
     });
-    downloadCsv(`defaulters-${format(new Date(), "yyyyMMdd")}.csv`, rows);
-  };
 
-  const printDailyCollection = () => {
-    const today = format(new Date(), "yyyy-MM-dd");
-    const today_pmts = payments.filter(p => p.status === "success" && format(new Date(p.paid_at), "yyyy-MM-dd") === today);
-    const total = today_pmts.reduce((s, p) => s + Number(p.amount), 0);
-    const rows = today_pmts.map(p => `<tr>
-      <td>${format(new Date(p.paid_at), "h:mm a")}</td>
-      <td>${p.method}</td>
-      <td>${p.status}</td>
-      <td class="right">${currency} ${Number(p.amount).toLocaleString()}</td>
-    </tr>`).join("");
-    const body = `
-      <h1>Daily Collection Report</h1>
-      <div class="muted">${format(new Date(), "EEEE, MMMM d, yyyy")}</div>
-      <table>
-        <thead><tr><th>Time</th><th>Method</th><th>Status</th><th class="right">Amount</th></tr></thead>
-        <tbody>${rows || `<tr><td colspan="4" class="muted">No payments today</td></tr>`}</tbody>
-      </table>
-      <div class="totals"><strong>Total collected today:</strong> ${currency} ${total.toLocaleString()} (${today_pmts.length} payments)</div>
-    `;
-    printHtml("Daily Collection", body);
-  };
+  const today = format(new Date(), "yyyy-MM-dd");
+  const todaysCollection = () =>
+    payments
+      .filter((p) => p.status === "success" && format(new Date(p.paid_at), "yyyy-MM-dd") === today)
+      .map((p) => ({ time: format(new Date(p.paid_at), "h:mm a"), method: p.method, status: p.status, amount: p.amount }));
 
   return (
     <div className="space-y-6">
@@ -490,18 +445,59 @@ export function FeesAnalyticsTab({ schoolId, currency, invoices, payments, stude
       <Card>
         <CardHeader className="pb-3"><CardTitle className="text-base">Exports & Reports</CardTitle></CardHeader>
         <CardContent className="flex flex-wrap gap-2">
-          <Button variant="outline" size="sm" onClick={exportInvoicesCsv}>
-            <FileDown className="h-4 w-4 mr-1" /> Invoices CSV
-          </Button>
-          <Button variant="outline" size="sm" onClick={exportPaymentsCsv}>
-            <FileDown className="h-4 w-4 mr-1" /> Payments CSV
-          </Button>
-          <Button variant="outline" size="sm" onClick={exportDefaultersCsv}>
-            <FileDown className="h-4 w-4 mr-1" /> Defaulters CSV
-          </Button>
-          <Button variant="outline" size="sm" onClick={printDailyCollection}>
-            <Printer className="h-4 w-4 mr-1" /> Print Daily Collection
-          </Button>
+          <DataExportMenu
+            title="Fee Invoices"
+            label="Invoices"
+            rows={invoiceExportRows()}
+            columns={[
+              { header: "Invoice #", key: "invoice_number" },
+              { header: "Student", key: "student" },
+              { header: "Period", key: "period" },
+              { header: "Due Date", key: "due_date", type: "date" },
+              { header: "Total", key: "total", type: "money", total: "sum" },
+              { header: "Paid", key: "paid", type: "money", total: "sum" },
+              { header: "Outstanding", key: "outstanding", type: "money", total: "sum" },
+              { header: "Status", key: "status" },
+            ]}
+            orientation="landscape"
+          />
+          <DataExportMenu
+            title="Fee Payments"
+            label="Payments"
+            rows={paymentExportRows()}
+            columns={[
+              { header: "Date", key: "date", type: "datetime" },
+              { header: "Amount", key: "amount", type: "money", total: "sum" },
+              { header: "Method", key: "method" },
+              { header: "Status", key: "status" },
+            ]}
+          />
+          <DataExportMenu
+            title="Fee Defaulters"
+            label="Defaulters"
+            rows={defaulterExportRows()}
+            columns={[
+              { header: "Student", key: "student" },
+              { header: "Parent Phone", key: "parent_phone" },
+              { header: "Parent Email", key: "parent_email" },
+              { header: "Outstanding", key: "outstanding", type: "money", total: "sum" },
+              { header: "Invoices", key: "invoices", type: "integer", total: "sum" },
+              { header: "Oldest Due", key: "oldest_due", type: "date" },
+            ]}
+          />
+          <DataExportMenu
+            title="Daily Collection"
+            subtitle={format(new Date(), "EEEE, d MMMM yyyy")}
+            label="Daily Collection"
+            rows={[]}
+            loadRows={async () => todaysCollection()}
+            columns={[
+              { header: "Time", key: "time" },
+              { header: "Method", key: "method" },
+              { header: "Status", key: "status" },
+              { header: "Amount", key: "amount", type: "money", total: "sum" },
+            ]}
+          />
         </CardContent>
       </Card>
 

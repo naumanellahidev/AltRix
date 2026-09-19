@@ -16,11 +16,16 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import {
-  Plus, AlertTriangle, FileText, Printer, Pencil, Eye, Trash2, Search,
+  Plus, AlertTriangle, FileText, Printer, Pencil, Eye, Trash2, Search, Download, MessageCircle, Loader2,
 } from "lucide-react";
 import { ContractLetterhead } from "@/components/hr/ContractLetterhead";
-import { usePdfExport } from "@/hooks/usePdfExport";
-import { ExportPdfButton } from "@/components/pdf/ExportPdfButton";
+import {
+  type AppointmentLetterInput,
+  downloadAppointmentLetter,
+  printAppointmentLetter,
+  shareAppointmentLetter,
+} from "@/lib/documents/appointment-letter";
+import { describeShare } from "@/lib/documents/deliver";
 
 const today = () => new Date().toISOString().slice(0, 10);
 const daysBetween = (a: string, b: string) =>
@@ -183,8 +188,61 @@ export function HrContractsModule() {
   };
 
   const letterheadRef = useRef<HTMLDivElement>(null);
-  const { printNode } = usePdfExport();
-  const handlePrint = () => printNode(letterheadRef.current);
+  const [producing, setProducing] = useState<null | "print" | "download" | "share">(null);
+
+  const letterInput = (c: any): AppointmentLetterInput => ({
+    contractId: String(c.id),
+    reference: c.reference_number,
+    employeeName: nameOf(c.user_id),
+    employeeEmail: staffById.get(c.user_id)?.email ?? null,
+    contractType: c.contract_type,
+    position: c.position,
+    department: c.department,
+    startDate: c.start_date,
+    endDate: c.end_date,
+    reportingTo: c.reporting_to,
+    workingHours: c.working_hours,
+    probationMonths: c.probation_period_months,
+    noticeDays: c.notice_period_days,
+    salaryAmount: c.salary_amount,
+    salaryCurrency: c.salary_currency,
+    benefits: c.benefits,
+    terms: c.terms,
+    body: c.body,
+    signatoryName: c.signatory_name,
+    signatoryTitle: c.signatory_title,
+    status: c.status,
+    issuedOn: c.created_at,
+  });
+
+  /** Print, download or share the appointment letter as a real PDF. */
+  const produceLetter = async (kind: "print" | "download" | "share", c: any) => {
+    if (!c) return;
+    setProducing(kind);
+    const id = toast.loading("Preparing the appointment letter…");
+    try {
+      const input = letterInput(c);
+      if (kind === "share") {
+        const outcome = await shareAppointmentLetter(input);
+        const { tone, message } = describeShare(outcome);
+        const note = outcome.warnings.length ? ` Note: ${outcome.warnings.join("; ")}` : "";
+        if (tone === "error") toast.error(message + note, { id });
+        else if (tone === "info") toast.info(message + note, { id, duration: 9000 });
+        else toast.success(message + note, { id });
+        return;
+      }
+      const result: { warnings: string[]; fileName?: string } =
+        kind === "print" ? await printAppointmentLetter(input) : await downloadAppointmentLetter(input);
+      const done = kind === "print" ? "Sent to print" : `Downloaded ${result.fileName}`;
+      if (result.warnings.length) toast.warning(`${done}. Note: ${result.warnings.join("; ")}`, { id, duration: 9000 });
+      else if (kind === "print") toast.dismiss(id);
+      else toast.success(done, { id });
+    } catch (e: any) {
+      toast.error(`The letter could not be produced: ${e?.message ?? String(e)}`, { id });
+    } finally {
+      setProducing(null);
+    }
+  };
 
   const t = today();
   const filtered = useMemo(() => {
@@ -373,15 +431,15 @@ export function HrContractsModule() {
                   <Button size="sm" variant="outline" onClick={() => setEditMode(true)}>
                     <Pencil className="h-4 w-4 mr-1" />Edit
                   </Button>
-                  <Button size="sm" variant="outline" onClick={handlePrint}>
-                    <Printer className="h-4 w-4 mr-1" />Print
+                  <Button size="sm" variant="outline" disabled={!!producing} onClick={() => produceLetter("share", viewing)}>
+                    {producing === "share" ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <MessageCircle className="h-4 w-4 mr-1" />}WhatsApp
                   </Button>
-                  <ExportPdfButton
-                    targetRef={letterheadRef}
-                    filename={`contract-${viewing?.reference_number || viewing?.id?.slice(0, 8) || "document"}.pdf`}
-                    label="Download"
-                    size="sm"
-                  />
+                  <Button size="sm" variant="outline" disabled={!!producing} onClick={() => produceLetter("download", viewing)}>
+                    {producing === "download" ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Download className="h-4 w-4 mr-1" />}Download PDF
+                  </Button>
+                  <Button size="sm" variant="outline" disabled={!!producing} onClick={() => produceLetter("print", viewing)}>
+                    {producing === "print" ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Printer className="h-4 w-4 mr-1" />}Print
+                  </Button>
                   <Button size="sm" variant="ghost" className="text-destructive"
                           onClick={() => { if (confirm("Delete this contract?")) remove.mutate(viewing.id); }}>
                     <Trash2 className="h-4 w-4" />

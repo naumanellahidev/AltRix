@@ -1,3 +1,7 @@
+import { DataExportMenu } from "@/components/documents/DataExportMenu";
+import { printReport } from "@/lib/report-export";
+import { describeShare } from "@/lib/documents/deliver";
+import { downloadExpenseVoucher, printExpenseVoucher, shareExpenseVoucher } from "@/lib/documents/expense-voucher";
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { Plus, Trash2, Receipt, Settings as SettingsIcon, Wallet, FileText, Users as UsersIcon, CreditCard, Send, BarChart3, Search, X, Edit2, Eye, Download, Printer, SlidersHorizontal, Filter, RefreshCw } from "lucide-react";
@@ -269,187 +273,82 @@ export default function FeesAdvancedModule() {
     toast.success("Expense deleted");
   };
 
-  const csvEscape = (val: any) => {
-    if (val === null || val === undefined) return '""';
-    let str = String(val);
-    if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
-      str = '"' + str.replace(/"/g, '""') + '"';
+  const expenseRows = () =>
+    filteredExpenses.map((e) => ({
+      date: format(new Date(e.expense_date), "yyyy-MM-dd"),
+      category: e.category,
+      vendor: e.vendor || "",
+      description: e.description,
+      amount: e.amount,
+      payment_method: payMethods.find((pm) => pm.id === e.payment_method_id)?.name || "",
+      reference: e.reference || "",
+    }));
+
+  const expenseColumns = [
+    { header: "Date", key: "date", type: "date" as const },
+    { header: "Category", key: "category" },
+    { header: "Vendor", key: "vendor" },
+    { header: "Description", key: "description" },
+    { header: "Amount", key: "amount", type: "money" as const, total: "sum" as const },
+    { header: "Payment Method", key: "payment_method" },
+    { header: "Reference", key: "reference" },
+  ];
+  const expenseFilters = () => [
+    { label: "Category", value: expCategory !== "__all" ? expCategory : null },
+    { label: "From", value: expFromDate || null },
+    { label: "To", value: expToDate || null },
+    { label: "Search", value: expSearch.trim() || null },
+  ];
+
+  const printExpensesReport = async () => {
+    const id = toast.loading("Preparing the expense register…");
+    try {
+      const { warnings } = await printReport({
+        title: "Expense Register",
+        rows: expenseRows(),
+        columns: expenseColumns,
+        filters: expenseFilters(),
+        orientation: "landscape",
+      });
+      if (warnings.length) toast.warning(`Sent to print. Note: ${warnings.join("; ")}`, { id, duration: 9000 });
+      else toast.dismiss(id);
+    } catch (err: any) {
+      toast.error(`The register could not be printed: ${err?.message ?? String(err)}`, { id });
     }
-    return str;
   };
 
-  const exportExpensesCsv = () => {
-    const headers = ["Date", "Category", "Vendor", "Description", "Amount", "Payment Method", "Reference"];
-    const rows = filteredExpenses.map(e => {
-      const payMethodName = payMethods.find(pm => pm.id === e.payment_method_id)?.name || "—";
-      return [
-        format(new Date(e.expense_date), "yyyy-MM-dd"),
-        e.category,
-        e.vendor || "—",
-        e.description,
-        e.amount,
-        payMethodName,
-        e.reference || "—"
-      ];
-    });
-
-    const csvContent = [
-      headers.map(csvEscape).join(","),
-      ...rows.map(row => row.map(csvEscape).join(","))
-    ].join("\n");
-
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.setAttribute("href", url);
-    link.setAttribute("download", `expenses_report_${format(new Date(), "yyyy_MM_dd")}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-
-  const printExpensesReport = () => {
-    const printWindow = window.open("", "_blank");
-    if (!printWindow) return toast.error("Could not open print window. Please allow popups.");
-
-    const payMethodMap = Object.fromEntries(payMethods.map(pm => [pm.id, pm.name]));
-    const totalFiltered = filteredExpenses.reduce((sum, e) => sum + Number(e.amount), 0);
-
-    const rowsHtml = filteredExpenses.map(e => `
-      <tr>
-        <td style="padding: 8px; border-bottom: 1px solid #ddd;">${format(new Date(e.expense_date), "MMM d, yyyy")}</td>
-        <td style="padding: 8px; border-bottom: 1px solid #ddd; text-transform: capitalize;">${e.category}</td>
-        <td style="padding: 8px; border-bottom: 1px solid #ddd;">${e.vendor || "—"}</td>
-        <td style="padding: 8px; border-bottom: 1px solid #ddd;">${e.description}</td>
-        <td style="padding: 8px; border-bottom: 1px solid #ddd;">${payMethodMap[e.payment_method_id] || "—"}</td>
-        <td style="padding: 8px; border-bottom: 1px solid #ddd;">${e.reference || "—"}</td>
-        <td style="padding: 8px; border-bottom: 1px solid #ddd; text-align: right; font-weight: bold;">${settings.currency} ${Number(e.amount).toLocaleString()}</td>
-      </tr>
-    `).join("");
-
-    printWindow.document.write(`
-      <html>
-        <head>
-          <title>Expenses Report</title>
-          <style>
-            body { font-family: sans-serif; color: #333; margin: 40px; }
-            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-            th { background-color: #f4f4f5; text-align: left; padding: 10px; border-bottom: 2px solid #ddd; }
-            .header { display: flex; justify-content: space-between; border-bottom: 3px solid #0f172a; padding-bottom: 15px; }
-            .summary { margin-top: 30px; text-align: right; font-size: 1.2em; }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <div>
-              <h1 style="margin: 0; font-size: 24px; color: #0f172a;">Expenses Report</h1>
-              <p style="margin: 5px 0 0 0; color: #666;">School Expense Register</p>
-            </div>
-            <div style="text-align: right;">
-              <p style="margin: 0;"><b>Date:</b> ${format(new Date(), "MMM d, yyyy")}</p>
-              <p style="margin: 5px 0 0 0; color: #666;"><b>Records:</b> ${filteredExpenses.length}</p>
-            </div>
-          </div>
-          <table>
-            <thead>
-              <tr>
-                <th>Date</th>
-                <th>Category</th>
-                <th>Vendor</th>
-                <th>Description</th>
-                <th>Payment Method</th>
-                <th>Reference</th>
-                <th style="text-align: right;">Amount</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${rowsHtml}
-            </tbody>
-          </table>
-          <div class="summary">
-            <b>Total Expenditures:</b> <span style="color: #b91c1c; font-weight: bold;">${settings.currency} ${totalFiltered.toLocaleString()}</span>
-          </div>
-          <script>
-            window.onload = function() { window.print(); window.close(); }
-          </script>
-        </body>
-      </html>
-    `);
-    printWindow.document.close();
-  };
-
-  const printSingleExpenseReceipt = (e: any) => {
-    const printWindow = window.open("", "_blank");
-    if (!printWindow) return toast.error("Could not open print window. Please allow popups.");
-
-    const payMethodName = payMethods.find(pm => pm.id === e.payment_method_id)?.name || "—";
-
-    printWindow.document.write(`
-      <html>
-        <head>
-          <title>Expense Voucher #${e.id.slice(0, 8).toUpperCase()}</title>
-          <style>
-            body { font-family: sans-serif; color: #333; margin: 40px; }
-            .container { max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; padding: 30px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
-            .header { border-bottom: 2px solid #0f172a; padding-bottom: 15px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; }
-            .row { display: flex; justify-content: space-between; margin: 12px 0; border-bottom: 1px dashed #e2e8f0; padding-bottom: 8px; }
-            .label { font-weight: 600; color: #475569; }
-            .value { color: #0f172a; }
-            .amount-box { background: #f8fafc; border: 1px solid #cbd5e1; padding: 15px; text-align: center; border-radius: 8px; margin-top: 25px; }
-            .amount { font-size: 1.5em; font-weight: bold; color: #b91c1c; }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <div class="header">
-              <div>
-                <h2 style="margin: 0; color: #0f172a;">EXPENSE VOUCHER</h2>
-                <small style="color: #64748b; font-family: monospace;">ID: ${e.id.toUpperCase()}</small>
-              </div>
-              <div style="text-align: right;">
-                <p style="margin: 0; font-weight: bold;">Receipt Voucher</p>
-              </div>
-            </div>
-            <div class="row">
-              <span class="label">Date:</span>
-              <span class="value">${format(new Date(e.expense_date), "MMMM d, yyyy")}</span>
-            </div>
-            <div class="row">
-              <span class="label">Category:</span>
-              <span class="value" style="text-transform: capitalize;">${e.category}</span>
-            </div>
-            <div class="row">
-              <span class="label">Paid To / Vendor:</span>
-              <span class="value">${e.vendor || "—"}</span>
-            </div>
-            <div class="row">
-              <span class="label">Description:</span>
-              <span class="value">${e.description}</span>
-            </div>
-            <div class="row">
-              <span class="label">Payment Method:</span>
-              <span class="value">${payMethodName}</span>
-            </div>
-            <div class="row">
-              <span class="label">Reference / Slip #:</span>
-              <span class="value">${e.reference || "—"}</span>
-            </div>
-            <div class="amount-box">
-              <div class="label" style="margin-bottom: 5px;">Total Amount Paid</div>
-              <div class="amount">${settings.currency} ${Number(e.amount).toLocaleString()}</div>
-            </div>
-            <div style="margin-top: 40px; display: flex; justify-content: space-between; color: #64748b; font-size: 0.85em;">
-              <div>Prepared By: __________________</div>
-              <div>Authorized By: __________________</div>
-            </div>
-          </div>
-          <script>
-            window.onload = function() { window.print(); window.close(); }
-          </script>
-        </body>
-      </html>
-    `);
-    printWindow.document.close();
+  /** The expense as a payment voucher: print, download or share. */
+  const expenseVoucher = async (e: any, kind: "print" | "download" | "share" = "print") => {
+    const input = {
+      id: String(e.id),
+      date: String(e.expense_date),
+      category: e.category,
+      vendor: e.vendor,
+      description: e.description,
+      paymentMethod: payMethods.find((pm) => pm.id === e.payment_method_id)?.name ?? null,
+      reference: e.reference,
+      amount: e.amount,
+      currency: settings.currency,
+    };
+    const id = toast.loading("Preparing the voucher…");
+    try {
+      if (kind === "share") {
+        const outcome = await shareExpenseVoucher(input);
+        const { tone, message } = describeShare(outcome);
+        if (tone === "error") toast.error(message, { id });
+        else if (tone === "info") toast.info(message, { id, duration: 9000 });
+        else toast.success(message, { id });
+        return;
+      }
+      const result: { warnings: string[]; fileName?: string } =
+        kind === "print" ? await printExpenseVoucher(input) : await downloadExpenseVoucher(input);
+      const done = kind === "print" ? "Sent to print" : `Downloaded ${result.fileName}`;
+      if (result.warnings.length) toast.warning(`${done}. Note: ${result.warnings.join("; ")}`, { id, duration: 9000 });
+      else if (kind === "print") toast.dismiss(id);
+      else toast.success(done, { id });
+    } catch (err: any) {
+      toast.error(`The voucher could not be produced: ${err?.message ?? String(err)}`, { id });
+    }
   };
 
   const filteredExpenses = useMemo(() => {
@@ -1045,7 +944,14 @@ export default function FeesAdvancedModule() {
                     </Badge>
                   )}
                 </Button>
-                <Button variant="outline" size="sm" onClick={exportExpensesCsv} className="rounded-xl h-9 text-xs border-muted-foreground/20"><Download className="h-3.5 w-3.5 mr-1.5" />Export CSV</Button>
+                <DataExportMenu
+                  title="Expense Register"
+                  rows={expenseRows()}
+                  columns={expenseColumns}
+                  filters={expenseFilters()}
+                  orientation="landscape"
+                  disabled={filteredExpenses.length === 0}
+                />
                 <Button variant="outline" size="sm" onClick={printExpensesReport} className="rounded-xl h-9 text-xs border-muted-foreground/20"><Printer className="h-3.5 w-3.5 mr-1.5" />Print Report</Button>
                 <Button onClick={() => {
                   setEditExpenseId(null);
@@ -1354,8 +1260,14 @@ export default function FeesAdvancedModule() {
                 </div>
 
                 <div className="flex items-center gap-2 pt-4 border-t mt-4">
-                  <Button variant="outline" size="sm" className="rounded-xl flex-1 text-xs" onClick={() => printSingleExpenseReceipt(viewExpense)}>
+                  <Button variant="outline" size="sm" className="rounded-xl flex-1 text-xs" onClick={() => expenseVoucher(viewExpense, "print")}>
                     <Printer className="h-3.5 w-3.5 mr-1.5" /> Print Voucher
+                  </Button>
+                  <Button variant="outline" size="icon" className="rounded-xl h-8 w-8" title="Download voucher PDF" onClick={() => expenseVoucher(viewExpense, "download")}>
+                    <Download className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button variant="outline" size="icon" className="rounded-xl h-8 w-8" title="Share voucher on WhatsApp" onClick={() => expenseVoucher(viewExpense, "share")}>
+                    <Send className="h-3.5 w-3.5" />
                   </Button>
                   <Button variant="default" size="sm" className="rounded-xl flex-1 text-xs" onClick={() => setViewOpen(false)}>Close Log</Button>
                 </div>

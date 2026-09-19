@@ -6,7 +6,7 @@ from datetime import datetime, time
 from typing import Optional
 
 from sqlalchemy import (
-    Boolean, Column, DateTime, Float, ForeignKey, Integer, String, Text, Time
+    Boolean, Column, DateTime, Float, ForeignKey, Integer, Numeric, String, Text, Time
 )
 from sqlalchemy.dialects.postgresql import UUID, ARRAY
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -157,9 +157,9 @@ class AcademicAssessment(Base):
     title: Mapped[str] = mapped_column(String, nullable=False)
     assessment_type: Mapped[str] = mapped_column(String, nullable=False, default="exam")
     assessment_date: Mapped[Optional[str]] = mapped_column(String, nullable=True)
-    max_marks: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    passing_marks: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    weightage_percent: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    max_marks: Mapped[Optional[float]] = mapped_column(Numeric(8, 3), nullable=True)
+    passing_marks: Mapped[Optional[float]] = mapped_column(Numeric(8, 3), nullable=True)
+    weightage_percent: Mapped[Optional[float]] = mapped_column(Numeric(8, 3), nullable=True)
     term_label: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     instructions: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     is_published: Mapped[Optional[bool]] = mapped_column(Boolean, default=False, nullable=True)

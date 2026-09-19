@@ -27,7 +27,7 @@ import {
   HelpCircle,
 } from "lucide-react";
 import { api } from "@/lib/api";
-import { exportToCSV } from "@/lib/csv";
+import { DataExportMenu } from "@/components/documents/DataExportMenu";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -523,28 +523,30 @@ export function OwnerFinanceModule({ schoolId, role = "school_owner" }: Props) {
               </SelectContent>
             </Select>
 
-            <Button
-              variant="outline"
-              className="rounded-xl gap-2 bg-background/60 backdrop-blur-md text-xs w-full sm:w-auto justify-center"
-              onClick={() => {
-                const rows = filteredLedger.map((item) => ({
-                  Date: format(new Date(item.date), "yyyy-MM-dd"),
-                  Type: item.type.toUpperCase(),
-                  Party: item.party,
-                  Category: item.category,
-                  Description: item.description,
-                  Reference: item.reference || "",
-                  Amount: item.amount
-                }));
-                if (rows.length) {
-                  exportToCSV(rows, `altrx-ledger-${format(new Date(), "yyyy-MM-dd")}`);
-                }
-              }}
+            <DataExportMenu
+              title="General Ledger"
+              label="Export Ledger"
+              orientation="landscape"
               disabled={filteredLedger.length === 0}
-            >
-              <Download className="h-4 w-4" />
-              <span>Export Ledger</span>
-            </Button>
+              rows={filteredLedger.map((item) => ({
+                Date: format(new Date(item.date), "yyyy-MM-dd"),
+                Type: item.type.toUpperCase(),
+                Party: item.party,
+                Category: item.category,
+                Description: item.description,
+                Reference: item.reference || "",
+                Amount: item.amount,
+              }))}
+              columns={[
+                { header: "Date", key: "Date", type: "date" },
+                { header: "Type", key: "Type" },
+                { header: "Party", key: "Party" },
+                { header: "Category", key: "Category" },
+                { header: "Description", key: "Description" },
+                { header: "Reference", key: "Reference" },
+                { header: "Amount", key: "Amount", type: "money", total: "sum" },
+              ]}
+            />
           </div>
         </div>
       </div>
@@ -940,7 +942,7 @@ export function OwnerFinanceModule({ schoolId, role = "school_owner" }: Props) {
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <Label className="font-semibold text-sm">Estimated Fee Defaulter Rate</Label>
-                    <Badge variant="soft" className="bg-primary/20 text-primary border-primary/20 text-xs font-bold font-mono">
+                    <Badge variant="secondary" className="bg-primary/20 text-primary border-primary/20 text-xs font-bold font-mono">
                       {defaulterSimRate}%
                     </Badge>
                   </div>

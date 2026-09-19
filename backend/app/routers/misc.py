@@ -37,7 +37,7 @@ from app.schemas import (
     MessageResponse,
     EventEnvelope, ActivityTimelineOut, EventStoreOut, EventMonitoringStats,
 )
-from app.utils.pagination import PaginatedResponse
+from app.utils.pagination import ListPageParams, PaginatedResponse
 from app.utils.permissions import expand_roles, STAFF_GOV, FINANCE_GOV, can_moderate_complaints
 
 
@@ -113,14 +113,14 @@ assignments_router = APIRouter(prefix="/assignments", tags=["Assignments"])
 @assignments_router.get("", response_model=List[AssignmentOut])
 async def list_assignments(
     current_user: CurrentUser, db: DbSession,
-    section_id: Optional[UUID] = Query(None),
+    page: ListPageParams, section_id: Optional[UUID] = Query(None),
 ):
     if not current_user.school_id:
         return []
     query = select(Assignment).where(Assignment.school_id == current_user.school_id)
     if section_id:
         query = query.where(Assignment.class_section_id == section_id)
-    result = await db.execute(query.order_by(Assignment.created_at.desc()))
+    result = await db.execute(page.apply(query.order_by(Assignment.created_at.desc())))
     return result.scalars().all()
 
 
@@ -195,14 +195,14 @@ behavior_router = APIRouter(prefix="/behavior", tags=["Behavior"])
 @behavior_router.get("", response_model=List[BehaviorNoteOut])
 async def list_behavior_notes(
     current_user: CurrentUser, db: DbSession,
-    student_id: Optional[UUID] = Query(None),
+    page: ListPageParams, student_id: Optional[UUID] = Query(None),
 ):
     if not current_user.school_id:
         return []
     query = select(BehaviorNote).where(BehaviorNote.school_id == current_user.school_id)
     if student_id:
         query = query.where(BehaviorNote.student_id == student_id)
-    result = await db.execute(query.order_by(BehaviorNote.created_at.desc()))
+    result = await db.execute(page.apply(query.order_by(BehaviorNote.created_at.desc())))
     return result.scalars().all()
 
 
@@ -239,7 +239,7 @@ hr_router = APIRouter(prefix="/hr", tags=["HR"])
 @hr_router.get("/leave-requests", response_model=List[LeaveRequestOut])
 async def list_leave_requests(
     current_user: CurrentUser, db: DbSession,
-    user_id: Optional[UUID] = Query(None),
+    page: ListPageParams, user_id: Optional[UUID] = Query(None),
     status_filter: Optional[str] = Query(None, alias="status"),
 ):
     if not current_user.school_id:
@@ -252,7 +252,7 @@ async def list_leave_requests(
         query = query.where(HrLeaveRequest.user_id == user_id)
     if status_filter:
         query = query.where(HrLeaveRequest.status == status_filter)
-    result = await db.execute(query.order_by(HrLeaveRequest.created_at.desc()))
+    result = await db.execute(page.apply(query.order_by(HrLeaveRequest.created_at.desc())))
     return result.scalars().all()
 
 
@@ -295,7 +295,7 @@ async def review_leave(
 @hr_router.get("/payroll", response_model=List[PayrollOut])
 async def list_payroll(
     current_user: CurrentUser, db: DbSession,
-    month: Optional[str] = Query(None),
+    page: ListPageParams, month: Optional[str] = Query(None),
     year: Optional[int] = Query(None),
 ):
     if not current_user.school_id:
@@ -305,7 +305,7 @@ async def list_payroll(
         query = query.where(HrPayroll.month == month)
     if year:
         query = query.where(HrPayroll.year == year)
-    result = await db.execute(query.order_by(HrPayroll.year.desc(), HrPayroll.month.desc()))
+    result = await db.execute(page.apply(query.order_by(HrPayroll.year.desc(), HrPayroll.month.desc())))
     return result.scalars().all()
 
 
@@ -728,11 +728,8 @@ async def list_audit_logs(
         query = query.where(AuditLog.action == action)
     if user_id:
         query = query.where(AuditLog.user_id == user_id)
-    try:
-        result = await db.execute(query.order_by(AuditLog.created_at.desc()).limit(limit))
-        return result.scalars().all()
-    except Exception:
-        return []
+    result = await db.execute(query.order_by(AuditLog.created_at.desc()).limit(limit))
+    return result.scalars().all()
 
 
 # ─── AI ───────────────────────────────────────────────────────────────────────
@@ -757,11 +754,11 @@ async def verify_ai_access(db: DbSession, school_id: Optional[Union[str, UUID]] 
 
 
 @ai_router.get("/predictions/{student_id}", response_model=List[AiPredictionOut])
-async def get_predictions(student_id: UUID, current_user: CurrentUser, db: DbSession):
+async def get_predictions(student_id: UUID, current_user: CurrentUser, db: DbSession, page: ListPageParams):
     await verify_ai_access(db, current_user.school_id)
     result = await db.execute(
-        select(AiAcademicPrediction).where(AiAcademicPrediction.student_id == student_id)
-        .order_by(AiAcademicPrediction.created_at.desc())
+        page.apply(select(AiAcademicPrediction).where(AiAcademicPrediction.student_id == student_id)
+        .order_by(AiAcademicPrediction.created_at.desc()))
     )
     return result.scalars().all()
 
@@ -781,7 +778,7 @@ async def get_student_ai_profile(student_id: UUID, current_user: CurrentUser, db
 @ai_router.get("/warnings", response_model=List[AiEarlyWarningOut])
 async def list_warnings(
     current_user: CurrentUser, db: DbSession,
-    student_id: Optional[UUID] = Query(None),
+    page: ListPageParams, student_id: Optional[UUID] = Query(None),
     severity: Optional[str] = Query(None),
 ):
     await verify_ai_access(db, current_user.school_id)
@@ -792,7 +789,7 @@ async def list_warnings(
         query = query.where(AiEarlyWarning.student_id == student_id)
     if severity:
         query = query.where(AiEarlyWarning.severity == severity)
-    result = await db.execute(query.order_by(AiEarlyWarning.created_at.desc()))
+    result = await db.execute(page.apply(query.order_by(AiEarlyWarning.created_at.desc())))
     return result.scalars().all()
 
 
@@ -1067,8 +1064,8 @@ async def resolve_effective_school_id(
             except Exception:
                 try:
                     await db.rollback()
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.warning("Optional step failed (%s): %s", "db.rollback", exc, exc_info=True)
 
     # Check user's school memberships as fallback
     if current_user and getattr(current_user, "id", None):
@@ -1083,8 +1080,8 @@ async def resolve_effective_school_id(
         except Exception:
             try:
                 await db.rollback()
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("Optional step failed (%s): %s", "db.rollback", exc, exc_info=True)
 
     return current_user.school_id if getattr(current_user, "school_id", None) else None
 
@@ -1315,7 +1312,7 @@ async def attendance_summary(
             "attendance_rate": round((row[0] or 0) / total * 100, 1),
         }
     except Exception as e:
-        print("Error fetching attendance summary:", e)
+        logger.info("Error fetching attendance summary:", e)
         return {
             "present": 85,
             "absent": 5,
@@ -1382,8 +1379,8 @@ async def get_ai_status(db: DbSession) -> bool:
         logger.warning(f"Error fetching AI status from database: {e}")
         try:
             await db.rollback()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Optional step failed (%s): %s", "db.rollback", exc, exc_info=True)
     return True
 
 async def set_ai_status(db: DbSession, enabled: bool):
@@ -1443,8 +1440,8 @@ async def get_school_ai_status(db: DbSession, school_id: str) -> bool:
         logger.warning(f"Error fetching per-school AI status for {school_id}: {e}")
         try:
             await db.rollback()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Optional step failed (%s): %s", "db.rollback", exc, exc_info=True)
     return True
 
 async def set_school_ai_status(db: DbSession, school_id: str, enabled: bool):
@@ -1462,8 +1459,8 @@ async def set_school_ai_status(db: DbSession, school_id: str, enabled: bool):
         logger.warning(f"ON CONFLICT upsert failed for set_school_ai_status, retrying manual update: {e}")
         try:
             await db.rollback()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Optional step failed (%s): %s", "db.rollback", exc, exc_info=True)
         try:
             res = await db.execute(text("SELECT key FROM public.system_settings WHERE key = :key"), {"key": _school_ai_key(school_id)})
             if res.fetchone():
@@ -1475,8 +1472,8 @@ async def set_school_ai_status(db: DbSession, school_id: str, enabled: bool):
             logger.error(f"Fallback set_school_ai_status failed: {ex2}")
             try:
                 await db.rollback()
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("Optional step failed (%s): %s", "db.rollback", exc, exc_info=True)
 
 
 async def fetch_ai_context(
@@ -1612,8 +1609,8 @@ async def copilot_chat(
             except Exception:
                 try:
                     await db.rollback()
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.warning("Optional step failed (%s): %s", "db.rollback", exc, exc_info=True)
 
     if not effective_school_id and current_user.is_super_admin:
         first_sch = await db.execute(text("SELECT id FROM public.schools ORDER BY created_at ASC LIMIT 1"))
@@ -2130,8 +2127,8 @@ async def get_platform_branding(db: DbSession):
         logger.warning(f"Error fetching platform layout branding: {e}")
         try:
             await db.rollback()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Optional step failed (%s): %s", "db.rollback", exc, exc_info=True)
     return {
         "footer_text": "AltRix Core — The AI-Powered Institute Operating System",
         "footer_url": "https://altrixcore.com"
@@ -2171,8 +2168,8 @@ async def update_platform_branding(
         logger.warning(f"Failed standard upsert for platform_layout_branding, retrying update/insert fallback: {e}")
         try:
             await db.rollback()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Optional step failed (%s): %s", "db.rollback", exc, exc_info=True)
         try:
             res = await db.execute(text("SELECT key FROM public.system_settings WHERE key = 'platform_layout_branding'"))
             if res.fetchone():
@@ -2184,8 +2181,8 @@ async def update_platform_branding(
             logger.error(f"Fallback update_platform_branding failed: {ex2}")
             try:
                 await db.rollback()
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("Optional step failed (%s): %s", "db.rollback", exc, exc_info=True)
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Failed to update layout branding in database: {ex2}"

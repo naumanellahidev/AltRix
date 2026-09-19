@@ -3,7 +3,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { ChildInfo } from "@/hooks/useMyChildren";
 import { PeriodTimetableGrid, type PeriodTimetableEntry } from "@/components/timetable/PeriodTimetableGrid";
 import { Button } from "@/components/ui/button";
-import { Printer, WifiOff, RefreshCw } from "lucide-react";
+import { WifiOff, RefreshCw } from "lucide-react";
+import { TimetableDocumentActions } from "@/components/timetable/TimetableDocumentActions";
 import { useOfflineTimetable, useOfflineTimetablePeriods, useOfflineEnrollments, useOfflineStaffMembers } from "@/hooks/useOfflineData";
 import { OfflineDataBanner } from "@/components/offline/OfflineDataBanner";
 
@@ -122,9 +123,17 @@ const ParentTimetableModule = ({ child, schoolId }: ParentTimetableModuleProps) 
               Refresh
             </Button>
           )}
-          <Button variant="outline" size="sm" onClick={() => window.print()}>
-            <Printer className="mr-2 h-4 w-4" /> Print
-          </Button>
+          <TimetableDocumentActions
+            disabled={gridEntries.length === 0}
+            input={() => ({
+              title: "Class Timetable",
+              subject: [child.first_name, child.last_name].filter(Boolean).join(" ") +
+                (child.class_name ? ` — ${child.class_name}${child.section_name ? ` ${child.section_name}` : ""}` : ""),
+              periods,
+              entries: gridEntries,
+              cellDetail: "teacher",
+            })}
+          />
         </div>
       </div>
 

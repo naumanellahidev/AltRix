@@ -7,23 +7,23 @@ Production-hardened with:
 - Token refresh via request body (secure)
 """
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import List, Any, Dict, Optional
 from uuid import UUID
 
 import httpx
-from fastapi import APIRouter, HTTPException, Request, status
+from fastapi import APIRouter, HTTPException, Query, Request, Response, status
 from sqlalchemy import text
 
 from app.cache import (
     cache,
     cache_key_permissions,
     cache_key_roles,
+    invalidate_user_role_cache,
     TTL_PERMISSIONS,
     TTL_USER_ROLES,
 )
 from pydantic import BaseModel, Field
-from fastapi import APIRouter, HTTPException, Request, Query, status
 from app.config import settings
 from app.dependencies import CurrentUser, DbSession
 from app.schemas import (
@@ -39,6 +39,51 @@ from app.utils.jwt import create_access_token, create_refresh_token, decode_supa
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 logger = logging.getLogger("app.auth")
 
+#: Roles permitted to look up another user's role assignments.
+ROLE_LOOKUP_ROLES = {
+    "super_admin", "school_owner", "principal", "vice_principal",
+    "school_admin", "hr_manager",
+}
+
+
+
+# ─── Refresh token cookie ─────────────────────────────────────────────────────
+#
+# The refresh token is the long-lived credential (30 days), so it is the one
+# worth getting out of reach of script. Stored in localStorage it can be read by
+# any XSS on the origin; as an HttpOnly cookie it cannot be read by JavaScript
+# at all, which breaks the "one XSS equals a permanent account takeover" chain.
+#
+# SameSite=Strict means the browser will not attach it to cross-site requests,
+# which is what protects these endpoints from CSRF. The path confines it to the
+# two endpoints that need it, so it is not sent on every API call.
+REFRESH_COOKIE_NAME = "altrix_refresh"
+REFRESH_COOKIE_PATH = "/api/auth"
+
+
+def _set_refresh_cookie(response: Response, token: str) -> None:
+    response.set_cookie(
+        key=REFRESH_COOKIE_NAME,
+        value=token,
+        max_age=settings.refresh_token_expire_days * 24 * 60 * 60,
+        httponly=True,
+        # Plain http on localhost cannot set a Secure cookie, which would make
+        # local development impossible to sign in to.
+        secure=settings.is_production,
+        samesite="strict",
+        path=REFRESH_COOKIE_PATH,
+    )
+
+
+def _clear_refresh_cookie(response: Response) -> None:
+    response.delete_cookie(
+        key=REFRESH_COOKIE_NAME,
+        path=REFRESH_COOKIE_PATH,
+        httponly=True,
+        secure=settings.is_production,
+        samesite="strict",
+    )
+
 
 @router.post(
     "/login",
@@ -47,7 +92,7 @@ logger = logging.getLogger("app.auth")
     description="Authenticate with email/password via Supabase. Returns JWT access and refresh tokens.",
 )
 @limiter.limit("5/minute")
-async def login(request: Request, body: LoginRequest, db: DbSession):
+async def login(request: Request, response: Response, body: LoginRequest, db: DbSession):
     """
     Login using email/password via Supabase Auth API.
     Rate limited: 5 attempts per minute per IP.
@@ -225,7 +270,11 @@ async def login(request: Request, body: LoginRequest, db: DbSession):
                     if row[0] not in user_roles:
                         user_roles.append(row[0])
             except (ValueError, TypeError):
-                pass
+                # A malformed X-School-Id is the caller's error, not a failure
+                # to read roles: fall through to the school-agnostic lookup
+                # below. A database error is not caught here and still raises.
+                logger.debug("Ignoring malformed X-School-Id header %r during login",
+                             school_id_header)
         
         if not user_roles or user_roles == ["super_admin"]:
             res_any = await db.execute(
@@ -238,9 +287,14 @@ async def login(request: Request, body: LoginRequest, db: DbSession):
     except Exception as roles_err:
         logger.warning(f"Failed to pre-load user roles for login: {roles_err}")
 
+    # The refresh token goes back as an HttpOnly cookie and deliberately NOT in
+    # the body: anything returned here is readable by script on the page, which
+    # is the exposure this change exists to remove.
+    _set_refresh_cookie(response, refresh_token)
+
     return LoginResponse(
         access_token=access_token,
-        refresh_token=refresh_token,
+        refresh_token=None,
         user_id=user_id,
         email=email,
         roles=user_roles,
@@ -253,7 +307,7 @@ async def login(request: Request, body: LoginRequest, db: DbSession):
     summary="User logout",
     description="Invalidates the current Supabase session and logs the event.",
 )
-async def logout(request: Request, current_user: CurrentUser, db: DbSession):
+async def logout(request: Request, response: Response, current_user: CurrentUser, db: DbSession):
     """Logout: invalidate Supabase session + blacklist token + audit log."""
     auth_header = request.headers.get("Authorization", "")
     token = auth_header.replace("Bearer ", "").strip()
@@ -285,24 +339,26 @@ async def logout(request: Request, current_user: CurrentUser, db: DbSession):
 
         await blacklist_token(db, jti, UUID(current_user.id), expires_at)
 
-        # Mark active session as inactive in DB
+        # Close only the session being logged out. Matching on user_id as well
+        # signed the user out of every device, so logging out on a phone wiped
+        # the desktop session record too.
         try:
             token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
             await db.execute(
                 text("""
                     UPDATE active_sessions
                     SET is_active = FALSE, logged_out_at = NOW(), logout_reason = 'logout'
-                    WHERE (token_hash = :token_hash OR user_id = :user_id) AND is_active = TRUE
+                    WHERE token_hash = :token_hash AND is_active = TRUE
                 """),
-                {"token_hash": token_hash, "user_id": current_user.id}
+                {"token_hash": token_hash}
             )
             await db.commit()
         except Exception as e:
             logger.warning(f"Failed to invalidate active session: {e}")
 
-        # Invalidate cached permissions/roles for this user
-        await cache.delete(cache_key_permissions(current_user.id, current_user.school_id or ""))
-        await cache.delete(cache_key_roles(current_user.id))
+        # Drop cached authorization so a role change made while logged in is not
+        # resurrected by the next login reading a stale cache entry.
+        await invalidate_user_role_cache(current_user.id, current_user.school_id)
 
     await log_audit_event(
         db=db,
@@ -314,6 +370,7 @@ async def logout(request: Request, current_user: CurrentUser, db: DbSession):
         request=request,
     )
 
+    _clear_refresh_cookie(response)
     return MessageResponse(message="Logged out successfully")
 
 
@@ -323,43 +380,110 @@ async def logout(request: Request, current_user: CurrentUser, db: DbSession):
     summary="Refresh access token",
     description="Exchange a refresh token for a new access token.",
 )
-async def refresh_token(body: dict, request: Request):
+async def refresh_token(body: dict, request: Request, response: Response, db: DbSession):
     """
     Refresh the access token using a refresh token.
     Accepts JSON body: {"refresh_token": "..."}
+
+    This endpoint is the only way a session outlives the access-token lifetime,
+    so it repeats every revocation check rather than just verifying the
+    signature. Skipping them previously meant logout, password reset and
+    deactivation were all effectively no-ops for 30 days.
     """
-    token = body.get("refresh_token", "")
+    # Prefer the HttpOnly cookie. The request body is still accepted so that
+    # sessions created before the cookie existed can be exchanged once and
+    # migrated across; the response always sets the cookie afterwards.
+    token = request.cookies.get(REFRESH_COOKIE_NAME) or body.get("refresh_token", "")
     if not token:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="refresh_token is required in request body",
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="No refresh token supplied",
         )
 
+    import hashlib
+    from datetime import datetime as _dt, timezone as _tz
     from app.utils.jwt import decode_supabase_token, create_access_token, create_refresh_token
+    from app.utils.security import is_token_blacklisted, tokens_invalidated_before
+
+    invalid = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Invalid or expired refresh token",
+    )
+    # A rejected token will never become valid again, so drop the cookie rather
+    # than letting the browser retry with it forever.
+    _clear_refresh_cookie(response)
+
     try:
         payload = await decode_supabase_token(token)
-        user_id_raw = payload.get("sub")
-        email_raw = payload.get("email")
-        if not user_id_raw or not email_raw:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid or expired refresh token",
-            )
-        user_id_str: str = str(user_id_raw)
-        email_str: str = str(email_raw)
     except Exception:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired refresh token",
-        )
+        raise invalid
 
-    # Generate new local tokens
+    # Only a real refresh token may be exchanged. Without this an access token
+    # could be rolled forward indefinitely, so it would never actually expire.
+    if payload.get("token_type") != "refresh":
+        raise invalid
+
+    user_id_raw = payload.get("sub")
+    email_raw = payload.get("email")
+    if not user_id_raw or not email_raw:
+        raise invalid
+    user_id_str: str = str(user_id_raw)
+    email_str: str = str(email_raw)
+
+    # Revoked at logout?
+    jti = payload.get("jti") or hashlib.sha256(token.encode("utf-8")).hexdigest()
+    if await is_token_blacklisted(db, jti):
+        raise invalid
+
+    # Issued before a password change or a "sign out everywhere"?
+    cutoff = await tokens_invalidated_before(db, user_id_str)
+    if cutoff is not None:
+        issued_at = payload.get("iat")
+        if issued_at is None:
+            raise invalid
+        if cutoff.tzinfo is None:
+            cutoff = cutoff.replace(tzinfo=_tz.utc)
+        if _dt.fromtimestamp(int(issued_at), tz=_tz.utc) < cutoff:
+            raise invalid
+
+    # Does the account still exist? A deleted or disabled user must not be able
+    # to keep minting access tokens from an old refresh token.
+    try:
+        res_user = await db.execute(
+            text("SELECT id, email FROM auth.users WHERE id = :uid LIMIT 1"),
+            {"uid": user_id_str},
+        )
+        row_user = res_user.fetchone()
+        if not row_user:
+            raise invalid
+        email_str = str(row_user.email or email_str)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.warning(f"Refresh user lookup failed for {user_id_str}: {e}")
+        raise invalid
+
+    # Rotate: the presented refresh token is retired so a captured copy cannot
+    # be reused alongside the new one.
+    try:
+        exp = payload.get("exp")
+        expires_at = (
+            _dt.fromtimestamp(int(exp), tz=_tz.utc) if exp
+            else _dt.now(_tz.utc) + timedelta(days=settings.refresh_token_expire_days)
+        )
+        from app.utils.security import blacklist_token
+        await blacklist_token(db, jti, UUID(user_id_str), expires_at)
+        await db.commit()
+    except Exception as e:
+        logger.warning(f"Failed to rotate refresh token for {user_id_str}: {e}")
+
     access_token = create_access_token(user_id=user_id_str, email=email_str)
     new_refresh_token = create_refresh_token(user_id=user_id_str, email=email_str)
-    
+    _set_refresh_cookie(response, new_refresh_token)
+
     return LoginResponse(
         access_token=access_token,
-        refresh_token=new_refresh_token,
+        refresh_token=None,
         user_id=user_id_str,
         email=email_str,
         roles=[],
@@ -382,6 +506,18 @@ async def get_me(current_user: CurrentUser, db: DbSession):
         campus_id=current_user.campus_id,
         is_super_admin=current_user.is_super_admin,
     )
+
+
+def _hash_reset_token(raw_token: str) -> str:
+    """
+    Hash a password reset token for storage.
+
+    SHA-256 without a salt is the right primitive here (unlike for passwords):
+    the token is 48 random bytes, so it has no guessable preimage, and lookup
+    must be a single indexed equality match.
+    """
+    import hashlib
+    return hashlib.sha256(raw_token.strip().encode("utf-8")).hexdigest()
 
 
 class PasswordResetVerifyResponse(BaseModel):
@@ -434,14 +570,16 @@ async def request_password_reset(request: Request, body: dict, db: DbSession):
                 {"uid": user_id}
             )
 
-            # Insert new reset token
+            # Only the hash is stored. The raw token exists solely in the email
+            # we are about to send, so a leaked backup or a stray read of this
+            # table cannot be replayed into account takeovers.
             await db.execute(
                 text("""
                     INSERT INTO public.password_resets (token, user_id, email, status, expires_at, ip_address)
                     VALUES (:token, :uid, :email, 'pending', :expires_at, :ip)
                 """),
                 {
-                    "token": reset_token,
+                    "token": _hash_reset_token(reset_token),
                     "uid": user_id,
                     "email": clean_email,
                     "expires_at": expires_at,
@@ -496,7 +634,7 @@ async def verify_password_reset_token(
 
     res = await db.execute(
         text("SELECT id, user_id, email, status, expires_at FROM public.password_resets WHERE token = :token LIMIT 1"),
-        {"token": token.strip()}
+        {"token": _hash_reset_token(token)}
     )
     row = res.fetchone()
 
@@ -532,7 +670,7 @@ async def confirm_password_reset(
 
     res = await db.execute(
         text("SELECT id, user_id, email, status, expires_at FROM public.password_resets WHERE token = :token LIMIT 1"),
-        {"token": token}
+        {"token": _hash_reset_token(token)}
     )
     row = res.fetchone()
 
@@ -559,6 +697,15 @@ async def confirm_password_reset(
         text("UPDATE public.active_sessions SET is_active = FALSE, logged_out_at = NOW(), logout_reason = 'password_reset' WHERE user_id = :uid"),
         {"uid": user_id}
     )
+
+    # Marking session rows inactive is only bookkeeping — nothing in the request
+    # path reads them. Revoke the tokens themselves, otherwise an attacker who
+    # already holds one keeps access after the victim resets their password,
+    # which is the exact scenario a reset is meant to end.
+    from app.utils.security import invalidate_all_user_tokens
+    await invalidate_all_user_tokens(db, user_id, reason="password_reset")
+    await invalidate_user_role_cache(str(user_id))
+
     await db.commit()
 
     # Dispatch confirmation email
@@ -678,13 +825,11 @@ async def get_permissions(current_user: CurrentUser):
     return result
 
 
-@router.post(
-    "/logout",
-    summary="User logout endpoint",
-)
-async def logout_user():
-    """Handle user logout."""
-    return {"success": True, "message": "Logged out successfully"}
+# NOTE: a second POST /logout handler lived here. It was unreachable (the real
+# logout is registered earlier) and did nothing but answer
+# {"success": true} — no token blacklisting, no session close. Removed so the
+# file does not suggest logout has two implementations.
+
 
 
 @router.get(
@@ -695,9 +840,31 @@ async def logout_user():
 async def get_user_school_roles(
     school_id: UUID,
     user_id: UUID,
+    current_user: CurrentUser,
     db: DbSession,
 ):
-    """Retrieve roles for a specific user and school."""
+    """
+    Retrieve roles for a specific user within a school.
+
+    Not paginated on purpose: the result is one user's roles inside one school.
+    The row count is bounded by how many roles exist, which is a handful.
+
+    Unauthenticated, this let anyone enumerate who holds which role at any
+    institute — a ready-made target list of that school's owners and principals.
+    Callers must belong to the school, and may only look up other people if they
+    administer it.
+    """
+    from app.utils.tenant_guard import require_tenant_access
+    require_tenant_access(school_id, current_user, resource_description="user roles")
+
+    if str(user_id) != str(current_user.id):
+        effective_roles = expand_roles(current_user.roles)
+        if not (current_user.is_super_admin or effective_roles & ROLE_LOOKUP_ROLES):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You may only look up your own roles",
+            )
+
     import uuid
     try:
         sid_obj = uuid.UUID(str(school_id)) if isinstance(school_id, str) else school_id
@@ -737,21 +904,6 @@ async def get_user_profile(user_id: UUID, current_user: CurrentUser, db: DbSessi
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.get("/debug-deploy-log")
-async def debug_deploy_log():
-    import glob
-    import os
-    result_dict: dict[str, Any] = {}
-    try:
-        log_files = glob.glob("/opt/altrix/logs/deployments/deploy_*.log")
-        if log_files:
-            latest_log = max(log_files, key=os.path.getctime)
-            with open(latest_log, "r") as f:
-                lines = f.readlines()
-                result_dict["log_file"] = os.path.basename(latest_log)
-                result_dict["log_lines"] = lines[-100:]
-        else:
-            result_dict["log_lines"] = "No log files found"
-    except Exception as e:
-        result_dict["error"] = str(e)
-    return result_dict
+# NOTE: a /debug-deploy-log endpoint used to live here. It streamed the server's
+# deployment logs to any unauthenticated caller — those logs routinely contain
+# connection strings and environment values. Read deployment logs on the host.

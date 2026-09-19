@@ -1,6 +1,7 @@
 """
 Visitor Management router: pre-registration, gate checks, blacklist validation.
 """
+import logging
 import secrets
 from typing import List, Optional
 from uuid import UUID
@@ -22,6 +23,9 @@ from app.utils.permissions import expand_roles, ACADEMIC_GOV
 
 from pydantic import BaseModel
 from app.models.core import School
+from app.utils.pagination import ListPageParams
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/visitors", tags=["Visitor Management"])
 
@@ -103,12 +107,31 @@ async def public_self_register_visitor(
     await db.flush()
     await db.refresh(pass_record)
 
-    # Simulate multi-channel alerts (SMS, Email, WhatsApp notifications)
-    notifications_sent = {
-        "sms": f"SMS Alert dispatched to {body.phone}. Gate Entry OTP Code: {qr_token}",
-        "whatsapp": f"WhatsApp Message sent to {body.phone} with AltRix Gate Pass details.",
-        "email": f"Email Confirmation sent to {body.email or 'N/A'} for scheduled entry."
-    }
+    # Only what was actually done is reported. This used to claim an SMS, a
+    # WhatsApp message and an email had been sent when none had.
+    notifications_sent = {}
+    if body.email:
+        try:
+            from html import escape
+            from app.tasks.email_tasks import send_email
+
+            send_email.apply_async(
+                kwargs={
+                    "to_email": body.email,
+                    "subject": f"Your visitor pass for {school.name}",
+                    "body_html": (
+                        f"<p>Dear {escape(body.visitor_name)},</p>"
+                        f"<p>Your visit to <b>{escape(school.name)}</b> on {escape(body.scheduled_date)} is registered.</p>"
+                        f"<p>Show this code at the gate: <b style='font-size:20px'>{qr_token}</b></p>"
+                    ),
+                    "body_text": f"Your gate pass code for {school.name} on {body.scheduled_date} is {qr_token}.",
+                    "from_name": school.name,
+                },
+            )
+            notifications_sent["email"] = {"status": "queued", "to": body.email}
+        except Exception as exc:
+            logger.warning("Visitor confirmation email could not be queued: %s", exc)
+            notifications_sent["email"] = {"status": "failed", "to": body.email}
 
     return {
         "pass": VisitorPassOut.model_validate(pass_record).model_dump(),
@@ -181,22 +204,19 @@ async def pre_register_visitor(
 
 
 @router.get("/my-passes", response_model=List[VisitorPassOut])
-async def get_my_passes(current_user: CurrentUser, db: DbSession):
+async def get_my_passes(current_user: CurrentUser, db: DbSession, page: ListPageParams):
     """Parent retrieves their registered visitor passes."""
     if not current_user.school_id:
         return []
-    try:
-        res = await db.execute(
-            select(VisitorPass)
-            .where(
-                VisitorPass.school_id == current_user.school_id,
-                VisitorPass.parent_user_id == current_user.id,
-            )
-            .order_by(VisitorPass.created_at.desc())
+    res = await db.execute(
+        page.apply(select(VisitorPass)
+        .where(
+            VisitorPass.school_id == current_user.school_id,
+            VisitorPass.parent_user_id == current_user.id,
         )
-        return res.scalars().all()
-    except Exception:
-        return []
+        .order_by(VisitorPass.created_at.desc()))
+    )
+    return res.scalars().all()
 
 
 # ─── GATE SCANNING & OPERATOR ACTIONS ─────────────────────────────────────────
@@ -307,22 +327,19 @@ async def checkout_visitor(pass_id: UUID, current_user: CurrentUser, db: DbSessi
 # ─── BLACKLIST MANAGEMENT ─────────────────────────────────────────────────────
 
 @router.get("/blacklist", response_model=List[VisitorBlacklistOut])
-async def list_blacklist(current_user: CurrentUser, db: DbSession):
+async def list_blacklist(current_user: CurrentUser, db: DbSession, page: ListPageParams):
     """List blacklisted visitors."""
     if not current_user.school_id:
         return []
-    try:
-        res = await db.execute(
-            select(VisitorBlacklist)
-            .where(
-                VisitorBlacklist.school_id == current_user.school_id,
-                VisitorBlacklist.is_active == True,
-            )
-            .order_by(VisitorBlacklist.created_at.desc())
+    res = await db.execute(
+        page.apply(select(VisitorBlacklist)
+        .where(
+            VisitorBlacklist.school_id == current_user.school_id,
+            VisitorBlacklist.is_active == True,
         )
-        return res.scalars().all()
-    except Exception:
-        return []
+        .order_by(VisitorBlacklist.created_at.desc()))
+    )
+    return res.scalars().all()
 
 
 @router.post("/blacklist", response_model=VisitorBlacklistOut, status_code=status.HTTP_201_CREATED)

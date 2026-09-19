@@ -17,6 +17,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
+import { DataExportMenu } from "@/components/documents/DataExportMenu";
 
 interface Section {
   id: string;
@@ -963,6 +964,14 @@ Explanation: Paris is the capital and most populous city of France.`}
       <Card className="border-slate-200 shadow-sm bg-white">
         <CardHeader className="pb-3 border-b border-slate-100">
           <CardTitle className="text-lg font-bold text-slate-800">Assignments ({filteredAssignments.length})</CardTitle>
+          <div className="flex justify-end">
+            <DataExportMenu
+              title="Assignments"
+              rows={filteredAssignments.map((a) => ({ Title: a.title, Section: a.section_name, Due: a.due_date ?? "", "Max marks": a.max_marks, Status: a.status }))}
+              disabled={!filteredAssignments.length}
+              size="sm"
+            />
+          </div>
         </CardHeader>
         <CardContent className="pt-4">
           {filteredAssignments.length === 0 ? (
@@ -1303,6 +1312,21 @@ Explanation: Paris is the capital and most populous city of France.`}
                 (Max: {selectedAssignment?.max_marks})
               </span>
             </DialogTitle>
+            <div className="flex justify-end pt-2">
+              <DataExportMenu
+                title="Assignment Results"
+                subtitle={selectedAssignment ? `${selectedAssignment.title} · ${selectedAssignment.section_name}` : undefined}
+                fileNameParts={[selectedAssignment?.section_name, selectedAssignment?.title, "Results"]}
+                rows={results.map((r) => ({
+                  Student: [r.first_name, r.last_name].filter(Boolean).join(" "),
+                  Marks: r.marks_obtained != null ? `${r.marks_obtained} / ${selectedAssignment?.max_marks ?? ""}` : "Not marked",
+                  Grade: r.grade ?? "",
+                  Remarks: r.remarks ?? "",
+                }))}
+                disabled={!results.length}
+                size="sm"
+              />
+            </div>
           </DialogHeader>
           <div className="pt-4">
             {results.length === 0 ? (

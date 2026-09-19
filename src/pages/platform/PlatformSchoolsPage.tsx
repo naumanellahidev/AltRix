@@ -30,6 +30,7 @@ import CampusCreatorCard from "./CampusCreatorCard";
 import { SuperAdminShell } from "@/components/super-admin/SuperAdminShell";
 import PlatformRequestsCard from "./PlatformRequestsCard";
 import { apiClient } from "@/lib/api-client";
+import { DataExportMenu } from "@/components/documents/DataExportMenu";
 
 type SchoolRow = {
   id: string;
@@ -437,6 +438,9 @@ export default function PlatformSchoolsPage() {
                 <CardHeader>
                   <CardTitle className="font-display text-xl text-slate-900">All Schools</CardTitle>
                   <p className="text-xs text-slate-500">Search schools and jump into any tenant workspace.</p>
+                  <div className="flex justify-end">
+                    <DataExportMenu title="Schools" rows={filteredSchools.map((s: any) => ({ School: s.name, Slug: s.slug, Status: s.is_active === false ? "Inactive" : "Active" }))} disabled={!filteredSchools.length} size="sm" />
+                  </div>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
@@ -955,6 +959,15 @@ export default function PlatformSchoolsPage() {
                 <CardHeader>
                   <CardTitle className="font-display text-xl text-slate-900">Audit Logs</CardTitle>
                   <p className="text-xs text-slate-500">Recent activity across the platform.</p>
+                  <div className="flex justify-end">
+                    <DataExportMenu
+                      title="Platform Audit Log"
+                      rows={filteredAudit.map((a: any) => ({ Time: String(a.created_at).replace("T", " ").slice(0, 19), School: schools.find((s: any) => s.id === a.school_id)?.name ?? a.school_id ?? "", Action: a.action, Entity: [a.entity_type, a.entity_id].filter(Boolean).join(" ") }))}
+                      orientation="landscape"
+                      disabled={!filteredAudit.length}
+                      size="sm"
+                    />
+                  </div>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <Select value={auditSchoolId} onValueChange={setAuditSchoolId}>

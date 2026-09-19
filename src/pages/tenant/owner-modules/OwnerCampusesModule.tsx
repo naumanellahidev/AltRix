@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "@/hooks/use-toast";
-import { exportToCSV } from "@/lib/csv";
+import { DataExportMenu } from "@/components/documents/DataExportMenu";
 
 interface Props {
   schoolId: string | null;
@@ -146,9 +146,7 @@ export function OwnerCampusesModule({ schoolId }: Props) {
         staff: k.staff,
       };
     });
-    const fname = `${(school?.slug || "school")}-campuses-${new Date().toISOString().slice(0, 10)}`;
-    exportToCSV(rows, fname);
-    toast({ title: "Exported", description: `${rows.length} campus row(s) downloaded.` });
+    return rows;
   };
 
   const submitRequest = async () => {
@@ -191,9 +189,7 @@ export function OwnerCampusesModule({ schoolId }: Props) {
           </p>
         </div>
         <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-          <Button variant="outline" size="sm" onClick={handleExport} disabled={!campuses.length} className="rounded-xl text-xs justify-center">
-            <Download className="mr-1.5 h-4 w-4" /> Export CSV
-          </Button>
+          <DataExportMenu title="Campuses" rows={[]} loadRows={async () => handleExport() ?? []} disabled={!campuses.length} size="sm" />
           <Button size="sm" onClick={() => setRequestOpen(true)} className="rounded-xl text-xs justify-center">
             <Send className="mr-1.5 h-4 w-4" /> Request new campus/school
           </Button>

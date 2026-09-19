@@ -1,5 +1,6 @@
 import { useCallback } from "react";
-import { toCsv } from "@/lib/csv";
+
+import type { ExportRow } from "@/lib/report-export";
 
 type PeriodRow = {
   id: string;
@@ -18,62 +19,49 @@ type EntryRow = {
   room: string | null;
 };
 
-const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
 function timeLabel(v: string | null) {
   if (!v) return "";
   return String(v).slice(0, 5);
 }
 
+/**
+ * The timetable as export rows, in day and period order.
+ *
+ * The old export sorted after the fact by looking each row back up by day and
+ * subject, which put periods out of order whenever a subject was taught twice
+ * in a day. Entries are ordered first, then mapped.
+ */
 export function useTimetableExport(
   periods: PeriodRow[],
   entries: EntryRow[],
   teacherLabelByUserId: Map<string, string>,
   sectionLabel: string,
 ) {
-  const exportCsv = useCallback(() => {
-    if (entries.length === 0) return;
+  const rows = useCallback((): ExportRow[] => {
+    const periodById = new Map(periods.map((p) => [p.id, p]));
+    // Monday first, as a school week is read; Sunday last.
+    const dayRank = (d: number) => (d === 0 ? 7 : d);
+    return [...entries]
+      .sort(
+        (a, b) =>
+          dayRank(a.day_of_week) - dayRank(b.day_of_week) ||
+          (periodById.get(a.period_id)?.sort_order ?? 0) - (periodById.get(b.period_id)?.sort_order ?? 0),
+      )
+      .map((e) => {
+        const period = periodById.get(e.period_id);
+        return {
+          Day: DAYS[e.day_of_week] ?? String(e.day_of_week),
+          Period: period?.label ?? "",
+          Start: timeLabel(period?.start_time ?? null),
+          End: timeLabel(period?.end_time ?? null),
+          Subject: e.subject_name,
+          Teacher: e.teacher_user_id ? teacherLabelByUserId.get(e.teacher_user_id) ?? "" : "",
+          Room: e.room ?? "",
+        };
+      });
+  }, [periods, entries, teacherLabelByUserId]);
 
-    const rows = entries.map((e) => {
-      const period = periods.find((p) => p.id === e.period_id);
-      const dayName = DAYS[e.day_of_week] ?? e.day_of_week;
-      const teacherLabel = e.teacher_user_id
-        ? teacherLabelByUserId.get(e.teacher_user_id) ?? e.teacher_user_id
-        : "";
-
-      return {
-        Day: dayName,
-        Period: period?.label ?? "",
-        "Start Time": timeLabel(period?.start_time ?? null),
-        "End Time": timeLabel(period?.end_time ?? null),
-        Subject: e.subject_name,
-        Teacher: teacherLabel,
-        Room: e.room ?? "",
-      };
-    });
-
-    // Sort by day, then period sort_order
-    const periodOrder = new Map(periods.map((p) => [p.id, p.sort_order]));
-    rows.sort((a, b) => {
-      const dayA = DAYS.indexOf(a.Day as string);
-      const dayB = DAYS.indexOf(b.Day as string);
-      if (dayA !== dayB) return dayA - dayB;
-      const periodA = entries.find((e) => DAYS[e.day_of_week] === a.Day && e.subject_name === a.Subject);
-      const periodB = entries.find((e) => DAYS[e.day_of_week] === b.Day && e.subject_name === b.Subject);
-      return (periodOrder.get(periodA?.period_id ?? "") ?? 0) - (periodOrder.get(periodB?.period_id ?? "") ?? 0);
-    });
-
-    const csv = toCsv(rows);
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `timetable-${sectionLabel.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  }, [periods, entries, teacherLabelByUserId, sectionLabel]);
-
-  return { exportCsv };
+  return { rows, title: "Class Timetable", subtitle: sectionLabel };
 }

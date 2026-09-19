@@ -47,7 +47,9 @@ import {
 } from "@/components/ui/collapsible";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import type { Json } from "@/integrations/api/types";
+// @/integrations/api/types does not exist - this import broke the module graph.
+// Json is only used as "arbitrary JSON value", so define it locally.
+type Json = string | number | boolean | null | { [k: string]: Json } | Json[];
 
 interface Props {
   schoolId: string;

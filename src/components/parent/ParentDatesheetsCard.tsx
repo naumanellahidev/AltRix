@@ -3,6 +3,7 @@ import { api } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { FileDown, FileText } from "lucide-react";
+import { documentFileName } from "@/lib/documents/format";
 import { toast } from "sonner";
 import { format } from "date-fns";
 
@@ -107,7 +108,7 @@ export default function ParentDatesheetsCard({ schoolId, studentId }: Props) {
                   {` · ${format(new Date(it.generated_at), "MMM d, yyyy")}`}
                 </p>
               </div>
-              <Button size="sm" variant="outline" onClick={() => download(it.file_path, `datesheet-${childName}.pdf`)}>
+              <Button size="sm" variant="outline" onClick={() => download(it.file_path, documentFileName([childName, "Datesheet", it.exams?.name], "pdf"))}>
                 <FileDown className="mr-1 h-4 w-4" />Download
               </Button>
             </div>

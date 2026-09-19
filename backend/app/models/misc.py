@@ -6,7 +6,7 @@ import uuid
 from datetime import date, datetime
 from typing import Any, Optional, List
 
-from sqlalchemy import Boolean, Column, Date, DateTime, Float, ForeignKey, Integer, String, Text, JSON
+from sqlalchemy import Boolean, Column, Date, DateTime, Float, ForeignKey, Integer, String, Text, JSON, Numeric
 from sqlalchemy.dialects.postgresql import UUID, ARRAY
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
@@ -125,7 +125,7 @@ class Assignment(Base):
     title: Mapped[str] = mapped_column(String, nullable=False)
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     due_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
-    max_marks: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    max_marks: Mapped[Optional[float]] = mapped_column(Numeric(8, 3), nullable=True)
     status: Mapped[Optional[str]] = mapped_column(String, nullable=True, default="active")
     attachment_urls = Column(ARRAY(String), nullable=True)
     created_by: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), nullable=True)
@@ -144,10 +144,10 @@ class AssignmentSubmission(Base):
     attachment_urls = Column(ARRAY(String), nullable=True)
     submitted_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     status: Mapped[Optional[str]] = mapped_column(String, nullable=True, default="submitted")
-    marks_obtained: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    marks: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    marks_before_penalty: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    penalty_applied: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    marks_obtained: Mapped[Optional[float]] = mapped_column(Numeric(8, 3), nullable=True)
+    marks: Mapped[Optional[float]] = mapped_column(Numeric(8, 3), nullable=True)
+    marks_before_penalty: Mapped[Optional[float]] = mapped_column(Numeric(8, 3), nullable=True)
+    penalty_applied: Mapped[Optional[float]] = mapped_column(Numeric(8, 3), nullable=True)
     feedback: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     graded_by: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), nullable=True)
     graded_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -183,7 +183,7 @@ class HrLeaveRequest(Base):
     leave_type_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("hr_leave_types.id"), nullable=True)
     start_date: Mapped[str] = mapped_column(String, nullable=False)
     end_date: Mapped[str] = mapped_column(String, nullable=False)
-    days_count: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    days_count: Mapped[Optional[float]] = mapped_column(Numeric(8, 3), nullable=True)
     reason: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(String, nullable=False, default="pending")  # pending, approved, rejected
     reviewed_by: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), nullable=True)
@@ -229,9 +229,9 @@ class HrPayroll(Base):
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     school_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("schools.id"), nullable=False)
     user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
-    base_salary: Mapped[float] = mapped_column(Float, nullable=False)
-    allowances: Mapped[Optional[float]] = mapped_column(Float, nullable=True, default=0)
-    deductions: Mapped[Optional[float]] = mapped_column(Float, nullable=True, default=0)
+    base_salary: Mapped[float] = mapped_column(Numeric(14, 2), nullable=False)
+    allowances: Mapped[Optional[float]] = mapped_column(Numeric(14, 2), nullable=True, default=0)
+    deductions: Mapped[Optional[float]] = mapped_column(Numeric(14, 2), nullable=True, default=0)
     is_active: Mapped[Optional[bool]] = mapped_column(Boolean, default=True, nullable=True)
     effective_from: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     effective_to: Mapped[Optional[date]] = mapped_column(Date, nullable=True)

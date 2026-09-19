@@ -26,21 +26,31 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.dependencies import get_current_user, AuthenticatedUser
-from app.services.email_service import CentralEmailService, interpolate_variables, DEFAULT_BRANDING
+from app.services.email_service import (
+    CentralEmailService,
+    build_branded_html_shell,
+    interpolate_variables,
+    DEFAULT_BRANDING,
+)
 
 router = APIRouter(prefix="/super_admin/email", tags=["Super Admin Email Management"])
 logger = logging.getLogger("app.super_admin.email")
 
 
 # ---------------------------------------------------------------------------
-# Auth Guard: Super Master Admin Only
+# Auth Guard: Platform Super Admin Only
 # ---------------------------------------------------------------------------
-MASTER_ADMIN_EMAILS = {
-    "naumancheema643@gmail.com",
-    "security@altrixcore.com",
-    "admin@altrixcore.com",
-    "ceo@altrixcore.com",
-}
+# These endpoints control the platform's outbound identity: sender addresses,
+# branding and templates used for every tenant's mail. Anyone who passes this
+# guard can send mail that looks like it came from AltRix, so membership is
+# decided solely by the platform_super_admins table.
+#
+# Deliberately NOT accepted here:
+#   - an email allowlist: email is attacker-chosen at signup and unverified,
+#     so matching on it is a sign-up-to-admin backdoor.
+#   - the school_owner role: that is a *tenant* role. Any paying customer
+#     holding it could otherwise rewrite the sender identity used to mail
+#     every other customer.
 
 
 async def _require_super_admin(
@@ -48,10 +58,6 @@ async def _require_super_admin(
     db: AsyncSession = Depends(get_db),
 ) -> AuthenticatedUser:
     if current_user.is_super_admin:
-        return current_user
-
-    user_email = (current_user.email or "").strip().lower()
-    if user_email in MASTER_ADMIN_EMAILS:
         return current_user
 
     try:
@@ -67,19 +73,10 @@ async def _require_super_admin(
         if res.fetchone():
             return current_user
     except Exception as psa_err:
-        logger.debug(f"platform_super_admins check fallback: {psa_err}")
+        # Fail closed: an unreadable membership table must never grant access.
+        logger.warning(f"platform_super_admins lookup failed, denying: {psa_err}")
 
-    try:
-        res_role = await db.execute(
-            text("SELECT role FROM public.user_roles WHERE user_id = :uid AND role IN ('school_owner', 'super_admin') LIMIT 1"),
-            {"uid": uid},
-        )
-        if res_role.fetchone():
-            return current_user
-    except Exception as ur_err:
-        logger.debug(f"user_roles check fallback: {ur_err}")
-
-    raise HTTPException(status_code=403, detail="Super Master Admin access only")
+    raise HTTPException(status_code=403, detail="Platform Super Admin access only")
 
 
 # ---------------------------------------------------------------------------

@@ -5,6 +5,7 @@ from datetime import datetime, date
 from typing import Any, Dict, List, Optional, Union
 from uuid import UUID
 
+from decimal import Decimal
 from pydantic import BaseModel, EmailStr, Field, model_validator, computed_field
 
 
@@ -68,6 +69,31 @@ class SchoolUpdate(BaseModel):
     latitude: Optional[float] = None
     longitude: Optional[float] = None
     altitude: Optional[float] = None
+
+
+class SchoolPublicOut(BaseModel):
+    """
+    Projection for the unauthenticated tenant-resolution endpoints
+    (/schools/by-slug/...), which any visitor can reach before logging in.
+
+    Deliberately omits the commercial and operational fields carried by
+    SchoolOut — owner_user_id, subscription_plan, subscription_status and the
+    GPS coordinates — so that knowing a slug does not reveal who owns an
+    institute, what it pays, or exactly where it is.
+    """
+    id: UUID
+    name: str
+    slug: str
+    logo_url: Optional[str] = None
+    tagline: Optional[str] = None
+    motto: Optional[str] = None
+    address: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    website: Optional[str] = None
+    is_active: Optional[bool] = None
+
+    model_config = {"from_attributes": True}
 
 
 class SchoolOut(BaseModel):
@@ -1002,8 +1028,10 @@ class AuditLogOut(BaseModel):
 class JazzCashPaymentRequest(BaseModel):
     student_id: UUID
     voucher_id: Optional[UUID] = None
-    amount: float
-    mobile_number: str
+    # Omit to pay the voucher's whole outstanding balance, read exactly from
+    # the database. A part payment is given as an exact decimal, never a float.
+    amount: Optional[Decimal] = None
+    mobile_number: str = Field(..., pattern=r"^03[0-9]{9}$")
     description: Optional[str] = None
 
 

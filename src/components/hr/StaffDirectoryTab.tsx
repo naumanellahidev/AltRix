@@ -30,6 +30,7 @@ import {
 import { toast } from "sonner";
 import { BrandedDocument } from "@/components/pdf/BrandedDocument";
 import { ExportPdfButton } from "@/components/pdf/ExportPdfButton";
+import { documentFileName, todayLabel } from "@/lib/documents/format";
 import { EDUVERSE_ROLES, roleLabel } from "@/lib/eduverse-roles";
 
 type Row = {
@@ -531,7 +532,7 @@ export function StaffDirectoryTab() {
           <DialogHeader>
             <DialogTitle className="flex items-center justify-between">
               <span>Staff Directory · Branded Export</span>
-              <ExportPdfButton targetRef={exportRef} filename={`staff-directory-${schoolSlug}.pdf`} />
+              <ExportPdfButton targetRef={exportRef} filename={documentFileName(["Staff Directory", todayLabel()], "pdf")} />
             </DialogTitle>
           </DialogHeader>
           <BrandedDocument
@@ -582,7 +583,7 @@ export function StaffDirectoryTab() {
               {rowExport && (
                 <ExportPdfButton
                   targetRef={rowExportRef}
-                  filename={`staff-${rowExport.full_name.replace(/\s+/g, "-").toLowerCase()}.pdf`}
+                  filename={documentFileName([rowExport.full_name, "Staff Record"], "pdf")}
                 />
               )}
             </DialogTitle>

@@ -1,3 +1,4 @@
+import { DataExportMenu } from "@/components/documents/DataExportMenu";
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { useParams } from "react-router-dom";
 import { useTenant } from "@/hooks/useTenant";
@@ -15,6 +16,8 @@ import {
 } from "recharts";
 import { format, subMonths } from "date-fns";
 import { usePdfExport } from "@/hooks/usePdfExport";
+import { documentFileName } from "@/lib/documents/format";
+import { toast } from "sonner";
 import { BrandedDocument } from "@/components/pdf/BrandedDocument";
 import { useSchoolDocument } from "@/hooks/useSchoolDocument";
 
@@ -103,24 +106,15 @@ export function HrAnalyticsModule() {
 
   useEffect(() => { load(); }, [load]);
 
-  const exportCSV = () => {
-    const rows = [
-      ["Metric", "Value"],
-      ["Headcount", data.headcount],
-      [`New hires (${period}mo)`, data.newHires],
-      [`Exits (${period}mo)`, data.exits],
-      ["Open positions", data.openPositions],
-      ["Pending leaves", data.leavePending],
-      ["Approved leaves", data.leaveApproved],
-      ["Payroll YTD (net)", data.payrollYTD],
-    ];
-    const csv = rows.map(r => r.join(",")).join("\n");
-    const blob = new Blob([csv], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url; a.download = `hr-analytics-${format(new Date(), "yyyy-MM-dd")}.csv`;
-    a.click(); URL.revokeObjectURL(url);
-  };
+  const analyticsRows = () => [
+    { metric: "Headcount", value: data.headcount },
+    { metric: `New hires (last ${period} months)`, value: data.newHires },
+    { metric: `Exits (last ${period} months)`, value: data.exits },
+    { metric: "Open positions", value: data.openPositions },
+    { metric: "Pending leaves", value: data.leavePending },
+    { metric: "Approved leaves", value: data.leaveApproved },
+    { metric: "Payroll year to date (net)", value: data.payrollYTD },
+  ];
 
   if (!schoolId) return <p className="text-sm text-muted-foreground">Loading…</p>;
 
@@ -165,22 +159,44 @@ export function HrAnalyticsModule() {
                 </button>
               ))}
             </div>
-            <Button variant="outline" size="sm" onClick={exportCSV}>
-              <FileSpreadsheet className="h-4 w-4 mr-2" /> CSV
-            </Button>
+            <DataExportMenu
+              title="HR Analytics"
+              subtitle={`Last ${period} months`}
+              label="Data"
+              rows={analyticsRows()}
+              columns={[
+                { header: "Metric", key: "metric" },
+                { header: "Value", key: "value", type: "number" },
+              ]}
+            />
             <Button
               variant="outline"
               size="sm"
-              onClick={() => reportRef.current && printNode(reportRef.current)}
+              onClick={() =>
+                printNode(reportRef.current, { title: "HR Analytics" }).catch((e: any) =>
+                  toast.error(e?.message ? `Print failed: ${e.message}` : "Print failed"),
+                )
+              }
             >
               <Printer className="h-4 w-4 mr-2" /> Print
             </Button>
             <Button
               size="sm"
-              onClick={() =>
-                reportRef.current &&
-                exportNodeToPdf(reportRef.current, { filename: `hr-analytics-${format(new Date(), "yyyy-MM-dd")}` })
-              }
+              onClick={async () => {
+                if (!reportRef.current) return toast.error("The report has not loaded yet");
+                const id = toast.loading("Preparing PDF…");
+                try {
+                  const { pages, warnings } = await exportNodeToPdf(reportRef.current, {
+                    filename: documentFileName(["HR Analytics", format(new Date(), "d MMM yyyy")], "pdf"),
+                    title: "HR Analytics",
+                    onProgress: (step) => toast.loading(step, { id }),
+                  });
+                  if (warnings.length) toast.warning(`Downloaded, but: ${warnings.join("; ")}`, { id, duration: 9000 });
+                  else toast.success(`HR Analytics downloaded · ${pages} page${pages === 1 ? "" : "s"}`, { id });
+                } catch (e: any) {
+                  toast.error(e?.message ? `Could not create the PDF: ${e.message}` : "Could not create the PDF", { id });
+                }
+              }}
             >
               <Download className="h-4 w-4 mr-2" /> PDF
             </Button>

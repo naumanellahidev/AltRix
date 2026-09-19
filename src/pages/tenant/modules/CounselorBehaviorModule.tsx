@@ -34,7 +34,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { exportToCSV } from "@/lib/csv";
+import { DataExportMenu } from "@/components/documents/DataExportMenu";
 
 interface Props { schoolId: string | null }
 
@@ -110,16 +110,15 @@ export function CounselorBehaviorModule({ schoolId }: Props) {
     };
   }, [rows]);
 
-  const handleExport = () => {
-    exportToCSV(filtered.map((r) => ({
+  const handleExport = () =>
+    filtered.map((r) => ({
       student: `${r.students?.first_name ?? ""} ${r.students?.last_name ?? ""}`.trim(),
       type: r.note_type,
       title: r.title,
       content: r.content,
       shared_with_parents: r.is_shared_with_parents ? "yes" : "no",
       created_at: format(new Date(r.created_at), "yyyy-MM-dd HH:mm"),
-    })), `behavior-notes-${format(new Date(), "yyyy-MM-dd")}.csv`);
-  };
+    }));
 
   return (
     <div className="space-y-5">
@@ -136,9 +135,13 @@ export function CounselorBehaviorModule({ schoolId }: Props) {
         <CardHeader className="pb-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <CardTitle className="text-base">School-wide behavior notes</CardTitle>
-            <Button variant="outline" size="sm" onClick={handleExport} disabled={filtered.length === 0}>
-              <Download className="mr-1.5 h-3.5 w-3.5" /> Export CSV
-            </Button>
+            <DataExportMenu
+              title="Behaviour Notes"
+              rows={handleExport()}
+              disabled={filtered.length === 0}
+              orientation="landscape"
+              size="sm"
+            />
           </div>
         </CardHeader>
         <CardContent className="space-y-4">

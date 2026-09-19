@@ -58,6 +58,7 @@ import { useTenant } from "@/hooks/useTenant";
 import { useSession } from "@/hooks/useSession";
 import { useActiveCampus } from "@/hooks/useActiveCampus";
 import { EDUVERSE_ROLES, roleLabel, type EduverseRole } from "@/lib/eduverse-roles";
+import { DataExportMenu } from "@/components/documents/DataExportMenu";
 import { parseCsv, toCsv } from "@/lib/csv";
 import { useSchoolPermissions } from "@/hooks/useSchoolPermissions";
 import { Button } from "@/components/ui/button";
@@ -906,6 +907,23 @@ export function UsersModule() {
                 </div>
               </div>
 
+              <div className="flex justify-end">
+                <DataExportMenu
+                  title="Staff Invitations"
+                  rows={filteredInvitations.map((inv) => ({
+                    Name: inv.displayName ?? "",
+                    Email: inv.email,
+                    Role: roleLabel[inv.role as EduverseRole] ?? inv.role,
+                    Campus: inv.campusName ?? "School-wide",
+                    Status: inv.status,
+                    Sent: inv.createdAt ? String(inv.createdAt).slice(0, 10) : "",
+                    Expires: inv.expiresAt ? String(inv.expiresAt).slice(0, 10) : "",
+                  }))}
+                  orientation="landscape"
+                  disabled={!filteredInvitations.length}
+                  size="sm"
+                />
+              </div>
               {/* Invitations Table */}
               <div className="w-full overflow-x-auto rounded-2xl border bg-surface scrollbar-thin">
                 <div className="min-w-[850px]">
@@ -1065,6 +1083,22 @@ export function UsersModule() {
               </div>
             </div>
           ) : (
+            <div className="space-y-2">
+            <div className="flex justify-end">
+              <DataExportMenu
+                title="Users"
+                rows={filteredUsers.map((r) => ({
+                  Name: r.display_name ?? "",
+                  Email: r.email ?? "",
+                  Phone: r.phone ?? "",
+                  Campus: campusByUser[r.user_id]?.name ?? "School-wide",
+                  Roles: (rolesByUser[r.user_id] ?? []).map((x) => roleLabel[x as EduverseRole] ?? x).join(", "),
+                }))}
+                orientation="landscape"
+                disabled={!filteredUsers.length}
+                size="sm"
+              />
+            </div>
             /* Responsive Table Wrapper for Users Directory */
             <div className="w-full overflow-x-auto rounded-2xl border bg-surface scrollbar-thin">
               <div className="min-w-[800px]">
@@ -1350,6 +1384,7 @@ export function UsersModule() {
                   </TableBody>
                 </Table>
               </div>
+            </div>
             </div>
           )}
         </CardContent>

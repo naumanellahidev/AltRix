@@ -3,7 +3,8 @@ import { useNavigate, useParams } from "react-router-dom";
 import { Edit, Plus, Search, Printer, Check } from "lucide-react";
 
 import { api } from "@/lib/api";
-import { printStudentCards } from "@/lib/id-card-print";
+import { printStudentCards } from "@/lib/id-card-print";
+import { DataExportMenu } from "@/components/documents/DataExportMenu";
 import { useTenant } from "@/hooks/useTenant";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -126,6 +127,27 @@ export function DirectoryModule() {
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
   const selected = rows[selectedIdx] ?? null;
+
+  /** Every match for the current search, not just the page on screen. */
+  const exportAllRows = async () => {
+    const { data, error } = await api.rpc("directory_search", {
+      _school_id: schoolId,
+      _entity: tab,
+      _q: needle || null,
+      _status: statusFilter,
+      _limit: 5000,
+      _offset: 0,
+    });
+    if (error) throw error;
+    return ((data ?? []) as SearchRow[])
+      .filter((r) => !(r.entity === "staff" && /naumancheema643|nauman cheema/i.test(`${r.title ?? ""} ${r.subtitle ?? ""}`)))
+      .map((r) => ({
+        Name: r.title ?? "",
+        Details: r.subtitle ?? "",
+        Status: r.status ?? "",
+        Created: r.created_at ? String(r.created_at).slice(0, 10) : "",
+      }));
+  };
 
   const openCreate = () => {
     setCreateOpen(true);
@@ -355,6 +377,18 @@ export function DirectoryModule() {
                   {search.isFetching ? "Searching…" : total ? `${total.toLocaleString()} results` : "No results"}
                 </p>
                 <div className="flex gap-2">
+                  <DataExportMenu
+                    title={tab === "students" ? "Student Directory" : tab === "staff" ? "Staff Directory" : "Leads"}
+                    subtitle={needle ? `Search: ${needle}` : undefined}
+                    rows={[]}
+                    loadRows={exportAllRows}
+                    filters={[
+                      { label: "Search", value: needle || null },
+                      { label: "Status", value: statusFilter },
+                    ]}
+                    disabled={!schoolId || total === 0}
+                    size="sm"
+                  />
                   <Button variant="soft" size="sm" onClick={openCreate}>
                     <Plus className="mr-2 h-4 w-4" /> Create
                   </Button>
@@ -695,14 +729,10 @@ export function DirectoryModule() {
               className="bg-blue-600 hover:bg-blue-700 text-white w-full flex items-center justify-center gap-1.5"
               onClick={() => {
                 if (createdStudentForCard) {
-                  const schoolLogo = tenant.status === "ready" ? tenant.logoUrl : null;
-                  const schoolName = tenant.status === "ready" ? tenant.name : "Our School";
                   void printStudentCards(
                     api,
                     schoolId!,
                     [createdStudentForCard],
-                    schoolLogo,
-                    schoolName
                   );
                 }
               }}

@@ -1,6 +1,7 @@
 """
 Attendance router: sessions, bulk entry, reports.
 """
+import logging
 from typing import List, Optional
 from uuid import UUID
 
@@ -18,6 +19,7 @@ from app.schemas import (
     MessageResponse,
 )
 from app.utils.permissions import expand_roles, ACADEMIC_GOV
+from app.utils.pagination import ListPageParams
 
 router = APIRouter(prefix="/attendance", tags=["Attendance"])
 
@@ -66,7 +68,7 @@ async def list_sessions(
     current_user: CurrentUser,
     db: DbSession,
     request: Request,
-    section_id: Optional[UUID] = Query(None),
+    page: ListPageParams, section_id: Optional[UUID] = Query(None),
     from_date: Optional[str] = Query(None),
     to_date: Optional[str] = Query(None),
     campus_id: Optional[UUID] = Query(None),
@@ -98,7 +100,7 @@ async def list_sessions(
             query = query.where(AttendanceSession.session_date <= td)
         except ValueError:
             pass
-    result = await db.execute(query.order_by(AttendanceSession.session_date.desc()))
+    result = await db.execute(page.apply(query.order_by(AttendanceSession.session_date.desc())))
     return result.scalars().all()
 
 
@@ -125,14 +127,14 @@ async def create_session(body: AttendanceSessionCreate, current_user: CurrentUse
         # Semantic AI cache invalidation — invalidates AI responses that depended on attendance data
         from app.utils.ai_semantic_cache import semantic_cache as _sc
         await _sc.invalidate_by_deps(db, current_user.school_id, ["attendance"])
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("Optional step failed (%s): %s", "cache.invalidate_pattern", exc, exc_info=True)
     return session
 
 
 @router.get("/sessions/{session_id}/entries", response_model=List[AttendanceEntryOut])
 @cache_response(ttl=120, key_prefix="attendance:session-entries")
-async def get_session_entries(session_id: UUID, current_user: CurrentUser, db: DbSession, request: Request):
+async def get_session_entries(session_id: UUID, current_user: CurrentUser, db: DbSession, request: Request, page: ListPageParams):
     # Fetch session to check school matching (tenant isolation)
     sess_res = await db.execute(select(AttendanceSession).where(AttendanceSession.id == session_id))
     sess = sess_res.scalar_one_or_none()
@@ -146,14 +148,18 @@ async def get_session_entries(session_id: UUID, current_user: CurrentUser, db: D
         if not allowed_student_ids:
             return []
         result = await db.execute(
-            select(AttendanceEntry).where(
-                AttendanceEntry.session_id == session_id,
-                AttendanceEntry.student_id.in_(allowed_student_ids)
+            page.apply(
+                select(AttendanceEntry).where(
+                    AttendanceEntry.session_id == session_id,
+                    AttendanceEntry.student_id.in_(allowed_student_ids)
+                )
             )
         )
     else:
         result = await db.execute(
-            select(AttendanceEntry).where(AttendanceEntry.session_id == session_id)
+            page.apply(
+                select(AttendanceEntry).where(AttendanceEntry.session_id == session_id)
+            )
         )
     return result.scalars().all()
 
@@ -199,8 +205,8 @@ async def bulk_mark_attendance(
         # Semantic AI cache invalidation
         from app.utils.ai_semantic_cache import semantic_cache as _sc
         await _sc.invalidate_by_deps(db, current_user.school_id, ["attendance"])
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("Optional step failed (%s): %s", "cache.invalidate_pattern", exc, exc_info=True)
 
     # Fire Event Bus trigger
     try:
@@ -292,6 +298,8 @@ async def attendance_report(
 
 
 from datetime import datetime, timezone
+
+logger = logging.getLogger(__name__)
 
 # ─── MIGRATED HOOK ENDPOINTS ──────────────────────────────────────────────────
 

@@ -27,6 +27,7 @@ import { useSession } from "@/hooks/useSession";
 import { MASTER_SUPER_ADMIN_EMAIL } from "@/hooks/usePlatformSuperAdmin";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { getAccessToken } from "@/lib/token-store";
 import {
   getRecentEmails,
   getResetCooldownRemaining,
@@ -78,7 +79,7 @@ export default function PlatformAuth() {
   // Session gate: redirect if already logged in as super admin
   useEffect(() => {
     if (loading || isDenied) return;
-    const token = localStorage.getItem("access_token");
+    const token = getAccessToken();
     if (user && token) {
       const emailLower = user.email?.toLowerCase() ?? "";
       if (emailLower !== MASTER_SUPER_ADMIN_EMAIL.toLowerCase()) {

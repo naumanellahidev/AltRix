@@ -1,6 +1,7 @@
 """
 Global search router: High-performance multi-entity search for Students, Staff, Parents, Classes, CRM Leads, Library, Transport, and Assets.
 """
+import logging
 from typing import List, Optional, Dict, Any
 from uuid import UUID
 from fastapi import APIRouter, Query, HTTPException
@@ -8,6 +9,8 @@ from pydantic import BaseModel
 from sqlalchemy import text
 
 from app.dependencies import CurrentUser, DbSession
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/search", tags=["Search"])
 
@@ -43,36 +46,33 @@ async def global_search(
     results: List[SearchResultItem] = []
 
     # 1. Students Search
-    try:
-        stmt = text("""
-            SELECT id, first_name, last_name, roll_number, student_code, phone, parent_name, status
-            FROM students
-            WHERE school_id = :sid AND (
-                first_name ILIKE :term OR
-                last_name ILIKE :term OR
-                roll_number ILIKE :term OR
-                student_code ILIKE :term OR
-                phone ILIKE :term OR
-                registration_number ILIKE :term
-            )
-            ORDER BY first_name ASC
-            LIMIT 8
-        """)
-        res = await db.execute(stmt, {"sid": school_id, "term": term})
-        for row in res.fetchall():
-            s_id, fn, ln, roll, code, ph, p_name, st = row
-            name = f"{fn or ''} {ln or ''}".strip() if (fn or ln) else "Student"
-            sub = f"Roll: {roll or code or 'N/A'} • Parent: {p_name or 'N/A'}"
-            results.append(SearchResultItem(
-                entity="students",
-                id=str(s_id),
-                title=name,
-                subtitle=sub,
-                status=st or "enrolled",
-                metadata={"phone": ph, "parent_name": p_name}
-            ))
-    except Exception:
-        pass
+    stmt = text("""
+        SELECT id, first_name, last_name, roll_number, student_code, phone, parent_name, status
+        FROM students
+        WHERE school_id = :sid AND (
+            first_name ILIKE :term OR
+            last_name ILIKE :term OR
+            roll_number ILIKE :term OR
+            student_code ILIKE :term OR
+            phone ILIKE :term OR
+            registration_number ILIKE :term
+        )
+        ORDER BY first_name ASC
+        LIMIT 8
+    """)
+    res = await db.execute(stmt, {"sid": school_id, "term": term})
+    for row in res.fetchall():
+        s_id, fn, ln, roll, code, ph, p_name, st = row
+        name = f"{fn or ''} {ln or ''}".strip() if (fn or ln) else "Student"
+        sub = f"Roll: {roll or code or 'N/A'} • Parent: {p_name or 'N/A'}"
+        results.append(SearchResultItem(
+            entity="students",
+            id=str(s_id),
+            title=name,
+            subtitle=sub,
+            status=st or "enrolled",
+            metadata={"phone": ph, "parent_name": p_name}
+        ))
 
     # 2. Parents Search (from students table + user_roles)
     try:
@@ -101,8 +101,8 @@ async def global_search(
                 status="active",
                 metadata={"phone": p_phone, "email": p_email, "child": s_name}
             ))
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("Optional step failed (%s): %s", "text", exc, exc_info=True)
 
     # 3. Staff & Faculty Search (Profiles + User Roles + HR Staff Directory)
     try:
@@ -160,141 +160,126 @@ async def global_search(
                     status="active",
                     metadata={"position": pos, "department": dept, "email": email}
                 ))
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("Optional step failed (%s): %s", "text", exc, exc_info=True)
 
     # 4. Academic Classes & Sections Search
-    try:
-        stmt = text("""
-            SELECT id, name, grade_level
-            FROM academic_classes
-            WHERE school_id = :sid AND (
-                name ILIKE :term OR 
-                CAST(grade_level AS TEXT) ILIKE :term
-            )
-            ORDER BY name ASC
-            LIMIT 6
-        """)
-        res = await db.execute(stmt, {"sid": school_id, "term": term})
-        for row in res.fetchall():
-            c_id, name, gr = row
-            sub = f"Grade Level: {gr or 'Academic'}"
-            results.append(SearchResultItem(
-                entity="classes",
-                id=str(c_id),
-                title=f"Class: {name}",
-                subtitle=sub,
-                status="active"
-            ))
-    except Exception:
-        pass
+    stmt = text("""
+        SELECT id, name, grade_level
+        FROM academic_classes
+        WHERE school_id = :sid AND (
+            name ILIKE :term OR 
+            CAST(grade_level AS TEXT) ILIKE :term
+        )
+        ORDER BY name ASC
+        LIMIT 6
+    """)
+    res = await db.execute(stmt, {"sid": school_id, "term": term})
+    for row in res.fetchall():
+        c_id, name, gr = row
+        sub = f"Grade Level: {gr or 'Academic'}"
+        results.append(SearchResultItem(
+            entity="classes",
+            id=str(c_id),
+            title=f"Class: {name}",
+            subtitle=sub,
+            status="active"
+        ))
 
     # 5. CRM Leads Search
-    try:
-        stmt = text("""
-            SELECT id, student_name, parent_name, phone, status
-            FROM crm_leads
-            WHERE school_id = :sid AND (
-                student_name ILIKE :term OR
-                parent_name ILIKE :term OR
-                phone ILIKE :term
-            )
-            ORDER BY created_at DESC
-            LIMIT 6
-        """)
-        res = await db.execute(stmt, {"sid": school_id, "term": term})
-        for row in res.fetchall():
-            l_id, s_name, p_name, ph, st = row
-            name = str(s_name or "Applicant Lead")
-            sub = f"Parent: {p_name or 'N/A'} • {ph or ''}"
-            results.append(SearchResultItem(
-                entity="leads",
-                id=str(l_id),
-                title=name,
-                subtitle=sub,
-                status=st or "new"
-            ))
-    except Exception:
-        pass
+    stmt = text("""
+        SELECT id, student_name, parent_name, phone, status
+        FROM crm_leads
+        WHERE school_id = :sid AND (
+            student_name ILIKE :term OR
+            parent_name ILIKE :term OR
+            phone ILIKE :term
+        )
+        ORDER BY created_at DESC
+        LIMIT 6
+    """)
+    res = await db.execute(stmt, {"sid": school_id, "term": term})
+    for row in res.fetchall():
+        l_id, s_name, p_name, ph, st = row
+        name = str(s_name or "Applicant Lead")
+        sub = f"Parent: {p_name or 'N/A'} • {ph or ''}"
+        results.append(SearchResultItem(
+            entity="leads",
+            id=str(l_id),
+            title=name,
+            subtitle=sub,
+            status=st or "new"
+        ))
 
     # 6. Library Books Search
-    try:
-        stmt = text("""
-            SELECT id, title, author, isbn, barcode, available_copies, total_copies
-            FROM library_books
-            WHERE school_id = :sid AND (
-                title ILIKE :term OR
-                author ILIKE :term OR
-                isbn ILIKE :term OR
-                barcode ILIKE :term
-            )
-            LIMIT 6
-        """)
-        res = await db.execute(stmt, {"sid": school_id, "term": term})
-        for row in res.fetchall():
-            b_id, title, author, isbn, bar, avail, total = row
-            sub = f"by {author or 'Unknown'} • Avail: {avail}/{total} • Barcode: {bar or 'N/A'}"
-            results.append(SearchResultItem(
-                entity="library",
-                id=str(b_id),
-                title=f"Book: {title}",
-                subtitle=sub,
-                status="available" if avail > 0 else "borrowed"
-            ))
-    except Exception:
-        pass
+    stmt = text("""
+        SELECT id, title, author, isbn, barcode, available_copies, total_copies
+        FROM library_books
+        WHERE school_id = :sid AND (
+            title ILIKE :term OR
+            author ILIKE :term OR
+            isbn ILIKE :term OR
+            barcode ILIKE :term
+        )
+        LIMIT 6
+    """)
+    res = await db.execute(stmt, {"sid": school_id, "term": term})
+    for row in res.fetchall():
+        b_id, title, author, isbn, bar, avail, total = row
+        sub = f"by {author or 'Unknown'} • Avail: {avail}/{total} • Barcode: {bar or 'N/A'}"
+        results.append(SearchResultItem(
+            entity="library",
+            id=str(b_id),
+            title=f"Book: {title}",
+            subtitle=sub,
+            status="available" if avail > 0 else "borrowed"
+        ))
 
     # 7. Transport Vehicles Search
-    try:
-        stmt = text("""
-            SELECT id, bus_number, registration_no, driver_name
-            FROM transport_vehicles
-            WHERE school_id = :sid AND (
-                bus_number ILIKE :term OR
-                registration_no ILIKE :term OR
-                driver_name ILIKE :term
-            )
-            LIMIT 4
-        """)
-        res = await db.execute(stmt, {"sid": school_id, "term": term})
-        for row in res.fetchall():
-            v_id, bus_num, reg, driver = row
-            sub = f"Driver: {driver or 'Unassigned'} • Reg: {reg or 'N/A'}"
-            results.append(SearchResultItem(
-                entity="transport",
-                id=str(v_id),
-                title=f"Bus: {bus_num}",
-                subtitle=sub,
-                status="active"
-            ))
-    except Exception:
-        pass
+    stmt = text("""
+        SELECT id, bus_number, registration_no, driver_name
+        FROM transport_vehicles
+        WHERE school_id = :sid AND (
+            bus_number ILIKE :term OR
+            registration_no ILIKE :term OR
+            driver_name ILIKE :term
+        )
+        LIMIT 4
+    """)
+    res = await db.execute(stmt, {"sid": school_id, "term": term})
+    for row in res.fetchall():
+        v_id, bus_num, reg, driver = row
+        sub = f"Driver: {driver or 'Unassigned'} • Reg: {reg or 'N/A'}"
+        results.append(SearchResultItem(
+            entity="transport",
+            id=str(v_id),
+            title=f"Bus: {bus_num}",
+            subtitle=sub,
+            status="active"
+        ))
 
     # 8. Inventory Items Search
-    try:
-        stmt = text("""
-            SELECT id, item_name, category, sku, quantity
-            FROM inventory_items
-            WHERE school_id = :sid AND (
-                item_name ILIKE :term OR
-                category ILIKE :term OR
-                sku ILIKE :term
-            )
-            LIMIT 4
-        """)
-        res = await db.execute(stmt, {"sid": school_id, "term": term})
-        for row in res.fetchall():
-            i_id, item_name, cat, sku, qty = row
-            sub = f"Category: {cat or 'General'} • Qty: {qty or 0} • SKU: {sku or 'N/A'}"
-            results.append(SearchResultItem(
-                entity="inventory",
-                id=str(i_id),
-                title=f"Asset: {item_name}",
-                subtitle=sub,
-                status="in_stock"
-            ))
-    except Exception:
-        pass
+    stmt = text("""
+        SELECT id, item_name, category, sku, quantity
+        FROM inventory_items
+        WHERE school_id = :sid AND (
+            item_name ILIKE :term OR
+            category ILIKE :term OR
+            sku ILIKE :term
+        )
+        LIMIT 4
+    """)
+    res = await db.execute(stmt, {"sid": school_id, "term": term})
+    for row in res.fetchall():
+        i_id, item_name, cat, sku, qty = row
+        sub = f"Category: {cat or 'General'} • Qty: {qty or 0} • SKU: {sku or 'N/A'}"
+        results.append(SearchResultItem(
+            entity="inventory",
+            id=str(i_id),
+            title=f"Asset: {item_name}",
+            subtitle=sub,
+            status="in_stock"
+        ))
 
     return GlobalSearchResponse(
         query=q,

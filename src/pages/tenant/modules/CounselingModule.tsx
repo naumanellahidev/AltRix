@@ -42,7 +42,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 
-import { exportToCSV } from "@/lib/csv";
+import { DataExportMenu } from "@/components/documents/DataExportMenu";
 
 interface Props {
   schoolId: string | null;
@@ -269,7 +269,7 @@ export function CounselingModule({ schoolId }: Props) {
       session_notes: r.session_notes ?? "",
       created_at: r.created_at ?? "",
     }));
-    exportToCSV(rows, `counseling-${new Date().toISOString().slice(0, 10)}`);
+    return rows;
   };
 
   // ---- render ---------------------------------------------------------------
@@ -304,9 +304,13 @@ export function CounselingModule({ schoolId }: Props) {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={exportCSV} disabled={!filtered.length}>
-            <Download className="mr-1.5 h-4 w-4" /> Export
-          </Button>
+          <DataExportMenu
+            title="Counseling Sessions"
+            rows={exportCSV()}
+            disabled={!filtered.length}
+            orientation="landscape"
+            size="sm"
+          />
           <Button size="sm" onClick={() => setCreateOpen(true)}>
             <Plus className="mr-1.5 h-4 w-4" /> New case
           </Button>

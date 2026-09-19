@@ -1,631 +1,604 @@
-import { useEffect, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { apiClient } from "@/lib/api-client";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
 import {
-  FolderOpen,
-  FileText,
   AlertTriangle,
-  PenTool,
-  Plus,
-  Trash2,
-  Download,
-  Printer,
-  ShieldCheck,
+  Ban,
   CheckCircle,
   Clock,
-  User,
-  Users
+  Download,
+  FileText,
+  FolderOpen,
+  Loader2,
+  MessageCircle,
+  PenTool,
+  Plus,
+  Printer,
+  ShieldCheck,
+  Trash2,
+  Upload,
 } from "lucide-react";
 import { toast } from "sonner";
 
-interface SchoolDocument {
-  id: string;
-  owner_type: string;
-  owner_id: string;
-  document_type: string;
-  file_name: string;
-  file_url: string;
-  expiry_date: string | null;
-  created_at: string;
-}
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
+import { api } from "@/lib/api";
+import { apiClient } from "@/lib/api-client";
+import {
+  describeShare,
+  downloadCertificate,
+  printCertificate,
+  shareCertificate,
+  type Signatory,
+} from "@/lib/documents";
 
-interface DocTemplate {
+/**
+ * Document vault and certificates.
+ *
+ * This screen used to call endpoints that did not exist, so nothing on it
+ * worked: the vault's "upload" saved a stock photograph's URL (labelled
+ * "Simulated Scan File URL") as the student's document, and certificates were
+ * printed from a pop-up with "AltRix Academy" across the top and a "digitally
+ * signed" line whether or not anyone had signed. It now stores real files,
+ * issues numbered, verifiable certificates, and prints them through the
+ * document system.
+ */
+
+const VAULT_BUCKET = "student-documents";
+
+const DOCUMENT_CATEGORIES = [
+  "B-Form / Birth Certificate",
+  "Parent CNIC",
+  "Previous School Leaving Certificate",
+  "Medical Record",
+  "Photograph",
+  "Result Card",
+  "Other",
+];
+
+interface VaultDocument {
   id: string;
-  template_name: string;
-  body_content: string;
+  student_id: string;
+  document_name: string;
+  category: string;
+  file_url: string;
+  expires_at: string | null;
+  created_at: string | null;
 }
 
 interface StudentOption {
   id: string;
   name: string;
-  roll_number: string;
+  detail: string;
+}
+
+interface CertificateRow {
+  id: string;
+  student_id: string;
+  student_name: string | null;
+  certificate_type: string;
+  certificate_number: string;
+  issue_date: string | null;
+  remarks: string | null;
+  status: string;
+}
+
+interface CertificateType {
+  type: string;
+  title: string;
+}
+
+function errorText(err: unknown, fallback: string): string {
+  const detail = (err as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail;
+  if (typeof detail === "string") return detail;
+  return err instanceof Error && err.message ? err.message : fallback;
 }
 
 export default function DocManagementModule() {
   const [activeTab, setActiveTab] = useState("vault");
-  const [documents, setDocuments] = useState<SchoolDocument[]>([]);
-  const [expiringDocs, setExpiringDocs] = useState<SchoolDocument[]>([]);
-  const [templates, setTemplates] = useState<DocTemplate[]>([]);
   const [students, setStudents] = useState<StudentOption[]>([]);
-  const [loading, setLoading] = useState(false);
 
-  // Selector states
-  const [selectedOwnerType, setSelectedOwnerType] = useState("student");
-  const [selectedOwnerId, setSelectedOwnerId] = useState("");
-
-  // Upload Modal State
-  const [showUploadDialog, setShowUploadDialog] = useState(false);
-  const [uploadDocType, setUploadDocType] = useState("cnic");
-  const [uploadFileName, setUploadFileName] = useState("");
-  const [uploadFileUrl, setUploadFileUrl] = useState("https://images.unsplash.com/photo-1586075010923-2dd4570fb338?auto=format&fit=crop&w=800&q=80");
+  // Vault
+  const [studentId, setStudentId] = useState("");
+  const [documents, setDocuments] = useState<VaultDocument[]>([]);
+  const [expiring, setExpiring] = useState<VaultDocument[]>([]);
+  const [vaultLoading, setVaultLoading] = useState(false);
+  const [uploadOpen, setUploadOpen] = useState(false);
+  const [uploadName, setUploadName] = useState("");
+  const [uploadCategory, setUploadCategory] = useState(DOCUMENT_CATEGORIES[0]);
   const [uploadExpiry, setUploadExpiry] = useState("");
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
 
-  // Certificate Generator States
-  const [selectedTemplateName, setSelectedTemplateName] = useState("bonafide");
-  const [selectedStudentId, setSelectedStudentId] = useState("");
-  const [renderedHtml, setRenderedHtml] = useState("");
-  const [signatureName, setSignatureName] = useState("");
-  const [signatureTitle, setSignatureTitle] = useState("Principal");
-  const [issuedCert, setIssuedCert] = useState<any | null>(null);
+  // Certificates
+  const [types, setTypes] = useState<CertificateType[]>([]);
+  const [certType, setCertType] = useState("bonafide");
+  const [certStudentId, setCertStudentId] = useState("");
+  const [certRemarks, setCertRemarks] = useState("");
+  const [signatory, setSignatory] = useState<Signatory>({ name: "", title: "Principal" });
+  const [issuing, setIssuing] = useState(false);
+  const [certificates, setCertificates] = useState<CertificateRow[]>([]);
+  const [revoking, setRevoking] = useState<CertificateRow | null>(null);
+  const [revokeReason, setRevokeReason] = useState("");
 
-  const loadDocuments = async () => {
+  const studentName = useMemo(() => new Map(students.map((s) => [s.id, s.name])), [students]);
+
+  const loadStudents = useCallback(async () => {
     try {
-      const res = await apiClient.get("/documents", {
-        params: {
-          owner_type: selectedOwnerType,
-          owner_id: selectedOwnerId || undefined,
-        },
-      });
-      setDocuments(res.data || []);
+      const res = await apiClient.get("/students", { params: { page_size: 200 } });
+      const raw = res?.data;
+      const list = Array.isArray(raw?.data) ? raw.data : Array.isArray(raw?.items) ? raw.items : Array.isArray(raw) ? raw : [];
+      setStudents(
+        list.map((c: any) => ({
+          id: c.id,
+          name: `${c.first_name ?? ""} ${c.last_name ?? ""}`.trim() || c.full_name || "Unnamed student",
+          detail: [c.roll_number ? `Roll ${c.roll_number}` : null, c.registration_number].filter(Boolean).join(" · "),
+        })),
+      );
     } catch (err) {
-      console.error(err);
+      toast.error(`Students could not be loaded: ${errorText(err, "unknown error")}`);
     }
-  };
+  }, []);
 
-  const loadAlerts = async () => {
+  const loadDocuments = useCallback(async (id: string) => {
+    if (!id) return setDocuments([]);
+    setVaultLoading(true);
+    try {
+      const res = await apiClient.get(`/documents/student/${id}`);
+      setDocuments(res.data ?? []);
+    } catch (err) {
+      toast.error(`Documents could not be loaded: ${errorText(err, "unknown error")}`);
+    } finally {
+      setVaultLoading(false);
+    }
+  }, []);
+
+  const loadExpiring = useCallback(async () => {
     try {
       const res = await apiClient.get("/documents/alerts");
-      setExpiringDocs(res.data || []);
+      setExpiring(res.data ?? []);
     } catch (err) {
-      console.error(err);
+      toast.error(`Expiry alerts could not be loaded: ${errorText(err, "unknown error")}`);
     }
-  };
+  }, []);
 
-  const loadTemplates = async () => {
+  const loadCertificates = useCallback(async () => {
     try {
-      const res = await apiClient.get("/documents/templates");
-      setTemplates(res.data || []);
+      const [typesRes, certsRes] = await Promise.all([
+        apiClient.get("/documents/certificates/types"),
+        apiClient.get("/documents/certificates"),
+      ]);
+      setTypes(typesRes.data ?? []);
+      setCertificates(certsRes.data ?? []);
     } catch (err) {
-      console.error(err);
+      toast.error(`Certificates could not be loaded: ${errorText(err, "unknown error")}`);
     }
-  };
-
-  const loadStudents = async () => {
-    try {
-      let res;
-      try {
-        res = await apiClient.get("/students?page_size=200");
-      } catch {
-        res = await apiClient.get("/parents/children").catch(() => ({ data: [] }));
-      }
-      const raw = res?.data;
-      const list = Array.isArray(raw?.data)
-        ? raw.data
-        : Array.isArray(raw?.items)
-        ? raw.items
-        : Array.isArray(raw)
-        ? raw
-        : [];
-      
-      const mapped = list.map((c: any) => ({
-        id: c.id || c.student_id,
-        name: c.full_name || `${c.first_name || ""} ${c.last_name || ""}`.trim() || "Student",
-        roll_number: c.roll_number || c.admission_number || "N/A",
-      }));
-
-      setStudents(mapped);
-      if (mapped.length > 0) {
-        setSelectedOwnerId(mapped[0].id);
-        setSelectedStudentId(mapped[0].id);
-      }
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  useEffect(() => {
-    loadStudents();
-    loadAlerts();
-    loadTemplates();
   }, []);
 
   useEffect(() => {
-    if (selectedOwnerId) {
-      loadDocuments();
-    }
-  }, [selectedOwnerType, selectedOwnerId]);
+    void loadStudents();
+    void loadExpiring();
+    void loadCertificates();
+  }, [loadStudents, loadExpiring, loadCertificates]);
 
-  // Render template preview on variable changes
   useEffect(() => {
-    if (!selectedStudentId || !selectedTemplateName) return;
-    apiClient
-      .post("/documents/templates/render", null, {
-        params: {
-          template_name: selectedTemplateName,
-          student_id: selectedStudentId,
-        },
-      })
-      .then((res) => {
-        setRenderedHtml(res.data.rendered_html);
-      })
-      .catch(console.error);
-  }, [selectedTemplateName, selectedStudentId]);
+    void loadDocuments(studentId);
+  }, [studentId, loadDocuments]);
 
+  // ── Vault ─────────────────────────────────────────────────────────────────
   const handleUpload = async () => {
-    if (!uploadFileName || !selectedOwnerId) {
-      toast.error("Document name and profile selection are required");
-      return;
-    }
+    if (!studentId) return toast.error("Choose the student the document belongs to.");
+    if (!uploadFile) return toast.error("Choose the file to upload.");
+    if (!uploadName.trim()) return toast.error("Give the document a name.");
+    setUploading(true);
+    const id = toast.loading(`Uploading ${uploadFile.name}…`);
     try {
-      await apiClient.post("/documents", {
-        owner_type: selectedOwnerType,
-        owner_id: selectedOwnerId,
-        document_type: uploadDocType,
-        file_name: uploadFileName,
-        file_url: uploadFileUrl,
-        expiry_date: uploadExpiry || null,
+      const safeName = uploadFile.name.replace(/[^\w.-]+/g, "_");
+      const path = `${studentId}/${Date.now()}-${safeName}`;
+      const { data, error } = await api.storage.from(VAULT_BUCKET).upload(path, uploadFile);
+      if (error || !data?.path) throw error ?? new Error("the file was not stored");
+      await apiClient.post("/documents/upload", {
+        student_id: studentId,
+        document_name: uploadName.trim(),
+        category: uploadCategory,
+        file_url: data.path,
+        expires_at: uploadExpiry || null,
       });
-      toast.success("Document added to vault successfully!");
-      setShowUploadDialog(false);
-      setUploadFileName("");
+      toast.success(`${uploadName.trim()} added to the vault`, { id });
+      setUploadOpen(false);
+      setUploadName("");
       setUploadExpiry("");
-      loadDocuments();
-      loadAlerts();
+      setUploadFile(null);
+      void loadDocuments(studentId);
+      void loadExpiring();
     } catch (err) {
-      console.error(err);
-      toast.error("Failed to add document to vault");
+      toast.error(`The document was not added: ${errorText(err, "upload failed")}`, { id });
+    } finally {
+      setUploading(false);
     }
   };
 
-  const handleDelete = async (id: string) => {
+  const openDocument = async (doc: VaultDocument) => {
+    const { data, error } = await api.storage.from(VAULT_BUCKET).createSignedUrl(doc.file_url, 300);
+    if (error || !data?.signedUrl) return toast.error("The file could not be opened.");
+    window.open(data.signedUrl, "_blank", "noopener");
+  };
+
+  const deleteDocument = async (doc: VaultDocument) => {
+    if (!confirm(`Remove "${doc.document_name}" from the vault?`)) return;
     try {
-      await apiClient.delete(`/documents/${id}`);
+      await apiClient.delete(`/documents/${doc.id}`);
       toast.success("Document removed");
-      loadDocuments();
-      loadAlerts();
+      void loadDocuments(studentId);
+      void loadExpiring();
     } catch (err) {
-      console.error(err);
-      toast.error("Could not remove document");
+      toast.error(`The document was not removed: ${errorText(err, "unknown error")}`);
     }
   };
 
-  const handleIssueCertificate = async () => {
-    if (!selectedStudentId || !renderedHtml) return;
+  // ── Certificates ──────────────────────────────────────────────────────────
+  const issueCertificate = async () => {
+    if (!certStudentId) return toast.error("Choose the student the certificate is for.");
+    setIssuing(true);
+    const id = toast.loading("Issuing certificate…");
     try {
-      const res = await apiClient.post("/documents/templates/issue", {
-        student_id: selectedStudentId,
-        template_name: selectedTemplateName,
-        content: renderedHtml,
-        digital_signature_name: signatureName || null,
-        digital_signature_title: signatureTitle || null,
+      const res = await apiClient.post("/documents/certificates/generate", {
+        student_id: certStudentId,
+        certificate_type: certType,
+        remarks: certRemarks.trim() || null,
       });
-      toast.success("Certificate issued and signed digitally!");
-      setIssuedCert(res.data);
+      toast.success(`Issued ${res.data.certificate_number}`, { id });
+      setCertRemarks("");
+      await loadCertificates();
+      await certificateAction(res.data as CertificateRow, "download");
     } catch (err) {
-      console.error(err);
-      toast.error("Failed to issue digital certificate");
+      toast.error(`The certificate was not issued: ${errorText(err, "unknown error")}`, { id });
+    } finally {
+      setIssuing(false);
     }
   };
 
-  const printCertificate = () => {
-    if (!issuedCert) return;
-    const w = window.open("", "_blank", "width=700,height=550");
-    if (!w) return;
-    const html = `
-      <!doctype html>
-      <html>
-      <head>
-        <title>Certificate - ${issuedCert.template_name}</title>
-        <style>
-          body { font-family: 'Outfit', sans-serif; text-align: center; padding: 50px; color: #1e293b; background: #fafaf9; }
-          .border-frame { border: 12px double #1e3a8a; border-radius: 4px; padding: 40px; background: #fff; max-width: 600px; margin: 0 auto; box-shadow: 0 4px 20px rgba(0,0,0,0.05); }
-          h1 { color: #1e3a8a; font-size: 28px; margin: 0 0 20px; text-transform: uppercase; }
-          .content { font-size: 16px; line-height: 1.6; margin: 30px 0; color: #475569; }
-          .signature-box { border-top: 1px solid #cbd5e1; display: inline-block; padding-top: 8px; margin-top: 40px; width: 220px; }
-          .sig-name { font-weight: bold; color: #0f172a; }
-          .sig-title { font-size: 12px; color: #64748b; }
-          @media print { body { background: none; padding: 0; } .border-frame { box-shadow: none; } }
-        </style>
-      </head>
-      <body>
-        <div class="border-frame">
-          <h1>AltRix Academy</h1>
-          <div style="font-size: 12px; text-transform: uppercase; letter-spacing: 2px; color: #64748b; margin-top: -10px;">Official Document</div>
-          <div class="content">${issuedCert.content}</div>
-          
-          <div class="signature-box">
-            <div class="sig-name">${issuedCert.digital_signature_name || "AUTHORIZED SIGNATORY"}</div>
-            <div class="sig-title">${issuedCert.digital_signature_title || "Principal Registrar"}</div>
-            <div style="font-size: 9px; color: #94a3b8; margin-top: 4px;">Digitally Signed: ${format(new Date(issuedCert.signed_at), "PPpp")}</div>
-          </div>
-        </div>
-        <script>setTimeout(() => window.print(), 300)</script>
-      </body>
-      </html>
-    `;
-    w.document.write(html);
-    w.document.close();
+  const certificateAction = async (cert: CertificateRow, kind: "print" | "download" | "share") => {
+    const id = toast.loading("Preparing certificate…");
+    try {
+      if (kind === "share") {
+        const outcome = await shareCertificate(cert.id, signatory);
+        const { tone, message } = describeShare(outcome);
+        if (tone === "error") toast.error(message, { id });
+        else if (tone === "success") toast.success(message, { id });
+        else toast.info(message, { id, duration: 9000 });
+        return;
+      }
+      const result: { warnings: string[]; fileName?: string } =
+        kind === "print" ? await printCertificate(cert.id, signatory) : await downloadCertificate(cert.id, signatory);
+      const done = kind === "print" ? "Sent to print" : `Downloaded ${result.fileName}`;
+      if (result.warnings.length) toast.warning(`${done}, but ${result.warnings.join("; ")}`, { id, duration: 9000 });
+      else if (kind === "print") toast.dismiss(id);
+      else toast.success(done, { id });
+    } catch (err) {
+      toast.error(`The certificate could not be prepared: ${errorText(err, "unknown error")}`, { id });
+    }
   };
+
+  const revokeCertificate = async () => {
+    if (!revoking) return;
+    if (revokeReason.trim().length < 3) return toast.error("Give a reason for revoking it.");
+    try {
+      await apiClient.post(`/documents/certificates/${revoking.id}/revoke`, { reason: revokeReason.trim() });
+      toast.success(`${revoking.certificate_number} revoked — its QR code now verifies as revoked.`);
+      setRevoking(null);
+      setRevokeReason("");
+      void loadCertificates();
+    } catch (err) {
+      toast.error(`Not revoked: ${errorText(err, "unknown error")}`);
+    }
+  };
+
+  const typeTitle = (type: string) => types.find((t) => t.type === type)?.title ?? type;
 
   return (
     <div className="space-y-6 p-4 md:p-6 max-w-6xl mx-auto">
-      {/* Upper header */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-gradient-to-r from-primary/10 via-accent/5 to-transparent p-6 rounded-2xl border border-primary/20 backdrop-blur-md">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-gradient-to-r from-primary/10 via-accent/5 to-transparent p-6 rounded-2xl border border-primary/20">
         <div className="space-y-1.5">
           <div className="flex items-center gap-2">
             <FolderOpen className="h-6 w-6 text-primary" />
-            <h1 className="text-3xl font-display font-bold tracking-tight">DMS Document Board</h1>
+            <h1 className="text-3xl font-display font-bold tracking-tight">Documents &amp; Certificates</h1>
           </div>
-          <p className="text-muted-foreground font-medium">
-            Manage student & staff document vaults, track expiring certifications, and render digitally signed certificates.
+          <p className="text-sm text-muted-foreground">
+            Student document vault, expiry alerts, and numbered certificates that anyone can verify by QR code.
           </p>
         </div>
-        <Button onClick={() => setShowUploadDialog(true)} className="bg-primary text-primary-foreground font-semibold">
-          <Plus className="h-4 w-4 mr-2" /> Upload Document
+        <Button onClick={() => setUploadOpen(true)} className="gap-2" disabled={!studentId}>
+          <Upload className="h-4 w-4" /> Upload document
         </Button>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="bg-muted p-1 rounded-xl">
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList className="rounded-xl">
           <TabsTrigger value="vault" className="gap-2 rounded-lg">
-            <FolderOpen className="h-4 w-4" /> Vaults Folders
+            <FolderOpen className="h-4 w-4" /> Vault
           </TabsTrigger>
           <TabsTrigger value="templates" className="gap-2 rounded-lg">
-            <PenTool className="h-4 w-4" /> Certificate Builder
+            <PenTool className="h-4 w-4" /> Certificates
           </TabsTrigger>
           <TabsTrigger value="alerts" className="gap-2 rounded-lg">
-            <AlertTriangle className="h-4 w-4" /> Expiry Alerts ({expiringDocs.length})
+            <AlertTriangle className="h-4 w-4" /> Expiry alerts
+            {expiring.length > 0 && <Badge variant="destructive" className="ml-1">{expiring.length}</Badge>}
           </TabsTrigger>
         </TabsList>
 
-        {/* Vaults Folders Tab */}
-        <TabsContent value="vault" className="space-y-6">
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-            
-            {/* Filters sidebar */}
-            <Card className="lg:col-span-1 shadow-soft border-border/60">
-              <CardHeader>
-                <CardTitle className="text-base font-bold font-display">Vault Category</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-1.5">
-                  <Label>Profile Type</Label>
-                  <select
-                    value={selectedOwnerType}
-                    onChange={(e) => {
-                      setSelectedOwnerType(e.target.value);
-                      setSelectedOwnerId(""); // reset selection
-                    }}
-                    className="w-full h-10 px-3 border border-input rounded-md text-sm bg-background text-foreground"
-                  >
-                    <option value="student">Student Profile</option>
-                    <option value="staff">Staff/Teacher Profile</option>
-                  </select>
-                </div>
+        {/* ── Vault ─────────────────────────────────────────────────── */}
+        <TabsContent value="vault" className="space-y-4">
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base font-bold font-display">Student</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <select
+                value={studentId}
+                onChange={(e) => setStudentId(e.target.value)}
+                className="w-full md:w-96 h-10 px-3 border rounded-md text-sm bg-background"
+                aria-label="Student"
+              >
+                <option value="">Choose a student…</option>
+                {students.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}{s.detail ? ` — ${s.detail}` : ""}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-2 text-xs text-muted-foreground">Staff documents are kept in HR → Documents.</p>
+            </CardContent>
+          </Card>
 
-                <div className="space-y-1.5">
-                  <Label>Select Profile</Label>
-                  <select
-                    value={selectedOwnerId}
-                    onChange={(e) => setSelectedOwnerId(e.target.value)}
-                    className="w-full h-10 px-3 border border-input rounded-md text-sm bg-background text-foreground"
-                  >
-                    <option value="">— Select Target profile —</option>
-                    {students.map((std) => (
-                      <option key={std.id} value={std.id}>{std.name} (Roll: {std.roll_number})</option>
-                    ))}
-                  </select>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Documents Table */}
-            <Card className="lg:col-span-3 shadow-soft border-border/60">
-              <CardHeader>
-                <CardTitle className="text-base font-bold font-display">Vault Files</CardTitle>
-              </CardHeader>
-              <CardContent className="p-0">
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base font-bold font-display">
+                {studentId ? `Documents — ${studentName.get(studentId) ?? ""}` : "Documents"}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {!studentId ? (
+                <p className="text-sm text-muted-foreground py-6 text-center">Choose a student to see their documents.</p>
+              ) : vaultLoading ? (
+                <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin" /></div>
+              ) : documents.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-6 text-center">No documents in this student's vault yet.</p>
+              ) : (
                 <Table>
-                  <TableHeader className="bg-muted/40">
+                  <TableHeader>
                     <TableRow>
-                      <TableHead className="font-semibold pl-6">Document Name</TableHead>
-                      <TableHead className="font-semibold">Type</TableHead>
-                      <TableHead className="font-semibold">Expiry Alert</TableHead>
-                      <TableHead className="font-semibold text-right pr-6">Actions</TableHead>
+                      <TableHead>Document</TableHead>
+                      <TableHead>Category</TableHead>
+                      <TableHead>Added</TableHead>
+                      <TableHead>Expires</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {documents.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={4} className="text-center py-12 text-muted-foreground text-sm">
-                          No document scans uploaded for this profile folder.
+                    {documents.map((d) => (
+                      <TableRow key={d.id}>
+                        <TableCell className="font-medium">{d.document_name}</TableCell>
+                        <TableCell>{d.category}</TableCell>
+                        <TableCell>{d.created_at ? format(new Date(d.created_at), "d MMM yyyy") : "—"}</TableCell>
+                        <TableCell>{d.expires_at ? format(new Date(d.expires_at), "d MMM yyyy") : "—"}</TableCell>
+                        <TableCell className="text-right space-x-1">
+                          <Button size="sm" variant="outline" onClick={() => openDocument(d)} className="gap-1">
+                            <FileText className="h-3.5 w-3.5" /> Open
+                          </Button>
+                          <Button size="icon" variant="ghost" onClick={() => deleteDocument(d)} aria-label={`Remove ${d.document_name}`}>
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
                         </TableCell>
                       </TableRow>
-                    ) : (
-                      documents.map((doc) => (
-                        <TableRow key={doc.id} className="hover:bg-muted/30">
-                          <TableCell className="font-bold text-foreground pl-6">
-                            <div className="flex items-center gap-2">
-                              <FileText className="h-4 w-4 text-primary shrink-0" />
-                              <span>{doc.file_name}</span>
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-xs uppercase font-medium">{doc.document_type}</TableCell>
-                          <TableCell className="text-xs">
-                            {doc.expiry_date ? (
-                              <Badge variant="outline" className="border-amber-500/30 text-amber-600 font-semibold">
-                                Expires: {format(new Date(doc.expiry_date), "PP")}
-                              </Badge>
-                            ) : (
-                              <span className="text-muted-foreground">Lifetime</span>
-                            )}
-                          </TableCell>
-                          <TableCell className="text-right pr-6 space-x-1">
-                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => window.open(doc.file_url, "_blank")}>
-                              <Download className="h-4 w-4" />
-                            </Button>
-                            <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-destructive/10" onClick={() => handleDelete(doc.id)}>
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    )}
+                    ))}
                   </TableBody>
                 </Table>
-              </CardContent>
-            </Card>
-          </div>
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
 
-        {/* Certificate templates Tab */}
-        <TabsContent value="templates" className="space-y-6">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            
-            {/* Editor fields card */}
-            <Card className="lg:col-span-1 shadow-soft border-border/60">
-              <CardHeader>
-                <CardTitle className="text-base font-bold font-display">Render Certificate</CardTitle>
+        {/* ── Certificates ──────────────────────────────────────────── */}
+        <TabsContent value="templates" className="space-y-4">
+          <div className="grid gap-4 lg:grid-cols-5">
+            <Card className="lg:col-span-2">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base font-bold font-display">Issue a certificate</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-3">
                 <div className="space-y-1.5">
-                  <Label>Certificate Template</Label>
-                  <select
-                    value={selectedTemplateName}
-                    onChange={(e) => setSelectedTemplateName(e.target.value)}
-                    className="w-full h-10 px-3 border border-input rounded-md text-sm bg-background text-foreground"
-                  >
-                    <option value="bonafide">Bonafide Certificate</option>
-                    <option value="transfer_certificate">Transfer Certificate</option>
-                    <option value="character_certificate">Character Certificate</option>
-                    <option value="noc">No Objection Certificate (NOC)</option>
-                  </select>
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label>Target Student</Label>
-                  <select
-                    value={selectedStudentId}
-                    onChange={(e) => setSelectedStudentId(e.target.value)}
-                    className="w-full h-10 px-3 border border-input rounded-md text-sm bg-background text-foreground"
-                  >
-                    {students.map((std) => (
-                      <option key={std.id} value={std.id}>{std.name}</option>
+                  <Label>Certificate</Label>
+                  <select value={certType} onChange={(e) => setCertType(e.target.value)} className="w-full h-10 px-3 border rounded-md text-sm bg-background">
+                    {(types.length ? types : [{ type: "bonafide", title: "Bonafide Certificate" }]).map((t) => (
+                      <option key={t.type} value={t.type}>{t.title}</option>
                     ))}
                   </select>
                 </div>
-
-                <div className="space-y-1.5 border-t pt-4">
-                  <Label>Digital Signatory Name</Label>
-                  <Input
-                    placeholder="e.g. Dr. Haris Ali"
-                    value={signatureName}
-                    onChange={(e) => setSignatureName(e.target.value)}
-                  />
-                </div>
-
                 <div className="space-y-1.5">
-                  <Label>Signatory Title</Label>
-                  <Input
-                    placeholder="e.g. Principal Registrar"
-                    value={signatureTitle}
-                    onChange={(e) => setSignatureTitle(e.target.value)}
+                  <Label>Student</Label>
+                  <select value={certStudentId} onChange={(e) => setCertStudentId(e.target.value)} className="w-full h-10 px-3 border rounded-md text-sm bg-background">
+                    <option value="">Choose a student…</option>
+                    {students.map((s) => (
+                      <option key={s.id} value={s.id}>{s.name}{s.detail ? ` — ${s.detail}` : ""}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Remarks / purpose (printed on the certificate)</Label>
+                  <Textarea
+                    value={certRemarks}
+                    onChange={(e) => setCertRemarks(e.target.value)}
+                    placeholder={certType === "transfer_certificate" ? "e.g. All dues cleared. Leaving on transfer of parent's employment." : "e.g. for the purpose of opening a bank account"}
+                    rows={3}
                   />
                 </div>
-
-                <Button onClick={handleIssueCertificate} className="w-full bg-primary text-primary-foreground font-semibold">
-                  <ShieldCheck className="h-4 w-4 mr-2" /> Issue Signed Certificate
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1.5">
+                    <Label>Signed by (name)</Label>
+                    <Input value={signatory.name ?? ""} onChange={(e) => setSignatory((s) => ({ ...s, name: e.target.value }))} placeholder="Optional" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Title</Label>
+                    <Input value={signatory.title ?? ""} onChange={(e) => setSignatory((s) => ({ ...s, title: e.target.value }))} />
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Each certificate gets the next number in the school's sequence and a QR code that verifies it. It is printed
+                  with a signature line for a pen signature and the school seal.
+                </p>
+                <Button onClick={issueCertificate} disabled={issuing || !certStudentId} className="w-full gap-2">
+                  {issuing ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
+                  Issue and download
                 </Button>
               </CardContent>
             </Card>
 
-            {/* Rendering Live preview frame */}
-            <div className="lg:col-span-2 space-y-6">
-              <Card className="shadow-soft border-border/60">
-                <CardHeader className="border-b">
-                  <CardTitle className="text-base font-bold font-display">Certificate Preview</CardTitle>
-                </CardHeader>
-                <CardContent className="pt-6">
-                  {renderedHtml ? (
-                    <div className="space-y-6">
-                      {/* Document frame display */}
-                      <div className="border-8 double border-primary/40 rounded p-6 bg-muted/20 min-h-[160px] text-center text-foreground space-y-4">
-                        <h4 className="text-xl font-bold font-display text-primary">ALTRIX ACADEMY</h4>
-                        <div dangerouslySetInnerHTML={{ __html: renderedHtml }} className="text-sm leading-relaxed text-muted-foreground px-4" />
-                      </div>
-                      
-                      {issuedCert && (
-                        <div className="flex gap-3 justify-end border-t pt-4">
-                          <Button onClick={printCertificate} className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold gap-1.5">
-                            <Printer className="h-4 w-4" /> Print Document Certificate
-                          </Button>
-                          <Button onClick={() => setIssuedCert(null)} variant="outline">
-                            Clear
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="text-center py-12 text-muted-foreground text-sm">
-                      Select variables to load preview.
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </div>
+            <Card className="lg:col-span-3">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base font-bold font-display">Issued certificates</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {certificates.length === 0 ? (
+                  <p className="text-sm text-muted-foreground py-6 text-center">No certificates have been issued yet.</p>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Number</TableHead>
+                        <TableHead>Student</TableHead>
+                        <TableHead>Type</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {certificates.map((c) => (
+                        <TableRow key={c.id}>
+                          <TableCell className="font-mono text-xs">{c.certificate_number}</TableCell>
+                          <TableCell>{c.student_name ?? studentName.get(c.student_id) ?? "—"}</TableCell>
+                          <TableCell className="text-xs">{typeTitle(c.certificate_type)}</TableCell>
+                          <TableCell>
+                            {c.status === "valid" ? (
+                              <Badge variant="secondary" className="gap-1"><CheckCircle className="h-3 w-3 text-emerald-600" /> Valid</Badge>
+                            ) : (
+                              <Badge variant="destructive" className="gap-1"><Ban className="h-3 w-3" /> {c.status}</Badge>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right whitespace-nowrap">
+                            <Button size="icon" variant="ghost" onClick={() => certificateAction(c, "print")} aria-label="Print"><Printer className="h-4 w-4" /></Button>
+                            <Button size="icon" variant="ghost" onClick={() => certificateAction(c, "download")} aria-label="Download PDF"><Download className="h-4 w-4" /></Button>
+                            <Button size="icon" variant="ghost" onClick={() => certificateAction(c, "share")} aria-label="Share on WhatsApp"><MessageCircle className="h-4 w-4 text-green-600" /></Button>
+                            {c.status === "valid" && (
+                              <Button size="icon" variant="ghost" onClick={() => setRevoking(c)} aria-label="Revoke"><Ban className="h-4 w-4 text-destructive" /></Button>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </CardContent>
+            </Card>
           </div>
         </TabsContent>
 
-        {/* Expiry alerts list Tab */}
-        <TabsContent value="alerts" className="space-y-4">
-          <Card className="shadow-soft border-border/60">
-            <CardHeader>
+        {/* ── Alerts ────────────────────────────────────────────────── */}
+        <TabsContent value="alerts">
+          <Card>
+            <CardHeader className="pb-3">
               <CardTitle className="text-base font-bold font-display text-destructive flex items-center gap-2">
-                <AlertTriangle className="h-5 w-5" /> Impending Expiration Alerts (CNICs/Contracts)
+                <Clock className="h-4 w-4" /> Documents expiring within 30 days
               </CardTitle>
             </CardHeader>
-            <CardContent className="p-0">
-              <Table>
-                <TableHeader className="bg-muted/40">
-                  <TableRow>
-                    <TableHead className="font-semibold pl-6">Owner Type</TableHead>
-                    <TableHead className="font-semibold">Document Name</TableHead>
-                    <TableHead className="font-semibold">Expiry Date</TableHead>
-                    <TableHead className="font-semibold text-right pr-6">Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {expiringDocs.length === 0 ? (
+            <CardContent>
+              {expiring.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-6 text-center">Nothing is due to expire in the next 30 days.</p>
+              ) : (
+                <Table>
+                  <TableHeader>
                     <TableRow>
-                      <TableCell colSpan={4} className="text-center py-8 text-muted-foreground text-sm">
-                        No documents are expiring within the next 30 days. Active alerts are clear.
-                      </TableCell>
+                      <TableHead>Student</TableHead>
+                      <TableHead>Document</TableHead>
+                      <TableHead>Expires</TableHead>
                     </TableRow>
-                  ) : (
-                    expiringDocs.map((doc) => (
-                      <TableRow key={doc.id} className="hover:bg-muted/30">
-                        <TableCell className="pl-6 font-bold text-foreground capitalize">
-                          {doc.owner_type} folder
-                        </TableCell>
-                        <TableCell className="font-medium text-muted-foreground">{doc.file_name}</TableCell>
-                        <TableCell className="text-xs font-semibold text-destructive">
-                          {format(new Date(doc.expiry_date!), "PP")}
-                        </TableCell>
-                        <TableCell className="text-right pr-6">
-                          <Badge variant="destructive" className="font-semibold text-white animate-pulse">
-                            EXPIRING SOON
-                          </Badge>
-                        </TableCell>
+                  </TableHeader>
+                  <TableBody>
+                    {expiring.map((d) => (
+                      <TableRow key={d.id}>
+                        <TableCell>{studentName.get(d.student_id) ?? "—"}</TableCell>
+                        <TableCell>{d.document_name}</TableCell>
+                        <TableCell className="text-destructive font-medium">{d.expires_at ? format(new Date(d.expires_at), "d MMM yyyy") : "—"}</TableCell>
                       </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
       </Tabs>
 
-      {/* Upload Document Dialog */}
-      <Dialog open={showUploadDialog} onOpenChange={setShowUploadDialog}>
-        <DialogContent className="max-w-md">
+      {/* Upload dialog */}
+      <Dialog open={uploadOpen} onOpenChange={setUploadOpen}>
+        <DialogContent>
           <DialogHeader>
-            <DialogTitle className="font-display text-xl font-bold">Upload to Vault Folder</DialogTitle>
+            <DialogTitle className="font-display text-xl font-bold">Add to {studentName.get(studentId) ?? "student"}'s vault</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 py-3">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label>Profile Category</Label>
-                <select
-                  value={selectedOwnerType}
-                  onChange={(e) => setSelectedOwnerType(e.target.value)}
-                  className="w-full h-10 px-3 border border-input rounded-md text-sm bg-background text-foreground"
-                >
-                  <option value="student">Student</option>
-                  <option value="staff">Staff/Teacher</option>
-                </select>
-              </div>
-              <div className="space-y-1.5">
-                <Label>Choose Account</Label>
-                <select
-                  value={selectedOwnerId}
-                  onChange={(e) => setSelectedOwnerId(e.target.value)}
-                  className="w-full h-10 px-3 border border-input rounded-md text-sm bg-background text-foreground"
-                >
-                  {students.map((std) => (
-                    <option key={std.id} value={std.id}>{std.name}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
+          <div className="space-y-3">
             <div className="space-y-1.5">
-              <Label>Document Name</Label>
-              <Input
-                placeholder="e.g. Birth Certificate Scan"
-                value={uploadFileName}
-                onChange={(e) => setUploadFileName(e.target.value)}
-              />
+              <Label>File</Label>
+              <Input type="file" accept=".pdf,.jpg,.jpeg,.png,.webp,.heic,.doc,.docx" onChange={(e) => setUploadFile(e.target.files?.[0] ?? null)} />
+              <p className="text-xs text-muted-foreground">PDF, image or Word document, up to 25 MB.</p>
             </div>
-
-            <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label>Document name</Label>
+              <Input value={uploadName} onChange={(e) => setUploadName(e.target.value)} placeholder="e.g. B-Form (NADRA)" />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1.5">
-                <Label>Document Type</Label>
-                <select
-                  value={uploadDocType}
-                  onChange={(e) => setUploadDocType(e.target.value)}
-                  className="w-full h-10 px-3 border border-input rounded-md text-sm bg-background text-foreground"
-                >
-                  <option value="cnic">CNIC / ID Card</option>
-                  <option value="contract">Employment Contract</option>
-                  <option value="birth_certificate">Birth Certificate</option>
-                  <option value="degree">Academic Degree</option>
-                  <option value="cv">CV / Resume</option>
-                  <option value="medical">Medical Record</option>
-                  <option value="other">Other scan</option>
+                <Label>Category</Label>
+                <select value={uploadCategory} onChange={(e) => setUploadCategory(e.target.value)} className="w-full h-10 px-3 border rounded-md text-sm bg-background">
+                  {DOCUMENT_CATEGORIES.map((c) => <option key={c}>{c}</option>)}
                 </select>
               </div>
               <div className="space-y-1.5">
-                <Label>Expiry Date (Optional)</Label>
-                <Input
-                  type="date"
-                  value={uploadExpiry}
-                  onChange={(e) => setUploadExpiry(e.target.value)}
-                />
+                <Label>Expiry date (optional)</Label>
+                <Input type="date" value={uploadExpiry} onChange={(e) => setUploadExpiry(e.target.value)} />
               </div>
-            </div>
-
-            <div className="space-y-1.5">
-              <Label>Simulated Scan File URL</Label>
-              <Input
-                value={uploadFileUrl}
-                onChange={(e) => setUploadFileUrl(e.target.value)}
-              />
             </div>
           </div>
           <DialogFooter>
-            <Button onClick={() => setShowUploadDialog(false)} variant="ghost">Cancel</Button>
-            <Button onClick={handleUpload} className="bg-primary text-primary-foreground font-semibold">
-              Save Document Vault
+            <Button variant="outline" onClick={() => setUploadOpen(false)}>Cancel</Button>
+            <Button onClick={handleUpload} disabled={uploading} className="gap-2">
+              {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} Add to vault
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Revoke dialog */}
+      <Dialog open={!!revoking} onOpenChange={(open) => !open && setRevoking(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="font-display text-xl font-bold">Revoke {revoking?.certificate_number}</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            A revoked certificate stays on record, prints as VOID, and its QR code reports it as revoked to anyone who scans it.
+          </p>
+          <div className="space-y-1.5">
+            <Label>Reason</Label>
+            <Textarea value={revokeReason} onChange={(e) => setRevokeReason(e.target.value)} rows={3} placeholder="e.g. Issued with an incorrect date of birth; replaced by a new certificate." />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRevoking(null)}>Cancel</Button>
+            <Button variant="destructive" onClick={revokeCertificate}>Revoke certificate</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -5,10 +5,12 @@ IMPORTANT: Static-path endpoints (/badges, /schedule, /live-presence,
 /presence, /assignments/{id}) MUST be declared BEFORE the catch-all
 /{teacher_id} path-parameter routes, otherwise FastAPI will shadow them.
 """
+import logging
+import logging
 from typing import List, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Query, status
+from fastapi import APIRouter, HTTPException, Query, status
 from pydantic import BaseModel
 from sqlalchemy import func, or_, select, text
 
@@ -16,7 +18,7 @@ from app.dependencies import CurrentUser, DbSession
 from app.exceptions import NotFoundError, ForbiddenError
 from app.models.people import TeacherProfile, TeacherSubjectAssignment, TeacherAssignment
 from app.schemas import TeacherCreate, TeacherOut, MessageResponse
-from app.utils.pagination import PaginationParams, PaginatedResponse
+from app.utils.pagination import ListPageParams, PaginatedResponse, PaginationParams
 from app.utils.permissions import expand_roles, STAFF_GOV
 
 router = APIRouter(prefix="/teachers", tags=["Teachers"])
@@ -145,24 +147,16 @@ async def get_teachers_directory(current_user: CurrentUser, db: DbSession):
             for r in res.fetchall()
         ]
     except Exception as e:
-        import logging
-        logging.getLogger("app.teachers").warning(f"Error querying teacher directory: {e}")
-        # Return mock teachers list
-        import uuid
-        return [
-            {
-                "user_id": str(uuid.UUID("7c9e6679-7425-40de-944b-e07fc1f90ae7")),
-                "display_name": "Sarah Connor",
-                "email": "sarah.connor@beaconhouse.edu",
-                "phone": "+1 (555) 019-2834",
-            },
-            {
-                "user_id": str(uuid.UUID("8c9e6679-7425-40de-944b-e07fc1f90ae8")),
-                "display_name": "John Doe",
-                "email": "john.doe@beaconhouse.edu",
-                "phone": "+1 (555) 019-2835",
-            }
-        ]
+        # Invented staff used to be returned here on any query failure, complete
+        # with plausible names, addresses and phone numbers. Anyone picking a
+        # recipient from this directory would have been messaging nobody.
+        logging.getLogger("app.teachers").error(
+            f"Error querying teacher directory: {e}"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Teacher directory is temporarily unavailable. Please retry.",
+        )
 
 
 @router.get("/class-assignments")
@@ -401,7 +395,6 @@ async def get_live_teacher_presence(current_user: CurrentUser, db: DbSession):
     python_day = datetime.datetime.now().weekday()
     js_day = (python_day + 1) % 7
     today_date = datetime.date.today()
-    today_iso = today_date.isoformat()
 
     try:
         # 1. Fetch periods
@@ -496,55 +489,18 @@ async def get_live_teacher_presence(current_user: CurrentUser, db: DbSession):
             for r in presence_res.fetchall()
         }
     except Exception as e:
-        import logging
-        logging.getLogger("app.teachers").warning(f"Error querying live teacher presence: {e}")
-        import uuid
-        mock_teacher_id = str(uuid.UUID("7c9e6679-7425-40de-944b-e07fc1f90ae7"))
-        mock_section_id = str(uuid.UUID("22222222-2222-2222-2222-222222222222"))
-        mock_period_id = str(uuid.UUID("33333333-3333-3333-3333-333333333333"))
-        mock_entry_id = str(uuid.UUID("11111111-1111-1111-1111-111111111111"))
-        
-        entries = [
-            {
-                "id": mock_entry_id,
-                "subject_name": "Mathematics",
-                "teacher_user_id": mock_teacher_id,
-                "class_section_id": mock_section_id,
-                "room": "Room 101",
-                "period_id": mock_period_id,
-                "day_of_week": js_day,
-                "start_time": "08:00",
-                "end_time": "09:00",
-            }
-        ]
-        periods = [
-            {
-                "id": mock_period_id,
-                "label": "Period 1",
-                "start_time": "08:00",
-                "end_time": "09:00",
-                "sort_order": 1,
-                "is_break": False,
-            }
-        ]
-        sections = {
-            mock_section_id: {
-                "name": "Section A",
-                "class_name": "Class 10",
-            }
-        }
-        teachers = {
-            mock_teacher_id: "Sarah Connor"
-        }
-        presence_rows = {
-            mock_entry_id: {
-                "status": "in_class",
-                "entered_at": today_iso + "T08:05:00Z",
-                "left_at": None,
-                "updated_at": today_iso + "T08:05:00Z",
-                "reason": None
-            }
-        }
+        # A query failure used to be answered with a fabricated timetable: one
+        # "Mathematics" period in "Room 101" taught by "Sarah Connor", marked
+        # in_class. A principal looking at the live board would have seen a
+        # teacher present in a room that does not exist. Report the outage
+        # instead of inventing a lesson.
+        logging.getLogger("app.teachers").error(
+            f"Error querying live teacher presence: {e}"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Live teacher presence is temporarily unavailable. Please retry.",
+        )
 
     return {
         "entries": entries,
@@ -583,6 +539,7 @@ async def get_teacher_presence(
     period_date: Optional[str] = None,
     date: Optional[str] = None,
 ):
+    # Not paginated on purpose: this is one teacher on one date.
     import datetime
     target_teacher_id = teacher_user_id or current_user.id
     target_date_str = period_date or date or datetime.date.today().isoformat()
@@ -627,8 +584,8 @@ async def get_teacher_presence(
         logging.getLogger("app.teachers").warning(f"Error fetching teacher presence: {e}")
         try:
             await db.rollback()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Optional step failed (%s): %s", "db.rollback", exc, exc_info=True)
         return []
 
 
@@ -703,14 +660,16 @@ async def upsert_teacher_presence(
         logging.getLogger("app.teachers").warning(f"Error upserting teacher presence: {e}")
         try:
             await db.rollback()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Optional step failed (%s): %s", "db.rollback", exc, exc_info=True)
 
     return MessageResponse(message="Presence updated successfully")
 
 
 # ─── TEACHER ASSIGNMENTS & SUBJECT ASSIGNMENTS (static paths) ─────────────────
 from datetime import datetime
+
+logger = logging.getLogger(__name__)
 
 class SectionAssignmentCreate(BaseModel):
     teacher_user_id: UUID
@@ -746,14 +705,14 @@ class TeacherSubjectAssignmentOut(BaseModel):
 async def list_assignments(
     current_user: CurrentUser,
     db: DbSession,
-    teacher_user_id: Optional[UUID] = Query(None),
+    page: ListPageParams, teacher_user_id: Optional[UUID] = Query(None),
 ):
     if not current_user.school_id:
         return []
     query = select(TeacherAssignment).where(TeacherAssignment.school_id == current_user.school_id)
     if teacher_user_id:
         query = query.where(TeacherAssignment.teacher_user_id == teacher_user_id)
-    result = await db.execute(query)
+    result = await db.execute(page.apply(query))
     return result.scalars().all()
 
 @router.post("/assignments", response_model=SectionAssignmentOut, status_code=status.HTTP_201_CREATED)
@@ -804,19 +763,11 @@ async def delete_assignment(assignment_id: UUID, current_user: CurrentUser, db: 
     await db.delete(assignment)
     return MessageResponse(message="Teacher assignment removed successfully")
 
-@router.get("/subject-assignments", response_model=List[TeacherSubjectAssignmentOut])
-async def list_subject_assignments(
-    current_user: CurrentUser,
-    db: DbSession,
-    teacher_user_id: Optional[UUID] = Query(None),
-):
-    if not current_user.school_id:
-        return []
-    query = select(TeacherSubjectAssignment).where(TeacherSubjectAssignment.school_id == current_user.school_id)
-    if teacher_user_id:
-        query = query.where(TeacherSubjectAssignment.teacher_user_id == teacher_user_id)
-    result = await db.execute(query)
-    return result.scalars().all()
+# NOTE: a duplicate GET /subject-assignments handler lived here. It was never
+# reachable — the handler above wins — so its response_model and
+# teacher_user_id filter never took effect. Removed; fold those into the live
+# handler if they are wanted.
+
 
 @router.post("/subject-assignments", response_model=TeacherSubjectAssignmentOut, status_code=status.HTTP_201_CREATED)
 async def create_subject_assignment(body: TeacherSubjectAssignmentCreate, current_user: CurrentUser, db: DbSession):

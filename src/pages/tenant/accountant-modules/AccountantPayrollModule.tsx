@@ -94,6 +94,8 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
+import { DataExportMenu } from "@/components/documents/DataExportMenu";
+import { subtract as subtractExact, sum as sumExact } from "@/lib/documents/decimal";
 
 type PayRun = {
   id: string;
@@ -687,10 +689,10 @@ export function AccountantPayrollModule() {
         periodStart: run.period_start,
         periodEnd: run.period_end,
         paidAt: run.paid_at,
-        baseSalary:
-          salary?.base_salary ||
-          Number(run.gross_amount) - (salary?.allowances || 0),
-        allowances: salary?.allowances || 0,
+        // Offered to the slip, which itemises only if basic + allowances equals
+        // this run's gross. Nothing is derived to fill a missing figure.
+        baseSalary: salary?.base_salary ?? null,
+        allowances: salary?.allowances ?? null,
         deductions: run.deductions,
         grossAmount: run.gross_amount,
         netAmount: run.net_amount,
@@ -703,35 +705,32 @@ export function AccountantPayrollModule() {
     [salaryRecords, getStaffMember, tenant],
   );
 
-  const handlePrintRun = (run: PayRun) => {
-    const slip = runToPayslip(run);
-    if (!slip) return toast.error("Staff member not found");
-    openBulkPayslipsPDF([slip]);
+  const payslipAction = async (slips: PayslipData[], kind: "print" | "download") => {
+    if (slips.length === 0) return toast.error("No payslips to produce");
+    const id = toast.loading(`Preparing ${slips.length} payslip${slips.length === 1 ? "" : "s"}…`);
+    try {
+      const { fileName, warnings } =
+        kind === "print" ? await openBulkPayslipsPDF(slips) : await downloadBulkPayslipsHTML(slips);
+      const done = kind === "print" ? "Sent to print" : `Downloaded ${fileName}`;
+      if (warnings.length) toast.warning(`${done}, but: ${warnings.join("; ")}`, { id, duration: 10000 });
+      else if (kind === "print") toast.dismiss(id);
+      else toast.success(done, { id });
+    } catch (e: any) {
+      toast.error(e?.message ? `Could not produce the payslips: ${e.message}` : "Could not produce the payslips", { id });
+    }
   };
 
-  const handleDownloadRun = (run: PayRun) => {
-    const slip = runToPayslip(run);
-    if (!slip) return toast.error("Staff member not found");
-    downloadBulkPayslipsHTML([slip], run.period_start, run.period_end);
-    toast.success("Payslip downloaded");
+  const slipsFor = (runs: PayRun[]) => {
+    const slips = runs.map(runToPayslip).filter((s): s is PayslipData => !!s);
+    const missing = runs.length - slips.length;
+    if (missing) toast.warning(`${missing} pay run${missing === 1 ? " has" : "s have"} no matching staff record and ${missing === 1 ? "was" : "were"} left out.`);
+    return slips;
   };
 
-  const handleBatchPrint = (batch: PayRunBatch) => {
-    const slips = batch.runs
-      .map(runToPayslip)
-      .filter((s): s is PayslipData => !!s);
-    if (slips.length === 0) return toast.error("No payslips to print");
-    openBulkPayslipsPDF(slips);
-  };
-
-  const handleBatchDownload = (batch: PayRunBatch) => {
-    const slips = batch.runs
-      .map(runToPayslip)
-      .filter((s): s is PayslipData => !!s);
-    if (slips.length === 0) return toast.error("No payslips to download");
-    downloadBulkPayslipsHTML(slips, batch.period_start, batch.period_end);
-    toast.success(`Downloaded ${slips.length} payslip(s)`);
-  };
+  const handlePrintRun = (run: PayRun) => payslipAction(slipsFor([run]), "print");
+  const handleDownloadRun = (run: PayRun) => payslipAction(slipsFor([run]), "download");
+  const handleBatchPrint = (batch: PayRunBatch) => payslipAction(slipsFor(batch.runs), "print");
+  const handleBatchDownload = (batch: PayRunBatch) => payslipAction(slipsFor(batch.runs), "download");
 
   const openSalaryHistory = (userId: string) => {
     const staff = getStaffMember(userId);
@@ -860,6 +859,25 @@ export function AccountantPayrollModule() {
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
+                  <DataExportMenu
+                    title="Employee Salaries"
+                    rows={filteredSalaries.map((r) => ({
+                      employee: getStaffName(r.user_id),
+                      base: r.base_salary,
+                      allowances: r.allowances,
+                      deductions: r.deductions,
+                      net: subtractExact(sumExact([String(r.base_salary ?? 0), String(r.allowances ?? 0)]), String(r.deductions ?? 0)),
+                    }))}
+                    columns={[
+                      { header: "Employee", key: "employee" },
+                      { header: "Base salary", key: "base", type: "money", total: "sum" },
+                      { header: "Allowances", key: "allowances", type: "money", total: "sum" },
+                      { header: "Deductions", key: "deductions", type: "money", total: "sum" },
+                      { header: "Net", key: "net", type: "money", total: "sum" },
+                    ]}
+                    disabled={!filteredSalaries.length}
+                    size="sm"
+                  />
                   <div className="relative">
                     <Search className="pointer-events-none absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                     <Input

@@ -644,16 +644,20 @@ async def bulk_staff_import(
 async def generic_function_handler(
     function_name: str,
     request: Request,
-    db: AsyncSession = Depends(get_db),
+    current_user: AuthenticatedUser = Depends(get_current_user),
 ):
     """
-    Fallback generic function handler for any remaining edge function invocations.
-    """
-    body = {}
-    try:
-        body = await request.json()
-    except Exception:
-        pass
+    Catch-all for function names that have no implementation.
 
-    logger.info(f"Generic function invoked: {function_name} with body keys: {list(body.keys())}")
-    return {"ok": True, "status": "executed", "function": function_name}
+    This used to answer ``{"ok": true, "status": "executed"}`` to any caller,
+    unauthenticated, for any name — so a typo in a caller, or a function that was
+    never ported, reported success while nothing ran. It now authenticates and
+    reports the failure honestly so the caller can handle it.
+    """
+    logger.warning(
+        f"Unimplemented function '{function_name}' invoked by user {current_user.id}"
+    )
+    raise HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail=f"Function '{function_name}' is not implemented.",
+    )

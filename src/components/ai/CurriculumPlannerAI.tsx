@@ -38,6 +38,8 @@ import {
   Plus,
   Trash2,
   FileDown,
+  Printer as PrinterIcon,
+  MessageCircle,
   UserPlus,
   User,
   Users,
@@ -47,7 +49,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { toast } from "sonner";
-import jsPDF from "jspdf";
+import { lessonPlanAction } from "@/lib/lesson-plan-actions";
 
 interface Section {
   id: string;
@@ -297,106 +299,28 @@ export function CurriculumPlannerAI({
     }
   };
 
-  const handleExportPDF = () => {
+  /** Download, print or share the plan on the school's letterhead. */
+  const handleExportPDF = (kind: "download" | "print" | "share" = "download") => {
     if (!aiData) return;
-
-    try {
-      const doc = new jsPDF();
-      let y = 20;
-
-      // Title & Header Info
-      doc.setFontSize(22);
-      doc.setTextColor(15, 23, 42); 
-      doc.text("AltRix AI Lesson Plan", 20, y);
-      y += 10;
-
-      doc.setFontSize(14);
-      doc.setTextColor(71, 85, 105); 
-      doc.text(`Topic: ${aiData.lessonPlan?.title || topic}`, 20, y);
-      y += 7;
-      doc.text(`Curriculum: ${curriculumType} | Grade: ${gradeLevel}`, 20, y);
-      y += 7;
-      doc.text(`Duration: ${durationMinutes} minutes | Bloom's levels: ${selectedBlooms.join(", ")}`, 20, y);
-      y += 15;
-
-      // Objectives
-      doc.setFontSize(16);
-      doc.setTextColor(30, 41, 59); 
-      doc.text("Learning Objectives", 20, y);
-      y += 8;
-      doc.setFontSize(11);
-      doc.setTextColor(51, 65, 85); 
-      (aiData.lessonPlan?.learningObjectives || []).forEach((obj: string) => {
-        doc.text(`• ${obj}`, 20, y);
-        y += 6;
-      });
-      y += 10;
-
-      // Schedule Table Title
-      doc.setFontSize(16);
-      doc.setTextColor(30, 41, 59);
-      doc.text("Minute-by-Minute Lesson Schedule", 20, y);
-      y += 8;
-
-      doc.setFontSize(10);
-      (aiData.lessonPlan?.schedule || []).forEach((sch: any) => {
-        if (y > 270) {
-          doc.addPage();
-          y = 20;
-        }
-        doc.setFont("Helvetica", "bold");
-        doc.text(`${sch.timeRange} - ${sch.phase}`, 20, y);
-        y += 5;
-        doc.setFont("Helvetica", "normal");
-        const actionText = `Teacher: ${sch.teacherAction}\nStudent: ${sch.studentAction}`;
-        const splitText = doc.splitTextToSize(actionText, 170);
-        doc.text(splitText, 25, y);
-        y += (splitText.length * 5) + 5;
-      });
-
-      // Add New Page for Slides Script
-      doc.addPage();
-      y = 20;
-      doc.setFontSize(16);
-      doc.setFont("Helvetica", "bold");
-      doc.text("Classroom Slides Presentation Script", 20, y);
-      y += 10;
-
-      doc.setFontSize(10);
-      (aiData.slideScript || []).forEach((slide: any) => {
-        if (y > 250) {
-          doc.addPage();
-          y = 20;
-        }
-        doc.setFont("Helvetica", "bold");
-        doc.text(`Slide ${slide.slideNumber}: ${slide.title}`, 20, y);
-        y += 5;
-        doc.setFont("Helvetica", "normal");
-        
-        doc.text("Key Points:", 22, y);
-        y += 5;
-        (slide.bulletPoints || []).forEach((bp: string) => {
-          doc.text(`- ${bp}`, 25, y);
-          y += 5;
-        });
-        
-        y += 2;
-        doc.setFont("Helvetica", "oblique");
-        doc.text(`Visual Suggestion: ${slide.visualSuggestion}`, 22, y);
-        y += 5;
-        
-        doc.setFont("Helvetica", "normal");
-        const notesSplit = doc.splitTextToSize(`Speaker Notes: ${slide.speakerNotes}`, 160);
-        doc.text(notesSplit, 22, y);
-        y += (notesSplit.length * 5) + 8;
-      });
-
-      doc.save(`Lesson_Plan_${topic.replace(/\s+/g, "_")}.pdf`);
-      toast.success("PDF exported successfully!");
-    } catch (err: any) {
-      console.error(err);
-      toast.error("Failed to generate PDF document");
-    }
+    const lp = aiData.lessonPlan ?? {};
+    const section = sections.find((s) => s.id === sectionId);
+    void lessonPlanAction(kind, {
+      title: lp.title || topic,
+      subject: subjects.find((s) => s.id === subjectId)?.name ?? null,
+      classLabel: section ? `${section.class_name} — ${section.name}` : null,
+      curriculum: curriculumType,
+      gradeLevel,
+      durationMinutes,
+      blooms: selectedBlooms,
+      date: planDate,
+      objectives: lp.learningObjectives,
+      priorKnowledge: lp.priorKnowledge,
+      materials: lp.materialsNeeded,
+      schedule: lp.schedule,
+      differentiation: lp.differentiationStrategies,
+      homework: lp.homeworkSuggestion,
+      slides: aiData.slideScript,
+    });
   };
 
   return (
@@ -663,7 +587,23 @@ export function CurriculumPlannerAI({
                       {isEditing ? "View Mode" : "Edit Plan"}
                     </Button>
                     <Button
-                      onClick={handleExportPDF}
+                      onClick={() => handleExportPDF("share")}
+                      variant="outline"
+                      className="bg-white border-slate-200 hover:bg-slate-100 text-slate-700 text-xs flex items-center gap-1.5"
+                    >
+                      <MessageCircle className="h-4 w-4" />
+                      WhatsApp
+                    </Button>
+                    <Button
+                      onClick={() => handleExportPDF("print")}
+                      variant="outline"
+                      className="bg-white border-slate-200 hover:bg-slate-100 text-slate-700 text-xs flex items-center gap-1.5"
+                    >
+                      <PrinterIcon className="h-4 w-4" />
+                      Print
+                    </Button>
+                    <Button
+                      onClick={() => handleExportPDF("download")}
                       variant="outline"
                       className="bg-white border-slate-200 hover:bg-slate-100 text-slate-700 text-xs flex items-center gap-1.5"
                     >

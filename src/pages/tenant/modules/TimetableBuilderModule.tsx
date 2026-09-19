@@ -1,3 +1,4 @@
+import { DataExportMenu } from "@/components/documents/DataExportMenu";
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { DndContext, type DragEndEvent, useDraggable, useDroppable, TouchSensor, MouseSensor, useSensor, useSensors, PointerSensor } from "@dnd-kit/core";
 import { useParams } from "react-router-dom";
@@ -248,6 +249,12 @@ export function TimetableBuilderModule() {
   const [toolsOpen, setToolsOpen] = useState(false);
   const [printPreviewOpen, setPrintPreviewOpen] = useState(false);
 
+  // Tracks an in-flight slot write so the refresh button can be disabled while
+  // one is running. setBusy/busy were used in four places and read once during
+  // render without ever being declared, so the module threw a ReferenceError as
+  // soon as it painted.
+  const [busy, setBusy] = useState(false);
+
   // State for touch-friendly "Add Subject" dialog
   const [addSlot, setAddSlot] = useState<{ day: number; periodId: string } | null>(null);
   const [addSubjectId, setAddSubjectId] = useState<string>("");
@@ -406,7 +413,7 @@ export function TimetableBuilderModule() {
 
   // CSV Export
   const sectionLabel = sectionId ? sectionLabelById.get(sectionId) ?? "Section" : "Section";
-  const { exportCsv } = useTimetableExport(periods, entries, teacherLabelByUserId, sectionLabel);
+  const timetableExport = useTimetableExport(periods, entries, teacherLabelByUserId, sectionLabel);
 
   const setSlot = async (day: number, periodId: string, subjectId: string) => {
     if (!schoolId || !sectionId) return;
@@ -528,9 +535,15 @@ export function TimetableBuilderModule() {
             </Button>
 
             <div className="flex flex-wrap gap-2 w-full sm:col-span-2 md:col-span-1 md:justify-self-end">
-              <Button size="sm" variant="outline" onClick={exportCsv} disabled={!sectionId || entries.length === 0} className="rounded-xl h-9 sm:h-10 border-primary/10 text-xs flex-1 sm:flex-none">
-                <Download className="mr-1 h-3.5 w-3.5" /> Export
-              </Button>
+              <DataExportMenu
+                title={timetableExport.title}
+                subtitle={timetableExport.subtitle}
+                fileNameParts={["Timetable", timetableExport.subtitle]}
+                rows={[]}
+                loadRows={async () => timetableExport.rows()}
+                disabled={!sectionId || entries.length === 0}
+                size="sm"
+              />
               <Button size="sm" variant="outline" onClick={() => setToolsOpen(true)} disabled={!sectionId} className="rounded-xl h-9 sm:h-10 border-primary/10 text-xs flex-1 sm:flex-none">
                 <Wrench className="mr-1 h-3.5 w-3.5" /> Tools
               </Button>

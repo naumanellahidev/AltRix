@@ -24,8 +24,12 @@ import {
   CheckCircle2,
   Clock,
   Plus,
-  QrCode
+  QrCode,
+  Download,
+  MessageCircle,
 } from "lucide-react";
+import { visitorPassAction } from "@/lib/visitor-pass-actions";
+import type { VisitorPassInput } from "@/lib/documents/visitor-pass";
 import { toast } from "sonner";
 
 interface BlacklistRecord {
@@ -148,38 +152,17 @@ export default function GateVisitorModule() {
     }
   };
 
-  const printBadge = (pass: any) => {
-    const w = window.open("", "_blank", "width=500,height=400");
-    if (!w) return;
-    const html = `
-      <!doctype html>
-      <html>
-      <head>
-        <title>Visitor Badge - ${pass.visitor_name}</title>
-        <style>
-          body { font-family: sans-serif; text-align: center; padding: 20px; color: #1a1a1a; }
-          .badge { border: 3px solid #000; border-radius: 12px; padding: 16px; max-width: 350px; margin: 0 auto; }
-          .title { font-size: 20px; font-weight: bold; background: #000; color: #fff; padding: 6px; border-radius: 6px; }
-          .name { font-size: 24px; font-weight: bold; margin: 16px 0 8px; }
-          .meta { font-size: 13px; color: #4b5563; margin-bottom: 4px; }
-          @media print { button { display: none; } }
-        </style>
-      </head>
-      <body>
-        <div class="badge">
-          <div class="title">VISITOR BADGE</div>
-          <div class="name">${pass.visitor_name}</div>
-          <div class="meta">Purpose: <strong>${pass.purpose.toUpperCase()}</strong></div>
-          <div class="meta">Phone: ${pass.phone}</div>
-          <div class="meta">Date: ${new Date().toLocaleDateString()}</div>
-        </div>
-        <script>setTimeout(() => window.print(), 300)</script>
-      </body>
-      </html>
-    `;
-    w.document.write(html);
-    w.document.close();
-  };
+  /** The visitor's badge, from the pass the gate just verified. */
+  const badgeInput = (pass: any): VisitorPassInput => ({
+    kind: "badge",
+    visitorName: pass?.visitor_name ?? "Visitor",
+    purpose: pass?.purpose ?? null,
+    phone: pass?.phone ?? null,
+    code: pass?.qr_code_token ?? null,
+    scheduledDate: pass?.scheduled_date ?? null,
+    checkInAt: pass?.checkin_at ?? null,
+    details: pass?.details ?? null,
+  });
 
   return (
     <div className="space-y-4 sm:space-y-6 p-3 sm:p-6 max-w-6xl mx-auto">
@@ -373,8 +356,14 @@ export default function GateVisitorModule() {
                           Record Departure (Check-Out)
                         </Button>
                       )}
-                      <Button onClick={() => printBadge(verificationResult.pass)} variant="outline" className="gap-2">
+                      <Button onClick={() => void visitorPassAction("print", badgeInput(verificationResult.pass))} variant="outline" className="gap-2">
                         <Printer className="h-4 w-4" /> Print Badge
+                      </Button>
+                      <Button onClick={() => void visitorPassAction("download", badgeInput(verificationResult.pass))} variant="outline" size="icon" title="Download badge PDF">
+                        <Download className="h-4 w-4" />
+                      </Button>
+                      <Button onClick={() => void visitorPassAction("share", badgeInput(verificationResult.pass), verificationResult.pass?.phone)} variant="outline" size="icon" title="Send badge on WhatsApp">
+                        <MessageCircle className="h-4 w-4" />
                       </Button>
                     </div>
                   </CardContent>

@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Query, status, Request
 from sqlalchemy import select, func, text
 
+from app.utils.money import D, percentage
 from app.dependencies import CurrentUser, DbSession
 from app.exceptions import NotFoundError, ForbiddenError
 from app.models.report_cards import (
@@ -27,6 +28,7 @@ from app.schemas import (
     MessageResponse,
 )
 from app.utils.permissions import expand_roles, ACADEMIC_GOV
+from app.utils.pagination import ListPageParams
 
 router = APIRouter(prefix="/report-cards", tags=["Report Cards"])
 
@@ -34,13 +36,13 @@ router = APIRouter(prefix="/report-cards", tags=["Report Cards"])
 # ─── TEMPLATES ────────────────────────────────────────────────────────────────
 
 @router.get("/templates", response_model=List[ReportCardTemplateOut])
-async def list_templates(current_user: CurrentUser, db: DbSession):
+async def list_templates(current_user: CurrentUser, db: DbSession, page: ListPageParams):
     if not current_user.school_id:
         return []
     result = await db.execute(
-        select(ReportCardTemplate)
+        page.apply(select(ReportCardTemplate)
         .where(ReportCardTemplate.school_id == current_user.school_id, ReportCardTemplate.is_active == True)
-        .order_by(ReportCardTemplate.is_default.desc(), ReportCardTemplate.name)
+        .order_by(ReportCardTemplate.is_default.desc(), ReportCardTemplate.name))
     )
     return result.scalars().all()
 
@@ -119,13 +121,13 @@ async def delete_template(template_id: UUID, current_user: CurrentUser, db: DbSe
 # ─── GRADE SCALES ─────────────────────────────────────────────────────────────
 
 @router.get("/grade-scales", response_model=List[GradeScaleOut])
-async def list_grade_scales(current_user: CurrentUser, db: DbSession):
+async def list_grade_scales(current_user: CurrentUser, db: DbSession, page: ListPageParams):
     if not current_user.school_id:
         return []
     result = await db.execute(
-        select(GradeScale)
+        page.apply(select(GradeScale)
         .where(GradeScale.school_id == current_user.school_id, GradeScale.is_active == True)
-        .order_by(GradeScale.sort_order, GradeScale.min_percentage.desc())
+        .order_by(GradeScale.sort_order, GradeScale.min_percentage.desc()))
     )
     return result.scalars().all()
 
@@ -345,7 +347,10 @@ async def generate_report_cards(
 
         # Add subject entries
         for r in results:
-            subj_pct = round(r.marks_obtained / r.max_marks * 100, 2) if r.max_marks and r.marks_obtained is not None else 0
+            # percentage() returns None when there is nothing to divide by,
+            # but the grade computation below needs a number, so an absent
+            # mark stays 0 here as it did before.
+            subj_pct = percentage(r.marks_obtained, r.max_marks) or D(0)
             subj_grade, subj_gpa = compute_grade(subj_pct)
             stats = subject_stats.get(r.subject_id, {})
 
@@ -381,7 +386,7 @@ async def get_student_report_cards(
     student_id: UUID,
     current_user: CurrentUser,
     db: DbSession,
-    academic_year: Optional[str] = Query(None),
+    page: ListPageParams, academic_year: Optional[str] = Query(None),
 ):
     if not current_user.school_id:
         return []
@@ -398,7 +403,7 @@ async def get_student_report_cards(
     if academic_year:
         query = query.where(ReportCard.academic_year == academic_year)
 
-    result = await db.execute(query.order_by(ReportCard.created_at.desc()))
+    result = await db.execute(page.apply(query.order_by(ReportCard.created_at.desc())))
     return result.scalars().all()
 
 
@@ -410,8 +415,18 @@ async def get_report_card_detail(card_id: UUID, current_user: CurrentUser, db: D
     if not card:
         raise NotFoundError("Report Card", str(card_id))
 
-    from app.utils.security import require_school_match
+    from app.utils.security import get_allowed_student_ids, require_school_match
     require_school_match(current_user, card.school_id)
+
+    # A parent or student sees only their own children's cards, and only once
+    # published. School membership alone let any parent read any child's card
+    # by id, drafts included.
+    allowed = await get_allowed_student_ids(current_user, db)
+    if allowed is not None:
+        if card.student_id not in {UUID(str(s)) for s in allowed}:
+            raise NotFoundError("Report Card", str(card_id))
+        if not card.is_published:
+            raise NotFoundError("Report Card", str(card_id))
 
     # Get subject entries
     entries_result = await db.execute(
@@ -433,6 +448,25 @@ async def get_report_card_detail(card_id: UUID, current_user: CurrentUser, db: D
     student_result = await db.execute(select(Student).where(Student.id == card.student_id))
     student = student_result.scalar_one_or_none()
 
+    # The class and section the card was issued in — the enrolment current on
+    # the period's end, or the latest one — so the printed card names them.
+    placement = None
+    if student:
+        placement = (await db.execute(
+            text(
+                """
+                SELECT c.name AS class_name, cs.name AS section_name
+                FROM student_enrollments se
+                JOIN class_sections cs ON cs.id = se.class_section_id
+                JOIN academic_classes c ON c.id = cs.class_id
+                WHERE se.student_id = :sid
+                ORDER BY (se.end_date IS NULL) DESC, se.start_date DESC NULLS LAST, se.created_at DESC NULLS LAST
+                LIMIT 1
+                """
+            ),
+            {"sid": student.id},
+        )).mappings().first()
+
     return {
         "report_card": ReportCardOut.model_validate(card).model_dump(),
         "subject_entries": [ReportCardSubjectEntryOut.model_validate(e).model_dump() for e in entries],
@@ -442,7 +476,12 @@ async def get_report_card_detail(card_id: UUID, current_user: CurrentUser, db: D
             "first_name": student.first_name,
             "last_name": student.last_name,
             "roll_number": student.roll_number,
+            "registration_number": student.registration_number,
+            "date_of_birth": student.date_of_birth,
+            "gender": student.gender,
             "photo_url": student.photo_url,
+            "class_name": placement["class_name"] if placement else None,
+            "section_name": placement["section_name"] if placement else None,
         } if student else None,
     }
 
@@ -479,22 +518,34 @@ async def publish_report_card(card_id: UUID, current_user: CurrentUser, db: DbSe
     from app.utils.security import require_school_match
     require_school_match(current_user, card.school_id)
 
-    card.is_published = True
-    card.published_at = datetime.now(timezone.utc)
-    card.qr_verification_token = secrets.token_urlsafe(32)
-
-    # Get template for signature
-    if card.template_id:
-        t_result = await db.execute(select(ReportCardTemplate).where(ReportCardTemplate.id == card.template_id))
-        template = t_result.scalar_one_or_none()
-        if template and template.show_digital_signature:
-            card.signed_by_name = template.principal_signature_name or "Principal"
-            card.signed_by_title = template.principal_signature_title or "Principal"
-            card.signed_at = datetime.now(timezone.utc)
-
+    await _issue(db, card)
     await db.flush()
     await db.refresh(card)
     return card
+
+
+async def _issue(db, card: ReportCard) -> None:
+    """
+    Mark a card as issued: published, verifiable and, where the template asks
+    for it, signed.
+
+    The verification token is kept once issued. It used to be regenerated on
+    every publish, which silently invalidated the QR code on every card already
+    printed and handed to a parent.
+    """
+    now = datetime.now(timezone.utc)
+    card.is_published = True
+    card.published_at = card.published_at or now
+    card.qr_verification_token = card.qr_verification_token or secrets.token_urlsafe(32)
+
+    if card.template_id and not card.signed_at:
+        template = (await db.execute(
+            select(ReportCardTemplate).where(ReportCardTemplate.id == card.template_id)
+        )).scalar_one_or_none()
+        if template and template.show_digital_signature:
+            card.signed_by_name = template.principal_signature_name or "Principal"
+            card.signed_by_title = template.principal_signature_title or "Principal"
+            card.signed_at = now
 
 
 @router.post("/publish-bulk", response_model=MessageResponse)
@@ -507,15 +558,18 @@ async def bulk_publish(
     if not (current_user.is_super_admin or any(r in effective_roles for r in ACADEMIC_GOV)):
         raise ForbiddenError()
 
-    count = 0
-    for cid in card_ids:
-        result = await db.execute(select(ReportCard).where(ReportCard.id == cid))
-        card = result.scalar_one_or_none()
-        if card and card.school_id == current_user.school_id:
-            card.is_published = True
-            card.published_at = datetime.now(timezone.utc)
-            card.qr_verification_token = secrets.token_urlsafe(32)
-            count += 1
+    # One query, scoped to the caller's school. The loop this replaces compared
+    # the card's UUID school id with the caller's string school id, which never
+    # matched — bulk publishing published nothing and reported "Published 0".
+    if not card_ids:
+        return MessageResponse(message="Published 0 report cards")
+    school_filter = [] if current_user.is_super_admin else [ReportCard.school_id == UUID(str(current_user.school_id))]
+    cards = (await db.execute(
+        select(ReportCard).where(ReportCard.id.in_(card_ids), *school_filter)
+    )).scalars().all()
+    for card in cards:
+        await _issue(db, card)
+    count = len(cards)
     await db.flush()
     return MessageResponse(message=f"Published {count} report cards")
 
@@ -529,15 +583,21 @@ async def verify_report_card(token: str, db: DbSession):
         select(ReportCard).where(ReportCard.qr_verification_token == token)
     )
     card = result.scalar_one_or_none()
-    if not card:
+    # An unpublished draft is not a document anyone has been issued.
+    if not card or not card.is_published:
         return {"verified": False, "message": "Invalid or expired verification token"}
 
     student_result = await db.execute(select(Student).where(Student.id == card.student_id))
     student = student_result.scalar_one_or_none()
 
+    school_name = (await db.execute(
+        text("SELECT name FROM schools WHERE id = :sid"), {"sid": card.school_id}
+    )).scalar_one_or_none()
+
     return {
         "verified": True,
-        "student_name": f"{student.first_name} {student.last_name}" if student else "Unknown",
+        "school_name": school_name,
+        "student_name": " ".join(filter(None, [student.first_name, student.last_name])) if student else None,
         "period": card.period_label,
         "academic_year": card.academic_year,
         "percentage": card.percentage,

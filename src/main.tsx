@@ -1,6 +1,7 @@
 import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
 import "./index.css";
+import { bootstrapSession } from "@/lib/token-store";
 
 // Declare Vite compile-time build timestamp
 declare const __APP_BUILD_ID__: string;
@@ -101,4 +102,14 @@ if (typeof window !== "undefined" && "serviceWorker" in navigator) {
   });
 }
 
-createRoot(document.getElementById("root")!).render(<App />);
+// Recover the session before the first render.
+//
+// The access token is held in memory rather than localStorage, so a reload
+// starts signed-out until the HttpOnly refresh cookie is exchanged for a new
+// one. Doing that here avoids a flash of the login screen for users who are
+// still signed in. Failure is fine and simply means "not signed in".
+bootstrapSession(import.meta.env.VITE_API_URL || "/api")
+  .catch(() => null)
+  .finally(() => {
+    createRoot(document.getElementById("root")!).render(<App />);
+  });

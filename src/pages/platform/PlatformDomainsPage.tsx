@@ -350,8 +350,12 @@ export default function PlatformDomainsPage() {
     try {
       const res = await apiClient.post(`/super_admin/domains/verify-cname?domain=${encodeURIComponent(domainName)}`, {}, { timeout: 2500 });
       toast.success(`CNAME status for ${domainName}: ${res.data?.cname_status || "Verified"}`);
-    } catch {
-      toast.success(`CNAME status for ${domainName}: Verified (100% Edge Routed)`);
+    } catch (err: any) {
+      // Reporting "Verified" from a failed check told an operator their DNS was
+      // correct when it had not been looked at.
+      toast.error(
+        err?.response?.data?.detail ?? `Could not verify CNAME for ${domainName}.`,
+      );
     }
   };
 
@@ -360,8 +364,8 @@ export default function PlatformDomainsPage() {
     try {
       await apiClient.post("/super_admin/domains/flush-cdn", {}, { timeout: 2500 });
       toast.success("Global Edge CDN cache invalidated successfully across 14 edge POP nodes");
-    } catch {
-      toast.success("Global Edge CDN cache invalidated across 14 edge POP nodes");
+    } catch (err: any) {
+      toast.error(err?.response?.data?.detail ?? "CDN cache invalidation failed.");
     }
   };
 
@@ -417,10 +421,13 @@ export default function PlatformDomainsPage() {
       toast.success("Custom SSL certificate installed successfully!");
       setDomains(prev => prev.map(d => d.domain === selectedDomain.domain ? { ...d, ssl_status: "Custom EV SSL Active", ssl_issuer: "Custom Uploaded EV" } : d));
       setCertModalOpen(false);
-    } catch {
-      toast.success("Custom SSL certificate installed successfully!");
-      setDomains(prev => prev.map(d => d.domain === selectedDomain.domain ? { ...d, ssl_status: "Custom EV SSL Active", ssl_issuer: "Custom Uploaded EV" } : d));
-      setCertModalOpen(false);
+    } catch (err: any) {
+      // This previously announced the certificate as installed and marked the
+      // row "Custom EV SSL Active" even when the upload had failed — the
+      // operator would believe TLS was in place when it was not.
+      toast.error(
+        err?.response?.data?.detail ?? "Certificate installation failed. Nothing was changed.",
+      );
     } finally {
       setCertUploading(false);
     }
@@ -446,9 +453,10 @@ export default function PlatformDomainsPage() {
       }, { timeout: 3000 });
       toast.success("Security headers policy updated!");
       setHeadersModalOpen(false);
-    } catch {
-      toast.success("Security headers policy updated!");
-      setHeadersModalOpen(false);
+    } catch (err: any) {
+      toast.error(
+        err?.response?.data?.detail ?? "Could not update the security headers policy.",
+      );
     }
   };
 

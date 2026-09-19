@@ -11,7 +11,15 @@ import math
 
 from app.database import get_db
 
-router = APIRouter(prefix="/super_admin/financials", tags=["Super Admin Financials"])
+from app.utils.permissions import require_super_admin
+
+# Platform-wide revenue: ARR, MRR, LTV, churn and per-school license records.
+# The guard is on the router so a new endpoint cannot be added without it.
+router = APIRouter(
+    prefix="/super_admin/financials",
+    tags=["Super Admin Financials"],
+    dependencies=[Depends(require_super_admin())],
+)
 
 # Tier pricing constants (PKR/month)
 TIER_PRICING_PKR = {
@@ -72,30 +80,21 @@ async def get_financial_forecasting(db: AsyncSession = Depends(get_db)):
     tier_distribution = {"Basic": 1, "Standard": 1, "Premium": 1, "Enterprise": 1}
     total_students = 0
     
-    try:
-        res = await db.execute(text("SELECT COUNT(*) FROM public.schools WHERE is_active = true"))
-        active_schools = res.scalar() or 4
-    except Exception:
-        pass
+    res = await db.execute(text("SELECT COUNT(*) FROM public.schools WHERE is_active = true"))
+    active_schools = res.scalar() or 4
     
-    try:
-        res = await db.execute(text("""
-            SELECT COALESCE(plan_tier, 'Basic') as tier, COUNT(*) as cnt 
-            FROM public.schools 
-            WHERE is_active = true 
-            GROUP BY COALESCE(plan_tier, 'Basic')
-        """))
-        rows = res.fetchall()
-        if rows:
-            tier_distribution = {r[0]: r[1] for r in rows}
-    except Exception:
-        pass
+    res = await db.execute(text("""
+        SELECT COALESCE(plan_tier, 'Basic') as tier, COUNT(*) as cnt 
+        FROM public.schools 
+        WHERE is_active = true 
+        GROUP BY COALESCE(plan_tier, 'Basic')
+    """))
+    rows = res.fetchall()
+    if rows:
+        tier_distribution = {r[0]: r[1] for r in rows}
     
-    try:
-        res = await db.execute(text("SELECT COUNT(*) FROM public.students"))
-        total_students = res.scalar() or 0
-    except Exception:
-        pass
+    res = await db.execute(text("SELECT COUNT(*) FROM public.students"))
+    total_students = res.scalar() or 0
 
     # 2. Calculate actual MRR from tier distribution
     total_mrr_pkr = sum(

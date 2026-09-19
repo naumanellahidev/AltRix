@@ -1,3 +1,4 @@
+import { describeShare, downloadInvoice, printInvoice, shareInvoice, type InvoiceInput } from "@/lib/documents";
 import { useState, useCallback } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -15,10 +16,10 @@ import {
   Receipt,
   Search,
   X,
-  RefreshCw
+  RefreshCw,
+  Share2
 } from "lucide-react";
 import { ReportExportMenu } from "@/components/accountant/ReportExportMenu";
-import { BrandedDocument } from "@/components/pdf/BrandedDocument";
 import { useSchoolDocument } from "@/hooks/useSchoolDocument";
 
 import { api } from "@/lib/api";
@@ -120,7 +121,6 @@ export function AccountantInvoicesModule() {
   const tenant = useTenant(schoolSlug);
   const queryClient = useQueryClient();
   const schoolId = tenant.status === "ready" ? tenant.schoolId : null;
-  const { school: schoolBranding } = useSchoolDocument(schoolId);
 
   // Invalidate finance queries on data changes
   const invalidateFinanceQueries = useCallback(() => {
@@ -701,6 +701,56 @@ export function AccountantInvoicesModule() {
     return statusMatches && searchMatches;
   });
 
+  /** The invoice as issued: its own lines, adjustments and recorded payments. */
+  const invoiceDocument = (inv: Invoice): InvoiceInput => {
+    const who = getRecipientDetails(inv);
+    return {
+      invoiceNumber: inv.invoice_number,
+      issuedAt: inv.created_at,
+      dueDate: inv.due_date,
+      status: getInvoiceStatus(inv),
+      billedTo: who.name,
+      billedToDetail: who.type,
+      contact: who.contact && !/^(n\/a|no contact|no email)$/i.test(who.contact) ? who.contact : null,
+      lines: activeInvoiceItems.map((item) => ({ label: item.label, amount: item.amount })),
+      subtotal: inv.subtotal,
+      discount: inv.discount_amount,
+      lateFee: inv.late_fee,
+      total: inv.total_amount,
+      payments: (inv.fee_payments ?? []).map((p) => ({
+        paidAt: p.paid_at,
+        method: p.method,
+        reference: p.transaction_ref,
+        amount: p.amount,
+      })),
+      notes: who.cleanNotes || null,
+    };
+  };
+
+  const invoiceAction = async (kind: "print" | "download" | "share") => {
+    if (!selectedInvoice) return;
+    const input = invoiceDocument(selectedInvoice);
+    const id = toast.loading("Preparing invoice…");
+    try {
+      if (kind === "share") {
+        const outcome = await shareInvoice(input);
+        const { tone, message } = describeShare(outcome);
+        if (tone === "error") toast.error(message, { id });
+        else if (tone === "success") toast.success(message, { id });
+        else toast.info(message, { id, duration: 9000 });
+        return;
+      }
+      const result: { warnings: string[]; fileName?: string } =
+        kind === "print" ? await printInvoice(input) : await downloadInvoice(input);
+      const done = kind === "print" ? "Sent to print" : `Downloaded ${result.fileName}`;
+      if (result.warnings.length) toast.warning(`${done}, but ${result.warnings.join("; ")}`, { id, duration: 9000 });
+      else if (kind === "print") toast.dismiss(id);
+      else toast.success(done, { id });
+    } catch (e: any) {
+      toast.error(e?.message ? `Could not prepare the invoice: ${e.message}` : "Could not prepare the invoice", { id });
+    }
+  };
+
   const stats = {
     total: invoices.length,
     paid: invoices.filter((i) => getInvoiceStatus(i) === "paid").length,
@@ -712,114 +762,6 @@ export function AccountantInvoicesModule() {
 
   return (
     <div className="space-y-6">
-      <style dangerouslySetInnerHTML={{ __html: `
-        @media print {
-          body * {
-            visibility: hidden !important;
-          }
-          #printable-invoice-area, #printable-invoice-area * {
-            visibility: visible !important;
-          }
-          #printable-invoice-area {
-            position: absolute !important;
-            left: 0 !important;
-            top: 0 !important;
-            width: 100% !important;
-            display: block !important;
-            background: white !important;
-            color: black !important;
-            padding: 2rem !important;
-          }
-        }
-      `}} />
-
-      {/* Printable Invoice Container */}
-      <div id="printable-invoice-area" className="hidden print:block bg-white text-black">
-        <BrandedDocument
-          school={schoolBranding}
-          documentTitle="Fee Invoice"
-          referenceNumber={selectedInvoice?.invoice_number}
-          issuedOn={selectedInvoice?.created_at ? new Date(selectedInvoice.created_at) : null}
-          signatoryName="Authorized Signatory"
-          signatoryTitle="Stamp & Date"
-        >
-          <div className="space-y-6">
-            <div className="grid grid-cols-2 gap-4 text-sm">
-              <div>
-                <p className="font-semibold text-gray-600">Billed To:</p>
-                <p className="font-bold text-base">{selectedInvoice ? getRecipientDetails(selectedInvoice).name : ""}</p>
-                <p className="text-gray-500">{selectedInvoice ? `${getRecipientDetails(selectedInvoice).type} • Contact: ${getRecipientDetails(selectedInvoice).contact}` : ""}</p>
-              </div>
-              <div className="text-right text-gray-700">
-                <p><span className="font-semibold text-gray-600">Due Date:</span> {selectedInvoice?.due_date ? new Date(selectedInvoice.due_date).toLocaleDateString() : "—"}</p>
-                <p className="mt-2"><span className="font-semibold text-gray-600">Status:</span> <span className="uppercase font-bold">{selectedInvoice ? getInvoiceStatus(selectedInvoice) : ""}</span></p>
-              </div>
-            </div>
-
-            <table className="w-full text-left border-collapse text-sm mt-6">
-              <thead>
-                <tr className="border-b-2 border-gray-300 bg-gray-50">
-                  <th className="py-2.5 px-3 font-semibold text-gray-600">Description</th>
-                  <th className="py-2.5 px-3 text-center font-semibold text-gray-600 w-20">Qty</th>
-                  <th className="py-2.5 px-3 text-right font-semibold text-gray-600 w-32">Unit Price</th>
-                  <th className="py-2.5 px-3 text-right font-semibold text-gray-600 w-32">Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                {activeInvoiceItems.map((item, idx) => (
-                  <tr key={item.id || idx} className="border-b">
-                    <td className="py-2.5 px-3">{item.label}</td>
-                    <td className="py-2.5 px-3 text-center">1</td>
-                    <td className="py-2.5 px-3 text-right">Rs. {Number(item.amount || 0).toLocaleString()}</td>
-                    <td className="py-2.5 px-3 text-right">Rs. {Number(item.amount || 0).toLocaleString()}</td>
-                  </tr>
-                ))}
-                {activeInvoiceItems.length === 0 && (
-                  <tr>
-                    <td colSpan={4} className="py-4 text-center text-gray-400 italic">No line items specified.</td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-
-            <div className="flex justify-end mt-6">
-              <div className="w-64 space-y-2 text-sm border-t pt-4">
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Subtotal</span>
-                  <span>Rs. {Number(selectedInvoice?.subtotal || 0).toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between text-green-600">
-                  <span>Discount</span>
-                  <span>-Rs. {Number(selectedInvoice?.discount_amount || 0).toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between text-red-600">
-                  <span>Late Fee</span>
-                  <span>+Rs. {Number(selectedInvoice?.late_fee || 0).toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between border-t pt-2 font-bold text-base">
-                  <span>Total</span>
-                  <span>Rs. {Number(selectedInvoice?.total_amount || 0).toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between border-t pt-2 text-gray-600">
-                  <span>Amount Paid</span>
-                  <span>Rs. {selectedInvoice ? getInvoicePaidAmount(selectedInvoice).toLocaleString() : 0}</span>
-                </div>
-                <div className="flex justify-between font-bold text-red-600">
-                  <span>Balance Due</span>
-                  <span>Rs. {selectedInvoice ? (selectedInvoice.total_amount - getInvoicePaidAmount(selectedInvoice)).toLocaleString() : 0}</span>
-                </div>
-              </div>
-            </div>
-
-            {selectedInvoice && getRecipientDetails(selectedInvoice).cleanNotes && (
-              <div className="pt-4 border-t">
-                <p className="font-semibold text-gray-600">Notes:</p>
-                <p className="text-gray-500 mt-1">{getRecipientDetails(selectedInvoice).cleanNotes}</p>
-              </div>
-            )}
-          </div>
-        </BrandedDocument>
-      </div>
 
       {/* Stats Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
@@ -1407,7 +1349,13 @@ export function AccountantInvoicesModule() {
           )}
           <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => setViewDialogOpen(false)} className="rounded-xl border-blue-100 text-slate-600">Close</Button>
-            <Button onClick={() => window.print()} className="rounded-xl bg-blue-600 hover:bg-blue-700 text-white gap-1.5 h-9 text-xs">
+            <Button variant="outline" onClick={() => invoiceAction("share")} className="rounded-xl border-blue-100 gap-1.5 h-9 text-xs">
+              <Share2 className="h-4 w-4 text-green-600" /> WhatsApp
+            </Button>
+            <Button variant="outline" onClick={() => invoiceAction("download")} className="rounded-xl border-blue-100 gap-1.5 h-9 text-xs">
+              <Download className="h-4 w-4" /> Download PDF
+            </Button>
+            <Button onClick={() => invoiceAction("print")} className="rounded-xl bg-blue-600 hover:bg-blue-700 text-white gap-1.5 h-9 text-xs">
               <Printer className="h-4 w-4" /> Print Invoice
             </Button>
           </DialogFooter>

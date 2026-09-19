@@ -107,9 +107,13 @@ const ResetPassword = () => {
       setReady(true);
     };
 
+    // PASSWORD_RECOVERY was a Supabase auth event and is not one this app emits,
+    // so that half of the condition never fired. The reset flow works from the
+    // ?token= query parameter and the /auth/password-reset-* endpoints below;
+    // this listener only covers the case where a session already exists.
     const { data: sub } = api.auth.onAuthStateChange((event, session) => {
-      if (event === "PASSWORD_RECOVERY" || (event === "SIGNED_IN" && session)) {
-        void activate(session?.expires_at ?? null);
+      if (event === "SIGNED_IN" && session) {
+        void activate((session as { expires_at?: number })?.expires_at ?? null);
       }
     });
 

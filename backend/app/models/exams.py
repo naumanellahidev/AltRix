@@ -4,7 +4,7 @@ Exams and results models.
 import uuid
 from datetime import date, datetime
 from typing import Optional
-from sqlalchemy import Boolean, Date, DateTime, Float, ForeignKey, Integer, String, Text, JSON
+from sqlalchemy import Boolean, Date, DateTime, Float, ForeignKey, Integer, String, Text, JSON, Numeric
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship as orm_relationship
 from sqlalchemy.sql import func
@@ -29,7 +29,7 @@ class Exam(Base):
     instructions: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     result_published: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     result_published_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
-    passing_percentage: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    passing_percentage: Mapped[Optional[float]] = mapped_column(Numeric(8, 3), nullable=True)
     created_by: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), nullable=True)
     created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=True)
     updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
@@ -94,8 +94,8 @@ class ExamDatesheet(Base):
     start_time: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     end_time: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     room: Mapped[Optional[str]] = mapped_column(String, nullable=True)
-    max_marks: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    passing_marks: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    max_marks: Mapped[Optional[float]] = mapped_column(Numeric(8, 3), nullable=True)
+    passing_marks: Mapped[Optional[float]] = mapped_column(Numeric(8, 3), nullable=True)
     created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=True)
 
 
@@ -107,8 +107,8 @@ class ExamResult(Base):
     exam_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("exams.id"), nullable=False)
     student_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("students.id"), nullable=False)
     subject_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("subjects.id"), nullable=True)
-    marks_obtained: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    max_marks: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    marks_obtained: Mapped[Optional[float]] = mapped_column(Numeric(8, 3), nullable=True)
+    max_marks: Mapped[Optional[float]] = mapped_column(Numeric(8, 3), nullable=True)
     grade: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     remarks: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     graded_by: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), nullable=True)
@@ -159,7 +159,7 @@ class AssessmentResult(Base):
     school_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("schools.id"), nullable=False)
     assessment_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("academic_assessments.id"), nullable=False)
     student_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("students.id"), nullable=False)
-    marks_obtained: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    marks_obtained: Mapped[Optional[float]] = mapped_column(Numeric(8, 3), nullable=True)
     grade: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     remarks: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     is_absent: Mapped[Optional[bool]] = mapped_column(Boolean, default=False, nullable=True)
@@ -191,8 +191,13 @@ class ExamSeatingPlan(Base):
     school_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("schools.id"), nullable=False)
     
     exam_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("exams.id", ondelete="CASCADE"), nullable=False)
-    datesheet_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("exam_datesheets.id", ondelete="CASCADE"), nullable=False)
+    # Legacy link, optional: plans now belong to an exam sitting (below).
+    datesheet_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("exam_datesheets.id", ondelete="CASCADE"), nullable=True)
     room_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("exam_rooms.id", ondelete="CASCADE"), nullable=False)
+    exam_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    start_time: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    session_label: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    created_by: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), nullable=True)
     
     created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=True)
 

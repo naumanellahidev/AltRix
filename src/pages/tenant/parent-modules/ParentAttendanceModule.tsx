@@ -8,6 +8,7 @@ import { format } from "date-fns";
 import { RefreshCw, WifiOff } from "lucide-react";
 import { useOfflineAttendanceEntries } from "@/hooks/useOfflineData";
 import { OfflineDataBanner } from "@/components/offline/OfflineDataBanner";
+import { DataExportMenu } from "@/components/documents/DataExportMenu";
 
 interface ParentAttendanceModuleProps {
   child: ChildInfo | null;
@@ -84,7 +85,17 @@ const ParentAttendanceModule = ({ child, schoolId }: ParentAttendanceModuleProps
 
       <Card>
         <CardHeader>
-          <CardTitle>Attendance History</CardTitle>
+          <div className="flex items-center justify-between gap-2">
+            <CardTitle>Attendance History</CardTitle>
+            <DataExportMenu
+              title="Attendance History"
+              subtitle={child ? [child.first_name, child.last_name].filter(Boolean).join(" ") : undefined}
+              fileNameParts={[child ? [child.first_name, child.last_name].filter(Boolean).join(" ") : null, "Attendance"]}
+              rows={childAttendance.map((r: any) => ({ Date: r.sessionDate ? String(r.sessionDate).slice(0, 10) : "", Period: r.periodLabel ?? "", Status: r.status, Note: r.note ?? "" }))}
+              disabled={!childAttendance.length}
+              size="sm"
+            />
+          </div>
         </CardHeader>
         <CardContent>
           {childAttendance.length === 0 ? (

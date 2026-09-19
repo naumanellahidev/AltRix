@@ -12,7 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
-import { exportToCSV } from "@/lib/csv";
+import { DataExportMenu } from "@/components/documents/DataExportMenu";
 import {
   Dialog,
   DialogContent,
@@ -390,10 +390,11 @@ export function TeacherGradebookModule() {
       return row;
     });
     
-    const section = sections.find((s) => s.id === selectedSection);
-    exportToCSV(rows, `gradebook-${section?.class_name}-${section?.name}`);
-    toast.success("Gradebook exported");
+    return rows;
   };
+
+  const gradebookSection = sections.find((s) => s.id === selectedSection);
+  const gradebookLabel = [gradebookSection?.class_name, gradebookSection?.name].filter(Boolean).join(" ");
 
   const studentAverages = useMemo(() => {
     const avgs = new Map<string, number>();
@@ -542,9 +543,16 @@ export function TeacherGradebookModule() {
               </DialogFooter>
             </DialogContent>
           </Dialog>
-          <Button variant="outline" onClick={exportGradebook} disabled={students.length === 0}>
-            <Download className="h-4 w-4 mr-1" /> Export
-          </Button>
+          <DataExportMenu
+            title="Gradebook"
+            subtitle={gradebookLabel || undefined}
+            fileNameParts={["Gradebook", gradebookLabel]}
+            rows={[]}
+            loadRows={async () => exportGradebook()}
+            disabled={students.length === 0}
+            orientation={assessments.length > 5 ? "landscape" : "portrait"}
+            size="default"
+          />
           <Button onClick={saveMarks} disabled={saving || editedMarks.size === 0}>
             <Save className="h-4 w-4 mr-1" /> Save Changes
           </Button>

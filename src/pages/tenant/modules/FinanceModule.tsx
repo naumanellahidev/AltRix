@@ -3,6 +3,8 @@ import { useParams } from "react-router-dom";
 import { DollarSign, Plus, Receipt, Trash2 } from "lucide-react";
 
 import { api } from "@/lib/api";
+import { DataExportMenu } from "@/components/documents/DataExportMenu";
+import { money } from "@/lib/documents/format";
 import { useTenant } from "@/hooks/useTenant";
 import { useSchoolPermissions } from "@/hooks/useSchoolPermissions";
 import { 
@@ -323,6 +325,9 @@ export function FinanceModule() {
             </CardContent>
           </Card>
 
+          <div className="flex justify-end">
+            <DataExportMenu title="Fee Plans" rows={feePlans.map((p: any) => ({ Name: p.name, Currency: p.currency, Status: p.is_active === false ? "Inactive" : "Active" }))} disabled={!feePlans.length} size="sm" />
+          </div>
           <div className="overflow-auto rounded-2xl border bg-surface">
             <Table>
               <TableHeader>
@@ -385,6 +390,9 @@ export function FinanceModule() {
             </CardContent>
           </Card>
 
+          <div className="flex justify-end">
+            <DataExportMenu title="Payment Methods" rows={paymentMethods.map((m: any) => ({ Name: m.name, Type: m.type, Active: m.is_active ? "Yes" : "No" }))} disabled={!paymentMethods.length} size="sm" />
+          </div>
           <div className="overflow-auto rounded-2xl border bg-surface">
             <Table>
               <TableHeader>
@@ -458,6 +466,9 @@ export function FinanceModule() {
             </CardContent>
           </Card>
 
+          <div className="flex justify-end">
+            <DataExportMenu title="Invoices" rows={invoices.map((i: any) => ({ invoice: i.invoice_no, status: i.status, total: i.total, issue_date: i.issue_date }))} columns={[{ header: "Invoice", key: "invoice" }, { header: "Status", key: "status" }, { header: "Total", key: "total", type: "money", total: "sum" }, { header: "Issue date", key: "issue_date", type: "date" }]} disabled={!invoices.length} size="sm" />
+          </div>
           <div className="overflow-auto rounded-2xl border bg-surface">
             <Table>
               <TableHeader>
@@ -474,7 +485,7 @@ export function FinanceModule() {
                   <TableRow key={i.id}>
                     <TableCell className="font-medium">{i.invoice_no}</TableCell>
                     <TableCell className="text-muted-foreground">{i.status}</TableCell>
-                    <TableCell>Rs. {Number(i.total ?? 0).toLocaleString()}</TableCell>
+                    <TableCell>Rs. {money(i.total ?? 0)}</TableCell>
                     <TableCell className="text-muted-foreground">{i.issue_date}</TableCell>
                     <TableCell className="text-right">
                       <AlertDialog>
@@ -545,6 +556,9 @@ export function FinanceModule() {
             </CardContent>
           </Card>
 
+          <div className="flex justify-end">
+            <DataExportMenu title="Payments" rows={payments.map((p: any) => ({ paid_at: p.paid_at, amount: p.amount, reference: p.reference ?? "" }))} columns={[{ header: "Paid at", key: "paid_at", type: "date" }, { header: "Amount", key: "amount", type: "money", total: "sum" }, { header: "Reference", key: "reference" }]} disabled={!payments.length} size="sm" />
+          </div>
           <div className="overflow-auto rounded-2xl border bg-surface">
             <Table>
               <TableHeader>
@@ -559,7 +573,7 @@ export function FinanceModule() {
                 {payments.map((p) => (
                   <TableRow key={p.id}>
                     <TableCell className="text-muted-foreground">{new Date(p.paid_at).toLocaleString()}</TableCell>
-                    <TableCell className="font-medium">Rs. {Number(p.amount ?? 0).toLocaleString()}</TableCell>
+                    <TableCell className="font-medium">Rs. {money(p.amount ?? 0)}</TableCell>
                     <TableCell className="text-muted-foreground">{p.reference ?? "—"}</TableCell>
                     <TableCell className="text-right">
                       <AlertDialog>
@@ -607,6 +621,9 @@ export function FinanceModule() {
             </CardContent>
           </Card>
 
+          <div className="flex justify-end">
+            <DataExportMenu title="Expenses" rows={expenses.map((e: any) => ({ date: e.expense_date, description: e.description, category: e.category, amount: e.amount }))} columns={[{ header: "Date", key: "date", type: "date" }, { header: "Description", key: "description" }, { header: "Category", key: "category" }, { header: "Amount", key: "amount", type: "money", total: "sum" }]} disabled={!expenses.length} size="sm" />
+          </div>
           <div className="overflow-auto rounded-2xl border bg-surface">
             <Table>
               <TableHeader>
@@ -624,7 +641,7 @@ export function FinanceModule() {
                     <TableCell className="text-muted-foreground">{e.expense_date}</TableCell>
                     <TableCell className="font-medium">{e.description}</TableCell>
                     <TableCell className="text-muted-foreground">{e.category}</TableCell>
-                    <TableCell>Rs. {Number(e.amount ?? 0).toLocaleString()}</TableCell>
+                    <TableCell>Rs. {money(e.amount ?? 0)}</TableCell>
                     <TableCell className="text-right">
                       <AlertDialog>
                         <AlertDialogTrigger asChild>

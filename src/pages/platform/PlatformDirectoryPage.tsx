@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { SuperAdminShell } from "@/components/super-admin/SuperAdminShell";
+import { DataExportMenu } from "@/components/documents/DataExportMenu";
 
 type SchoolRow = { id: string; slug: string; name: string; is_active: boolean; created_at: string };
 type StudentRow = { id: string; school_id: string; first_name: string; last_name: string | null; status: string; created_at: string };
@@ -160,6 +161,7 @@ type DirRow = { id: string; school_id: string; email: string; display_name: stri
                 </TabsList>
 
                 <TabsContent value="schools" className="mt-4">
+                  <div className="mb-2 flex justify-end"><DataExportMenu title="Schools" rows={schools.map((s) => ({ School: s.name, Slug: s.slug, Status: s.is_active ? "Active" : "Inactive", Created: String(s.created_at).slice(0, 10) }))} disabled={!schools.length} size="sm" /></div>
                   <div className="overflow-auto rounded-2xl border border-slate-200 bg-white">
                     <Table>
                       <TableHeader className="border-b border-zinc-850">
@@ -198,6 +200,7 @@ type DirRow = { id: string; school_id: string; email: string; display_name: stri
                 </TabsContent>
 
                 <TabsContent value="users" className="mt-4">
+                  <div className="mb-2 flex justify-end"><DataExportMenu title="Platform Users" rows={users.map((r) => ({ Email: r.email, Name: r.display_name ?? "", School: schools.find((x) => x.id === r.school_id)?.name ?? r.school_id }))} disabled={!users.length} size="sm" /></div>
                   <div className="overflow-auto rounded-2xl border border-slate-200 bg-white">
                     <Table>
                       <TableHeader className="border-b border-zinc-850">
@@ -228,6 +231,7 @@ type DirRow = { id: string; school_id: string; email: string; display_name: stri
                 </TabsContent>
 
                 <TabsContent value="students" className="mt-4">
+                  <div className="mb-2 flex justify-end"><DataExportMenu title="Students (All Schools)" rows={students.map((r) => ({ Name: [r.first_name, r.last_name].filter(Boolean).join(" "), Status: r.status, School: schools.find((x) => x.id === r.school_id)?.name ?? r.school_id }))} disabled={!students.length} size="sm" /></div>
                   <div className="overflow-auto rounded-2xl border border-slate-200 bg-white">
                     <Table>
                       <TableHeader className="border-b border-zinc-850">
@@ -258,6 +262,7 @@ type DirRow = { id: string; school_id: string; email: string; display_name: stri
                 </TabsContent>
 
                 <TabsContent value="leads" className="mt-4">
+                  <div className="mb-2 flex justify-end"><DataExportMenu title="Leads (All Schools)" rows={leads.map((r) => ({ Name: r.full_name, Email: r.email ?? "", Phone: r.phone ?? "", Status: r.status, School: schools.find((x) => x.id === r.school_id)?.name ?? r.school_id }))} disabled={!leads.length} size="sm" /></div>
                   <div className="overflow-auto rounded-2xl border border-slate-200 bg-white">
                     <Table>
                       <TableHeader className="border-b border-zinc-850">

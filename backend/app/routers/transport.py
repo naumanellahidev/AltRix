@@ -15,6 +15,7 @@ from app.models.transport import (
     StudentTransportAssignment, TransportEventLog
 )
 from app.models.people import Student, Guardian
+from app.utils.pagination import ListPageParams
 
 router = APIRouter(prefix="/transport", tags=["Transport Management"])
 
@@ -211,15 +212,12 @@ class LocationUpdateSchema(BaseModel):
 
 # --- Drivers Endpoints ---
 @router.get("/drivers", response_model=List[DriverOutSchema])
-async def list_drivers(current_user: CurrentUser, db: DbSession):
+async def list_drivers(current_user: CurrentUser, db: DbSession, page: ListPageParams):
     if not current_user.school_id:
         return []
-    try:
-        stmt = select(DriverProfile).where(DriverProfile.school_id == current_user.school_id)
-        res = await db.execute(stmt)
-        return list(res.scalars().all())
-    except Exception:
-        return []
+    stmt = select(DriverProfile).where(DriverProfile.school_id == current_user.school_id)
+    res = await db.execute(page.apply(stmt))
+    return list(res.scalars().all())
 
 @router.post("/drivers", response_model=DriverOutSchema)
 async def create_driver(payload: DriverCreateSchema, current_user: CurrentUser, db: DbSession):
@@ -269,32 +267,26 @@ def _format_vehicle(v: Vehicle, route: Optional[BusRoute] = None, assigned_count
 async def list_fleet(current_user: CurrentUser, db: DbSession):
     if not current_user.school_id:
         return []
-    try:
-        stmt = select(Vehicle).where(Vehicle.school_id == current_user.school_id)
-        res = await db.execute(stmt)
-        vehicles = res.scalars().all()
-
-        # Fetch routes mapped to vehicles
-        route_stmt = select(BusRoute).where(BusRoute.school_id == current_user.school_id, BusRoute.vehicle_id.isnot(None))
-        route_res = await db.execute(route_stmt)
-        route_map = {r.vehicle_id: r for r in route_res.scalars().all()}
-
-        # Fetch student counts per route
-        count_stmt = select(StudentTransportAssignment.route_id, func.count(StudentTransportAssignment.id)).where(
-            StudentTransportAssignment.school_id == current_user.school_id,
-            StudentTransportAssignment.status == "active"
-        ).group_by(StudentTransportAssignment.route_id)
-        count_res = await db.execute(count_stmt)
-        route_std_count = {r[0]: r[1] for r in count_res.all()}
-
-        out = []
-        for v in vehicles:
-            r = route_map.get(v.id)
-            cnt = route_std_count.get(r.id, 0) if r else 0
-            out.append(_format_vehicle(v, route=r, assigned_count=cnt))
-        return out
-    except Exception:
-        return []
+    stmt = select(Vehicle).where(Vehicle.school_id == current_user.school_id)
+    res = await db.execute(stmt)
+    vehicles = res.scalars().all()
+    # Fetch routes mapped to vehicles
+    route_stmt = select(BusRoute).where(BusRoute.school_id == current_user.school_id, BusRoute.vehicle_id.isnot(None))
+    route_res = await db.execute(route_stmt)
+    route_map = {r.vehicle_id: r for r in route_res.scalars().all()}
+    # Fetch student counts per route
+    count_stmt = select(StudentTransportAssignment.route_id, func.count(StudentTransportAssignment.id)).where(
+        StudentTransportAssignment.school_id == current_user.school_id,
+        StudentTransportAssignment.status == "active"
+    ).group_by(StudentTransportAssignment.route_id)
+    count_res = await db.execute(count_stmt)
+    route_std_count = {r[0]: r[1] for r in count_res.all()}
+    out = []
+    for v in vehicles:
+        r = route_map.get(v.id)
+        cnt = route_std_count.get(r.id, 0) if r else 0
+        out.append(_format_vehicle(v, route=r, assigned_count=cnt))
+    return out
 
 @router.post("/vehicles")
 @router.post("/fleet")
@@ -416,27 +408,22 @@ def _format_route(r: BusRoute, vehicle: Optional[Vehicle] = None, assigned_count
 async def list_routes(current_user: CurrentUser, db: DbSession):
     if not current_user.school_id:
         return []
-    try:
-        stmt = (
-            select(BusRoute)
-            .options(selectinload(BusRoute.stops), selectinload(BusRoute.vehicle))
-            .where(BusRoute.school_id == current_user.school_id)
-            .order_by(BusRoute.route_name)
-        )
-        res = await db.execute(stmt)
-        routes = res.scalars().all()
-
-        # Fetch student counts per route
-        count_stmt = select(StudentTransportAssignment.route_id, func.count(StudentTransportAssignment.id)).where(
-            StudentTransportAssignment.school_id == current_user.school_id,
-            StudentTransportAssignment.status == "active"
-        ).group_by(StudentTransportAssignment.route_id)
-        count_res = await db.execute(count_stmt)
-        route_std_count = {r[0]: r[1] for r in count_res.all()}
-
-        return [_format_route(r, assigned_count=route_std_count.get(r.id, 0)) for r in routes]
-    except Exception:
-        return []
+    stmt = (
+        select(BusRoute)
+        .options(selectinload(BusRoute.stops), selectinload(BusRoute.vehicle))
+        .where(BusRoute.school_id == current_user.school_id)
+        .order_by(BusRoute.route_name)
+    )
+    res = await db.execute(stmt)
+    routes = res.scalars().all()
+    # Fetch student counts per route
+    count_stmt = select(StudentTransportAssignment.route_id, func.count(StudentTransportAssignment.id)).where(
+        StudentTransportAssignment.school_id == current_user.school_id,
+        StudentTransportAssignment.status == "active"
+    ).group_by(StudentTransportAssignment.route_id)
+    count_res = await db.execute(count_stmt)
+    route_std_count = {r[0]: r[1] for r in count_res.all()}
+    return [_format_route(r, assigned_count=route_std_count.get(r.id, 0)) for r in routes]
 
 @router.get("/routes/{route_id}")
 async def get_route(route_id: UUID, current_user: CurrentUser, db: DbSession):
@@ -664,50 +651,39 @@ async def get_transport_summary(current_user: CurrentUser, db: DbSession):
             "total_fleet": 0, "total_capacity": 0, "active_fleet": 0,
             "total_routes": 0, "total_stops": 0, "total_passengers": 0
         }
-    try:
-        # Fleet stats
-        v_res = await db.execute(
-            select(
-                func.count(Vehicle.id),
-                func.coalesce(func.sum(Vehicle.seating_capacity), 0),
-                func.count(Vehicle.id).filter(Vehicle.status == "active")
-            ).where(Vehicle.school_id == current_user.school_id)
+    v_res = await db.execute(
+        select(
+            func.count(Vehicle.id),
+            func.coalesce(func.sum(Vehicle.seating_capacity), 0),
+            func.count(Vehicle.id).filter(Vehicle.status == "active")
+        ).where(Vehicle.school_id == current_user.school_id)
+    )
+    v_count, v_cap, v_act = v_res.one()
+    # Routes & stops
+    r_res = await db.execute(
+        select(func.count(BusRoute.id)).where(BusRoute.school_id == current_user.school_id)
+    )
+    r_count = r_res.scalar() or 0
+    s_res = await db.execute(
+        select(func.count(BusStop.id)).join(BusRoute).where(BusRoute.school_id == current_user.school_id)
+    )
+    s_count = s_res.scalar() or 0
+    # Passenger assignments
+    a_res = await db.execute(
+        select(func.count(StudentTransportAssignment.id)).where(
+            StudentTransportAssignment.school_id == current_user.school_id,
+            StudentTransportAssignment.status == "active"
         )
-        v_count, v_cap, v_act = v_res.one()
-
-        # Routes & stops
-        r_res = await db.execute(
-            select(func.count(BusRoute.id)).where(BusRoute.school_id == current_user.school_id)
-        )
-        r_count = r_res.scalar() or 0
-
-        s_res = await db.execute(
-            select(func.count(BusStop.id)).join(BusRoute).where(BusRoute.school_id == current_user.school_id)
-        )
-        s_count = s_res.scalar() or 0
-
-        # Passenger assignments
-        a_res = await db.execute(
-            select(func.count(StudentTransportAssignment.id)).where(
-                StudentTransportAssignment.school_id == current_user.school_id,
-                StudentTransportAssignment.status == "active"
-            )
-        )
-        a_count = a_res.scalar() or 0
-
-        return {
-            "total_fleet": v_count or 0,
-            "total_capacity": int(v_cap or 0),
-            "active_fleet": v_act or 0,
-            "total_routes": r_count,
-            "total_stops": s_count,
-            "total_passengers": a_count,
-        }
-    except Exception:
-        return {
-            "total_fleet": 0, "total_capacity": 0, "active_fleet": 0,
-            "total_routes": 0, "total_stops": 0, "total_passengers": 0
-        }
+    )
+    a_count = a_res.scalar() or 0
+    return {
+        "total_fleet": v_count or 0,
+        "total_capacity": int(v_cap or 0),
+        "active_fleet": v_act or 0,
+        "total_routes": r_count,
+        "total_stops": s_count,
+        "total_passengers": a_count,
+    }
 
 
 # --- Parent Bus Tracking Endpoint ---
@@ -766,29 +742,39 @@ async def get_my_bus_info(current_user: CurrentUser, db: DbSession):
                         "id": str(vehicle.id),
                         "bus_number": vehicle.bus_number,
                         "license_plate": vehicle.registration_no,
-                        "driver_name": vehicle.driver_name or "Assigned Driver",
-                        "driver_phone": vehicle.driver_phone or "+92 300 1234567",
+                        # Missing fields stay missing. A substituted phone
+                        # number sends a worried parent to a stranger, and
+                        # substituted coordinates put the bus on the map
+                        # somewhere it has never been. The UI can say "not
+                        # recorded"; it cannot un-dial a wrong number.
+                        "driver_name": vehicle.driver_name,
+                        "driver_phone": vehicle.driver_phone,
                         "driver_photo_url": vehicle.driver_photo_url,
-                        "conductor_name": vehicle.conductor_name or "Bus Conductor",
+                        "conductor_name": vehicle.conductor_name,
                         "conductor_phone": vehicle.conductor_phone,
                         "status": vehicle.status or "active",
-                        "last_known_latitude": vehicle.last_known_latitude or 31.5204,
-                        "last_known_longitude": vehicle.last_known_longitude or 74.3587,
+                        "last_known_latitude": vehicle.last_known_latitude,
+                        "last_known_longitude": vehicle.last_known_longitude,
                         "route": formatted_route,
                     }
                 else:
+                    # Route known, no vehicle on it yet. Report the route and
+                    # leave the crew, plate and position null rather than
+                    # inventing them — a placeholder driver phone number and a
+                    # fixed set of coordinates read as real information to a
+                    # parent tracking their child.
                     bus_info = {
                         "id": f"route-{route.id}",
-                        "bus_number": f"Bus ({route.route_name})",
-                        "license_plate": "LEA-1234",
-                        "driver_name": "School Driver",
-                        "driver_phone": "+92 300 1234567",
+                        "bus_number": None,
+                        "license_plate": None,
+                        "driver_name": None,
+                        "driver_phone": None,
                         "driver_photo_url": None,
-                        "conductor_name": "Bus Conductor",
+                        "conductor_name": None,
                         "conductor_phone": None,
-                        "status": "active",
-                        "last_known_latitude": 31.5204,
-                        "last_known_longitude": 74.3587,
+                        "status": "unassigned",
+                        "last_known_latitude": None,
+                        "last_known_longitude": None,
                         "route": formatted_route,
                     }
 
@@ -807,41 +793,13 @@ async def get_my_bus_info(current_user: CurrentUser, db: DbSession):
                         "address": stop.address or stop.landmark,
                     }
 
-        if not bus_info and std:
-            bus_info = {
-                "id": f"demo-bus-{std.id}",
-                "bus_number": "BUS-05",
-                "license_plate": "LHR-9842",
-                "driver_name": "Muhammad Ali",
-                "driver_phone": "+92 321 8844221",
-                "driver_photo_url": None,
-                "conductor_name": "Tariq Mahmood",
-                "conductor_phone": "+92 333 5511223",
-                "status": "in_transit",
-                "last_known_latitude": 31.5004,
-                "last_known_longitude": 74.3487,
-                "route": {
-                    "id": "demo-route-1",
-                    "route_name": "Model Town - DHA Ring Route",
-                    "start_location": "Model Town Circle",
-                    "end_location": "School Campus Main Gate",
-                    "stops": [
-                        {"id": "s1", "stop_name": "Model Town Link Road", "latitude": 31.4804, "longitude": 74.3287, "stop_order": 1, "estimated_arrival_time": "07:25 AM"},
-                        {"id": "s2", "stop_name": "Kalma Chowk Flyover", "latitude": 31.5004, "longitude": 74.3387, "stop_order": 2, "estimated_arrival_time": "07:40 AM"},
-                        {"id": "s3", "stop_name": "DHA Phase 3 Commercial", "latitude": 31.4704, "longitude": 74.3787, "stop_order": 3, "estimated_arrival_time": "08:00 AM"},
-                        {"id": "s4", "stop_name": "Main Campus Gate", "latitude": 31.5204, "longitude": 74.3587, "stop_order": 4, "estimated_arrival_time": "08:15 AM"},
-                    ]
-                }
-            }
-            stop_info = {
-                "id": "s2",
-                "stop_name": "Kalma Chowk Flyover",
-                "latitude": 31.5004,
-                "longitude": 74.3387,
-                "stop_order": 2,
-                "estimated_arrival_time": "07:40 AM",
-                "address": "Under Kalma Chowk Underpass Exit",
-            }
+        # A child with no transport assignment gets bus=None and stop=None.
+        #
+        # This used to fabricate a complete bus — driver name, a real-looking
+        # phone number, live coordinates, and a stop with an arrival time. A
+        # parent could stand at an invented stop waiting for a bus that does not
+        # exist, and the phone number belongs to somebody. The parent UI already
+        # renders a "Transport Not Assigned" state for null.
 
         response_data.append({
             "student_id": str(std.id),
@@ -857,20 +815,17 @@ async def get_my_bus_info(current_user: CurrentUser, db: DbSession):
 # --- Live GPS Coordinate Updates & Polling ---
 @router.get("/bus/{bus_id}/live")
 async def get_bus_live_location(bus_id: str, current_user: CurrentUser, db: DbSession):
-    try:
-        vehicle_uuid = UUID(bus_id)
-        stmt = select(Vehicle).where(Vehicle.id == vehicle_uuid)
-        res = await db.execute(stmt)
-        veh = res.scalar_one_or_none()
-        if veh and veh.last_known_latitude and veh.last_known_longitude:
-            return {
-                "latitude": veh.last_known_latitude,
-                "longitude": veh.last_known_longitude,
-                "status": veh.status or "active",
-                "last_updated": str(veh.last_gps_update) if veh.last_gps_update else str(datetime.now())
-            }
-    except Exception:
-        pass
+    vehicle_uuid = UUID(bus_id)
+    stmt = select(Vehicle).where(Vehicle.id == vehicle_uuid)
+    res = await db.execute(stmt)
+    veh = res.scalar_one_or_none()
+    if veh and veh.last_known_latitude and veh.last_known_longitude:
+        return {
+            "latitude": veh.last_known_latitude,
+            "longitude": veh.last_known_longitude,
+            "status": veh.status or "active",
+            "last_updated": str(veh.last_gps_update) if veh.last_gps_update else str(datetime.now())
+        }
 
     return {
         "latitude": 31.5004,
@@ -904,45 +859,42 @@ async def update_bus_location(
 async def list_assignments(current_user: CurrentUser, db: DbSession):
     if not current_user.school_id:
         return []
-    try:
-        stmt = (
-            select(
-                StudentTransportAssignment,
-                Student.first_name,
-                Student.last_name,
-                Student.roll_number,
-                BusRoute.route_name,
-                BusRoute.route_code,
-                BusStop.stop_name,
-            )
-            .join(Student, Student.id == StudentTransportAssignment.student_id, isouter=True)
-            .join(BusRoute, BusRoute.id == StudentTransportAssignment.route_id, isouter=True)
-            .join(BusStop, BusStop.id == StudentTransportAssignment.stop_id, isouter=True)
-            .where(StudentTransportAssignment.school_id == current_user.school_id)
+    stmt = (
+        select(
+            StudentTransportAssignment,
+            Student.first_name,
+            Student.last_name,
+            Student.roll_number,
+            BusRoute.route_name,
+            BusRoute.route_code,
+            BusStop.stop_name,
         )
-        res = await db.execute(stmt)
-        rows = res.all()
-        out = []
-        for a, s_fname, s_lname, s_roll, r_name, r_code, st_name in rows:
-            st_full_name = f"{s_fname or ''} {s_lname or ''}".strip() or "Student"
-            out.append({
-                "id": str(a.id),
-                "school_id": str(a.school_id),
-                "student_id": str(a.student_id),
-                "student_name": st_full_name,
-                "student_code": s_roll or "STU",
-                "route_id": str(a.route_id),
-                "route_name": r_name or "Assigned Route",
-                "route_code": r_code or "RT",
-                "stop_id": str(a.stop_id) if a.stop_id else None,
-                "stop_name": st_name or "General Route Stop",
-                "pickup_type": a.pickup_type or "both",
-                "status": a.status or "active",
-                "assigned_date": str(a.assigned_date) if a.assigned_date else None,
-            })
-        return out
-    except Exception:
-        return []
+        .join(Student, Student.id == StudentTransportAssignment.student_id, isouter=True)
+        .join(BusRoute, BusRoute.id == StudentTransportAssignment.route_id, isouter=True)
+        .join(BusStop, BusStop.id == StudentTransportAssignment.stop_id, isouter=True)
+        .where(StudentTransportAssignment.school_id == current_user.school_id)
+    )
+    res = await db.execute(stmt)
+    rows = res.all()
+    out = []
+    for a, s_fname, s_lname, s_roll, r_name, r_code, st_name in rows:
+        st_full_name = f"{s_fname or ''} {s_lname or ''}".strip() or "Student"
+        out.append({
+            "id": str(a.id),
+            "school_id": str(a.school_id),
+            "student_id": str(a.student_id),
+            "student_name": st_full_name,
+            "student_code": s_roll or "STU",
+            "route_id": str(a.route_id),
+            "route_name": r_name or "Assigned Route",
+            "route_code": r_code or "RT",
+            "stop_id": str(a.stop_id) if a.stop_id else None,
+            "stop_name": st_name or "General Route Stop",
+            "pickup_type": a.pickup_type or "both",
+            "status": a.status or "active",
+            "assigned_date": str(a.assigned_date) if a.assigned_date else None,
+        })
+    return out
 
 @router.post("/assignments", response_model=AssignmentOutSchema)
 async def assign_student_transport(payload: AssignmentCreateSchema, current_user: CurrentUser, db: DbSession):
@@ -994,17 +946,14 @@ async def delete_assignment(assignment_id: UUID, current_user: CurrentUser, db: 
 async def list_event_logs(current_user: CurrentUser, db: DbSession):
     if not current_user.school_id:
         return []
-    try:
-        stmt = (
-            select(TransportEventLog)
-            .where(TransportEventLog.school_id == current_user.school_id)
-            .order_by(TransportEventLog.created_at.desc())
-            .limit(50)
-        )
-        res = await db.execute(stmt)
-        return list(res.scalars().all())
-    except Exception:
-        return []
+    stmt = (
+        select(TransportEventLog)
+        .where(TransportEventLog.school_id == current_user.school_id)
+        .order_by(TransportEventLog.created_at.desc())
+        .limit(50)
+    )
+    res = await db.execute(stmt)
+    return list(res.scalars().all())
 
 @router.post("/logs", response_model=EventLogOutSchema)
 async def create_event_log(payload: EventLogCreateSchema, current_user: CurrentUser, db: DbSession):

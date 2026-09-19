@@ -1,7 +1,22 @@
-import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
-import QRCode from "qrcode";
-import { format } from "date-fns";
+/**
+ * Exam datesheets — for a whole exam, one section, or one student.
+ *
+ * Rebuilt on the document system: the school's letterhead and colour instead
+ * of a bare title in hard-coded blue; QR codes drawn as vectors instead of
+ * pasted PNGs; table headers repeated and "Page X of Y" on long datesheets;
+ * papers grouped by day so a family reads it as a schedule; and exam dates
+ * printed as the calendar dates they are (they were parsed as midnight UTC and
+ * could print a day early).
+ *
+ * The exported names and the returned jsPDF are unchanged for the screens
+ * that save it or upload it per student.
+ */
+import type jsPDF from "jspdf";
+
+import { createDocumentAsync, loadActiveSchoolBrand } from "@/lib/documents";
+import { date as formatDate, documentFileName } from "@/lib/documents/format";
+import { drawTable, type Column } from "@/lib/documents/table";
+import { drawQrVector } from "@/lib/documents/verify";
 
 export type DatesheetField =
   | "date" | "start" | "duration" | "subject" | "section" | "room" | "max" | "passing" | "invigilator";
@@ -48,8 +63,43 @@ export interface BuildOpts {
 
 const LABELS: Record<DatesheetField, string> = {
   date: "Date", start: "Start", duration: "Duration", subject: "Subject",
-  section: "Class/Section", room: "Room", max: "Max", passing: "Pass", invigilator: "Invigilator",
+  section: "Class / Section", room: "Room", max: "Max", passing: "Pass", invigilator: "Invigilator",
 };
+
+const WIDTHS: Record<DatesheetField, number> = {
+  date: 1.6, start: 0.8, duration: 0.9, subject: 2, section: 1.4, room: 0.9, max: 0.7, passing: 0.7, invigilator: 1.5,
+};
+
+function time12(value: string | null): string {
+  if (!value) return "";
+  const [h, m] = value.slice(0, 5).split(":").map(Number);
+  if (Number.isNaN(h)) return value.slice(0, 5);
+  const suffix = h >= 12 ? "PM" : "AM";
+  return `${((h + 11) % 12) + 1}:${String(m ?? 0).padStart(2, "0")} ${suffix}`;
+}
+
+function duration(minutes: number | null): string {
+  if (!minutes) return "";
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return h ? `${h} h${m ? ` ${m} min` : ""}` : `${m} min`;
+}
+
+function weekdayDate(value: string | null): string {
+  if (!value) return "";
+  const [y, mo, d] = value.slice(0, 10).split("-").map(Number);
+  const local = new Date(y, mo - 1, d);
+  if (Number.isNaN(local.getTime())) return value;
+  return `${local.toLocaleDateString("en-GB", { weekday: "short" })}, ${formatDate(value.slice(0, 10))}`;
+}
+
+/** The file name a datesheet should be saved under. */
+export function datesheetFileName(meta: DatesheetMeta): string {
+  return documentFileName(
+    [meta.studentLabel ?? meta.sectionLabel ?? "All classes", "Datesheet", meta.examName],
+    "pdf",
+  );
+}
 
 export async function buildDatesheetPDF(
   rows: DatesheetRow[],
@@ -61,93 +111,112 @@ export async function buildDatesheetPDF(
     staff: Map<string, string>;
   },
 ): Promise<jsPDF> {
-  const doc = new jsPDF({ orientation: "landscape" });
-  const pageW = doc.internal.pageSize.getWidth();
+  const brand = await loadActiveSchoolBrand();
+  const wide = opts.fields.length + (opts.includePaperQR ? 1 : 0) > 6;
 
-  doc.setFontSize(16); doc.setFont("helvetica", "bold");
-  doc.text(meta.schoolName || "Datesheet", pageW / 2, 14, { align: "center" });
-  doc.setFontSize(12); doc.setFont("helvetica", "normal");
-  doc.text(`Exam Datesheet — ${meta.examName}`, pageW / 2, 21, { align: "center" });
-  let topY = 27;
-  if (meta.studentLabel) {
-    doc.setFontSize(10);
-    doc.text(`${meta.studentLabel}${meta.studentCode ? ` (${meta.studentCode})` : ""}`, pageW / 2, topY, { align: "center" });
-    topY += 5;
-  }
-  if (meta.sectionLabel) {
-    doc.setFontSize(10);
-    doc.text(`Class/Section: ${meta.sectionLabel}`, pageW / 2, topY, { align: "center" });
-    topY += 5;
-  }
-
-  // Hall-ticket QR (top right)
-  if (opts.includeHallTicketQR && meta.hallTicketUrl) {
-    try {
-      const dataUrl = await QRCode.toDataURL(meta.hallTicketUrl, { width: 200, margin: 0 });
-      doc.addImage(dataUrl, "PNG", pageW - 38, 8, 28, 28);
-      doc.setFontSize(7); doc.setTextColor(100);
-      doc.text("Hall ticket", pageW - 24, 39, { align: "center" });
-      doc.setTextColor(0);
-    } catch { /* ignore */ }
-  }
-
-  const head = [opts.fields.map((f) => LABELS[f])];
-  if (opts.includePaperQR) head[0].push("QR");
-
-  const sorted = rows.slice().sort(
-    (a, b) => (a.exam_date || "").localeCompare(b.exam_date || "") || (a.start_time || "").localeCompare(b.start_time || "")
-  );
-
-  // Pre-generate per-paper QRs
-  const qrMap = new Map<string, string>();
-  if (opts.includePaperQR) {
-    for (const r of sorted) {
-      const payload = JSON.stringify({
-        exam: meta.examName, subject: lookups.subjects.get(r.subject_id || "") || "",
-        date: r.exam_date, start: r.start_time, room: r.room,
-      });
-      try { qrMap.set(r.id, await QRCode.toDataURL(payload, { width: 120, margin: 0 })); } catch {}
-    }
-  }
-
-  const body = sorted.map((r) => {
-    const row: any[] = opts.fields.map((f) => {
-      switch (f) {
-        case "date": return r.exam_date ? format(new Date(r.exam_date), "EEE, MMM d, yyyy") : "—";
-        case "start": return r.start_time?.slice(0, 5) || "—";
-        case "duration": return r.duration_minutes ? `${r.duration_minutes} min` : "—";
-        case "subject": return lookups.subjects.get(r.subject_id || "") || "—";
-        case "section": return lookups.sections.get(r.class_section_id || "") || "—";
-        case "room": return r.room || "—";
-        case "max": return r.max_marks?.toString() || "—";
-        case "passing": return r.passing_marks?.toString() || "—";
-        case "invigilator": return lookups.staff.get(r.invigilator_user_id || "") || "—";
-      }
-    });
-    if (opts.includePaperQR) row.push("");
-    return row;
-  });
-
-  autoTable(doc, {
-    startY: topY + 2,
-    head, body,
-    styles: { fontSize: 9, cellPadding: 2.5, valign: "middle" },
-    headStyles: { fillColor: [33, 90, 165], textColor: 255 },
-    alternateRowStyles: { fillColor: [245, 247, 250] },
-    didDrawCell: (data) => {
-      if (!opts.includePaperQR) return;
-      if (data.section !== "body") return;
-      if (data.column.index !== opts.fields.length) return;
-      const r = sorted[data.row.index];
-      const url = qrMap.get(r.id);
-      if (!url) return;
-      const size = Math.min(data.cell.height - 2, 14);
-      doc.addImage(url, "PNG", data.cell.x + (data.cell.width - size) / 2, data.cell.y + (data.cell.height - size) / 2, size, size);
+  const doc = await createDocumentAsync({
+    title: "Datesheet",
+    subtitle: meta.examName,
+    orientation: wide ? "landscape" : "portrait",
+    school: {
+      name: brand.name ?? meta.schoolName,
+      address: brand.address,
+      phone: brand.phone,
+      email: brand.email,
+      logoUrl: brand.logo && (brand.logo.format === "PNG" || brand.logo.format === "JPEG") ? brand.logo.data : null,
     },
+    accent: brand.accentHex,
+    reference: meta.studentLabel ?? meta.sectionLabel ?? meta.examName,
   });
 
-  const finalY = (doc as any).lastAutoTable?.finalY || 60;
-  doc.setFontSize(8); doc.setTextColor(120);
-  doc.text(`Generated ${format(new Date(), "PPp")}`, 14, finalY + 8);
-  return doc;
+  // Who and what it is for, with the hall-ticket code alongside.
+  const qrSize = 24;
+  const hallTicket = opts.includeHallTicketQR && meta.hallTicketUrl ? meta.hallTicketUrl : null;
+  const top = doc.y;
+  if (hallTicket) {
+    drawQrVector(doc.pdf, hallTicket, doc.x + doc.width - qrSize, top, qrSize, doc.theme.ink);
+    doc.pdf.setFont(doc.theme.bodyFont, "normal");
+    doc.pdf.setFontSize(doc.theme.size.caption);
+    doc.pdf.setTextColor(...doc.theme.inkMuted);
+    doc.pdf.text("Hall ticket — scan to verify", doc.x + doc.width - qrSize / 2, top + qrSize + 3, { align: "center" });
+  }
+  doc.fields(
+    [
+      { label: "Examination", value: meta.examName },
+      { label: "Student", value: meta.studentLabel },
+      { label: "Student code", value: meta.studentCode },
+      { label: "Class / Section", value: meta.sectionLabel },
+      { label: "Papers", value: String(rows.length) },
+    ],
+    3,
+    { width: hallTicket ? doc.width - qrSize - 6 : doc.width },
+  );
+  if (hallTicket) doc.y = Math.max(doc.y, top + qrSize + 6);
+  doc.advance(1);
+
+  const sorted = rows
+    .slice()
+    // Papers without a date go last, not first: "" sorts before any date.
+    .sort(
+      (a, b) =>
+        (a.exam_date ? 0 : 1) - (b.exam_date ? 0 : 1) ||
+        (a.exam_date || "").localeCompare(b.exam_date || "") ||
+        (a.start_time || "").localeCompare(b.start_time || ""),
+    );
+
+  const columns: Column<DatesheetRow>[] = opts.fields.map((f) => ({
+    header: LABELS[f],
+    width: WIDTHS[f],
+    align: f === "max" || f === "passing" ? "right" : "left",
+    bold: f === "subject" ? () => true : undefined,
+    value: (r: DatesheetRow) => {
+      switch (f) {
+        case "date": return weekdayDate(r.exam_date);
+        case "start": return time12(r.start_time);
+        case "duration": return duration(r.duration_minutes);
+        case "subject": return lookups.subjects.get(r.subject_id || "") ?? "";
+        case "section": return lookups.sections.get(r.class_section_id || "") ?? "";
+        case "room": return r.room ?? "";
+        case "max": return r.max_marks != null ? String(r.max_marks) : "";
+        case "passing": return r.passing_marks != null ? String(r.passing_marks) : "";
+        case "invigilator": return lookups.staff.get(r.invigilator_user_id || "") ?? "";
+      }
+    },
+  }));
+
+  if (opts.includePaperQR) {
+    columns.push({
+      header: "Paper QR",
+      width: 0.8,
+      value: () => "",
+      minHeight: 16,
+      drawCell: (d, r, _i, box) => {
+        const payload = [
+          meta.examName,
+          lookups.subjects.get(r.subject_id || "") ?? "",
+          r.exam_date ? formatDate(r.exam_date) : "",
+          time12(r.start_time),
+          r.room ? `Room ${r.room}` : "",
+        ].filter(Boolean).join(" | ");
+        const size = Math.min(box.h - 2, 14);
+        drawQrVector(d.pdf, payload, box.x + (box.w - size) / 2, box.y + (box.h - size) / 2, size, d.theme.ink);
+      },
+    });
+  }
+
+  drawTable(doc, {
+    columns,
+    rows: sorted,
+    emptyMessage: "No papers are scheduled for this selection.",
+  });
+
+  const undated = sorted.filter((r) => !r.exam_date).length;
+  if (undated) {
+    doc.note(`${undated} paper${undated === 1 ? " has" : "s have"} no date set yet and ${undated === 1 ? "is" : "are"} listed without one.`, {
+      tone: "warning",
+    });
+  }
+
+  doc.finish();
+  return doc.pdf;
 }

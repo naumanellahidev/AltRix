@@ -5,6 +5,8 @@ from typing import List, Optional
 from uuid import UUID
 from datetime import datetime, timezone, date
 
+import logging
+
 from fastapi import APIRouter, Query, status, HTTPException, Request
 from app.cache import cache
 from app.utils.cache_decorator import cache_response
@@ -28,8 +30,13 @@ from app.schemas import (
     FeeEscalationOut,
     PaymentGatewayConfigCreate, PaymentGatewayConfigOut,
 )
-from app.utils.pagination import PaginatedResponse
+from app.utils.pagination import ListPageParams, PaginatedResponse
+from app.utils.money import D, is_settled, money
+from app.utils.tenant_guard import verify_resource_belongs_to_school
 from app.utils.permissions import expand_roles, FINANCE_GOV
+from app.utils.security import get_allowed_student_ids
+from zoneinfo import ZoneInfo
+import secrets
 
 router = APIRouter(prefix="/finance", tags=["Finance"])
 
@@ -38,16 +45,16 @@ router = APIRouter(prefix="/finance", tags=["Finance"])
 
 @router.get("/structures", response_model=List[FeeStructureOut])
 @cache_response(ttl=300, key_prefix="finance:structures")
-async def list_structures(current_user: CurrentUser, db: DbSession, request: Request):
+async def list_structures(current_user: CurrentUser, db: DbSession, request: Request, page: ListPageParams):
     if not current_user.school_id:
         return []
     effective_roles = expand_roles(current_user.roles)
     if not (current_user.is_super_admin or any(r in effective_roles for r in FINANCE_GOV)):
         raise ForbiddenError("Permission denied: cannot read finance data")
     result = await db.execute(
-        select(FeeStructure)
+        page.apply(select(FeeStructure)
         .where(FeeStructure.school_id == current_user.school_id, FeeStructure.is_active == True)
-        .order_by(FeeStructure.name)
+        .order_by(FeeStructure.name))
     )
     return result.scalars().all()
 
@@ -71,8 +78,8 @@ async def create_structure(body: FeeStructureCreate, current_user: CurrentUser, 
         await cache.invalidate_pattern(f"*school_{current_user.school_id}_*finance:*")
         from app.utils.ai_semantic_cache import semantic_cache as _sc
         await _sc.invalidate_by_deps(db, current_user.school_id, ["finance"])
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("Optional step failed (%s): %s", "cache.invalidate_pattern", exc, exc_info=True)
     return structure
 
 
@@ -110,8 +117,8 @@ async def update_structure(structure_id: UUID, body: FeeStructureCreate, current
         await cache.invalidate_pattern(f"*school_{current_user.school_id}_*finance:*")
         from app.utils.ai_semantic_cache import semantic_cache as _sc
         await _sc.invalidate_by_deps(db, current_user.school_id, ["finance"])
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("Optional step failed (%s): %s", "cache.invalidate_pattern", exc, exc_info=True)
     return s
 
 
@@ -132,8 +139,8 @@ async def delete_structure(structure_id: UUID, current_user: CurrentUser, db: Db
         await cache.invalidate_pattern(f"*school_{current_user.school_id}_*finance:*")
         from app.utils.ai_semantic_cache import semantic_cache as _sc
         await _sc.invalidate_by_deps(db, current_user.school_id, ["finance"])
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("Optional step failed (%s): %s", "cache.invalidate_pattern", exc, exc_info=True)
     return MessageResponse(message="Fee structure deactivated")
 
 
@@ -215,18 +222,29 @@ async def create_voucher(body: FeeVoucherCreate, current_user: CurrentUser, db: 
         from datetime import date, timedelta
         data["due_date"] = date.today() + timedelta(days=7)
 
-    # Generate invoice_number using public.generate_invoice_number if not provided
+    # Invoice numbering.
+    #
+    # next_invoice_number() draws from a per-school sequence and is atomic, so
+    # two invoices created at the same moment cannot receive the same number.
+    #
+    # The previous fallback generated a random six-digit suffix with no
+    # collision check, against a constraint that was unique across ALL schools:
+    # by 2,000 invoices platform-wide there was an 89% chance of a clash, and
+    # each clash surfaced to an accountant as a failed invoice. There is no
+    # fallback now — a number we cannot guarantee is unique is worse than an
+    # error the caller can retry.
     if not data.get("invoice_number"):
-        try:
-            res = await db.execute(
-                text("SELECT public.generate_invoice_number(:school_id)"),
-                {"school_id": current_user.school_id}
+        res = await db.execute(
+            text("SELECT public.next_invoice_number(CAST(:school_id AS uuid))"),
+            {"school_id": str(current_user.school_id)},
+        )
+        number = res.scalar()
+        if not number:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Could not allocate an invoice number. Please retry.",
             )
-            data["invoice_number"] = res.scalar()
-        except Exception:
-            from datetime import datetime as dt
-            import random
-            data["invoice_number"] = f"INV-{dt.now().year}-{random.randint(100000, 999999)}"
+        data["invoice_number"] = number
 
     # Set subtotal equal to total_amount if not specified (subtotal is NOT NULL in DB)
     if data.get("subtotal") is None:
@@ -249,8 +267,8 @@ async def create_voucher(body: FeeVoucherCreate, current_user: CurrentUser, db: 
         await cache.invalidate_pattern(f"*school_{current_user.school_id}_*reports:finance-trend*")
         from app.utils.ai_semantic_cache import semantic_cache as _sc
         await _sc.invalidate_by_deps(db, current_user.school_id, ["finance"])
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("Optional step failed (%s): %s", "cache.invalidate_pattern", exc, exc_info=True)
     return voucher
 
 
@@ -279,8 +297,8 @@ async def cancel_voucher(voucher_id: UUID, current_user: CurrentUser, db: DbSess
         await cache.invalidate_pattern(f"*school_{current_user.school_id}_*reports:finance-trend*")
         from app.utils.ai_semantic_cache import semantic_cache as _sc
         await _sc.invalidate_by_deps(db, current_user.school_id, ["finance"])
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("Optional step failed (%s): %s", "cache.invalidate_pattern", exc, exc_info=True)
     return voucher
 
 
@@ -345,12 +363,27 @@ async def record_payment(body: FeePaymentCreate, current_user: CurrentUser, db: 
     )
     db.add(payment)
 
-    # Update voucher status if voucher_id provided
+    # Apply the payment to the invoice.
+    #
+    # Two bugs lived here. The balance was never updated at all, and the status
+    # was set to "paid" unconditionally — so a parent paying Rs 500 against a
+    # Rs 5,000 invoice marked the whole thing settled.
+    #
+    # SELECT ... FOR UPDATE because this is a read-modify-write on money: two
+    # payments arriving together would otherwise both read the same
+    # paid_amount and the second would overwrite the first, losing a payment.
     if body.voucher_id:
-        v_result = await db.execute(select(FeeVoucher).where(FeeVoucher.id == body.voucher_id))
+        v_result = await db.execute(
+            select(FeeVoucher)
+            .where(FeeVoucher.id == body.voucher_id)
+            .with_for_update()
+        )
         voucher = v_result.scalar_one_or_none()
         if voucher:
-            voucher.status = "paid"  # type: ignore[assignment]
+            verify_resource_belongs_to_school(voucher, current_user, resource_name="invoice")
+            paid = money(D(voucher.paid_amount) + D(body.amount))
+            voucher.paid_amount = paid
+            voucher.status = "paid" if is_settled(paid, voucher.total_amount) else "partial"
 
     await db.flush()
     await db.refresh(payment)
@@ -360,8 +393,8 @@ async def record_payment(body: FeePaymentCreate, current_user: CurrentUser, db: 
         await cache.invalidate_pattern(f"*school_{current_user.school_id}_*reports:finance-trend*")
         from app.utils.ai_semantic_cache import semantic_cache as _sc
         await _sc.invalidate_by_deps(db, current_user.school_id, ["finance"])
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("Optional step failed (%s): %s", "cache.invalidate_pattern", exc, exc_info=True)
 
     # Fire Event Bus trigger
     try:
@@ -463,9 +496,7 @@ def save_budget_store(data):
         with open(BUDGET_STORE_FILE, "w") as f:
             json.dump(data, f, indent=2)
     except Exception as e:
-        print("Failed to save budget store:", e)
-
-
+        logger.info("Failed to save budget store:", e)
 @router.get("/budget-targets")
 async def get_budget_targets(
     current_user: CurrentUser,
@@ -493,7 +524,7 @@ async def get_budget_targets(
             for r in rows
         ]
     except Exception as e:
-        print("DB error fetching budget targets, using local store:", e)
+        logger.info("DB error fetching budget targets, using local store:", e)
         store = load_budget_store()
         targets = [
             t for t in store["budget_targets"]
@@ -548,7 +579,7 @@ async def create_or_update_budget_target(body: dict, current_user: CurrentUser, 
         await db.commit()
         return {"id": target_id, "school_id": school_id, "fiscal_year": fiscal_year, "role": role, "department": department, "budget_amount": budget_amount, "notes": notes}
     except Exception as e:
-        print("DB error saving budget target, using local store:", e)
+        logger.info("DB error saving budget target, using local store:", e)
         store = load_budget_store()
         if is_new:
             target = {
@@ -583,7 +614,7 @@ async def delete_budget_target(target_id: UUID, current_user: CurrentUser, db: D
         await db.commit()
         return {"message": "Budget target deleted"}
     except Exception as e:
-        print("DB error deleting budget target, using local store:", e)
+        logger.info("DB error deleting budget target, using local store:", e)
         store = load_budget_store()
         store["budget_targets"] = [
             t for t in store["budget_targets"]
@@ -622,7 +653,7 @@ async def get_salary_records(
             for r in rows
         ]
     except Exception as e:
-        print("DB error fetching salary records, using local fallback:", e)
+        logger.info("DB error fetching salary records, using local fallback:", e)
         return [
             {"id": "sal-1", "user_id": "a1701267-3759-4fcf-bc08-bdf73c91fb65", "base_salary": 50000, "allowances": 5000, "deductions": 2000, "is_active": True},
             {"id": "sal-2", "user_id": "b2701267-3759-4fcf-bc08-bdf73c91fb66", "base_salary": 120000, "allowances": 15000, "deductions": 5000, "is_active": True},
@@ -649,7 +680,7 @@ async def get_staff_roles(
         rows = res.fetchall()
         return [{"user_id": str(r[0]), "role": r[1]} for r in rows]
     except Exception as e:
-        print("DB error fetching staff roles, using local fallback:", e)
+        logger.info("DB error fetching staff roles, using local fallback:", e)
         return [
             {"user_id": "a1701267-3759-4fcf-bc08-bdf73c91fb65", "role": "teacher"},
             {"user_id": "b2701267-3759-4fcf-bc08-bdf73c91fb66", "role": "principal"},
@@ -792,13 +823,13 @@ async def pay_installment(
 # ─── SIBLING DISCOUNTS ───────────────────────────────────────────────────────
 
 @router.get("/sibling-discounts", response_model=List[SiblingDiscountOut])
-async def list_sibling_discounts(current_user: CurrentUser, db: DbSession):
+async def list_sibling_discounts(current_user: CurrentUser, db: DbSession, page: ListPageParams):
     if not current_user.school_id:
         return []
     result = await db.execute(
-        select(SiblingDiscount)
+        page.apply(select(SiblingDiscount)
         .where(SiblingDiscount.school_id == current_user.school_id)
-        .order_by(SiblingDiscount.sibling_number)
+        .order_by(SiblingDiscount.sibling_number))
     )
     return result.scalars().all()
 
@@ -855,57 +886,82 @@ async def delete_sibling_discount(discount_id: UUID, current_user: CurrentUser, 
 
 @router.post("/tax-certificates/generate", response_model=TaxCertificateOut, status_code=status.HTTP_201_CREATED)
 async def generate_tax_certificate(body: TaxCertificateGenerateRequest, current_user: CurrentUser, db: DbSession):
-    """Generate annual tax certificate for a student's fee payments."""
-    if not current_user.school_id:
-        raise ForbiddenError("No school context")
+    """
+    Issue the annual certificate of fees paid for one student.
 
-    import secrets
-    from datetime import datetime as dt
+    A family can request one for their own child and the finance office for
+    any student of the school. The fiscal year is Pakistan's, 1 July to 30
+    June: "2025-2026" covers payments received from 1 July 2025 up to and
+    including 30 June 2026. Only payments that succeeded count, and the total
+    is summed exactly. Asking again for a year whose total has not changed
+    returns the certificate already issued instead of a second one.
+    """
+    start_year, end_year = _fiscal_year_bounds(body.fiscal_year)
+    await _require_tax_certificate_access(current_user, db, body.student_id)
 
-    # Get all payments for the fiscal year
-    year_parts = body.fiscal_year.split("-")
-    start_year = int(year_parts[0])
-    end_year = int(year_parts[1]) if len(year_parts) > 1 else start_year + 1
-
-    payments_result = await db.execute(
-        select(FeePayment).where(
-            FeePayment.school_id == current_user.school_id,
-            FeePayment.student_id == body.student_id,
-            FeePayment.status == "completed",
+    period_start = datetime(start_year, 7, 1, tzinfo=_PK_TZ)
+    period_end = datetime(end_year, 7, 1, tzinfo=_PK_TZ)
+    rows = (
+        await db.execute(
+            select(FeePayment, FeeVoucher.invoice_number, FeeVoucher.period_label)
+            .join(FeeVoucher, FeeVoucher.id == FeePayment.invoice_id, isouter=True)
+            .where(
+                FeePayment.school_id == current_user.school_id,
+                FeePayment.student_id == body.student_id,
+                FeePayment.status.in_(PAID_PAYMENT_STATUSES),
+                FeePayment.paid_at >= period_start,
+                FeePayment.paid_at < period_end,
+            )
+            .order_by(FeePayment.paid_at, FeePayment.id)
         )
-    )
-    payments = payments_result.scalars().all()
+    ).all()
 
-    # Filter by fiscal year
-    fy_payments = []
-    total_paid = 0
-    for p in payments:
-        try:
-            pdate = dt.strptime(p.payment_date, "%Y-%m-%d") if isinstance(p.payment_date, str) else p.payment_date
-            if pdate and start_year <= pdate.year <= end_year:
-                fy_payments.append({
-                    "date": p.payment_date,
-                    "amount": p.amount,
-                    "method": p.payment_method,
-                    "ref": p.transaction_id,
-                })
-                total_paid += p.amount or 0
-        except (ValueError, AttributeError):
-            continue
+    total = money(0)
+    details = []
+    for payment, invoice_number, period_label in rows:
+        amount = money(payment.amount)
+        total += amount
+        details.append({
+            "date": payment.paid_at.astimezone(_PK_TZ).date().isoformat(),
+            "amount": str(amount),
+            "method": payment.method,
+            "ref": payment.transaction_ref,
+            "invoice_number": invoice_number,
+            "period": period_label,
+        })
 
-    cert_number = f"TC-{current_user.school_id!s:.8}-{body.fiscal_year}-{secrets.token_hex(3).upper()}"
+    fiscal_year = f"{start_year}-{end_year}"
+    existing = (
+        await db.execute(
+            select(TaxCertificate)
+            .where(
+                TaxCertificate.school_id == current_user.school_id,
+                TaxCertificate.student_id == body.student_id,
+                TaxCertificate.fiscal_year == fiscal_year,
+            )
+            .order_by(TaxCertificate.generated_at.desc())
+            .limit(1)
+        )
+    ).scalar_one_or_none()
+    if existing is not None and money(existing.total_fees_paid) == total and len(existing.payment_details or []) == len(details):
+        return existing
+
+    # Only the finance office states the school's tax number; a family cannot.
+    effective = expand_roles(current_user.roles)
+    school_ntn = body.school_ntn if (current_user.is_super_admin or any(r in effective for r in FINANCE_GOV)) else None
 
     cert = TaxCertificate(
         school_id=current_user.school_id,
         student_id=body.student_id,
         parent_user_id=current_user.id,
-        fiscal_year=body.fiscal_year,
-        certificate_number=cert_number,
-        total_fees_paid=total_paid,
-        total_tuition=total_paid,  # simplified
-        total_other_charges=0,
-        school_ntn=body.school_ntn,
-        payment_details=fy_payments,
+        fiscal_year=fiscal_year,
+        certificate_number=f"FTC-{start_year}{end_year % 100:02d}-{secrets.token_hex(3).upper()}",
+        total_fees_paid=total,
+        # Fee payments are not split by component, so no breakdown is claimed.
+        total_tuition=total,
+        total_other_charges=money(0),
+        school_ntn=school_ntn or (existing.school_ntn if existing is not None else None),
+        payment_details=details,
     )
     db.add(cert)
     await db.flush()
@@ -914,16 +970,49 @@ async def generate_tax_certificate(body: TaxCertificateGenerateRequest, current_
 
 
 @router.get("/tax-certificates/{student_id}", response_model=List[TaxCertificateOut])
-async def get_tax_certificates(student_id: UUID, current_user: CurrentUser, db: DbSession):
-    if not current_user.school_id:
-        return []
+async def get_tax_certificates(student_id: UUID, current_user: CurrentUser, db: DbSession, page: ListPageParams):
+    await _require_tax_certificate_access(current_user, db, student_id)
     result = await db.execute(
-        select(TaxCertificate).where(
+        page.apply(select(TaxCertificate).where(
             TaxCertificate.school_id == current_user.school_id,
             TaxCertificate.student_id == student_id,
-        ).order_by(TaxCertificate.fiscal_year.desc())
+        ).order_by(TaxCertificate.fiscal_year.desc(), TaxCertificate.generated_at.desc()))
     )
     return result.scalars().all()
+
+
+_PK_TZ = ZoneInfo("Asia/Karachi")
+# Payment statuses that mean the money was received.
+PAID_PAYMENT_STATUSES = ("success", "completed", "paid")
+
+
+def _fiscal_year_bounds(value: str) -> tuple:
+    """'2025-2026' -> (2025, 2026). Anything else is rejected, not guessed at."""
+    parts = (value or "").strip().split("-")
+    try:
+        start, end = int(parts[0]), int(parts[1])
+    except (IndexError, ValueError):
+        raise HTTPException(status_code=422, detail="Fiscal year must look like 2025-2026")
+    if len(parts) != 2 or end != start + 1 or not 2000 <= start <= 2100:
+        raise HTTPException(status_code=422, detail="Fiscal year must look like 2025-2026")
+    return start, end
+
+
+async def _require_tax_certificate_access(current_user, db, student_id: UUID) -> None:
+    """The finance office for any student of the school; a family for its own."""
+    if not current_user.school_id:
+        raise ForbiddenError("No school context")
+    effective = expand_roles(current_user.roles)
+    if not (current_user.is_super_admin or any(r in effective for r in FINANCE_GOV)):
+        allowed = await get_allowed_student_ids(current_user, db)
+        if allowed is None or student_id not in {UUID(str(s)) for s in allowed}:
+            raise ForbiddenError("You can only see certificates for your own children")
+    found = await db.execute(
+        text("SELECT 1 FROM students WHERE id = CAST(:sid AS UUID) AND school_id = CAST(:school AS UUID)"),
+        {"sid": str(student_id), "school": str(current_user.school_id)},
+    )
+    if found.first() is None:
+        raise NotFoundError("Student", str(student_id))
 
 
 # ─── FEE ESCALATION ──────────────────────────────────────────────────────────
@@ -1002,7 +1091,7 @@ async def check_escalations(current_user: CurrentUser, db: DbSession):
 async def list_escalations(
     current_user: CurrentUser,
     db: DbSession,
-    resolved: Optional[bool] = Query(False),
+    page: ListPageParams, resolved: Optional[bool] = Query(False),
 ):
     if not current_user.school_id:
         return []
@@ -1017,7 +1106,7 @@ async def list_escalations(
             pass
     if resolved is not None:
         query = query.where(FeeEscalation.resolved == resolved)
-    result = await db.execute(query.order_by(FeeEscalation.escalation_level.desc(), FeeEscalation.created_at.desc()))
+    result = await db.execute(page.apply(query.order_by(FeeEscalation.escalation_level.desc(), FeeEscalation.created_at.desc())))
     return result.scalars().all()
 
 
@@ -1038,13 +1127,13 @@ async def resolve_escalation(escalation_id: UUID, current_user: CurrentUser, db:
 # ─── PAYMENT GATEWAY CONFIG ──────────────────────────────────────────────────
 
 @router.get("/gateway-configs", response_model=List[PaymentGatewayConfigOut])
-async def list_gateway_configs(current_user: CurrentUser, db: DbSession):
+async def list_gateway_configs(current_user: CurrentUser, db: DbSession, page: ListPageParams):
     if not current_user.school_id:
         return []
     result = await db.execute(
-        select(PaymentGatewayConfig)
+        page.apply(select(PaymentGatewayConfig)
         .where(PaymentGatewayConfig.school_id == current_user.school_id)
-        .order_by(PaymentGatewayConfig.is_default.desc(), PaymentGatewayConfig.gateway_name)
+        .order_by(PaymentGatewayConfig.is_default.desc(), PaymentGatewayConfig.gateway_name))
     )
     return result.scalars().all()
 
@@ -1185,148 +1274,26 @@ async def balance_dashboard(student_id: UUID, current_user: CurrentUser, db: DbS
 
 # ─── ADMIN FEE PORTAL: DISCOUNTS, GATEWAYS & ESCALATIONS ──────────────────────
 
-@router.get("/sibling-discounts")
-async def list_sibling_discounts(current_user: CurrentUser, db: DbSession):
-    if not current_user.school_id:
-        return []
-    try:
-        from app.models.finance import SiblingDiscount
-        res = await db.execute(select(SiblingDiscount).where(SiblingDiscount.school_id == current_user.school_id))
-        return list(res.scalars().all())
-    except Exception:
-        return []
 
 
-@router.post("/sibling-discounts")
-async def create_sibling_discount(body: dict, current_user: CurrentUser, db: DbSession):
-    if not current_user.school_id:
-        raise ForbiddenError()
-    try:
-        from app.models.finance import SiblingDiscount
-        disc = SiblingDiscount(
-            school_id=current_user.school_id,
-            sibling_number=body.get("sibling_number", 2),
-            discount_percentage=body.get("discount_percentage", 10.0),
-            is_active=body.get("is_active", True),
-        )
-        db.add(disc)
-        await db.commit()
-        await db.refresh(disc)
-        return disc
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.delete("/sibling-discounts/{disc_id}")
-async def delete_sibling_discount(disc_id: UUID, current_user: CurrentUser, db: DbSession):
-    if not current_user.school_id:
-        raise ForbiddenError()
-    try:
-        from app.models.finance import SiblingDiscount
-        res = await db.execute(select(SiblingDiscount).where(SiblingDiscount.id == disc_id, SiblingDiscount.school_id == current_user.school_id))
-        disc = res.scalar_one_or_none()
-        if disc:
-            await db.delete(disc)
-            await db.commit()
-        return {"message": "Sibling discount deleted"}
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.get("/gateway-configs")
-async def list_gateway_configs(current_user: CurrentUser, db: DbSession):
-    if not current_user.school_id:
-        return []
-    try:
-        from app.models.finance import PaymentGatewayConfig
-        res = await db.execute(select(PaymentGatewayConfig).where(PaymentGatewayConfig.school_id == current_user.school_id))
-        return list(res.scalars().all())
-    except Exception:
-        return []
 
 
-@router.post("/gateway-configs")
-async def create_or_update_gateway_config(body: dict, current_user: CurrentUser, db: DbSession):
-    if not current_user.school_id:
-        raise ForbiddenError()
-    try:
-        from app.models.finance import PaymentGatewayConfig
-        provider = body.get("provider_name", "stripe")
-        res = await db.execute(select(PaymentGatewayConfig).where(
-            PaymentGatewayConfig.school_id == current_user.school_id,
-            PaymentGatewayConfig.provider_name == provider
-        ))
-        cfg = res.scalar_one_or_none()
-        if not cfg:
-            cfg = PaymentGatewayConfig(
-                school_id=current_user.school_id,
-                provider_name=provider,
-                is_active=body.get("is_active", True),
-                api_key=body.get("api_key"),
-                api_secret=body.get("api_secret"),
-                merchant_id=body.get("merchant_id"),
-                mode=body.get("mode", "sandbox"),
-            )
-            db.add(cfg)
-        else:
-            cfg.is_active = body.get("is_active", cfg.is_active)
-            cfg.api_key = body.get("api_key", cfg.api_key)
-            cfg.api_secret = body.get("api_secret", cfg.api_secret)
-            cfg.merchant_id = body.get("merchant_id", cfg.merchant_id)
-            cfg.mode = body.get("mode", cfg.mode)
-        await db.commit()
-        await db.refresh(cfg)
-        return cfg
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.get("/escalations")
-async def list_escalations(current_user: CurrentUser, db: DbSession):
-    if not current_user.school_id:
-        return []
-    try:
-        from app.models.finance import FeeEscalation
-        query = select(FeeEscalation).where(FeeEscalation.school_id == current_user.school_id)
-        if current_user.campus_id:
-            from app.models.people import Student
-            try:
-                query = query.where(FeeEscalation.student_id.in_(
-                    select(Student.id).where(Student.campus_id == UUID(current_user.campus_id))
-                ))
-            except (ValueError, TypeError):
-                pass
-        res = await db.execute(query.order_by(FeeEscalation.created_at.desc()))
-        return list(res.scalars().all())
-    except Exception:
-        return []
 
 
-@router.post("/escalations/check")
-async def trigger_escalation_check(current_user: CurrentUser, db: DbSession):
-    if not current_user.school_id:
-        raise ForbiddenError()
-    return {"message": "Escalation audit check executed successfully"}
 
 
-@router.patch("/escalations/{esc_id}/resolve")
-async def resolve_escalation(esc_id: UUID, current_user: CurrentUser, db: DbSession):
-    if not current_user.school_id:
-        raise ForbiddenError()
-    try:
-        from app.models.finance import FeeEscalation
-        res = await db.execute(select(FeeEscalation).where(FeeEscalation.id == esc_id, FeeEscalation.school_id == current_user.school_id))
-        esc = res.scalar_one_or_none()
-        if esc:
-            esc.resolved = True
-            await db.commit()
-        return {"message": "Escalation resolved"}
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
 
 
 from pydantic import BaseModel
 from fastapi.responses import Response
+
+logger = logging.getLogger("app.routers.finance")
 
 
 class PaymentProofsExportPayload(BaseModel):
@@ -1453,3 +1420,9 @@ async def export_payment_proofs(
             "X-Row-Count": str(len(filtered)),
         }
     )
+
+# NOTE: several handlers below this point were duplicates of routes already
+# registered earlier in this file. FastAPI matches the first registration, so
+# they were unreachable — and weaker than the live ones: untyped `body: dict`
+# payloads, no FINANCE_GOV permission check, and broad `except: return []`.
+# They have been removed so the file shows what actually runs.

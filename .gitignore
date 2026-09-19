@@ -20,6 +20,11 @@ vite.config.ts.timestamp-*.mjs
 .env
 .env.*
 !.env.example
+# Any *.env file, not just dotfiles named .env* — e.g.
+# RAILWAY_ENVIRONMENT_VARIABLES.env was tracked because it did not match .env*
+*.env
+!*.env.example
+
 *.pem
 *.key
 *.p12

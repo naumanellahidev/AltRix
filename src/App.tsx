@@ -25,6 +25,7 @@ const PlatformAddonsPage = lazy(() => import("./pages/platform/PlatformAddonsPag
 const PlatformDatabasePage = lazy(() => import("./pages/platform/PlatformDatabasePage"));
 const PlatformDomainsPage = lazy(() => import("./pages/platform/PlatformDomainsPage"));
 const PlatformEmailPage = lazy(() => import("./pages/platform/PlatformEmailPage"));
+const PlatformBackupsPage = lazy(() => import("./pages/platform/PlatformBackupsPage"));
 const ActivateAccountPage = lazy(() => import("./pages/ActivateAccountPage"));
 
 const TenantDashboard = lazy(() => import("./pages/tenant/TenantDashboard"));
@@ -38,6 +39,7 @@ const TenantBootstrap = lazy(() => import("./pages/tenant/TenantBootstrap"));
 const OwnerDashboard = lazy(() => import("./pages/tenant/OwnerDashboard"));
 const PublicInquiryPage = lazy(() => import("./pages/tenant/PublicInquiryPage"));
 const PublicHallTicketVerification = lazy(() => import("./pages/tenant/PublicHallTicketVerification"));
+const VerifyDocumentPage = lazy(() => import("./pages/public/VerifyDocumentPage"));
 const PublicVisitorRegisterPage = lazy(() => import("./pages/tenant/PublicVisitorRegisterPage"));
 const UnifiedHub = lazy(() => import("./pages/tenant/UnifiedHub"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
@@ -189,6 +191,7 @@ export default function App() {
                 <Route path="/super_admin/database" element={<PlatformDatabasePage />} />
                 <Route path="/super_admin/domains" element={<PlatformDomainsPage />} />
                 <Route path="/super_admin/email" element={<PlatformEmailPage />} />
+                <Route path="/super_admin/backups" element={<PlatformBackupsPage />} />
               </Route>
 
 
@@ -201,6 +204,7 @@ export default function App() {
               <Route path="/:schoolSlug/hub" element={<UnifiedHub />} />
               <Route path="/:schoolSlug/bootstrap" element={<TenantBootstrap />} />
               <Route path="/:schoolSlug/inquiry" element={<PublicInquiryPage />} />
+              <Route path="/verify/:kind/:code" element={<VerifyDocumentPage />} />
               <Route path="/:schoolSlug/verify-ticket/:examId/:studentId" element={<PublicHallTicketVerification />} />
               <Route path="/:schoolSlug/visitor-register" element={<PublicVisitorRegisterPage />} />
               <Route path="/:schoolSlug/teacher/*" element={<TeacherDashboard />} />

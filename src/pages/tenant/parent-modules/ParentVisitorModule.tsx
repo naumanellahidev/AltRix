@@ -22,8 +22,11 @@ import {
   ChevronRight,
   Inbox,
   AlertTriangle,
-  Download
+  Download,
+  MessageCircle,
 } from "lucide-react";
+import { visitorPassAction } from "@/lib/visitor-pass-actions";
+import type { VisitorPassInput } from "@/lib/documents/visitor-pass";
 import { toast } from "sonner";
 
 interface ParentVisitorModuleProps {
@@ -111,52 +114,16 @@ export default function ParentVisitorModule({ child, schoolId }: ParentVisitorMo
     }
   };
 
-  const printPass = (pass: VisitorPass) => {
-    const w = window.open("", "_blank", "width=600,height=500");
-    if (!w) {
-      toast.error("Pop-up blocked. Allow pop-ups to print.");
-      return;
-    }
-    const html = `
-      <!doctype html>
-      <html>
-      <head>
-        <title>Visitor Gate Pass - ${pass.visitor_name}</title>
-        <style>
-          body { font-family: sans-serif; text-align: center; padding: 40px; color: #1a1a1a; }
-          .pass-card { border: 2px solid #2563eb; border-radius: 16px; padding: 24px; max-width: 400px; margin: 0 auto; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
-          h2 { margin: 0 0 4px; color: #2563eb; }
-          .otp { font-size: 32px; font-weight: bold; letter-spacing: 4px; color: #1e293b; margin: 20px 0; background: #f1f5f9; padding: 12px; border-radius: 8px; border: 1px dashed #cbd5e1; }
-          .label { font-size: 11px; text-transform: uppercase; color: #64748b; margin-top: 12px; }
-          .value { font-size: 15px; font-weight: 600; margin-bottom: 8px; }
-          @media print { button { display: none; } }
-        </style>
-      </head>
-      <body>
-        <div class="pass-card">
-          <h2>ALTRIX ACADEMY</h2>
-          <div style="font-size: 12px; color: #64748b; margin-bottom: 16px;">GATE ENTRY PASS</div>
-          
-          <div class="otp">${pass.qr_code_token}</div>
-          
-          <div class="label">Visitor Name</div>
-          <div class="value">${pass.visitor_name}</div>
-          
-          <div class="label">Scheduled Date</div>
-          <div class="value">${format(new Date(pass.scheduled_date), "PP")}</div>
-          
-          <div class="label">Purpose</div>
-          <div class="value" style="text-transform: capitalize;">${pass.purpose}</div>
-          
-          <div style="font-size: 11px; color: #94a3b8; margin-top: 24px;">Please present this QR OTP Pass code to the gate security guard upon arrival.</div>
-        </div>
-        <script>setTimeout(() => window.print(), 300)</script>
-      </body>
-      </html>
-    `;
-    w.document.write(html);
-    w.document.close();
-  };
+  const passInput = (pass: VisitorPass): VisitorPassInput => ({
+    kind: "pass",
+    visitorName: pass.visitor_name,
+    purpose: pass.purpose,
+    phone: pass.phone,
+    code: pass.qr_code_token,
+    scheduledDate: pass.scheduled_date,
+    visiting: child ? [child.first_name, child.last_name].filter(Boolean).join(" ") + (child.class_name ? ` (${child.class_name})` : "") : null,
+    details: pass.details,
+  });
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -389,8 +356,14 @@ export default function ParentVisitorModule({ child, schoolId }: ParentVisitorMo
               </div>
 
               <div className="flex gap-2 pt-2">
-                <Button onClick={() => printPass(selectedPass)} variant="outline" className="flex-1 gap-2">
+                <Button onClick={() => void visitorPassAction("print", passInput(selectedPass))} variant="outline" className="flex-1 gap-2">
                   <Printer className="h-4 w-4" /> Print
+                </Button>
+                <Button onClick={() => void visitorPassAction("download", passInput(selectedPass))} variant="outline" size="icon" title="Download pass PDF">
+                  <Download className="h-4 w-4" />
+                </Button>
+                <Button onClick={() => void visitorPassAction("share", passInput(selectedPass), selectedPass.phone)} variant="outline" size="icon" title="Send pass on WhatsApp">
+                  <MessageCircle className="h-4 w-4" />
                 </Button>
                 <Button onClick={() => setSelectedPass(null)} className="flex-1 bg-primary text-primary-foreground font-semibold">
                   Dismiss

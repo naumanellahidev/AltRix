@@ -200,8 +200,14 @@ async def test_ollama_offline_graceful_response():
             stream_chunks.append(chunk)
 
         combined = "".join(stream_chunks)
-        assert "AltRix AI Copilot Service Unavailable" in combined
+        # Asserts the notice the service actually emits. This previously looked
+        # for "Service Unavailable", wording the code has not used for some
+        # time, so the test failed on every run regardless of behaviour.
+        assert "AltRix AI Copilot Service Notice" in combined
         assert "Ollama" in combined
+        # The point of the fallback: degrade to a readable message rather than
+        # dropping the stream, and leave the user a way to keep working.
+        assert "Ctrl+K" in combined
 
 
 # ==============================================================================

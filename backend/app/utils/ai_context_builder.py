@@ -67,8 +67,8 @@ async def build_scoped_ai_context(
                 logger.warning(f"Error resolving school slug: {e}")
                 try:
                     await db.rollback()
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.warning("Optional step failed (%s): %s", "db.rollback", exc, exc_info=True)
     school_id = resolved_school_id
 
     # 2. Currency Helper
@@ -84,8 +84,8 @@ async def build_scoped_ai_context(
     except Exception:
         try:
             await db.rollback()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Optional step failed (%s): %s", "db.rollback", exc, exc_info=True)
 
     def format_money(val: Any) -> str:
         symbol = "Rs." if currency == "PKR" else currency
@@ -117,8 +117,8 @@ async def build_scoped_ai_context(
             logger.debug(f"AI Context query warning: {sql[:80]}... error: {e}")
             try:
                 await db.rollback()
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("Optional step failed (%s): %s", "db.rollback", exc, exc_info=True)
             return []
 
     # Dynamic Targeted Record Search across all ERP entities based on user query

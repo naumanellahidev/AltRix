@@ -33,7 +33,7 @@ import {
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { useLiveTeacherPresence, LiveTeacherStatus } from "@/hooks/useLiveTeacherPresence";
-import { exportToCSV } from "@/lib/csv";
+import { DataExportMenu } from "@/components/documents/DataExportMenu";
 
 interface Props {
   schoolId: string | null;
@@ -147,12 +147,7 @@ export function LiveTeacherPresenceCard({ schoolId }: Props) {
         });
       });
     });
-    if (rows.length === 0) {
-      toast("Nothing to export yet");
-      return;
-    }
-    const today = new Date().toISOString().split("T")[0];
-    exportToCSV(rows, `teacher-presence-${today}`);
+    return rows;
   };
 
   // Toast on real status changes (skip initial silent fetch)
@@ -247,9 +242,13 @@ export function LiveTeacherPresenceCard({ schoolId }: Props) {
               <Radio className="h-3 w-3 animate-pulse text-primary" />
               <span>{activeCount}/{liveTeachers.length} active</span>
             </Badge>
-            <Button size="sm" variant="outline" onClick={handleExport} className="gap-1">
-              <Download className="h-3.5 w-3.5" /> CSV
-            </Button>
+            <DataExportMenu
+              title="Teacher Presence"
+              subtitle={new Date().toLocaleDateString("en-GB", { weekday: "long", day: "2-digit", month: "short", year: "numeric" })}
+              rows={[]}
+              loadRows={async () => handleExport()}
+              size="sm"
+            />
             {schoolSlug && (
               <Button size="sm" variant="ghost" asChild className="gap-1">
                 <Link to={`/${schoolSlug}/principal/presence-debug`} title="Realtime event log">

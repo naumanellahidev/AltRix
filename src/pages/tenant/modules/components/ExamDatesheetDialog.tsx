@@ -14,7 +14,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Plus, Trash2, CalendarDays, AlertTriangle, FileDown, Send, Settings2 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { ALL_FIELDS, buildDatesheetPDF, DatesheetField } from "./datesheetPdf";
+import { ALL_FIELDS, buildDatesheetPDF, datesheetFileName, DatesheetField } from "./datesheetPdf";
 
 const SECTION_ALL = "__all";
 
@@ -175,10 +175,17 @@ export default function ExamDatesheetDialog({ open, onOpenChange, schoolId, exam
     if (filtered.length === 0) return toast.error("No papers to export for this scope");
     if (fields.length === 0) return toast.error("Pick at least one column");
     const sectionLabel = useSection ? lookups.sections.get(useSection) : undefined;
-    const doc = await buildDatesheetPDF(filtered, { schoolName, examName, sectionLabel }, { fields, includePaperQR: paperQR }, lookups);
-    doc.save(`datesheet-${examName.replace(/\s+/g, "_")}${sectionLabel ? "-" + sectionLabel.replace(/\s+/g, "_") : "-all"}.pdf`);
-    toast.success("Datesheet exported");
-    setExportOpen(false);
+    const id = toast.loading("Preparing datesheet…");
+    try {
+      const meta = { schoolName, examName, sectionLabel };
+      const doc = await buildDatesheetPDF(filtered, meta, { fields, includePaperQR: paperQR }, lookups);
+      const name = datesheetFileName(meta);
+      doc.save(name);
+      toast.success(`Downloaded ${name}`, { id });
+      setExportOpen(false);
+    } catch (e: any) {
+      toast.error(e?.message ? `The datesheet could not be produced: ${e.message}` : "The datesheet could not be produced", { id });
+    }
   };
 
   // scheduleAt: if provided (ISO), notifications are deferred and processed by cron at that time
@@ -204,7 +211,7 @@ export default function ExamDatesheetDialog({ open, onOpenChange, schoolId, exam
         const studentRows = rows.filter((r) => r.class_section_id === en.class_section_id);
         if (studentRows.length === 0) continue;
         const secLabel = lookups.sections.get(en.class_section_id);
-        const studentLabel = `${en.students.first_name} ${en.students.last_name}`;
+        const studentLabel = [en.students.first_name, en.students.last_name].filter(Boolean).join(" ");
         const slug = schoolSlug || schoolId;
         const hallTicketUrl = `${window.location.origin}/${slug}/verify-ticket/${examId}/${en.student_id}`;
         try {

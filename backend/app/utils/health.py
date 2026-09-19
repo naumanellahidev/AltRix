@@ -50,8 +50,8 @@ def get_commit_sha() -> str:
         try:
             with open("/app/COMMIT_SHA", "r") as f:
                 sha = f.read().strip()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Optional step failed (%s): %s", "open", exc, exc_info=True)
     return sha or "unknown"
 
 

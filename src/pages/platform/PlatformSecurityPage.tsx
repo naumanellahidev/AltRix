@@ -49,9 +49,12 @@ export default function PlatformSecurityPage() {
       const res = await apiClient.post("/super_admin/security/ip-ban", { ip_address: ip });
       if (res.data?.banned_ips) setBannedIps(res.data.banned_ips);
       toast.success(`IP Address ${ip} added to WAF Firewall Banlist`);
-    } catch {
-      toast.success(`IP Address ${ip} added to WAF Firewall Banlist`);
-      if (!bannedIps.includes(ip)) setBannedIps(prev => [...prev, ip]);
+    } catch (err: any) {
+      // Showing the ban as applied, and listing it locally, left an operator
+      // believing an attacker was blocked when nothing had been written.
+      toast.error(
+        err?.response?.data?.detail ?? `Could not ban ${ip}. The address is still allowed.`,
+      );
     }
     setBanIpInput("");
   };
@@ -60,8 +63,11 @@ export default function PlatformSecurityPage() {
     try {
       await apiClient.delete(`/super_admin/security/ip-ban/${ip}`);
       toast.success(`IP Address ${ip} removed from Firewall Banlist`);
-    } catch {
-      toast.success(`IP Address ${ip} removed from Firewall Banlist`);
+    } catch (err: any) {
+      toast.error(
+        err?.response?.data?.detail ?? `Could not unban ${ip}. The address is still blocked.`,
+      );
+      return;
     }
     setBannedIps(prev => prev.filter(item => item !== ip));
   };

@@ -1,5 +1,6 @@
 import axios from "axios";
 import { api, setUseFastAPI, USE_FASTAPI } from "@/lib/api";
+import { getAccessToken, setAccessToken, clearTokens, bootstrapSession } from "@/lib/token-store";
 
 const getApiBaseUrl = (): string => {
   let raw = (import.meta.env.VITE_API_URL || "/api").trim().replace(/\/+$/, "");
@@ -23,6 +24,10 @@ export const apiClient = axios.create({
   headers: {
     "Content-Type": "application/json",
   },
+  // Required so the browser attaches the HttpOnly refresh cookie. The frontend
+  // reaches the API through a same-origin /api rewrite, so this stays
+  // same-origin and the SameSite=Strict cookie is sent.
+  withCredentials: true,
 });
 
 let reachabilityPromise: Promise<boolean> | null = null;
@@ -68,17 +73,22 @@ apiClient.interceptors.request.use(
       }
     }
 
-    // 1. Inject Supabase JWT access token
+    // 1. Inject the access token.
+    //
+    // The token lives in memory, so a page reload starts with none. Recover it
+    // from the HttpOnly refresh cookie on the first request that needs it —
+    // this also migrates browsers still holding pre-cookie tokens in
+    // localStorage. bootstrapSession() de-duplicates concurrent callers.
     try {
-      const {
-        data: { session },
-      } = await api.auth.getSession();
-      
-      if (session?.access_token) {
-        config.headers.Authorization = `Bearer ${session.access_token}`;
+      let token = getAccessToken();
+      if (!token && !config.url?.includes("/auth/")) {
+        token = await bootstrapSession(apiClient.defaults.baseURL || "/api");
+      }
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
       }
     } catch (e) {
-      console.warn("Failed to retrieve Supabase session:", e);
+      console.warn("Failed to resolve access token:", e);
     }
 
     // 2. Resolve and inject the X-School-Id header dynamically for tenant routes only
@@ -172,24 +182,10 @@ apiClient.interceptors.response.use(
 
     if (error.response?.status === 401 && originalRequest && !originalRequest._retry && !isAuthEndpoint) {
       originalRequest._retry = true;
-      const refreshToken = localStorage.getItem("refresh_token");
 
-      if (!refreshToken) {
-        // No refresh token available, purge invalid session
-        localStorage.removeItem("access_token");
-        localStorage.removeItem("refresh_token");
-        localStorage.removeItem("eduverse_session_cache");
-        localStorage.removeItem("eduverse_authz_cache_v2");
-        if (typeof window !== "undefined") {
-          window.dispatchEvent(
-            new CustomEvent("eduverse:auth-state-change", {
-              detail: { event: "SIGNED_OUT", session: null },
-            })
-          );
-        }
-        return Promise.reject(error);
-      }
-
+      // There is nothing to read here any more: the refresh token is an
+      // HttpOnly cookie, so the attempt below either succeeds on the strength
+      // of that cookie or the session really is over.
       if (isRefreshing) {
         return new Promise((resolve, reject) => {
           subscribeTokenRefresh((newToken: string | null, refreshErr?: any) => {
@@ -210,7 +206,8 @@ apiClient.interceptors.response.use(
         const refreshRes = await fetch(`${baseUrl}/auth/refresh`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ refresh_token: refreshToken }),
+          credentials: "include",
+          body: "{}",
         });
 
         if (!refreshRes.ok) {
@@ -219,10 +216,7 @@ apiClient.interceptors.response.use(
 
         const data = await refreshRes.json();
         if (data?.access_token) {
-          localStorage.setItem("access_token", data.access_token);
-          if (data.refresh_token) {
-            localStorage.setItem("refresh_token", data.refresh_token);
-          }
+          setAccessToken(data.access_token);
           isRefreshing = false;
           onTokenRefreshed(data.access_token);
           originalRequest.headers.Authorization = `Bearer ${data.access_token}`;
@@ -233,8 +227,7 @@ apiClient.interceptors.response.use(
       } catch (refreshErr) {
         isRefreshing = false;
         onTokenRefreshed(null, refreshErr);
-        localStorage.removeItem("access_token");
-        localStorage.removeItem("refresh_token");
+        clearTokens();
         localStorage.removeItem("eduverse_session_cache");
         localStorage.removeItem("eduverse_authz_cache_v2");
         if (typeof window !== "undefined") {

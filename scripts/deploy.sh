@@ -425,6 +425,36 @@ for config_file in "/opt/altrix/shared/config/vps_postgresql.env" "/opt/altrix/s
     fi
 done
 
+# --- Persistent storage ------------------------------------------------------
+#
+# /var/lib/altrix/storage holds every uploaded file - student photos, documents,
+# fee payment proofs, assignment submissions, certificates - and the database
+# backups. It was previously bind-mounted into NO container, so all of it lived
+# inside the container filesystem and was destroyed on every deploy.
+echo "[INFO] Ensuring persistent storage directory exists..."
+sudo mkdir -p /var/lib/altrix/storage/altrix-backups/daily 2>/dev/null || \
+    mkdir -p /var/lib/altrix/storage/altrix-backups/daily
+sudo chmod 750 /var/lib/altrix/storage 2>/dev/null || true
+# The container runs as UID 10001 (see Dockerfile), so the bind-mounted
+# directory has to be owned by it or every upload and backup fails.
+sudo chown -R 10001:10001 /var/lib/altrix/storage 2>/dev/null || true
+
+# --- Schema migration --------------------------------------------------------
+#
+# The schema bootstrap used to run inside every container on boot. With the API,
+# worker and beat all starting together they raced each other for locks on the
+# same tables. It now runs exactly once, here, before anything starts serving.
+#
+# Idempotent (IF NOT EXISTS throughout), so re-running a deploy is safe. A
+# failure here stops the deploy rather than leaving containers to start against
+# a half-applied schema.
+echo "[INFO] Applying database schema bootstrap..."
+docker run --rm \
+    --network host \
+    -v /opt/altrix/shared/config/production.env:/app/.env:ro \
+    "altrix-backend:${SHORT_SHA}" \
+    python -m app.db_bootstrap
+
 echo "[INFO] Deploying altrix_backend container..."
 docker stop altrix_backend 2>/dev/null || true
 docker rm altrix_backend 2>/dev/null || true
@@ -437,7 +467,7 @@ docker run -d \
     -e APP_ENV=production \
     -v /opt/altrix/shared/config/production.env:/app/.env:ro \
     -v /opt/altrix:/opt/altrix:ro \
-    -v /var/run/docker.sock:/var/run/docker.sock \
+    -v /var/lib/altrix/storage:/var/lib/altrix/storage \
     "altrix-backend:${SHORT_SHA}"
 
 echo "[INFO] Deploying altrix_celery_worker container..."
@@ -448,6 +478,7 @@ docker run -d \
     --restart always \
     --network host \
     -v /opt/altrix/shared/config/production.env:/app/.env:ro \
+    -v /var/lib/altrix/storage:/var/lib/altrix/storage \
     "altrix-backend:${SHORT_SHA}" \
     celery -A app.celery_app.celery_app worker --loglevel=info -Q default,emails,pdfs,ai
 
@@ -459,14 +490,19 @@ docker run -d \
     --restart always \
     --network host \
     -v /opt/altrix/shared/config/production.env:/app/.env:ro \
+    -v /var/lib/altrix/storage:/var/lib/altrix/storage \
     "altrix-backend:${SHORT_SHA}" \
     celery -A app.celery_app.celery_app beat --loglevel=info
 
-sudo chmod 666 /var/run/docker.sock 2>/dev/null || chmod 666 /var/run/docker.sock 2>/dev/null || true
 
-docker exec -u 0 altrix_backend chmod 666 /var/run/docker.sock 2>/dev/null || true
-docker exec -u 0 altrix_backend apt-get update >/dev/null 2>&1 || true
-docker exec -u 0 altrix_backend apt-get install -y curl >/dev/null 2>&1 || true
+
+# NOTE: the backend container used to bind-mount /var/run/docker.sock, and the
+# deploy chmod'ed that socket to 666 on the host. Nothing in the application
+# ever used it, and between them they meant: any code execution inside the
+# container, or any local user on this VPS, could drive the Docker daemon -
+# which is root on the host. Both are gone.
+#
+# curl is installed in the image now, so the runtime apt-get calls are gone too.
 
 echo "[INFO] Waiting for backend container startup and health probe response..."
 PROBE_FAIL=true

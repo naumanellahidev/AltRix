@@ -1,6 +1,7 @@
 """
 Students router: full CRUD + parent/guardian management.
 """
+import logging
 from typing import List, Optional
 from uuid import UUID
 
@@ -22,8 +23,10 @@ from app.schemas import (
     SchoolIdCardSettingsCreate, SchoolIdCardSettingsUpdate, SchoolIdCardSettingsOut,
     SchoolInquirySettingsCreate, SchoolInquirySettingsUpdate, SchoolInquirySettingsOut,
 )
-from app.utils.pagination import PaginationParams, PaginatedResponse
+from app.utils.pagination import ListPageParams, PaginatedResponse, PaginationParams
 from app.utils.permissions import expand_roles, ACADEMIC_GOV
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/students", tags=["Students"])
 
@@ -133,8 +136,8 @@ async def create_student(body: StudentCreate, current_user: CurrentUser, db: DbS
         # Semantic AI cache invalidation
         from app.utils.ai_semantic_cache import semantic_cache as _sc
         await _sc.invalidate_by_deps(db, current_user.school_id, ["students"])
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("Optional step failed (%s): %s", "cache.invalidate_pattern", exc, exc_info=True)
     return student
 
 
@@ -421,8 +424,8 @@ async def update_student(student_id: UUID, body: StudentUpdate, current_user: Cu
         # Semantic AI cache invalidation
         from app.utils.ai_semantic_cache import semantic_cache as _sc
         await _sc.invalidate_by_deps(db, current_user.school_id, ["students"])
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("Optional step failed (%s): %s", "cache.invalidate_pattern", exc, exc_info=True)
     return student
 
 
@@ -457,17 +460,17 @@ async def delete_student(student_id: UUID, current_user: CurrentUser, db: DbSess
         # Semantic AI cache invalidation
         from app.utils.ai_semantic_cache import semantic_cache as _sc
         await _sc.invalidate_by_deps(db, current_user.school_id, ["students"])
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("Optional step failed (%s): %s", "cache.invalidate_pattern", exc, exc_info=True)
     return MessageResponse(message="Student deleted")
 
 
 # ─── GUARDIANS / PARENTS ─────────────────────────────────────────────────────
 
 @router.get("/{student_id}/guardians", response_model=List[GuardianOut])
-async def list_guardians(student_id: UUID, current_user: CurrentUser, db: DbSession):
+async def list_guardians(student_id: UUID, current_user: CurrentUser, db: DbSession, page: ListPageParams):
     result = await db.execute(
-        select(Guardian).where(Guardian.student_id == student_id).order_by(Guardian.is_primary.desc())
+        page.apply(select(Guardian).where(Guardian.student_id == student_id).order_by(Guardian.is_primary.desc()))
     )
     return result.scalars().all()
 

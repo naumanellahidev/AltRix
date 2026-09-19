@@ -22,8 +22,11 @@ import {
   Lock,
   Compass,
   ArrowRight,
-  Download
+  Download,
+  MessageCircle,
 } from "lucide-react";
+import { visitorPassAction } from "@/lib/visitor-pass-actions";
+import type { VisitorPassInput } from "@/lib/documents/visitor-pass";
 import { toast } from "sonner";
 
 interface VisitorPass {
@@ -40,7 +43,8 @@ interface VisitorPass {
 
 export default function PublicVisitorRegisterPage() {
   const { schoolSlug } = useParams<{ schoolSlug: string }>();
-  const [schoolName, setSchoolName] = useState("AltRix Academy");
+  // Empty until the school loads: never another school's name.
+  const [schoolName, setSchoolName] = useState("");
   const [schoolLogo, setSchoolLogo] = useState("");
   const [loading, setLoading] = useState(false);
   const [registeredPass, setRegisteredPass] = useState<VisitorPass | null>(null);
@@ -105,41 +109,16 @@ export default function PublicVisitorRegisterPage() {
     }
   };
 
-  const handlePrint = () => {
-    if (!registeredPass) return;
-    const w = window.open("", "_blank", "width=600,height=500");
-    if (!w) return;
-    const html = `
-      <!doctype html>
-      <html>
-      <head>
-        <title>Visitor pass - ${registeredPass.visitor_name}</title>
-        <style>
-          body { font-family: sans-serif; text-align: center; padding: 40px; color: #1a1a1a; }
-          .card { border: 3px solid #2563eb; border-radius: 16px; padding: 24px; max-width: 400px; margin: 0 auto; }
-          .otp { font-size: 32px; font-weight: bold; color: #1e293b; background: #f1f5f9; padding: 12px; border-radius: 8px; border: 1px dashed #cbd5e1; margin: 20px 0; }
-          .label { font-size: 11px; text-transform: uppercase; color: #64748b; margin-top: 12px; }
-          .value { font-size: 15px; font-weight: 600; margin-bottom: 8px; }
-        </style>
-      </head>
-      <body>
-        <div class="card">
-          <h2>${schoolName.toUpperCase()}</h2>
-          <div style="font-size: 12px; color: #64748b;">VISITOR SELF-REGISTER ENTRY TICKET</div>
-          <div class="otp">${registeredPass.qr_code_token}</div>
-          <div class="label">Visitor Name</div>
-          <div class="value">${registeredPass.visitor_name}</div>
-          <div class="label">Purpose</div>
-          <div class="value" style="text-transform: capitalize;">${registeredPass.purpose}</div>
-          <div style="font-size: 11px; color: #94a3b8; margin-top: 24px;">Please present this code to the gate security guard upon arrival.</div>
-        </div>
-        <script>setTimeout(() => window.print(), 300)</script>
-      </body>
-      </html>
-    `;
-    w.document.write(html);
-    w.document.close();
-  };
+  const ticketInput = (): VisitorPassInput => ({
+    kind: "pass",
+    visitorName: registeredPass?.visitor_name ?? name,
+    purpose: registeredPass?.purpose ?? purpose,
+    phone: (registeredPass as any)?.phone ?? phone,
+    code: registeredPass?.qr_code_token ?? null,
+    scheduledDate: registeredPass?.scheduled_date ?? null,
+    details: details || null,
+    schoolName,
+  });
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center p-4 md:p-6 font-sans antialiased relative overflow-hidden">
@@ -158,7 +137,7 @@ export default function PublicVisitorRegisterPage() {
             </div>
           )}
           <div>
-            <h1 className="text-2xl font-bold font-display tracking-tight text-white">{schoolName}</h1>
+            <h1 className="text-2xl font-bold font-display tracking-tight text-white">{schoolName || "Visitor registration"}</h1>
             <p className="text-slate-400 text-xs mt-1">Visitor Self-Registration Portal</p>
           </div>
         </div>
@@ -293,32 +272,34 @@ export default function PublicVisitorRegisterPage() {
               </div>
             </div>
 
-            {/* Notifications Alert simulation log box */}
-            {notificationsSim && (
-              <div className="text-left space-y-3 bg-slate-950/40 p-4 rounded-xl border border-slate-800 text-xs">
-                <h4 className="font-bold text-slate-400 flex items-center gap-2">
-                  <MessageSquare className="h-4 w-4 text-indigo-400" /> Dispatch Alerts Simulation
-                </h4>
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2 text-slate-300">
-                    <CheckCircle className="h-3 w-3 text-emerald-500 shrink-0" />
-                    <span>{notificationsSim.sms}</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-slate-300">
-                    <CheckCircle className="h-3 w-3 text-emerald-500 shrink-0" />
-                    <span>{notificationsSim.whatsapp}</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-slate-300">
-                    <CheckCircle className="h-3 w-3 text-emerald-500 shrink-0" />
-                    <span>{notificationsSim.email}</span>
-                  </div>
+            {/* What was actually sent: only a queued confirmation email, if one was asked for. */}
+            <div className="text-left space-y-2 bg-slate-950/40 p-4 rounded-xl border border-slate-800 text-xs text-slate-300">
+              {notificationsSim?.email?.status === "queued" ? (
+                <div className="flex items-center gap-2">
+                  <CheckCircle className="h-3 w-3 text-emerald-500 shrink-0" />
+                  <span>A confirmation email is on its way to {notificationsSim.email.to}.</span>
                 </div>
+              ) : notificationsSim?.email?.status === "failed" ? (
+                <div className="flex items-center gap-2">
+                  <MessageSquare className="h-3 w-3 text-amber-400 shrink-0" />
+                  <span>The confirmation email could not be sent. Save or share this ticket instead.</span>
+                </div>
+              ) : null}
+              <div className="flex items-center gap-2">
+                <MessageSquare className="h-3 w-3 text-indigo-400 shrink-0" />
+                <span>Save the ticket, or send it to your WhatsApp, and show the code at the gate.</span>
               </div>
-            )}
+            </div>
 
             <div className="flex gap-3">
-              <Button onClick={handlePrint} variant="outline" className="flex-1 border-slate-800 hover:bg-slate-800 text-slate-200">
+              <Button onClick={() => void visitorPassAction("print", ticketInput())} variant="outline" className="flex-1 border-slate-800 hover:bg-slate-800 text-slate-200">
                 <Printer className="h-4 w-4 mr-2" /> Print Ticket
+              </Button>
+              <Button onClick={() => void visitorPassAction("download", ticketInput())} variant="outline" size="icon" className="border-slate-800 hover:bg-slate-800 text-slate-200" title="Save ticket PDF">
+                <Download className="h-4 w-4" />
+              </Button>
+              <Button onClick={() => void visitorPassAction("share", ticketInput(), registeredPass.phone)} variant="outline" size="icon" className="border-slate-800 hover:bg-slate-800 text-slate-200" title="Send ticket on WhatsApp">
+                <MessageCircle className="h-4 w-4" />
               </Button>
               <Button onClick={() => setRegisteredPass(null)} className="flex-1 bg-primary text-white font-semibold">
                 Done

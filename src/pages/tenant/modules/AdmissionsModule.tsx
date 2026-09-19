@@ -19,6 +19,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogT
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import { DataExportMenu } from "@/components/documents/DataExportMenu";
 
 type App = {
   id: string; school_id: string; first_name: string; last_name: string;
@@ -254,6 +255,25 @@ export default function AdmissionsModule() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle>Applications ({filtered.length})</CardTitle>
+              <div className="flex items-center gap-2">
+              <DataExportMenu
+                title="Admission Applications"
+                subtitle={filter !== "__all" ? filter.replace("_", " ") : undefined}
+                rows={filtered.map((a) => ({
+                  Applicant: `${a.first_name} ${a.last_name}`.trim(),
+                  Class: classes.find((c) => c.id === a.applying_for_class_id)?.name ?? "",
+                  Parent: a.parent_name ?? "",
+                  "Parent phone": a.parent_phone ?? "",
+                  "Parent email": a.parent_email ?? "",
+                  "Previous school": a.previous_school ?? "",
+                  Submitted: a.created_at.slice(0, 10),
+                  Documents: docsFor(a.id).length,
+                  Status: a.status.replace("_", " "),
+                }))}
+                orientation="landscape"
+                disabled={!filtered.length}
+                size="sm"
+              />
               <Select value={filter} onValueChange={setFilter}>
                 <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -265,6 +285,7 @@ export default function AdmissionsModule() {
                   <SelectItem value="rejected">Rejected</SelectItem>
                 </SelectContent>
               </Select>
+              </div>
             </CardHeader>
             <CardContent>
               <Table>
@@ -389,14 +410,10 @@ export default function AdmissionsModule() {
               className="bg-blue-600 hover:bg-blue-700 text-white w-full flex items-center justify-center gap-1.5"
               onClick={() => {
                 if (createdStudentForCard) {
-                  const schoolLogo = tenant.status === "ready" ? tenant.logoUrl : null;
-                  const schoolName = tenant.status === "ready" ? tenant.name : "Our School";
                   void printStudentCards(
                     api,
                     schoolId!,
                     [createdStudentForCard],
-                    schoolLogo,
-                    schoolName
                   );
                 }
               }}

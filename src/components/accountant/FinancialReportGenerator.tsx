@@ -1,3 +1,6 @@
+import { DataExportMenu } from "@/components/documents/DataExportMenu";
+import { printReport } from "@/lib/report-export";
+import { subtract as subtractExact, sum as sumExact } from "@/lib/documents/decimal";
 import { useState, useMemo, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format, startOfMonth, endOfMonth, subMonths } from "date-fns";
@@ -97,8 +100,9 @@ export function FinancialReportGenerator({ schoolId, schoolName }: FinancialRepo
     queryFn: async () => {
       const { data, error } = await api
         .from("fee_payments")
-        .select("id, amount, paid_at, method")
+        .select("id, amount, paid_at, method, status")
         .eq("school_id", schoolId)
+        .in("status", ["success", "completed", "paid"])
         .gte("paid_at", startDate.toISOString())
         .lte("paid_at", endDate.toISOString());
       if (error) throw error;
@@ -160,19 +164,18 @@ export function FinancialReportGenerator({ schoolId, schoolName }: FinancialRepo
 
   // Calculate report metrics
   const reportData = useMemo(() => {
-    const totalRevenue = payments.reduce((sum, p) => sum + p.amount, 0);
-    const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
-    const totalInvoiced = invoices.reduce((sum, i) => sum + i.total, 0);
-    const totalPayroll = payRuns
-      .filter((p) => p.status === "completed")
-      .reduce((sum, p) => sum + (p.net_amount || 0), 0);
+    const exact = (values: unknown[]) => Number(sumExact(values.map((v) => (v === null || v === undefined ? 0 : String(v)))));
+    const totalRevenue = exact(payments.map((p: any) => p.amount));
+    const totalExpenses = exact(expenses.map((e: any) => e.amount));
+    const totalInvoiced = exact(invoices.map((i: any) => i.total));
+    const totalPayroll = exact(payRuns.filter((p: any) => p.status === "completed").map((p: any) => p.net_amount));
 
     const paidInvoices = invoices.filter((i) => i.status === "paid").length;
     const pendingInvoices = invoices.filter((i) => i.status !== "paid").length;
     const collectionRate = totalInvoiced > 0 ? (totalRevenue / totalInvoiced) * 100 : 0;
 
-    const grossProfit = totalRevenue - totalExpenses;
-    const netProfit = grossProfit - totalPayroll;
+    const grossProfit = Number(subtractExact(String(totalRevenue), String(totalExpenses)));
+    const netProfit = Number(subtractExact(String(grossProfit), String(totalPayroll)));
     const profitMargin = totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0;
 
     // Daily breakdown
@@ -246,203 +249,65 @@ export function FinancialReportGenerator({ schoolId, schoolName }: FinancialRepo
 
   const handleExportPDF = async () => {
     setIsGenerating(true);
+    const id = toast.loading("Preparing the report…");
     try {
-      // Generate a printable version
-      const printWindow = window.open("", "_blank");
-      if (!printWindow) {
-        toast.error("Please allow popups to export the report");
-        return;
-      }
-
-      const reportHTML = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <title>Financial Report - ${format(startDate, "MMMM yyyy")}</title>
-          <style>
-            * { margin: 0; padding: 0; box-sizing: border-box; }
-            body { font-family: system-ui, -apple-system, sans-serif; padding: 40px; color: #1a1a1a; }
-            .header { text-align: center; margin-bottom: 40px; border-bottom: 2px solid #e5e5e5; padding-bottom: 20px; }
-            .header h1 { font-size: 28px; margin-bottom: 8px; }
-            .header p { color: #666; }
-            .section { margin-bottom: 30px; }
-            .section h2 { font-size: 18px; margin-bottom: 16px; color: #333; border-left: 4px solid #3b82f6; padding-left: 12px; }
-            .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
-            .card { background: #f8f9fa; border-radius: 8px; padding: 16px; }
-            .card-label { font-size: 12px; color: #666; margin-bottom: 4px; }
-            .card-value { font-size: 24px; font-weight: bold; }
-            .card-value.positive { color: #22c55e; }
-            .card-value.negative { color: #ef4444; }
-            table { width: 100%; border-collapse: collapse; margin-top: 12px; }
-            th, td { padding: 12px; text-align: left; border-bottom: 1px solid #e5e5e5; }
-            th { background: #f8f9fa; font-weight: 600; }
-            .text-right { text-align: right; }
-            .footer { margin-top: 40px; padding-top: 20px; border-top: 2px solid #e5e5e5; text-align: center; color: #666; font-size: 12px; }
-            @media print { body { padding: 20px; } }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <h1>Financial Report</h1>
-            <p>${schoolName || "School"} - ${format(startDate, "MMMM yyyy")}</p>
-            <p style="font-size: 12px; margin-top: 8px;">Generated on ${format(new Date(), "MMMM d, yyyy 'at' h:mm a")}</p>
-          </div>
-
-          <div class="section">
-            <h2>Financial Summary</h2>
-            <div class="grid">
-              <div class="card">
-                <div class="card-label">Total Revenue</div>
-                <div class="card-value">PKR ${reportData.totalRevenue.toLocaleString()}</div>
-              </div>
-              <div class="card">
-                <div class="card-label">Total Expenses</div>
-                <div class="card-value">PKR ${reportData.totalExpenses.toLocaleString()}</div>
-              </div>
-              <div class="card">
-                <div class="card-label">Payroll</div>
-                <div class="card-value">PKR ${reportData.totalPayroll.toLocaleString()}</div>
-              </div>
-              <div class="card">
-                <div class="card-label">Net Profit</div>
-                <div class="card-value ${reportData.netProfit >= 0 ? "positive" : "negative"}">
-                  PKR ${reportData.netProfit.toLocaleString()}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="section">
-            <h2>Key Metrics</h2>
-            <div class="grid">
-              <div class="card">
-                <div class="card-label">Collection Rate</div>
-                <div class="card-value">${reportData.collectionRate.toFixed(1)}%</div>
-              </div>
-              <div class="card">
-                <div class="card-label">Profit Margin</div>
-                <div class="card-value ${reportData.profitMargin >= 0 ? "positive" : "negative"}">
-                  ${reportData.profitMargin.toFixed(1)}%
-                </div>
-              </div>
-              <div class="card">
-                <div class="card-label">Total Invoiced</div>
-                <div class="card-value">PKR ${reportData.totalInvoiced.toLocaleString()}</div>
-              </div>
-              <div class="card">
-                <div class="card-label">Gross Profit</div>
-                <div class="card-value ${reportData.grossProfit >= 0 ? "positive" : "negative"}">
-                  PKR ${reportData.grossProfit.toLocaleString()}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="section">
-            <h2>Invoice Summary</h2>
-            <table>
-              <thead>
-                <tr>
-                  <th>Status</th>
-                  <th class="text-right">Count</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${reportData.invoiceStatus.map((status) => `
-                  <tr>
-                    <td>${status.name}</td>
-                    <td class="text-right">${status.value}</td>
-                  </tr>
-                `).join("")}
-                <tr style="font-weight: bold;">
-                  <td>Total</td>
-                  <td class="text-right">${invoices.length}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-
-          <div class="section">
-            <h2>Expense Breakdown</h2>
-            <table>
-              <thead>
-                <tr>
-                  <th>Category</th>
-                  <th class="text-right">Amount</th>
-                  <th class="text-right">Percentage</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${reportData.expenseBreakdown.map((expense) => `
-                  <tr>
-                    <td>${expense.name}</td>
-                    <td class="text-right">PKR ${expense.value.toLocaleString()}</td>
-                    <td class="text-right">${expense.percentage.toFixed(1)}%</td>
-                  </tr>
-                `).join("")}
-                <tr style="font-weight: bold;">
-                  <td>Total</td>
-                  <td class="text-right">PKR ${reportData.totalExpenses.toLocaleString()}</td>
-                  <td class="text-right">100%</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-
-          <div class="footer">
-            <p>This report was automatically generated by the Finance Management System</p>
-          </div>
-        </body>
-        </html>
-      `;
-
-      printWindow.document.write(reportHTML);
-      printWindow.document.close();
-      
-      // Wait for content to load then print
-      printWindow.onload = () => {
-        printWindow.print();
-      };
-
-      toast.success("Report generated successfully");
-    } catch (error) {
-      console.error("Failed to generate report:", error);
-      toast.error("Failed to generate report");
+      const { warnings } = await printReport(financialExport());
+      if (warnings.length) toast.warning(`Sent to print. Note: ${warnings.join("; ")}`, { id, duration: 9000 });
+      else toast.dismiss(id);
+    } catch (error: any) {
+      toast.error(`The report could not be printed: ${error?.message ?? String(error)}`, { id });
     } finally {
       setIsGenerating(false);
     }
   };
 
-  const handleExportCSV = () => {
-    const headers = ["Metric", "Value"];
-    const rows = [
-      ["Report Period", format(startDate, "MMMM yyyy")],
-      ["Total Revenue", `PKR ${reportData.totalRevenue.toLocaleString()}`],
-      ["Total Expenses", `PKR ${reportData.totalExpenses.toLocaleString()}`],
-      ["Total Payroll", `PKR ${reportData.totalPayroll.toLocaleString()}`],
-      ["Gross Profit", `PKR ${reportData.grossProfit.toLocaleString()}`],
-      ["Net Profit", `PKR ${reportData.netProfit.toLocaleString()}`],
-      ["Profit Margin", `${reportData.profitMargin.toFixed(1)}%`],
-      ["Collection Rate", `${reportData.collectionRate.toFixed(1)}%`],
-      ["Total Invoiced", `PKR ${reportData.totalInvoiced.toLocaleString()}`],
-      ["Paid Invoices", reportData.paidInvoices.toString()],
-      ["Pending Invoices", reportData.pendingInvoices.toString()],
-      ["", ""],
-      ["Expense Category", "Amount"],
-      ...reportData.expenseBreakdown.map((e) => [e.name, `PKR ${e.value.toLocaleString()}`]),
-    ];
-
-    const csvContent = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
-    const blob = new Blob([csvContent], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `financial-report-${selectedMonth}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-
-    toast.success("CSV exported successfully");
-  };
+  const financialExport = () => ({
+    title: "Monthly Financial Report",
+    subtitle: format(startDate, "MMMM yyyy"),
+    summary: [
+      { label: "Revenue", value: `PKR ${reportData.totalRevenue.toLocaleString()}` },
+      { label: "Expenses", value: `PKR ${reportData.totalExpenses.toLocaleString()}` },
+      { label: "Net profit", value: `PKR ${reportData.netProfit.toLocaleString()}` },
+      { label: "Collection rate", value: `${reportData.collectionRate.toFixed(1)}%` },
+    ],
+    rows: [
+      { metric: "Total Revenue", amount: reportData.totalRevenue },
+      { metric: "Total Expenses", amount: reportData.totalExpenses },
+      { metric: "Total Payroll", amount: reportData.totalPayroll },
+      { metric: "Gross Profit", amount: reportData.grossProfit },
+      { metric: "Net Profit", amount: reportData.netProfit },
+      { metric: "Total Invoiced", amount: reportData.totalInvoiced },
+    ],
+    columns: [
+      { header: "Metric", key: "metric" },
+      { header: "Amount", key: "amount", type: "money" as const },
+    ],
+    sections: [
+      {
+        title: "Invoices and margins",
+        rows: [
+          { measure: "Paid invoices", value: reportData.paidInvoices },
+          { measure: "Pending invoices", value: reportData.pendingInvoices },
+          { measure: "Profit margin (%)", value: Number(reportData.profitMargin.toFixed(1)) },
+          { measure: "Collection rate (%)", value: Number(reportData.collectionRate.toFixed(1)) },
+        ],
+        columns: [
+          { header: "Measure", key: "measure" },
+          { header: "Value", key: "value", type: "number" as const },
+        ],
+      },
+      {
+        title: "Expense breakdown",
+        rows: reportData.expenseBreakdown.map((e) => ({ category: e.name, amount: e.value })),
+        columns: [
+          { header: "Category", key: "category" },
+          { header: "Amount", key: "amount", type: "money" as const, total: "sum" as const },
+        ],
+        emptyMessage: "No expenses recorded this month.",
+      },
+    ],
+    fileNameParts: ["Monthly Financial Report", format(startDate, "MMMM yyyy")],
+  });
 
   return (
     <div className="space-y-6" ref={reportRef}>
@@ -466,10 +331,7 @@ export function FinancialReportGenerator({ schoolId, schoolName }: FinancialRepo
               </Select>
             </div>
             <div className="flex gap-2">
-              <Button variant="outline" onClick={handleExportCSV}>
-                <Download className="mr-2 h-4 w-4" />
-                Export CSV
-              </Button>
+              <DataExportMenu {...financialExport()} size="default" />
               <Button onClick={handleExportPDF} disabled={isGenerating}>
                 {isGenerating ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />

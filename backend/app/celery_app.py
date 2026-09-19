@@ -3,6 +3,7 @@ AltRix Celery Application
 Configured with Redis as both broker and result backend.
 """
 from celery import Celery
+from celery.schedules import crontab
 
 from app.config import settings
 
@@ -16,6 +17,7 @@ celery_app = Celery(
         "app.tasks.pdf_tasks",
         "app.tasks.ai_tasks",
         "app.tasks.event_tasks",
+        "app.tasks.backup_tasks",
     ],
 )
 
@@ -54,6 +56,27 @@ celery_app.conf.update(
             "task": "app.tasks.notification_tasks.flush_audit_buffer",
             "schedule": 30.0,  # every 30 seconds
         },
+        # A crontab, not an interval. An interval fires relative to when the
+        # beat process started, so a worker restarted at midday would fire at
+        # midday every day and be turned away by the off-peak guard every time
+        # — which is one of the reasons no backup was ever taken.
+        "daily-db-backup": {
+            "task": "app.tasks.backup_tasks.run_daily_backup",
+            "schedule": crontab(hour=21, minute=0),  # 21:00 UTC = 02:00 PKT
+            "options": {"expires": 3600},
+        },
+        # Backups fail quietly. Check that a recent one exists and shout if not.
+        "backup-freshness-check": {
+            "task": "app.tasks.backup_tasks.check_backup_freshness",
+            "schedule": crontab(hour=9, minute=0),
+        },
+        # Weekly proof that the newest dump can actually be turned back into a
+        # database. Without this the backups are only assumed to work.
+        "weekly-restore-drill": {
+            "task": "app.tasks.backup_tasks.run_restore_drill",
+            "schedule": crontab(hour=22, minute=30, day_of_week=0),
+            "options": {"expires": 7200},
+        },
     },
 
     # Routing
@@ -63,5 +86,9 @@ celery_app.conf.update(
         "app.tasks.ai_tasks.*": {"queue": "ai"},
         "app.tasks.notification_tasks.*": {"queue": "default"},
         "app.tasks.event_tasks.*": {"queue": "default"},
+        # Routed to "default" deliberately: the deployed worker consumes
+        # default,emails,pdfs,ai — a dedicated backups queue would have no
+        # consumer and the task would sit unrun.
+        "app.tasks.backup_tasks.*": {"queue": "default"},
     },
 )

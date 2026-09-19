@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
+import { apiClient } from "@/lib/api-client";
 
 export function useRealtimeSocket(
   onNewConversation?: (convo: any) => void,
@@ -51,9 +52,24 @@ export function useRealtimeSocket(
           protocol = 'wss:';
         }
 
-        const wsUrl = `${protocol}//${host}/api/ws?token=${encodeURIComponent(token)}`;
+        // Trade the access token for a single-use, 30-second ticket over normal
+        // HTTP first. Anything in a WebSocket URL ends up in proxy access logs,
+        // and a redeemed ticket is worthless there; an access token is not.
+        let ticket: string;
+        try {
+          const res = await apiClient.post("/realtime/ws-ticket");
+          ticket = res.data?.ticket;
+          if (!ticket) throw new Error("no ticket issued");
+        } catch (e) {
+          console.warn("Could not obtain a realtime ticket", e);
+          setStatus("disconnected");
+          return;
+        }
 
-        console.log("Connecting to WebSocket:", wsUrl);
+        const wsUrl = `${protocol}//${host}/api/ws?ticket=${encodeURIComponent(ticket)}`;
+
+        // Deliberately not logging the URL: it carries the credential.
+        console.log("Connecting to WebSocket");
         const ws = new WebSocket(wsUrl);
         wsRef.current = ws;
 

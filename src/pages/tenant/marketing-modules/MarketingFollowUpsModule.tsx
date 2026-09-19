@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { Calendar, Check, Clock, Mail, Phone, Plus, Search, HelpCircle, RefreshCw, MessageSquare } from "lucide-react";
+import { DataExportMenu } from "@/components/documents/DataExportMenu";
 
 type Activity = {
   id: string;
@@ -334,6 +335,20 @@ export function MarketingFollowUpsModule() {
             </DialogContent>
           </Dialog>
 
+          <DataExportMenu
+            title="Follow-ups"
+            rows={filtered.map((r: any) => ({
+              Summary: r.summary,
+              Lead: r.crm_leads?.full_name ?? "",
+              Phone: r.crm_leads?.phone ?? "",
+              Type: r.activity_type ?? "",
+              Due: r.due_at ? String(r.due_at).slice(0, 16).replace("T", " ") : "",
+              Status: r.completed_at ? "Done" : "Open",
+            }))}
+            orientation="landscape"
+            disabled={!filtered.length}
+            size="sm"
+          />
           <Button variant="outline" size="sm" className="h-9 px-3" onClick={refresh}>
             <RefreshCw className="h-4 w-4" />
           </Button>

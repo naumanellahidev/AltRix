@@ -1,3 +1,4 @@
+import { DataExportMenu } from "@/components/documents/DataExportMenu";
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { Download, Filter } from "lucide-react";
@@ -35,27 +36,6 @@ type SummaryRow = {
   excused: number;
   total: number;
 };
-
-function downloadCsv(filename: string, rows: Record<string, string | number | null | undefined>[]) {
-  const keys = Object.keys(rows[0] ?? {});
-  const escape = (v: any) => {
-    const s = String(v ?? "");
-    if (/[\",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
-    return s;
-  };
-  const header = keys.join(",");
-  const body = rows.map((r) => keys.map((k) => escape((r as any)[k])).join(",")).join("\n");
-  const csv = `${header}\n${body}`;
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
-}
 
 export function AttendanceReportsModule() {
   const { schoolSlug } = useParams();
@@ -178,22 +158,18 @@ export function AttendanceReportsModule() {
     }
   };
 
-  const exportCsv = () => {
-    if (summaries.length === 0) return toast.error("No rows to export");
-    downloadCsv(`attendance_${tenant.slug}_${from}_to_${to}.csv`,
-      summaries.map((r) => ({
-        date: r.date,
-        period: r.period,
-        class: r.className,
-        section: r.sectionName,
-        present: r.present,
-        absent: r.absent,
-        late: r.late,
-        excused: r.excused,
-        total: r.total,
-      })),
-    );
-  };
+  const attendanceRows = () =>
+    summaries.map((r) => ({
+      date: r.date,
+      period: r.period,
+      class: r.className,
+      section: r.sectionName,
+      present: r.present,
+      absent: r.absent,
+      late: r.late,
+      excused: r.excused,
+      total: r.total,
+    }));
 
   const totals = useMemo(() => {
     return summaries.reduce(
@@ -242,9 +218,33 @@ export function AttendanceReportsModule() {
             <div className="text-sm text-muted-foreground">
               Totals: <span className="text-foreground">{totals.total}</span> • P {totals.present} • A {totals.absent} • L {totals.late} • E {totals.excused}
             </div>
-            <Button variant="soft" onClick={exportCsv} disabled={summaries.length === 0}>
-              <Download className="mr-2 h-4 w-4" /> Export CSV
-            </Button>
+            <DataExportMenu
+              title="Attendance Summary"
+              subtitle={`${from} to ${to}`}
+              fileNameParts={["Attendance Summary", `${from} to ${to}`]}
+              rows={attendanceRows()}
+              columns={[
+                { header: "Date", key: "date", type: "date" },
+                { header: "Period", key: "period" },
+                { header: "Class", key: "class" },
+                { header: "Section", key: "section" },
+                { header: "Present", key: "present", type: "integer", total: "sum" },
+                { header: "Absent", key: "absent", type: "integer", total: "sum" },
+                { header: "Late", key: "late", type: "integer", total: "sum" },
+                { header: "Excused", key: "excused", type: "integer", total: "sum" },
+                { header: "Total", key: "total", type: "integer", total: "sum" },
+              ]}
+              summary={[
+                { label: "Present", value: totals.present },
+                { label: "Absent", value: totals.absent },
+                { label: "Late", value: totals.late },
+                { label: "Excused", value: totals.excused },
+              ]}
+              orientation="landscape"
+              disabled={summaries.length === 0}
+              variant="soft"
+              size="default"
+            />
           </div>
         </CardContent>
       </Card>

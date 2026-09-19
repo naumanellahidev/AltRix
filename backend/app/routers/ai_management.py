@@ -3,6 +3,7 @@ AltRix Super Admin — AI Management & Token Cost Telemetry Router
 Fully functional backend router that persists provider configurations, prompt engineering
 templates, and token quota telemetry into PostgreSQL system_settings.
 """
+import logging
 from typing import Dict, Any, Optional, List
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -12,7 +13,14 @@ import json
 
 from app.database import get_db
 
-router = APIRouter(prefix="/super_admin/ai", tags=["Super Admin AI Control"])
+from app.utils.permissions import require_super_admin
+
+logger = logging.getLogger(__name__)
+
+# Every endpoint below is platform-wide: it reaches across all tenants or
+# changes global configuration. The guard is declared on the router so a new
+# endpoint cannot be added without it.
+router = APIRouter(prefix="/super_admin/ai", tags=["Super Admin AI Control"], dependencies=[Depends(require_super_admin())])
 
 DEFAULT_PROMPTS = [
     {
@@ -71,8 +79,8 @@ async def get_ai_telemetry(db: AsyncSession = Depends(get_db)):
     except Exception as e:
         try:
             await db.rollback()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Optional step failed (%s): %s", "db.rollback", exc, exc_info=True)
 
     # 2. Query real schools breakdown
     breakdown = []
@@ -95,8 +103,8 @@ async def get_ai_telemetry(db: AsyncSession = Depends(get_db)):
     except Exception:
         try:
             await db.rollback()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Optional step failed (%s): %s", "db.rollback", exc, exc_info=True)
 
     return {
         "status": "success",
@@ -123,8 +131,8 @@ async def set_ai_provider(req: ProviderSwapRequest, db: AsyncSession = Depends(g
     except Exception:
         try:
             await db.rollback()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Optional step failed (%s): %s", "db.rollback", exc, exc_info=True)
 
     current_config["active_provider"] = req.provider
     if req.fallback_provider:
@@ -149,8 +157,8 @@ async def set_ai_provider(req: ProviderSwapRequest, db: AsyncSession = Depends(g
     except Exception as e:
         try:
             await db.rollback()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Optional step failed (%s): %s", "db.rollback", exc, exc_info=True)
         try:
             res = await db.execute(text("SELECT key FROM public.system_settings WHERE key = 'ai_provider_config'"))
             if res.fetchone():
@@ -161,8 +169,8 @@ async def set_ai_provider(req: ProviderSwapRequest, db: AsyncSession = Depends(g
         except Exception as ex2:
             try:
                 await db.rollback()
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("Optional step failed (%s): %s", "db.rollback", exc, exc_info=True)
             raise HTTPException(
                 status_code=500,
                 detail=f"Failed to persist AI provider setting: {ex2}"
@@ -193,8 +201,8 @@ async def get_global_prompts(db: AsyncSession = Depends(get_db)):
     except Exception:
         try:
             await db.rollback()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Optional step failed (%s): %s", "db.rollback", exc, exc_info=True)
     return {"status": "success", "templates": templates}
 
 @router.post("/prompts")
@@ -216,8 +224,8 @@ async def update_global_prompt(req: PromptUpdateRequest, db: AsyncSession = Depe
     except Exception:
         try:
             await db.rollback()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Optional step failed (%s): %s", "db.rollback", exc, exc_info=True)
 
     updated = False
     for t in templates:
@@ -243,8 +251,8 @@ async def update_global_prompt(req: PromptUpdateRequest, db: AsyncSession = Depe
     except Exception as e:
         try:
             await db.rollback()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Optional step failed (%s): %s", "db.rollback", exc, exc_info=True)
         try:
             res = await db.execute(text("SELECT key FROM public.system_settings WHERE key = 'ai_prompt_templates'"))
             if res.fetchone():
@@ -255,8 +263,8 @@ async def update_global_prompt(req: PromptUpdateRequest, db: AsyncSession = Depe
         except Exception as ex2:
             try:
                 await db.rollback()
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("Optional step failed (%s): %s", "db.rollback", exc, exc_info=True)
             raise HTTPException(status_code=500, detail=f"Failed to persist prompt template: {ex2}")
 
     return {"status": "success", "message": "Updated template successfully", "templates": templates}

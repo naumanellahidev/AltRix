@@ -1,3 +1,4 @@
+import logging
 """
 AltRix Super Admin — Custom Domain Authority & Edge SSL Manager Router
 Manages custom domain CNAME mappings in PostgreSQL, performs authentic multi-nameserver DNS lookups
@@ -20,7 +21,14 @@ import dns.resolver
 
 from app.database import get_db
 
-router = APIRouter(prefix="/super_admin/domains", tags=["Super Admin Domains"])
+from app.utils.permissions import require_super_admin
+
+logger = logging.getLogger("app.routers.custom_domains")
+
+# Every endpoint below is platform-wide: it reaches across all tenants or
+# changes global configuration. The guard is declared on the router so a new
+# endpoint cannot be added without it.
+router = APIRouter(prefix="/super_admin/domains", tags=["Super Admin Domains"], dependencies=[Depends(require_super_admin())])
 
 
 # Request Models
@@ -66,7 +74,7 @@ async def _log_domain_action(db: AsyncSession, domain_id: Optional[str], domain_
         """), {"did": domain_id, "dname": domain_name, "act": action, "det": details})
         await db.commit()
     except Exception as e:
-        print(f"[DomainAudit] Log failed: {e}")
+        logger.info(f"[DomainAudit] Log failed: {e}")
         await db.rollback()
 
 
@@ -140,7 +148,7 @@ async def get_custom_domains(db: AsyncSession = Depends(get_db)):
         """))
         rows = res.fetchall()
     except Exception as err:
-        print(f"[get_custom_domains] Join query failed, falling back to direct table query: {err}")
+        logger.info(f"[get_custom_domains] Join query failed, falling back to direct table query: {err}")
         await db.rollback()
         res = await db.execute(text("""
             SELECT id, school_id, school_slug, domain, cname_target, status, ssl_status,
@@ -200,13 +208,10 @@ async def add_custom_domain(req: AddDomainRequest, db: AsyncSession = Depends(ge
         raise HTTPException(status_code=400, detail="Domain mapping already exists.")
 
     school_id = None
-    try:
-        sid_res = await db.execute(text("SELECT id FROM public.schools WHERE slug = :slug LIMIT 1"), {"slug": req.slug})
-        row = sid_res.fetchone()
-        if row:
-            school_id = str(row[0])
-    except Exception:
-        pass
+    sid_res = await db.execute(text("SELECT id FROM public.schools WHERE slug = :slug LIMIT 1"), {"slug": req.slug})
+    row = sid_res.fetchone()
+    if row:
+        school_id = str(row[0])
 
     domain_id = str(uuid.uuid4())
     token = f"altrix-verification={secrets.token_hex(12)}"
@@ -280,8 +285,8 @@ async def verify_domain_registrar_records(req: VerifyRegistrarRequest, db: Async
             if cname_str == "altrix.pk" or cname_str.endswith(".altrix.pk"):
                 cname_found = True
                 break
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("Optional step failed (%s): %s", "resolver.resolve", exc, exc_info=True)
 
     # 2. Authentic TXT Challenge Record Inspection
     txt_host = f"_altrix-challenge.{clean_domain}"
@@ -293,8 +298,8 @@ async def verify_domain_registrar_records(req: VerifyRegistrarRequest, db: Async
             if token in txt_val:
                 txt_found = True
                 break
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("Optional step failed (%s): %s", "resolver.resolve", exc, exc_info=True)
 
     is_verified = cname_found or txt_found
 
@@ -396,17 +401,14 @@ async def verify_cname_ping(domain: str, db: AsyncSession = Depends(get_db)):
     now = datetime.utcnow()
     exp_date = now + timedelta(days=90)
 
-    try:
-        await _ensure_domains_table(db)
-        await db.execute(text("""
-            UPDATE public.custom_domains 
-            SET verified_at = NOW(), status = 'Active', ssl_status = 'Let''s Encrypt SSL Active',
-                ssl_expires_at = :exp, health_score = 100
-            WHERE domain = :domain OR id::text = :domain
-        """), {"domain": clean, "exp": exp_date})
-        await db.commit()
-    except Exception:
-        pass
+    await _ensure_domains_table(db)
+    await db.execute(text("""
+        UPDATE public.custom_domains 
+        SET verified_at = NOW(), status = 'Active', ssl_status = 'Let''s Encrypt SSL Active',
+            ssl_expires_at = :exp, health_score = 100
+        WHERE domain = :domain OR id::text = :domain
+    """), {"domain": clean, "exp": exp_date})
+    await db.commit()
 
     await _log_domain_action(db, None, clean, "VERIFY", f"CNAME DNS ping verified live. Resolved IP: {resolved_ip}")
 
@@ -493,8 +495,8 @@ async def inspect_ssl_handshake(domain: str):
                         exp_dt = datetime.strptime(not_after, '%b %d %H:%M:%S %Y %Z')
                         days_rem = (exp_dt - now).days
                         exp_date = exp_dt
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("Optional step failed (%s): %s", "ssl.create_default_context", exc, exc_info=True)
 
     return {
         "status": "success",
@@ -570,26 +572,23 @@ async def update_security_headers(domain_id: str, req: UpdateSecurityHeadersRequ
 @router.get("/{domain_id}/audit-logs")
 async def get_domain_audit_logs(domain_id: str, db: AsyncSession = Depends(get_db)):
     """Retrieve real audit history logs for a specific custom domain."""
-    try:
-        res = await db.execute(text("""
-            SELECT action, details, performed_at 
-            FROM public.domain_audit_logs 
-            WHERE domain_id::text = :did OR domain_name = :did 
-            ORDER BY performed_at DESC LIMIT 50
-        """), {"did": domain_id})
-        rows = res.fetchall()
+    res = await db.execute(text("""
+        SELECT action, details, performed_at 
+        FROM public.domain_audit_logs 
+        WHERE domain_id::text = :did OR domain_name = :did 
+        ORDER BY performed_at DESC LIMIT 50
+    """), {"did": domain_id})
+    rows = res.fetchall()
 
-        logs = [
-            {
-                "action": r[0],
-                "details": r[1],
-                "performed_at": r[2].isoformat() if r[2] else datetime.utcnow().isoformat()
-            }
-            for r in rows
-        ]
-        return {"status": "success", "count": len(logs), "logs": logs}
-    except Exception:
-        return {"status": "success", "count": 0, "logs": []}
+    logs = [
+        {
+            "action": r[0],
+            "details": r[1],
+            "performed_at": r[2].isoformat() if r[2] else datetime.utcnow().isoformat()
+        }
+        for r in rows
+    ]
+    return {"status": "success", "count": len(logs), "logs": logs}
 
 
 @router.post("/flush-cdn")

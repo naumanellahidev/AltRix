@@ -1,7 +1,7 @@
 import uuid
 from datetime import date, datetime
 from typing import Optional
-from sqlalchemy import DateTime, Date, ForeignKey, String, Text, Float, Integer, Boolean
+from sqlalchemy import DateTime, Date, ForeignKey, String, Text, Float, Integer, Boolean, Numeric
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship as orm_relationship
 from sqlalchemy.sql import func
@@ -41,7 +41,7 @@ class StaffAppraisal(Base):
     reviewer_user_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), nullable=True)
     review_comments: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(String, nullable=False, default="pending_review")  # pending_review, approved, rejected
-    salary_increment_pct: Mapped[float] = mapped_column(Float, default=0.0)
+    salary_increment_pct: Mapped[float] = mapped_column(Numeric(8, 3), default=0.0)
     
     created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=True)
 

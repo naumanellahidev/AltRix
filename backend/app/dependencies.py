@@ -2,6 +2,7 @@
 FastAPI dependency injection definitions.
 Handles auth validation, current user resolution, DB sessions.
 """
+import logging
 from typing import Annotated, List, Optional
 from dataclasses import dataclass, field
 
@@ -12,7 +13,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.utils.jwt import decode_supabase_token
-from app.cache import cache, TTL_USER_ROLES
+from app.cache import cache, cache_key_auth_roles, TTL_USER_ROLES
+
+logger = logging.getLogger("app.dependencies")
 
 
 @dataclass
@@ -52,9 +55,14 @@ async def get_current_user(
     except JWTError:
         raise credentials_exception
 
+    # A refresh token is a bearer credential with a 30-day life. It must not be
+    # usable as an access token, or the short access-token lifetime is moot.
+    if payload.get("token_type") == "refresh":
+        raise credentials_exception
+
     # Check token blacklist (by JTI or token hash)
     import hashlib
-    from app.utils.security import is_token_blacklisted
+    from app.utils.security import is_token_blacklisted, tokens_invalidated_before
     jti = payload.get("jti") or hashlib.sha256(token.encode("utf-8")).hexdigest()
     if await is_token_blacklisted(db, jti):
         raise credentials_exception
@@ -62,6 +70,20 @@ async def get_current_user(
     user_id: str = payload.get("sub", "")
     if not user_id:
         raise credentials_exception
+
+    # Reject tokens issued before the user's last password change or
+    # "sign out everywhere". The blacklist alone cannot do this: it only knows
+    # about tokens that were presented to us.
+    cutoff = await tokens_invalidated_before(db, user_id)
+    if cutoff is not None:
+        issued_at = payload.get("iat")
+        if issued_at is None:
+            raise credentials_exception
+        from datetime import datetime as _dt, timezone as _tz
+        if cutoff.tzinfo is None:  # tolerate a naive value from the driver
+            cutoff = cutoff.replace(tzinfo=_tz.utc)
+        if _dt.fromtimestamp(int(issued_at), tz=_tz.utc) < cutoff:
+            raise credentials_exception
 
     email: str = payload.get("email", "") or ""
 
@@ -160,10 +182,10 @@ async def get_current_user_with_roles(
         # Load roles from user_roles and school_owner_assignments tables scoped to school
         if sid_obj:
             try:
-                cache_key = cache.build_key(
-                    school_id=sid_str,
-                    base_key=f"auth:roles:{user.id}"
-                )
+                # Built through the shared helper so that every invalidation
+                # path targets exactly this key. A hand-rolled key here is how
+                # role revocation silently stopped working.
+                cache_key = cache_key_auth_roles(user.id, sid_str)
                 cached_data = await cache.get(cache_key)
                 if cached_data:
                     if isinstance(cached_data, dict):
@@ -174,11 +196,15 @@ async def get_current_user_with_roles(
                         db_campus_id = None
                     user.school_id = sid_str
                 else:
+                    # Roles are resolved strictly against the requested school.
+                    # `school_id` is NOT NULL on user_roles, so there is no
+                    # school-agnostic role to honour here; cross-school access
+                    # comes only from platform_super_admins.
                     result = await db.execute(
                         text(
                             """
                             SELECT role, campus_id FROM user_roles
-                            WHERE user_id = :uid AND (school_id = :sid OR school_id IS NULL)
+                            WHERE user_id = :uid AND school_id = :sid
                             UNION
                             SELECT 'school_owner', NULL FROM school_owner_assignments
                             WHERE owner_user_id = :uid AND school_id = :sid
@@ -188,30 +214,25 @@ async def get_current_user_with_roles(
                     )
                     rows = result.fetchall()
                     roles = [row[0] for row in rows]
-                    
+
                     # Find any non-null campus_id assigned in user_roles
                     db_campus_ids = [row[1] for row in rows if row[1]]
                     db_campus_id = str(db_campus_ids[0]) if db_campus_ids else None
-                    
+
+                    user.roles = roles
+                    user.school_id = sid_str
                     if roles:
-                        user.roles = roles
-                        user.school_id = sid_str
                         await cache.set(cache_key, {"roles": roles, "campus_id": db_campus_id}, ttl=TTL_USER_ROLES)
                     else:
-                        # Fallback check if user has roles under any school
-                        res_any = await db.execute(
-                            text("SELECT role, school_id, campus_id FROM user_roles WHERE user_id = :uid LIMIT 5"),
-                            {"uid": uid_obj}
+                        # No membership in the requested school. Previously this
+                        # fell back to the user's roles in *any* school, which
+                        # let an attacker-supplied X-School-Id header carry
+                        # another tenant's privileges. The membership check
+                        # below now rejects the request.
+                        db_campus_id = None
+                        logger.info(
+                            f"User {user.id} has no role in school {sid_str}; denying tenant access"
                         )
-                        any_rows = res_any.fetchall()
-                        if any_rows:
-                            user.roles = [r[0] for r in any_rows]
-                            user.school_id = str(any_rows[0][1]) if any_rows[0][1] else sid_str
-                            db_campus_id = str(any_rows[0][2]) if any_rows[0][2] else None
-                        else:
-                            user.roles = []
-                            user.school_id = sid_str
-                            db_campus_id = None
 
                 # Determine active campus
                 if resolved_campus_id:

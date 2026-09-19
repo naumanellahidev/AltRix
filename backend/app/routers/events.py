@@ -25,6 +25,7 @@ from app.schemas import (
     AnnualFunctionPlanCreate, AnnualFunctionPlanOut,
     MessageResponse,
 )
+from app.utils.pagination import ListPageParams
 
 logger = logging.getLogger(__name__)
 
@@ -255,7 +256,7 @@ async def get_event(event_id: str, current_user: CurrentUser, db: DbSession):
 
 
 @router.get("/{event_id}/photos", response_model=List[EventPhotoOut])
-async def get_event_photos(event_id: str, current_user: CurrentUser, db: DbSession):
+async def get_event_photos(event_id: str, current_user: CurrentUser, db: DbSession, page: ListPageParams):
     """Get all photos for an event."""
     ev_uuid = _to_uuid(event_id)
     if not ev_uuid:
@@ -266,7 +267,7 @@ async def get_event_photos(event_id: str, current_user: CurrentUser, db: DbSessi
         .where(EventPhoto.event_id == ev_uuid)
         .order_by(EventPhoto.sort_order, EventPhoto.created_at)
     )
-    res = await db.execute(q)
+    res = await db.execute(page.apply(q))
     photos = res.scalars().all()
     return [EventPhotoOut(
         id=str(p.id), photo_url=p.photo_url, thumbnail_url=p.thumbnail_url,
@@ -421,15 +422,15 @@ async def submit_event_rsvp(
 
 
 @router.get("/{event_id}/rsvps", response_model=List[EventRSVPOut])
-async def get_event_rsvps(event_id: str, current_user: CurrentUser, db: DbSession):
+async def get_event_rsvps(event_id: str, current_user: CurrentUser, db: DbSession, page: ListPageParams):
     """Get RSVP list for an event (organizer/staff view)."""
     ev_uuid = _to_uuid(event_id)
     if not ev_uuid:
         return []
     res = await db.execute(
-        select(EventRSVP)
+        page.apply(select(EventRSVP)
         .where(EventRSVP.event_id == ev_uuid)
-        .order_by(EventRSVP.created_at.desc())
+        .order_by(EventRSVP.created_at.desc()))
     )
     return res.scalars().all()
 
@@ -437,15 +438,15 @@ async def get_event_rsvps(event_id: str, current_user: CurrentUser, db: DbSessio
 # ── Sports Scorecard ──────────────────────────────────────────────────────────
 
 @router.get("/{event_id}/scorecard", response_model=List[SportsScorecardOut])
-async def get_sports_scorecard(event_id: str, current_user: CurrentUser, db: DbSession):
+async def get_sports_scorecard(event_id: str, current_user: CurrentUser, db: DbSession, page: ListPageParams):
     """Fetch house scores / positions for a sports day event."""
     ev_uuid = _to_uuid(event_id)
     if not ev_uuid:
         return []
     res = await db.execute(
-        select(SportsScorecard)
+        page.apply(select(SportsScorecard)
         .where(SportsScorecard.event_id == ev_uuid)
-        .order_by(SportsScorecard.points.desc(), SportsScorecard.position)
+        .order_by(SportsScorecard.points.desc(), SportsScorecard.position))
     )
     return res.scalars().all()
 
@@ -500,15 +501,15 @@ async def update_sports_scorecard(
 # ── Annual Function Planning ──────────────────────────────────────────────────
 
 @router.get("/{event_id}/tasks", response_model=List[AnnualFunctionPlanOut])
-async def get_annual_function_tasks(event_id: str, current_user: CurrentUser, db: DbSession):
+async def get_annual_function_tasks(event_id: str, current_user: CurrentUser, db: DbSession, page: ListPageParams):
     """Get organizers task checklist for annual function planning."""
     ev_uuid = _to_uuid(event_id)
     if not ev_uuid:
         return []
     res = await db.execute(
-        select(AnnualFunctionPlan)
+        page.apply(select(AnnualFunctionPlan)
         .where(AnnualFunctionPlan.event_id == ev_uuid)
-        .order_by(AnnualFunctionPlan.due_date, AnnualFunctionPlan.created_at)
+        .order_by(AnnualFunctionPlan.due_date, AnnualFunctionPlan.created_at))
     )
     return res.scalars().all()
 
@@ -584,7 +585,7 @@ async def toggle_planning_task(
 # ── PTM Endpoints ────────────────────────────────────────────────────────────
 
 @router.get("/ptm/my-slots", response_model=List[PTMSlotOut])
-async def get_my_ptm_slots(current_user: CurrentUser, db: DbSession, student_id: Optional[str] = None):
+async def get_my_ptm_slots(current_user: CurrentUser, db: DbSession, page: ListPageParams, student_id: Optional[str] = None):
     """Parent: get available PTM slots for their child's teachers."""
     school_uuid = _to_uuid(current_user.school_id)
     parent_uuid = _to_uuid(getattr(current_user, "user_id", None)) or _to_uuid(getattr(current_user, "id", None))
@@ -625,7 +626,7 @@ async def get_my_ptm_slots(current_user: CurrentUser, db: DbSession, student_id:
             )
             .order_by(PTMSlot.slot_date, PTMSlot.start_time)
         )
-        slot_res = await db.execute(q)
+        slot_res = await db.execute(page.apply(q))
         slots = slot_res.scalars().all()
 
         my_bookings_q = (
@@ -717,7 +718,7 @@ async def book_ptm(body: PTMBookRequest, current_user: CurrentUser, db: DbSessio
 
 
 @router.get("/ptm/my-bookings", response_model=List[PTMBookingOut])
-async def get_my_ptm_bookings(current_user: CurrentUser, db: DbSession):
+async def get_my_ptm_bookings(current_user: CurrentUser, db: DbSession, page: ListPageParams):
     """Parent: list their PTM bookings."""
     school_uuid = _to_uuid(current_user.school_id)
     parent_uuid = _to_uuid(getattr(current_user, "user_id", None)) or _to_uuid(getattr(current_user, "id", None))
@@ -733,7 +734,7 @@ async def get_my_ptm_bookings(current_user: CurrentUser, db: DbSession):
         )
         .order_by(PTMBooking.created_at.desc())
     )
-    res = await db.execute(q)
+    res = await db.execute(page.apply(q))
     bookings = res.scalars().all()
 
     teacher_names = {}

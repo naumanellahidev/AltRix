@@ -8,6 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { format } from "date-fns";
 import { api } from "@/lib/api";
 import { useActiveCampus } from "@/hooks/useActiveCampus";
+import { DataExportMenu } from "@/components/documents/DataExportMenu";
 
 interface Props { schoolId: string | null; }
 
@@ -157,7 +158,7 @@ export function OwnerComplianceModule({ schoolId }: Props) {
 
         <TabsContent value="contracts" className="mt-6 space-y-4">
           <Card>
-            <CardHeader><CardTitle className="text-base flex items-center gap-2"><FileText className="h-4 w-4" /> Contracts expiring within 60 days ({data?.expiring.length ?? 0})</CardTitle></CardHeader>
+            <CardHeader className="flex flex-row items-center justify-between gap-2"><CardTitle className="text-base flex items-center gap-2"><FileText className="h-4 w-4" /> Contracts expiring within 60 days ({data?.expiring.length ?? 0})</CardTitle><DataExportMenu title="Contracts Expiring Within 60 Days" rows={(data?.expiring ?? []).map((c: any) => ({ Employee: nameOf(c.user_id), Position: c.position ?? "", Ends: c.end_date ?? "", Status: c.status ?? "" }))} disabled={!data?.expiring?.length} size="sm" /></CardHeader>
             <CardContent>
               {(data?.expiring.length ?? 0) === 0 ? (
                 <p className="py-6 text-center text-muted-foreground text-xs sm:text-sm">No contracts expiring soon.</p>
@@ -184,7 +185,7 @@ export function OwnerComplianceModule({ schoolId }: Props) {
           </Card>
 
           <Card>
-            <CardHeader><CardTitle className="text-base flex items-center gap-2"><AlertTriangle className="h-4 w-4 text-red-600" /> Active staff without contracts ({data?.missingContract.length ?? 0})</CardTitle></CardHeader>
+            <CardHeader className="flex flex-row items-center justify-between gap-2"><CardTitle className="text-base flex items-center gap-2"><AlertTriangle className="h-4 w-4 text-red-600" /> Active staff without contracts ({data?.missingContract.length ?? 0})</CardTitle><DataExportMenu title="Active Staff Without Contracts" rows={(data?.missingContract ?? []).map((uid: string) => ({ Staff: nameOf(uid) }))} disabled={!data?.missingContract?.length} size="sm" /></CardHeader>
             <CardContent>
               {(data?.missingContract.length ?? 0) === 0 ? (
                 <p className="py-6 text-center text-muted-foreground text-xs sm:text-sm">All active staff have contracts on file.</p>

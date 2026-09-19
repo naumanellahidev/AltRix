@@ -1,10 +1,10 @@
+import { describeShare, downloadReceipt, printReceipt, shareReceipt, type ReceiptInput } from "@/lib/documents";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useState, useCallback, useMemo } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, CreditCard, Trash2, Receipt, Search, X, Printer, FileText, RefreshCw } from "lucide-react";
+import { Plus, CreditCard, Trash2, Receipt, Search, X, Printer, FileText, RefreshCw, Coins } from "lucide-react";
 import { ReportExportMenu } from "@/components/accountant/ReportExportMenu";
-import { BrandedDocument } from "@/components/pdf/BrandedDocument";
-import { useSchoolDocument } from "@/hooks/useSchoolDocument";
 
 import { api } from "@/lib/api";
 import { useTenant } from "@/hooks/useTenant";
@@ -85,7 +85,6 @@ export function AccountantPaymentsModule() {
   const tenant = useTenant(schoolSlug);
   const queryClient = useQueryClient();
   const schoolId = tenant.status === "ready" ? tenant.schoolId : null;
-  const { school: schoolBranding } = useSchoolDocument(schoolId);
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -95,7 +94,6 @@ export function AccountantPaymentsModule() {
   const [dateTo, setDateTo] = useState("");
   const [minAmount, setMinAmount] = useState("");
   const [maxAmount, setMaxAmount] = useState("");
-  const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null);
 
   const [formInvoiceId, setFormInvoiceId] = useState("");
   const [formAmount, setFormAmount] = useState("");
@@ -421,6 +419,53 @@ export function AccountantPaymentsModule() {
     return invoice?.invoice_number || "Unknown";
   };
 
+  /**
+   * The receipt for a payment, from its own record. The receipt number is the
+   * payment's reference, or its id when no reference was taken; the invoice is
+   * named only if it can be found, never as "Unknown".
+   */
+  const receiptFor = (payment: Payment): ReceiptInput => {
+    const payer = getRecipientDetails(payment);
+    const invoice = invoices.find((i) => i.id === payment.invoice_id);
+    return {
+      receiptNumber: payment.reference || `PAY-${payment.id.slice(0, 8).toUpperCase()}`,
+      payerName: payer.name,
+      payerType: payer.type,
+      payerContact: payer.contact && !/^(n\/a|no contact|no email)$/i.test(payer.contact) ? payer.contact : null,
+      paidAt: payment.paid_at,
+      method: PAYMENT_METHODS.find((m) => m.value === payment.method)?.label || payment.method,
+      invoiceNumber: invoice?.invoice_number ?? payment.fee_invoices?.invoice_number ?? null,
+      amount: payment.amount,
+      invoiceTotal: invoice?.total_amount ?? null,
+      invoicePaidToDate: invoice?.paid_amount ?? null,
+      notes: payment.notes,
+      receivedBy: "Accounts Office",
+    };
+  };
+
+  const receiptAction = async (payment: Payment, kind: "print" | "download" | "share", duplicate = false) => {
+    const input = { ...receiptFor(payment), duplicate };
+    const id = toast.loading("Preparing receipt…");
+    try {
+      if (kind === "share") {
+        const outcome = await shareReceipt(input);
+        const { tone, message } = describeShare(outcome);
+        if (tone === "error") toast.error(message, { id });
+        else if (tone === "success") toast.success(message, { id });
+        else toast.info(message, { id, duration: 9000 });
+        return;
+      }
+      const result: { warnings: string[]; fileName?: string } =
+        kind === "print" ? await printReceipt(input) : await downloadReceipt(input);
+      const done = kind === "print" ? "Sent to print" : `Downloaded ${result.fileName}`;
+      if (result.warnings.length) toast.warning(`${done}, but ${result.warnings.join("; ")}`, { id, duration: 9000 });
+      else if (kind === "print") toast.dismiss(id);
+      else toast.success(done, { id });
+    } catch (e: any) {
+      toast.error(e?.message ? `Could not prepare the receipt: ${e.message}` : "Could not prepare the receipt", { id });
+    }
+  };
+
   const unpaidInvoices = invoices.filter((i) => i.status !== "paid");
 
   // Filtered Payments
@@ -490,75 +535,6 @@ export function AccountantPaymentsModule() {
 
   return (
     <div className="space-y-6">
-      <style dangerouslySetInnerHTML={{ __html: `
-        @media print {
-          body * {
-            visibility: hidden !important;
-          }
-          #printable-receipt-area, #printable-receipt-area * {
-            visibility: visible !important;
-          }
-          #printable-receipt-area {
-            position: absolute !important;
-            left: 0 !important;
-            top: 0 !important;
-            width: 100% !important;
-            display: block !important;
-            background: white !important;
-            color: black !important;
-            padding: 2rem !important;
-          }
-        }
-      `}} />
-
-      {/* Printable Receipt Container */}
-      {selectedPayment && (
-        <div id="printable-receipt-area" className="hidden print:block bg-white text-black">
-          <BrandedDocument
-            school={schoolBranding}
-            documentTitle="Payment Receipt"
-            referenceNumber={selectedPayment.reference || selectedPayment.id.slice(0, 8).toUpperCase()}
-            issuedOn={selectedPayment.paid_at ? new Date(selectedPayment.paid_at) : null}
-            signatoryName="Accounts Office"
-            signatoryTitle="Received By"
-          >
-            <div className="space-y-6">
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                  <p className="font-semibold text-gray-600">Received From:</p>
-                  <p className="font-bold text-base">{getRecipientDetails(selectedPayment).name}</p>
-                  <p className="text-gray-500">Type: {getRecipientDetails(selectedPayment).type}</p>
-                  <p className="text-gray-500">Contact: {getRecipientDetails(selectedPayment).contact}</p>
-                </div>
-                <div className="text-right text-gray-700">
-                  <p><span className="font-semibold text-gray-600">Payment Date:</span> {new Date(selectedPayment.paid_at).toLocaleDateString()}</p>
-                  <p className="mt-1"><span className="font-semibold text-gray-600">Payment Method:</span> <span className="uppercase font-bold">{PAYMENT_METHODS.find(m => m.value === selectedPayment.method)?.label || selectedPayment.method}</span></p>
-                  {selectedPayment.reference && <p className="mt-1"><span className="font-semibold text-gray-600">Ref No:</span> {selectedPayment.reference}</p>}
-                </div>
-              </div>
-
-              <div className="border border-gray-200 rounded-xl p-4 bg-gray-50/50 mt-6">
-                <div className="flex justify-between items-center py-2 border-b">
-                  <span className="font-medium text-gray-600">Invoice Number</span>
-                  <span className="font-bold text-gray-800">{getInvoiceDisplay(selectedPayment.invoice_id)}</span>
-                </div>
-                <div className="flex justify-between items-center py-3">
-                  <span className="text-lg font-bold text-gray-800">Amount Received</span>
-                  <span className="text-xl font-extrabold text-blue-600">Rs. {Number(selectedPayment.amount).toLocaleString()}</span>
-                </div>
-              </div>
-
-              {selectedPayment.notes && (
-                <div className="pt-4 border-t">
-                  <p className="font-semibold text-gray-600">Payment Notes:</p>
-                  <p className="text-gray-500 mt-1">{selectedPayment.notes}</p>
-                </div>
-              )}
-            </div>
-          </BrandedDocument>
-        </div>
-      )}
-
       {/* Summary KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
         <Card className="border-blue-100 bg-gradient-to-br from-white to-blue-50/20 shadow-sm rounded-2xl">
@@ -886,20 +862,33 @@ export function AccountantPaymentsModule() {
                       </TableCell>
                       <TableCell className="py-2.5 text-right">
                         <div className="flex justify-end gap-1">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50/50"
-                            onClick={() => {
-                              setSelectedPayment(p);
-                              setTimeout(() => {
-                                window.print();
-                              }, 150);
-                            }}
-                            title="Print Receipt"
-                          >
-                            <Printer className="h-3.5 w-3.5" />
-                          </Button>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50/50"
+                                title="Receipt"
+                                aria-label="Receipt options"
+                              >
+                                <Printer className="h-3.5 w-3.5" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-52">
+                              <DropdownMenuItem onClick={() => receiptAction(p, "print")}>
+                                <Printer className="mr-2 h-4 w-4" /> Print receipt
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => receiptAction(p, "download")}>
+                                <FileText className="mr-2 h-4 w-4" /> Download PDF
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => receiptAction(p, "share")}>
+                                <Receipt className="mr-2 h-4 w-4 text-green-600" /> Share on WhatsApp
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => receiptAction(p, "print", true)}>
+                                <Printer className="mr-2 h-4 w-4 text-muted-foreground" /> Reprint as duplicate
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                           <AlertDialog>
                             <AlertDialogTrigger asChild>
                               <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg text-slate-400 hover:text-destructive hover:bg-destructive/5">

@@ -26,6 +26,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { DataExportMenu } from "@/components/documents/DataExportMenu";
 
 interface ClassRow {
   id: string;
@@ -147,6 +148,17 @@ export function StudentRosterCard({
             Student Roster
           </CardTitle>
           <div className="flex gap-2">
+            <DataExportMenu
+              title="Student Roster"
+              rows={filteredStudents.map((s: any) => ({
+                Student: [s.first_name, s.last_name].filter(Boolean).join(" "),
+                Parent: s.parent_name ?? "",
+                "Class / Section": s.sectionLabel ?? "",
+                Status: s.status,
+              }))}
+              disabled={!filteredStudents.length}
+              size="sm"
+            />
             <Badge className="bg-primary/10 text-primary border-primary/20">
               {statusCounts.enrolled} enrolled
             </Badge>

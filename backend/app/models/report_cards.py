@@ -5,7 +5,7 @@ import uuid
 from typing import Optional
 from datetime import datetime, date
 
-from sqlalchemy import Boolean, Column, Date, DateTime, Float, ForeignKey, Integer, String, Text, JSON
+from sqlalchemy import Boolean, Column, Date, DateTime, Float, ForeignKey, Integer, String, Text, JSON, Numeric
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
@@ -83,10 +83,10 @@ class ReportCard(Base):
     academic_year: Mapped[Optional[str]] = mapped_column(String, nullable=True)  # "2025-2026"
 
     # Aggregate scores
-    total_marks: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    max_total_marks: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    percentage: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    gpa: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    total_marks: Mapped[Optional[float]] = mapped_column(Numeric(8, 3), nullable=True)
+    max_total_marks: Mapped[Optional[float]] = mapped_column(Numeric(8, 3), nullable=True)
+    percentage: Mapped[Optional[float]] = mapped_column(Numeric(8, 3), nullable=True)
+    gpa: Mapped[Optional[float]] = mapped_column(Numeric(8, 3), nullable=True)
     overall_grade: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 
     # Position/Ranking
@@ -94,7 +94,7 @@ class ReportCard(Base):
     total_students_in_class: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
 
     # Attendance
-    attendance_percentage: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    attendance_percentage: Mapped[Optional[float]] = mapped_column(Numeric(8, 3), nullable=True)
     total_present_days: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     total_school_days: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
 
@@ -129,16 +129,16 @@ class ReportCardSubjectEntry(Base):
     subject_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("subjects.id"), nullable=True)
     subject_name: Mapped[str] = mapped_column(String, nullable=False)
 
-    marks_obtained: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    max_marks: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    percentage: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    marks_obtained: Mapped[Optional[float]] = mapped_column(Numeric(8, 3), nullable=True)
+    max_marks: Mapped[Optional[float]] = mapped_column(Numeric(8, 3), nullable=True)
+    percentage: Mapped[Optional[float]] = mapped_column(Numeric(8, 3), nullable=True)
     grade: Mapped[Optional[str]] = mapped_column(String, nullable=True)
-    gpa_points: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    gpa_points: Mapped[Optional[float]] = mapped_column(Numeric(8, 3), nullable=True)
 
     # Position & Class stats
     position_in_subject: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
-    class_average: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    highest_in_class: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    class_average: Mapped[Optional[float]] = mapped_column(Numeric(8, 3), nullable=True)
+    highest_in_class: Mapped[Optional[float]] = mapped_column(Numeric(8, 3), nullable=True)
 
     teacher_comment: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     sort_order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
@@ -153,8 +153,8 @@ class CoCurricularGrade(Base):
     activity_name: Mapped[str] = mapped_column(String, nullable=False)
     category: Mapped[Optional[str]] = mapped_column(String, nullable=True)  # Sports, Arts, Music, etc.
     grade: Mapped[Optional[str]] = mapped_column(String, nullable=True)  # A, B, C, D, E
-    score: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    max_score: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    score: Mapped[Optional[float]] = mapped_column(Numeric(8, 3), nullable=True)
+    max_score: Mapped[Optional[float]] = mapped_column(Numeric(8, 3), nullable=True)
     remarks: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     sort_order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
@@ -166,9 +166,9 @@ class GradeScale(Base):
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     school_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("schools.id"), nullable=False)
     label: Mapped[str] = mapped_column(String, nullable=False)  # A+, A, B+, B, etc.
-    min_percentage: Mapped[float] = mapped_column(Float, nullable=False)
-    max_percentage: Mapped[float] = mapped_column(Float, nullable=False, default=100)
-    gpa_points: Mapped[Optional[float]] = mapped_column(Float, nullable=True)  # 4.0, 3.7, etc.
+    min_percentage: Mapped[float] = mapped_column(Numeric(8, 3), nullable=False)
+    max_percentage: Mapped[float] = mapped_column(Numeric(8, 3), nullable=False, default=100)
+    gpa_points: Mapped[Optional[float]] = mapped_column(Numeric(8, 3), nullable=True)  # 4.0, 3.7, etc.
     description: Mapped[Optional[str]] = mapped_column(String, nullable=True)  # "Outstanding", "Excellent"
     color: Mapped[Optional[str]] = mapped_column(String, nullable=True)  # Hex color for UI
     sort_order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)

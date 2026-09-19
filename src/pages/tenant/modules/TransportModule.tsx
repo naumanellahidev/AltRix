@@ -14,6 +14,7 @@ import {
   Trash2, Edit3, Clock, ArrowRight, CheckCircle2, Phone, Users, Compass,
   ChevronRight, ArrowUpDown, ChevronUp, ChevronDown, Check, X, Radio
 } from "lucide-react";
+import { DataExportMenu } from "@/components/documents/DataExportMenu";
 
 interface Stop {
   id?: string;
@@ -711,6 +712,20 @@ export function TransportModule() {
                   Click any route's stop badge to manage or add designated pickup locations.
                 </p>
               </div>
+              <DataExportMenu
+                title="Transport Routes"
+                rows={filteredRoutes.map((r) => ({ code: r.route_code, name: r.route_name, from: r.start_point, to: r.end_point, stops: r.total_stops ?? r.stops?.length ?? 0, fare: r.monthly_fare }))}
+                columns={[
+                  { header: "Code", key: "code" },
+                  { header: "Route", key: "name" },
+                  { header: "From", key: "from" },
+                  { header: "To", key: "to" },
+                  { header: "Stops", key: "stops", type: "integer" },
+                  { header: "Monthly fare", key: "fare", type: "money" },
+                ]}
+                disabled={!filteredRoutes.length}
+                size="sm"
+              />
               <Button
                 onClick={handleOpenAddRoute}
                 className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-xs h-9 px-3.5 rounded-xl shadow-xs self-start sm:self-auto shrink-0"
@@ -893,6 +908,13 @@ export function TransportModule() {
                   Track seating capacity, driver assignments, license registration, and telematics status.
                 </p>
               </div>
+              <DataExportMenu
+                title="Transport Fleet"
+                rows={filteredFleet.map((v) => ({ Bus: v.bus_number, Registration: v.registration_no, Driver: v.driver_name, "Driver phone": v.driver_phone, Route: v.assigned_route_name ?? "", Seats: v.seating_capacity, Students: v.assigned_students_count ?? 0, Status: v.status }))}
+                orientation="landscape"
+                disabled={!filteredFleet.length}
+                size="sm"
+              />
               <Button
                 onClick={handleOpenAddBus}
                 className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-xs h-9 px-3.5 rounded-xl shadow-xs self-start sm:self-auto shrink-0"
@@ -1065,6 +1087,12 @@ export function TransportModule() {
                   Assigned students, designated pickup stop, and round-trip transport subscriptions.
                 </p>
               </div>
+              <DataExportMenu
+                title="Transport Passengers"
+                rows={filteredAssignments.map((a) => ({ Student: a.student_name, Code: a.student_code ?? "", Route: [a.route_code, a.route_name].filter(Boolean).join(" — "), "Pickup stop": a.stop_name ?? "", Service: a.pickup_type ?? "" }))}
+                disabled={!filteredAssignments.length}
+                size="sm"
+              />
               <Button
                 onClick={handleOpenAssignModal}
                 className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-xs h-9 px-3.5 rounded-xl shadow-xs self-start sm:self-auto shrink-0"

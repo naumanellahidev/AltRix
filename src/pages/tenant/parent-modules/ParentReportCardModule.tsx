@@ -21,7 +21,7 @@ import {
   AlertCircle
 } from "lucide-react";
 import { toast } from "sonner";
-import { exportCleanDocumentToPdf } from "@/lib/pdfExportEngine";
+import { describeShare, downloadReportCard, printReportCard, shareReportCard } from "@/lib/documents";
 
 interface ParentReportCardModuleProps {
   child: ChildInfo | null;
@@ -113,34 +113,28 @@ export default function ParentReportCardModule({ child, schoolId }: ParentReport
       });
   }, [selectedCardId]);
 
-  const handlePrint = async () => {
-    if (!reportRef.current) return;
-    const name = (child ? `${child.first_name}_${child.last_name || ""}` : "Student").replace(/\s+/g, "_");
+  // The official card, built from what the school published — the same file
+  // the office prints — rather than a copy of this screen.
+  const cardAction = async (kind: "download" | "print" | "share") => {
+    if (!selectedCardId) return;
+    const id = toast.loading(kind === "share" ? "Preparing report card to share…" : "Preparing report card…");
     try {
-      await exportCleanDocumentToPdf(reportRef.current, {
-        filename: `${name}_ReportCard.pdf`,
-        orientation: "portrait",
-        scale: 2.5,
-      });
-      toast.success("Official PDF report card downloaded successfully!");
+      if (kind === "share") {
+        const outcome = await shareReportCard(selectedCardId);
+        const { tone, message } = describeShare(outcome);
+        if (tone === "error") toast.error(message, { id });
+        else if (tone === "success") toast.success(message, { id });
+        else toast.info(message, { id, duration: 9000 });
+        return;
+      }
+      const { warnings, ...rest } =
+        kind === "print" ? await printReportCard(selectedCardId) : await downloadReportCard(selectedCardId);
+      const done = kind === "print" ? "Sent to print" : `Downloaded ${(rest as { fileName?: string }).fileName}`;
+      if (warnings.length) toast.warning(`${done}, but ${warnings.join("; ")}`, { id, duration: 9000 });
+      else if (kind === "print") toast.dismiss(id);
+      else toast.success(done, { id });
     } catch (err: any) {
-      toast.error(err?.message || "Failed to generate PDF document");
-    }
-  };
-
-  const handleShare = () => {
-    if (navigator.share && detail?.report_card) {
-      navigator
-        .share({
-          title: `${child?.first_name}'s Report Card`,
-          text: `Check out ${child?.first_name}'s report card for ${detail.report_card.period_label}.`,
-          url: window.location.href,
-        })
-        .then(() => toast.success("Shared successfully"))
-        .catch((err) => console.log("Share cancelled or failed", err));
-    } else {
-      navigator.clipboard.writeText(window.location.href);
-      toast.success("Link copied to clipboard!");
+      toast.error(err?.message ? `Could not prepare the report card: ${err.message}` : "Could not prepare the report card", { id });
     }
   };
 
@@ -166,11 +160,14 @@ export default function ParentReportCardModule({ child, schoolId }: ParentReport
         <div className="flex flex-wrap items-center gap-2">
           {detail && (
             <>
-              <Button size="sm" onClick={handlePrint} variant="outline" className="gap-1.5 border-primary/30 hover:border-primary rounded-xl text-xs h-9">
+              <Button size="sm" onClick={() => cardAction("download")} variant="outline" className="gap-1.5 border-primary/30 hover:border-primary rounded-xl text-xs h-9">
                 <Download className="h-3.5 w-3.5" /> Download PDF
               </Button>
-              <Button size="sm" onClick={handleShare} variant="default" className="gap-1.5 bg-gradient-primary-strong rounded-xl text-xs h-9">
-                <Share2 className="h-3.5 w-3.5" /> Share Record
+              <Button size="sm" onClick={() => cardAction("print")} variant="outline" className="gap-1.5 border-primary/30 hover:border-primary rounded-xl text-xs h-9">
+                <Printer className="h-3.5 w-3.5" /> Print
+              </Button>
+              <Button size="sm" onClick={() => cardAction("share")} variant="default" className="gap-1.5 bg-gradient-primary-strong rounded-xl text-xs h-9">
+                <Share2 className="h-3.5 w-3.5" /> Share on WhatsApp
               </Button>
             </>
           )}

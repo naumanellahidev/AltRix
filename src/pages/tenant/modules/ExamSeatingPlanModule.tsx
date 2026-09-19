@@ -1,19 +1,41 @@
-import { useEffect, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+/**
+ * Exam halls and seating plans.
+ *
+ * Everything here is the school's real data: the halls it has registered, and
+ * plans generated on the server from the students actually enrolled in the
+ * chosen sections. It used to show invented halls and a plan full of invented
+ * students whenever the server returned nothing, generate "Grade 9-A Candidate
+ * #3" placeholders itself, post them to an endpoint that did not exist, and
+ * report success regardless.
+ */
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useParams } from "react-router-dom";
+import {
+  Building, Download, Grid, LayoutGrid, Loader2, MessageCircle, Printer, RefreshCw, ShieldCheck, Sparkles, Trash2, UserPlus, X,
+} from "lucide-react";
+import { toast } from "sonner";
+
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useTenant } from "@/hooks/useTenant";
+import { api } from "@/lib/api";
 import { apiClient } from "@/lib/api-client";
-import { toast } from "sonner";
+import { describeShare } from "@/lib/documents/deliver";
+import { date as formatDate } from "@/lib/documents/format";
 import {
-  Grid, Plus, RefreshCw, UserCheck, ShieldCheck, Sparkles, Building, CheckCircle2,
-  Printer, Trash2, Users, LayoutGrid, Award, BookOpen
-} from "lucide-react";
+  type SeatingPlanDoc,
+  downloadSeatingPlans,
+  printSeatingPlans,
+  shareSeatingPlans,
+} from "@/lib/documents/seating-plan";
 
 interface Room {
   id: string;
@@ -23,517 +45,600 @@ interface Room {
   total_capacity: number;
 }
 
-interface SeatAssignment {
-  row: number;
-  col: number;
-  seat_number: string;
-  student_name: string;
-  roll_number: string;
-  class_name: string;
+interface Plan extends SeatingPlanDoc {
+  exam_id: string;
+  room_id: string;
+  invigilators: Array<{ staff_user_id: string; role: string; name?: string | null }>;
 }
 
-interface SeatingPlan {
-  id: string;
-  exam_title: string;
-  room_name: string;
-  invigilator_name: string;
-  date: string;
-  time_slot: string;
-  assignments: SeatAssignment[];
-  rows: number;
-  cols: number;
-}
+const errorText = (e: any) => e?.response?.data?.detail ?? e?.message ?? "unknown error";
 
 export function ExamSeatingPlanModule() {
-  const [rooms, setRooms] = useState<Room[]>([
-    { id: "room-1", room_name: "Main Auditorium Hall A", capacity_rows: 5, capacity_cols: 6, total_capacity: 30 },
-    { id: "room-2", room_name: "Science Complex Room 204", capacity_rows: 4, capacity_cols: 5, total_capacity: 20 },
-    { id: "room-3", room_name: "Library Exam Annex B", capacity_rows: 6, capacity_cols: 6, total_capacity: 36 },
-  ]);
+  const { schoolSlug } = useParams();
+  const tenant = useTenant(schoolSlug);
+  const schoolId = tenant.status === "ready" ? tenant.schoolId : null;
 
-  const [plans, setPlans] = useState<SeatingPlan[]>([
-    {
-      id: "plan-1",
-      exam_title: "Mid-Term Physics & Chemistry",
-      room_name: "Main Auditorium Hall A",
-      invigilator_name: "Prof. Tariq Mahmood",
-      date: "2026-08-15",
-      time_slot: "09:00 AM - 12:00 PM",
-      rows: 5,
-      cols: 6,
-      assignments: [
-        { row: 1, col: 1, seat_number: "A-1", student_name: "Ahmad Raza", roll_number: "STU-9A-01", class_name: "Grade 9-A" },
-        { row: 1, col: 2, seat_number: "A-2", student_name: "Bilal Hassan", roll_number: "STU-10B-04", class_name: "Grade 10-B" },
-        { row: 1, col: 3, seat_number: "A-3", student_name: "Zainab Bibi", roll_number: "STU-9A-02", class_name: "Grade 9-A" },
-        { row: 1, col: 4, seat_number: "A-4", student_name: "Hamza Malik", roll_number: "STU-10B-08", class_name: "Grade 10-B" },
-        { row: 1, col: 5, seat_number: "A-5", student_name: "Fatima Khan", roll_number: "STU-9A-03", class_name: "Grade 9-A" },
-        { row: 1, col: 6, seat_number: "A-6", student_name: "Usman Ali", roll_number: "STU-10B-12", class_name: "Grade 10-B" },
+  const [rooms, setRooms] = useState<Room[]>([]);
+  const [plans, setPlans] = useState<Plan[]>([]);
+  const [exams, setExams] = useState<Array<{ id: string; name: string }>>([]);
+  const [sections, setSections] = useState<Array<{ id: string; label: string }>>([]);
+  const [staff, setStaff] = useState<Array<{ user_id: string; name: string }>>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [examFilter, setExamFilter] = useState<string>("__all");
+  const [busy, setBusy] = useState<string | null>(null);
 
-        { row: 2, col: 1, seat_number: "B-1", student_name: "Daniya Tariq", roll_number: "STU-10B-01", class_name: "Grade 10-B" },
-        { row: 2, col: 2, seat_number: "B-2", student_name: "Omer Saeed", roll_number: "STU-9A-04", class_name: "Grade 9-A" },
-        { row: 2, col: 3, seat_number: "B-3", student_name: "Sana Ahmed", roll_number: "STU-10B-05", class_name: "Grade 10-B" },
-        { row: 2, col: 4, seat_number: "B-4", student_name: "Ali Raza", roll_number: "STU-9A-05", class_name: "Grade 9-A" },
-        { row: 2, col: 5, seat_number: "B-5", student_name: "Maryam Noor", roll_number: "STU-10B-09", class_name: "Grade 10-B" },
-        { row: 2, col: 6, seat_number: "B-6", student_name: "Saad Qureshi", roll_number: "STU-9A-06", class_name: "Grade 9-A" },
-      ]
-    }
-  ]);
-
-  const [selectedPlan, setSelectedPlan] = useState<SeatingPlan | null>(null);
-  const [loading, setLoading] = useState(false);
-
-  // Modals
   const [showAddRoom, setShowAddRoom] = useState(false);
-  const [showGeneratePlan, setShowGeneratePlan] = useState(false);
+  const [roomData, setRoomData] = useState({ room_name: "", capacity_rows: 5, capacity_cols: 6 });
 
-  // New room state
-  const [roomData, setRoomData] = useState({ room_name: "Exam Hall C", capacity_rows: 5, capacity_cols: 6 });
+  const [showGenerate, setShowGenerate] = useState(false);
+  const [gen, setGen] = useState({
+    exam_id: "",
+    section_ids: [] as string[],
+    room_ids: [] as string[],
+    exam_date: "",
+    start_time: "09:00",
+    session_label: "",
+  });
 
-  // Generator form state
-  const [genExamTitle, setGenExamTitle] = useState("Final Mathematics Assessment");
-  const [genRoomId, setGenRoomId] = useState("room-1");
-  const [genClassA, setGenClassA] = useState("Grade 9-A");
-  const [genClassB, setGenClassB] = useState("Grade 10-B");
-  const [genInvigilator, setGenInvigilator] = useState("Dr. Shaheen Akhtar");
-  const [genDate, setGenDate] = useState("2026-08-20");
-  const [genTime, setGenTime] = useState("09:00 AM - 12:00 PM");
+  const [invigilatorFor, setInvigilatorFor] = useState<Plan | null>(null);
+  const [invigilatorId, setInvigilatorId] = useState("");
 
-  const loadData = async (silent = false) => {
-    if (!silent) setLoading(true);
+  const load = useCallback(async () => {
+    setLoading(true);
+    setLoadError(null);
     try {
-      const [resRooms, resPlans] = await Promise.all([
-        apiClient.get("/exams/rooms").catch(() => null),
-        apiClient.get("/exams/seating-plans").catch(() => null)
-      ]);
-      if (resRooms?.data && Array.isArray(resRooms.data) && resRooms.data.length > 0) {
-        setRooms(resRooms.data);
-      }
-      if (resPlans?.data && Array.isArray(resPlans.data) && resPlans.data.length > 0) {
-        setPlans(resPlans.data);
-      }
-    } catch {
-      // retain local default fallback state
+      const [roomsRes, plansRes] = await Promise.all([apiClient.get("/exams/rooms"), apiClient.get("/exams/seating-plans")]);
+      setRooms(Array.isArray(roomsRes.data) ? roomsRes.data : []);
+      setPlans(Array.isArray(plansRes.data) ? plansRes.data : []);
+    } catch (e) {
+      setLoadError(errorText(e));
     } finally {
-      if (!silent) setLoading(false);
+      setLoading(false);
     }
-  };
-
-  useEffect(() => {
-    loadData();
   }, []);
 
   useEffect(() => {
-    if (Array.isArray(plans) && plans.length > 0 && !selectedPlan) {
-      setSelectedPlan(plans[0]);
-    }
-  }, [plans]);
+    void load();
+  }, [load]);
 
-  const handleAddRoom = async () => {
-    if (!roomData.room_name) {
-      toast.error("Provide room name");
-      return;
-    }
-    const newRoom: Room = {
-      id: `room-${Date.now()}`,
-      room_name: roomData.room_name,
-      capacity_rows: roomData.capacity_rows,
-      capacity_cols: roomData.capacity_cols,
-      total_capacity: roomData.capacity_rows * roomData.capacity_cols
-    };
-    setRooms(prev => [...prev, newRoom]);
-    toast.success("Exam hall registered");
-    setShowAddRoom(false);
-
-    try {
-      await apiClient.post("/exams/rooms", roomData);
-    } catch {
-      // Saved locally
-    }
-  };
-
-  const handleGeneratePlan = async () => {
-    const targetRoom = rooms.find(r => r.id === genRoomId) || rooms[0];
-    const rows = targetRoom.capacity_rows;
-    const cols = targetRoom.capacity_cols;
-
-    // Generate checkerboard student placement to prevent cheating
-    const generatedAssignments: SeatAssignment[] = [];
-    let countA = 1;
-    let countB = 1;
-
-    for (let r = 1; r <= rows; r++) {
-      for (let c = 1; c <= cols; c++) {
-        const isClassA = (r + c) % 2 === 0;
-        const className = isClassA ? genClassA : genClassB;
-        const studentNum = isClassA ? countA++ : countB++;
-        const rowChar = String.fromCharCode(64 + r);
-
-        generatedAssignments.push({
-          row: r,
-          col: c,
-          seat_number: `${rowChar}-${c}`,
-          student_name: `${className} Candidate #${studentNum}`,
-          roll_number: `STU-${className.replace(/\s+/g, '')}-${String(studentNum).padStart(2, '0')}`,
-          class_name: className
-        });
+  // Exams, sections and staff for the generator and invigilator pickers.
+  useEffect(() => {
+    if (!schoolId) return;
+    (async () => {
+      try {
+        const [examRes, secRes, classRes, staffRes] = await Promise.all([
+          apiClient.get("/exams"),
+          api.from("class_sections").select("id, name, class_id").eq("school_id", schoolId),
+          api.from("academic_classes").select("id, name").eq("school_id", schoolId),
+          api.rpc("get_school_staff_directory", { _school_id: schoolId }),
+        ]);
+        setExams((examRes.data ?? []).map((e: any) => ({ id: e.id, name: e.name })));
+        const classNames = new Map((classRes.data ?? []).map((c: any) => [c.id, c.name]));
+        setSections(
+          (secRes.data ?? [])
+            .map((s: any) => ({ id: s.id, label: [classNames.get(s.class_id), s.name].filter(Boolean).join(" — ") }))
+            .sort((a: any, b: any) => a.label.localeCompare(b.label, undefined, { numeric: true })),
+        );
+        setStaff(((staffRes as any).data ?? []).map((s: any) => ({ user_id: s.user_id, name: s.display_name || s.email })));
+      } catch (e) {
+        toast.error(`Could not load exams and sections: ${errorText(e)}`);
       }
-    }
+    })();
+  }, [schoolId]);
 
-    const newPlan: SeatingPlan = {
-      id: `plan-${Date.now()}`,
-      exam_title: genExamTitle,
-      room_name: targetRoom.room_name,
-      invigilator_name: genInvigilator,
-      date: genDate,
-      time_slot: genTime,
-      rows,
-      cols,
-      assignments: generatedAssignments
-    };
+  const visiblePlans = useMemo(
+    () => (examFilter === "__all" ? plans : plans.filter((p) => p.exam_id === examFilter)),
+    [plans, examFilter],
+  );
+  const selected = visiblePlans.find((p) => p.id === selectedId) ?? visiblePlans[0] ?? null;
 
-    setPlans(prev => [newPlan, ...prev]);
-    setSelectedPlan(newPlan);
-    setShowGeneratePlan(false);
-    toast.success("Algorithmic Seating Plan generated successfully!");
+  const planTitle = (p: Plan) =>
+    [p.exam_name, p.session_label, p.room_name].filter(Boolean).join(" · ") || "Seating plan";
 
+  const addRoom = async () => {
+    if (!roomData.room_name.trim()) return toast.error("Give the hall a name");
+    setBusy("room");
     try {
-      await apiClient.post("/exams/seating-plans", newPlan);
-    } catch {
-      // Saved locally
+      await apiClient.post("/exams/rooms", { ...roomData, room_name: roomData.room_name.trim() });
+      toast.success(`${roomData.room_name.trim()} added`);
+      setShowAddRoom(false);
+      setRoomData({ room_name: "", capacity_rows: 5, capacity_cols: 6 });
+      await load();
+    } catch (e) {
+      toast.error(`The hall could not be added: ${errorText(e)}`);
+    } finally {
+      setBusy(null);
     }
   };
 
-  const handleDeletePlan = (id: string) => {
-    setPlans(prev => prev.filter(p => p.id !== id));
-    if (selectedPlan?.id === id) {
-      setSelectedPlan(plans.find(p => p.id !== id) || null);
+  const deleteRoom = async (room: Room) => {
+    if (!confirm(`Remove ${room.room_name}?`)) return;
+    try {
+      await apiClient.delete(`/exams/rooms/${room.id}`);
+      toast.success(`${room.room_name} removed`);
+      await load();
+    } catch (e) {
+      toast.error(`The hall could not be removed: ${errorText(e)}`);
     }
-    toast.success("Seating plan removed");
+  };
+
+  const seatsChosen = rooms.filter((r) => gen.room_ids.includes(r.id)).reduce((n, r) => n + r.capacity_rows * r.capacity_cols, 0);
+
+  const generate = async () => {
+    if (!gen.exam_id) return toast.error("Choose the exam");
+    if (!gen.section_ids.length) return toast.error("Choose at least one class section");
+    if (!gen.room_ids.length) return toast.error("Choose at least one hall");
+    setBusy("generate");
+    try {
+      const res = await apiClient.post("/exams/seating-plans/generate", {
+        exam_id: gen.exam_id,
+        class_section_ids: gen.section_ids,
+        room_ids: gen.room_ids,
+        exam_date: gen.exam_date || null,
+        start_time: gen.start_time || null,
+        session_label: gen.session_label || null,
+      });
+      toast.success(res.data?.message ?? "Seating plan generated");
+      setShowGenerate(false);
+      setExamFilter(gen.exam_id);
+      await load();
+      if (res.data?.plans?.[0]) setSelectedId(String(res.data.plans[0]));
+    } catch (e) {
+      toast.error(`The seating plan could not be generated: ${errorText(e)}`);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const deletePlan = async (p: Plan) => {
+    if (!confirm(`Delete the seating plan for ${planTitle(p)}?`)) return;
+    try {
+      await apiClient.delete(`/exams/seating-plans/${p.id}`);
+      toast.success("Seating plan deleted");
+      if (selectedId === p.id) setSelectedId(null);
+      await load();
+    } catch (e) {
+      toast.error(`The plan could not be deleted: ${errorText(e)}`);
+    }
+  };
+
+  const addInvigilator = async () => {
+    if (!invigilatorFor || !invigilatorId) return;
+    try {
+      await apiClient.post(`/exams/seating-plans/${invigilatorFor.id}/invigilators`, { staff_user_id: invigilatorId, role: "primary" });
+      toast.success("Invigilator assigned");
+      setInvigilatorFor(null);
+      setInvigilatorId("");
+      await load();
+    } catch (e) {
+      toast.error(`The invigilator could not be assigned: ${errorText(e)}`);
+    }
+  };
+
+  const removeInvigilator = async (p: Plan, staffId: string) => {
+    try {
+      await apiClient.delete(`/exams/seating-plans/${p.id}/invigilators/${staffId}`);
+      await load();
+    } catch (e) {
+      toast.error(`The invigilator could not be removed: ${errorText(e)}`);
+    }
+  };
+
+  /** Door sheet(s) as a PDF: one hall, or every hall of the exam shown. */
+  const produce = async (kind: "print" | "download" | "share", list: Plan[], key: string) => {
+    if (!list.length) return;
+    setBusy(`${key}:${kind}`);
+    const id = toast.loading("Preparing the seating plan…");
+    try {
+      if (kind === "share") {
+        const outcome = await shareSeatingPlans(list);
+        const { tone, message } = describeShare(outcome);
+        const note = outcome.warnings.length ? ` Note: ${outcome.warnings.join("; ")}` : "";
+        if (tone === "error") toast.error(message + note, { id });
+        else if (tone === "info") toast.info(message + note, { id, duration: 9000 });
+        else toast.success(message + note, { id });
+        return;
+      }
+      const result: { warnings: string[]; fileName?: string } =
+        kind === "print" ? await printSeatingPlans(list) : await downloadSeatingPlans(list);
+      const done = kind === "print" ? "Sent to print" : `Downloaded ${result.fileName}`;
+      if (result.warnings.length) toast.warning(`${done}. Note: ${result.warnings.join("; ")}`, { id, duration: 9000 });
+      else if (kind === "print") toast.dismiss(id);
+      else toast.success(done, { id });
+    } catch (e) {
+      toast.error(`The seating plan could not be produced: ${e instanceof Error ? e.message : String(e)}`, { id });
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const docButtons = (list: Plan[], key: string, labels = true) =>
+    ([
+      ["share", MessageCircle, "WhatsApp"],
+      ["download", Download, "PDF"],
+      ["print", Printer, "Print door sheet"],
+    ] as const).map(([kind, Icon, label]) => (
+      <Button
+        key={kind}
+        size="sm"
+        variant="outline"
+        disabled={!!busy || !list.length}
+        onClick={() => produce(kind, list, key)}
+        title={label}
+        className={labels ? "" : "h-8 w-8 p-0"}
+      >
+        {busy === `${key}:${kind}` ? <Loader2 className={`h-4 w-4 animate-spin ${labels ? "mr-1" : ""}`} /> : <Icon className={`h-4 w-4 ${labels ? "mr-1" : ""}`} />}
+        {labels ? label : null}
+      </Button>
+    ));
+
+  const grid = (p: Plan) => {
+    const rows = Math.max(p.rows ?? 0, ...p.seats.map((s) => s.row + 1), 1);
+    const cols = Math.max(p.cols ?? 0, ...p.seats.map((s) => s.col + 1), 1);
+    const at = new Map(p.seats.map((s) => [`${s.row}:${s.col}`, s]));
+    const sectionsInPlan = [...new Set(p.seats.map((s) => s.section ?? ""))];
+    const tone = (sec?: string | null) =>
+      ["bg-blue-50 border-blue-200", "bg-emerald-50 border-emerald-200", "bg-amber-50 border-amber-200", "bg-violet-50 border-violet-200"][
+        Math.max(0, sectionsInPlan.indexOf(sec ?? "")) % 4
+      ];
+    return (
+      <div className="overflow-x-auto">
+        <div className="mx-auto mb-3 w-2/5 rounded bg-primary py-1 text-center text-[10px] font-bold uppercase tracking-wider text-primary-foreground">
+          Front — Invigilator
+        </div>
+        <div className="grid gap-1.5" style={{ gridTemplateColumns: `repeat(${cols}, minmax(92px, 1fr))` }}>
+          {Array.from({ length: rows * cols }, (_, i) => {
+            const r = Math.floor(i / cols);
+            const c = i % cols;
+            const seat = at.get(`${r}:${c}`);
+            return (
+              <div key={i} className={`min-h-[64px] rounded-md border p-1.5 text-[11px] ${seat ? tone(seat.section) : "border-dashed bg-background"}`}>
+                <div className="font-bold text-primary">{seat?.seat ?? `${String.fromCharCode(65 + (r % 26))}-${c + 1}`}</div>
+                {seat && (
+                  <>
+                    <div className="truncate font-semibold">{seat.student_name}</div>
+                    <div className="truncate text-muted-foreground">
+                      {[seat.roll_number ? `Roll ${seat.roll_number}` : null, seat.section].filter(Boolean).join(" · ")}
+                    </div>
+                  </>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
   };
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto p-4 md:p-6 print:p-0">
-      {/* Header Banner */}
-      <div className="bg-gradient-to-r from-blue-700 via-indigo-600 to-blue-800 text-white rounded-2xl p-6 shadow-lg shadow-blue-500/10 border border-blue-400/20 print:hidden">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div className="mx-auto max-w-7xl space-y-6 p-4 md:p-6">
+      <div className="rounded-2xl border border-blue-400/20 bg-gradient-to-r from-blue-700 via-indigo-600 to-blue-800 p-6 text-white shadow-lg">
+        <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
           <div className="flex items-center gap-4">
-            <div className="p-3 bg-white/10 rounded-xl backdrop-blur-md border border-white/20">
+            <div className="rounded-xl border border-white/20 bg-white/10 p-3">
               <Grid className="h-8 w-8 text-blue-100" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold tracking-tight">Algorithmic Exam Seating Generator</h1>
-              <p className="text-blue-100 text-sm mt-0.5">Automated 2D checkerboard student placement to prevent exam cheating</p>
+              <h1 className="text-2xl font-bold tracking-tight">Exam Seating Plans</h1>
+              <p className="mt-0.5 text-sm text-blue-100">
+                Seat enrolled students across your halls — sections alternate seat by seat so neighbours never share a class.
+              </p>
             </div>
           </div>
-          <div className="flex gap-2">
-            <Button onClick={() => setShowAddRoom(true)} variant="outline" className="bg-white/10 text-white hover:bg-white/20 border-white/30 font-semibold">
-              <Building className="h-4 w-4 mr-2" /> Add Hall
+          <div className="flex flex-wrap gap-2">
+            <Button onClick={() => setShowAddRoom(true)} variant="outline" className="border-white/30 bg-white/10 font-semibold text-white hover:bg-white/20">
+              <Building className="mr-2 h-4 w-4" /> Add Hall
             </Button>
-            <Button onClick={() => setShowGeneratePlan(true)} className="bg-white text-blue-700 hover:bg-blue-50 font-semibold shadow-md">
-              <Sparkles className="h-4 w-4 mr-2" /> Auto-Generate Seating Grid
+            <Button onClick={() => setShowGenerate(true)} className="bg-white font-semibold text-blue-700 shadow-md hover:bg-blue-50">
+              <Sparkles className="mr-2 h-4 w-4" /> Generate Seating
             </Button>
           </div>
         </div>
       </div>
 
-      {/* Main Tabs */}
-      <Tabs defaultValue="visualizer" className="space-y-6 print:space-y-2">
-        <TabsList className="bg-muted p-1 rounded-xl print:hidden">
+      {loadError && (
+        <Card className="border-destructive/40">
+          <CardContent className="flex items-center justify-between gap-3 py-4 text-sm">
+            <span className="text-destructive">Seating plans could not be loaded: {loadError}</span>
+            <Button size="sm" variant="outline" onClick={() => void load()}>
+              <RefreshCw className="mr-1 h-4 w-4" /> Retry
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      <Tabs defaultValue="visualizer" className="space-y-6">
+        <TabsList className="rounded-xl bg-muted p-1">
           <TabsTrigger value="visualizer" className="gap-2 rounded-lg font-semibold">
-            <LayoutGrid className="h-4 w-4 text-blue-600" /> 2D Checkerboard Grid
+            <LayoutGrid className="h-4 w-4 text-blue-600" /> Hall Layout
           </TabsTrigger>
           <TabsTrigger value="halls" className="gap-2 rounded-lg font-semibold">
-            <Building className="h-4 w-4 text-indigo-600" /> Physical Exam Halls ({rooms.length})
+            <Building className="h-4 w-4 text-indigo-600" /> Exam Halls ({rooms.length})
           </TabsTrigger>
           <TabsTrigger value="plans" className="gap-2 rounded-lg font-semibold">
-            <ShieldCheck className="h-4 w-4 text-emerald-600" /> Active Seating Plans ({plans.length})
+            <ShieldCheck className="h-4 w-4 text-emerald-600" /> Seating Plans ({plans.length})
           </TabsTrigger>
         </TabsList>
 
-        {/* 🌟 TAB 1: 2D CHECKERBOARD VISUALIZER */}
-        <TabsContent value="visualizer" className="space-y-6">
-          {plans.length === 0 ? (
-            <Card className="p-12 text-center border-dashed">
-              <LayoutGrid className="h-12 w-12 mx-auto mb-3 text-slate-300" />
-              <p className="font-semibold text-slate-700 dark:text-slate-300">No Seating Plans Generated Yet</p>
-              <p className="text-xs text-slate-500 mt-1">Click "Auto-Generate Seating Grid" to create anti-cheating candidate arrangements.</p>
-              <Button onClick={() => setShowGeneratePlan(true)} className="mt-4 bg-blue-600 text-white font-semibold">
-                <Sparkles className="h-4 w-4 mr-2" /> Generate Seating Plan
+        <TabsContent value="visualizer" className="space-y-4">
+          {loading ? (
+            <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+          ) : visiblePlans.length === 0 ? (
+            <Card className="border-dashed p-12 text-center">
+              <LayoutGrid className="mx-auto mb-3 h-12 w-12 text-slate-300" />
+              <p className="font-semibold">No seating plans yet</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {rooms.length ? "Generate a plan for an exam sitting." : "Add your exam halls first, then generate a plan."}
+              </p>
+              <Button onClick={() => (rooms.length ? setShowGenerate(true) : setShowAddRoom(true))} className="mt-4">
+                {rooms.length ? "Generate Seating" : "Add Hall"}
               </Button>
             </Card>
           ) : (
-            <div className="space-y-6">
-              {/* Plan Picker & Controls */}
-              <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm print:hidden">
-                <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
-                  <Select value={selectedPlan?.id ? String(selectedPlan.id) : ""} onValueChange={id => setSelectedPlan(plans.find(p => String(p.id) === String(id)) || null)}>
-                    <SelectTrigger className="w-full md:w-80 font-bold text-slate-800 dark:text-slate-200">
-                      <SelectValue placeholder="Select Seating Plan" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {plans.map(p => (
-                        <SelectItem key={String(p.id)} value={String(p.id)}>{p.exam_title} ({p.room_name})</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200 shrink-0">
-                    <UserCheck className="h-3.5 w-3.5 mr-1" /> Anti-Cheating Active
-                  </Badge>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-2">
-                  <Button onClick={() => window.print()} variant="outline" className="border-slate-200 font-semibold text-xs h-9">
-                    <Printer className="h-4 w-4 mr-2" /> Print Door Sheet
-                  </Button>
-                  {selectedPlan && (
-                    <Button onClick={() => handleDeletePlan(selectedPlan.id)} variant="ghost" className="text-rose-600 hover:text-rose-700 hover:bg-rose-50 text-xs h-9">
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  )}
-                </div>
+            <>
+              <div className="flex flex-wrap items-center gap-2">
+                <Select value={selected?.id ?? ""} onValueChange={setSelectedId}>
+                  <SelectTrigger className="w-full font-semibold md:w-96"><SelectValue placeholder="Choose a hall" /></SelectTrigger>
+                  <SelectContent>
+                    {visiblePlans.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>{planTitle(p)}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {selected && docButtons([selected], selected.id)}
               </div>
-
-              {/* Active Plan Detail & 2D Grid */}
-              {selectedPlan && (
-                <Card className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden print:shadow-none print:border-none">
-                  <CardHeader className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800 p-6">
-                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+              {selected && (
+                <Card>
+                  <CardHeader className="border-b bg-muted/40">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
                       <div>
-                        <Badge className="bg-blue-600 text-white mb-2">{selectedPlan.room_name}</Badge>
-                        <CardTitle className="text-2xl font-bold text-slate-900 dark:text-slate-100">{selectedPlan.exam_title}</CardTitle>
-                        <p className="text-xs text-slate-500 mt-1 flex items-center gap-4">
-                          <span>📅 Date: <strong>{selectedPlan.date}</strong></span>
-                          <span>⏰ Time: <strong>{selectedPlan.time_slot}</strong></span>
-                          <span>👮 Invigilator: <strong>{selectedPlan.invigilator_name}</strong></span>
+                        <CardTitle className="text-lg">{selected.room_name}</CardTitle>
+                        <p className="text-xs text-muted-foreground">
+                          {[selected.exam_name, selected.session_label, selected.exam_date ? formatDate(selected.exam_date) : null, selected.start_time]
+                            .filter(Boolean)
+                            .join(" · ")}
                         </p>
                       </div>
-
-                      {/* Legend */}
-                      <div className="flex items-center gap-3 bg-white dark:bg-slate-900 p-3 rounded-lg border text-xs font-semibold">
-                        <span className="flex items-center gap-1.5"><span className="h-3 w-3 rounded-full bg-blue-500 inline-block" /> Class A</span>
-                        <span className="flex items-center gap-1.5"><span className="h-3 w-3 rounded-full bg-emerald-500 inline-block" /> Class B</span>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <Badge variant="secondary">{selected.seats.length} candidates</Badge>
+                        {selected.invigilators.map((v) => (
+                          <Badge key={v.staff_user_id} variant="outline" className="gap-1">
+                            {v.name ?? "Invigilator"}
+                            <button aria-label="Remove invigilator" onClick={() => removeInvigilator(selected, v.staff_user_id)}>
+                              <X className="h-3 w-3" />
+                            </button>
+                          </Badge>
+                        ))}
+                        <Button size="sm" variant="ghost" onClick={() => setInvigilatorFor(selected)}>
+                          <UserPlus className="mr-1 h-4 w-4" /> Invigilator
+                        </Button>
                       </div>
                     </div>
                   </CardHeader>
-
-                  <CardContent className="p-6 space-y-6">
-                    {/* Invigilator Podium Desk Header */}
-                    <div className="w-full bg-slate-800 text-slate-200 py-2 rounded-lg text-center font-bold text-xs uppercase tracking-widest flex items-center justify-center gap-2">
-                      <ShieldCheck className="h-4 w-4 text-emerald-400" /> Invigilator Desk & Board Area (Front of Exam Hall)
-                    </div>
-
-                    {/* 2D Checkerboard Grid Render */}
-                    <div className="overflow-x-auto pb-4">
-                      <div 
-                        className="grid gap-3 min-w-[600px]"
-                        style={{ gridTemplateColumns: `repeat(${selectedPlan.cols}, minmax(0, 1fr))` }}
-                      >
-                        {(Array.isArray(selectedPlan.assignments) ? selectedPlan.assignments : []).map((seat, idx) => {
-                          const isClassA = (seat.row + seat.col) % 2 === 0;
-                          return (
-                            <div 
-                              key={idx}
-                              className={`p-3 rounded-xl border transition-all flex flex-col justify-between h-24 ${
-                                isClassA 
-                                  ? "bg-blue-50/70 dark:bg-blue-950/40 border-blue-200 dark:border-blue-800" 
-                                  : "bg-emerald-50/70 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800"
-                              }`}
-                            >
-                              <div className="flex justify-between items-center">
-                                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
-                                  isClassA ? "bg-blue-600 text-white" : "bg-emerald-600 text-white"
-                                }`}>
-                                  Seat {seat.seat_number}
-                                </span>
-                                <span className="text-[10px] font-medium text-slate-500">{seat.class_name}</span>
-                              </div>
-
-                              <div>
-                                <p className="font-bold text-xs text-slate-900 dark:text-slate-100 line-clamp-1">{seat.student_name}</p>
-                                <p className="text-[10px] font-mono text-slate-500 mt-0.5">{seat.roll_number}</p>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    {/* Footer instructions */}
-                    <div className="text-center text-xs text-slate-400 pt-2 border-t border-slate-100 dark:border-slate-800">
-                      * Checkerboard algorithm guarantees no two candidates of the same section sit in adjacent seats.
-                    </div>
-                  </CardContent>
+                  <CardContent className="p-4">{grid(selected)}</CardContent>
                 </Card>
               )}
-            </div>
+            </>
           )}
         </TabsContent>
 
-        {/* 🌟 TAB 2: REGISTERED EXAM HALLS */}
-        <TabsContent value="halls" className="space-y-6">
-          <Card className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm">
-            <CardHeader className="flex flex-row items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
-              <CardTitle className="text-lg font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                <Building className="h-5 w-5 text-blue-600" /> Physical Exam Rooms & Grid Dimensions
-              </CardTitle>
-              <Button onClick={() => setShowAddRoom(true)} className="bg-blue-600 text-white font-semibold">
-                <Plus className="h-4 w-4 mr-2" /> Register Exam Hall
-              </Button>
-            </CardHeader>
-            <CardContent className="pt-4">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-slate-50 dark:bg-slate-800/50">
-                    <TableHead>Hall Name</TableHead>
-                    <TableHead>Rows</TableHead>
-                    <TableHead>Columns</TableHead>
-                    <TableHead>Total Seating Capacity</TableHead>
-                    <TableHead>Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {rooms.map(r => (
-                    <TableRow key={r.id} className="hover:bg-blue-50/50 dark:hover:bg-slate-800/50">
-                      <TableCell className="font-bold text-blue-700 dark:text-blue-400">{r.room_name}</TableCell>
-                      <TableCell>{r.capacity_rows} Rows</TableCell>
-                      <TableCell>{r.capacity_cols} Columns</TableCell>
-                      <TableCell className="font-bold text-slate-900 dark:text-slate-100">{r.total_capacity} Seats</TableCell>
-                      <TableCell><Badge className="bg-emerald-100 text-emerald-800 border-emerald-200">Active</Badge></TableCell>
+        <TabsContent value="halls">
+          <Card>
+            <CardContent className="p-0">
+              {rooms.length === 0 ? (
+                <p className="p-8 text-center text-sm text-muted-foreground">No halls registered yet.</p>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Hall</TableHead>
+                      <TableHead>Rows</TableHead>
+                      <TableHead>Columns</TableHead>
+                      <TableHead>Seats</TableHead>
+                      <TableHead className="w-12" />
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {rooms.map((r) => (
+                      <TableRow key={r.id}>
+                        <TableCell className="font-semibold">{r.room_name}</TableCell>
+                        <TableCell>{r.capacity_rows}</TableCell>
+                        <TableCell>{r.capacity_cols}</TableCell>
+                        <TableCell className="font-semibold">{r.total_capacity}</TableCell>
+                        <TableCell>
+                          <Button size="icon" variant="ghost" className="h-8 w-8 text-rose-600" onClick={() => deleteRoom(r)} aria-label={`Remove ${r.room_name}`}>
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
 
-        {/* 🌟 TAB 3: ACTIVE PLANS LIST */}
-        <TabsContent value="plans" className="space-y-6">
-          <Card className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm">
-            <CardHeader className="border-b border-slate-100 dark:border-slate-800 pb-4">
-              <CardTitle className="text-lg font-bold text-slate-900 dark:text-slate-100">
-                Generated Exam Seating Plans
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="pt-4">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-slate-50 dark:bg-slate-800/50">
-                    <TableHead>Exam Title</TableHead>
-                    <TableHead>Hall</TableHead>
-                    <TableHead>Invigilator</TableHead>
-                    <TableHead>Date & Time</TableHead>
-                    <TableHead>Candidates Seated</TableHead>
-                    <TableHead>Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {plans.map(p => (
-                    <TableRow key={p.id}>
-                      <TableCell className="font-bold text-slate-900 dark:text-slate-100">{p.exam_title}</TableCell>
-                      <TableCell>{p.room_name}</TableCell>
-                      <TableCell>{p.invigilator_name}</TableCell>
-                      <TableCell className="text-xs text-slate-500">{p.date} ({p.time_slot})</TableCell>
-                      <TableCell><Badge variant="secondary">{p.assignments.length} Desks</Badge></TableCell>
-                      <TableCell>
-                        <Button onClick={() => { setSelectedPlan(p); }} variant="outline" size="sm" className="border-blue-200 text-blue-600">
-                          View Grid
-                        </Button>
-                      </TableCell>
+        <TabsContent value="plans" className="space-y-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <Select value={examFilter} onValueChange={setExamFilter}>
+              <SelectTrigger className="w-full md:w-72"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__all">All exams</SelectItem>
+                {exams.map((e) => (
+                  <SelectItem key={e.id} value={e.id}>{e.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {docButtons(visiblePlans, "all")}
+          </div>
+          <Card>
+            <CardContent className="p-0">
+              {visiblePlans.length === 0 ? (
+                <p className="p-8 text-center text-sm text-muted-foreground">No seating plans for this selection.</p>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Exam</TableHead>
+                      <TableHead>Sitting</TableHead>
+                      <TableHead>Hall</TableHead>
+                      <TableHead>Date & time</TableHead>
+                      <TableHead>Invigilator</TableHead>
+                      <TableHead>Candidates</TableHead>
+                      <TableHead className="w-40" />
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {visiblePlans.map((p) => (
+                      <TableRow key={p.id}>
+                        <TableCell className="font-semibold">{p.exam_name ?? "—"}</TableCell>
+                        <TableCell>{p.session_label ?? "—"}</TableCell>
+                        <TableCell>{p.room_name ?? "—"}</TableCell>
+                        <TableCell>{[p.exam_date ? formatDate(p.exam_date) : null, p.start_time].filter(Boolean).join(" · ") || "—"}</TableCell>
+                        <TableCell>{p.invigilators.map((v) => v.name).filter(Boolean).join(", ") || "—"}</TableCell>
+                        <TableCell>{p.seats.length}</TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-1">
+                            {docButtons([p], p.id, false)}
+                            <Button size="icon" variant="ghost" className="h-8 w-8 text-rose-600" onClick={() => deletePlan(p)} aria-label="Delete plan">
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
       </Tabs>
 
-      {/* Modal 1: Register Room */}
       <Dialog open={showAddRoom} onOpenChange={setShowAddRoom}>
-        <DialogContent className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100">
-          <DialogHeader>
-            <DialogTitle className="text-blue-700 dark:text-blue-400 font-bold">Register Exam Hall</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 pt-2">
-            <div>
-              <Label>Hall Name</Label>
-              <Input value={roomData.room_name} onChange={e => setRoomData({ ...roomData, room_name: e.target.value })} className="mt-1" />
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>Add an exam hall</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <Label>Hall name</Label>
+              <Input value={roomData.room_name} onChange={(e) => setRoomData({ ...roomData, room_name: e.target.value })} placeholder="e.g. Hall A" />
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label>Rows</Label>
-                <Input type="number" value={roomData.capacity_rows} onChange={e => setRoomData({ ...roomData, capacity_rows: parseInt(e.target.value) || 1 })} className="mt-1" />
+              <div className="space-y-1">
+                <Label>Rows of desks</Label>
+                <Input type="number" min={1} max={60} value={roomData.capacity_rows}
+                  onChange={(e) => setRoomData({ ...roomData, capacity_rows: Math.max(1, Number(e.target.value) || 1) })} />
               </div>
-              <div>
-                <Label>Columns</Label>
-                <Input type="number" value={roomData.capacity_cols} onChange={e => setRoomData({ ...roomData, capacity_cols: parseInt(e.target.value) || 1 })} className="mt-1" />
+              <div className="space-y-1">
+                <Label>Desks per row</Label>
+                <Input type="number" min={1} max={60} value={roomData.capacity_cols}
+                  onChange={(e) => setRoomData({ ...roomData, capacity_cols: Math.max(1, Number(e.target.value) || 1) })} />
               </div>
             </div>
-            <Button onClick={handleAddRoom} className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-semibold">Save Exam Hall</Button>
+            <p className="text-xs text-muted-foreground">{roomData.capacity_rows * roomData.capacity_cols} seats</p>
           </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAddRoom(false)}>Cancel</Button>
+            <Button onClick={addRoom} disabled={busy === "room"}>
+              {busy === "room" && <Loader2 className="mr-1 h-4 w-4 animate-spin" />} Add hall
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Modal 2: Auto Generate Seating Plan */}
-      <Dialog open={showGeneratePlan} onOpenChange={setShowGeneratePlan}>
-        <DialogContent className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-blue-700 dark:text-blue-400 font-bold flex items-center gap-2">
-              <Sparkles className="h-5 w-5" /> Auto-Generate Anti-Cheating Plan
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 pt-2">
-            <div>
-              <Label>Exam Title</Label>
-              <Input value={genExamTitle} onChange={e => setGenExamTitle(e.target.value)} className="mt-1" />
-            </div>
-
-            <div>
-              <Label>Target Exam Room</Label>
-              <Select value={genRoomId} onValueChange={setGenRoomId}>
-                <SelectTrigger className="mt-1">
-                  <SelectValue />
-                </SelectTrigger>
+      <Dialog open={showGenerate} onOpenChange={setShowGenerate}>
+        <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto">
+          <DialogHeader><DialogTitle>Generate a seating plan</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <Label>Exam</Label>
+              <Select value={gen.exam_id} onValueChange={(v) => setGen({ ...gen, exam_id: v })}>
+                <SelectTrigger><SelectValue placeholder="Choose the exam" /></SelectTrigger>
                 <SelectContent>
-                  {rooms.map(r => (
-                    <SelectItem key={r.id} value={r.id}>{r.room_name} ({r.total_capacity} Seats)</SelectItem>
+                  {exams.map((e) => (
+                    <SelectItem key={e.id} value={e.id}>{e.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
-
             <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label>Class / Section A</Label>
-                <Input value={genClassA} onChange={e => setGenClassA(e.target.value)} className="mt-1" />
+              <div className="space-y-1">
+                <Label>Date</Label>
+                <Input type="date" value={gen.exam_date} onChange={(e) => setGen({ ...gen, exam_date: e.target.value })} />
               </div>
-              <div>
-                <Label>Class / Section B</Label>
-                <Input value={genClassB} onChange={e => setGenClassB(e.target.value)} className="mt-1" />
-              </div>
-            </div>
-
-            <div>
-              <Label>Invigilator Teacher</Label>
-              <Input value={genInvigilator} onChange={e => setGenInvigilator(e.target.value)} className="mt-1" />
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label>Exam Date</Label>
-                <Input type="date" value={genDate} onChange={e => setGenDate(e.target.value)} className="mt-1" />
-              </div>
-              <div>
-                <Label>Time Slot</Label>
-                <Input value={genTime} onChange={e => setGenTime(e.target.value)} className="mt-1" />
+              <div className="space-y-1">
+                <Label>Start time</Label>
+                <Input type="time" value={gen.start_time} onChange={(e) => setGen({ ...gen, start_time: e.target.value })} />
               </div>
             </div>
-
-            <Button onClick={handleGeneratePlan} className="w-full bg-gradient-to-r from-blue-600 via-indigo-600 to-emerald-600 text-white font-semibold shadow-md py-5">
-              <Sparkles className="h-4 w-4 mr-2" /> Generate Anti-Cheating Seating Layout
-            </Button>
+            <div className="space-y-1">
+              <Label>Sitting (optional)</Label>
+              <Input value={gen.session_label} onChange={(e) => setGen({ ...gen, session_label: e.target.value })} placeholder="e.g. Paper 1 — Mathematics" />
+            </div>
+            <div className="space-y-1">
+              <Label>Class sections sitting together</Label>
+              <div className="max-h-40 space-y-1 overflow-y-auto rounded-md border p-2">
+                {sections.map((s) => (
+                  <label key={s.id} className="flex items-center gap-2 text-sm">
+                    <Checkbox
+                      checked={gen.section_ids.includes(s.id)}
+                      onCheckedChange={(v) =>
+                        setGen({ ...gen, section_ids: v ? [...gen.section_ids, s.id] : gen.section_ids.filter((x) => x !== s.id) })
+                      }
+                    />
+                    {s.label}
+                  </label>
+                ))}
+                {!sections.length && <p className="text-xs text-muted-foreground">No sections found.</p>}
+              </div>
+              <p className="text-[11px] text-muted-foreground">Choose two or more to alternate classes seat by seat.</p>
+            </div>
+            <div className="space-y-1">
+              <Label>Halls</Label>
+              <div className="max-h-40 space-y-1 overflow-y-auto rounded-md border p-2">
+                {rooms.map((r) => (
+                  <label key={r.id} className="flex items-center gap-2 text-sm">
+                    <Checkbox
+                      checked={gen.room_ids.includes(r.id)}
+                      onCheckedChange={(v) =>
+                        setGen({ ...gen, room_ids: v ? [...gen.room_ids, r.id] : gen.room_ids.filter((x) => x !== r.id) })
+                      }
+                    />
+                    {r.room_name} <span className="text-muted-foreground">({r.total_capacity} seats)</span>
+                  </label>
+                ))}
+                {!rooms.length && <p className="text-xs text-muted-foreground">Add a hall first.</p>}
+              </div>
+              {gen.room_ids.length > 0 && <p className="text-[11px] text-muted-foreground">{seatsChosen} seats selected</p>}
+            </div>
           </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowGenerate(false)}>Cancel</Button>
+            <Button onClick={generate} disabled={busy === "generate"}>
+              {busy === "generate" && <Loader2 className="mr-1 h-4 w-4 animate-spin" />} Generate
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!invigilatorFor} onOpenChange={(o) => !o && setInvigilatorFor(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle>Assign an invigilator</DialogTitle></DialogHeader>
+          <Select value={invigilatorId} onValueChange={setInvigilatorId}>
+            <SelectTrigger><SelectValue placeholder="Choose a staff member" /></SelectTrigger>
+            <SelectContent>
+              {staff.map((s) => (
+                <SelectItem key={s.user_id} value={s.user_id}>{s.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setInvigilatorFor(null)}>Cancel</Button>
+            <Button onClick={addInvigilator} disabled={!invigilatorId}>Assign</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

@@ -4,7 +4,9 @@ Executes real PostgreSQL database schema shard provisioning, tenant school inser
 and live SQL backup export generation.
 """
 from typing import Dict, Any, Optional
-from fastapi import APIRouter, Depends, HTTPException, Response
+import logging
+
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
@@ -12,7 +14,14 @@ import uuid
 
 from app.database import get_db
 
-router = APIRouter(prefix="/super_admin/tenants", tags=["Super Admin Orchestration"])
+from app.utils.permissions import require_super_admin
+
+logger = logging.getLogger("app.tenant_orchestration")
+
+# Every endpoint below is platform-wide: it reaches across all tenants or
+# changes global configuration. The guard is declared on the router so a new
+# endpoint cannot be added without it.
+router = APIRouter(prefix="/super_admin/tenants", tags=["Super Admin Orchestration"], dependencies=[Depends(require_super_admin())])
 
 class ProvisionTenantRequest(BaseModel):
     name: str
@@ -42,10 +51,7 @@ async def provision_tenant_fleet(req: ProvisionTenantRequest, db: AsyncSession =
 
     # 3. Create isolated PostgreSQL schema shard for multi-tenancy
     schema_name = f"tenant_{clean_slug.replace('-', '_')}"
-    try:
-        await db.execute(text(f'CREATE SCHEMA IF NOT EXISTS "{schema_name}"'))
-    except Exception as e:
-        pass # Ignore schema creation errors if permissions restricted
+    await db.execute(text(f'CREATE SCHEMA IF NOT EXISTS "{schema_name}"'))
 
     await db.commit()
 
@@ -65,39 +71,26 @@ async def provision_tenant_fleet(req: ProvisionTenantRequest, db: AsyncSession =
 
 @router.get("/{tenant_id}/export")
 async def export_tenant_database_dump(tenant_id: str, db: AsyncSession = Depends(get_db)):
-    """Generate and return an on-demand SQL schema & data dump script for a specific school tenant."""
-    res = await db.execute(text("SELECT id, name, slug FROM public.schools WHERE id::text = :id OR slug = :id"), {"id": tenant_id})
-    school = res.fetchone()
-    
-    school_name = school[1] if school else tenant_id
-    school_slug = school[2] if school else "campus"
+    """
+    Per-tenant export is not implemented.
 
-    # Construct actual SQL dump script content
-    sql_script = f"""-- AltRix School ERP — Automated Tenant Backup Dump
--- Campus: {school_name} (/{school_slug})
--- Generated At: NOW()
--- Server Version: PostgreSQL 15 / Supabase Cluster
+    This returned a file named ``AltRix_Dump_<slug>_2026.sql`` containing a
+    handful of SET statements, a CREATE SCHEMA line and a comment reading
+    "CHECKSUM_OK" — no tenant rows at all. Anyone who downloaded it and filed it
+    as a backup was holding an empty file, and would only discover that during a
+    restore.
 
-SET statement_timeout = 0;
-SET lock_timeout = 0;
-SET client_encoding = 'UTF8';
-SET standard_conforming_strings = on;
-
--- 1. Tenant Metadata
--- School ID: {tenant_id}
--- School Name: {school_name}
-
--- 2. Schema Shard Export
-CREATE SCHEMA IF NOT EXISTS "tenant_{school_slug}";
-
--- 3. Verification Token
--- CHECKSUM_OK_ALTRIX_2026
-"""
-
-    return Response(
-        content=sql_script,
-        media_type="application/sql",
-        headers={
-            "Content-Disposition": f"attachment; filename=AltRix_Dump_{school_slug}_2026.sql"
-        }
+    Whole-database backups do work and are scheduled daily; see
+    app/utils/backup_service.py. Extracting a single tenant from one needs a
+    row-level filtered dump, which this never did.
+    """
+    logger.warning(f"Tenant export requested for {tenant_id} but it is not implemented")
+    raise HTTPException(
+        status_code=status.HTTP_501_NOT_IMPLEMENTED,
+        detail=(
+            "Per-tenant export is not implemented. Use the scheduled full "
+            "database backups instead."
+        ),
     )
+
+

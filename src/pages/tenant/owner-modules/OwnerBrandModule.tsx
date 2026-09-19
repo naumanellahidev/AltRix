@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Star, MessageSquare, ThumbsUp, TrendingUp, Download, AlertCircle } from "lucide-react";
 import { api } from "@/lib/api";
 import { useActiveCampus } from "@/hooks/useActiveCampus";
-import { exportToCSV } from "@/lib/csv";
+import { DataExportMenu } from "@/components/documents/DataExportMenu";
 import { toast } from "@/hooks/use-toast";
 import { format, subDays } from "date-fns";
 import {
@@ -117,23 +117,14 @@ export function OwnerBrandModule({ schoolId }: Props) {
           ? "Neutral"
           : "Needs Attention";
 
-  const handleExport = () => {
-    const c = data?.complaints ?? [];
-    if (!c.length) {
-      toast({ title: "Nothing to export" });
-      return;
-    }
-    exportToCSV(
-      c.map((x) => ({
-        id: x.id,
-        status: x.status,
-        category: x.category ?? "",
-        created_at: x.created_at,
-        resolved_at: x.resolved_at ?? "",
-      })),
-      `brand-complaints-${new Date().toISOString().slice(0, 10)}`
-    );
-  };
+  const handleExport = () =>
+    (data?.complaints ?? []).map((x) => ({
+      reference: x.id,
+      status: x.status,
+      category: x.category ?? "",
+      created_at: x.created_at,
+      resolved_at: x.resolved_at ?? "",
+    }));
 
   return (
     <div className="space-y-6">
@@ -142,9 +133,7 @@ export function OwnerBrandModule({ schoolId }: Props) {
           <h1 className="font-display text-2xl font-bold tracking-tight">Brand & Experience</h1>
           <p className="text-muted-foreground">Parent satisfaction, reputation, and complaint trends</p>
         </div>
-        <Button variant="outline" onClick={handleExport}>
-          <Download className="h-4 w-4" /> Export complaints
-        </Button>
+        <DataExportMenu title="Complaints Register" rows={handleExport()} label="Export complaints" size="default" />
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

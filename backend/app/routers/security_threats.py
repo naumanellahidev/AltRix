@@ -11,7 +11,12 @@ from sqlalchemy import text
 
 from app.database import get_db
 
-router = APIRouter(prefix="/super_admin/security", tags=["Super Admin Security"])
+from app.utils.permissions import require_super_admin
+
+# Every endpoint below is platform-wide: it reaches across all tenants or
+# changes global configuration. The guard is declared on the router so a new
+# endpoint cannot be added without it.
+router = APIRouter(prefix="/super_admin/security", tags=["Super Admin Security"], dependencies=[Depends(require_super_admin())])
 
 class IpBanRequest(BaseModel):
     ip_address: str

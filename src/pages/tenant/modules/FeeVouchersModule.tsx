@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, Receipt, Download, Loader2, Trash2, Users, User, Eye, CheckCircle2, XCircle, AlertCircle, Mail, Upload, Search, X, FileDown, Award, Sparkles, TrendingUp, RefreshCw } from "lucide-react";
-import { exportToCSV } from "@/lib/csv";
 import { toast } from "sonner";
 
 
@@ -36,7 +35,11 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Checkbox } from "@/components/ui/checkbox";
 
-import { generateVoucherPdf, type VoucherCopyData } from "@/lib/fee-voucher-pdf";
+import { appendVoucherPage, generateVoucherPdf, prepareVoucherData, type VoucherCopyData, voucherFileName } from "@/lib/fee-voucher-pdf";
+import { amountInWordsFor, atLeastZero, isPositive, percentOf, subtract, sum, sum as sumAmounts } from "@/lib/documents/decimal";
+import { documentFileName, money as formatMoney, slug as slugify, todayLabel, type Numeric } from "@/lib/documents/format";
+import { callWithRetry } from "@/lib/retry";
+import { lateFeeTerms, loadSchoolVoucherMeta } from "@/lib/voucher-data";
 
 type FeePlan = { id: string; name: string; currency: string; class_id: string | null };
 type FeePlanItem = { id: string; fee_plan_id: string; label: string; amount: number; sort_order: number };
@@ -415,7 +418,15 @@ function PaymentProofsCard({ schoolId }: { schoolId: string | null }) {
       const href = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = href;
-      a.download = `payment-proofs-${new Date().toISOString().slice(0, 10)}.csv`;
+      a.download = documentFileName(
+        [
+          "Payment Proofs",
+          statusFilter && statusFilter !== "all" ? statusFilter : null,
+          fromDate || toDate ? `${fromDate || "start"} to ${toDate || "today"}` : null,
+          todayLabel(),
+        ],
+        "csv",
+      );
       document.body.appendChild(a); a.click(); document.body.removeChild(a);
       URL.revokeObjectURL(href);
       toast.success(`Exported ${count} row${count === 1 ? "" : "s"}`, { id: tId });
@@ -1483,6 +1494,8 @@ function GenerateVoucherDialog({
   const [progress, setProgress] = useState<string>("");
   const [doneCount, setDoneCount] = useState(0);
   const [failCount, setFailCount] = useState(0);
+  const [runTotal, setRunTotal] = useState(0);
+  const [failedStudentIds, setFailedStudentIds] = useState<string[]>([]);
   const [results, setResults] = useState<Array<{ studentId: string; name: string; status: "success" | "error"; error?: string; invoiceId?: string }>>([]);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewData, setPreviewData] = useState<VoucherCopyData | null>(null);
@@ -1598,42 +1611,7 @@ function GenerateVoucherDialog({
   }
 
   async function fetchSchoolMeta() {
-    const { data: school } = await api
-      .from("schools")
-      .select("id,name,address,phone,email,website,motto,logo_url")
-      .eq("id", schoolId!)
-      .maybeSingle();
-    const { data: branding } = await (api as any)
-      .from("school_branding")
-      .select("accent_hue,accent_saturation,accent_lightness")
-      .eq("school_id", schoolId!)
-      .maybeSingle();
-    const { data: settings } = await (api as any)
-      .from("fee_settings")
-      .select("bank_name,bank_account_title,bank_account_number,bank_iban,bank_branch,bank_swift,voucher_footer_note")
-      .eq("school_id", schoolId!)
-      .maybeSingle();
-    return {
-      school,
-      branding: branding
-        ? {
-            h: Number(branding.accent_hue ?? 210),
-            s: Number(branding.accent_saturation ?? 100),
-            l: Number(branding.accent_lightness ?? 50),
-          }
-        : { h: 210, s: 100, l: 50 },
-      bank: settings
-        ? {
-            bankName: settings.bank_name,
-            accountTitle: settings.bank_account_title,
-            accountNumber: settings.bank_account_number,
-            iban: settings.bank_iban,
-            branch: settings.bank_branch,
-            swift: settings.bank_swift,
-          }
-        : null,
-      footerNote: settings?.voucher_footer_note ?? null,
-    };
+    return loadSchoolVoucherMeta(schoolId!);
   }
 
   async function getStudentAvgGrade(studentIds: string[]): Promise<Record<string, number>> {
@@ -1687,16 +1665,20 @@ function GenerateVoucherDialog({
     avgGrade: number;
   }): VoucherCopyData {
     const { student: st, meta, items, plan, avgGrade } = args;
-    const subtotalCalc = items.reduce((s, i) => s + Number(i.amount || 0), 0);
+    // The same arithmetic the voucher RPC does — ROUND(subtotal * pct / 100, 2)
+    // plus the flat amount — in exact decimals, so the preview and the invoice
+    // agree. Sibling and scholarship discounts depend on server-side records
+    // and are applied when the invoice is created.
+    const subtotalCalc = sumAmounts(items.map((i) => String(i.amount ?? 0)));
     const baseExtraPct = Number(discountPct) || 0;
-    const baseExtraAmt = Number(discountAmount) || 0;
+    const baseExtraAmt = String(Number(discountAmount) || 0);
     const { pct: gradePct, tier } = pickGradeTierPct(avgGrade);
     const totalExtraPct = baseExtraPct + gradePct;
-    const merit = baseExtraAmt + Math.round(subtotalCalc * totalExtraPct) / 100;
+    const merit = sumAmounts([baseExtraAmt, percentOf(subtotalCalc, totalExtraPct)]);
     const reasonParts: string[] = [];
     if (discountReason) reasonParts.push(discountReason);
     if (tier) reasonParts.push(`Merit ≥${tier.minGrade}% → ${tier.discountPct}%`);
-    const total = Math.max(subtotalCalc - merit, 0);
+    const total = atLeastZero(subtract(subtotalCalc, merit));
     const sec = sections.find((s) => s.id === sectionId);
     const klass = classes.find((c) => c.id === classId);
     return {
@@ -1722,7 +1704,7 @@ function GenerateVoucherDialog({
         parentName: st.parent_name,
         parentPhone: st.parent_phone,
       },
-      items: items.map((it) => ({ label: it.label, amount: Number(it.amount) })),
+      items: items.map((it) => ({ label: it.label, amount: String(it.amount ?? 0) })),
       subtotal: subtotalCalc,
       baseDiscount: 0,
       meritDiscount: merit,
@@ -1734,6 +1716,7 @@ function GenerateVoucherDialog({
       notes: notes || null,
       bank: meta.bank,
       footerNote: meta.footerNote,
+      ...lateFeeTerms(meta, dueDate),
     };
   }
 
@@ -1800,7 +1783,23 @@ function GenerateVoucherDialog({
 
   useEffect(() => () => { if (previewUrl) URL.revokeObjectURL(previewUrl); }, [previewUrl]);
 
-  async function handleGenerate() {
+  /**
+   * Create an invoice per student through the voucher RPC, then print them.
+   *
+   * The server is the only thing that creates an invoice. It numbers it from
+   * the school's atomic sequence, prices it in NUMERIC, applies sibling and
+   * merit discounts, writes the line items and notifies the parent. This screen
+   * used to fall back to inserting an invoice itself when the RPC failed —
+   * with a timestamp for a number and float arithmetic for the money — and if
+   * that insert failed too, it invented an invoice object and printed a
+   * voucher for it anyway. A parent could pay at the bank against an invoice
+   * the school had no record of.
+   *
+   * Now a transient failure is retried, a persistent one is reported for that
+   * student with the server's own reason, and the failed students can be
+   * retried on their own without regenerating anyone who already succeeded.
+   */
+  async function handleGenerate(onlyStudentIds?: string[]) {
     if (!schoolId || !feePlanId) {
       toast.error("Pick a fee plan first");
       return;
@@ -1809,8 +1808,13 @@ function GenerateVoucherDialog({
       toast.error("Pick a student");
       return;
     }
-    if (mode === "class" && targetStudents.length === 0) {
-      toast.error("No students in selected class/section");
+
+    const runStudents = onlyStudentIds?.length
+      ? targetStudents.filter((s) => onlyStudentIds.includes(s.id))
+      : targetStudents;
+
+    if (runStudents.length === 0) {
+      toast.error(mode === "class" ? "No students in selected class/section" : "No student selected");
       return;
     }
 
@@ -1818,12 +1822,20 @@ function GenerateVoucherDialog({
     setResults([]);
     setDoneCount(0);
     setFailCount(0);
+    setRunTotal(runStudents.length);
     setProgress("Loading school branding…");
+
+    // Counted locally: the state values are a snapshot from the render that
+    // started this run and do not change while it is in progress.
+    let successCount = 0;
+    const failedIds: string[] = [];
+    const amounts: string[] = [];
+    const warnings: string[] = [];
+
     try {
       const meta = await fetchSchoolMeta();
       const plan = feePlans.find((p) => p.id === feePlanId);
-      const items = planItems.data ?? [];
-      const gradeMap = tiers.length > 0 ? await getStudentAvgGrade(targetStudents.map((s) => s.id)) : {};
+      const gradeMap = tiers.length > 0 ? await getStudentAvgGrade(runStudents.map((s) => s.id)) : {};
 
       const { data: batch, error: batchErr } = await (api as any)
         .from("fee_voucher_batches")
@@ -1844,16 +1856,22 @@ function GenerateVoucherDialog({
         .select()
         .maybeSingle();
 
-      const batchId = batch?.id || crypto.randomUUID();
+      // The batch row only groups the run for reporting. Without it vouchers
+      // are still created — ungrouped — rather than tied to an id that does
+      // not exist.
+      const batchId: string | null = batch?.id ?? null;
+      if (!batchId) {
+        warnings.push(
+          `This run could not be recorded as a batch${batchErr?.message ? ` (${batchErr.message})` : ""}; the vouchers themselves are unaffected.`,
+        );
+      }
 
-      let totalAmount = 0;
-      let successCount = 0;
       const pdfs: { student: Student; data: VoucherCopyData }[] = [];
 
-      for (let i = 0; i < targetStudents.length; i++) {
-        const st = targetStudents[i];
+      for (let i = 0; i < runStudents.length; i++) {
+        const st = runStudents[i];
         const studentName = `${st.first_name} ${st.last_name ?? ""}`.trim();
-        setProgress(`Generating ${i + 1} / ${targetStudents.length} – ${studentName}…`);
+        setProgress(`Generating ${i + 1} / ${runStudents.length} – ${studentName}…`);
 
         const baseExtraPct = Number(discountPct) || 0;
         const baseExtraAmt = Number(discountAmount) || 0;
@@ -1866,11 +1884,8 @@ function GenerateVoucherDialog({
         const reason = reasonParts.join(" | ") || null;
 
         try {
-          let inv: any = null;
-
-          // Attempt RPC first
-          try {
-            const { data: invId, error: rpcErr } = await (api as any).rpc("generate_fee_voucher", {
+          const invoiceId = await callWithRetry(async () => {
+            const { data, error } = await (api as any).rpc("generate_fee_voucher", {
               _school_id: schoolId,
               _student_id: st.id,
               _fee_plan_id: feePlanId,
@@ -1882,54 +1897,41 @@ function GenerateVoucherDialog({
               _notes: notes || null,
               _batch_id: batchId,
             });
-            if (!rpcErr && invId) {
-              const { data: fetchedInv } = await api
-                .from("fee_invoices")
-                .select("*")
-                .eq("id", invId as string)
-                .maybeSingle();
-              inv = fetchedInv;
-            }
-          } catch {}
+            if (error) throw new Error(error.message ?? "the server refused to create the invoice");
+            if (!data) throw new Error("the server did not return an invoice");
+            return data as string;
+          });
 
-          // Resilient fallback direct insertion if RPC fails or table lacks RPC
-          if (!inv) {
-            const invNumber = `INV-${Date.now().toString().slice(-6)}-${st.id.slice(0, 4).toUpperCase()}`;
-            const subtotal = items.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
-            const totalDiscount = (subtotal * (totalExtraPct / 100)) + baseExtraAmt;
-            const total = Math.max(0, subtotal - totalDiscount);
-
-            const { data: directInv } = await api
-              .from("fee_invoices")
-              .insert({
-                school_id: schoolId,
-                student_id: st.id,
-                invoice_number: invNumber,
-                period_label: periodLabel,
-                due_date: dueDate,
-                subtotal: subtotal,
-                discount_amount: totalDiscount,
-                total_amount: total,
-                status: "pending",
-                notes: notes || null,
-              })
-              .select()
-              .maybeSingle();
-
-            inv = directInv || {
-              id: crypto.randomUUID(),
-              invoice_number: invNumber,
-              subtotal,
-              discount_amount: totalDiscount,
-              total_amount: total,
-            };
+          const [{ data: inv, error: invErr }, { data: lines, error: linesErr }] = await Promise.all([
+            api.from("fee_invoices").select("*").eq("id", invoiceId).maybeSingle(),
+            (api as any)
+              .from("fee_invoice_items")
+              .select("label, amount, sort_order")
+              .eq("invoice_id", invoiceId)
+              .order("sort_order", { ascending: true }),
+          ]);
+          if (invErr || !inv) {
+            throw new Error(
+              `the invoice was created but could not be read back${invErr?.message ? `: ${invErr.message}` : ""}. It exists — reprint it from the invoice list.`,
+            );
+          }
+          if (linesErr) {
+            warnings.push(`${studentName}: line items could not be loaded, so the voucher shows the plan's items.`);
           }
 
           const sec = sections.find((s) => s.id === sectionId) || sections[0];
           const klass = classes.find((c) => c.id === classId);
+          const invoice = inv as any;
+
+          // Print what the server priced, not what this screen expected it to.
+          const serverLines: { label: string; amount: string }[] = (lines ?? []).map((l: any) => ({
+            label: l.label,
+            amount: String(l.amount),
+          }));
+          const planLines = (planItems.data ?? []).map((it) => ({ label: it.label, amount: String(it.amount) }));
 
           const pdfData: VoucherCopyData = {
-            invoiceNumber: (inv as any).invoice_number,
+            invoiceNumber: invoice.invoice_number,
             issueDate: new Date().toISOString().slice(0, 10),
             dueDate,
             periodLabel,
@@ -1951,70 +1953,108 @@ function GenerateVoucherDialog({
               parentName: st.parent_name,
               parentPhone: st.parent_phone,
             },
-            items: items.map((it) => ({ label: it.label, amount: Number(it.amount) })),
-            subtotal: Number((inv as any).subtotal),
-            baseDiscount: Number((inv as any).discount_amount),
-            meritDiscount: Number((inv as any).merit_discount_amount ?? 0),
-            meritReason: (inv as any).merit_discount_reason ?? reason,
-            siblingDiscount: Number((inv as any).sibling_discount_amount ?? 0),
-            total: Number((inv as any).total_amount),
+            items: serverLines.length ? serverLines : planLines,
+            subtotal: invoice.subtotal,
+            baseDiscount: invoice.discount_amount,
+            meritDiscount: invoice.merit_discount_amount,
+            meritReason: invoice.merit_discount_reason ?? reason,
+            siblingDiscount: invoice.sibling_discount_amount,
+            total: invoice.total_amount,
             currency: plan?.currency || "PKR",
             accentHsl: meta.branding,
             notes: notes || null,
             bank: meta.bank,
             footerNote: meta.footerNote,
+            ...lateFeeTerms(meta, dueDate),
           };
 
           pdfs.push({ student: st, data: pdfData });
-          totalAmount += Number((inv as any).total_amount);
+          amounts.push(String(invoice.total_amount));
           successCount += 1;
           setDoneCount((c) => c + 1);
-          setResults((r) => [...r, { studentId: st.id, name: studentName, status: "success", invoiceId: inv?.id || (inv as any)?.invoice_number || "" }]);
+          setResults((r) => [...r, { studentId: st.id, name: studentName, status: "success", invoiceId: invoice.invoice_number }]);
         } catch (err: any) {
           console.error("voucher failed for", st.id, err);
+          failedIds.push(st.id);
           setFailCount((c) => c + 1);
           setResults((r) => [...r, { studentId: st.id, name: studentName, status: "error", error: err?.message ?? String(err) }]);
         }
       }
 
-      await (api as any)
-        .from("fee_voucher_batches")
-        .update({ total_students: successCount, total_amount: totalAmount })
-        .eq("id", batchId);
+      if (batchId) {
+        const { error: batchUpdateErr } = await (api as any)
+          .from("fee_voucher_batches")
+          .update({ total_students: successCount, total_amount: sumAmounts(amounts) })
+          .eq("id", batchId);
+        if (batchUpdateErr) warnings.push(`The batch totals could not be saved: ${batchUpdateErr.message}`);
+      }
 
-      setProgress("Building PDF file…");
-      if (pdfs.length === 1) {
-        const doc = generateVoucherPdf(pdfs[0].data);
-        doc.save(`voucher-${pdfs[0].data.invoiceNumber}.pdf`);
-      } else if (pdfs.length > 1) {
-        const { appendVoucherPage } = await import("@/lib/fee-voucher-pdf");
-        const combined = generateVoucherPdf(pdfs[0].data);
-        for (let i = 1; i < pdfs.length; i++) {
-          appendVoucherPage(combined, pdfs[i].data);
+      // ── Print ──────────────────────────────────────────────────────────────
+      let savedAs: string | null = null;
+      if (pdfs.length) {
+        setProgress("Building PDF file…");
+        try {
+          // Every voucher in a run belongs to the same school, so the logo is
+          // resolved once and shared.
+          const { data: first, warnings: logoWarnings } = await prepareVoucherData(pdfs[0].data);
+          for (const w of logoWarnings) {
+            warnings.push(`The school logo could not be added (${w.reason}); vouchers show the school's initials instead.`);
+          }
+          const logoUrl = first.school.logoUrl ?? null;
+          const withLogo = (d: VoucherCopyData): VoucherCopyData => ({ ...d, school: { ...d.school, logoUrl } });
+
+          const combined = generateVoucherPdf(withLogo(pdfs[0].data));
+          for (let i = 1; i < pdfs.length; i++) appendVoucherPage(combined, withLogo(pdfs[i].data));
+
+          savedAs =
+            pdfs.length === 1
+              ? voucherFileName(pdfs[0].data)
+              : documentFileName(["Fee Vouchers", periodLabel || null, `${pdfs.length} students`, new Date().toISOString().slice(0, 10)], "pdf");
+          combined.save(savedAs);
+        } catch (pdfErr: any) {
+          // The invoices exist and parents have been notified; only the file
+          // failed. Say exactly that, so nobody regenerates and double-bills.
+          toast.error(
+            `${successCount} invoice(s) were created, but the PDF could not be built: ${pdfErr?.message ?? pdfErr}. Reprint them from the invoice list — do not generate again.`,
+            { duration: 12000 },
+          );
         }
-        combined.save(`vouchers-batch-${batch.id}.pdf`);
       }
 
-      if (successCount > 0) {
-        toast.success(`Generated ${successCount} voucher(s); parents notified.`);
+      // ── Report exactly what happened ───────────────────────────────────────
+      setFailedStudentIds(failedIds);
+      if (successCount > 0 && savedAs) {
+        const failedNote = failedIds.length ? ` ${failedIds.length} failed — see the list and use Retry failed.` : "";
+        toast.success(`Created ${successCount} voucher(s) and notified parents. Saved ${savedAs}.${failedNote}`, {
+          duration: failedIds.length ? 10000 : 5000,
+        });
+      } else if (successCount === 0) {
+        toast.error(`No vouchers were created. ${failedIds.length} failed — the reasons are listed below.`);
       }
-      if (failCount > 0 || successCount === 0) {
-        // keep dialog open so the user can review errors
-        setProgress(`Finished with ${successCount} success / ${targetStudents.length - successCount} failed`);
+      for (const w of warnings) toast.warning(w, { duration: 9000 });
+
+      if (failedIds.length > 0 || successCount === 0 || warnings.length > 0) {
+        setProgress(`Finished: ${successCount} created, ${failedIds.length} failed`);
       } else {
         onOpenChange(false);
       }
     } catch (e: any) {
       console.error(e);
-      toast.error(e.message ?? "Failed to generate vouchers");
+      toast.error(
+        successCount > 0
+          ? `${successCount} voucher(s) were created before an error stopped the run: ${e?.message ?? e}. Check the list before generating again.`
+          : e?.message ?? "Failed to generate vouchers",
+        { duration: 12000 },
+      );
     } finally {
       setSubmitting(false);
     }
   }
 
 
-  const progressPct = targetStudents.length > 0
-    ? Math.round(((doneCount + failCount) / targetStudents.length) * 100)
+  const runDenominator = runTotal || targetStudents.length;
+  const progressPct = runDenominator > 0
+    ? Math.round(((doneCount + failCount) / runDenominator) * 100)
     : 0;
 
   return (
@@ -2206,8 +2246,19 @@ function GenerateVoucherDialog({
                   <span className="font-medium">
                     {submitting ? "Generating…" : "Last run results"}
                   </span>
-                  <span className="text-muted-foreground">
-                    {doneCount + failCount}/{targetStudents.length} · {doneCount} ok · {failCount} failed
+                  <span className="flex items-center gap-2 text-muted-foreground">
+                    {doneCount + failCount}/{runDenominator} · {doneCount} ok · {failCount} failed
+                    {!submitting && failedStudentIds.length > 0 && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-6 px-2 text-[11px]"
+                        onClick={() => handleGenerate(failedStudentIds)}
+                      >
+                        Retry failed ({failedStudentIds.length})
+                      </Button>
+                    )}
                   </span>
                 </div>
                 <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
@@ -2246,7 +2297,7 @@ function GenerateVoucherDialog({
                 <>
                   <div className="flex items-center justify-between gap-2 border-b px-3 py-2 bg-muted/30">
                     <span className="text-xs text-muted-foreground truncate">
-                      Live in-app preview · PDF embedding removed to avoid Chrome blocking
+                      Estimate for the first student · sibling and scholarship discounts are applied by the server when the invoice is created
                     </span>
                     <div className="flex items-center gap-1">
                       {previewUrl && <Button
@@ -2286,7 +2337,7 @@ function GenerateVoucherDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={submitting}>
             {results.length > 0 && !submitting ? "Close" : "Cancel"}
           </Button>
-          <Button variant="hero" onClick={handleGenerate} disabled={submitting || !feePlanId}>
+          <Button variant="hero" onClick={() => handleGenerate()} disabled={submitting || !feePlanId}>
             {submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
             Generate {mode === "individual" ? "Voucher" : `${students.length} Vouchers`}
           </Button>
@@ -2300,7 +2351,13 @@ function GenerateVoucherDialog({
 function VoucherHtmlPreview({ data }: { data: VoucherCopyData }) {
   const accent = data.accentHsl ?? { h: 210, s: 100, l: 50 };
   const currency = data.currency || "PKR";
-  const money = (n: number) => `${currency} ${Number(n || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+  // Printed from the exact decimal, exactly as the PDF prints it, so the
+  // preview and the paper agree to the paisa.
+  const money = (n: Numeric) => formatMoney(n, { currency: currency === "PKR" ? "Rs." : currency });
+  const paid = isPositive(data.paidAmount) ? data.paidAmount : null;
+  const payable = paid ? atLeastZero(subtract(data.total, paid)) : data.total;
+  const lateFee = isPositive(data.lateFee) ? data.lateFee : null;
+  const words = amountInWordsFor(payable, currency);
   const studentMeta = [
     data.student.className ? `Class ${data.student.className}${data.student.sectionName ? `-${data.student.sectionName}` : ""}` : null,
     data.student.rollNumber ? `Roll ${data.student.rollNumber}` : null,
@@ -2362,12 +2419,19 @@ function VoucherHtmlPreview({ data }: { data: VoucherCopyData }) {
 
         <div className="space-y-1 text-xs">
           <div className="flex justify-between gap-3"><span className="text-muted-foreground">Subtotal</span><span className="font-medium">{money(data.subtotal)}</span></div>
-          {data.baseDiscount > 0 && <div className="flex justify-between gap-3"><span className="text-muted-foreground">Base discount</span><span className="font-medium">-{money(data.baseDiscount)}</span></div>}
-          {data.meritDiscount > 0 && <div className="flex justify-between gap-3"><span className="text-muted-foreground truncate">Merit discount{data.meritReason ? ` (${data.meritReason})` : ""}</span><span className="font-medium shrink-0">-{money(data.meritDiscount)}</span></div>}
-          {data.siblingDiscount > 0 && <div className="flex justify-between gap-3"><span className="text-muted-foreground">Sibling discount</span><span className="font-medium">-{money(data.siblingDiscount)}</span></div>}
+          {isPositive(data.baseDiscount) && <div className="flex justify-between gap-3"><span className="text-muted-foreground">Base discount</span><span className="font-medium">-{money(data.baseDiscount)}</span></div>}
+          {isPositive(data.meritDiscount) && <div className="flex justify-between gap-3"><span className="text-muted-foreground truncate">Merit discount{data.meritReason ? ` (${data.meritReason})` : ""}</span><span className="font-medium shrink-0">-{money(data.meritDiscount)}</span></div>}
+          {isPositive(data.siblingDiscount) && <div className="flex justify-between gap-3"><span className="text-muted-foreground">Sibling discount</span><span className="font-medium">-{money(data.siblingDiscount)}</span></div>}
+          {paid && <div className="flex justify-between gap-3"><span className="text-muted-foreground">Already paid</span><span className="font-medium">-{money(paid)}</span></div>}
           <div className="mt-2 flex justify-between gap-3 rounded-md bg-primary px-3 py-2 text-primary-foreground font-semibold">
-            <span>Total payable</span><span>{money(data.total)}</span>
+            <span>{paid ? "Balance payable" : "Total payable"}</span><span>{money(payable)}</span>
           </div>
+          {words && <p className="pt-1 text-[10px] italic text-muted-foreground">{words}</p>}
+          {lateFee && (
+            <div className="flex justify-between gap-3 rounded-md bg-destructive/10 px-3 py-1.5 font-semibold text-destructive">
+              <span>Payable after {data.lateFeeAfter || data.dueDate}</span><span>{money(sum([payable, lateFee]))}</span>
+            </div>
+          )}
         </div>
 
         {bankLines.length > 0 && (

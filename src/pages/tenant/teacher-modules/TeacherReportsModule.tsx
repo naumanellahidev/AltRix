@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
-import { Download, FileText } from "lucide-react";
+import { Download, FileText, Loader2, MessageCircle, Printer } from "lucide-react";
 import { api } from "@/lib/api";
 import { useTenant } from "@/hooks/useTenant";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,6 +9,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { DataExportMenu } from "@/components/documents/DataExportMenu";
+import { describeShare } from "@/lib/documents/deliver";
+import {
+  type ProgressStudent,
+  attendanceRate,
+  averagePercent,
+  downloadProgressReports,
+  printProgressReports,
+  shareProgressReports,
+} from "@/lib/documents/progress-report";
 
 interface Section {
   id: string;
@@ -20,9 +30,10 @@ interface StudentReport {
   student_id: string;
   first_name: string;
   last_name: string | null;
-  assignments: { title: string; marks: number | null; max_marks: number; grade: string | null }[];
+  assignments: { title: string; marks: number | string | null; max_marks: number | string | null; grade: string | null }[];
   attendance: { present: number; absent: number; late: number; total: number };
-  average_percentage: number | null;
+  /** Exact, one decimal place; null when nothing is marked. */
+  average_percentage: string | null;
 }
 
 export function TeacherReportsModule() {
@@ -96,136 +107,134 @@ export function TeacherReportsModule() {
 
   const generateReports = async () => {
     if (!selectedSection) return;
-
     setGenerating(true);
+    try {
+      // Current students of the section only: a student who has left has an
+      // end date on their enrolment.
+      const { data: enrollments, error: enrollError } = await api
+        .from("student_enrollments")
+        .select("student_id")
+        .eq("school_id", tenant.schoolId)
+        .eq("class_section_id", selectedSection)
+        .is("end_date", null);
+      if (enrollError) throw enrollError;
+      if (!enrollments?.length) {
+        setReports([]);
+        toast({ title: "No students are enrolled in this section" });
+        return;
+      }
 
-    // Get students
-    const { data: enrollments } = await api
-      .from("student_enrollments")
-      .select("student_id")
-      .eq("school_id", tenant.schoolId)
-      .eq("class_section_id", selectedSection);
+      const studentIds = enrollments.map((e) => e.student_id);
+      const [studentsRes, assignmentsRes, sessionsRes] = await Promise.all([
+        api.from("students").select("id, first_name, last_name").in("id", studentIds),
+        api.from("assignments").select("id, title, max_marks").eq("school_id", tenant.schoolId).eq("class_section_id", selectedSection),
+        api.from("attendance_sessions").select("id").eq("school_id", tenant.schoolId).eq("class_section_id", selectedSection),
+      ]);
+      for (const r of [studentsRes, assignmentsRes, sessionsRes]) if (r.error) throw r.error;
+      const students: any[] = studentsRes.data ?? [];
+      const assignmentData: any[] = assignmentsRes.data ?? [];
+      const assignmentIds = assignmentData.map((a) => a.id);
+      const sessionIds = (sessionsRes.data ?? []).map((x: any) => x.id);
 
-    if (!enrollments?.length) {
-      setReports([]);
+      const [resultsRes, attendanceRes]: any[] = await Promise.all([
+        assignmentIds.length
+          ? (api as any).from("student_results").select("student_id, assignment_id, marks_obtained, grade").in("assignment_id", assignmentIds)
+          : Promise.resolve({ data: [], error: null }),
+        sessionIds.length
+          ? api.from("attendance_entries").select("student_id, status").in("session_id", sessionIds)
+          : Promise.resolve({ data: [], error: null }),
+      ]);
+      if (resultsRes.error) throw resultsRes.error;
+      if (attendanceRes.error) throw attendanceRes.error;
+      const resultsData: any[] = resultsRes.data ?? [];
+      const attendanceData: any[] = attendanceRes.data ?? [];
+      const assignmentMap = new Map(assignmentData.map((a) => [a.id, a]));
+
+      const studentReports: StudentReport[] = students
+        .map((student) => {
+          const assignments = resultsData
+            .filter((r) => r.student_id === student.id)
+            .map((r) => {
+              const assignment = assignmentMap.get(r.assignment_id) as any;
+              return {
+                title: assignment?.title || "Untitled work",
+                marks: r.marks_obtained,
+                // A missing maximum stays missing: it is not assumed to be 100.
+                max_marks: assignment?.max_marks ?? null,
+                grade: r.grade,
+              };
+            });
+          const mine = attendanceData.filter((a) => a.student_id === student.id);
+          return {
+            student_id: student.id,
+            first_name: student.first_name,
+            last_name: student.last_name,
+            assignments,
+            attendance: {
+              present: mine.filter((a) => a.status === "present").length,
+              absent: mine.filter((a) => a.status === "absent").length,
+              late: mine.filter((a) => a.status === "late").length,
+              total: mine.length,
+            },
+            average_percentage: averagePercent(
+              assignments.map((a) => ({ title: a.title, marks: a.marks, maxMarks: a.max_marks })),
+            ),
+          };
+        })
+        .sort((x, y) => `${x.first_name} ${x.last_name ?? ""}`.localeCompare(`${y.first_name} ${y.last_name ?? ""}`));
+
+      setReports(studentReports);
+      toast({ title: `Reports ready for ${studentReports.length} student${studentReports.length === 1 ? "" : "s"}` });
+    } catch (e: any) {
+      toast({ title: "Reports could not be generated", description: e?.message ?? String(e), variant: "destructive" });
+    } finally {
       setGenerating(false);
-      return;
     }
-
-    const studentIds = enrollments.map((e) => e.student_id);
-    const { data: students } = await api
-      .from("students")
-      .select("id, first_name, last_name")
-      .in("id", studentIds);
-
-    // Get assignments for this section
-    const { data: assignmentData } = await api
-      .from("assignments")
-      .select("id, title, max_marks")
-      .eq("school_id", tenant.schoolId)
-      .eq("class_section_id", selectedSection);
-
-    // Get all results
-    const assignmentIds = assignmentData?.map((a) => a.id) || [];
-    const { data: resultsData } = await (api as any)
-      .from("student_results")
-      .select("student_id, assignment_id, marks_obtained, grade")
-      .in("assignment_id", assignmentIds);
-
-    // Get attendance sessions
-    const { data: sessions } = await api
-      .from("attendance_sessions")
-      .select("id")
-      .eq("school_id", tenant.schoolId)
-      .eq("class_section_id", selectedSection);
-
-    const sessionIds = sessions?.map((s) => s.id) || [];
-
-    // Get attendance entries
-    const { data: attendanceData } = await api
-      .from("attendance_entries")
-      .select("student_id, status")
-      .in("session_id", sessionIds);
-
-    // Build reports
-    const studentReports: StudentReport[] = (students || []).map((student) => {
-      // Assignments
-      const studentResults = resultsData?.filter((r) => r.student_id === student.id) || [];
-      const assignmentMap = new Map(assignmentData?.map((a: any) => [a.id, a]) || []);
-
-      const assignments = studentResults.map((r) => {
-        const assignment = assignmentMap.get(r.assignment_id) as any;
-        return {
-          title: assignment?.title || "Unknown",
-          marks: r.marks_obtained,
-          max_marks: assignment?.max_marks || 100,
-          grade: r.grade,
-        };
-      });
-
-      // Calculate average
-      const gradedAssignments = assignments.filter((a) => a.marks !== null);
-      const totalPercentage = gradedAssignments.reduce(
-        (sum, a) => sum + ((a.marks || 0) / a.max_marks) * 100,
-        0
-      );
-      const average = gradedAssignments.length > 0 ? totalPercentage / gradedAssignments.length : null;
-
-      // Attendance
-      const studentAttendance = attendanceData?.filter((a) => a.student_id === student.id) || [];
-      const attendance = {
-        present: studentAttendance.filter((a) => a.status === "present").length,
-        absent: studentAttendance.filter((a) => a.status === "absent").length,
-        late: studentAttendance.filter((a) => a.status === "late").length,
-        total: studentAttendance.length,
-      };
-
-      return {
-        student_id: student.id,
-        first_name: student.first_name,
-        last_name: student.last_name,
-        assignments,
-        attendance,
-        average_percentage: average,
-      };
-    });
-
-    setReports(studentReports);
-    setGenerating(false);
-    toast({ title: "Reports generated successfully" });
   };
 
-  const exportReportCard = (report: StudentReport) => {
+  const sectionLabel = () => {
     const section = sections.find((s) => s.id === selectedSection);
-    const content = `
-REPORT CARD
-===========
-Student: ${report.first_name} ${report.last_name || ""}
-Class: ${section?.class_name} - ${section?.name}
-Generated: ${new Date().toLocaleDateString()}
+    return section ? `${section.class_name} — ${section.name}` : "Class";
+  };
 
-ATTENDANCE SUMMARY
-------------------
-Present: ${report.attendance.present}
-Absent: ${report.attendance.absent}
-Late: ${report.attendance.late}
-Total Sessions: ${report.attendance.total}
-Attendance Rate: ${report.attendance.total > 0 ? ((report.attendance.present / report.attendance.total) * 100).toFixed(1) : 0}%
+  const toProgress = (r: StudentReport): ProgressStudent => ({
+    id: r.student_id,
+    name: [r.first_name, r.last_name].filter(Boolean).join(" "),
+    work: r.assignments.map((a) => ({ title: a.title, marks: a.marks, maxMarks: a.max_marks, grade: a.grade })),
+    attendance: r.attendance,
+  });
 
-ACADEMIC PERFORMANCE
---------------------
-${report.assignments.length > 0 ? report.assignments.map((a) => `${a.title}: ${a.marks ?? "N/A"}/${a.max_marks} ${a.grade ? `(${a.grade})` : ""}`).join("\n") : "No assignments graded yet."}
-
-Average: ${report.average_percentage !== null ? report.average_percentage.toFixed(1) + "%" : "N/A"}
-    `.trim();
-
-    const blob = new Blob([content], { type: "text/plain" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `report-${report.first_name}-${report.last_name || ""}.txt`;
-    a.click();
-    URL.revokeObjectURL(url);
+  const [busy, setBusy] = useState<string | null>(null);
+  /** Print, download or share the progress report of one student or the whole class. */
+  const exportReports = async (kind: "download" | "print" | "share", list: StudentReport[], key: string) => {
+    if (!list.length) return;
+    setBusy(`${key}:${kind}`);
+    const students = list.map(toProgress);
+    const meta = { classLabel: sectionLabel() };
+    try {
+      if (kind === "share") {
+        const outcome = await shareProgressReports(students, meta);
+        const { tone, message } = describeShare(outcome);
+        toast({
+          title: message,
+          description: outcome.warnings.length ? `Note: ${outcome.warnings.join("; ")}` : undefined,
+          variant: tone === "error" ? "destructive" : undefined,
+        });
+        return;
+      }
+      const result: { warnings: string[]; fileName?: string } =
+        kind === "print" ? await printProgressReports(students, meta) : await downloadProgressReports(students, meta);
+      if (kind === "download" || result.warnings.length) {
+        toast({
+          title: kind === "print" ? "Sent to print" : `Downloaded ${result.fileName}`,
+          description: result.warnings.length ? `Note: ${result.warnings.join("; ")}` : undefined,
+        });
+      }
+    } catch (e: any) {
+      toast({ title: "The report could not be produced", description: e?.message ?? String(e), variant: "destructive" });
+    } finally {
+      setBusy(null);
+    }
   };
 
   if (loading) {
@@ -247,7 +256,7 @@ Average: ${report.average_percentage !== null ? report.average_percentage.toFixe
       {/* Controls */}
       <Card>
         <CardHeader>
-          <CardTitle>Generate Report Cards</CardTitle>
+          <CardTitle>Student Progress Reports</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="flex flex-wrap items-end gap-4">
@@ -278,7 +287,37 @@ Average: ${report.average_percentage !== null ? report.average_percentage.toFixe
       {reports.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>Student Reports ({reports.length})</CardTitle>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <CardTitle>Student Reports ({reports.length})</CardTitle>
+              <div className="flex flex-wrap items-center gap-2">
+                <DataExportMenu
+                  title="Class Progress Summary"
+                  subtitle={sectionLabel()}
+                  fileNameParts={[sectionLabel(), "Progress Summary"]}
+                  rows={reports.map((r) => ({
+                    Student: [r.first_name, r.last_name].filter(Boolean).join(" "),
+                    "Graded work": r.assignments.filter((a) => a.marks !== null && a.marks !== "").length,
+                    "Average %": r.average_percentage ?? "",
+                    Present: r.attendance.present,
+                    Late: r.attendance.late,
+                    Absent: r.attendance.absent,
+                    Sessions: r.attendance.total,
+                    "Attendance %": attendanceRate(r.attendance) ?? "",
+                  }))}
+                  size="sm"
+                />
+                {([
+                  ["share", MessageCircle, "WhatsApp all"],
+                  ["print", Printer, "Print all"],
+                  ["download", Download, "All reports (PDF)"],
+                ] as const).map(([kind, Icon, label]) => (
+                  <Button key={kind} size="sm" variant="outline" disabled={!!busy} onClick={() => exportReports(kind, reports, "all")}>
+                    {busy === `all:${kind}` ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <Icon className="mr-1 h-3 w-3" />}
+                    {label}
+                  </Button>
+                ))}
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
             <Table>
@@ -302,14 +341,14 @@ Average: ${report.average_percentage !== null ? report.average_percentage.toFixe
                       {r.average_percentage !== null ? (
                         <span
                           className={`font-medium ${
-                            r.average_percentage >= 70
+                            Number(r.average_percentage) >= 70
                               ? "text-green-600"
-                              : r.average_percentage >= 50
+                              : Number(r.average_percentage) >= 50
                               ? "text-yellow-600"
                               : "text-red-600"
                           }`}
                         >
-                          {r.average_percentage.toFixed(1)}%
+                          {r.average_percentage}%
                         </span>
                       ) : (
                         "—"
@@ -318,7 +357,7 @@ Average: ${report.average_percentage !== null ? report.average_percentage.toFixe
                     <TableCell>
                       {r.attendance.total > 0 ? (
                         <span>
-                          {((r.attendance.present / r.attendance.total) * 100).toFixed(0)}% ({r.attendance.present}/
+                          {attendanceRate(r.attendance)}% ({r.attendance.present}/
                           {r.attendance.total})
                         </span>
                       ) : (
@@ -326,9 +365,26 @@ Average: ${report.average_percentage !== null ? report.average_percentage.toFixe
                       )}
                     </TableCell>
                     <TableCell>
-                      <Button size="sm" variant="outline" onClick={() => exportReportCard(r)}>
-                        <Download className="mr-1 h-3 w-3" /> Export
-                      </Button>
+                      <div className="flex items-center gap-1">
+                        {([
+                          ["share", MessageCircle, "Share on WhatsApp"],
+                          ["print", Printer, "Print"],
+                          ["download", Download, "Download PDF"],
+                        ] as const).map(([kind, Icon, label]) => (
+                          <Button
+                            key={kind}
+                            size="sm"
+                            variant="outline"
+                            className="h-8 w-8 p-0"
+                            title={label}
+                            aria-label={`${label} — ${r.first_name}`}
+                            disabled={!!busy}
+                            onClick={() => exportReports(kind, [r], r.student_id)}
+                          >
+                            {busy === `${r.student_id}:${kind}` ? <Loader2 className="h-3 w-3 animate-spin" /> : <Icon className="h-3 w-3" />}
+                          </Button>
+                        ))}
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}

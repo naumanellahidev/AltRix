@@ -1,7 +1,8 @@
 import { useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { PeriodTimetableGrid, type PeriodTimetableEntry } from "@/components/timetable/PeriodTimetableGrid";
-import { Printer, WifiOff, RefreshCw } from "lucide-react";
+import { WifiOff, RefreshCw } from "lucide-react";
+import { TimetableDocumentActions } from "@/components/timetable/TimetableDocumentActions";
 import { useOfflineTimetable, useOfflineTimetablePeriods, useOfflineEnrollments, useOfflineStaffMembers } from "@/hooks/useOfflineData";
 import { OfflineDataBanner } from "@/components/offline/OfflineDataBanner";
 
@@ -101,9 +102,10 @@ export function StudentTimetableModule({ myStudent, schoolId }: { myStudent: any
               Refresh
             </Button>
           )}
-          <Button variant="outline" size="sm" onClick={() => window.print()}>
-            <Printer className="mr-2 h-4 w-4" /> Print
-          </Button>
+          <TimetableDocumentActions
+            disabled={gridEntries.length === 0}
+            input={() => ({ title: "Class Timetable", subject: "My timetable", periods, entries: gridEntries, cellDetail: "teacher" })}
+          />
         </div>
       </div>
 

@@ -10,8 +10,13 @@ from sqlalchemy import select
 from app.dependencies import CurrentUser, DbSession
 from app.models.feature_flags import SchoolFeatureFlag
 from app.models.core import School
+from app.utils.permissions import expand_roles
+from app.utils.tenant_guard import require_tenant_access
 
 router = APIRouter(prefix="/feature-flags", tags=["Feature Flags"])
+
+#: Roles permitted to change a tenant's module entitlements.
+FLAG_ADMIN_ROLES = {"super_admin", "school_owner", "principal"}
 
 
 class FeatureFlagsSchema(BaseModel):
@@ -74,25 +79,12 @@ async def get_school_feature_flags(
             target_school_id = None
 
     if not target_school_id:
-        fallback_uuid = uuid.uuid4()
-        return SchoolFeatureFlag(
-            school_id=fallback_uuid,
-            transport_enabled=True,
-            library_enabled=True,
-            parent_app_enabled=True,
-            document_cert_enabled=True,
-            ai_features_enabled=True,
-            wellbeing_enabled=True,
-            inventory_enabled=True,
-            alumni_enabled=True,
-            public_admissions_enabled=True,
-            hostel_enabled=True,
-            appraisals_enabled=True,
-            seating_plan_enabled=True,
-            white_label_enabled=True,
-            multilang_enabled=True,
-        )
+        # Previously this answered with every flag enabled, which turned an
+        # unknown/mistyped school id into a free unlock of all paid modules.
+        raise HTTPException(status_code=404, detail="School not found")
 
+    # A resolvable school with no flags row keeps the historical default of
+    # everything enabled; entitlement is decided by that row, not by this path.
     effective_ai = True
     try:
         global_ai = await get_ai_status(db)
@@ -107,6 +99,11 @@ async def get_school_feature_flags(
         flags = res.scalar_one_or_none()
 
         if not flags:
+            # No row yet: fall back to the historical default of everything on
+            # and persist it, so entitlement is thereafter decided by the row.
+            # NOTE: these flags are advisory UI hints. The frontend treats an
+            # absent flag as "visible", so they are not an enforcement boundary;
+            # per-module access must still be checked server-side.
             flags = SchoolFeatureFlag(
                 school_id=target_school_id,
                 transport_enabled=True,
@@ -137,23 +134,13 @@ async def get_school_feature_flags(
 
         return flags
     except Exception as e:
-        logger.warning(f"Exception fetching feature flags for school {target_school_id}: {e}")
-        return SchoolFeatureFlag(
-            school_id=target_school_id,
-            transport_enabled=True,
-            library_enabled=True,
-            parent_app_enabled=True,
-            document_cert_enabled=True,
-            ai_features_enabled=effective_ai,
-            wellbeing_enabled=True,
-            inventory_enabled=True,
-            alumni_enabled=True,
-            public_admissions_enabled=True,
-            hostel_enabled=True,
-            appraisals_enabled=True,
-            seating_plan_enabled=True,
-            white_label_enabled=True,
-            multilang_enabled=True,
+        # Do not invent an entitlement here. Answering "every module enabled"
+        # from an exception handler means a transient database blip silently
+        # grants every paid module, and hides the fault while doing it.
+        logger.error(f"Exception fetching feature flags for school {target_school_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Feature flags are temporarily unavailable. Please retry.",
         )
 
 
@@ -175,6 +162,19 @@ async def update_school_feature_flags(
 
     if not target_school_id:
         raise HTTPException(status_code=404, detail="School not found")
+
+    # Flags record which paid modules a tenant has. This endpoint previously
+    # accepted any authenticated user and any school id, so a student could flip
+    # every module on for themselves — or switch another school's modules off.
+    # (Enforcement still belongs in each module; see the note on the GET.)
+    require_tenant_access(
+        target_school_id, current_user, resource_description="feature flags"
+    )
+    if not (current_user.is_super_admin or expand_roles(current_user.roles) & FLAG_ADMIN_ROLES):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Changing feature flags requires an administrative role",
+        )
 
     stmt = select(SchoolFeatureFlag).where(SchoolFeatureFlag.school_id == target_school_id)
     res = await db.execute(stmt)

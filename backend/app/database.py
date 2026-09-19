@@ -49,6 +49,12 @@ def build_engine(database_url: str | None = None):
     if poolclass is None:
         pool_kwargs["pool_size"] = settings.db_pool_size
         pool_kwargs["max_overflow"] = settings.db_pool_max_overflow
+        # Without a timeout a request waits forever for a free connection, so a
+        # slow query turns into a hung worker rather than a failed request.
+        pool_kwargs["pool_timeout"] = settings.db_pool_timeout_seconds
+        # Proxies drop idle connections; recycling first avoids the stale
+        # connection surfacing as a failed query after a quiet period.
+        pool_kwargs["pool_recycle"] = settings.db_pool_recycle_seconds
         
     # Disable prepared statements cache if using pgpooler/pgbouncer (Transaction mode)
     # Supabase Transaction Pooler uses port 6543
@@ -80,7 +86,16 @@ AsyncSessionLocal = async_sessionmaker(
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
     """FastAPI dependency: yield an async database session."""
+    from app.utils.db_session_context import (
+        apply_identity_to_session, clear_identity_from_session,
+    )
+
     async with AsyncSessionLocal() as session:
+        # Publish who is asking before any query runs, so Postgres row-level
+        # security has an identity to evaluate. Done unconditionally — an
+        # anonymous request writes empty values — so a pooled connection can
+        # never inherit the previous caller's identity.
+        await apply_identity_to_session(session)
         try:
             yield session
             await session.commit()
@@ -88,13 +103,25 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
             await session.rollback()
             raise
         finally:
+            await clear_identity_from_session(session)
             await session.close()
 
 
 @asynccontextmanager
 async def get_db_context() -> AsyncGenerator[AsyncSession, None]:
-    """Context manager version for use outside FastAPI dependency injection."""
+    """
+    Context manager version for use outside FastAPI dependency injection
+    (background tasks, Celery workers, startup hooks).
+
+    These run with no request identity, so the session is explicitly marked
+    anonymous rather than inheriting whatever a pooled connection last held.
+    """
+    from app.utils.db_session_context import (
+        apply_identity_to_session, clear_identity_from_session,
+    )
+
     async with AsyncSessionLocal() as session:
+        await apply_identity_to_session(session)
         try:
             yield session
             await session.commit()
@@ -102,4 +129,5 @@ async def get_db_context() -> AsyncGenerator[AsyncSession, None]:
             await session.rollback()
             raise
         finally:
+            await clear_identity_from_session(session)
             await session.close()

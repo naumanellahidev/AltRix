@@ -17,6 +17,7 @@ import {
   Home, Bed, Utensils, Moon, Plus, Search, RefreshCw,
   CheckCircle2, AlertCircle, UserCheck, Shield, Clock, Building, User
 } from "lucide-react";
+import { DataExportMenu } from "@/components/documents/DataExportMenu";
 
 interface HostelRoom {
   id: string;
@@ -267,6 +268,21 @@ export function HostelModule() {
                 <Bed className="h-5 w-5 text-blue-600" /> Hostel Room Master Allocation Grid
               </CardTitle>
               <div className="flex flex-wrap gap-2">
+                <DataExportMenu
+                  title="Hostel Rooms"
+                  rows={rooms.map((r) => ({ building: r.building_name, room: r.room_number, type: r.room_type, capacity: r.capacity, occupied: r.occupied_count, free: Math.max(0, r.capacity - r.occupied_count), fee: r.fee_per_term ?? "" }))}
+                  columns={[
+                    { header: "Building", key: "building" },
+                    { header: "Room", key: "room" },
+                    { header: "Type", key: "type" },
+                    { header: "Capacity", key: "capacity", type: "integer", total: "sum" },
+                    { header: "Occupied", key: "occupied", type: "integer", total: "sum" },
+                    { header: "Free", key: "free", type: "integer", total: "sum" },
+                    { header: "Fee per term", key: "fee", type: "money" },
+                  ]}
+                  disabled={!rooms.length}
+                  size="sm"
+                />
                 <Button onClick={() => setShowAllocateModal(true)} variant="outline" className="border-slate-300 text-slate-700 dark:text-slate-200 text-xs h-9">
                   <UserCheck className="h-4 w-4 mr-2 text-blue-600" /> Assign Student to Room
                 </Button>
@@ -330,6 +346,15 @@ export function HostelModule() {
               <CardTitle className="text-lg font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
                 <Utensils className="h-5 w-5 text-blue-600" /> Weekly Boarding Mess Menu Schedule
               </CardTitle>
+              <div className="flex justify-end">
+                <DataExportMenu
+                  title="Weekly Mess Menu"
+                  rows={messMenu.map((m) => ({ Day: m.day_of_week, Breakfast: m.breakfast, Lunch: m.lunch, Dinner: m.dinner, Notes: m.special_notes ?? "" }))}
+                  orientation="landscape"
+                  disabled={!messMenu.length}
+                  size="sm"
+                />
+              </div>
             </CardHeader>
             <CardContent>
               {messMenu.length === 0 ? (
@@ -372,7 +397,7 @@ export function HostelModule() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <p className="text-sm text-slate-600 dark:text-slate-400">Night check-in roll calls log absent boarders and send automatic parent SMS alerts at 10:00 PM.</p>
+              <p className="text-sm text-slate-600 dark:text-slate-400">Record each boarder's night check-in. Absences are kept in the warden log for follow-up with families.</p>
               <Button onClick={() => setShowAttendanceModal(true)} className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-semibold">
                 <Clock className="h-4 w-4 mr-2" /> Take Night Roll Call
               </Button>

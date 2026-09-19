@@ -70,7 +70,6 @@ async def close_redis():
 
 async def get_redis() -> Optional[aioredis.Redis]:
     """Return the active Redis pool, or None if unavailable."""
-    global _redis_pool
     if _redis_pool is None:
         return await init_redis()
     return _redis_pool
@@ -155,10 +154,19 @@ class CacheManager:
         if not redis:
             return 0
         try:
-            keys = await redis.keys(pattern)
-            if keys:
-                return await redis.delete(*keys)
-            return 0
+            # SCAN rather than KEYS: KEYS walks the whole keyspace in one
+            # blocking call, which stalls every other client once the cache
+            # holds a few hundred thousand keys.
+            deleted = 0
+            batch: list = []
+            async for key in redis.scan_iter(match=pattern, count=500):
+                batch.append(key)
+                if len(batch) >= 500:
+                    deleted += await redis.delete(*batch)
+                    batch = []
+            if batch:
+                deleted += await redis.delete(*batch)
+            return deleted
         except Exception as e:
             self.errors += 1
             logger.warning(f"Cache INVALIDATE error for pattern '{pattern}': {e}")
@@ -261,6 +269,37 @@ def cache_key_permissions(user_id: str, school_id: str) -> str:
 
 def cache_key_roles(user_id: str) -> str:
     return cache.build_key(school_id="global", base_key=f"roles:{user_id}")
+
+
+def cache_key_auth_roles(user_id: str, school_id: str) -> str:
+    """
+    Key for the per-school role set resolved on every authenticated request.
+
+    This must stay in lockstep with ``get_current_user_with_roles``; a mismatch
+    means revoked roles keep working until the TTL expires.
+    """
+    return cache.build_key(school_id=str(school_id), base_key=f"auth:roles:{user_id}")
+
+
+async def invalidate_user_role_cache(user_id: str, school_id: Optional[str] = None) -> None:
+    """
+    Drop a user's cached authorization so a role change takes effect at once.
+
+    Call this from every path that grants, revokes or changes a role, and on
+    logout. Without it a revoked teacher keeps full access until TTL_USER_ROLES
+    elapses.
+    """
+    try:
+        if school_id:
+            await cache.delete(cache_key_auth_roles(user_id, school_id))
+            await cache.delete(cache_key_permissions(user_id, str(school_id)))
+        else:
+            # School unknown (e.g. logout): clear every tenant's entry for them.
+            await cache.invalidate_pattern(f"*auth:roles:{user_id}")
+            await cache.invalidate_pattern(f"*user_{user_id}_permissions")
+        await cache.delete(cache_key_roles(user_id))
+    except Exception as e:  # cache failures must never block an auth change
+        logger.warning(f"Failed to invalidate role cache for {user_id}: {e}")
 
 
 def cache_key_dashboard(school_id: str) -> str:

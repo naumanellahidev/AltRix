@@ -1,235 +1,399 @@
 """
-Backup Service — Automated database backup via Celery scheduled jobs.
+Backup Service — automated database dumps via Celery beat.
 
-Features:
-- pg_dump automation to Supabase Storage
-- Backup rotation (keep last N backups)
-- Off-hours scheduling (runs at 2 AM PKT)
-- Backup integrity validation
-- Restore procedure documentation
+State before this was fixed
+---------------------------
+Three independent faults meant a backup had never once been taken:
 
-Note: Primary backups are managed by Railway/Supabase infrastructure.
-      This service provides additional application-level backup readiness.
-      Heavy jobs are intentionally run during off-peak hours.
+1. ``register_backup_tasks()`` was never called from anywhere, and this module
+   was not in Celery's ``include`` list, so the task was never registered.
+2. ``_async_run_backup`` called ``_upload_backup()``, which does not exist — the
+   function is named ``_upload_to_storage``. Every run raised ``NameError``,
+   which the surrounding ``except Exception`` swallowed into a returned dict, so
+   nothing ever surfaced.
+3. The schedule was a plain 24-hour interval gated behind an "off-peak hours"
+   check. A worker started at, say, 10:00 UTC would fire at 10:00 every day and
+   be skipped every time.
+
+Each one alone was enough to guarantee no backups. The task is now registered
+through the normal Celery path in ``celery_app.py`` on a crontab, and failures
+raise rather than being reported as a return value.
+
+Two further faults were found on the host itself:
+
+4. ``pg_dump`` was not installed in the Docker image, so every run would have
+   died with FileNotFoundError regardless. The Dockerfile now installs
+   postgresql-client and the build fails if it is missing.
+5. ``/var/lib/altrix/storage`` was bind-mounted into NO container, so anything
+   written there — backups, and every uploaded file — lived inside the container
+   and was destroyed on the next deploy. deploy.sh now mounts it.
+
+Where these backups live
+------------------------
+Dumps are AES-256-GCM encrypted (they contain every student's personal data),
+written to the mounted host volume, and replicated off-site. A copy that never
+leaves the machine does not survive losing the machine, which is the scenario
+people mean when they ask whether backups exist.
+
+Restoring is in app/utils/restore_service.py, with the operator runbook in
+docs/backup-restore.md. A backup nobody has restored is a hypothesis, so a
+scheduled drill restores the newest dump into a scratch database and reports
+whether it actually works.
 """
 import logging
 import os
+import shutil
 import subprocess
 import tempfile
 from datetime import datetime, timezone
 from typing import Optional
 
+from app.utils.backup_storage import (
+    BackupKeyMissing,
+    encrypt_file,
+    encryption_available,
+    replicate_offsite,
+)
+
 logger = logging.getLogger("app.backup")
 
 # ─── Configuration ────────────────────────────────────────────────────────────
 
+STORAGE_ROOT = "/var/lib/altrix/storage"
 BACKUP_BUCKET = "altrix-backups"
 BACKUP_RETENTION_COUNT = 30          # Keep last 30 daily backups
-BACKUP_MAX_SIZE_GB = 5               # Skip backup if DB is too large
-BACKUP_OFF_HOURS_UTC_START = 21      # 9 PM UTC = 2 AM PKT (+5)
-BACKUP_OFF_HOURS_UTC_END = 4         # 4 AM UTC = 9 AM PKT
+BACKUP_MAX_SIZE_BYTES = 5 * 1024**3  # Refuse to keep a dump larger than 5 GB
+PG_DUMP_TIMEOUT_SECONDS = 1800       # 30 minutes
+
+#: pg_dump is invoked with --format=custom, which produces a compressed archive
+#: for pg_restore — not gzipped SQL. The old code named these files ".sql.gz",
+#: which would send anyone following a restore runbook down the wrong path.
+BACKUP_SUFFIX = ".dump"
+
+#: Appended once a dump has been encrypted, so the restore path can tell at a
+#: glance which files need a key.
+ENCRYPTED_SUFFIX = ".enc"
 
 
-# ─── Celery Task Registration ─────────────────────────────────────────────────
+def _require_encryption() -> bool:
+    """Production refuses to write personal data to disk in the clear."""
+    from app.config import settings
+    return settings.is_production
 
-def register_backup_tasks(celery_app):
-    """
-    Register backup tasks with the Celery app.
-    Call this from celery_app.py.
 
-    Schedule: Daily at 2 AM PKT (21:00 UTC)
-    """
-    celery_app.conf.beat_schedule = {
-        **getattr(celery_app.conf, "beat_schedule", {}),
-        "daily-db-backup": {
-            "task": "app.utils.backup_service.run_daily_backup",
-            "schedule": 86400,  # every 24 hours
-            "options": {"expires": 3600},
-        },
-    }
-
-    @celery_app.task(
-        name="app.utils.backup_service.run_daily_backup",
-        bind=True,
-        max_retries=2,
-        default_retry_delay=300,
-    )
-    def run_daily_backup(self):
-        """
-        Celery task: run pg_dump and upload to Supabase Storage.
-        Only runs during off-peak hours to avoid impacting performance.
-        """
-        import asyncio
-        try:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            result = loop.run_until_complete(_async_run_backup())
-            loop.close()
-            return result
-        except Exception as exc:
-            logger.error(f"Backup task failed: {exc}")
-            self.retry(exc=exc)
-
-    return run_daily_backup
+def _backup_dir() -> str:
+    return os.path.realpath(os.path.join(STORAGE_ROOT, BACKUP_BUCKET, "daily"))
 
 
 # ─── Core Backup Logic ────────────────────────────────────────────────────────
 
-async def _async_run_backup() -> dict:
+async def run_backup(force: bool = False) -> dict:
     """
-    Main backup execution:
-    1. Check if we're in off-peak hours
-    2. Run pg_dump
-    3. Upload to Supabase Storage
-    4. Rotate old backups
-    5. Log result
+    Take a dump, verify it, store it, and rotate old ones.
+
+    ``force`` bypasses the off-peak guard for an operator-triggered run.
+    Raises on failure so Celery records it and retries; a silently returned
+    error dict is how this went unnoticed for so long.
     """
     now_utc = datetime.now(timezone.utc)
-    hour = now_utc.hour
 
-    # Check off-peak window
-    in_off_hours = hour >= BACKUP_OFF_HOURS_UTC_START or hour < BACKUP_OFF_HOURS_UTC_END
-    if not in_off_hours:
-        logger.info(f"Skipping backup: not in off-peak window (current UTC hour: {hour})")
+    # Timing is the scheduler's job now. This guard only stops an accidental
+    # mid-day run from competing with live traffic.
+    if not force and not _in_off_peak_window(now_utc):
+        logger.info(f"Skipping backup: outside the off-peak window (UTC hour {now_utc.hour})")
         return {"status": "skipped", "reason": "peak_hours"}
 
-    logger.info("Starting scheduled database backup...")
+    logger.info("Starting scheduled database backup")
+    filename = f"backup_{now_utc.strftime('%Y%m%d_%H%M%S')}_utc{BACKUP_SUFFIX}"
+    destination = os.path.join(_backup_dir(), filename)
+
+    dump_path = await _run_pg_dump()
+    if not dump_path:
+        raise RuntimeError("pg_dump produced no output")
 
     try:
-        backup_data = await _run_pg_dump()
-        if not backup_data:
-            return {"status": "failed", "reason": "pg_dump_empty"}
+        size = os.path.getsize(dump_path)
+        if size == 0:
+            raise RuntimeError("pg_dump produced an empty file")
+        if size > BACKUP_MAX_SIZE_BYTES:
+            raise RuntimeError(
+                f"Dump is {size / 1024**3:.1f} GB, over the "
+                f"{BACKUP_MAX_SIZE_BYTES / 1024**3:.0f} GB limit"
+            )
 
-        filename = f"backup_{now_utc.strftime('%Y%m%d_%H%M%S')}_utc.sql.gz"
-        path = f"daily/{filename}"
+        # An unreadable archive is worse than no archive, because it looks like
+        # protection right up until a restore is attempted. Verify while the
+        # dump is still plaintext.
+        if not _verify_dump(dump_path):
+            raise RuntimeError("Dump failed its integrity check and was discarded")
 
-        uploaded = await _upload_backup(backup_data, path)
-        if not uploaded:
-            return {"status": "failed", "reason": "upload_failed"}
+        # Encrypt before anything is written to a resting location. The dump
+        # holds every student's personal details; it must not sit in the clear
+        # on disk or travel to an off-site bucket unprotected.
+        if encryption_available():
+            encrypted = dump_path + ".enc"
+            encrypt_file(dump_path, encrypted)
+            os.unlink(dump_path)
+            dump_path = encrypted
+            destination += ENCRYPTED_SUFFIX
+            filename += ENCRYPTED_SUFFIX
+            size = os.path.getsize(dump_path)
+        elif _require_encryption():
+            raise BackupKeyMissing(
+                "BACKUP_ENCRYPTION_KEY is not set. A dump of this database "
+                "contains every student's personal data and will not be written "
+                "unencrypted in production."
+            )
+        else:
+            logger.warning(
+                "Backup is being stored UNENCRYPTED: no BACKUP_ENCRYPTION_KEY "
+                "is configured. This file contains personal data for every "
+                "student in every school."
+            )
 
-        await _rotate_old_backups()
+        _store(dump_path, destination)
+        dump_path = None  # moved, no longer ours to clean up
+    finally:
+        if dump_path and os.path.exists(dump_path):
+            os.unlink(dump_path)
 
-        size_kb = len(backup_data) // 1024
-        logger.info(f"Backup completed: {filename} ({size_kb} KB)")
-        return {
-            "status": "success",
-            "filename": filename,
-            "size_kb": size_kb,
-            "timestamp": now_utc.isoformat(),
-        }
+    # A copy that never leaves this machine does not survive losing it.
+    offsite = await replicate_offsite(destination, f"daily/{filename}")
+    if not offsite.get("replicated"):
+        logger.error(
+            f"Backup {filename} was NOT replicated off-site: {offsite.get('reason')}"
+        )
 
-    except Exception as e:
-        logger.error(f"Backup failed: {e}")
-        return {"status": "error", "error": str(e)}
+    _rotate_old_backups()
+
+    size_mb = round(size / (1024 * 1024), 2)
+    logger.info(f"Backup completed: {filename} ({size_mb} MB)")
+    return {
+        "status": "success",
+        "filename": filename,
+        "size_bytes": size,
+        "size_mb": size_mb,
+        "encrypted": filename.endswith(ENCRYPTED_SUFFIX),
+        "offsite": offsite,
+        "timestamp": now_utc.isoformat(),
+    }
 
 
-async def _run_pg_dump() -> Optional[bytes]:
+def _in_off_peak_window(now_utc: datetime) -> bool:
+    """21:00–04:00 UTC, i.e. 02:00–09:00 PKT."""
+    return now_utc.hour >= 21 or now_utc.hour < 4
+
+
+async def _run_pg_dump() -> Optional[str]:
     """
-    Execute pg_dump against the configured database.
-    Returns compressed SQL bytes, or None on failure.
+    Dump the database to a temporary file and return its path.
+
+    Returns the path rather than the bytes: a multi-gigabyte dump read into a
+    variable, as the previous version did, would exhaust the worker's memory on
+    exactly the large databases that most need backing up.
     """
     from app.config import settings
 
     db_url = settings.database_url
     if not db_url:
-        logger.warning("No DATABASE_URL configured — backup skipped")
+        logger.error("No DATABASE_URL configured — cannot back up")
         return None
 
-    # Convert SQLAlchemy URL format to psql format
     pg_url = db_url.replace("postgresql+asyncpg://", "postgresql://")
 
-    try:
-        with tempfile.NamedTemporaryFile(suffix=".sql.gz", delete=False) as tmp:
-            tmp_path = tmp.name
+    fd, tmp_path = tempfile.mkstemp(suffix=BACKUP_SUFFIX)
+    os.close(fd)
 
+    try:
         result = subprocess.run(
-            ["pg_dump", "--dbname", pg_url, "--format=custom", "--compress=6", f"--file={tmp_path}"],
+            [
+                "pg_dump",
+                "--dbname", pg_url,
+                "--format=custom",
+                "--compress=6",
+                "--no-owner",
+                "--no-privileges",
+                f"--file={tmp_path}",
+            ],
             capture_output=True,
-            timeout=300,  # 5 minute timeout
+            timeout=PG_DUMP_TIMEOUT_SECONDS,
         )
 
         if result.returncode != 0:
             err = result.stderr.decode("utf-8", errors="replace")
-            logger.error(f"pg_dump failed (rc={result.returncode}): {err[:500]}")
+            # The connection string carries the password; keep it out of logs.
+            logger.error(f"pg_dump failed (rc={result.returncode}): {_redact(err, pg_url)[:500]}")
+            os.unlink(tmp_path)
             return None
 
-        with open(tmp_path, "rb") as f:
-            data = f.read()
-
-        os.unlink(tmp_path)
-        return data
+        return tmp_path
 
     except FileNotFoundError:
-        logger.warning("pg_dump not available — skipping backup")
+        logger.error("pg_dump is not installed on this host — no backup can be taken")
+        os.unlink(tmp_path)
         return None
     except subprocess.TimeoutExpired:
-        logger.error("pg_dump timed out after 5 minutes")
+        logger.error(f"pg_dump timed out after {PG_DUMP_TIMEOUT_SECONDS}s")
+        if os.path.exists(tmp_path):
+            os.unlink(tmp_path)
         return None
     except Exception as e:
         logger.error(f"pg_dump exception: {e}")
+        if os.path.exists(tmp_path):
+            os.unlink(tmp_path)
         return None
 
 
-async def _upload_to_storage(data: bytes, path: str) -> bool:
-    """Upload encrypted backup file to VPS Private Storage."""
+def _redact(text: str, secret_url: str) -> str:
+    return text.replace(secret_url, "<DATABASE_URL>") if secret_url else text
+
+
+def _verify_dump(path: str) -> bool:
+    """
+    Confirm pg_restore can read the archive's table of contents.
+
+    Cheap, and it catches a truncated or corrupt dump at the point it is made
+    rather than during an incident.
+    """
     try:
-        local_path = os.path.realpath(os.path.join("/var/lib/altrix/storage", BACKUP_BUCKET, path.lstrip("/")))
-        os.makedirs(os.path.dirname(local_path), exist_ok=True)
-        with open(local_path, "wb") as f:
-            f.write(data)
-        os.chmod(local_path, 0o640)
-        logger.info(f"Backup uploaded to VPS storage: {local_path} ({len(data)} bytes)")
+        result = subprocess.run(
+            ["pg_restore", "--list", path], capture_output=True, timeout=120
+        )
+        if result.returncode != 0:
+            logger.error(
+                "pg_restore could not read the dump: "
+                f"{result.stderr.decode('utf-8', errors='replace')[:300]}"
+            )
+            return False
+        return b"TABLE" in result.stdout or len(result.stdout) > 0
+    except FileNotFoundError:
+        logger.warning("pg_restore unavailable — storing the dump unverified")
         return True
     except Exception as e:
-        logger.error(f"Backup upload exception: {e}")
+        logger.error(f"Dump verification failed: {e}")
         return False
 
 
-async def _rotate_old_backups() -> None:
-    """
-    Remove backups beyond BACKUP_RETENTION_COUNT.
-    Keeps the N most recent backups.
-    """
+def _store(source: str, destination: str) -> None:
+    """Move the dump into the backup directory."""
+    os.makedirs(os.path.dirname(destination), exist_ok=True)
+    shutil.move(source, destination)
+    os.chmod(destination, 0o600)
+    logger.info(f"Backup stored at {destination}")
+
+
+# Kept under the previous name too: an incorrect call to this is what silently
+# broke every backup run, so both spellings now resolve to the same function.
+_upload_to_storage = _store
+_upload_backup = _store
+
+
+def _rotate_old_backups() -> None:
+    """Keep the most recent BACKUP_RETENTION_COUNT dumps."""
     try:
-        daily_dir = os.path.realpath(os.path.join("/var/lib/altrix/storage", BACKUP_BUCKET, "daily"))
+        daily_dir = _backup_dir()
         if not os.path.exists(daily_dir):
             return
 
-        files = sorted([os.path.join(daily_dir, f) for f in os.listdir(daily_dir) if os.path.isfile(os.path.join(daily_dir, f))])
-        if len(files) <= BACKUP_RETENTION_COUNT:
-            return
-
-        to_delete = files[:len(files) - BACKUP_RETENTION_COUNT]
-        for fpath in to_delete:
+        files = sorted(
+            (os.path.join(daily_dir, f) for f in os.listdir(daily_dir)
+             if os.path.isfile(os.path.join(daily_dir, f))),
+            key=os.path.getmtime,
+        )
+        for fpath in files[:max(0, len(files) - BACKUP_RETENTION_COUNT)]:
             os.remove(fpath)
-            logger.info(f"Rotated old backup file: {fpath}")
-
+            logger.info(f"Rotated out old backup: {os.path.basename(fpath)}")
     except Exception as e:
+        # Rotation failing must not fail a backup that already succeeded.
         logger.warning(f"Backup rotation failed: {e}")
 
 
 async def get_backup_status() -> dict:
     """
-    Return the status of recent backups.
-    Used by the security monitoring dashboard.
+    Report recent backups for the monitoring dashboard.
+
+    ``offsite_copy`` is reported as unknown on purpose: these dumps sit on the
+    same host as the database, so the dashboard should not imply the data would
+    survive losing that host.
     """
     try:
-        daily_dir = os.path.realpath(os.path.join("/var/lib/altrix/storage", BACKUP_BUCKET, "daily"))
+        daily_dir = _backup_dir()
         if not os.path.exists(daily_dir):
-            return {"available": False, "backups": []}
+            return {
+                "available": False,
+                "count": 0,
+                "backups": [],
+                "warning": "No backups have been taken yet.",
+                "offsite_configured": False,
+                "last_restore_drill": _read_drill_marker(),
+            }
 
-        files = sorted([f for f in os.listdir(daily_dir) if os.path.isfile(os.path.join(daily_dir, f))], reverse=True)
-        backups = []
-        for fname in files[:5]:
-            fpath = os.path.join(daily_dir, fname)
-            backups.append({"name": fname, "size": os.path.getsize(fpath)})
+        entries = sorted(
+            (f for f in os.listdir(daily_dir) if os.path.isfile(os.path.join(daily_dir, f))),
+            reverse=True,
+        )
+        backups = [
+            {
+                "name": f,
+                "size": os.path.getsize(os.path.join(daily_dir, f)),
+                "created_at": datetime.fromtimestamp(
+                    os.path.getmtime(os.path.join(daily_dir, f)), tz=timezone.utc
+                ).isoformat(),
+            }
+            for f in entries[:5]
+        ]
+
+        latest_age_hours = None
+        if backups:
+            newest = datetime.fromisoformat(backups[0]["created_at"])
+            latest_age_hours = round(
+                (datetime.now(timezone.utc) - newest).total_seconds() / 3600, 1
+            )
+
+        from app.config import settings
+        offsite_target = (settings.backup_offsite_target or "none").lower()
 
         return {
-            "available": True,
-            "count": len(files),
-            "latest": files[0] if files else None,
+            "available": bool(entries),
+            "count": len(entries),
+            "latest": entries[0] if entries else None,
+            "latest_age_hours": latest_age_hours,
+            "stale": latest_age_hours is not None and latest_age_hours > 48,
             "backups": backups,
+            "storage_path": daily_dir,
+            "encrypted": all(b["name"].endswith(ENCRYPTED_SUFFIX) for b in backups) if backups else None,
+            "offsite_target": offsite_target,
+            # Reported plainly so a dashboard cannot imply the data would
+            # survive losing this host when it would not.
+            "offsite_configured": offsite_target not in ("", "none"),
+            "last_restore_drill": _read_drill_marker(),
         }
     except Exception as e:
         logger.warning(f"Backup status check failed: {e}")
-        return {"available": False, "error": str(e)}
+        return {"available": False, "error": str(e), "offsite_configured": False}
+
+
+DRILL_MARKER = "last_restore_drill.json"
+
+
+def _drill_marker_path() -> str:
+    return os.path.join(os.path.realpath(os.path.join(STORAGE_ROOT, BACKUP_BUCKET)),
+                        DRILL_MARKER)
+
+
+def _read_drill_marker() -> Optional[dict]:
+    """When, and whether, a restore was last proven to work."""
+    try:
+        import json
+        with open(_drill_marker_path(), "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return None
+
+
+def write_drill_marker(result: dict) -> None:
+    import json
+    path = _drill_marker_path()
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(result, f)

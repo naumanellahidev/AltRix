@@ -24,6 +24,8 @@ from app.schemas import (
     MessageResponse,
 )
 from app.utils.permissions import expand_roles, ACADEMIC_GOV
+from app.utils.money import percentage
+from app.utils.pagination import ListPageParams
 
 router = APIRouter(prefix="/curriculum", tags=["Curriculum"])
 
@@ -31,25 +33,22 @@ router = APIRouter(prefix="/curriculum", tags=["Curriculum"])
 # ─── PRESETS ──────────────────────────────────────────────────────────────────
 
 @router.get("/presets", response_model=List[CurriculumPresetOut])
-async def list_presets(current_user: CurrentUser, db: DbSession):
+async def list_presets(current_user: CurrentUser, db: DbSession, page: ListPageParams):
     """List available curriculum presets (global + school-specific)."""
     if not current_user.school_id:
         return []
-    try:
-        result = await db.execute(
-            select(CurriculumPreset)
-            .where(
-                or_(
-                    CurriculumPreset.is_global == True,
-                    CurriculumPreset.school_id == current_user.school_id,
-                ),
-                CurriculumPreset.is_active == True,
-            )
-            .order_by(CurriculumPreset.is_global.desc(), CurriculumPreset.name)
+    result = await db.execute(
+        page.apply(select(CurriculumPreset)
+        .where(
+            or_(
+                CurriculumPreset.is_global == True,
+                CurriculumPreset.school_id == current_user.school_id,
+            ),
+            CurriculumPreset.is_active == True,
         )
-        return list(result.scalars().all())
-    except Exception:
-        return []
+        .order_by(CurriculumPreset.is_global.desc(), CurriculumPreset.name))
+    )
+    return list(result.scalars().all())
 
 
 @router.get("/presets/{preset_id}", response_model=CurriculumPresetOut)
@@ -91,7 +90,7 @@ async def create_preset(body: dict, current_user: CurrentUser, db: DbSession):
 async def list_learning_outcomes(
     current_user: CurrentUser,
     db: DbSession,
-    subject_id: Optional[UUID] = Query(None),
+    page: ListPageParams, subject_id: Optional[UUID] = Query(None),
     strand: Optional[str] = Query(None),
     grade_level: Optional[int] = Query(None),
     preset_id: Optional[UUID] = Query(None),
@@ -111,7 +110,7 @@ async def list_learning_outcomes(
     if preset_id:
         query = query.where(LearningOutcome.preset_id == preset_id)
 
-    result = await db.execute(query.order_by(LearningOutcome.strand, LearningOutcome.sort_order))
+    result = await db.execute(page.apply(query.order_by(LearningOutcome.strand, LearningOutcome.sort_order)))
     return result.scalars().all()
 
 
@@ -248,9 +247,9 @@ async def create_lo_mappings(
 
 
 @router.get("/lo-mappings/{assessment_id}", response_model=List[AssessmentLOMappingOut])
-async def list_lo_mappings(assessment_id: UUID, current_user: CurrentUser, db: DbSession):
+async def list_lo_mappings(assessment_id: UUID, current_user: CurrentUser, db: DbSession, page: ListPageParams):
     result = await db.execute(
-        select(AssessmentLOMapping).where(AssessmentLOMapping.assessment_id == assessment_id)
+        page.apply(select(AssessmentLOMapping).where(AssessmentLOMapping.assessment_id == assessment_id))
     )
     return result.scalars().all()
 
@@ -279,14 +278,14 @@ async def create_criteria(body: AssessmentCriteriaCreate, current_user: CurrentU
 async def list_criteria(
     current_user: CurrentUser,
     db: DbSession,
-    assessment_id: Optional[UUID] = Query(None),
+    page: ListPageParams, assessment_id: Optional[UUID] = Query(None),
 ):
     if not current_user.school_id:
         return []
     query = select(AssessmentCriteria).where(AssessmentCriteria.school_id == current_user.school_id)
     if assessment_id:
         query = query.where(AssessmentCriteria.assessment_id == assessment_id)
-    result = await db.execute(query.order_by(AssessmentCriteria.sort_order))
+    result = await db.execute(page.apply(query.order_by(AssessmentCriteria.sort_order)))
     return result.scalars().all()
 
 
@@ -320,14 +319,14 @@ async def record_criteria_scores(
 
 
 @router.get("/criteria-scores/student/{student_id}", response_model=List[CriteriaScoreOut])
-async def get_student_criteria_scores(student_id: UUID, current_user: CurrentUser, db: DbSession):
+async def get_student_criteria_scores(student_id: UUID, current_user: CurrentUser, db: DbSession, page: ListPageParams):
     from app.utils.security import get_allowed_student_ids
     allowed = await get_allowed_student_ids(current_user, db)
     if allowed is not None and student_id not in allowed:
         raise ForbiddenError("Permission denied")
     result = await db.execute(
-        select(CriteriaScore).where(CriteriaScore.student_id == student_id)
-        .order_by(CriteriaScore.created_at.desc())
+        page.apply(select(CriteriaScore).where(CriteriaScore.student_id == student_id)
+        .order_by(CriteriaScore.created_at.desc()))
     )
     return result.scalars().all()
 
@@ -348,7 +347,7 @@ async def record_strand_assessments(
 
     created = []
     for a in assessments:
-        pct = round(a.score / a.max_score * 100, 2) if a.score is not None and a.max_score else None
+        pct = percentage(a.score, a.max_score) if a.score is not None else None
         sa = StrandAssessment(
             school_id=current_user.school_id,
             student_id=a.student_id,
@@ -376,7 +375,7 @@ async def get_student_strand_assessments(
     student_id: UUID,
     current_user: CurrentUser,
     db: DbSession,
-    subject_id: Optional[UUID] = Query(None),
+    page: ListPageParams, subject_id: Optional[UUID] = Query(None),
     academic_year: Optional[str] = Query(None),
 ):
     from app.utils.security import get_allowed_student_ids
@@ -390,7 +389,7 @@ async def get_student_strand_assessments(
     if academic_year:
         query = query.where(StrandAssessment.academic_year == academic_year)
 
-    result = await db.execute(query.order_by(StrandAssessment.strand_name, StrandAssessment.created_at))
+    result = await db.execute(page.apply(query.order_by(StrandAssessment.strand_name, StrandAssessment.created_at)))
     return result.scalars().all()
 
 
@@ -400,7 +399,7 @@ async def get_student_strand_assessments(
 async def list_grade_boundaries(
     current_user: CurrentUser,
     db: DbSession,
-    subject_id: Optional[UUID] = Query(None),
+    page: ListPageParams, subject_id: Optional[UUID] = Query(None),
     preset_id: Optional[UUID] = Query(None),
 ):
     if not current_user.school_id:
@@ -410,11 +409,8 @@ async def list_grade_boundaries(
         query = query.where(GradeBoundary.subject_id == subject_id)
     if preset_id:
         query = query.where(GradeBoundary.preset_id == preset_id)
-    try:
-        result = await db.execute(query.order_by(GradeBoundary.sort_order, GradeBoundary.min_percentage.desc()))
-        return list(result.scalars().all())
-    except Exception:
-        return []
+    result = await db.execute(page.apply(query.order_by(GradeBoundary.sort_order, GradeBoundary.min_percentage.desc())))
+    return list(result.scalars().all())
 
 
 @router.post("/grade-boundaries", response_model=List[GradeBoundaryOut], status_code=status.HTTP_201_CREATED)

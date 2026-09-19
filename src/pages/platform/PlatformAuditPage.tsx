@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { ScrollText, Search, RefreshCw, FileSpreadsheet, ShieldAlert } from "lucide-react";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
+import { DataExportMenu } from "@/components/documents/DataExportMenu";
 
 type AuditRow = {
   id: string;
@@ -32,6 +33,7 @@ export default function PlatformAuditPage() {
   const [filterSchool, setFilterSchool] = useState("all");
   const [filterAction, setFilterAction] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const refreshLogs = async () => {
     setLoading(true);
@@ -49,14 +51,14 @@ export default function PlatformAuditPage() {
 
       if (error) throw error;
       setAuditLogs((auditData ?? []) as AuditRow[]);
+      setLoadError(null);
     } catch (err: any) {
+      // No stand-in records. This page used to show three invented entries —
+      // an impersonation, a school creation — whenever the real log could not
+      // be read, which is the one place a platform must never make things up.
       console.error("Error loading audit logs:", err);
-      // Fallback/Mock logs if table does not exist or has permission issues
-      setAuditLogs([
-        { id: "1", created_at: new Date().toISOString(), action: "impersonate_user", entity_type: "user", entity_id: "teacher@beacon.com", school_id: "1", actor_user_id: "admin@altrix.com" },
-        { id: "2", created_at: new Date(Date.now() - 3600000).toISOString(), action: "create_school", entity_type: "school", entity_id: "apex", school_id: "2", actor_user_id: "admin@altrix.com" },
-        { id: "3", created_at: new Date(Date.now() - 7200000).toISOString(), action: "update_school_settings", entity_type: "school", entity_id: "beacon", school_id: "1", actor_user_id: "admin@altrix.com" },
-      ]);
+      setAuditLogs([]);
+      setLoadError(err?.message ?? "The audit log could not be loaded.");
     } finally {
       setLoading(false);
     }
@@ -84,11 +86,16 @@ export default function PlatformAuditPage() {
     });
   }, [auditLogs, filterSchool, filterAction, searchQuery]);
 
-  const exportCSV = () => {
-    toast.success("CSV report exported successfully!", {
-      description: `Downloaded ${filteredLogs.length} audit logs.`
-    });
-  };
+  // The export used to show "exported successfully" and download nothing.
+  const auditExportRows = () =>
+    filteredLogs.map((log) => ({
+      time: log.created_at,
+      action: log.action,
+      entity_type: log.entity_type,
+      entity: log.entity_id ?? "",
+      school: log.school_id ? schoolsById.get(log.school_id)?.name ?? log.school_id : "Platform",
+      actor: log.actor_user_id ?? "",
+    }));
 
   return (
     <SuperAdminShell title="Audit Log" subtitle="Monitor administrator activities, operations and impersonation actions">
@@ -173,9 +180,28 @@ export default function PlatformAuditPage() {
                   <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
                 </Button>
 
-                <Button onClick={exportCSV} className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-zinc-950 font-bold border border-0 shadow-md">
-                  <FileSpreadsheet className="h-4 w-4 mr-2" /> Export
-                </Button>
+                <DataExportMenu
+                  title="Platform Audit Log"
+                  subtitle={`${filteredLogs.length} record${filteredLogs.length === 1 ? "" : "s"}`}
+                  rows={auditExportRows()}
+                  columns={[
+                    { header: "Time", key: "time", type: "datetime" },
+                    { header: "Action", key: "action" },
+                    { header: "Entity Type", key: "entity_type" },
+                    { header: "Entity", key: "entity" },
+                    { header: "School", key: "school" },
+                    { header: "Actor", key: "actor" },
+                  ]}
+                  filters={[
+                    { label: "School", value: filterSchool === "all" ? null : schoolsById.get(filterSchool)?.name ?? filterSchool },
+                    { label: "Action", value: filterAction === "all" ? null : filterAction },
+                    { label: "Search", value: searchQuery.trim() || null },
+                  ]}
+                  orientation="landscape"
+                  disabled={filteredLogs.length === 0}
+                  variant="default"
+                  size="default"
+                />
               </div>
             </div>
 
@@ -220,7 +246,7 @@ export default function PlatformAuditPage() {
                   {filteredLogs.length === 0 && (
                     <TableRow>
                       <TableCell colSpan={5} className="text-center text-slate-400 py-8">
-                        No audit records found matching the criteria.
+                        {loadError ? `The audit log could not be loaded: ${loadError}` : "No audit records found matching the criteria."}
                       </TableCell>
                     </TableRow>
                   )}

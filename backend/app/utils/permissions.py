@@ -151,6 +151,64 @@ def can_moderate_complaints(roles: Set[str]) -> bool:
     )
 
 
+#: Roles a caller may grant, keyed by the strongest role the caller holds.
+#: A caller may never grant a role at or above their own level, otherwise a
+#: principal could promote themselves to school_owner and a school_owner could
+#: mint platform super admins.
+_ASSIGNABLE_ROLES = {
+    "super_admin": set(EDUVERSE_ROLES),
+    "school_owner": set(EDUVERSE_ROLES) - {"super_admin", "school_owner"},
+    "principal": set(EDUVERSE_ROLES) - {"super_admin", "school_owner", "principal"},
+    "vice_principal": set(EDUVERSE_ROLES)
+    - {"super_admin", "school_owner", "principal", "vice_principal"},
+    "school_admin": {
+        "teacher", "student", "parent", "counselor", "marketing_staff",
+        "academic_coordinator",
+    },
+}
+
+#: Order from strongest to weakest, used to pick the caller's effective level.
+_ROLE_PRECEDENCE = [
+    "super_admin", "school_owner", "principal", "vice_principal", "school_admin",
+]
+
+
+def assignable_roles(caller_roles: Set[str], is_super_admin: bool = False) -> Set[str]:
+    """Return the set of roles this caller is permitted to grant."""
+    if is_super_admin:
+        return set(_ASSIGNABLE_ROLES["super_admin"])
+    for level in _ROLE_PRECEDENCE:
+        if level in caller_roles:
+            return set(_ASSIGNABLE_ROLES[level])
+    return set()
+
+
+def assert_can_assign_role(
+    caller_roles: Set[str],
+    is_super_admin: bool,
+    target_role: str,
+) -> None:
+    """
+    Raise 403 unless the caller may grant ``target_role``.
+
+    Guards against horizontal and vertical escalation: a role is only grantable
+    by someone strictly above it, and unknown role strings are rejected so a
+    typo cannot create an unmanaged privilege.
+    """
+    target = (target_role or "").strip().lower()
+    if target not in EDUVERSE_ROLES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Unknown role '{target_role}'.",
+        )
+    allowed = assignable_roles(caller_roles, is_super_admin)
+    if target not in allowed:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"You are not permitted to assign the '{target}' role.",
+        )
+
+
 def can_broadcast_notices(roles: Set[str]) -> bool:
     return any_of(
         ["super_admin", "school_owner", "principal", "vice_principal",

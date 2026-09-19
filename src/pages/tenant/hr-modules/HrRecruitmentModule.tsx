@@ -17,6 +17,7 @@ import { format } from "date-fns";
 import { useRef, useState as useRState } from "react";
 import { RecruitmentPostingDocument } from "@/components/hr/RecruitmentPostingDocument";
 import { ExportPdfButton } from "@/components/pdf/ExportPdfButton";
+import { documentFileName } from "@/lib/documents/format";
 import { useSchoolDocument } from "@/hooks/useSchoolDocument";
 
 const isImage = (filename: string) => {
@@ -303,7 +304,7 @@ function PostingsTab({ postings, schoolId, onChange, loading }: { postings: JobP
             {preview && (
               <ExportPdfButton
                 targetRef={docRef as any}
-                filename={`Job-${preview.title.replace(/\s+/g, "-")}-${preview.id.slice(0, 6)}`}
+                filename={documentFileName([preview.title, "Job Posting"], "pdf")}
               />
             )}
           </DialogHeader>

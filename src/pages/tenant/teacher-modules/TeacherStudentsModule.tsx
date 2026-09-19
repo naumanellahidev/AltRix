@@ -19,6 +19,7 @@ import {
   type SectionOption,
   type SubjectOption,
 } from "@/components/academic/StudentFormDialog";
+import { DataExportMenu } from "@/components/documents/DataExportMenu";
 
 interface Section {
   id: string;
@@ -451,7 +452,21 @@ export function TeacherStudentsModule() {
       {/* Students Table */}
       <Card>
         <CardHeader>
-          <CardTitle>Students ({filteredStudents.length})</CardTitle>
+          <div className="flex items-center justify-between gap-2">
+            <CardTitle>Students ({filteredStudents.length})</CardTitle>
+            <DataExportMenu
+              title="Class Roster"
+              rows={filteredStudents.map((s) => ({
+                Student: [s.first_name, s.last_name].filter(Boolean).join(" "),
+                "Roll No.": s.roll_number ?? "",
+                Code: s.student_code ?? "",
+                Parent: s.parent_name ?? "",
+                Status: s.status,
+              }))}
+              disabled={!filteredStudents.length}
+              size="sm"
+            />
+          </div>
         </CardHeader>
         <CardContent>
           {filteredStudents.length === 0 ? (

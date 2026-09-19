@@ -22,5 +22,11 @@ vercel.json
 .vercelignore
 .railwayignore
 docs/
-supabase/
+# Only the SQL migrations are needed in the image (see app/sql_migrations.py).
+supabase/*
+!supabase/migrations
 scripts/
+# Never bake local secrets into the image; production reads its own env file.
+**/.env
+*.env
+!*.env.example

@@ -6,12 +6,42 @@ from uuid import UUID
 from datetime import datetime
 from pydantic import BaseModel, ConfigDict
 from fastapi import APIRouter, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import select, text
 
 from app.dependencies import CurrentUser, DbSession
 from app.models.hostel import HostelRoom, HostelAllocation, HostelAttendance, HostelMessMenu
+from app.utils.pagination import ListPageParams
+from app.exceptions import ForbiddenError
+from app.utils.permissions import ACADEMIC_GOV, expand_roles
 
 router = APIRouter(prefix="/hostel", tags=["Hostel Management"])
+
+
+# Hostel records are the school's own; only its academic staff (and anyone the
+# school has made a warden through those roles) change them.
+HOSTEL_STAFF = ACADEMIC_GOV
+
+
+def _school(current_user) -> UUID:
+    if not current_user.school_id:
+        raise ForbiddenError("No school context")
+    return UUID(str(current_user.school_id))
+
+
+def _require_staff(current_user) -> None:
+    if current_user.is_super_admin:
+        return
+    if not any(r in expand_roles(current_user.roles) for r in HOSTEL_STAFF):
+        raise ForbiddenError("Only school staff manage the hostel")
+
+
+async def _require_student_in_school(db, student_id: UUID, school_id: UUID) -> None:
+    found = await db.execute(
+        text("SELECT 1 FROM students WHERE id = CAST(:sid AS UUID) AND school_id = CAST(:school AS UUID)"),
+        {"sid": str(student_id), "school": str(school_id)},
+    )
+    if found.first() is None:
+        raise HTTPException(status_code=404, detail="Student not found in this school")
 
 
 class HostelRoomCreateSchema(BaseModel):
@@ -71,15 +101,12 @@ class MessMenuResponseSchema(BaseModel):
 @router.get("/rooms", response_model=List[HostelRoomResponseSchema])
 async def list_hostel_rooms(
     db: DbSession,
-    current_user: CurrentUser,
+    current_user: CurrentUser, page: ListPageParams,
 ):
-    try:
-        school_id = current_user.school_id or UUID("00000000-0000-0000-0000-000000000000")
-        stmt = select(HostelRoom).where(HostelRoom.school_id == school_id).order_by(HostelRoom.room_number)
-        res = await db.execute(stmt)
-        return list(res.scalars().all())
-    except Exception:
-        return []
+    school_id = _school(current_user)
+    stmt = select(HostelRoom).where(HostelRoom.school_id == school_id).order_by(HostelRoom.room_number)
+    res = await db.execute(page.apply(stmt))
+    return list(res.scalars().all())
 
 
 @router.post("/rooms", response_model=HostelRoomResponseSchema)
@@ -88,7 +115,8 @@ async def create_hostel_room(
     db: DbSession,
     current_user: CurrentUser,
 ):
-    school_id = current_user.school_id or UUID("00000000-0000-0000-0000-000000000000")
+    school_id = _school(current_user)
+    _require_staff(current_user)
     room = HostelRoom(
         school_id=school_id,
         building_name=payload.building_name or "Main Hostel Block",
@@ -110,10 +138,25 @@ async def allocate_student_to_room(
     db: DbSession,
     current_user: CurrentUser,
 ):
-    school_id = current_user.school_id or UUID("00000000-0000-0000-0000-000000000000")
-    stmt = select(HostelRoom).where(HostelRoom.id == payload.room_id)
+    school_id = _school(current_user)
+    _require_staff(current_user)
+    await _require_student_in_school(db, payload.student_id, school_id)
+    stmt = (
+        select(HostelRoom)
+        .where(HostelRoom.id == payload.room_id, HostelRoom.school_id == school_id)
+        .with_for_update()
+    )
     res = await db.execute(stmt)
     room = res.scalar_one_or_none()
+    housed = await db.execute(
+        select(HostelAllocation.id).where(
+            HostelAllocation.school_id == school_id,
+            HostelAllocation.student_id == payload.student_id,
+            HostelAllocation.status == "active",
+        )
+    )
+    if housed.first() is not None:
+        raise HTTPException(status_code=409, detail="This student already has a hostel room")
 
     if not room:
         raise HTTPException(status_code=404, detail="Hostel room not found")
@@ -141,7 +184,9 @@ async def mark_hostel_night_attendance(
     db: DbSession,
     current_user: CurrentUser,
 ):
-    school_id = current_user.school_id or UUID("00000000-0000-0000-0000-000000000000")
+    school_id = _school(current_user)
+    _require_staff(current_user)
+    await _require_student_in_school(db, payload.student_id, school_id)
     att = HostelAttendance(
         school_id=school_id,
         student_id=payload.student_id,
@@ -157,15 +202,12 @@ async def mark_hostel_night_attendance(
 @router.get("/mess-menu", response_model=List[MessMenuResponseSchema])
 async def get_hostel_mess_menu(
     db: DbSession,
-    current_user: CurrentUser,
+    current_user: CurrentUser, page: ListPageParams,
 ):
-    try:
-        school_id = current_user.school_id or UUID("00000000-0000-0000-0000-000000000000")
-        stmt = select(HostelMessMenu).where(HostelMessMenu.school_id == school_id)
-        res = await db.execute(stmt)
-        return list(res.scalars().all())
-    except Exception:
-        return []
+    school_id = _school(current_user)
+    stmt = select(HostelMessMenu).where(HostelMessMenu.school_id == school_id)
+    res = await db.execute(page.apply(stmt))
+    return list(res.scalars().all())
 
 
 @router.post("/mess-menu", response_model=MessMenuResponseSchema)
@@ -174,7 +216,8 @@ async def update_hostel_mess_menu(
     db: DbSession,
     current_user: CurrentUser,
 ):
-    school_id = current_user.school_id or UUID("00000000-0000-0000-0000-000000000000")
+    school_id = _school(current_user)
+    _require_staff(current_user)
     stmt = select(HostelMessMenu).where(
         HostelMessMenu.school_id == school_id,
         HostelMessMenu.day_of_week == payload.day_of_week

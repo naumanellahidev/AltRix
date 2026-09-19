@@ -17,7 +17,7 @@ import {
   Keyboard, Search, Users, CalendarDays, History
 } from "lucide-react";
 import { OfflineDataBanner } from "@/components/offline/OfflineDataBanner";
-import { exportToCSV } from "@/lib/csv";
+import { DataExportMenu } from "@/components/documents/DataExportMenu";
 import { cn } from "@/lib/utils";
 import { StaffAttendanceHistoryDialog } from "@/components/attendance/StaffAttendanceHistoryDialog";
 
@@ -219,8 +219,7 @@ export function HrAttendanceModule() {
       const att = attendanceByUserId.get(s.userId);
       return { Name: s.displayName || s.email, Email: s.email, Date: selectedDate, Status: att?.status || "Not Marked" };
     });
-    exportToCSV(rows, `staff-attendance-${selectedDate}`);
-    toast.success("Exported");
+    return rows;
   };
 
   const pendingRegs = regs.filter((r: any) => r.status === "pending");
@@ -269,7 +268,7 @@ export function HrAttendanceModule() {
               </div>
               <div className="flex flex-wrap gap-2">
                 {!isOffline && <Button variant="outline" size="sm" onClick={() => refetch()}><RefreshCw className="h-4 w-4 mr-1" />Refresh</Button>}
-                <Button variant="outline" size="sm" onClick={handleExport}><Download className="h-4 w-4 mr-1" />Export</Button>
+                <DataExportMenu title="Staff Attendance" subtitle={selectedDate} rows={[]} loadRows={async () => handleExport()} fileNameParts={["Staff Attendance", selectedDate]} size="sm" />
                 <Button variant="outline" size="sm" onClick={() => setShowHistory(true)}><History className="h-4 w-4 mr-1" />History</Button>
               </div>
             </CardHeader>

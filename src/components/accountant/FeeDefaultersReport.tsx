@@ -1,3 +1,4 @@
+import { DataExportMenu } from "@/components/documents/DataExportMenu";
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format, differenceInDays } from "date-fns";
@@ -363,29 +364,18 @@ export function FeeDefaultersReport({ schoolId }: FeeDefaultersReportProps) {
     );
   };
 
-  const exportToCSV = () => {
-    const headers = ["Student Name", "Student Code", "Class", "Overdue Amount", "Days Overdue", "Invoices Overdue", "Priority", "Priority Score"];
-    const rows = filteredDefaulters.map((d) => [
-      `${d.student.first_name} ${d.student.last_name || ""}`,
-      d.student.student_code || "",
-      d.className || "",
-      d.student.overdue_amount.toString(),
-      d.daysOverdue.toString(),
-      d.student.overdue_count.toString(),
-      d.priority,
-      d.priorityScore.toString(),
-    ]);
-
-    const csvContent = [headers.join(","), ...rows.map((r) => r.map((c) => `"${c}"`).join(","))].join("\n");
-    const blob = new Blob([csvContent], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `fee-defaulters-${format(new Date(), "yyyy-MM-dd")}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-    toast.success("Report exported successfully");
-  };
+  /** The defaulters list as exported: typed so Excel can sort and total it. */
+  const defaulterExportRows = () =>
+    filteredDefaulters.map((d) => ({
+      student: `${d.student.first_name} ${d.student.last_name || ""}`.trim(),
+      student_code: d.student.student_code || "",
+      class: d.className || "",
+      overdue_amount: d.student.overdue_amount,
+      days_overdue: d.daysOverdue,
+      invoices_overdue: d.student.overdue_count,
+      priority: d.priority.charAt(0).toUpperCase() + d.priority.slice(1),
+      priority_score: d.priorityScore,
+    }));
 
   if (ledgersLoading) {
     return <p className="text-sm text-muted-foreground">Loading defaulters report...</p>;
@@ -598,10 +588,24 @@ export function FeeDefaultersReport({ schoolId }: FeeDefaultersReportProps) {
                   <SelectItem value="name">Name</SelectItem>
                 </SelectContent>
               </Select>
-              <Button variant="outline" onClick={exportToCSV}>
-                <Download className="mr-2 h-4 w-4" />
-                Export CSV
-              </Button>
+              <DataExportMenu
+                title="Fee Defaulters"
+                subtitle={format(new Date(), "d MMMM yyyy")}
+                rows={defaulterExportRows()}
+                columns={[
+                  { header: "Student", key: "student" },
+                  { header: "Student Code", key: "student_code" },
+                  { header: "Class", key: "class" },
+                  { header: "Overdue Amount", key: "overdue_amount", type: "money", total: "sum" },
+                  { header: "Days Overdue", key: "days_overdue", type: "integer" },
+                  { header: "Invoices Overdue", key: "invoices_overdue", type: "integer", total: "sum" },
+                  { header: "Priority", key: "priority" },
+                  { header: "Priority Score", key: "priority_score", type: "number" },
+                ]}
+                orientation="landscape"
+                disabled={filteredDefaulters.length === 0}
+                size="default"
+              />
             </div>
           </div>
         </CardContent>

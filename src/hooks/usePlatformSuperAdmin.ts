@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, USE_FASTAPI } from "@/lib/api";
 import { apiClient } from "@/lib/api-client";
+import { clearTokens } from "@/lib/token-store";
 
 type PlatformAuthz = {
   loading: boolean;
@@ -98,8 +99,7 @@ export function usePlatformSuperAdmin(userId: string | null | undefined): Platfo
             (USE_FASTAPI && !err.response);
 
           if (isUnauthorized) {
-            localStorage.removeItem("access_token");
-            localStorage.removeItem("refresh_token");
+            clearTokens();
             localStorage.removeItem("eduverse_session_cache");
             localStorage.removeItem("eduverse_authz_cache_v2");
           }

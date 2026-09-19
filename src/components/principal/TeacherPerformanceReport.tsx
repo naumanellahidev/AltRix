@@ -8,6 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CalendarCheck, BookOpen, FileText, Trophy, TrendingUp, ChevronLeft, ChevronRight } from "lucide-react";
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subWeeks, subMonths, addWeeks, addMonths } from "date-fns";
+import { DataExportMenu } from "@/components/documents/DataExportMenu";
 
 interface TeacherPerformanceReportProps {
   schoolId: string;
@@ -374,6 +375,9 @@ export function TeacherPerformanceReport({ schoolId, teacherUserId, teacherName 
         </TabsList>
 
         <TabsContent value="attendance">
+          <div className="mb-2 flex justify-end">
+            <DataExportMenu title="Attendance Sessions" subtitle={teacherName} fileNameParts={[teacherName, "Attendance Sessions"]} rows={attendanceSessions.map((s) => ({ Date: s.session_date, Class: s.class_name, Section: s.section_name, Period: s.period_label ?? "", Present: s.present, Absent: s.absent, Total: s.total }))} disabled={!attendanceSessions.length} size="sm" />
+          </div>
           <div className="overflow-auto rounded-xl border bg-surface">
             <Table>
               <TableHeader>
@@ -412,6 +416,9 @@ export function TeacherPerformanceReport({ schoolId, teacherUserId, teacherName 
         </TabsContent>
 
         <TabsContent value="homework">
+          <div className="mb-2 flex justify-end">
+            <DataExportMenu title="Homework" subtitle={teacherName} fileNameParts={[teacherName, "Homework"]} rows={homeworkList.map((h) => ({ Title: h.title, Class: h.class_name, Section: h.section_name, Due: h.due_date ?? "", Created: h.created_at?.slice(0, 10) ?? "" }))} disabled={!homeworkList.length} size="sm" />
+          </div>
           <div className="overflow-auto rounded-xl border bg-surface">
             <Table>
               <TableHeader>
@@ -446,6 +453,9 @@ export function TeacherPerformanceReport({ schoolId, teacherUserId, teacherName 
         </TabsContent>
 
         <TabsContent value="assignments">
+          <div className="mb-2 flex justify-end">
+            <DataExportMenu title="Assignments" subtitle={teacherName} fileNameParts={[teacherName, "Assignments"]} rows={assignmentList.map((a) => ({ Title: a.title, Class: a.class_name, Section: a.section_name, Due: a.due_date ?? "", Max: a.max_marks ?? "", Average: a.avg_marks ?? "", Submitted: a.submissions }))} disabled={!assignmentList.length} size="sm" />
+          </div>
           <div className="overflow-auto rounded-xl border bg-surface">
             <Table>
               <TableHeader>
@@ -484,6 +494,9 @@ export function TeacherPerformanceReport({ schoolId, teacherUserId, teacherName 
         </TabsContent>
 
         <TabsContent value="assessments">
+          <div className="mb-2 flex justify-end">
+            <DataExportMenu title="Assessment Results" subtitle={teacherName} fileNameParts={[teacherName, "Assessment Results"]} rows={assessmentList.map((a) => ({ Title: a.title, Class: a.class_name, Section: a.section_name, Date: a.assessment_date ?? "", Max: a.max_marks, Average: a.avg_marks ?? "", Students: a.total_students, Published: a.is_published ? "Yes" : "No" }))} disabled={!assessmentList.length} size="sm" />
+          </div>
           <div className="overflow-auto rounded-xl border bg-surface">
             <Table>
               <TableHeader>

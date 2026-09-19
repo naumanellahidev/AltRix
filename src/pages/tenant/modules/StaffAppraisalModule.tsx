@@ -28,9 +28,14 @@ import {
   Star
 } from "lucide-react";
 import { toast } from "sonner";
+import { DataExportMenu } from "@/components/documents/DataExportMenu";
+import { useParams } from "react-router-dom";
+import { useTenant } from "@/hooks/useTenant";
+import { api } from "@/lib/api";
 
 interface StaffKpi {
   id: string;
+  staff_user_id: string;
   punctuality_score: number;
   results_score: number;
   parent_feedback_score: number;
@@ -68,6 +73,21 @@ export default function StaffAppraisalModule() {
   const [appraisals, setAppraisals] = useState<Appraisal[]>([]);
   const [pendingReviews, setPendingReviews] = useState<Appraisal[]>([]);
   const [pips, setPips] = useState<PipPlan[]>([]);
+
+  // Staff names, so scorecards say who rather than "Teacher ID: 3f9a2c1b".
+  const { schoolSlug } = useParams();
+  const tenant = useTenant(schoolSlug);
+  const schoolIdForNames = tenant.status === "ready" ? tenant.schoolId : null;
+  const [staffNames, setStaffNames] = useState<Record<string, string>>({});
+  useEffect(() => {
+    if (!schoolIdForNames) return;
+    api.rpc("get_school_staff_directory", { _school_id: schoolIdForNames }).then(({ data }: any) => {
+      const map: Record<string, string> = {};
+      for (const s of data ?? []) map[s.user_id] = s.display_name || s.email;
+      setStaffNames(map);
+    });
+  }, [schoolIdForNames]);
+  const staffName = (id?: string | null) => (id ? staffNames[id] ?? `Staff ${id.slice(0, 8)}` : "—");
   const [loading, setLoading] = useState(false);
 
   // 360 feedback state
@@ -352,6 +372,15 @@ export default function StaffAppraisalModule() {
           <Card className="shadow-soft border-border/60">
             <CardHeader>
               <CardTitle className="text-base font-bold font-display">Staff Performance Scorecard</CardTitle>
+              <div className="flex justify-end">
+                <DataExportMenu
+                  title="Staff Performance Scorecard"
+                  rows={kpiScores.map((k) => ({ Staff: staffName(k.staff_user_id), Period: k.evaluation_period, Punctuality: k.punctuality_score, Results: k.results_score, "Parent feedback": k.parent_feedback_score, "Co-curricular": k.co_curricular_score, Average: k.average_score }))}
+                  orientation="landscape"
+                  disabled={!kpiScores.length}
+                  size="sm"
+                />
+              </div>
             </CardHeader>
             <CardContent className="p-0">
               <Table>
@@ -376,7 +405,7 @@ export default function StaffAppraisalModule() {
                     kpiScores.map((kpi) => (
                       <TableRow key={kpi.id}>
                         <TableCell className="pl-6 font-bold text-foreground">
-                          Teacher ID: {kpi.staff_user_id.slice(0, 8)}
+                          {staffName(kpi.staff_user_id)}
                           <div className="text-[10px] text-muted-foreground font-normal">{kpi.evaluation_period}</div>
                         </TableCell>
                         <TableCell className="text-center font-mono font-bold">{kpi.punctuality_score} / 10</TableCell>
@@ -406,7 +435,7 @@ export default function StaffAppraisalModule() {
                   <Table>
                     <TableHeader className="bg-muted/40">
                       <TableRow>
-                        <TableHead className="font-semibold pl-6">Teacher ID</TableHead>
+                        <TableHead className="font-semibold pl-6">Teacher</TableHead>
                         <TableHead className="font-semibold">Self-Appraisal description</TableHead>
                         <TableHead className="font-semibold text-right pr-6">Review</TableHead>
                       </TableRow>
@@ -422,7 +451,7 @@ export default function StaffAppraisalModule() {
                         pendingReviews.map((app) => (
                           <TableRow key={app.id}>
                             <TableCell className="pl-6 font-bold text-foreground">
-                              {app.staff_user_id.slice(0, 8)}
+                              {staffName(app.staff_user_id)}
                             </TableCell>
                             <TableCell className="text-xs text-muted-foreground truncate max-w-sm">
                               {app.self_appraisal_text}
@@ -559,6 +588,15 @@ export default function StaffAppraisalModule() {
               <CardTitle className="text-base font-bold font-display flex items-center gap-2">
                 <AlertTriangle className="h-5 w-5 text-amber-500" /> Active Performance Improvement Plans
               </CardTitle>
+              <div className="flex justify-end">
+                <DataExportMenu
+                  title="Performance Improvement Plans"
+                  rows={pips.map((p) => ({ Staff: staffName(p.staff_user_id), Issues: p.issues_identified, "Action steps": p.action_steps, Deadline: p.deadline_date ?? "", Status: p.status }))}
+                  orientation="landscape"
+                  disabled={!pips.length}
+                  size="sm"
+                />
+              </div>
             </CardHeader>
             <CardContent className="p-0">
               <Table>
@@ -582,7 +620,7 @@ export default function StaffAppraisalModule() {
                     pips.map((pip) => (
                       <TableRow key={pip.id}>
                         <TableCell className="pl-6 font-bold text-foreground">
-                          Teacher: {pip.staff_user_id.slice(0, 8)}
+                          {staffName(pip.staff_user_id)}
                         </TableCell>
                         <TableCell className="text-xs text-muted-foreground max-w-xs truncate">{pip.issues_identified}</TableCell>
                         <TableCell className="text-xs text-muted-foreground max-w-xs truncate">{pip.action_steps}</TableCell>
@@ -591,7 +629,7 @@ export default function StaffAppraisalModule() {
                         </TableCell>
                         <TableCell className="text-right pr-6">
                           {isPrincipal ? (
-                            <Button onClick={() => handleTogglePip(pip.id, pip.status)} size="xs" variant="outline" className="gap-1 border-primary/20">
+                            <Button onClick={() => handleTogglePip(pip.id, pip.status)} size="sm" variant="outline" className="gap-1 border-primary/20">
                               {pip.status.toUpperCase()}
                             </Button>
                           ) : (

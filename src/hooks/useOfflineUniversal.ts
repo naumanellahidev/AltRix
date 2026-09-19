@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from "react";
-import { api, api } from "@/lib/api";
+import { api } from "@/lib/api";
 import { toast } from "sonner";
 import {
   addToOfflineQueue,

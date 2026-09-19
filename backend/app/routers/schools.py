@@ -17,32 +17,42 @@ from app.exceptions import NotFoundError, ForbiddenError
 from app.models.core import School, UserRole, SchoolBranding
 from app.models.campus import Campus
 from app.schemas import (
-    SchoolCreate, SchoolUpdate, SchoolOut,
+    SchoolCreate, SchoolUpdate, SchoolOut, SchoolPublicOut,
     CampusCreate, CampusUpdate, CampusOut,
     BrandingUpdate, BrandingOut,
     UserRoleCreate, UserRoleOut,
     MessageResponse,
 )
-from app.utils.pagination import PaginationParams, PaginatedResponse
-from app.utils.permissions import expand_roles
+from app.utils.pagination import ListPageParams, PaginatedResponse, PaginationParams
+from app.utils.permissions import expand_roles, assert_can_assign_role
+from app.utils.tenant_guard import require_tenant_access
+from app.cache import invalidate_user_role_cache
+
+#: Roles permitted to change what every visitor sees for a tenant.
+BRANDING_ROLES = {"super_admin", "school_owner", "principal", "vice_principal", "school_admin"}
+
+#: Roles permitted to read or change who holds which role in a school.
+ROLE_ADMIN_ROLES = {"super_admin", "school_owner", "principal", "vice_principal", "school_admin"}
 
 # ─── SCHOOLS ──────────────────────────────────────────────────────────────────
 schools_router = APIRouter(prefix="/schools", tags=["Schools"])
 
 
 @schools_router.get("", response_model=List[SchoolOut])
-async def list_schools(current_user: CurrentUser, db: DbSession):
+async def list_schools(current_user: CurrentUser, db: DbSession, page: ListPageParams):
     """List schools the current user belongs to (or all for super admin)."""
     if current_user.is_super_admin:
-        result = await db.execute(select(School).order_by(School.name))
+        result = await db.execute(page.apply(select(School).order_by(School.name)))
         return result.scalars().all()
 
     result = await db.execute(
-        select(School)
-        .join(UserRole, UserRole.school_id == School.id)
-        .where(UserRole.user_id == current_user.id)
-        .distinct()
-        .order_by(School.name)
+        page.apply(
+            select(School)
+            .join(UserRole, UserRole.school_id == School.id)
+            .where(UserRole.user_id == current_user.id)
+            .distinct()
+            .order_by(School.name)
+        )
     )
     return result.scalars().all()
 
@@ -71,9 +81,14 @@ async def create_school(body: SchoolCreate, current_user: CurrentUser, db: DbSes
     return school
 
 
-@schools_router.get("/by-slug/{slug}", response_model=SchoolOut)
+@schools_router.get("/by-slug/{slug}", response_model=SchoolPublicOut)
 async def get_school_by_slug(slug: str, db: DbSession):
-    """Retrieve school metadata by slug (public endpoint for tenant resolution)."""
+    """
+    Retrieve school metadata by slug (public endpoint for tenant resolution).
+
+    Returns the public projection: anyone who can guess a slug reaches this, so
+    it must not carry the owner id, subscription state or GPS coordinates.
+    """
     result = await db.execute(select(School).where(School.slug == slug))
     school = result.scalar_one_or_none()
     if not school:
@@ -136,7 +151,7 @@ class OwnerActiveContextUpsert(BaseModel):
 
 
 @schools_router.get("/owner/schools", response_model=List[OwnerSchoolOut])
-async def get_owner_schools(current_user: CurrentUser, db: DbSession):
+async def get_owner_schools(current_user: CurrentUser, db: DbSession, page: ListPageParams):
     sql = """
         SELECT s.id, s.name, s.slug, s.logo_url, s.is_active
         FROM schools s
@@ -148,8 +163,10 @@ async def get_owner_schools(current_user: CurrentUser, db: DbSession):
                        WHERE r.user_id = :uid AND r.school_id = s.id AND r.role = 'school_owner')
           )
         ORDER BY s.name
+        LIMIT :_limit OFFSET :_offset
     """
-    res = await db.execute(text(sql), {"uid": current_user.id})
+    res = await db.execute(text(sql), {"uid": current_user.id,
+                                       "_limit": page.limit, "_offset": page.offset})
     rows = res.fetchall()
     return [
         {
@@ -164,7 +181,7 @@ async def get_owner_schools(current_user: CurrentUser, db: DbSession):
 
 
 @schools_router.get("/owner/campuses", response_model=List[OwnerCampusOut])
-async def get_owner_campuses(school_id: UUID, current_user: CurrentUser, db: DbSession):
+async def get_owner_campuses(school_id: UUID, current_user: CurrentUser, db: DbSession, page: ListPageParams):
     is_platform_admin = current_user.is_super_admin
     sql = """
         SELECT c.id, c.school_id, c.name, c.code, c.is_active, c.principal_user_id
@@ -178,6 +195,7 @@ async def get_owner_campuses(school_id: UUID, current_user: CurrentUser, db: DbS
                        WHERE r.user_id = :uid AND r.school_id = :school_id)
           )
         ORDER BY c.name
+        LIMIT :_limit OFFSET :_offset
     """
     res = await db.execute(
         text(sql),
@@ -185,6 +203,8 @@ async def get_owner_campuses(school_id: UUID, current_user: CurrentUser, db: DbS
             "school_id": school_id,
             "uid": current_user.id,
             "is_platform_admin": is_platform_admin,
+            "_limit": page.limit,
+            "_offset": page.offset,
         }
     )
     rows = res.fetchall()
@@ -497,7 +517,12 @@ async def get_branding_by_slug(slug: str, db: DbSession):
 # ─── INDIVIDUAL SCHOOL CRUD (path-parameter routes — must be after all static) ─
 
 @schools_router.get("/{school_id}", response_model=SchoolOut)
-async def get_school(school_id: UUID, db: DbSession):
+async def get_school(school_id: UUID, current_user: CurrentUser, db: DbSession):
+    # Membership is required: the public tenant-resolution path is
+    # GET /schools/by-slug/{slug}, which returns the same public projection
+    # without letting anyone enumerate schools by id.
+    require_tenant_access(school_id, current_user, resource_description="school")
+
     result = await db.execute(select(School).where(School.id == school_id))
     school = result.scalar_one_or_none()
     if not school:
@@ -507,14 +532,17 @@ async def get_school(school_id: UUID, db: DbSession):
 
 @schools_router.patch("/{school_id}", response_model=SchoolOut)
 async def update_school(school_id: UUID, body: SchoolUpdate, current_user: CurrentUser, db: DbSession):
-    result = await db.execute(select(School).where(School.id == school_id))
-    school = result.scalar_one_or_none()
-    if not school:
-        raise NotFoundError("School", str(school_id))
+    # Holding a role in *some* school is not authority over *this* school.
+    require_tenant_access(school_id, current_user, resource_description="school")
 
     effective_roles = expand_roles(current_user.roles)
     if not (current_user.is_super_admin or "school_owner" in effective_roles or "principal" in effective_roles):
         raise ForbiddenError()
+
+    result = await db.execute(select(School).where(School.id == school_id))
+    school = result.scalar_one_or_none()
+    if not school:
+        raise NotFoundError("School", str(school_id))
 
     for field, value in body.model_dump(exclude_none=True).items():
         setattr(school, field, value)
@@ -575,6 +603,14 @@ async def upsert_branding(school_id: str, body: BrandingUpdate, current_user: Cu
     if not resolved_uuid:
         raise NotFoundError("School", school_id)
 
+    # Branding is what every visitor sees for this tenant, so writing it is an
+    # administrative act — previously any authenticated user could rebrand any
+    # school.
+    require_tenant_access(resolved_uuid, current_user, resource_description="school branding")
+    effective_roles = expand_roles(current_user.roles)
+    if not (current_user.is_super_admin or effective_roles & BRANDING_ROLES):
+        raise ForbiddenError("Changing branding requires an administrative role")
+
     result = await db.execute(select(SchoolBranding).where(SchoolBranding.school_id == resolved_uuid))
     branding = result.scalar_one_or_none()
     if branding:
@@ -591,42 +627,68 @@ async def upsert_branding(school_id: str, body: BrandingUpdate, current_user: Cu
 # ─── ROLES MANAGEMENT ─────────────────────────────────────────────────────────
 
 @schools_router.get("/{school_id}/roles", response_model=List[UserRoleOut])
-async def list_school_roles(school_id: UUID, current_user: CurrentUser, db: DbSession):
+async def list_school_roles(school_id: UUID, current_user: CurrentUser, db: DbSession, page: ListPageParams):
+    # The role table maps every user id in a school to their privileges, so it
+    # is a membership roster, not public data.
+    require_tenant_access(school_id, current_user, resource_description="school roles")
+    effective_roles = expand_roles(current_user.roles)
+    if not (current_user.is_super_admin or effective_roles & ROLE_ADMIN_ROLES):
+        raise ForbiddenError("Viewing role assignments requires an administrative role")
+
     result = await db.execute(
-        select(UserRole).where(UserRole.school_id == school_id).order_by(UserRole.role)
+        page.apply(select(UserRole).where(UserRole.school_id == school_id).order_by(UserRole.role))
     )
     return result.scalars().all()
 
 
 @schools_router.post("/{school_id}/roles", response_model=UserRoleOut, status_code=status.HTTP_201_CREATED)
 async def assign_role(school_id: UUID, body: UserRoleCreate, current_user: CurrentUser, db: DbSession):
+    # Two separate checks: the caller must administer *this* school, and the
+    # role being granted must sit strictly below the caller's own level.
+    require_tenant_access(school_id, current_user, resource_description="school roles")
+
     effective_roles = expand_roles(current_user.roles)
-    if not (current_user.is_super_admin or "school_owner" in effective_roles or "principal" in effective_roles):
+    if not (current_user.is_super_admin or effective_roles & ROLE_ADMIN_ROLES):
         raise ForbiddenError()
+
+    assert_can_assign_role(effective_roles, current_user.is_super_admin, body.role)
+
     role = UserRole(
         user_id=body.user_id,
         school_id=school_id,
-        role=body.role,
+        role=body.role.strip().lower(),
         campus_id=body.campus_id,
     )
     db.add(role)
     await db.flush()
     await db.refresh(role)
+    await invalidate_user_role_cache(str(body.user_id), str(school_id))
     return role
 
 
 @schools_router.delete("/{school_id}/roles/{role_id}", response_model=MessageResponse)
 async def remove_role(school_id: UUID, role_id: UUID, current_user: CurrentUser, db: DbSession):
+    require_tenant_access(school_id, current_user, resource_description="school roles")
+
     effective_roles = expand_roles(current_user.roles)
-    if not (current_user.is_super_admin or "school_owner" in effective_roles or "principal" in effective_roles):
+    if not (current_user.is_super_admin or effective_roles & ROLE_ADMIN_ROLES):
         raise ForbiddenError()
+
     result = await db.execute(
         select(UserRole).where(UserRole.id == role_id, UserRole.school_id == school_id)
     )
     role = result.scalar_one_or_none()
     if not role:
         raise NotFoundError("Role", str(role_id))
+
+    # Removing a role is as sensitive as granting it: without this a principal
+    # could strip the school owner and take over the tenant.
+    assert_can_assign_role(effective_roles, current_user.is_super_admin, role.role)
+
+    removed_user_id = str(role.user_id)
     await db.delete(role)
+    await db.flush()
+    await invalidate_user_role_cache(removed_user_id, str(school_id))
     return MessageResponse(message="Role removed")
 
 
@@ -635,13 +697,13 @@ campuses_router = APIRouter(prefix="/campuses", tags=["Campuses"])
 
 
 @campuses_router.get("", response_model=List[CampusOut])
-async def list_campuses(current_user: CurrentUser, db: DbSession):
+async def list_campuses(current_user: CurrentUser, db: DbSession, page: ListPageParams):
     if not current_user.school_id:
         return []
     result = await db.execute(
-        select(Campus)
+        page.apply(select(Campus)
         .where(Campus.school_id == current_user.school_id)
-        .order_by(Campus.name)
+        .order_by(Campus.name))
     )
     return result.scalars().all()
 

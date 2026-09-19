@@ -13,6 +13,7 @@ import {
 import { format, subDays } from "date-fns";
 import { api } from "@/lib/api";
 import { useActiveCampus } from "@/hooks/useActiveCampus";
+import { DataExportMenu } from "@/components/documents/DataExportMenu";
 
 interface Props { schoolId: string | null; }
 
@@ -176,7 +177,7 @@ export function OwnerWellbeingModule({ schoolId }: Props) {
 
         <TabsContent value="concerned" className="mt-6">
           <Card>
-            <CardHeader className="p-4 sm:p-6 pb-2"><CardTitle className="text-sm sm:text-base">Students with most concerns/incidents (90d)</CardTitle></CardHeader>
+            <CardHeader className="p-4 sm:p-6 pb-2 flex flex-row items-center justify-between gap-2"><CardTitle className="text-sm sm:text-base">Students with most concerns/incidents (90d)</CardTitle><DataExportMenu title="Students With Most Concerns" subtitle="Last 90 days" rows={(data?.topConcerned ?? []).map((s: any) => ({ Student: s.name, Notes: s.count }))} disabled={!data?.topConcerned?.length} size="sm" /></CardHeader>
             <CardContent className="p-3 sm:p-6 pt-0">
               {(data?.topConcerned.length || 0) === 0 ? (
                 <p className="py-8 text-center text-muted-foreground text-xs sm:text-sm">No concerns logged in the last 90 days.</p>
@@ -208,7 +209,7 @@ export function OwnerWellbeingModule({ schoolId }: Props) {
             <Card><CardContent className="p-3 sm:p-4"><Activity className="h-4 w-4 sm:h-5 sm:w-5 text-emerald-600" /><p className="mt-2 font-display text-lg sm:text-2xl font-bold truncate">{data?.resolutionRate || 0}%</p><p className="text-[10px] sm:text-xs text-muted-foreground truncate">Resolution Rate</p></CardContent></Card>
           </div>
           <Card>
-            <CardHeader className="p-4 sm:p-6 pb-2"><CardTitle className="text-sm sm:text-base">Recent complaints</CardTitle></CardHeader>
+            <CardHeader className="p-4 sm:p-6 pb-2 flex flex-row items-center justify-between gap-2"><CardTitle className="text-sm sm:text-base">Recent complaints</CardTitle><DataExportMenu title="Complaints" rows={(data?.complaints ?? []).map((c: any) => ({ Subject: c.subject ?? "", Category: c.category ?? "", Flow: c.flow ?? "", Status: c.status, Created: c.created_at ? String(c.created_at).slice(0, 10) : "" }))} disabled={!data?.complaints?.length} size="sm" /></CardHeader>
             <CardContent className="p-3 sm:p-6 pt-0">
               {(data?.complaints.length || 0) === 0 ? (
                 <p className="py-8 text-center text-muted-foreground text-xs sm:text-sm">No complaints recorded.</p>

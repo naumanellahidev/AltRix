@@ -21,6 +21,7 @@ from app.schemas import (
     MessageResponse,
 )
 from app.utils.permissions import expand_roles, ACADEMIC_GOV
+from app.utils.pagination import ListPageParams
 
 router = APIRouter(prefix="/academic", tags=["Academic"])
 
@@ -28,13 +29,13 @@ router = APIRouter(prefix="/academic", tags=["Academic"])
 # ─── CLASSES ──────────────────────────────────────────────────────────────────
 
 @router.get("/classes", response_model=List[ClassOut])
-async def list_classes(current_user: CurrentUser, db: DbSession):
+async def list_classes(current_user: CurrentUser, db: DbSession, page: ListPageParams):
     if not current_user.school_id:
         return []
     result = await db.execute(
-        select(AcademicClass)
+        page.apply(select(AcademicClass)
         .where(AcademicClass.school_id == current_user.school_id)
-        .order_by(AcademicClass.grade_level, AcademicClass.name)
+        .order_by(AcademicClass.grade_level, AcademicClass.name))
     )
     return result.scalars().all()
 
@@ -82,7 +83,7 @@ async def delete_class(class_id: UUID, current_user: CurrentUser, db: DbSession)
 async def list_sections(
     current_user: CurrentUser,
     db: DbSession,
-    class_id: UUID | None = None,
+    page: ListPageParams, class_id: UUID | None = None,
     campus_id: UUID | None = None,
 ):
     if not current_user.school_id:
@@ -99,7 +100,7 @@ async def list_sections(
         query = query.where(ClassSection.class_id == class_id)
     if campus_id:
         query = query.where(ClassSection.campus_id == campus_id)
-    result = await db.execute(query.order_by(ClassSection.name))
+    result = await db.execute(page.apply(query.order_by(ClassSection.name)))
     return result.scalars().all()
 
 
@@ -149,11 +150,11 @@ async def delete_section(section_id: UUID, current_user: CurrentUser, db: DbSess
 # ─── SUBJECTS ─────────────────────────────────────────────────────────────────
 
 @router.get("/subjects", response_model=List[SubjectOut])
-async def list_subjects(current_user: CurrentUser, db: DbSession):
+async def list_subjects(current_user: CurrentUser, db: DbSession, page: ListPageParams):
     if not current_user.school_id:
         return []
     result = await db.execute(
-        select(Subject).where(Subject.school_id == current_user.school_id).order_by(Subject.name)
+        page.apply(select(Subject).where(Subject.school_id == current_user.school_id).order_by(Subject.name))
     )
     return result.scalars().all()
 
@@ -198,7 +199,7 @@ async def delete_subject(subject_id: UUID, current_user: CurrentUser, db: DbSess
 async def get_timetable(
     current_user: CurrentUser,
     db: DbSession,
-    section_id: UUID | None = None,
+    page: ListPageParams, section_id: UUID | None = None,
     campus_id: UUID | None = None,
     teacher_user_id: UUID | None = None,
 ):
@@ -221,7 +222,7 @@ async def get_timetable(
         query = query.where(TimetableSlot.campus_id == campus_id)
     if teacher_user_id:
         query = query.where(TimetableSlot.teacher_user_id == teacher_user_id)
-    result = await db.execute(query.order_by(TimetableSlot.day_of_week, TimetableSlot.start_time))
+    result = await db.execute(page.apply(query.order_by(TimetableSlot.day_of_week, TimetableSlot.start_time)))
     return result.scalars().all()
 
 
@@ -341,7 +342,7 @@ class SectionSubjectOut(BaseModel):
 async def list_section_subjects(
     current_user: CurrentUser,
     db: DbSession,
-    class_section_id: Optional[UUID] = None,
+    page: ListPageParams, class_section_id: Optional[UUID] = None,
 ):
     if not current_user.school_id:
         return []
@@ -350,7 +351,7 @@ async def list_section_subjects(
         query = query.where(ClassSectionSubject.class_section_id == class_section_id)
     elif current_user.campus_id:
         query = query.join(ClassSection, ClassSection.id == ClassSectionSubject.class_section_id).where(ClassSection.campus_id == UUID(current_user.campus_id))
-    result = await db.execute(query)
+    result = await db.execute(page.apply(query))
     return result.scalars().all()
 
 @router.post("/section-subjects", response_model=SectionSubjectOut, status_code=status.HTTP_201_CREATED)

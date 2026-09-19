@@ -14,10 +14,10 @@ import { WorkloadChart } from "@/components/timetable/WorkloadChart";
 import { PeriodNotesDialog } from "@/components/timetable/PeriodNotesDialog";
 import { SectionTimetableDialog } from "@/components/timetable/SectionTimetableDialog";
 import { Button } from "@/components/ui/button";
-import { Printer, Coffee, Download, FileText, Calendar, NotebookPen } from "lucide-react";
+import { Coffee, Calendar, NotebookPen } from "lucide-react";
+import { TimetableDocumentActions } from "@/components/timetable/TimetableDocumentActions";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { openTimetablePdf, downloadTimetableHtml, type TimetablePdfData } from "@/lib/timetable-pdf";
 import { downloadTimetableIcs } from "@/lib/timetable-ics";
 import { useConflictDetection } from "@/pages/tenant/modules/components/timetable/useConflictDetection";
 import { toast } from "sonner";
@@ -289,42 +289,6 @@ export function TeacherTimetableModule() {
   const conflictCount = myConflicts.size;
 
   // Handlers
-  const handleExportPdf = useCallback(() => {
-    const pdfData: TimetablePdfData = {
-      teacherName: currentUserName,
-      schoolName,
-      periods,
-      entries: baseEntries.map((e) => ({
-        day_of_week: e.day_of_week,
-        period_id: e.period_id,
-        subject_name: e.subject_name,
-        room: e.room,
-        section_label: e.section_label,
-        teacher_name: e.teacher_user_id ? teacherLabelByUserId.get(e.teacher_user_id) ?? null : null,
-      })),
-      generatedAt: new Date().toLocaleString(),
-    };
-    openTimetablePdf(pdfData);
-  }, [currentUserName, schoolName, periods, baseEntries, teacherLabelByUserId]);
-
-  const handleDownloadHtml = useCallback(() => {
-    const pdfData: TimetablePdfData = {
-      teacherName: currentUserName,
-      schoolName,
-      periods,
-      entries: baseEntries.map((e) => ({
-        day_of_week: e.day_of_week,
-        period_id: e.period_id,
-        subject_name: e.subject_name,
-        room: e.room,
-        section_label: e.section_label,
-        teacher_name: e.teacher_user_id ? teacherLabelByUserId.get(e.teacher_user_id) ?? null : null,
-      })),
-      generatedAt: new Date().toLocaleString(),
-    };
-    downloadTimetableHtml(pdfData);
-  }, [currentUserName, schoolName, periods, baseEntries, teacherLabelByUserId]);
-
   const handleExportIcs = useCallback(() => {
     downloadTimetableIcs({
       teacherName: currentUserName,
@@ -433,15 +397,23 @@ export function TeacherTimetableModule() {
           <Button variant="outline" size="sm" onClick={handleExportIcs} disabled={baseEntries.length === 0}>
             <Calendar className="mr-2 h-4 w-4" /> Sync Calendar
           </Button>
-          <Button variant="outline" size="sm" onClick={handleExportPdf} disabled={baseEntries.length === 0}>
-            <FileText className="mr-2 h-4 w-4" /> PDF
-          </Button>
-          <Button variant="outline" size="sm" onClick={handleDownloadHtml} disabled={baseEntries.length === 0}>
-            <Download className="mr-2 h-4 w-4" /> HTML
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => window.print()}>
-            <Printer className="mr-2 h-4 w-4" /> Print
-          </Button>
+          <TimetableDocumentActions
+            disabled={baseEntries.length === 0}
+            input={() => ({
+              title: viewMode === "mine" ? "Teacher Timetable" : "Sections Timetable",
+              subject: currentUserName,
+              periods,
+              entries: baseEntries.map((e) => ({
+                day_of_week: e.day_of_week,
+                period_id: e.period_id,
+                subject_name: e.subject_name,
+                room: e.room,
+                section_label: e.section_label,
+                teacher_name: e.teacher_user_id ? teacherLabelByUserId.get(e.teacher_user_id) ?? null : null,
+              })),
+              cellDetail: "section",
+            })}
+          />
         </div>
       </div>
 

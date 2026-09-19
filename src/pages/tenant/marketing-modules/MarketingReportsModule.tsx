@@ -21,6 +21,8 @@ import {
   Megaphone,
   Briefcase
 } from "lucide-react";
+import { DataExportMenu } from "@/components/documents/DataExportMenu";
+import { money } from "@/lib/documents/format";
 
 type Lead = { 
   id: string; 
@@ -265,7 +267,7 @@ export function MarketingReportsModule() {
 
     return campaigns.map((c) => {
       const leadsCount = filteredLeadCountByCamp[c.id] || 0;
-      const cpl = leadsCount > 0 ? Math.round(c.budget / leadsCount) : 0;
+      const cpl: number | null = leadsCount > 0 ? Math.round(c.budget / leadsCount) : null;
       return {
         ...c,
         leadsCount,
@@ -453,6 +455,14 @@ export function MarketingReportsModule() {
             <CardTitle className="text-sm font-semibold flex items-center gap-1.5">
               <BarChart3 className="h-4 w-4 text-primary" /> CRM Pipeline Stage Distribution
             </CardTitle>
+            <div className="flex justify-end">
+              <DataExportMenu
+                title="Admissions Pipeline"
+                rows={funnelStages.map((st) => ({ Stage: st.name, Leads: st.count }))}
+                disabled={!funnelStages.length}
+                size="sm"
+              />
+            </div>
             <CardDescription className="text-xs">Visual breakdown of where inquiries are currently held in the admissions pipeline.</CardDescription>
           </CardHeader>
           <CardContent className="p-4 space-y-4">
@@ -508,6 +518,14 @@ export function MarketingReportsModule() {
               <CardTitle className="text-sm font-semibold flex items-center gap-1.5">
                 <Target className="h-4 w-4 text-sky-500" /> Channel Performance (Top Sources)
               </CardTitle>
+              <div className="flex justify-end">
+                <DataExportMenu
+                  title="Lead Sources"
+                  rows={sourcesPerf.map((s) => ({ Source: s.source, Leads: s.total, Won: s.won }))}
+                  disabled={!sourcesPerf.length}
+                  size="sm"
+                />
+              </div>
             </CardHeader>
             <CardContent className="p-4 space-y-3">
               {sourcesPerf.map((s) => {
@@ -547,6 +565,20 @@ export function MarketingReportsModule() {
               <CardTitle className="text-sm font-semibold flex items-center gap-1.5">
                 <Megaphone className="h-4 w-4 text-emerald-500" /> Campaign Yield & ROI Tracker
               </CardTitle>
+              <div className="flex justify-end">
+                <DataExportMenu
+                  title="Campaign Yield"
+                  rows={campaignPerf.map((c) => ({ campaign: c.name, budget: c.budget, leads: c.leadsCount, cpl: c.cpl ?? "" }))}
+                  columns={[
+                    { header: "Campaign", key: "campaign" },
+                    { header: "Budget", key: "budget", type: "money", total: "sum" },
+                    { header: "Leads", key: "leads", type: "integer", total: "sum" },
+                    { header: "Cost per lead", key: "cpl", type: "money" },
+                  ]}
+                  disabled={!campaignPerf.length}
+                  size="sm"
+                />
+              </div>
             </CardHeader>
             <CardContent className="p-0">
               <Table>
@@ -562,9 +594,9 @@ export function MarketingReportsModule() {
                   {campaignPerf.map((c) => (
                     <TableRow key={c.id}>
                       <TableCell className="text-xs font-medium truncate max-w-[120px]">{c.name}</TableCell>
-                      <TableCell className="text-xs text-center font-mono text-muted-foreground">${c.budget}</TableCell>
+                      <TableCell className="text-xs text-center font-mono text-muted-foreground">PKR {money(c.budget ?? 0, { places: 0 })}</TableCell>
                       <TableCell className="text-xs text-center font-semibold">{c.leadsCount}</TableCell>
-                      <TableCell className="text-xs text-right font-semibold font-mono text-emerald-600">${c.cpl}</TableCell>
+                      <TableCell className="text-xs text-right font-semibold font-mono text-emerald-600">{c.cpl != null ? `PKR ${money(c.cpl, { places: 0 })}` : "—"}</TableCell>
                     </TableRow>
                   ))}
                   {campaignPerf.length === 0 && (

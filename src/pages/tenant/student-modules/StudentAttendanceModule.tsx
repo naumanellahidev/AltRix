@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { RefreshCw, WifiOff } from "lucide-react";
 import { useOfflineAttendanceEntries } from "@/hooks/useOfflineData";
 import { OfflineDataBanner } from "@/components/offline/OfflineDataBanner";
+import { DataExportMenu } from "@/components/documents/DataExportMenu";
 
 export function StudentAttendanceModule({ myStudent, schoolId }: { myStudent: any; schoolId: string }) {
   // Use offline-first hook
@@ -53,12 +54,20 @@ export function StudentAttendanceModule({ myStudent, schoolId }: { myStudent: an
       
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">Your attendance entries</p>
+        <div className="flex items-center gap-2">
+        <DataExportMenu
+          title="My Attendance"
+          rows={studentAttendance.map((r) => ({ Date: String(r.sessionDate).slice(0, 10), Period: r.periodLabel ?? "", Status: r.status, Note: r.note ?? "" }))}
+          disabled={!studentAttendance.length}
+          size="sm"
+        />
         {!isOffline && (
           <Button variant="outline" size="sm" onClick={refresh}>
             <RefreshCw className="h-4 w-4 mr-1" />
             Refresh
           </Button>
         )}
+        </div>
       </div>
       
       <div className="w-full overflow-x-auto rounded-xl border border-muted/30">

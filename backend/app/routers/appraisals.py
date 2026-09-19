@@ -12,6 +12,7 @@ from app.dependencies import CurrentUser, DbSession
 from app.exceptions import NotFoundError, ForbiddenError
 from app.models.appraisals import StaffKpi, StaffAppraisal, Feedback360, PerformanceImprovementPlan
 from app.models.misc import HrPayroll
+from app.utils.money import D, money
 from app.schemas import (
     StaffKpiOut,
     StaffAppraisalCreate, StaffAppraisalOut,
@@ -19,6 +20,7 @@ from app.schemas import (
     PerformanceImprovementPlanCreate, PerformanceImprovementPlanOut,
     MessageResponse,
 )
+from app.utils.pagination import ListPageParams
 
 router = APIRouter(prefix="/appraisals", tags=["Staff Appraisals & KPIs"])
 
@@ -26,18 +28,15 @@ router = APIRouter(prefix="/appraisals", tags=["Staff Appraisals & KPIs"])
 # ─── KPI SCORES ───────────────────────────────────────────────────────────────
 
 @router.get("/kpis", response_model=List[StaffKpiOut])
-async def list_kpis(current_user: CurrentUser, db: DbSession, staff_user_id: Optional[UUID] = None):
+async def list_kpis(current_user: CurrentUser, db: DbSession, page: ListPageParams, staff_user_id: Optional[UUID] = None):
     """List staff KPI scores."""
     if not current_user.school_id:
         return []
-    try:
-        query = select(StaffKpi).where(StaffKpi.school_id == current_user.school_id)
-        if staff_user_id:
-            query = query.where(StaffKpi.staff_user_id == staff_user_id)
-        res = await db.execute(query.order_by(StaffKpi.created_at.desc()))
-        return res.scalars().all()
-    except Exception:
-        return []
+    query = select(StaffKpi).where(StaffKpi.school_id == current_user.school_id)
+    if staff_user_id:
+        query = query.where(StaffKpi.staff_user_id == staff_user_id)
+    res = await db.execute(page.apply(query.order_by(StaffKpi.created_at.desc())))
+    return res.scalars().all()
 
 
 @router.post("/kpis", response_model=StaffKpiOut)
@@ -94,20 +93,17 @@ async def update_staff_kpi(
 # ─── APPRAISALS WORKFLOW ──────────────────────────────────────────────────────
 
 @router.get("/my-appraisal", response_model=List[StaffAppraisalOut])
-async def get_my_appraisals(current_user: CurrentUser, db: DbSession):
+async def get_my_appraisals(current_user: CurrentUser, db: DbSession, page: ListPageParams):
     """Teacher views their appraisal requests."""
     if not current_user.school_id:
         return []
-    try:
-        res = await db.execute(
-            select(StaffAppraisal).where(
-                StaffAppraisal.school_id == current_user.school_id,
-                StaffAppraisal.staff_user_id == current_user.id,
-            )
-        )
-        return res.scalars().all()
-    except Exception:
-        return []
+    res = await db.execute(
+        page.apply(select(StaffAppraisal).where(
+            StaffAppraisal.school_id == current_user.school_id,
+            StaffAppraisal.staff_user_id == current_user.id,
+        ))
+    )
+    return res.scalars().all()
 
 
 @router.post("/my-appraisal", response_model=StaffAppraisalOut, status_code=status.HTTP_201_CREATED)
@@ -135,20 +131,17 @@ async def submit_self_appraisal(
 
 
 @router.get("/reviews", response_model=List[StaffAppraisalOut])
-async def list_appraisals_for_review(current_user: CurrentUser, db: DbSession):
+async def list_appraisals_for_review(current_user: CurrentUser, db: DbSession, page: ListPageParams):
     """List appraisal requests waiting HOD / Principal review."""
     if not current_user.school_id:
          return []
-    try:
-        res = await db.execute(
-            select(StaffAppraisal).where(
-                StaffAppraisal.school_id == current_user.school_id,
-                StaffAppraisal.status == "pending_review"
-            )
-        )
-        return res.scalars().all()
-    except Exception:
-        return []
+    res = await db.execute(
+        page.apply(select(StaffAppraisal).where(
+            StaffAppraisal.school_id == current_user.school_id,
+            StaffAppraisal.status == "pending_review"
+        ))
+    )
+    return res.scalars().all()
 
 
 @router.patch("/{appraisal_id}/review", response_model=StaffAppraisalOut)
@@ -188,7 +181,11 @@ async def review_appraisal(
         payroll = pay_res.scalar_one_or_none()
         if payroll:
             # Apply increment
-            payroll.base_salary = round(payroll.base_salary * (1 + salary_increment_pct / 100), 2)
+            # base_salary is Decimal (a money column); salary_increment_pct
+            # arrives from the request as a float. Multiplying the two raises
+            # TypeError, so normalise before the arithmetic.
+            increment = D(salary_increment_pct) / D(100)
+            payroll.base_salary = money(D(payroll.base_salary) * (D(1) + increment))
             payroll.notes = f"{payroll.notes or ''} | Increment of {salary_increment_pct}% applied via Appraisal Board approved on {date.today()}"
             
     await db.flush()
@@ -262,14 +259,14 @@ async def get_teacher_feedback_summary(
 # ─── PERFORMANCE IMPROVEMENT PLANS (PIP) ──────────────────────────────────────
 
 @router.get("/pip", response_model=List[PerformanceImprovementPlanOut])
-async def list_pips(current_user: CurrentUser, db: DbSession, staff_user_id: Optional[UUID] = None):
+async def list_pips(current_user: CurrentUser, db: DbSession, page: ListPageParams, staff_user_id: Optional[UUID] = None):
     """List Performance Improvement Plans (PIPs)."""
     if not current_user.school_id:
         return []
     query = select(PerformanceImprovementPlan).where(PerformanceImprovementPlan.school_id == current_user.school_id)
     if staff_user_id:
         query = query.where(PerformanceImprovementPlan.staff_user_id == staff_user_id)
-    res = await db.execute(query.order_by(PerformanceImprovementPlan.deadline_date))
+    res = await db.execute(page.apply(query.order_by(PerformanceImprovementPlan.deadline_date)))
     return res.scalars().all()
 
 

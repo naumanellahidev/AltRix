@@ -6,6 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Target, Compass, Award, Percent, Mail, Phone, ExternalLink, Calendar, Star } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { DataExportMenu } from "@/components/documents/DataExportMenu";
 
 type LeadRow = {
   id: string;
@@ -153,6 +154,14 @@ export function MarketingSourcesModule() {
           <CardTitle className="text-sm font-semibold flex items-center gap-1.5">
             <Percent className="h-4 w-4 text-primary" /> Lead Source Distribution & Performance
           </CardTitle>
+          <div className="flex justify-end">
+            <DataExportMenu
+              title="Lead Sources"
+              rows={rows.map((r) => ({ Source: r.source, Leads: r.total, Won: r.won, Lost: r.lost, "Conversion %": r.total > 0 ? Math.round((r.won / r.total) * 100) : "" }))}
+              disabled={!rows.length}
+              size="sm"
+            />
+          </div>
           <CardDescription className="text-xs">Analysis of conversion rates and total pipeline entries categorized by marketing channel</CardDescription>
         </CardHeader>
         <CardContent className="p-4">

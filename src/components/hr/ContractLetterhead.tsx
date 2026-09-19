@@ -1,5 +1,7 @@
 import { forwardRef } from "react";
 
+import { appointmentReference, appointmentTerms } from "@/lib/documents/appointment-letter";
+
 type Props = {
   school: any;
   contract: any;
@@ -7,23 +9,30 @@ type Props = {
   employeeEmail?: string | null;
 };
 
-const fmtDate = (d: string | null | undefined) =>
-  d ? new Date(d).toLocaleDateString("en-US", { day: "numeric", month: "long", year: "numeric" }) : "—";
-
-const fmtMoney = (amt?: number | null, cur?: string | null) => {
-  if (amt == null) return null;
-  return `${cur || "PKR"} ${Number(amt).toLocaleString()}`;
-};
-
-const TYPE_LABEL: Record<string, string> = {
-  full_time: "Full-Time", part_time: "Part-Time", contract: "Contract",
-  intern: "Internship", probation: "Probation",
-};
-
+/**
+ * On-screen preview of the letter of appointment. The printed letter is drawn
+ * by src/lib/documents/appointment-letter.ts from the same terms, so what HR
+ * reviews here is what the employee receives.
+ */
 export const ContractLetterhead = forwardRef<HTMLDivElement, Props>(
   ({ school, contract, employeeName, employeeEmail }, ref) => {
     const c = contract;
-    const salary = fmtMoney(c.salary_amount, c.salary_currency);
+    const terms = appointmentTerms({
+      contractId: String(c.id),
+      employeeName,
+      contractType: c.contract_type,
+      position: c.position,
+      department: c.department,
+      startDate: c.start_date,
+      endDate: c.end_date,
+      reportingTo: c.reporting_to,
+      workingHours: c.working_hours,
+      probationMonths: c.probation_period_months,
+      noticeDays: c.notice_period_days,
+      salaryAmount: c.salary_amount,
+      salaryCurrency: c.salary_currency,
+    });
+    const ended = c.status === "terminated" || c.status === "expired";
 
     return (
       <div ref={ref} className="letterhead bg-white text-slate-900 mx-auto" style={{ width: "100%", maxWidth: 820 }}>
@@ -64,7 +73,7 @@ export const ContractLetterhead = forwardRef<HTMLDivElement, Props>(
             </div>
             <div className="text-right text-xs text-slate-600">
               <p className="font-semibold text-slate-800 uppercase tracking-wider">Employment Contract</p>
-              <p className="mt-1">Ref: <span className="font-mono">{c.reference_number || `HR-${String(c.id).slice(0, 8).toUpperCase()}`}</span></p>
+              <p className="mt-1">Ref: <span className="font-mono">{appointmentReference({ contractId: String(c.id), reference: c.reference_number })}</span></p>
             </div>
           </div>
         </div>
@@ -92,21 +101,21 @@ export const ContractLetterhead = forwardRef<HTMLDivElement, Props>(
           </div>
 
           {/* Terms table */}
+          {ended && (
+            <p className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+              This contract has {c.status === "terminated" ? "been terminated" : "expired"}. The letter is kept as a record of the terms of appointment.
+            </p>
+          )}
+
           <table className="w-full text-[12.5px] border border-slate-200">
             <tbody>
-              {[
-                ["Employment Type", TYPE_LABEL[c.contract_type] || c.contract_type || "—"],
-                ["Start Date", fmtDate(c.start_date)],
-                ["End Date", c.end_date ? fmtDate(c.end_date) : "Ongoing / Until Terminated"],
-                ["Reporting To", c.reporting_to || "—"],
-                ["Working Hours", c.working_hours || "—"],
-                ["Probation", c.probation_period_months ? `${c.probation_period_months} month(s)` : "—"],
-                ["Notice Period", c.notice_period_days ? `${c.notice_period_days} day(s)` : "—"],
-                ["Compensation", salary ? `${salary} per month` : "As per offer letter"],
-              ].map(([k, v]) => (
-                <tr key={k as string} className="border-b border-slate-200 last:border-0">
-                  <td className="py-2 px-3 bg-slate-50 font-medium text-slate-700 w-1/3">{k}</td>
-                  <td className="py-2 px-3">{v}</td>
+              {terms.length === 0 && (
+                <tr><td className="py-2 px-3 text-slate-500 italic">No terms have been recorded on this contract.</td></tr>
+              )}
+              {terms.map(([k, v]) => (
+                <tr key={k} className="border-b border-slate-200 last:border-0">
+                  <td className="py-2 px-3 bg-slate-50 font-medium text-slate-700 w-1/3 align-top">{k}</td>
+                  <td className="py-2 px-3 whitespace-pre-line">{v}</td>
                 </tr>
               ))}
             </tbody>
@@ -115,19 +124,19 @@ export const ContractLetterhead = forwardRef<HTMLDivElement, Props>(
           {c.benefits && (
             <div>
               <h3 className="font-semibold text-sm mb-1">Benefits</h3>
-              <p className="whitespace-pre-wrap">{c.benefits}</p>
+              <p className="whitespace-pre-wrap" dir="auto">{c.benefits}</p>
             </div>
           )}
 
           {c.terms && (
             <div>
               <h3 className="font-semibold text-sm mb-1">Terms &amp; Conditions</h3>
-              <p className="whitespace-pre-wrap">{c.terms}</p>
+              <p className="whitespace-pre-wrap" dir="auto">{c.terms}</p>
             </div>
           )}
 
           {c.body && (
-            <div className="whitespace-pre-wrap">{c.body}</div>
+            <div className="whitespace-pre-wrap" dir="auto">{c.body}</div>
           )}
 
           <p className="mt-2">
@@ -155,7 +164,7 @@ export const ContractLetterhead = forwardRef<HTMLDivElement, Props>(
         {/* Footer band — single tagline */}
         <div className="px-10 py-3 border-t flex items-center justify-end text-[10.5px] text-slate-500"
              style={{ borderColor: "hsl(var(--primary) / 0.4)" }}>
-          <span>AltRix — Institute Operating System</span>
+          <span>{school?.name}</span>
         </div>
       </div>
     );

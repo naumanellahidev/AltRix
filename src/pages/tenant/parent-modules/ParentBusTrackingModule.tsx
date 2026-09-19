@@ -19,6 +19,9 @@ interface BusStop {
   longitude: number | null;
   stop_order: number;
   estimated_arrival_time: string | null;
+  // Sent by GET /transport/my-bus for the child's own stop; it was missing from
+  // this type, so reading it was a type error at every use site.
+  address?: string | null;
 }
 
 interface BusInfo {
@@ -172,16 +175,12 @@ export default function ParentBusTrackingModule() {
   const stops = bus?.route?.stops || [];
   const myStop = selectedChildBus?.stop;
 
-  // Mock route points Lahore context if data is empty (safeguard)
-  const defaultStops: BusStop[] = stops.length > 0 ? stops : [
-    { id: "s1", stop_name: "School Campus", latitude: 31.5204, longitude: 74.3587, stop_order: 1, estimated_arrival_time: "07:30 AM" },
-    { id: "s2", stop_name: "Model Town Stop", latitude: 31.4804, longitude: 74.3287, stop_order: 2, estimated_arrival_time: "07:45 AM" },
-    { id: "s3", stop_name: "DHA H Block Stop", latitude: 31.4704, longitude: 74.3787, stop_order: 3, estimated_arrival_time: "08:05 AM" },
-  ];
-
-  const mapStops = defaultStops;
-  const mapLat = liveLat || (bus ? bus.last_known_latitude : null) || (isSimulating ? defaultStops[0].latitude : 31.5004);
-  const mapLng = liveLng || (bus ? bus.last_known_longitude : null) || (isSimulating ? defaultStops[0].longitude : 74.3487);
+  // Only ever show real stops. This used to substitute three invented Lahore
+  // stops when the route had none, which a parent reads as their child's actual
+  // route. An empty list renders the "no stops" state instead.
+  const mapStops = stops;
+  const mapLat = liveLat ?? bus?.last_known_latitude ?? stops[0]?.latitude ?? null;
+  const mapLng = liveLng ?? bus?.last_known_longitude ?? stops[0]?.longitude ?? null;
 
   return (
     <div className="space-y-6">
@@ -247,24 +246,37 @@ export default function ParentBusTrackingModule() {
                   <Badge variant="outline" className="text-[10px] py-0.5 border-slate-200 text-slate-500 font-bold bg-slate-50">
                     Route: {bus.route?.route_name || "School Bus Route"}
                   </Badge>
-                  {/* Simulate GPS triggers */}
-                  <Button
-                    size="sm"
-                    variant={isSimulating ? "destructive" : "secondary"}
-                    onClick={() => {
-                      setIsSimulating(!isSimulating);
-                      if (!isSimulating) {
-                        // Set mock coordinates to Lahore Model Town stop to begin simulation
-                        setLiveLat(defaultStops[0].latitude);
-                        setLiveLng(defaultStops[0].longitude);
-                        setSimStep(0);
-                      }
-                    }}
-                    className="h-7 text-[10px] font-bold px-2.5 rounded-lg flex items-center gap-1"
-                  >
-                    {isSimulating ? <Pause className="h-3 w-3" /> : <Play className="h-3 w-3" />}
-                    {isSimulating ? "Stop Simulation" : "Demo GPS Tracker"}
-                  </Button>
+                  {/* GPS simulation. Only offered when the route has real
+                      stops to move between: starting it from invented
+                      coordinates showed a parent a bus that was not there.
+                      While running, the map is labelled as simulated so it is
+                      never mistaken for the child's actual position. */}
+                  {mapStops.length > 0 && (
+                    <Button
+                      size="sm"
+                      variant={isSimulating ? "destructive" : "secondary"}
+                      onClick={() => {
+                        setIsSimulating(!isSimulating);
+                        if (!isSimulating) {
+                          setLiveLat(mapStops[0].latitude);
+                          setLiveLng(mapStops[0].longitude);
+                          setSimStep(0);
+                        } else {
+                          setLiveLat(null);
+                          setLiveLng(null);
+                        }
+                      }}
+                      className="h-7 text-[10px] font-bold px-2.5 rounded-lg flex items-center gap-1"
+                    >
+                      {isSimulating ? <Pause className="h-3 w-3" /> : <Play className="h-3 w-3" />}
+                      {isSimulating ? "Stop Simulation" : "Demo GPS Tracker"}
+                    </Button>
+                  )}
+                  {isSimulating && (
+                    <Badge variant="destructive" className="h-7 text-[10px] font-bold px-2.5 rounded-lg">
+                      Simulated position — not live
+                    </Badge>
+                  )}
                 </div>
               </CardHeader>
               <CardContent className="p-0 h-[350px] md:h-[450px]">

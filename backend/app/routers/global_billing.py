@@ -4,14 +4,23 @@ Executes real automated dunning sweeps across tenant PostgreSQL database, genera
 voucher QR payloads, and updates tenant subscription tiers.
 """
 from typing import Dict, Any, Optional, List
-from fastapi import APIRouter, Depends, HTTPException
+import logging
+
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 
 from app.database import get_db
 
-router = APIRouter(prefix="/super_admin/billing", tags=["Super Admin Billing"])
+from app.utils.permissions import require_super_admin
+
+# Every endpoint below is platform-wide: it reaches across all tenants or
+# changes global configuration. The guard is declared on the router so a new
+# endpoint cannot be added without it.
+logger = logging.getLogger("app.global_billing")
+
+router = APIRouter(prefix="/super_admin/billing", tags=["Super Admin Billing"], dependencies=[Depends(require_super_admin())])
 
 _BILLING_TIERS = [
     {"tier_id": "starter", "name": "Starter Campus", "price_per_student": 1.00, "base_fee_usd": 49.00, "max_students": 500},
@@ -58,29 +67,25 @@ async def generate_billing_voucher(req: VoucherRequest, db: AsyncSession = Depen
 
 @router.post("/dunning/run")
 async def trigger_dunning_workflow(req: DunningRunRequest, db: AsyncSession = Depends(get_db)):
-    """Execute automated dunning sweep across PostgreSQL database: log audit notifications and update overdue tenant statuses."""
-    # Query all active schools
-    res = await db.execute(text("SELECT id, name, slug FROM public.schools WHERE is_active = true"))
-    schools = res.fetchall()
+    """
+    Dunning is not implemented.
 
-    reminders_count = len(schools)
+    This endpoint used to count active schools, report that number as
+    ``reminders_sent``, and hardcode ``read_only_locks_applied: 0`` — so the
+    super admin was told a sweep had reminded N campuses when no reminder had
+    been sent, nothing had been locked, and no overdue account had even been
+    looked at. Answering honestly is better than a number that reads as revenue
+    recovery in progress.
 
-    # Log dunning activity into security_events
-    await db.execute(
-        text("""
-            INSERT INTO public.security_events (id, event_type, details, severity, created_at)
-            VALUES (gen_random_uuid(), 'dunning_sweep_executed', :details::jsonb, 'info', NOW())
-        """),
-        {"details": f'{{"reminders_sent": {reminders_count}, "grace_period_days": {req.grace_period_days}}}'}
+    Implementing it needs: overdue detection against platform_invoices, a
+    reminder template wired to CentralEmailService, and a read-only lock the
+    tenant guard actually honours.
+    """
+    logger.warning("Dunning sweep requested but the workflow is not implemented")
+    raise HTTPException(
+        status_code=status.HTTP_501_NOT_IMPLEMENTED,
+        detail=(
+            "Automated dunning is not implemented yet. No reminders were sent "
+            "and no accounts were locked."
+        ),
     )
-    await db.commit()
-
-    return {
-        "status": "success",
-        "message": f"Dunning sweep executed across {reminders_count} active campuses with {req.grace_period_days}-day grace period threshold",
-        "summary": {
-            "reminders_sent": reminders_count,
-            "read_only_locks_applied": 0,
-            "suspensions_applied": 0,
-        }
-    }

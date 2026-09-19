@@ -658,27 +658,10 @@ const TenantDashboard = () => {
         )}
 
 
-        {authzState === "denied" && (
-          <div className="rounded-3xl bg-surface p-6 shadow-elevated">
-            <div className="rounded-2xl bg-destructive/10 p-4 text-sm">
-              <p className="font-medium text-destructive">Access Denied</p>
-              <p className="mt-1">{authzMessage ?? "You do not have access to this role."}</p>
-              <div className="mt-3">
-                <Button
-                  variant="hero"
-                  onClick={async () => {
-                    await api.auth.signOut();
-                    navigate(tenant.slug ? `/${tenant.slug}/auth` : "/");
-                  }}
-                >
-                  Return to login
-                </Button>
-              </div>
-            </div>
-          </div>
-        )}
+        {/* A denied state already returns early above, so the duplicate
+            "Access Denied" panel that used to sit here could never render. */}
+        {(
 
-        {authzState !== "denied" && (
           <RouteGuard>
             <Suspense fallback={<DashboardLoader />}>
               <Routes>

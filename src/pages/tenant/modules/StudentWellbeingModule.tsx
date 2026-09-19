@@ -25,6 +25,7 @@ import {
   ClipboardList
 } from "lucide-react";
 import { toast } from "sonner";
+import { DataExportMenu } from "@/components/documents/DataExportMenu";
 
 interface MedicalRecord {
   id: string;
@@ -514,6 +515,9 @@ export default function StudentWellbeingModule() {
               <Card className="shadow-soft border-border/60">
                 <CardHeader>
                   <CardTitle className="text-base font-bold font-display">Infirmary Log History</CardTitle>
+                  <div className="flex justify-end">
+                    <DataExportMenu title="Infirmary Log" rows={infirmaryLogs.map((l) => ({ Date: l.visit_date, Reason: l.reason, Treatment: l.treatment_given ?? "", Status: l.status }))} disabled={!infirmaryLogs.length} size="sm" />
+                  </div>
                 </CardHeader>
                 <CardContent className="p-0">
                   <Table>
@@ -557,6 +561,7 @@ export default function StudentWellbeingModule() {
               <Card className="shadow-soft border-border/60">
                 <CardHeader className="flex flex-row justify-between items-center border-b pb-4">
                   <CardTitle className="text-base font-bold font-display">Immunization Tracker</CardTitle>
+                  <DataExportMenu title="Immunization Record" rows={vaccinations.map((v) => ({ Vaccine: v.vaccine_name, Dose: v.dose_number, Given: v.administered_date ?? "", "Next due": v.next_due_date ?? "" }))} disabled={!vaccinations.length} size="sm" />
                   <Button onClick={() => setShowVaccineDialog(true)} size="sm" variant="outline">
                     Add Vaccination Record
                   </Button>
@@ -601,6 +606,7 @@ export default function StudentWellbeingModule() {
               <Card className="shadow-soft border-border/60">
                 <CardHeader className="flex flex-row justify-between items-center border-b pb-4">
                   <CardTitle className="text-base font-bold font-display">First Aid Incident Reports</CardTitle>
+                  <DataExportMenu title="First Aid Incidents" rows={incidents.map((i) => ({ Date: i.incident_date, Description: i.incident_description, "First aid": i.first_aid_given ?? "" }))} disabled={!incidents.length} size="sm" />
                   <Button onClick={() => setShowIncidentDialog(true)} size="sm" variant="outline">
                     Log Playground Incident
                   </Button>
@@ -643,6 +649,7 @@ export default function StudentWellbeingModule() {
               <Card className="shadow-soft border-border/60">
                 <CardHeader className="flex flex-row justify-between items-center border-b pb-4">
                   <CardTitle className="text-base font-bold font-display">Doctor/Hospital Emergency Directory</CardTitle>
+                  <DataExportMenu title="Medical Emergency Contacts" rows={contacts.map((c) => ({ Name: c.contact_name, Specialty: c.specialty ?? "", Phone: c.phone, "Hospital / clinic": c.hospital_name ?? "" }))} disabled={!contacts.length} size="sm" />
                   <Button onClick={() => setShowContactDialog(true)} size="sm" variant="outline">
                     Add Medical Contact
                   </Button>

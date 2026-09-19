@@ -1,3 +1,4 @@
+import { DataExportMenu } from "@/components/documents/DataExportMenu";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -244,20 +245,16 @@ export function OwnerHrModule({ schoolId }: Props) {
     return Math.round(amount).toLocaleString();
   };
 
-  const exportLeavesCSV = () => {
-    const rows = hrData?.leaves || [];
-    const head = ["Employee", "Type", "Start", "End", "Days", "Status", "Reason"];
-    const lines = rows.map((l: any) =>
-      [nameOf(l.user_id), l.leave_type_id || "", l.start_date || "", l.end_date || "", l.days_count || 0, l.status || "", (l.reason || "").replace(/,/g, " ")].join(",")
-    );
-    const blob = new Blob([head.join(",") + "\n" + lines.join("\n")], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `hr-leaves-${format(new Date(), "yyyy-MM-dd")}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
+  const leaveRows = () =>
+    (hrData?.leaves || []).map((l: any) => ({
+      employee: nameOf(l.user_id),
+      leave_type: l.leave_type?.name ?? l.leave_type_name ?? l.leave_type_id ?? "",
+      start: l.start_date || "",
+      end: l.end_date || "",
+      days: l.days_count ?? null,
+      status: l.status || "",
+      reason: l.reason || "",
+    }));
 
   if (isLoading) {
     return (
@@ -284,9 +281,21 @@ export function OwnerHrModule({ schoolId }: Props) {
             Staff, payroll, leaves, contracts and performance reviews
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={exportLeavesCSV} className="rounded-xl text-xs w-full sm:w-auto justify-center">
-          <Download className="mr-2 h-4 w-4" /> Export leaves
-        </Button>
+        <DataExportMenu
+          title="Leave Register"
+          label="Export leaves"
+          rows={leaveRows()}
+          columns={[
+            { header: "Employee", key: "employee" },
+            { header: "Leave Type", key: "leave_type" },
+            { header: "Start", key: "start", type: "date" },
+            { header: "End", key: "end", type: "date" },
+            { header: "Days", key: "days", type: "number", total: "sum" },
+            { header: "Status", key: "status" },
+            { header: "Reason", key: "reason" },
+          ]}
+          orientation="landscape"
+        />
       </div>
 
       {/* KPIs */}

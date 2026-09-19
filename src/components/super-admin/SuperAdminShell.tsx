@@ -15,6 +15,7 @@ import {
   MessageSquare,
   Cpu,
   Database,
+  DatabaseBackup,
   Globe,
   Mail,
   TrendingUp,
@@ -52,6 +53,7 @@ const NAV: { section: string; items: Item[] }[] = [
     section: "Infrastructure & Security",
     items: [
       { label: "07. Database & Storage HQ", to: "/super_admin/database", icon: Database },
+      { label: "07b. Backups & Recovery", to: "/super_admin/backups", icon: DatabaseBackup },
       { label: "08. Central Email HQ", to: "/super_admin/email", icon: Mail, badge: "Live MTA" },
       { label: "09. Custom Domains & SSL", to: "/super_admin/domains", icon: Globe },
       { label: "10. Security & Audit Stream", to: "/super_admin/security", icon: ShieldCheck },
