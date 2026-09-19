@@ -216,7 +216,7 @@ Tests: `src/lib/documents/*.test.ts`.
   was hard-coded to two past years — now computed (Pakistan FY July–June).
 - `AltrixCopilot.tsx` voucher: discounts were dropped so lines did not add up
   to the total; branding lightness defaulted to 178% — both fixed via the loader.
-- `supabase/migrations/20260918010000_unified_invoice_numbering.sql`: one atomic
+- `backend/sql_migrations/20260918010000_unified_invoice_numbering.sql`: one atomic
   per-school sequence behind both `generate_invoice_number` and
   `next_invoice_number`, keeping each school's prefix and six digits, seeded
   from numbers already issued. Verified on real Postgres: 400 concurrent
@@ -566,19 +566,32 @@ Fixed along the way:
   Teacher attendance "Load" passed the click event as the period label.
 - Verified: vitest 173/173, pytest 543/543, audit 138/138, TS errors 39.
 
-### Slice 17 — migrations reach production (done)
+### Slice 17 — migrations reach production; VPS-only deployment (done)
 
-The deploy ran only `app.db_bootstrap`; nothing applied `supabase/migrations`
-on the VPS, so this project's four migrations (database hardening, unified
-invoice numbering, HR contract references, exam seating sittings) would never
-have reached production.
-- `backend/app/sql_migrations.py`: an explicit, ordered list of idempotent
-  migrations, each applied once and recorded in `public.app_sql_migrations`
-  (name + checksum); a failure raises and stops the deploy before containers
-  are replaced. Called from `python -m app.db_bootstrap` (the deploy step).
-- `Dockerfile` copies `supabase/migrations/` to `/app/sql_migrations/`;
-  `.dockerignore` lets that folder in and keeps every `.env` out of the image.
-- The hardening migration's 67 index statements now check their table and
-  column exist, so a database missing one of those tables still migrates.
-- Verified on Postgres: applies all four on a sparse schema, re-run is a
-  no-op, a failing migration rolls back and is not recorded. pytest 546/546.
+- The deploy ran only `app.db_bootstrap`; nothing applied SQL migrations on
+  the VPS. `backend/app/sql_migrations.py` applies an explicit ordered list,
+  once each, recorded in `public.app_sql_migrations` (name + checksum); a
+  failure raises and stops the deploy before containers are replaced. Called
+  from `python -m app.db_bootstrap`. It connects with the engine's own URL
+  (which rewrites the Docker gateway address to 127.0.0.1 on the VPS).
+- The four VPS migrations now live in `backend/sql_migrations/` — inside the
+  `backend/` build context the deploy uses (`-f backend/Dockerfile backend/`),
+  so they are in the image. The hardening migration's 67 index statements
+  check their table and column exist first.
+- `backend/.dockerignore` (new): no `.env` or tests in the image.
+  `backend/Dockerfile` installs `postgresql-client-17` (server is 17) so the
+  backup feature's pg_dump works in production.
+- Railway and Vercel removed from the app: `railway.json`, `.railwayignore`,
+  `backend/railway.json`, `vercel.json`, `.vercelignore`, the Railway env
+  example, their CORS origins, and the `vercel.app` host special case. The
+  CSP that only the Vercel config carried is now in `scripts/nginx_altrix.conf`
+  (the audit checks it there).
+- VPS: `/opt/altrix/scripts/deploy.sh` was root-owned, so the auto-deploy
+  daemon (user altrixadmin) could never install a newer script and every
+  deploy ran the 25 Aug version — no migrations, uploads not on persistent
+  storage (lost on each deploy), docker.sock mounted into the backend.
+  Ownership fixed (old copy kept as deploy.sh.pre-20260919); the next deploy
+  installs the repo script. A pre-migration database dump was taken:
+  /var/backups/altrix-predeploy/altrix-pre-migration-20260919-123148.dump.
+- Verified: pytest 546/546, audit 138/138; runner tested on Postgres
+  (applies all four on a sparse schema, re-run no-op, failure rolls back).

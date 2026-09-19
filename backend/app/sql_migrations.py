@@ -1,12 +1,13 @@
 """
 Versioned SQL migrations, applied once each by the deploy step.
 
-The deploy ran only the schema bootstrap; the SQL migrations under
-supabase/migrations were never applied on the VPS by anything, so a schema
-change shipped in a migration reached production only if someone ran it by
-hand. This applies an explicit, ordered list of them — each idempotent and
-written for this Postgres, not for Supabase — and records every one it applies
-in ``public.app_sql_migrations`` so it runs once.
+The deploy ran only the schema bootstrap; the SQL migrations
+(the old supabase/migrations folder) were never applied on the VPS by
+anything, so a schema change shipped in a migration reached production only if
+someone ran it by hand. The migrations written for this Postgres live in
+``backend/sql_migrations`` — inside the backend build context, so they are in
+the image the deploy builds — and this applies them in order, records each in
+``public.app_sql_migrations``, and never runs one twice.
 
 A migration that fails stops the deploy (the old containers keep serving),
 rather than starting new code against a half-migrated database.
@@ -29,14 +30,11 @@ MIGRATIONS: List[str] = [
 
 
 def migrations_dir() -> Path:
-    """Where the .sql files are: the image copy, or the repo in development."""
+    """backend/sql_migrations: /app/sql_migrations in the image."""
     configured = os.getenv("SQL_MIGRATIONS_DIR")
     if configured:
         return Path(configured)
-    image = Path("/app/sql_migrations")
-    if image.is_dir():
-        return image
-    return Path(__file__).resolve().parents[2] / "supabase" / "migrations"
+    return Path(__file__).resolve().parents[1] / "sql_migrations"
 
 
 def _asyncpg_dsn(url: str) -> str:
@@ -47,11 +45,15 @@ async def apply_sql_migrations(database_url: Optional[str] = None) -> List[str]:
     """Apply every listed migration not yet recorded. Returns the names applied."""
     import asyncpg
 
-    from app.config import settings
+    if database_url is None:
+        # The engine's own URL: it carries the host rewrites database.py applies
+        # (the Docker gateway address becomes 127.0.0.1 on the VPS).
+        from app.database import engine
 
-    dsn = _asyncpg_dsn(database_url or settings.database_url)
+        database_url = engine.url.render_as_string(hide_password=False)
+    dsn = _asyncpg_dsn(database_url)
     folder = migrations_dir()
-    conn = await asyncpg.connect(dsn)
+    conn = await asyncpg.connect(dsn, timeout=30)
     applied_now: List[str] = []
     try:
         await conn.execute(

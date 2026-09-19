@@ -29,10 +29,25 @@ FROM python:3.10-slim AS runner
 WORKDIR /app
 
 # Install runtime dependencies (like libpq for postgres connection)
+# postgresql-client-17 supplies pg_dump / pg_restore for the backup feature.
+# From PGDG: Debian's own client is older than the server, and pg_dump refuses
+# to dump a server newer than itself.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq5 \
     curl \
-    && rm -rf /var/lib/apt/lists/*
+    ca-certificates \
+    gnupg \
+    && install -d /usr/share/postgresql-common/pgdg \
+    && curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+        -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
+    && echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt bookworm-pgdg main" \
+        > /etc/apt/sources.list.d/pgdg.list \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends postgresql-client-17 \
+    && apt-get purge -y gnupg \
+    && apt-get autoremove -y \
+    && rm -rf /var/lib/apt/lists/* \
+    && pg_dump --version
 
 # Copy virtual environment from builder stage
 COPY --from=builder /opt/venv /opt/venv

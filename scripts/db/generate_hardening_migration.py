@@ -277,7 +277,7 @@ def main() -> int:
     missing, total, already = tenant_tables_missing_index()
 
     sql = build()
-    target = "supabase/migrations/20260918000000_database_hardening.sql"
+    target = "backend/sql_migrations/20260918000000_database_hardening.sql"
     io.open(target, "w", encoding="utf-8").write(sql)
 
     money_cols = sum(len(v) for v in MONEY.values())

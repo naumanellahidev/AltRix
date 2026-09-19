@@ -1,7 +1,0 @@
-# Ignore backend folder and python configuration files on Vercel deployment
-backend/
-Dockerfile
-.dockerignore
-.railwayignore
-requirements.txt
-*.py

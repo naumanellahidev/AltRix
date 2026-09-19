@@ -392,9 +392,6 @@ function connectRealtimeWebSocket() {
     } catch (e) {
       console.warn("Failed to parse VITE_API_URL for WebSocket", e);
     }
-  } else if (host.includes('vercel.app')) {
-    host = 'altrixcore.com';
-    protocol = 'wss:';
   }
   
   // Exchange the token for a single-use ticket over HTTP. A WebSocket URL is

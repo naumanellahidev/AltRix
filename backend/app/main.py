@@ -299,10 +299,6 @@ app.state.limiter = limiter
 _PRODUCTION_ORIGINS = [
     "https://altrixcore.com",
     "https://www.altrixcore.com",
-    "https://alt-rix.vercel.app",
-    "https://altrix.vercel.app",
-    "https://altrix.up.railway.app",
-    "https://altrix-2-production.up.railway.app",
 ]
 
 _DEV_ORIGINS = [
@@ -373,7 +369,7 @@ async def root():
     }
 
 
-@app.get("/health", tags=["Health"], summary="Railway/VPS health check", include_in_schema=False)
+@app.get("/health", tags=["Health"], summary="VPS health check", include_in_schema=False)
 @app.get(
     "/api/health",
     tags=["Health"],

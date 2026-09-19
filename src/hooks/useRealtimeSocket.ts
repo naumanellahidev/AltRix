@@ -47,9 +47,6 @@ export function useRealtimeSocket(
           } catch (e) {
             console.warn("Failed to parse VITE_API_URL for WebSocket", e);
           }
-        } else if (host.includes('vercel.app')) {
-          host = 'altrixcore.com';
-          protocol = 'wss:';
         }
 
         // Trade the access token for a single-use, 30-second ticket over normal

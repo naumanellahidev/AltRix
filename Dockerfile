@@ -32,9 +32,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy backend code cleanly into /app/backend
 COPY backend/ ./
 
-# Versioned SQL migrations, applied once each by `python -m app.db_bootstrap`.
-COPY supabase/migrations/ /app/sql_migrations/
-
 # Fail the build rather than ship a broken image: if pg_dump is absent the backup
 # subsystem is silently dead, which is how it stayed unnoticed before.
 RUN pg_dump --version && pg_restore --version

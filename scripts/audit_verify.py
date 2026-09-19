@@ -150,7 +150,7 @@ def run():
     ts_store = txt("src/lib/token-store.ts")
     ac = txt("src/lib/api-client.ts")
     apis = txt("src/lib/api.ts")
-    vj = json.loads(txt("vercel.json"))
+    ngx = txt("scripts/nginx_altrix.conf")
     bus = txt("src/pages/tenant/parent-modules/ParentBusTrackingModule.tsx")
 
     # ── P0 ────────────────────────────────────────────────────────────────────
@@ -245,12 +245,9 @@ def run():
     check(S, "20", "assistant output escaped before formatting",
           md.index("escapeHtml(text)") < md.index("altrix_action"))
     check(S, "21", "safe CSP directives enforced",
-          any("frame-ancestors 'none'" in h["value"]
-              for hh in vj.get("headers", []) for h in hh["headers"]
-              if h["key"] == "Content-Security-Policy"))
+          "add_header Content-Security-Policy \"frame-ancestors 'none'" in ngx)
     check(S, "21", "full policy shipped in report-only",
-          any(h["key"] == "Content-Security-Policy-Report-Only"
-              for hh in vj.get("headers", []) for h in hh["headers"]))
+          "add_header Content-Security-Policy-Report-Only" in ngx)
     check(S, "21", "refresh cookie is HttpOnly + SameSite=Strict",
           "httponly=True" in auth and "samesite='strict'" in auth)
     check(S, "21", "refresh token not returned in the body", "refresh_token=None" in auth)
@@ -359,7 +356,7 @@ def run():
           count_matches("supabase_url", "backend/app") == 0)
     # ── Round 2: data integrity, concurrency, dependencies ────────────────────
     S = "R2 - data integrity and scale"
-    mig = "supabase/migrations/20260918000000_database_hardening.sql"
+    mig = "backend/sql_migrations/20260918000000_database_hardening.sql"
     migration = txt(mig) if exists(mig) else ""
     fin = code(R + "finance.py")
     pays = code(R + "payments.py")
@@ -487,7 +484,7 @@ def run():
           "directInv" not in vouchers and "Resilient fallback direct insertion" not in vouchers
           and "callWithRetry" in vouchers)
     check(S, "num", "invoice numbers come from one atomic sequence",
-          exists("supabase/migrations/20260918010000_unified_invoice_numbering.sql"))
+          exists("backend/sql_migrations/20260918010000_unified_invoice_numbering.sql"))
 
     total_ts = int(sh("npx tsc --noEmit -p tsconfig.app.json 2>&1 | grep -c 'error TS'") or 0)
     check(S, "45", f"TypeScript errors reduced (was 201, now {total_ts})",
