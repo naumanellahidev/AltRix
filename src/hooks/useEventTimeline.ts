@@ -37,7 +37,7 @@ export function useEventTimeline(category?: string, page = 1, limit = 20) {
       // Resolve schoolId
       const { data: membership } = await api
         .from("school_memberships")
-        .select("school_id, full_name, role_name")
+        .select("school_id, user_id, status")
         .eq("user_id", userId)
         .maybeSingle();
 
@@ -103,7 +103,7 @@ export function useEventTimeline(category?: string, page = 1, limit = 20) {
             // Student enrollments
             api
               .from("students")
-              .select("id, first_name, last_name, roll_number, admission_number, created_at")
+              .select("id, first_name, last_name, roll_number, student_code, created_at")
               .eq("school_id", schoolId)
               .order("created_at", { ascending: false })
               .limit(6),
@@ -117,7 +117,7 @@ export function useEventTimeline(category?: string, page = 1, limit = 20) {
             // CRM Leads
             api
               .from("crm_leads")
-              .select("id, student_name, parent_name, phone, created_at")
+              .select("id, full_name, email, phone, created_at")
               .eq("school_id", schoolId)
               .order("created_at", { ascending: false })
               .limit(4),
@@ -151,7 +151,7 @@ export function useEventTimeline(category?: string, page = 1, limit = 20) {
               user_id: null,
               event_name: "student.enrolled",
               title: `Admitted: ${name}`,
-              description: `Student enrolled with Roll #${s.roll_number || s.admission_number || "N/A"} (Adm #${s.admission_number || "N/A"}).`,
+              description: `Student enrolled with Roll #${s.roll_number || "N/A"} (Code ${s.student_code || "not issued"}).`,
               category: "academic",
               entity_type: "students",
               entity_id: s.id,
@@ -186,8 +186,8 @@ export function useEventTimeline(category?: string, page = 1, limit = 20) {
               campus_id: null,
               user_id: null,
               event_name: "crm_lead.created",
-              title: `Admission Inquiry: ${l.student_name || "Applicant"}`,
-              description: `Inquiry recorded from parent ${l.parent_name || "Guardian"} (${l.phone || "Phone logged"}).`,
+              title: `Admission Inquiry: ${l.full_name || "Applicant"}`,
+              description: `Inquiry recorded (${[l.phone, l.email].filter(Boolean).join(", ") || "no contact recorded"}).`,
               category: "general",
               entity_type: "crm_leads",
               entity_id: l.id,

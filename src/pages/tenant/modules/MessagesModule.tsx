@@ -181,7 +181,8 @@ export function MessagesModule({ schoolId, isStudentPortal = false }: Props) {
     const { data: profile } = await api
       .from("profiles")
       .select("display_name")
-      .eq("user_id", user.user.id)
+      // profiles keys on id; there is no user_id column.
+      .eq("id", user.user.id)
       .maybeSingle();
     setCurrentUserName(profile?.display_name || user.user.email || "User");
 
@@ -240,11 +241,11 @@ export function MessagesModule({ schoolId, isStudentPortal = false }: Props) {
     if (userIds.size > 0) {
       const { data: profiles } = await api
         .from("profiles")
-        .select("user_id, display_name")
-        .in("user_id", Array.from(userIds));
+        .select("id, display_name")
+        .in("id", Array.from(userIds));
 
       profiles?.forEach((p) => {
-        if (p.user_id && p.display_name) map[p.user_id] = p.display_name;
+        if (p.id && p.display_name) map[p.id] = p.display_name;
       });
 
       const missingIds = Array.from(userIds).filter((id) => !map[id]);

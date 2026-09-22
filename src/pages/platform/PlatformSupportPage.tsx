@@ -50,11 +50,11 @@ export default function PlatformSupportPage() {
     if (ids.length) {
       const { data: profs } = await api
         .from("profiles")
-        .select("user_id,email,display_name")
-        .in("user_id", ids);
+        .select("id,email,display_name")
+        .in("id", ids);
       const map: Record<string, { email?: string; display_name?: string }> = {};
       (profs || []).forEach((p: any) => {
-        map[p.user_id] = { email: p.email, display_name: p.display_name };
+        map[p.id] = { email: p.email, display_name: p.display_name };
       });
       setRequesters(map);
     }

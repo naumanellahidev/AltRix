@@ -133,14 +133,16 @@ export function SupportInbox({ schoolId }: { schoolId?: string }) {
       try {
         const { data: student } = await api
           .from("students")
-          .select("user_id")
+          // students links to its account through profile_id; there is no
+          // user_id column, so this notification never fired.
+          .select("profile_id")
           .eq("id", selected.student_id)
           .maybeSingle();
 
-        if (student?.user_id) {
+        if (student?.profile_id) {
           await api.from("app_notifications").insert({
             school_id: selected.school_id,
-            user_id: student.user_id,
+            user_id: student.profile_id,
             type: "support",
             title: "Support Ticket Reply",
             body: `School support has replied to your ticket.`,

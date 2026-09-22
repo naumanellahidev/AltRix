@@ -486,6 +486,48 @@ def run():
     check(S, "num", "invoice numbers come from one atomic sequence",
           exists("backend/sql_migrations/20260918010000_unified_invoice_numbering.sql"))
 
+    # ── Fees Centre, report cards, the Copilot and the dashboard ─────────
+    fin = code(R + "finance.py")
+    check(S, "fees", "the finance sidebar does not point three tabs at one screen",
+          txt("src/lib/module-registry.tsx").count("Component: FeesCentreModule") == 1
+          and "admin-fees\": { Component: AdminFeePortalModule }" in txt("src/lib/module-registry.tsx"))
+    check(S, "coll", "collection totals come from payments received, not invoice status",
+          "COLLECTED_PAYMENT_STATUS" in fin
+          and "SUM(total_amount) FILTER (WHERE status = 'paid')" not in
+              fin[fin.index("async def collection_board"):] if "async def collection_board" in fin else False)
+    check(S, "dupe", "a student cannot be billed twice for the same period",
+          exists("backend/sql_migrations/20260922000000_fee_voucher_duplicate_guard.sql")
+          and "duplicate_voucher" in txt("backend/sql_migrations/20260922000000_fee_voucher_duplicate_guard.sql"))
+    check(S, "canc", "a voucher can only be cancelled inside its own school, with a reason",
+          "FeeVoucher.school_id == current_user.school_id" in fin and "min_length=3" in fin)
+
+    rc = txt("src/lib/documents/report-card.ts")
+    rcm = txt("src/pages/tenant/modules/ReportCardModule.tsx")
+    check(S, "1pg", "a report card is fitted to one sheet, and never by dropping data",
+          "buildFittedReportCard" in rc and "subjectColumns" in rc
+          and "exportCleanDocumentToPdf(" not in rcm)
+    check(S, "rcst", "how a school prints its cards is asked once and stored",
+          exists("backend/sql_migrations/20260922010000_report_card_print_settings.sql")
+          and exists("src/lib/report-card-settings.ts"))
+
+    ai = txt("backend/app/utils/ai_service.py")
+    copilot = txt("src/components/ai/AltrixCopilot.tsx")
+    check(S, "ai-m", "the Copilot only asks for a model the server reports having",
+          "installed_local_models" in ai and "choose_local_model" in ai)
+    check(S, "ai-e", "an unreachable model is reported, never answered around",
+          "ai_unavailable" in ai and "I am currently processing your request" not in copilot)
+    check(S, "ai-c", "the prompt's database context is capped on a section boundary",
+          "trim_ai_context" in code(R + "misc.py"))
+
+    ph = txt("src/pages/tenant/role-homes/PrincipalHome.tsx")
+    check(S, "spark", "no dashboard line is invented from the number under it",
+          "const staffAttendanceRate = 96" not in ph
+          and "kpis.openLeads - 6" not in ph
+          and "attendanceRate - 3" not in ph
+          and "/reports/daily-series" in ph)
+    check(S, "enum", "payment queries ask for a status the enum actually has",
+          "'success', 'paid', 'completed'" not in code(R + "misc.py"))
+
     total_ts = int(sh("npx tsc --noEmit -p tsconfig.app.json 2>&1 | grep -c 'error TS'") or 0)
     check(S, "45", f"TypeScript errors reduced (was 201, now {total_ts})",
           total_ts < 60, f"{total_ts} remain")

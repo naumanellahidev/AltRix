@@ -105,7 +105,9 @@ export function LibraryModule() {
   const [selectedLoanDetail, setSelectedLoanDetail] = useState<{
     issue: Issue;
     book?: Book;
-    borrower?: BorrowerOption;
+    // The borrower map is keyed by id and its values do not repeat it, so the
+    // dialog takes the shape the map actually holds.
+    borrower?: { name: string; code: string; type: string; details?: string };
   } | null>(null);
   const [reservations, setReservations] = useState<BookReservation[]>([]);
 
@@ -162,7 +164,7 @@ export function LibraryModule() {
       // 1. Fetch only active students of current school/campus
       let studentQuery = api
         .from("students")
-        .select("id, first_name, last_name, roll_number, student_code, status, class_name, section");
+        .select("id, first_name, last_name, roll_number, student_code, status, class_sections(name, academic_classes(name))");
       
       if (user?.school_id) {
         studentQuery = studentQuery.eq("school_id", user.school_id);
@@ -207,7 +209,13 @@ export function LibraryModule() {
         if (s.status === "inactive" || s.status === "withdrawn" || s.status === "graduated" || s.status === "deleted") return;
         const name = `${s.first_name || ""} ${s.last_name || ""}`.trim() || "Student";
         const code = s.student_code || s.roll_number || "STU";
-        const details = s.class_name ? `Class ${s.class_name}${s.section ? `-${s.section}` : ""}` : "Student";
+        // students carries no class_name or section column; the class comes
+        // from the section it is enrolled in.
+        const section = (s as any).class_sections;
+        const className = section?.academic_classes?.name;
+        const details = className
+          ? `Class ${className}${section?.name ? ` - ${section.name}` : ""}`
+          : "Student";
         list.push({ id: s.id, name, type: "student", code, details });
         map[s.id] = { name, code, type: "student", details };
       });

@@ -595,3 +595,281 @@ Fixed along the way:
   /var/backups/altrix-predeploy/altrix-pre-migration-20260919-123148.dump.
 - Verified: pytest 546/546, audit 138/138; runner tested on Postgres
   (applies all four on a sparse schema, re-run no-op, failure rolls back).
+
+### Slice 18 — Fees Centre: one job per tab, real numbers (done)
+
+Plan approved on 2026-09-22 (see `docs/PLAN-principal-shell-upgrade.md`).
+
+- **The mixup, in code.** `module-registry.tsx` pointed *three* sidebar tabs —
+  Fees Center, Fee Configurations, Finance & Cashflow — at the same
+  `FeesUnifiedModule`, while `TenantDashboard` gave two of them different
+  components again, so the same tab meant different screens in different
+  shells. Inside, three vague labels ("Billing Structures", "Advanced
+  Operations", "Vouchers & Proofs") held five jobs, and payments, expenses,
+  gateways and discounts each appeared in two or three places.
+- `src/pages/tenant/modules/fees/FeesCentreModule.tsx` (new) gives each job one
+  home, in the order the office works: Collection Board → Fee Structure →
+  Student Ledger → Billing Run → Collections → Defaulters & Reminders. The old
+  deep links (`?tab=plans|advanced|vouchers`) map onto the new tabs, and
+  `FeesUnifiedModule` is now a re-export so every shell keeps working.
+  Nothing was deleted: the old modules render inside the tab that owns them
+  (new `section` props on `FeesAdvancedModule` and `FeeVouchersModule` hide
+  only their own heading and tab strip), and Invoices / Payments / Expenses /
+  Configurations are linked, not duplicated.
+- `GET /finance/collection-board` (new): billed, collected, outstanding, aging
+  0–30/31–60/61–90/90+, daily collection, by method, class by class and the
+  ten largest debts. `/finance/reports/summary` could not be its source — it
+  called an invoice "collected" when its *status* said paid (so a half-paid
+  invoice counted as nothing), returned floats, and ignored from_date/to_date.
+  Money now comes from the payments actually received, stays in NUMERIC, and
+  leaves as exact strings. A rate with nothing to divide by is null, not 0%.
+- `GET /finance/defaulters` (new): one row per family with balance, age,
+  contact, last payment, and both the notice the ladder has *earned* and the
+  one actually *sent*. Its first draft joined `fee_payments`, which multiplied
+  each invoice row by that student's payments and reported balances two and
+  three times too large; the aggregates are subqueries now (verified against
+  production: 5,500 per family, not 11,000).
+- **The escalation ladder had never raised a notice.** `check_escalations`
+  selected `status in ("unpaid","partial")` — "unpaid" is not a value of that
+  enum, so Postgres rejected the statement on every call — and then read
+  `v.amount`, which the model does not map. It now selects genuinely overdue
+  invoices, computes the balance in Decimal, and closes notices for invoices
+  since settled. `list_escalations` and `resolve_escalation` were open to any
+  authenticated user; both are now finance-only, and resolve is scoped to the
+  caller's own school.
+- Collection Board and Defaulters Board both carry `DataExportMenu`
+  (Excel / PDF / Print / WhatsApp / CSV) and honest empty, loading and error
+  states. The WhatsApp reminder says WhatsApp was opened — it does not claim
+  the parent was messaged.
+- Verified: backend 51 new assertions in `test_collection_board.py` and
+  `test_fee_defaulters.py`, all SQL run against the production database
+  read-only, vitest `fees-centre.test.ts` 5/5, tsc clean.
+
+### Slice 19 — no family is billed twice for the same period (done)
+
+- **The double billing was real.** Production held three June invoices and two
+  July invoices for one student, and a second "Voucher August 2026" for another
+  whose first copy was already paid. Every copy counted as money owed, so the
+  defaulters list, the aging buckets and each total built on them were wrong.
+  `generate_fee_voucher` had no duplicate check at all, so re-running a class
+  billing re-billed everyone in it.
+- `backend/sql_migrations/20260922000000_fee_voucher_duplicate_guard.sql`
+  (new) replaces the function with one that refuses a second live voucher for
+  the same student, plan and period, raising `duplicate_voucher` with SQLSTATE
+  23505. The guard sits in the database because that is the one place every
+  caller passes through. A deliberate re-issue passes the new
+  `_allow_duplicate` argument; the old 10-argument function is dropped so a
+  10-argument call cannot resolve to the unguarded version. Dry-run against the
+  production schema inside a rolled-back transaction: DROP, CREATE, ROLLBACK.
+- Billing Run now says so before it runs: a banner names how many of the
+  selected students already hold a voucher for that period, skips them by
+  default, and only re-bills when the office switches "Bill them again on".
+  A skipped student is reported as skipped, in amber — not as a failure.
+- `GET /finance/duplicate-invoices` (new) lists the pairs that already exist;
+  the Billing Run tab shows them with the amount they add to what families
+  appear to owe. Nothing is cancelled automatically — which copy goes is the
+  school's decision — and a copy with money paid against it cannot be
+  cancelled from here at all.
+- `PATCH /finance/vouchers/{id}/cancel` was open: the id alone was enough, so
+  any signed-in user of any school could cancel any invoice, with no role
+  check, no reason, and no regard for payments already received. It is now
+  finance-only, scoped to the caller's school, requires a reason that is
+  written onto the invoice, and refuses a voucher with a paid amount (409).
+- Verified: pytest 616/616 (new `test_fee_duplicates.py`), migration order and
+  idempotency contract honoured, tsc unchanged at 36 pre-existing errors
+  (none in the new code).
+
+### Slice 20 — the student ledger, and the parent's balance (done)
+
+- **`/finance/balance-dashboard/{student}` could never have answered.** It
+  summed `FeeVoucher.amount`, a column the model does not map, so the request
+  raised; it filtered invoices on `status in ("unpaid","partial")` — "unpaid"
+  is not a value of that enum; it counted payments with status "completed"
+  while payments are recorded as "success"; and it compared the `due_date`
+  column against a formatted string. `ParentFeesModule` caught the error into
+  `console.error` and rendered zeros, so a family could not tell "nothing is
+  owed" from "nothing could be loaded".
+- Rewritten on real rows: every voucher with its concessions, charge, paid and
+  balance; every payment, including failed and refunded ones marked as not
+  counted rather than hidden; billed / paid / outstanding / advance / overdue
+  totals added in Decimal and returned as exact strings. The field names the
+  parent screen already read (`total_due`, `total_paid`, `overdue_amount`,
+  `active_escalations`) are kept, now carrying real numbers.
+- Access was school-wide — any signed-in user of the school could read any
+  child's balance. It now uses the same rule as the tax certificate, renamed
+  `_require_student_fee_access` since it guards both: the finance office for
+  any student of the school, a family for its own.
+- `src/pages/tenant/modules/fees/StudentLedger.tsx` (new) is the Student
+  Ledger tab's first screen: search a child, see the full ledger, export it.
+  The plan-assignment screen sits below it, unchanged.
+- The parent screen now shows what went wrong, with a Try again button,
+  instead of silently showing zeros.
+- Verified: pytest 626/626 (new `test_student_fee_ledger.py`), all three
+  ledger queries run against the production database read-only.
+
+### Slice 21 — a report card that comes out on one sheet (done)
+
+- **The single card was still a screenshot.** `ReportCardModule` exported it
+  with `exportCleanDocumentToPdf`, a DOM capture of the on-screen HTML, while
+  the vector builder in `src/lib/documents/report-card.ts` was used only for
+  the class-set archive. So the print was a picture of a web page — letterhead,
+  Urdu, verification code and page count were whatever the browser rendered —
+  and a long card simply spilled onto a second sheet. Download, Print and
+  Share now all go through the vector builder, and so does the class set.
+- **Measured, not assumed.** A probe across densities showed the comfortable
+  layout needed two sheets from twelve subjects upward, and that a landscape
+  sheet made it *worse* (wider, but 87mm shorter). What actually buys the room
+  is setting the subjects in two columns.
+- `PdfDocument.inBand(x, width, draw)` (new) narrows the content box for the
+  duration of a callback, so any document can lay part of itself out in a
+  column. The report card uses it for a two-column subject table; a card that
+  carries a per-subject comment stays in one column, because a comment needs
+  the width.
+- `buildFittedReportCard` tries, at each of five densities, one column then
+  two, and stops at the first layout that is a single page — so it keeps the
+  largest type that fits. **Nothing is ever dropped to make room**: a mark that
+  is not printed is a mark the family never sees. In two-column mode headings
+  are abbreviated rather than cut off ("Mks", "Gr", "Pos"), and when every
+  subject is marked out of the same number that column is replaced by one line
+  above the table.
+- A twenty-subject card now prints on one page at 0.92 density in two columns;
+  a sixteen-subject card with a comment on every subject fits in one column by
+  tightening. Where even the tightest legible layout needs two sheets, the
+  result says so and the screen repeats it — it never claims one page.
+- **The school is asked once.** New `report_card_settings` table (migration
+  `20260922010000`), `src/lib/report-card-settings.ts` and a setup dialog that
+  offers every option — what to do when a card will not fit (tighten /
+  landscape / two pages), which optional sections to print, and the style. The
+  answer is stored against the school and applied to every later card without
+  asking again; Print settings on the Report Cards screen changes it. A failed
+  settings read is reported rather than silently treated as "never asked",
+  which would have overwritten the school's own choice.
+- Printing now requires a saved card, as a voucher does: what is printed is
+  what the school has recorded.
+- Verified: vitest 10/10 on the report card (including real page counts for
+  16, 20 and 22 subject cards), 8/8 on the settings store, 127/127 across the
+  document library, one card rendered and inspected at 110 dpi.
+
+### Slice 22 — the AI Copilot answers, or says it cannot (done)
+
+- **It was asking for a model the server does not have.** The configured name
+  was `glm-5.3`; the VPS has `qwen2.5:1.5b`. Every message walked a hard-coded
+  list of eleven names, taking a 404 from Ollama for each, before reaching the
+  one that exists — seconds of round trips before a single token, on every
+  turn. `ai_service.py` now reads `/api/tags`, caches it for five minutes, and
+  only ever requests a model the server reports having.
+- **It ignored the cloud settings it already had.** `AI_PROVIDER`,
+  `AI_API_KEY` and `AI_API_BASE` were in the config and in production.env, and
+  nothing read them. There is now a provider layer: an OpenAI-compatible cloud
+  (GLM/Z.ai, Zhipu, OpenRouter, Groq, DeepSeek, OpenAI) when a key is
+  configured, the school's own server otherwise, and the local model as the
+  fallback when the cloud refuses — the case a school hits the day a
+  subscription lapses.
+  **The key currently in production.env is rejected by both api.z.ai and
+  open.bigmodel.cn with HTTP 401, so it must be replaced before the cloud path
+  can be switched on.**
+- `num_predict` was 512, which cut tables and lists off mid-row; answers now
+  have 1024 tokens of room.
+- **A failure is reported as a failure.** The service used to emit a cheerful
+  notice as though the assistant were speaking, and the screen had its own
+  cheerful fallback — "👋 I am currently processing your request" plus three
+  hard-coded links — so a user could not tell a working Copilot from a broken
+  one. The stream now carries an `error` event, the screen shows it, and
+  `GET /ai/health` says up front which provider is reachable and which local
+  models exist. When nothing can answer, the panel says so above the input.
+- **Tokens were being dropped.** The reader split each network chunk on
+  newlines with no carry, so an event that straddled a chunk boundary was lost.
+  The tail is now buffered into the next read.
+- **The prompt was too big for the model.** The context builder can assemble a
+  hundred students, fifty invoices, fifty staff and twenty-five payments into
+  one prompt; a 32k window cannot hold that with the question, so the evidence
+  fell off the end. `trim_ai_context` caps it at 16,000 characters, cuts on a
+  section boundary (never mid-table), keeps the sections nearest the question,
+  and tells the model that some were left out rather than letting it imply it
+  saw everything.
+- The semantic cache was left off. It is disabled deliberately — the Copilot
+  answers from live ERP data, and a cached fee balance is a wrong fee balance.
+- Verified: pytest 636/636, including new assertions that only an installed
+  model is requested, that the cloud is used only when a key is configured,
+  and that an unreachable model produces an error event with no `delta`.
+
+### Slice 23 — the principal's dashboard shows what was measured (done)
+
+- **`/reports/dashboard` raised on every call.** Four queries filtered
+  `fee_payments` with `status IN ('success','paid','completed')`; that enum
+  holds only pending/success/failed/refunded, and Postgres rejects the whole
+  statement on the first unknown label. So the KPI endpoint, the finance trend
+  and anything built on them returned nothing — which is why `PrincipalHome`
+  kept a `sessionStorage` copy of the numbers and guarded every render with
+  `hasRealData`. Fixed in all four places; the query now returns the school's
+  real figures (9 students, 5 teachers, PKR 108,900 collected year to date on
+  the live database).
+- **Every sparkline was invented from the number under it.** `openLeads - 6,
+  -4, -5, -3, -2, -1`; an attendance rate wobbled by ±3; a class count
+  repeated seven times; and `staffAttendanceRate = 96`, a literal constant. A
+  line nobody measured is worse than no line, because it is read as evidence.
+- `GET /reports/daily-series` (new) counts what can be counted, one row per
+  day over the last 30: student attendance rate, staff attendance rate,
+  collections and new leads. A day nobody marked attendance returns `null`,
+  not zero, and the chart simply has no point there. All four queries verified
+  against the production database.
+- Classes and pending leaves have no history to draw — they are positions, not
+  trends — so those two cards now say what they are instead of drawing a made-up
+  line. An attendance rate with nothing recorded shows "—", not a number.
+- Two audit gates added so neither can come back: "no dashboard line is
+  invented from the number under it" and "payment queries ask for a status the
+  enum actually has", along with gates for the Fees Centre, the duplicate
+  guard, the voucher cancel rules, single-page report cards, the stored print
+  settings and the Copilot's model and error handling — 149 checks in total.
+
+### Slice 24 — the sweep: screens that were asking for columns that do not exist (done)
+
+Rather than polish tab by tab, the whole codebase was checked against the
+production schema — every enum filter, every `Model.attribute`, every raw SQL
+statement and every `api.from(...).select(...)`. A query that names a column
+the table does not have is rejected outright, so the screen shows an empty
+list and nothing in the console explains it. That is what "basic" or "not
+working" looked like on several tabs.
+
+- **Public Admissions Portal — never worked at all.** Both halves were written
+  against fields the model does not have (`applicant_name`, `guardian_name`,
+  `guardian_phone`, `guardian_email`, `target_class`, `application_number`), so
+  constructing the row raised a TypeError before it reached the database, and
+  the status lookup raised on `AdmissionApplication.application_number`. An
+  applicant got a 500 whether they applied or checked. It also wrote
+  `status="pending"`, which that enum does not hold. Rewritten on the real
+  columns: the name is split across first/last, guardian details go to
+  `parent_*`, the class is matched by name (and recorded in the notes when the
+  school has no class of that name), and the tracking code is a unique
+  `registration_number`. The status lookup answers only what the applicant
+  may see — their own name, class and stage — never the office's notes.
+- **AI Board Insights** — its revenue query asked for
+  `status IN ('success','completed','paid')`, so the monthly revenue line
+  never loaded. The test that covered it asserted the broken filter, pinning
+  the bug in place; both are corrected.
+- **Activity timeline** — asked `students.admission_number` and
+  `crm_leads.student_name` / `parent_name`. None of the three exist.
+- **Global search (Ctrl+K)** — the same two, plus
+  `inventory_items.category` / `sku` (they are `category_name` and
+  `sku_barcode`). Students, leads and inventory were silently unsearchable.
+- **Event timeline hook** — `school_memberships.full_name` / `role_name`, and
+  the same students and leads columns.
+- **Library** — the borrower list selected `students.class_name` and
+  `section`; the class comes from the enrolled section, embedded now.
+- **Messages** — sender names were looked up by `profiles.user_id`; that table
+  keys on `id`, so no name ever resolved.
+- **Support inbox** — the student notification read `students.user_id`; the
+  link is `profile_id`, so a reply never reached the student.
+- **Parent linking, platform support, platform requests** — `profiles.full_name`
+  and `profiles.user_id` again; parents showed as their email address and the
+  platform lists showed no requester.
+- **Platform directory** — selected `id` and `created_at` from
+  `school_user_directory`, a view with neither.
+- Verified: pytest 648/648 including a new `test_public_admissions.py`, tsc
+  unchanged at its 36-error baseline (the two LibraryModule errors pre-date
+  this work), and every corrected query checked against the live schema.
+- Also in the sweep: the owner HR pay-run trend ordered `hr_pay_runs` by
+  `year` and `month` — a table dated by `period_start`, with neither column —
+  so the query failed and the chart was empty even before the grouping, which
+  read the same two missing fields. Messages looked the current user's own
+  display name up by `profiles.user_id` as well.

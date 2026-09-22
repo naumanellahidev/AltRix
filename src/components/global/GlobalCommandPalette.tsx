@@ -195,9 +195,9 @@ export function GlobalCommandPalette({ basePath }: Props) {
         // 1. Students
         api
           .from("students")
-          .select("id, first_name, last_name, admission_number, roll_number, status, phone")
+          .select("id, first_name, last_name, student_code, registration_number, roll_number, status, phone")
           .eq("school_id", schoolId)
-          .or(`first_name.ilike.%${q}%,last_name.ilike.%${q}%,admission_number.ilike.%${q}%,roll_number.ilike.%${q}%,phone.ilike.%${q}%`)
+          .or(`first_name.ilike.%${q}%,last_name.ilike.%${q}%,student_code.ilike.%${q}%,registration_number.ilike.%${q}%,roll_number.ilike.%${q}%,phone.ilike.%${q}%`)
           .limit(8)
           .catch(() => ({ data: [] })),
         // 2. Parents (from students parent details)
@@ -219,9 +219,9 @@ export function GlobalCommandPalette({ basePath }: Props) {
         // 4. CRM Leads
         api
           .from("crm_leads")
-          .select("id, student_name, parent_name, phone, status")
+          .select("id, full_name, email, phone, status")
           .eq("school_id", schoolId)
-          .or(`student_name.ilike.%${q}%,parent_name.ilike.%${q}%,phone.ilike.%${q}%`)
+          .or(`full_name.ilike.%${q}%,email.ilike.%${q}%,phone.ilike.%${q}%`)
           .limit(6)
           .catch(() => ({ data: [] })),
         // 5. Academic Classes
@@ -251,9 +251,9 @@ export function GlobalCommandPalette({ basePath }: Props) {
         // 8. Inventory Items
         api
           .from("inventory_items")
-          .select("id, item_name, category, sku")
+          .select("id, item_name, category_name, sku_barcode")
           .eq("school_id", schoolId)
-          .or(`item_name.ilike.%${q}%,category.ilike.%${q}%,sku.ilike.%${q}%`)
+          .or(`item_name.ilike.%${q}%,category_name.ilike.%${q}%,sku_barcode.ilike.%${q}%`)
           .limit(4)
           .catch(() => ({ data: [] })),
       ]);
@@ -262,7 +262,7 @@ export function GlobalCommandPalette({ basePath }: Props) {
         entity: "students",
         id: s.id,
         title: `${s.first_name || ""} ${s.last_name || ""}`.trim() || "Student",
-        subtitle: `Roll: ${s.roll_number || s.admission_number || "N/A"} • Adm: ${s.admission_number || "N/A"}`,
+        subtitle: `Roll: ${s.roll_number || "N/A"} • Code: ${s.student_code || s.registration_number || "not issued"}`,
         status: s.status || "enrolled",
         url: `${basePath}/academic?studentId=${s.id}`,
       }));
@@ -287,8 +287,8 @@ export function GlobalCommandPalette({ basePath }: Props) {
       const leadsList: SearchResult[] = (leadsRes.data || []).map((l: any) => ({
         entity: "leads",
         id: l.id,
-        title: l.student_name || "Lead Applicant",
-        subtitle: `Parent: ${l.parent_name || "N/A"} • ${l.phone || ""}`,
+        title: l.full_name || "Lead Applicant",
+        subtitle: [l.phone, l.email].filter(Boolean).join(" • ") || "No contact recorded",
         status: l.status || "new",
         url: `${basePath}/crm?leadId=${l.id}`,
       }));
@@ -321,7 +321,7 @@ export function GlobalCommandPalette({ basePath }: Props) {
         entity: "inventory",
         id: i.id,
         title: `Asset: ${i.item_name}`,
-        subtitle: `Category: ${i.category || "General"} • SKU: ${i.sku || "N/A"}`,
+        subtitle: `Category: ${i.category_name || "General"} • SKU: ${i.sku_barcode || "N/A"}`,
         url: `${basePath}/inventory`,
       }));
 

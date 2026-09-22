@@ -128,8 +128,9 @@ export function OwnerHrModule({ schoolId }: Props) {
               .from("hr_pay_runs")
               .select("*")
               .eq("school_id", schoolId)
-              .order("year", { ascending: false })
-              .order("month", { ascending: false })
+              // hr_pay_runs is dated by period_start; it has no year or month
+              // column, so ordering by those made the whole query fail.
+              .order("period_start", { ascending: false })
           ),
           applyCampusOrUserFilter(api.from("hr_contracts").select("*").eq("school_id", schoolId)),
           applyCampusOrUserFilter(
@@ -179,7 +180,11 @@ export function OwnerHrModule({ schoolId }: Props) {
         const d = subMonths(new Date(), 5 - idx);
         const m = d.getMonth() + 1;
         const y = d.getFullYear();
-        const rows = payRuns.filter((p: any) => p.month === m && p.year === y);
+        const rows = payRuns.filter((p: any) => {
+          if (!p.period_start) return false;
+          const start = new Date(p.period_start);
+          return start.getMonth() + 1 === m && start.getFullYear() === y;
+        });
         const gross = rows.reduce((s: number, r: any) => s + Number(r.gross_amount || 0), 0);
         const net = rows.reduce((s: number, r: any) => s + Number(r.net_amount || 0), 0);
         return { month: format(d, "MMM"), gross, net };

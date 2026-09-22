@@ -71,7 +71,10 @@ async def get_owner_insights_summary(current_user: CurrentUser, db: DbSession):
             SELECT to_char(paid_at AT TIME ZONE 'UTC' + INTERVAL '5 hours', 'YYYY-MM') AS ym, SUM(amount) AS total
             FROM fee_payments
             WHERE school_id = CAST(:school AS UUID)
-              AND status IN ('success', 'completed', 'paid')
+              -- fee_payment_status holds pending/success/failed/refunded.
+              -- Asking for 'completed' or 'paid' made Postgres reject the whole
+              -- statement, so this board's revenue line never loaded.
+              AND status = 'success'
               AND paid_at >= :since
             GROUP BY 1
             """

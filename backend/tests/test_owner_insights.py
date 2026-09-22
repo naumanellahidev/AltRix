@@ -27,7 +27,16 @@ def test_reads_fields_that_exist():
 
 
 def test_only_successful_payments_count_as_revenue():
-    assert "status IN ('success', 'completed', 'paid')" in BODY
+    """
+    And only with a status the column can hold.
+
+    This used to assert ``status IN ('success', 'completed', 'paid')`` - the
+    filter the code carried. fee_payment_status holds pending / success /
+    failed / refunded, so Postgres rejected the whole statement and this
+    board's revenue line never loaded. The test was pinning the bug in place.
+    """
+    assert "status = 'success'" in BODY
+    assert "status IN ('success'" not in BODY  # the rejected filter, in any form
 
 
 def test_no_provincial_average_is_made_up():

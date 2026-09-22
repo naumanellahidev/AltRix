@@ -114,13 +114,13 @@ export function ParentChildLinkingTab({ schoolId }: Props) {
           const parentUserIds = parentRoles.map((p: any) => p.user_id);
           const { data: profiles } = await (api as any)
             .from("profiles")
-            .select("id, email, full_name")
+            .select("id, email, display_name")
             .in("id", parentUserIds);
           
           parentList = (profiles || []).map((p: any) => ({
             user_id: p.id,
             email: p.email || "",
-            full_name: p.full_name || p.email || "Parent",
+            full_name: p.display_name || p.email || "Parent",
           }));
         }
       }

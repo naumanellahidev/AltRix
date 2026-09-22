@@ -17,7 +17,9 @@ import { DataExportMenu } from "@/components/documents/DataExportMenu";
 type SchoolRow = { id: string; slug: string; name: string; is_active: boolean; created_at: string };
 type StudentRow = { id: string; school_id: string; first_name: string; last_name: string | null; status: string; created_at: string };
 type LeadRow = { id: string; school_id: string; full_name: string; email: string | null; phone: string | null; status: string; created_at: string };
-type DirRow = { id: string; school_id: string; email: string; display_name: string | null; user_id: string; created_at: string };
+// school_user_directory is a view of these four columns; it carries no id
+// of its own and no created_at.
+type DirRow = { school_id: string; email: string; display_name: string | null; user_id: string };
 
  import { Navigate } from "react-router-dom";
  
@@ -62,8 +64,8 @@ type DirRow = { id: string; school_id: string; email: string; display_name: stri
       if (tab === "users") {
         const query = (api as any)
           .from("school_user_directory")
-          .select("id,school_id,email,display_name,user_id,created_at")
-          .order("created_at", { ascending: false })
+          .select("school_id,email,display_name,user_id")
+          .order("display_name", { ascending: true })
           .limit(100);
 
         const { data } = needle
@@ -212,7 +214,7 @@ type DirRow = { id: string; school_id: string; email: string; display_name: stri
                       </TableHeader>
                       <TableBody>
                         {users.map((u) => (
-                          <TableRow key={u.id} className="hover:bg-slate-50/20 border-b border-slate-200">
+                          <TableRow key={u.user_id} className="hover:bg-slate-50/20 border-b border-slate-200">
                             <TableCell className="font-semibold text-slate-900">{u.email}</TableCell>
                             <TableCell className="text-slate-700">{u.display_name ?? "—"}</TableCell>
                             <TableCell className="text-slate-500 font-mono text-xs">{u.school_id}</TableCell>
