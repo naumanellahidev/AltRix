@@ -1107,6 +1107,26 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
     }
   };
 
+  /*
+   * Ctrl+P / Cmd+P prints the document, not the page.
+   *
+   * The card on screen is where marks are entered; it is not the report card.
+   * Without this, the browser's own print produced a second, different-looking
+   * card - no letterhead from the document system, no verification code, and
+   * no guarantee it fit one sheet - so what a family received depended on
+   * which way the office happened to print.
+   */
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== "p") return;
+      if (event.shiftKey || event.altKey) return;
+      event.preventDefault();
+      void printCard();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  });
+
   const shareCard = async () => {
     const cardId = requireSavedCard();
     if (!cardId) return;
@@ -1561,10 +1581,16 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
                 </div>
               </div>
 
-              {/* ─── PRINTABLE LUXURY REPORT CARD PAPER ─── */}
+              {/* The card as it is edited. The printed report card is built by
+                  the document system, not captured from here, so this is kept
+                  out of the browser's own print. */}
+              <div className="hidden print:block print:py-10 print:text-center print:text-sm">
+                Use the <strong>Print</strong> button above to print this report card. It is
+                produced on the school's letterhead, on a single sheet.
+              </div>
               <div
                 id="report-card-print"
-                className="relative mx-auto overflow-hidden rounded-3xl bg-white text-slate-900 shadow-xl ring-1 ring-slate-200/80 print:rounded-none print:shadow-none print:ring-0 w-full"
+                className="relative mx-auto overflow-hidden rounded-3xl bg-white text-slate-900 shadow-xl ring-1 ring-slate-200/80 print:hidden w-full"
               >
                 {/* ─── DECORATIVE BANNER ─── */}
                 <div className="relative h-32 overflow-hidden bg-gradient-to-r from-blue-700 via-indigo-700 to-primary text-white">

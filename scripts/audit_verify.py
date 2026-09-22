@@ -505,7 +505,9 @@ def run():
     rcm = txt("src/pages/tenant/modules/ReportCardModule.tsx")
     check(S, "1pg", "a report card is fitted to one sheet, and never by dropping data",
           "buildFittedReportCard" in rc and "subjectColumns" in rc
-          and "exportCleanDocumentToPdf(" not in rcm)
+          and "exportCleanDocumentToPdf(" not in rcm
+          # Ctrl+P prints the document too, not the page it was edited on.
+          and "printCard()" in rcm and "print:hidden w-full" in rcm)
     check(S, "rcst", "how a school prints its cards is asked once and stored",
           exists("backend/sql_migrations/20260922010000_report_card_print_settings.sql")
           and exists("src/lib/report-card-settings.ts"))

@@ -80,6 +80,8 @@ const ExamSeatingPlanModule = safeLazy(() => import("@/pages/tenant/modules/Exam
 const StaffAppraisalModule = safeLazy(() => import("@/pages/tenant/modules/StaffAppraisalModule"));
 const StudentWellbeingModule = safeLazy(() => import("@/pages/tenant/modules/StudentWellbeingModule"));
 import { RouteGuard } from "@/components/tenant/RouteGuard";
+import { ModuleErrorBoundary } from "@/components/tenant/ModuleErrorBoundary";
+import { NAV_CATALOG } from "@/lib/role-navigation";
 import { createCatalogRouteElements } from "@/components/tenant/AutoCatalogRoutes";
 const AICounselorMode = safeLazy(() => import("@/components/ai/AICounselorMode"), "AICounselorMode");
 const CounselingModule = safeLazy(() => import("@/pages/tenant/modules/CounselingModule"), "CounselingModule");
@@ -96,6 +98,12 @@ const DashboardLoader = () => (
 const TenantDashboard = () => {
   const { schoolSlug, role: roleParam } = useParams();
   const location = useLocation();
+  // The tab a crash happened on, so the boundary can name it.
+  const activeModuleLabel = useMemo(() => {
+    const segment = location.pathname.split("/").filter(Boolean)[2];
+    if (!segment) return "This dashboard";
+    return NAV_CATALOG.find((item) => item.path === segment)?.label ?? "This page";
+  }, [location.pathname]);
   // Support route aliases that are nicer than DB enum values.
   const roleAlias = useMemo(() => {
     if (!roleParam) return null;
@@ -663,6 +671,12 @@ const TenantDashboard = () => {
         {(
 
           <RouteGuard>
+            {/* Every module renders inside a boundary.
+                Without one, a single bad render blanked the whole page - a
+                white screen with only a minified React error in the console,
+                and no way for anyone to say which tab had failed. The
+                accountant shell has had this; the principal's had not. */}
+            <ModuleErrorBoundary name={activeModuleLabel}>
             <Suspense fallback={<DashboardLoader />}>
               <Routes>
                 <Route index element={
@@ -747,6 +761,7 @@ const TenantDashboard = () => {
                 <Route path="*" element={<Navigate to={`/${tenant.slug}/${role}`} replace />} />
               </Routes>
             </Suspense>
+            </ModuleErrorBoundary>
           </RouteGuard>
         )}
       </div>

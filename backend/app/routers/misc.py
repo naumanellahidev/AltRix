@@ -1363,7 +1363,7 @@ async def daily_series(
     # marked attendance is an absent point rather than a missing one.
     calendar = """
         SELECT generate_series(
-            (CURRENT_DATE - (:days || ' days')::interval)::date,
+            (CURRENT_DATE - make_interval(days => :days))::date,
             CURRENT_DATE,
             '1 day'
         )::date AS day
@@ -1379,7 +1379,7 @@ async def daily_series(
               JOIN attendance_sessions ses ON ses.id = ae.session_id
              WHERE ae.school_id = CAST(:sid AS uuid)
                AND (CAST(:cid AS uuid) IS NULL OR ae.campus_id = CAST(:cid AS uuid))
-               AND ses.session_date >= (CURRENT_DATE - (:days || ' days')::interval)::date
+               AND ses.session_date >= (CURRENT_DATE - make_interval(days => :days))::date
              GROUP BY ses.session_date
         )
         SELECT cal.day, marked.present, marked.total
@@ -1396,7 +1396,7 @@ async def daily_series(
               FROM hr_staff_attendance
              WHERE school_id = CAST(:sid AS uuid)
                AND (CAST(:cid AS uuid) IS NULL OR campus_id = CAST(:cid AS uuid))
-               AND attendance_date >= (CURRENT_DATE - (:days || ' days')::interval)::date
+               AND attendance_date >= (CURRENT_DATE - make_interval(days => :days))::date
              GROUP BY attendance_date
         )
         SELECT cal.day, marked.present, marked.total
@@ -1414,7 +1414,7 @@ async def daily_series(
                AND (CAST(:cid AS uuid) IS NULL OR campus_id = CAST(:cid AS uuid))
                AND (status IS NULL OR status = 'success')
                AND (paid_at AT TIME ZONE 'UTC' + INTERVAL '5 hours')::date
-                   >= (CURRENT_DATE - (:days || ' days')::interval)::date
+                   >= (CURRENT_DATE - make_interval(days => :days))::date
              GROUP BY 1
         )
         SELECT cal.day, COALESCE(taken.amount, 0)
@@ -1429,7 +1429,7 @@ async def daily_series(
               FROM crm_leads
              WHERE school_id = CAST(:sid AS uuid)
                AND (created_at AT TIME ZONE 'UTC' + INTERVAL '5 hours')::date
-                   >= (CURRENT_DATE - (:days || ' days')::interval)::date
+                   >= (CURRENT_DATE - make_interval(days => :days))::date
              GROUP BY 1
         )
         SELECT cal.day, COALESCE(made.total, 0)
@@ -2080,7 +2080,7 @@ async def get_timeline(
     Get live activity timeline feed for the current school.
     Synthesizes rich operational events across tables if direct logs are sparse.
     """
-    effective_school_id = await resolve_effective_school_id(db, request, current_user, school_id)
+    effective_school_id = await resolve_effective_school_id(school_id, request, current_user, db)
     if not effective_school_id:
         return PaginatedResponse.create([], 0, page, page_size)
 

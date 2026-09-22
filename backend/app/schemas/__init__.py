@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional, Union
 from uuid import UUID
 
 from decimal import Decimal
-from pydantic import BaseModel, EmailStr, Field, model_validator, computed_field
+from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator, computed_field
 
 
 # ─── COMMON ───────────────────────────────────────────────────────────────────
@@ -1341,6 +1341,30 @@ class ReportCardOut(BaseModel):
     created_at: Optional[datetime] = None
 
     model_config = {"from_attributes": True}
+
+    @field_validator("trend_data", mode="before")
+    @classmethod
+    def _accept_stored_trend_shapes(cls, value):
+        """
+        The column's default is an empty JSON object, not an empty list.
+
+        Every report card in production carried ``{}``, so this model refused
+        all of them and the detail endpoint answered 500 - which took the
+        report card's download, print and share with it. A mapping of term to
+        percentage is read as the series it describes; anything else unusable
+        becomes an empty series rather than an error, because a missing trend
+        chart must not cost a family its report card.
+        """
+        if value is None or value == {} or value == "":
+            return []
+        if isinstance(value, list):
+            return value
+        if isinstance(value, dict):
+            return [
+                {"label": str(label), "percentage": percentage}
+                for label, percentage in value.items()
+            ]
+        return []
 
 
 class ReportCardUpdateRemarks(BaseModel):

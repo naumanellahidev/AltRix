@@ -873,3 +873,37 @@ working" looked like on several tabs.
   so the query failed and the chart was empty even before the grouping, which
   read the same two missing fields. Messages looked the current user's own
   display name up by `profiles.user_id` as well.
+
+### Slice 25 — what the live site showed after the deploy (done)
+
+Four faults, found from the browser console on production:
+
+- **Every report card detail request answered 500.**
+  `report_cards.trend_data` defaults to `'{}'::jsonb` — an empty JSON
+  *object* — while `ReportCardOut` declares a list, so pydantic refused all
+  seven cards in the database. Download, Print and Share were therefore all
+  dead on the Report Cards screen regardless of the new builder. The field now
+  accepts what is stored: an empty object becomes an empty series, a mapping
+  of term to percentage becomes the series it describes, and anything unusable
+  becomes an empty series rather than an error — a missing trend chart must
+  never cost a family its report card.
+- **`/reports/daily-series` answered 503.** It bound `days` as an integer into
+  `(:days || ' days')::interval`; asyncpg types a parameter from where it is
+  used, wanted text and got an int. `make_interval(days => :days)` takes the
+  integer.
+- **`/events/timeline` called `resolve_effective_school_id` with its arguments
+  reversed** — `(db, request, current_user, school_id)` — so the helper tried
+  to run a query on a string. Pre-existing; visible now that the queries
+  around it work.
+- **A crash in any principal module produced a white screen.** The accountant
+  shell wraps every route in `ModuleErrorBoundary`; the principal's tenant
+  shell wrapped none, so one bad render blanked the whole page and left only a
+  minified React error in the console — which is exactly what `/admin-fees`
+  showed. The shell now wraps its routes in the boundary, named after the tab
+  the crash happened on.
+- **The dashboard tripped its own rate limit.** `rate_limit_api` was
+  100/minute per signed-in user, and one principal dashboard load costs well
+  over that (the prefetch alone fans out across a dozen tables), so the first
+  load answered 429 and came up empty. Raised to 600/minute; login and
+  password reset keep their own much tighter limits, which is where brute
+  force actually matters.

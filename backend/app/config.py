@@ -136,7 +136,14 @@ class Settings(BaseSettings):
     # Rate Limiting
     rate_limit_login: str = "5/minute"
     rate_limit_password_reset: str = "3/5minutes"
-    rate_limit_api: str = "100/minute"
+    # Per signed-in user (the limiter keys on the token subject), not per
+    # school and not per IP. One principal opening the dashboard costs well
+    # over a hundred calls - the prefetch alone fans out across a dozen
+    # tables - so a 100/minute ceiling meant the first page load of the day
+    # answered 429 and the dashboard came up empty. Login and password reset
+    # keep their own much tighter limits above, which is where brute force
+    # actually matters.
+    rate_limit_api: str = "600/minute"
 
     @property
     def cors_origins(self) -> List[str]:
