@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { reportLoadFailure } from "@/lib/load-failure";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -144,7 +145,7 @@ export default function StaffAppraisalModule() {
       const res = await apiClient.get("/appraisals/kpis");
       setKpiScores(res.data || []);
     } catch (err) {
-      console.error(err);
+      reportLoadFailure("the appraisal records", err);
     }
   };
 
@@ -153,7 +154,7 @@ export default function StaffAppraisalModule() {
       const res = await apiClient.get("/appraisals/my-appraisal");
       setAppraisals(res.data || []);
     } catch (err) {
-      console.error(err);
+      reportLoadFailure("the appraisals", err);
     }
   };
 
@@ -162,7 +163,7 @@ export default function StaffAppraisalModule() {
       const res = await apiClient.get("/appraisals/reviews");
       setPendingReviews(res.data || []);
     } catch (err) {
-      console.error(err);
+      reportLoadFailure("the appraisal records", err);
     }
   };
 
@@ -171,7 +172,7 @@ export default function StaffAppraisalModule() {
       const res = await apiClient.get("/appraisals/pip");
       setPips(res.data || []);
     } catch (err) {
-      console.error(err);
+      reportLoadFailure("the appraisal records", err);
     }
   };
 
@@ -305,7 +306,7 @@ export default function StaffAppraisalModule() {
       });
       setFeedbackSummary(res.data);
     } catch (e) {
-      console.error(e);
+      reportLoadFailure("the appraisal records", e);
     }
   };
 

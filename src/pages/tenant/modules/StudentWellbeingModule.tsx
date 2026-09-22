@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { reportLoadFailure } from "@/lib/load-failure";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -167,7 +168,7 @@ export default function StudentWellbeingModule() {
         setSelectedStudentId(mapped[0].id);
       }
     } catch (e) {
-      console.error(e);
+      reportLoadFailure("the students", e);
     }
   };
 
@@ -187,7 +188,7 @@ export default function StudentWellbeingModule() {
         setEmerPhone(active.emergency_contact_phone || "");
       }
     } catch (e) {
-      console.error(e);
+      reportLoadFailure("the medical records", e);
     }
   };
 
@@ -198,7 +199,7 @@ export default function StudentWellbeingModule() {
       });
       setInfirmaryLogs(res.data || []);
     } catch (e) {
-      console.error(e);
+      reportLoadFailure("the infirmary log", e);
     }
   };
 
@@ -209,7 +210,7 @@ export default function StudentWellbeingModule() {
       });
       setVaccinations(res.data || []);
     } catch (e) {
-      console.error(e);
+      reportLoadFailure("the immunisation records", e);
     }
   };
 
@@ -220,7 +221,7 @@ export default function StudentWellbeingModule() {
       });
       setIncidents(res.data || []);
     } catch (e) {
-      console.error(e);
+      reportLoadFailure("the incident log", e);
     }
   };
 
@@ -229,7 +230,7 @@ export default function StudentWellbeingModule() {
       const res = await apiClient.get("/wellbeing/directory");
       setContacts(res.data || []);
     } catch (e) {
-      console.error(e);
+      reportLoadFailure("the wellbeing records", e);
     }
   };
 
@@ -238,7 +239,7 @@ export default function StudentWellbeingModule() {
       const res = await apiClient.get("/wellbeing/surveys/summary");
       setWellbeingStats(res.data);
     } catch (e) {
-      console.error(e);
+      reportLoadFailure("the wellbeing records", e);
     }
   };
 

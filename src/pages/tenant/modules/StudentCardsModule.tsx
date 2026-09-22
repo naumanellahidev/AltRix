@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, useRef } from "react";
+import { reportLoadFailure } from "@/lib/load-failure";
 import { useParams } from "react-router-dom";
 import { api } from "@/lib/api";
 import { getVPSFileUrl, uploadVPSFile } from "@/lib/vpsStorage";
@@ -442,8 +443,8 @@ export function StudentCardsModule() {
           setSchoolEmail(data.email || "");
         }
       } catch (err) {
-        console.error("Failed to load school details:", err);
-      }
+      reportLoadFailure("the student card data", err);
+    }
     };
     fetchSchoolDetails();
   }, [schoolId]);
@@ -537,8 +538,8 @@ export function StudentCardsModule() {
         setClasses(clsData || []);
         setSections(secData || []);
       } catch (err) {
-        console.error("Failed to load school academic metadata:", err);
-      }
+      reportLoadFailure("the student card data", err);
+    }
     };
     fetchMetadata();
   }, [schoolId]);
