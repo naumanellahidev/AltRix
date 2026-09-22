@@ -471,11 +471,25 @@ done
 # failure here stops the deploy rather than leaving containers to start against
 # a half-applied schema.
 echo "[INFO] Applying database schema bootstrap..."
+# As the table owner. The app role cannot CREATE or ALTER the tables postgres
+# owns, so a bootstrap run as the app role left tables uncreated - among them
+# user_token_invalidation, whose absence aborted the transaction of every
+# request that touched it (login answered "not a member", logout returned 503).
+# The container runs under the postgres uid and reaches the server over the
+# local socket, which authenticates by peer.
 docker run --rm \
     --network host \
+    --user "$(id -u postgres):0" \
+    -e HOME=/tmp \
+    -e DATABASE_URL="postgresql://postgres@/altrix?host=/var/run/postgresql" \
+    -v /var/run/postgresql:/var/run/postgresql \
     -v /opt/altrix/shared/config/production.env:/app/.env:ro \
+    --entrypoint python \
     "altrix-backend:${SHORT_SHA}" \
-    python -m app.db_bootstrap
+    -m app.db_bootstrap
+
+# Anything the bootstrap just created belongs to postgres; the app needs it too.
+"${PSQL_OWNER[@]}" -c "GRANT ALL ON ALL TABLES IN SCHEMA public TO altrix_app; GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO altrix_app;"
 
 echo "[INFO] Deploying altrix_backend container..."
 docker stop altrix_backend 2>/dev/null || true

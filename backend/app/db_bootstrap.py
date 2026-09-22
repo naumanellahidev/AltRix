@@ -37,6 +37,20 @@ from app.database import engine
 logger = logging.getLogger("app.db_bootstrap")
 
 
+async def _execute_script(conn, sql: str) -> None:
+    """
+    Run several ;-separated statements one at a time.
+
+    asyncpg sends each execute as a prepared statement, which may hold only one
+    command; a block of several failed with "cannot insert multiple commands
+    into a prepared statement" and took the rest of its try block with it -
+    which is how the token-invalidation table was never created.
+    """
+    for statement in (part.strip() for part in sql.split(";")):
+        if statement:
+            await conn.execute(text(statement))
+
+
 def should_run_on_startup() -> bool:
     """
     Whether the app should apply the schema itself when it boots.
@@ -83,7 +97,7 @@ async def apply_schema_bootstrap() -> None:
             logger.info("Report cards schema columns aligned successfully")
 
             # Auto-align book_issues & library_books table columns
-            await conn.execute(text("""
+            await _execute_script(conn, """
                 ALTER TABLE public.book_issues
                     ADD COLUMN IF NOT EXISTS campus_id UUID,
                     ADD COLUMN IF NOT EXISTS fine_per_day NUMERIC(10, 2) DEFAULT 20.00;
@@ -111,11 +125,11 @@ async def apply_schema_bootstrap() -> None:
                     ADD COLUMN IF NOT EXISTS rsvp_enabled BOOLEAN DEFAULT false,
                     ADD COLUMN IF NOT EXISTS rsvp_count INTEGER DEFAULT 0,
                     ADD COLUMN IF NOT EXISTS max_attendees INTEGER;
-            """))
+            """)
             logger.info("Library & School Events schema aligned successfully")
             
             # Create system_settings table if it doesn't exist and ensure schema alignment
-            await conn.execute(text("""
+            await _execute_script(conn, """
                 CREATE TABLE IF NOT EXISTS public.system_settings (
                     key VARCHAR PRIMARY KEY,
                     value JSONB,
@@ -124,7 +138,7 @@ async def apply_schema_bootstrap() -> None:
                 );
                 ALTER TABLE public.system_settings ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
                 ALTER TABLE public.system_settings DISABLE ROW LEVEL SECURITY;
-            """))
+            """)
             # Seed default AI status & platform branding
             await conn.execute(text("""
                 INSERT INTO public.system_settings (key, value)
@@ -452,7 +466,7 @@ async def apply_schema_bootstrap() -> None:
                     );
                 """))
 
-                await conn.execute(text("""
+                await _execute_script(conn, """
                     CREATE TABLE IF NOT EXISTS public.email_templates (
                         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                         key VARCHAR(64) UNIQUE NOT NULL,
@@ -475,7 +489,7 @@ async def apply_schema_bootstrap() -> None:
                     ALTER TABLE public.email_templates
                         ADD COLUMN IF NOT EXISTS version INT NOT NULL DEFAULT 1,
                         ADD COLUMN IF NOT EXISTS is_system BOOLEAN NOT NULL DEFAULT TRUE;
-                """))
+                """)
 
                 await conn.execute(text("""
                     CREATE TABLE IF NOT EXISTS public.email_template_versions (

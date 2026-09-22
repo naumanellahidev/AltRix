@@ -238,10 +238,15 @@ async def tokens_invalidated_before(db, user_id: str) -> Optional[datetime]:
 
     try:
         from sqlalchemy import text
-        res = await db.execute(
-            text("SELECT invalidated_before FROM user_token_invalidation WHERE user_id = :uid"),
-            {"uid": str(user_id)},
-        )
+        # In a savepoint: this lookup runs inside the request's transaction, and
+        # a failed statement there (a missing table after a partial migration)
+        # would abort the whole transaction and fail every later query in the
+        # request - login then reports "not a member", logout returns 503.
+        async with db.begin_nested():
+            res = await db.execute(
+                text("SELECT invalidated_before FROM user_token_invalidation WHERE user_id = :uid"),
+                {"uid": str(user_id)},
+            )
         row = res.fetchone()
         value = row[0] if row else None
         try:
@@ -282,10 +287,11 @@ async def is_token_blacklisted(db, jti: str) -> bool:
     # Slow path: check database
     try:
         from sqlalchemy import text
-        result = await db.execute(
-            text("SELECT 1 FROM token_blacklist WHERE jti = :jti AND expires_at > NOW()"),
-            {"jti": jti},
-        )
+        async with db.begin_nested():  # see tokens_invalidated_before
+            result = await db.execute(
+                text("SELECT 1 FROM token_blacklist WHERE jti = :jti AND expires_at > NOW()"),
+                {"jti": jti},
+            )
         is_blacklisted = result.fetchone() is not None
         # Warm the Redis cache if blacklisted
         if is_blacklisted:
