@@ -41,6 +41,8 @@ export const NAV_CATALOG: NavItem[] = [
     roles: ["super_admin","school_owner","principal","vice_principal","school_admin","academic_coordinator","teacher","student","parent"] },
   { key: "seating-plan", label: "Seating Planner", icon: Grid3X3, group: "academics", path: "seating-plan",
     roles: ["super_admin","school_owner","principal","vice_principal","school_admin","academic_coordinator","teacher"] },
+  { key: "promotions", label: "Promotions", icon: GraduationCap, group: "academics", path: "promotions",
+    roles: ["super_admin","school_owner","principal","vice_principal","school_admin","academic_coordinator"] },
   { key: "report-cards", label: "Report Cards", icon: FileText, group: "academics", path: "report-cards",
     roles: ["super_admin","school_owner","principal","vice_principal","school_admin","academic_coordinator","teacher","student","parent"] },
   { key: "curriculum", label: "Curriculum Standards", icon: BookOpen, group: "academics", path: "curriculum",

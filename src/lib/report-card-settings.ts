@@ -10,6 +10,11 @@
  * So the principal is asked once, the answer is stored against the school, and
  * every later card follows it without asking again.
  */
+import {
+  REPORT_CARD_TEMPLATES,
+  TEMPLATE_ORDER,
+  type ReportCardTemplateId,
+} from "@/lib/documents/report-card-templates";
 import { api } from "@/lib/api";
 import {
   DEFAULT_PRINT_SETTINGS,
@@ -43,8 +48,11 @@ function fromRow(row: SettingsRow): ReportCardPrintSettings {
   const fit = row.fit_strategy;
   return {
     fitStrategy: fit === "landscape" || fit === "two_pages" ? fit : "compact",
-    template:
-      row.template === "modern" || row.template === "minimal" ? row.template : "classic",
+    // An unknown name (an older row, or a hand-edited one) falls back to the
+    // classic card rather than failing to load the school's settings.
+    template: TEMPLATE_ORDER.includes(row.template as ReportCardTemplateId)
+      ? (row.template as ReportCardTemplateId)
+      : "classic",
     showPhoto: row.show_photo !== false,
     showAttendance: row.show_attendance !== false,
     showActivities: row.show_activities !== false,

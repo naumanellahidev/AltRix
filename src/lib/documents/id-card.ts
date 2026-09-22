@@ -52,7 +52,7 @@ export interface IdCardSettings {
   show_emergency_contact: boolean;
   show_signature: boolean;
   signature_text: string;
-  design_style: string; // classic | modern | minimal | playful
+  design_style: string; // classic | modern | minimal | playful | crest | ribbon | corporate
 }
 
 /** Titles that are defaults nobody chose, and must never reach a card. */
@@ -219,10 +219,16 @@ function cardFrame(ctx: Ctx, x: number, y: number, w: number, h: number) {
   const { pdf, settings } = ctx;
   pdf.setFillColor(255, 255, 255);
   pdf.roundedRect(x, y, w, h, 3, 3, "F");
-  if (settings.design_style === "classic") {
+  if (settings.design_style === "classic" || settings.design_style === "crest") {
     pdf.setDrawColor(...ctx.accent);
-    pdf.setLineWidth(0.6);
+    pdf.setLineWidth(settings.design_style === "crest" ? 0.9 : 0.6);
     pdf.roundedRect(x + 1.2, y + 1.2, w - 2.4, h - 2.4, 2.2, 2.2, "S");
+    if (settings.design_style === "crest") {
+      // A second, hairline rule inside the first: the way a certificate is
+      // bordered, which is what a crest card is trying to be.
+      pdf.setLineWidth(0.25);
+      pdf.roundedRect(x + 2.6, y + 2.6, w - 5.2, h - 5.2, 1.6, 1.6, "S");
+    }
   }
   pdf.setDrawColor(215, 215, 220);
   pdf.setLineWidth(0.15);
@@ -240,6 +246,28 @@ function headerBand(ctx: Ctx, x: number, y: number, w: number, h: number) {
   if (settings.design_style === "minimal") {
     pdf.setFillColor(...ctx.accent);
     pdf.rect(x, y, w, 1.6, "F");
+  } else if (settings.design_style === "crest") {
+    // No band at all: the school's name sits on the card, framed, and the
+    // colour appears only as a rule beneath it.
+    pdf.setFillColor(...tint(ctx.accent, 0.92));
+    pdf.rect(x, y, w, h, "F");
+    pdf.setDrawColor(...ctx.accent);
+    pdf.setLineWidth(0.5);
+    pdf.line(x + 6, y + h - 0.6, x + w - 6, y + h - 0.6);
+  } else if (settings.design_style === "ribbon") {
+    pdf.setFillColor(...tint(ctx.accent, 0.9));
+    pdf.rect(x, y, w, h, "F");
+    // A diagonal sweep of the school's colour across the head.
+    pdf.setFillColor(...ctx.accent);
+    pdf.triangle(x, y, x + w, y, x + w, y + h, "F");
+    pdf.setFillColor(...tint(ctx.accent, 0.3));
+    pdf.triangle(x, y, x + w * 0.62, y, x, y + h, "F");
+  } else if (settings.design_style === "corporate") {
+    pdf.setFillColor(...ctx.accent);
+    pdf.rect(x, y, w, h, "F");
+    // One quiet highlight bar, nothing else: a staff-badge look.
+    pdf.setFillColor(255, 255, 255);
+    pdf.rect(x + 5, y + h - 2.2, 14, 0.9, "F");
   } else {
     pdf.setFillColor(...ctx.accent);
     pdf.rect(x, y, w, h, "F");

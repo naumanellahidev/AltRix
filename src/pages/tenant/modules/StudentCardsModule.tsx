@@ -1340,10 +1340,13 @@ export function StudentCardsModule() {
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="modern">Modern (Glassmorphism & Gradients)</SelectItem>
-                            <SelectItem value="classic">Classic (Header block & Clean grid)</SelectItem>
-                            <SelectItem value="minimal">Minimal (Thin borders & Sleek spacing)</SelectItem>
-                            <SelectItem value="playful">Playful (Yellow badge & Soft borders)</SelectItem>
+                            <SelectItem value="modern">Modern — gradient head, rounded photo</SelectItem>
+                            <SelectItem value="classic">Classic — solid head, framed card</SelectItem>
+                            <SelectItem value="minimal">Minimal — a hairline of colour, nothing else</SelectItem>
+                            <SelectItem value="playful">Playful — soft shapes, for the younger years</SelectItem>
+                            <SelectItem value="crest">Crest — a double-ruled border, serif school name</SelectItem>
+                            <SelectItem value="ribbon">Ribbon — a diagonal sweep of the school colour</SelectItem>
+                            <SelectItem value="corporate">Corporate — deep solid head, staff-badge look</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>

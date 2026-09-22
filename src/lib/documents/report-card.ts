@@ -25,6 +25,12 @@ import { type SchoolBrand, loadActiveSchoolBrand } from "./brand";
 import { type PdfDocument, createDocumentAsync } from "./document";
 import { DEFAULT_MARGINS } from "./paper";
 import { scaledSizes } from "./theme";
+import {
+  type ReportCardTemplateId,
+  drawPageFrame,
+  drawSectionTitle,
+  templateFor,
+} from "./report-card-templates";
 import { type BulkResult, generateArchive, print as printPdf, shareFile, triggerDownload, type ShareOutcome } from "./deliver";
 import { ABSENT, date as formatDate, documentFileName, marks, name as joinName, percent } from "./format";
 import { drawTable } from "./table";
@@ -131,7 +137,7 @@ export async function fetchReportCardDetail(cardId: string): Promise<ReportCardD
 export interface ReportCardPrintSettings {
   /** What to do when a card genuinely will not fit one portrait sheet. */
   fitStrategy: "compact" | "landscape" | "two_pages";
-  template: "classic" | "modern" | "minimal";
+  template: ReportCardTemplateId;
   showPhoto: boolean;
   showAttendance: boolean;
   showActivities: boolean;
@@ -178,6 +184,9 @@ export async function buildReportCard(
 ): Promise<ReportCardResult> {
   const warnings: string[] = [];
   const settings = options.settings ?? DEFAULT_PRINT_SETTINGS;
+  // The school's chosen look. It drives the headings, the figures, the table
+  // and the page border together - a template is a design, not a colour.
+  const template = templateFor(settings.template);
   const density = Math.max(MIN_DENSITY, Math.min(1, options.density ?? 1));
   /** A millimetre constant at this density. */
   const mm = (value: number) => Math.round(value * density * 100) / 100;
@@ -196,7 +205,10 @@ export async function buildReportCard(
     orientation: options.orientation ?? "portrait",
     // Tighter type and margins are what "compact" means; both move together,
     // so the page keeps its proportions instead of only shrinking the words.
-    theme: density < 1 ? { size: scaledSizes(density) } : undefined,
+    theme: {
+      headingFont: template.headingFont,
+      ...(density < 1 ? { size: scaledSizes(density) } : {}),
+    },
     margins: density < 1
       ? {
           top: mm(DEFAULT_MARGINS.top),
@@ -284,30 +296,67 @@ export async function buildReportCard(
   }
 
   if (tiles.length) {
-    const perRow = Math.min(tiles.length, 6);
-    const gap = mm(2.5);
-    const w = (doc.width - gap * (perRow - 1)) / perRow;
-    const h = mm(13);
-    const rows = Math.ceil(tiles.length / perRow);
-    doc.ensureSpace(rows * (h + gap));
-    tiles.forEach((t, i) => {
-      const x = doc.x + (i % perRow) * (w + gap);
-      const y = doc.y + Math.floor(i / perRow) * (h + gap);
-      doc.pdf.setFillColor(...doc.theme.accentWash);
-      doc.pdf.roundedRect(x, y, w, h, 1.5, 1.5, "F");
-      doc.pdf.setFont(doc.theme.bodyFont, "bold");
-      doc.pdf.setFontSize(doc.theme.size.caption);
-      doc.pdf.setTextColor(...doc.theme.inkMuted);
-      doc.pdf.text(t.label.toUpperCase(), x + w / 2, y + mm(4.4), { align: "center" });
-      doc.pdf.setFontSize((t.value.length > 14 ? 9 : 11.5) * density);
-      doc.pdf.setTextColor(...doc.theme.accent);
-      doc.pdf.text(doc.pdf.splitTextToSize(t.value, w - mm(3))[0] as string, x + w / 2, y + mm(10.2), { align: "center" });
-    });
-    doc.advance(rows * (h + gap) + 1);
+    if (template.tileStyle === "strip") {
+      // One line of figures over a rule: the register look, where the marks
+      // below are the point and these are a caption to them.
+      const height = mm(8);
+      doc.ensureSpace(height + mm(3));
+      const slot = doc.width / tiles.length;
+      const baseline = doc.y + mm(5);
+      tiles.forEach((t, i) => {
+        const centre = doc.x + slot * i + slot / 2;
+        doc.pdf.setFont(doc.theme.bodyFont, "normal");
+        doc.pdf.setFontSize(doc.theme.size.caption * 0.95);
+        doc.pdf.setTextColor(...doc.theme.inkMuted);
+        doc.pdf.text(t.label.toUpperCase(), centre, doc.y + mm(1.8), { align: "center" });
+        doc.pdf.setFont(doc.theme.bodyFont, "bold");
+        doc.pdf.setFontSize((t.value.length > 14 ? 9 : 11) * density);
+        doc.pdf.setTextColor(...doc.theme.ink);
+        doc.pdf.text(doc.pdf.splitTextToSize(t.value, slot - mm(2))[0] as string, centre, baseline, { align: "center" });
+        if (i > 0) {
+          doc.pdf.setDrawColor(...doc.theme.ruleFaint);
+          doc.pdf.setLineWidth(0.2);
+          doc.pdf.line(doc.x + slot * i, doc.y, doc.x + slot * i, doc.y + height - mm(2));
+        }
+      });
+      doc.y += height;
+      doc.pdf.setDrawColor(...doc.theme.rule);
+      doc.pdf.setLineWidth(0.3);
+      doc.pdf.line(doc.x, doc.y, doc.x + doc.width, doc.y);
+      doc.advance(mm(3));
+    } else {
+      const perRow = Math.min(tiles.length, 6);
+      const gap = mm(2.5);
+      const w = (doc.width - gap * (perRow - 1)) / perRow;
+      const h = mm(13);
+      const rows = Math.ceil(tiles.length / perRow);
+      const outlined = template.tileStyle === "outlined";
+      doc.ensureSpace(rows * (h + gap));
+      tiles.forEach((t, i) => {
+        const x = doc.x + (i % perRow) * (w + gap);
+        const y = doc.y + Math.floor(i / perRow) * (h + gap);
+        if (outlined) {
+          doc.pdf.setDrawColor(...doc.theme.rule);
+          doc.pdf.setLineWidth(0.3);
+          doc.pdf.roundedRect(x, y, w, h, 1.5, 1.5, "S");
+        } else {
+          doc.pdf.setFillColor(...doc.theme.accentWash);
+          doc.pdf.roundedRect(x, y, w, h, 1.5, 1.5, "F");
+        }
+        doc.pdf.setFont(doc.theme.bodyFont, "bold");
+        doc.pdf.setFontSize(doc.theme.size.caption);
+        doc.pdf.setTextColor(...doc.theme.inkMuted);
+        doc.pdf.text(t.label.toUpperCase(), x + w / 2, y + mm(4.4), { align: "center" });
+        doc.pdf.setFontSize((t.value.length > 14 ? 9 : 11.5) * density);
+        doc.pdf.setTextColor(...(outlined ? doc.theme.ink : doc.theme.accent));
+        doc.pdf.text(doc.pdf.splitTextToSize(t.value, w - mm(3))[0] as string, x + w / 2, y + mm(10.2), { align: "center" });
+      });
+      doc.advance(rows * (h + gap) + 1);
+    }
   }
 
   // ── Subjects ──────────────────────────────────────────────────────────────
-  doc.sectionTitle("Academic performance");
+  drawSectionTitle(doc, template, "Academic performance", density);
   type Entry = ReportCardDetail["subject_entries"][number];
   const entries = detail.subject_entries ?? [];
   const hasStats = entries.some((e) => present(e.class_average) || present(e.highest_in_class));
@@ -387,6 +436,9 @@ export async function buildReportCard(
         rows: entries.slice(0, half),
         emptyMessage: "No subject results have been recorded on this card.",
         padding: mm(1.5),
+        accentHeader: template.table.accentHeader,
+        zebra: template.table.zebra,
+        rowRules: template.table.rowRules,
       });
       deepest = Math.max(deepest, doc.y);
     });
@@ -399,19 +451,33 @@ export async function buildReportCard(
         footerRows: totals ? [totals] : [],
         emptyMessage: "",
         padding: mm(1.5),
+        accentHeader: template.table.accentHeader,
+        zebra: template.table.zebra,
+        rowRules: template.table.rowRules,
       });
       deepest = Math.max(deepest, doc.y);
     });
 
     doc.y = deepest;
   } else {
+    const tableTop = doc.y;
     drawTable(doc, {
       columns,
       rows: entries,
       footerRows: totals ? [totals] : [],
       emptyMessage: "No subject results have been recorded on this card.",
       padding: mm(1.5),
+      accentHeader: template.table.accentHeader,
+      zebra: template.table.zebra,
+      rowRules: template.table.rowRules,
     });
+    // A framed table is what makes the register-style templates read as a
+    // record rather than a list.
+    if (template.table.frame && doc.y > tableTop) {
+      doc.pdf.setDrawColor(...doc.theme.rule);
+      doc.pdf.setLineWidth(0.3);
+      doc.pdf.rect(doc.x, tableTop, doc.width, doc.y - tableTop, "S");
+    }
   }
 
   // A subject with no mark recorded is shown blank, never as zero, and says why.
@@ -427,7 +493,7 @@ export async function buildReportCard(
   // ── Co-curricular ─────────────────────────────────────────────────────────
   const co = settings.showActivities ? (detail.co_curricular ?? []) : [];
   if (co.length) {
-    doc.sectionTitle("Co-curricular activities");
+    drawSectionTitle(doc, template, "Co-curricular activities", density);
     type Co = (typeof co)[number];
     const coColumns = [
       { header: "Activity", width: 2, value: (c: Co) => c.activity_name },
@@ -453,7 +519,7 @@ export async function buildReportCard(
   // ── Trend across terms ────────────────────────────────────────────────────
   const trend = settings.showTermTrend ? (card.trend_data ?? []).filter((t) => present(t.percentage)) : [];
   if (trend.length >= 2) {
-    doc.sectionTitle("Progress across terms");
+    drawSectionTitle(doc, template, "Progress across terms", density);
     const chartH = mm(16);
     doc.ensureSpace(chartH + mm(10));
     const top = doc.y;
@@ -488,7 +554,7 @@ export async function buildReportCard(
 
   // ── Remarks ───────────────────────────────────────────────────────────────
   if (present(card.teacher_remarks) || present(card.principal_remarks)) {
-    doc.sectionTitle("Remarks");
+    drawSectionTitle(doc, template, "Remarks", density);
     doc.note(
       [
         present(card.teacher_remarks) ? `Class teacher: ${card.teacher_remarks}` : null,
@@ -533,6 +599,15 @@ export async function buildReportCard(
     { title: "Parent / Guardian" },
   ], { width: token ? doc.width - qrSize - mm(6) : doc.width });
   doc.y = Math.max(doc.y, blockTop + qrSize + mm(10));
+
+  if (template.pageFrame !== "none") {
+    const finished = doc.pdf.getNumberOfPages();
+    for (let page = 1; page <= finished; page += 1) {
+      doc.pdf.setPage(page);
+      drawPageFrame(doc, template);
+    }
+    doc.pdf.setPage(finished);
+  }
 
   for (const lost of doc.unprintableText) warnings.push(`"${lost}" could not be printed`);
 

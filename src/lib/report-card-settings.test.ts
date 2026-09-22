@@ -97,7 +97,7 @@ describe("saving", () => {
   it("marks the school as asked", async () => {
     await saveReportCardSettings("school-1", DEFAULT_PRINT_SETTINGS, { id: null });
     expect(insert).toHaveBeenCalledTimes(1);
-    const payload = insert.mock.calls[0][0] as Record<string, unknown>;
+    const payload = (insert.mock.calls[0] as unknown[])[0] as Record<string, unknown>;
     expect(payload.school_id).toBe("school-1");
     expect(payload.configured_at).toBeTruthy();
   });

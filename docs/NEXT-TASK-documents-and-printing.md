@@ -944,3 +944,48 @@ Four faults, found from the browser console on production:
   a saved plan: it lives in one browser and no invoice or renewal can see it.
   Migration `20260922030000` adds the columns; the localStorage branch now
   raises instead of pretending.
+
+### Slice 27 — seven report card designs, seven ID card designs, and promotions (done)
+
+- **The report card design setting did nothing.** `template` was stored and the
+  builder ignored it, so "classic", "modern" and "minimal" printed the same
+  card. There are now seven finished designs in
+  `src/lib/documents/report-card-templates.ts` — Classic, Modern, Minimal,
+  Crest, Ledger, Bulletin, Heritage — and each changes the whole look together:
+  the heading style (ruled, banded, side-ruled or letter-spaced), the headline
+  figures (filled, outlined or a single strip over a rule), the table (accent
+  head, zebra, row rules, frame) and the page border (none, hairline, double,
+  or a colour band across the head). All seven were rendered and checked: each
+  fits one page at full density with seven subjects, and the setup dialog shows
+  a drawn miniature of each so the choice is made by eye. Migration
+  `20260922040000` widens the check constraint that would have rejected the
+  four new names.
+- **ID cards** gained Crest, Ribbon and Corporate alongside the four that
+  existed, and the picker now describes each in a line rather than naming a CSS
+  effect.
+- **Promotions — the whole thing was missing.** There was no academic year:
+  `student_enrollments` held a section and two dates, `grade_level` was null
+  for every class in production, and nothing recorded that a child had been
+  promoted, retained or graduated. A school had to re-enrol every student by
+  hand at the end of the year.
+  Migration `20260922050000` adds `academic_sessions` (one current per school,
+  enforced by a partial unique index), a `session_id` on sections and
+  enrolments, `next_class_id` for schools whose progression is not simply the
+  next number, and `student_promotions` — one row per child per year with the
+  outcome, the result it rested on, who decided it and a batch id. It backfills
+  `grade_level` from class names ("Class 7" → 7) only where a school had not
+  set it, gives every school a current session, and attaches existing sections
+  and open enrolments to it.
+  `backend/app/routers/promotions.py` is preview → run → undo: the preview
+  proposes an outcome for every child **from the records only** (at or above
+  the pass mark → up; below → stay; no annual result → stay, and it says so;
+  top of the school → leaving) and changes nothing; the run closes the old
+  enrolment, opens the new one, records the decision, and **carries each
+  section's teachers into its successor** — but never over a class the
+  principal has already staffed; undo reverses a whole batch and reopens the
+  old enrolments.
+  The Promotions tab is a review, not a button: every child, their result, the
+  proposal, the reason, and an override on each row. A student with nowhere to
+  move into is named rather than moved.
+- Verified: 26 new promotion assertions, migration dry-run on production
+  (sessions created, Class 1/2/3 → grade 1/2/3, 6 sections attached), tsc clean.

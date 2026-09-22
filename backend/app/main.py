@@ -55,6 +55,7 @@ from app.routers.collaboration import router as collaboration_router
 from app.routers.transport import router as transport_router
 from app.routers.events import router as school_events_router
 from app.routers.report_cards import router as report_cards_router
+from app.routers.promotions import router as promotions_router
 from app.routers.curriculum import router as curriculum_router
 from app.routers.visitors import router as visitors_router
 from app.routers.owner_insights import router as owner_insights_router
@@ -472,6 +473,7 @@ app.include_router(collaboration_router, prefix=_PREFIX)
 app.include_router(transport_router, prefix=_PREFIX)
 app.include_router(school_events_router, prefix=_PREFIX)
 app.include_router(report_cards_router, prefix=_PREFIX)
+app.include_router(promotions_router, prefix=_PREFIX)
 app.include_router(curriculum_router, prefix=_PREFIX)
 app.include_router(visitors_router, prefix=_PREFIX)
 app.include_router(owner_insights_router, prefix=_PREFIX)

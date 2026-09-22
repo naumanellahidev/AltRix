@@ -27,6 +27,7 @@ import { AccountantTaxModule } from "@/pages/tenant/accountant-modules/Accountan
 import { AccountantReportsModule } from "@/pages/tenant/accountant-modules/AccountantReportsModule";
 
 import FeesCentreModule from "@/pages/tenant/modules/fees/FeesCentreModule";
+import PromotionsModule from "@/pages/tenant/modules/PromotionsModule";
 import { AdminFeePortalModule } from "@/pages/tenant/modules/AdminFeePortalModule";
 import { OwnerFinanceModule } from "@/pages/tenant/owner-modules/OwnerFinanceModule";
 import { ReportsModule } from "@/pages/tenant/modules/ReportsModule";
@@ -139,6 +140,7 @@ export const MODULE_REGISTRY: Record<string, ModuleEntry> = {
   timetable:     { Component: TimetableBuilderModule },
   attendance:    { Component: AttendanceModule },
   exams:         { Component: ExamsModule,        propsFor: (c) => ({ schoolId: c.schoolId, canManage: isAcademicGov(c.roles) }) },
+  promotions:   { Component: PromotionsModule },
   "report-cards":{ Component: ReportCardModule,   propsFor: (c) => ({ schoolId: c.schoolId, canManage: isAcademicGov(c.roles) }) },
   diary:         { Component: DiaryModule,        propsFor: (c) => ({ schoolId: c.schoolId, canManage: isAcademicGov(c.roles) }) },
 
