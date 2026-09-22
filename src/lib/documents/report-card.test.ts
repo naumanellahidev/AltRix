@@ -6,7 +6,13 @@ import { beforeAll, describe, expect, it } from "vitest";
 
 import type { SchoolBrand } from "./brand";
 import { seedUnicodeFont } from "./fonts";
-import { type ReportCardDetail, buildReportCard } from "./report-card";
+import {
+  DEFAULT_PRINT_SETTINGS,
+  MIN_DENSITY,
+  type ReportCardDetail,
+  buildFittedReportCard,
+  buildReportCard,
+} from "./report-card";
 
 const brand: SchoolBrand = {
   id: "s1",
@@ -126,5 +132,106 @@ describe("report card", () => {
     const { fileName, warnings } = await buildReportCard(bare, { brand });
     expect(fileName).toBe("Bilal - Report Card.pdf");
     expect(warnings).toEqual([]);
+  });
+});
+
+/**
+ * A report card has to come out on one sheet.
+ *
+ * These build real cards and count the pages, rather than asserting that a
+ * density constant exists: the only thing that matters is what the printer
+ * receives.
+ */
+describe("fitting a card onto one sheet", () => {
+  /** A card long enough that the comfortable layout runs over. */
+  function crowded(subjects: number, options: { comments?: boolean } = {}): ReportCardDetail {
+    const base = detail();
+    const names = [
+      "English", "Urdu", "Mathematics", "Science", "Islamiat", "Computer Studies",
+      "Social Studies", "Physics", "Chemistry", "Biology", "Art", "Physical Education",
+      "General Knowledge", "Nazra Quran", "Pakistan Studies", "Geography",
+      "History", "Economics", "Civics", "Library Skills", "Music", "Drama",
+    ];
+    return {
+      ...base,
+      subject_entries: Array.from({ length: subjects }, (_, i) => ({
+        subject_name: names[i % names.length],
+        marks_obtained: String(70 + (i % 25)),
+        max_marks: "100.000",
+        percentage: String(70 + (i % 25)),
+        grade: i % 3 === 0 ? "A" : "B+",
+        class_average: "72.4",
+        highest_in_class: "96",
+        position_in_subject: (i % 9) + 1,
+        // A per-subject comment needs the full width, which is why a card
+        // carrying them cannot be set in two columns.
+        teacher_comment: options.comments ? "Consistent work throughout the term." : null,
+      })),
+    };
+  }
+
+  it("fits a twenty-subject card on one page, without dropping anything", async () => {
+    const long = crowded(20);
+
+    const comfortable = await buildReportCard(long, { brand });
+    expect(comfortable.doc.pages).toBeGreaterThan(1); // the problem is real
+
+    const fitted = await buildFittedReportCard(long, { brand });
+    expect(fitted.fittedOnOnePage).toBe(true);
+    expect(fitted.doc.pages).toBe(1);
+    expect(fitted.warnings).toEqual([]);
+    // Two columns is what buys the room here, not shrinking the type away.
+    expect(fitted.subjectColumns).toBe(2);
+    expect(fitted.density).toBeGreaterThanOrEqual(0.85);
+  });
+
+  it("fits a card that carries a comment on every subject", async () => {
+    const fitted = await buildFittedReportCard(crowded(16, { comments: true }), { brand });
+    expect(fitted.doc.pages).toBe(1);
+    // Comments need the full width, so this one is tightened instead.
+    expect(fitted.subjectColumns).toBe(1);
+    expect(fitted.density).toBeLessThan(1);
+  });
+
+  it("leaves a short card at the comfortable layout", async () => {
+    const fitted = await buildFittedReportCard(detail(), { brand });
+    expect(fitted.doc.pages).toBe(1);
+    expect(fitted.density).toBe(1);
+  });
+
+  it("never tightens past the legible floor", async () => {
+    const fitted = await buildFittedReportCard(crowded(22, { comments: true }), { brand });
+    expect(fitted.density).toBeGreaterThanOrEqual(MIN_DENSITY);
+  });
+
+  it("says so plainly when even the tightest layout needs two sheets", async () => {
+    const huge = crowded(22, { comments: true });
+    huge.report_card.teacher_remarks = "A very long remark. ".repeat(60);
+    huge.report_card.principal_remarks = "Another long remark. ".repeat(60);
+
+    const fitted = await buildFittedReportCard(huge, {
+      brand,
+      settings: { ...DEFAULT_PRINT_SETTINGS, fitStrategy: "two_pages" },
+    });
+    if (!fitted.fittedOnOnePage) {
+      expect(fitted.doc.pages).toBeGreaterThan(1);
+    }
+    // Either way it never claims a page count it did not produce.
+    expect(fitted.fittedOnOnePage).toBe(fitted.doc.pages === 1);
+  });
+
+  it("honours a school that turned a section off", async () => {
+    const withoutExtras = await buildFittedReportCard(crowded(20), {
+      brand,
+      settings: {
+        ...DEFAULT_PRINT_SETTINGS,
+        showActivities: false,
+        showTermTrend: false,
+      },
+    });
+    expect(withoutExtras.doc.pages).toBe(1);
+    // Less to fit means it needs less tightening than the full card did.
+    const full = await buildFittedReportCard(crowded(20), { brand });
+    expect(withoutExtras.density).toBeGreaterThanOrEqual(full.density);
   });
 });

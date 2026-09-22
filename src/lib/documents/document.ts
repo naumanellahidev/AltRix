@@ -188,6 +188,29 @@ export class PdfDocument {
     return this.pageCount;
   }
 
+  /**
+   * Draw inside a narrower band of the page — one column of several.
+   *
+   * Everything that lays itself out (text, tables, fields) measures against
+   * the content box, so narrowing it for the duration of `draw` is all a
+   * column needs. The box is restored afterwards even if `draw` throws.
+   *
+   * A report card with sixteen subjects does not fit one sheet in a single
+   * column at a readable size; in two it does, without dropping a subject.
+   */
+  inBand<T>(x: number, width: number, draw: () => T): T {
+    const previousX = this.geo.contentX;
+    const previousWidth = this.geo.contentWidth;
+    (this.geo as { contentX: number }).contentX = x;
+    (this.geo as { contentWidth: number }).contentWidth = width;
+    try {
+      return draw();
+    } finally {
+      (this.geo as { contentX: number }).contentX = previousX;
+      (this.geo as { contentWidth: number }).contentWidth = previousWidth;
+    }
+  }
+
   /** Move down. Negative values move up. */
   advance(mm: number): this {
     this.cursor += mm;

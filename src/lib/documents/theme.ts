@@ -154,3 +154,24 @@ export function themeFor(accent?: string | null, overrides: Partial<DocumentThem
     ...overrides,
   };
 }
+
+/**
+ * The type scale, tightened by a factor.
+ *
+ * A report card has to come out on one sheet. When a long subject list will
+ * not fit, the builder retries at a smaller density rather than dropping a
+ * subject — a mark that is not printed is a mark the family never sees. The
+ * floor is held by the caller; below roughly 0.7 a printed page stops being
+ * comfortably readable.
+ */
+export function scaledSizes(factor: number, base: DocumentTheme["size"] = DEFAULT_THEME.size): DocumentTheme["size"] {
+  const round = (v: number) => Math.round(v * factor * 10) / 10;
+  return {
+    docTitle: round(base.docTitle),
+    sectionTitle: round(base.sectionTitle),
+    heading: round(base.heading),
+    body: round(base.body),
+    small: round(base.small),
+    caption: round(base.caption),
+  };
+}

@@ -84,7 +84,8 @@ ROLE_MANAGEMENT_TABLES: Set[str] = {
 SCHOOL_CONFIG_TABLES: Set[str] = {
     "schools", "school_branding", "school_feature_flags", "system_settings",
     "school_alert_settings", "school_id_card_settings",
-    "school_inquiry_settings", "fee_settings", "jazzcash_settings",
+    "school_inquiry_settings", "report_card_settings",
+    "fee_settings", "jazzcash_settings",
     "easypaisa_settings", "grade_thresholds", "white_label_settings",
     "custom_domains", "platform_invoices", "platform_requests", "campuses",
 }

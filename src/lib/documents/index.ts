@@ -155,13 +155,22 @@ export type { DomPdfOptions, DomPdfResult } from "./dom-to-pdf";
 export { buildTableReport, headerTextFor } from "./table-report";
 export {
   buildReportCard,
+  buildFittedReportCard,
+  DEFAULT_PRINT_SETTINGS,
+  MIN_DENSITY,
   downloadReportCard,
   downloadReportCardSet,
   fetchReportCardDetail,
   printReportCard,
   shareReportCard,
 } from "./report-card";
-export type { GradeBand, ReportCardDetail, ReportCardResult } from "./report-card";
+export type {
+  BuildReportCardOptions,
+  GradeBand,
+  ReportCardDetail,
+  ReportCardPrintSettings,
+  ReportCardResult,
+} from "./report-card";
 export { buildPayslips } from "./payslip";
 export { buildReceipt, downloadReceipt, printReceipt, shareReceipt } from "./receipt";
 export type { ReceiptInput } from "./receipt";

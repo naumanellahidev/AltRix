@@ -34,15 +34,29 @@ import {
   Award,
   BookOpen,
   Check,
+  Settings2,
+  Share2,
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { documentFileName } from "@/lib/documents/format";
 import { format } from "date-fns";
-import { exportCleanDocumentToPdf } from "@/lib/pdfExportEngine";
 import { apiClient } from "@/lib/api-client";
-import { describe as describeResult, downloadReportCardSet } from "@/lib/documents";
+import {
+  describe as describeResult,
+  downloadReportCard,
+  downloadReportCardSet,
+  printReportCard,
+  shareReportCard,
+} from "@/lib/documents";
+import { describeShare } from "@/lib/documents/deliver";
+import {
+  DEFAULT_PRINT_SETTINGS,
+  loadReportCardSettings,
+  saveReportCardSettings,
+  type ReportCardPrintSettings,
+} from "@/lib/report-card-settings";
+import { ReportCardPrintSetup } from "@/components/report-cards/ReportCardPrintSetup";
 
 interface Exam { id: string; name: string; term_label: string | null; start_date?: string | null; end_date?: string | null; }
 interface Student { id: string; first_name: string; last_name: string | null; student_code?: string | null; section_id?: string | null; class_id?: string | null; classLabel?: string; }
@@ -125,6 +139,15 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
   const [results, setResults] = useState<Record<string, Result>>({});
   const [card, setCard] = useState<CardData>({ total_marks: 0, max_total: 0, percentage: 0, gpa: 0, overall_grade: "", teacher_remarks: "", principal_remarks: "", attendance_percentage: null, is_published: false });
   const [school, setSchool] = useState<any>(null);
+
+  // How this school prints its cards. Asked once, then followed. Until the
+  // answer has loaded the defaults apply, so a print never waits on it.
+  const [printSettings, setPrintSettings] = useState<ReportCardPrintSettings>(DEFAULT_PRINT_SETTINGS);
+  const [printSettingsId, setPrintSettingsId] = useState<string | null>(null);
+  const [printSettingsAsked, setPrintSettingsAsked] = useState(true);
+  const [setupOpen, setSetupOpen] = useState(false);
+  const [gradeScale, setGradeScale] = useState<Array<{ grade: string; min: number; max?: number }>>([]);
+  const [busyAction, setBusyAction] = useState<"download" | "print" | "share" | null>(null);
   const [studentInfo, setStudentInfo] = useState<any>(null);
   const [allAssessments, setAllAssessments] = useState<AssessmentRow[]>([]);
   const [allMarks, setAllMarks] = useState<MarkRow[]>([]);
@@ -207,6 +230,41 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
         setExamId(ex.data[0].id);
       }
     })();
+  }, [schoolId]);
+
+  // The school's print answer, and the grade bands the card's key prints.
+  useEffect(() => {
+    if (!schoolId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const stored = await loadReportCardSettings(schoolId);
+        if (cancelled) return;
+        setPrintSettings(stored.settings);
+        setPrintSettingsId(stored.id);
+        setPrintSettingsAsked(stored.configured);
+      } catch (err: any) {
+        // A settings read that fails is not the same as "never asked": saying
+        // nothing and quietly using the defaults would overwrite the school's
+        // own choice the next time anyone opened the setup.
+        if (!cancelled) toast.error(`The report card print settings could not be read: ${err?.message ?? err}`);
+      }
+
+      const { data } = await (api as any)
+        .from("grade_thresholds")
+        .select("grade_label,min_percentage,max_percentage")
+        .eq("school_id", schoolId)
+        .order("sort_order");
+      if (cancelled) return;
+      setGradeScale(
+        (data ?? []).map((g: any) => ({
+          grade: g.grade_label,
+          min: Number(g.min_percentage ?? 0),
+          max: g.max_percentage == null ? undefined : Number(g.max_percentage),
+        })),
+      );
+    })();
+    return () => { cancelled = true; };
   }, [schoolId]);
 
   useEffect(() => {
@@ -814,6 +872,10 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
           setClassSetProgress(text);
           toast.loading(text, { id });
         },
+        undefined,
+        // The whole class is fitted the same way, so the stack prints as one
+        // sheet per child.
+        { settings: printSettings, gradeScale },
       );
       const unpublished = cards.filter((c) => !c.is_published).length;
       const draftNote = unpublished ? ` ${unpublished} are drafts and are marked DRAFT.` : "";
@@ -982,25 +1044,100 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
   const showPicker = !studentIdLocked;
   const today = format(new Date(), "MMMM d, yyyy");
 
+  /**
+   * The card as a document, not a screenshot.
+   *
+   * This used to capture the on-screen HTML with exportCleanDocumentToPdf,
+   * so the print was a picture of a web page: the letterhead, the Urdu, the
+   * verification code and the page count were whatever the browser happened
+   * to render, and a long card simply spilled onto a second sheet. It now
+   * goes through the same vector builder the class set uses, fitted to one
+   * sheet the way this school chose.
+   *
+   * It needs a saved card, because it prints what the school has recorded —
+   * not what is on screen but not yet stored.
+   */
+  const requireSavedCard = (): string | null => {
+    if (card.id) return card.id;
+    toast.error("Save the card first — a report card is printed from what the school has recorded.");
+    return null;
+  };
+
+  const buildOptions = () => ({ settings: printSettings, gradeScale });
+
+  const reportFit = (result: { pages: number; density: number; fittedOnOnePage: boolean }) => {
+    if (result.fittedOnOnePage) return null;
+    return `it needed ${result.pages} pages even at the tightest legible layout — change the print settings to allow this`;
+  };
+
   const exportPdf = async () => {
-    const el = document.getElementById("report-card-print");
-    if (!el) return toast.error("No report card to export");
-    const name = studentInfo ? [studentInfo.first_name, studentInfo.last_name].filter(Boolean).join(" ") : "Student";
-    const id = toast.loading("Preparing report card PDF…");
+    const cardId = requireSavedCard();
+    if (!cardId) return;
+    const id = toast.loading("Building the report card…");
+    setBusyAction("download");
     try {
-      const { pages, warnings } = await exportCleanDocumentToPdf(el, {
-        filename: documentFileName([name, "Official Transcript"], "pdf"),
-        documentTitle: `Report Card — ${studentInfo ? `${studentInfo.first_name} ${studentInfo.last_name ?? ""}`.trim() : "Student"}`,
-        orientation: "portrait",
-        onProgress: (step) => toast.loading(step, { id }),
-      });
-      if (warnings.length) {
-        toast.warning(`Report card downloaded, but: ${warnings.join("; ")}`, { id, duration: 9000 });
+      const result = await downloadReportCard(cardId, buildOptions());
+      const notes = [...result.warnings, reportFit(result)].filter(Boolean) as string[];
+      if (notes.length) {
+        toast.warning(`${result.fileName} was downloaded, but: ${notes.join("; ")}`, { id, duration: 9000 });
       } else {
-        toast.success(`Report card downloaded · ${pages} page${pages === 1 ? "" : "s"}`, { id });
+        toast.success(`${result.fileName} — one page.`, { id });
       }
     } catch (e: any) {
-      toast.error(e?.message ? `Could not create the PDF: ${e.message}` : "Could not create the PDF", { id });
+      toast.error(e?.message ? `The report card was not created: ${e.message}` : "The report card was not created", { id });
+    } finally {
+      setBusyAction(null);
+    }
+  };
+
+  const printCard = async () => {
+    const cardId = requireSavedCard();
+    if (!cardId) return;
+    const id = toast.loading("Sending the report card to the printer…");
+    setBusyAction("print");
+    try {
+      const result = await printReportCard(cardId, buildOptions());
+      const notes = [...result.warnings, reportFit(result)].filter(Boolean) as string[];
+      if (notes.length) toast.warning(`Sent to the printer, but: ${notes.join("; ")}`, { id, duration: 9000 });
+      else toast.success("Sent to the printer — one page.", { id });
+    } catch (e: any) {
+      toast.error(e?.message ?? "The report card could not be printed", { id });
+    } finally {
+      setBusyAction(null);
+    }
+  };
+
+  const shareCard = async () => {
+    const cardId = requireSavedCard();
+    if (!cardId) return;
+    const id = toast.loading("Preparing the report card to share…");
+    setBusyAction("share");
+    try {
+      const outcome = await shareReportCard(cardId, buildOptions());
+      const described = describeShare(outcome);
+      const note = outcome.warnings.length ? ` (${outcome.warnings.join("; ")})` : "";
+      if (described.tone === "error") toast.error(described.message + note, { id });
+      else if (described.tone === "info") toast.info(described.message + note, { id, duration: 9000 });
+      else toast.success(described.message + note, { id });
+    } catch (e: any) {
+      toast.error(e?.message ?? "The report card could not be shared", { id });
+    } finally {
+      setBusyAction(null);
+    }
+  };
+
+  const savePrintSettings = async (next: ReportCardPrintSettings) => {
+    if (!schoolId) return;
+    try {
+      await saveReportCardSettings(schoolId, next, { id: printSettingsId, userId: null });
+      setPrintSettings(next);
+      setPrintSettingsAsked(true);
+      const stored = await loadReportCardSettings(schoolId);
+      setPrintSettingsId(stored.id);
+      toast.success("Saved. Every card this school prints will follow this.");
+    } catch (e: any) {
+      toast.error(e?.message ?? "The print settings were not saved");
+      throw e;
     }
   };
 
@@ -1090,8 +1227,41 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
 
         <div className="flex items-center gap-2 flex-wrap">
           {studentId && (
-            <Button variant="outline" onClick={exportPdf} className="shadow-xs font-semibold gap-2 border-slate-300 dark:border-slate-700">
-              <Download className="h-4 w-4 text-blue-600" /> Export PDF
+            <>
+              <Button
+                variant="outline"
+                onClick={exportPdf}
+                disabled={busyAction !== null}
+                className="shadow-xs font-semibold gap-2 border-slate-300 dark:border-slate-700"
+              >
+                <Download className="h-4 w-4 text-blue-600" /> Download PDF
+              </Button>
+              <Button
+                variant="outline"
+                onClick={printCard}
+                disabled={busyAction !== null}
+                className="font-semibold gap-2"
+              >
+                <Printer className="h-4 w-4 text-slate-600" /> Print
+              </Button>
+              <Button
+                variant="outline"
+                onClick={shareCard}
+                disabled={busyAction !== null}
+                className="font-semibold gap-2"
+              >
+                <Share2 className="h-4 w-4 text-emerald-600" /> Share
+              </Button>
+            </>
+          )}
+          {canManage && (
+            <Button
+              variant="ghost"
+              onClick={() => setSetupOpen(true)}
+              className="font-semibold gap-2"
+              title="How this school's report cards print"
+            >
+              <Settings2 className="h-4 w-4" /> Print settings
             </Button>
           )}
           {canManage && (
@@ -1109,6 +1279,31 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
           )}
         </div>
       </div>
+
+      {/* The one-time question. It is only offered to someone who can answer
+          it for the school, and only until they have. */}
+      {canManage && !printSettingsAsked && (
+        <div className="flex flex-col gap-3 rounded-2xl border border-primary/30 bg-primary/5 p-4 print:hidden sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="font-semibold text-foreground">Choose how this school's report cards print</p>
+            <p className="text-sm text-muted-foreground">
+              One sheet per child is the rule. Tell us what should happen when a card is too long
+              for one — asked once, then applied to every card.
+            </p>
+          </div>
+          <Button onClick={() => setSetupOpen(true)} className="shrink-0">
+            Set it up
+          </Button>
+        </div>
+      )}
+
+      <ReportCardPrintSetup
+        open={setupOpen}
+        onOpenChange={setSetupOpen}
+        initial={printSettings}
+        firstTime={!printSettingsAsked}
+        onSave={savePrintSettings}
+      />
 
       {/* ─── PERIOD SELECTOR TABS ─── */}
       {!isReadOnlyForChild && (
