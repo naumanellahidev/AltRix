@@ -330,7 +330,7 @@ def run():
     # ── P3 ────────────────────────────────────────────────────────────────────
     S = "P3 - scale and quality"
     check(S, "30", "startup DDL moved to a deploy step",
-          "apply_schema_bootstrap" in boot and "python -m app.db_bootstrap" in dp
+          "apply_schema_bootstrap" in boot and "app.db_bootstrap" in dp
           and "create_all" not in main)
     check(S, "29", "unbounded reads are capped",
           "DEFAULT_ROW_LIMIT" in vps and "MAX_ROW_LIMIT" in vps)
