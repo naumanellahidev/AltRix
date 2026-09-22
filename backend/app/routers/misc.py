@@ -1464,6 +1464,128 @@ async def daily_series(
     }
 
 
+@reports_router.get("/data-health")
+@cache_response(ttl=300, key_prefix="reports:data-health")
+async def data_health(
+    current_user: CurrentUser,
+    db: DbSession,
+    request: Request,
+    school_id: Optional[str] = Query(None),
+):
+    """
+    The connections the school depends on, and the ones that are missing.
+
+    A student with no enrolment is in no class list. A student with no guardian
+    linked has a parent who logs in and sees nothing. A section with no teacher
+    has nobody to mark its attendance. None of this is an error the software
+    can fix by itself, and none of it was visible anywhere - so it sat there.
+
+    Each check names the people it found, so the answer is one click away
+    rather than a number nobody can act on.
+    """
+    effective_school_id = await resolve_effective_school_id(school_id, request, current_user, db)
+    if not effective_school_id:
+        return {"checks": []}
+
+    params = {"sid": str(effective_school_id)}
+
+    async def names(sql: str, limit: int = 6) -> tuple:
+        rows = (await db.execute(text(sql), params)).fetchall()
+        return len(rows), [r[0] for r in rows[:limit]]
+
+    unenrolled_count, unenrolled = await names(
+        """
+        SELECT TRIM(CONCAT(s.first_name, ' ', COALESCE(s.last_name, '')))
+          FROM students s
+         WHERE s.school_id = CAST(:sid AS uuid)
+           AND (s.status IS NULL OR s.status NOT IN ('inactive', 'withdrawn', 'graduated', 'deleted'))
+           AND NOT EXISTS (
+                 SELECT 1 FROM student_enrollments e
+                  WHERE e.student_id = s.id AND e.end_date IS NULL)
+         ORDER BY 1
+        """
+    )
+
+    no_guardian_count, no_guardian = await names(
+        """
+        SELECT TRIM(CONCAT(s.first_name, ' ', COALESCE(s.last_name, '')))
+          FROM students s
+         WHERE s.school_id = CAST(:sid AS uuid)
+           AND (s.status IS NULL OR s.status NOT IN ('inactive', 'withdrawn', 'graduated', 'deleted'))
+           AND NOT EXISTS (SELECT 1 FROM student_guardians g WHERE g.student_id = s.id)
+         ORDER BY 1
+        """
+    )
+
+    no_account_count, no_account = await names(
+        """
+        SELECT TRIM(CONCAT(s.first_name, ' ', COALESCE(s.last_name, '')))
+          FROM students s
+         WHERE s.school_id = CAST(:sid AS uuid)
+           AND (s.status IS NULL OR s.status NOT IN ('inactive', 'withdrawn', 'graduated', 'deleted'))
+           AND s.profile_id IS NULL
+         ORDER BY 1
+        """
+    )
+
+    unstaffed_count, unstaffed = await names(
+        """
+        SELECT CONCAT(c.name, ' ', cs.name)
+          FROM class_sections cs
+          JOIN academic_classes c ON c.id = cs.class_id
+         WHERE cs.school_id = CAST(:sid AS uuid)
+           AND NOT EXISTS (SELECT 1 FROM teacher_assignments ta WHERE ta.class_section_id = cs.id)
+           AND NOT EXISTS (SELECT 1 FROM teacher_subject_assignments tsa WHERE tsa.class_section_id = cs.id)
+         ORDER BY 1
+        """
+    )
+
+    checks = [
+        {
+            "id": "unenrolled_students",
+            "label": "Students not in any class",
+            "detail": "They appear in no class list, no attendance register and no report card run.",
+            "count": unenrolled_count,
+            "examples": unenrolled,
+            "fix_tab": "academic",
+            "severity": "high" if unenrolled_count else "ok",
+        },
+        {
+            "id": "students_without_guardian",
+            "label": "Students with no guardian linked",
+            "detail": "Their parent can sign in and will see nothing — no fees, no results, no diary.",
+            "count": no_guardian_count,
+            "examples": no_guardian,
+            "fix_tab": "users",
+            "severity": "high" if no_guardian_count else "ok",
+        },
+        {
+            "id": "students_without_account",
+            "label": "Students with no account",
+            "detail": "They cannot sign in to see their own timetable, diary or results.",
+            "count": no_account_count,
+            "examples": no_account,
+            "fix_tab": "users",
+            "severity": "medium" if no_account_count else "ok",
+        },
+        {
+            "id": "sections_without_teacher",
+            "label": "Class sections with no teacher",
+            "detail": "Nobody is assigned to mark attendance or enter marks for them.",
+            "count": unstaffed_count,
+            "examples": unstaffed,
+            "fix_tab": "academic",
+            "severity": "medium" if unstaffed_count else "ok",
+        },
+    ]
+
+    return {
+        "as_of": datetime.now(timezone.utc).isoformat(),
+        "issues": sum(1 for c in checks if c["count"]),
+        "checks": checks,
+    }
+
+
 @reports_router.get("/cache/stats")
 async def get_cache_stats(current_user: CurrentUser):
     """Get cache health, memory usage, hit/miss stats (Super Admin only)."""

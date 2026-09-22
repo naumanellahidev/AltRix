@@ -28,9 +28,11 @@ import {
   Layers,
   ArrowRight,
   Calendar,
+  AlertTriangle,
 } from "lucide-react";
 
 import { api, USE_FASTAPI } from "@/lib/api";
+import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
 import { useTenant } from "@/hooks/useTenant";
 import { usePermissions } from "@/lib/permissions";
@@ -225,6 +227,34 @@ export function PrincipalHome() {
    * right now - is a position, not a trend, and is shown as a number alone.
    */
   const [series, setSeries] = useState<DailySeries | null>(null);
+
+  /*
+   * The connections the school depends on, and the ones that are missing.
+   *
+   * A student with no enrolment is in no class list; a student with no
+   * guardian has a parent who signs in and sees nothing; a section with no
+   * teacher has nobody to mark its attendance. None of it is an error the
+   * software can fix by itself, and none of it was visible anywhere, so it
+   * simply sat there.
+   */
+  const dataHealth = useQuery<{
+    issues: number;
+    checks: Array<{
+      id: string;
+      label: string;
+      detail: string;
+      count: number;
+      examples: string[];
+      fix_tab: string;
+      severity: "ok" | "medium" | "high";
+    }>;
+  }>({
+    queryKey: ["principal", "data-health", schoolId],
+    queryFn: async () =>
+      (await apiClient.get("/reports/data-health", { params: { school_id: schoolId } })).data,
+    enabled: !!schoolId,
+    staleTime: 300_000,
+  });
 
   const toSparkline = (points: SeriesPoint[] | undefined) =>
     (points ?? []).filter((p) => p.value !== null).map((p) => ({ val: Number(p.value) }));
@@ -887,6 +917,53 @@ export function PrincipalHome() {
             </CardContent>
           </Card>
         </div>
+
+        {/* What is not joined up. Only shown when there is something to say. */}
+        {(dataHealth.data?.issues ?? 0) > 0 && (
+          <Card className="bg-surface shadow-elevated border-amber-300 dark:border-amber-900">
+            <CardHeader className="pb-3">
+              <CardTitle className="font-display text-lg font-bold flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4 text-amber-500" />
+                Needs attention in your records
+              </CardTitle>
+              <p className="text-sm text-muted-foreground">
+                These are people and classes the system cannot connect on its own.
+              </p>
+            </CardHeader>
+            <CardContent className="grid gap-3 sm:grid-cols-2">
+              {(dataHealth.data?.checks ?? [])
+                .filter((check) => check.count > 0)
+                .map((check) => (
+                  <button
+                    key={check.id}
+                    type="button"
+                    onClick={() => navigate(`${basePath}/${check.fix_tab}`)}
+                    className="rounded-xl border p-3 text-left transition hover:border-amber-400 hover:bg-amber-50/50 dark:hover:bg-amber-950/20"
+                  >
+                    <div className="flex items-baseline justify-between gap-2">
+                      <span className="font-semibold text-foreground">{check.label}</span>
+                      <span
+                        className={`rounded-md px-2 py-0.5 text-xs font-bold ${
+                          check.severity === "high"
+                            ? "bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300"
+                            : "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300"
+                        }`}
+                      >
+                        {check.count}
+                      </span>
+                    </div>
+                    <p className="mt-0.5 text-xs text-muted-foreground">{check.detail}</p>
+                    {check.examples.length > 0 && (
+                      <p className="mt-1 truncate text-xs text-foreground/70">
+                        {check.examples.join(", ")}
+                        {check.count > check.examples.length ? ` and ${check.count - check.examples.length} more` : ""}
+                      </p>
+                    )}
+                  </button>
+                ))}
+            </CardContent>
+          </Card>
+        )}
 
         {/* Two-Column Split Section: Left=Live Teacher Presence & Alerts, Right=Campus Infrastructure Summary */}
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">

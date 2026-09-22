@@ -30,6 +30,7 @@ MIGRATIONS: List[str] = [
     "20260922030000_school_billing_columns.sql",
     "20260922040000_report_card_template_choices.sql",
     "20260922050000_academic_sessions_and_promotions.sql",
+    "20260922060000_one_open_enrolment_per_student.sql",
     "20261027000000_hr_contract_reference_numbers.sql",
     "20261028000000_exam_seating_sessions.sql",
 ]

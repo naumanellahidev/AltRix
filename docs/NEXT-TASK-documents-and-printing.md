@@ -989,3 +989,29 @@ Four faults, found from the browser console on production:
   move into is named rather than moved.
 - Verified: 26 new promotion assertions, migration dry-run on production
   (sessions created, Class 1/2/3 → grade 1/2/3, 6 sections attached), tsc clean.
+
+### Slice 28 — the connections nobody could see (done)
+
+Ran the school's data through an integrity pass against production. Tenant
+isolation is clean — no enrolment, report card, invoice or attendance row
+belongs to another school. What it did find were connections that simply do
+not exist, and which nothing in the app ever mentioned:
+
+- 1 student in **no class at all** (absent from every class list, attendance
+  register and report card run)
+- 1 student with **two open enrolments** — in two classes at once, which is
+  enough to double them in class lists, let attendance be taken twice, make the
+  report card's class line depend on read order, and confuse a promotion run
+- 6 students with no account, 10 with **no guardian linked** (their parent signs
+  in and sees nothing), 1 section with no teacher
+
+Migration `20260922060000` closes the older of each duplicate open enrolment —
+closes, not deletes, because an enrolment records where a child actually sat —
+and adds a partial unique index so a student can only have one open enrolment
+from now on. Verified on production data: the duplicate resolves and the index
+builds.
+
+`GET /reports/data-health` runs the four checks that cannot be fixed
+automatically and **names the people**, and the principal's dashboard shows
+them in a card that links to the tab where each is fixed. It appears only when
+there is something to say.
