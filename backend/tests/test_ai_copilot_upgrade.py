@@ -2,7 +2,8 @@
 """
 AltRix AI Copilot — Enterprise Upgrade Verification Test Suite
 Verifies:
-1. Pure Ollama integration (no external cloud providers, no key exposure).
+1. Model routing: the cloud when a key is configured, the local server
+   otherwise, and never a model the server does not have.
 2. Language-agnostic natural language understanding (English, Roman Urdu, Urdu script, mixed).
 3. Semantic intent handling (multiple phrasings map to the same factual data).
 4. Conversational multi-turn context (follow-up questions).
@@ -46,14 +47,53 @@ class MockUser:
 # ==============================================================================
 
 def test_ollama_endpoints_and_model():
-    """Verify that OllamaAIService points strictly to Ollama endpoints and models."""
+    """The local endpoints are still the fallback, and are tried in order."""
     endpoints = OllamaAIService.get_ollama_endpoints()
     assert len(endpoints) > 0
     assert any("11434" in ep or "ollama" in ep.lower() for ep in endpoints)
 
-    # Verify model resolution defaults to local Qwen / Ollama model
     model = OllamaAIService.get_model_name("mere students dikhao")
-    assert "qwen" in model.lower() or "ollama" in model.lower() or len(model) > 0
+    assert isinstance(model, str) and model
+
+
+def test_only_an_installed_model_is_ever_requested():
+    """
+    The eleven 404s, in one assertion.
+
+    The configured name was ``glm-5.3`` and the server has ``qwen2.5:1.5b``,
+    so every message walked a hard-coded list of model names, taking a 404 for
+    each, before reaching the one that exists. The model is now chosen from
+    what ``/api/tags`` reports.
+    """
+    installed = ("qwen2.5:1.5b",)
+    assert OllamaAIService.choose_local_model(installed, "hello") == "qwen2.5:1.5b"
+    # A configured model that is not installed is ignored, not requested.
+    assert OllamaAIService.choose_local_model(installed, "compare the trend") in installed
+    # Nothing installed means nothing to ask.
+    assert OllamaAIService.choose_local_model((), "hello") is None
+
+
+def test_the_best_installed_model_wins():
+    installed = ("llama3.2:1b", "qwen2.5:7b", "qwen2.5:1.5b")
+    assert OllamaAIService.choose_local_model(installed) == "qwen2.5:7b"
+
+
+def test_the_cloud_is_used_only_when_a_key_is_configured():
+    from app.config import settings
+
+    provider, key = settings.ai_provider, settings.ai_api_key
+    try:
+        settings.ai_provider, settings.ai_api_key = "glm", ""
+        assert OllamaAIService.cloud_config() is None
+
+        settings.ai_provider, settings.ai_api_key = "glm", "a-key"
+        cloud = OllamaAIService.cloud_config()
+        assert cloud and cloud["name"] == "glm" and cloud["base"].startswith("https://")
+
+        settings.ai_provider = "ollama"
+        assert OllamaAIService.cloud_config() is None
+    finally:
+        settings.ai_provider, settings.ai_api_key = provider, key
 
 
 # ==============================================================================
@@ -77,11 +117,21 @@ async def test_multi_turn_history_streaming():
         async def aiter_lines(self):
             yield json.dumps({"message": {"content": "Ali and Sara are absent today."}, "done": True})
 
+    class MockTags:
+        status_code = 200
+
+        @staticmethod
+        def json():
+            return {"models": [{"model": "qwen2.5:1.5b"}]}
+
     class MockClient:
         async def __aenter__(self):
             return self
         async def __aexit__(self, exc_type, exc_val, exc_tb):
             pass
+        async def get(self, url, **kwargs):
+            # The service asks the server what it has before asking it anything.
+            return MockTags()
         def stream(self, method, url, json=None, headers=None):
             captured_payload["messages"] = json.get("messages", [])
             captured_payload["model"] = json.get("model", "")
@@ -184,30 +234,37 @@ async def test_role_isolation_boundaries():
 # ==============================================================================
 
 @pytest.mark.asyncio
-async def test_ollama_offline_graceful_response():
-    """Verify that when Ollama is offline, a clear service status is returned without external fallback."""
+async def test_an_unreachable_model_is_reported_as_an_error_not_as_an_answer():
+    """
+    When no model can answer, the stream carries an error event.
+
+    It used to emit a cheerful notice as though it were the assistant
+    speaking — and the screen, which had its own cheerful fallback, showed a
+    friendly paragraph over a service that was simply down. A user could not
+    tell a working Copilot from a broken one.
+    """
     class FailingClient:
         async def __aenter__(self):
             return self
         async def __aexit__(self, exc_type, exc_val, exc_tb):
             pass
+        async def get(self, url, **kwargs):
+            raise Exception("Connection refused to 127.0.0.1:11434")
         def stream(self, method, url, json=None, headers=None):
             raise Exception("Connection refused to 127.0.0.1:11434")
 
+    OllamaAIService._local_models = ((), 0.0)
     with patch("httpx.AsyncClient", return_value=FailingClient()):
-        stream_chunks = []
+        chunks = []
         async for chunk in OllamaAIService.stream_completion("System prompt", "Hello"):
-            stream_chunks.append(chunk)
+            chunks.append(chunk)
 
-        combined = "".join(stream_chunks)
-        # Asserts the notice the service actually emits. This previously looked
-        # for "Service Unavailable", wording the code has not used for some
-        # time, so the test failed on every run regardless of behaviour.
-        assert "AltRix AI Copilot Service Notice" in combined
-        assert "Ollama" in combined
-        # The point of the fallback: degrade to a readable message rather than
-        # dropping the stream, and leave the user a way to keep working.
-        assert "Ctrl+K" in combined
+    combined = "".join(chunks)
+    assert '"error"' in combined
+    assert "ai_unavailable" in combined
+    assert combined.rstrip().endswith("data: [DONE]")
+    # No sentence pretending to be an answer.
+    assert '"delta"' not in combined
 
 
 # ==============================================================================

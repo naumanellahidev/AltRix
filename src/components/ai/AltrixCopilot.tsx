@@ -561,6 +561,12 @@ export default function AltrixCopilot() {
 
   const [isOpen, setIsOpen] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
+  const [aiHealth, setAiHealth] = useState<{
+    ready: boolean;
+    provider: string;
+    local_model: string | null;
+    cloud: { name: string } | null;
+  } | null>(null);
   const [aiEnabled, setAiEnabled] = useState(() => {
     const saved = localStorage.getItem("altrix_global_ai_enabled");
     return saved !== null ? saved === "true" : true;
@@ -741,6 +747,27 @@ export default function AltrixCopilot() {
     };
     fetchSettings();
   }, [user, schoolId, schoolSlug, location.pathname]);
+
+  // Whether a model can actually be reached. Without this the screen could not
+  // tell "thinking" from "nothing is listening", so a service that was simply
+  // down looked like a slow one.
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await apiClient.get<{ ready: boolean; provider: string; local_model: string | null; cloud: { name: string } | null }>(
+          "/ai/health",
+        );
+        if (!cancelled) setAiHealth(res.data);
+      } catch {
+        // A health check that itself fails says nothing about the model; the
+        // first message will report the truth either way.
+        if (!cancelled) setAiHealth(null);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [user]);
 
   // ── Restore Chat History ──────────────────────────────────────────────────
   useEffect(() => {
@@ -1161,6 +1188,11 @@ export default function AltrixCopilot() {
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let assistantText = "";
+      let streamError: string | null = null;
+      // A chunk boundary can fall in the middle of a line, so the tail of one
+      // read has to be carried into the next. Without this, tokens - and
+      // occasionally a whole event - were dropped without trace.
+      let buffered = "";
       const assistantId = genId();
 
       setMessages((prev) => [
@@ -1168,37 +1200,56 @@ export default function AltrixCopilot() {
         { id: assistantId, role: "assistant", content: "", timestamp: new Date() },
       ]);
 
+      const applyEvent = (jsonStr: string) => {
+        if (!jsonStr || jsonStr === "[DONE]") return;
+        let data: any;
+        try {
+          data = JSON.parse(jsonStr);
+        } catch {
+          return; // not a whole event yet
+        }
+        if (data.error) {
+          // The Copilot could not reach a model. Say so. This used to answer
+          // with a cheerful paragraph and three hard-coded links, so a user
+          // could not tell a working Copilot from a broken one.
+          streamError =
+            typeof data.error === "object"
+              ? data.error.message || JSON.stringify(data.error)
+              : String(data.error);
+          return;
+        }
+        assistantText += data.choices?.[0]?.delta?.content || "";
+        const parsed = parseMessageContent(assistantText);
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === assistantId
+              ? { ...m, content: parsed.content, action: parsed.action, actions: parsed.actions, chart: parsed.chart }
+              : m
+          )
+        );
+      };
+
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
 
-        const chunk = decoder.decode(value, { stream: true });
-        for (const line of chunk.split("\n")) {
-          if (!line.trim().startsWith("data: ")) continue;
-          const jsonStr = line.replace("data: ", "").trim();
-          if (jsonStr === "[DONE]") break;
-          try {
-            const data = JSON.parse(jsonStr);
-            if (data.error) {
-              const errMsg = typeof data.error === "object" ? (data.error.message || JSON.stringify(data.error)) : String(data.error);
-              if (!assistantText) {
-                assistantText = `👋 I am currently processing your request. You can also directly view ERP modules below:\n\n- Fee Invoices: \`/finance/invoices\`\n- Attendance: \`/attendance\`\n- Exam Marks: \`/exams\``;
-              }
-            } else {
-              assistantText += data.choices?.[0]?.delta?.content || "";
-            }
-            const parsed = parseMessageContent(assistantText);
-            setMessages((prev) =>
-              prev.map((m) =>
-                m.id === assistantId
-                  ? { ...m, content: parsed.content, action: parsed.action, actions: parsed.actions, chart: parsed.chart }
-                  : m
-              )
-            );
-          } catch {
-            /* partial JSON chunk */
-          }
+        buffered += decoder.decode(value, { stream: true });
+        const lines = buffered.split("\n");
+        buffered = lines.pop() ?? "";
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed.startsWith("data:")) continue;
+          applyEvent(trimmed.slice(5).trim());
         }
+      }
+      if (buffered.trim().startsWith("data:")) applyEvent(buffered.trim().slice(5).trim());
+
+      if (streamError && !assistantText) {
+        setMessages((prev) => prev.filter((m) => m.id !== assistantId));
+        throw new Error(streamError);
+      }
+      if (streamError) {
+        toast.warning("The answer stopped early: " + streamError, { duration: 9000 });
       }
 
       // ── Auto-execute Action if flagged ──────────────────────────────────────
@@ -1605,6 +1656,18 @@ export default function AltrixCopilot() {
               <ChevronDown className="h-3 w-3" />
               Scroll to bottom
             </button>
+          )}
+
+          {/* No model can be reached. Said here, before anyone types,
+              rather than after a question has been thought about and lost. */}
+          {aiHealth && !aiHealth.ready && (
+            <div className="px-3 py-2 border-t border-amber-200 bg-amber-50 text-[11px] text-amber-800 shrink-0">
+              <span className="font-semibold">The Copilot has no model to answer with.</span>{" "}
+              No AI provider is configured and the school's own server has no model installed.
+              Ask your administrator to set an AI key, or to run
+              <code className="mx-1 rounded bg-amber-100 px-1">ollama pull qwen2.5:3b</code>
+              on the server.
+            </div>
           )}
 
           {/* ── Suggestions ────────────────────────────────────────────── */}
