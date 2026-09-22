@@ -26,7 +26,9 @@ import { AccountantVendorsModule } from "@/pages/tenant/accountant-modules/Accou
 import { AccountantTaxModule } from "@/pages/tenant/accountant-modules/AccountantTaxModule";
 import { AccountantReportsModule } from "@/pages/tenant/accountant-modules/AccountantReportsModule";
 
-import FeesUnifiedModule from "@/pages/tenant/modules/FeesUnifiedModule";
+import FeesCentreModule from "@/pages/tenant/modules/fees/FeesCentreModule";
+import { AdminFeePortalModule } from "@/pages/tenant/modules/AdminFeePortalModule";
+import { OwnerFinanceModule } from "@/pages/tenant/owner-modules/OwnerFinanceModule";
 import { ReportsModule } from "@/pages/tenant/modules/ReportsModule";
 import { MessagesModule } from "@/pages/tenant/modules/MessagesModule";
 import { UsersModule } from "@/pages/tenant/modules/UsersModule";
@@ -118,10 +120,12 @@ export interface ModuleEntry {
  * own home), so it is intentionally not in this registry.
  */
 export const MODULE_REGISTRY: Record<string, ModuleEntry> = {
-  // Finance
-  fees:         { Component: FeesUnifiedModule },
-  "admin-fees": { Component: FeesUnifiedModule },
-  finance:      { Component: FeesUnifiedModule },
+  // Finance. Three tabs used to render the same component, so "Fees Center",
+  // "Fee Configurations" and "Finance & Cashflow" were one screen under three
+  // names — and a different screen again in the tenant shell. One job each now.
+  fees:         { Component: FeesCentreModule },
+  "admin-fees": { Component: AdminFeePortalModule },
+  finance:      { Component: OwnerFinanceModule, propsFor: (c) => ({ schoolId: c.schoolId, role: c.role }) },
   invoices:     { Component: AccountantInvoicesModule },
   payments:     { Component: AccountantPaymentsModule },
   expenses:     { Component: AccountantExpensesModule },

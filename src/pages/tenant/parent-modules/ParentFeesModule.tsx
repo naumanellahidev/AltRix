@@ -21,6 +21,7 @@ import {
   Receipt,
   Wallet,
   AlertCircle,
+  AlertTriangle,
   History,
   Search,
   X,
@@ -131,6 +132,7 @@ export default function ParentFeesModule({ child, schoolId }: ParentFeesModulePr
 
   // Advanced feature state
   const [dashboardData, setDashboardData] = useState<any>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [selectedPlanDetails, setSelectedPlanDetails] = useState<InstallmentPlanDetail | null>(null);
   const [viewPlanInvoice, setViewPlanInvoice] = useState<InvoiceRecord | null>(null);
   const [taxCerts, setTaxCerts] = useState<TaxCertificate[]>([]);
@@ -171,6 +173,8 @@ export default function ParentFeesModule({ child, schoolId }: ParentFeesModulePr
         }))
       );
 
+      setLoadError(null);
+
       // Load balance dashboard stats from FastAPI
       const statsRes = await apiClient.get(`/finance/balance-dashboard/${child.student_id}`);
       setDashboardData(statsRes.data);
@@ -183,8 +187,14 @@ export default function ParentFeesModule({ child, schoolId }: ParentFeesModulePr
       // Load tax certificates
       const taxRes = await apiClient.get(`/finance/tax-certificates/${child.student_id}`);
       setTaxCerts(taxRes.data || []);
-    } catch (err) {
+    } catch (err: any) {
+      // This used to be swallowed into the console: the balance endpoint was
+      // raising on every call and the screen simply showed zeros, so a family
+      // could not tell "nothing is owed" from "nothing could be loaded".
       console.error("Error loading payment data:", err);
+      setLoadError(
+        err?.response?.data?.detail ?? err?.message ?? "Your fee details could not be loaded.",
+      );
     } finally {
       setLoading(false);
     }
@@ -442,6 +452,19 @@ export default function ParentFeesModule({ child, schoolId }: ParentFeesModulePr
           </Button>
         </div>
       </div>
+
+      {loadError && (
+        <div className="flex items-start gap-2 rounded-2xl border border-destructive/30 bg-destructive/5 p-4 text-sm">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
+          <div>
+            <p className="font-semibold text-foreground">Your fee details could not be loaded</p>
+            <p className="text-muted-foreground">{loadError}</p>
+            <Button variant="outline" size="sm" className="mt-2" onClick={loadData}>
+              Try again
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Balance Dashboard block */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-4">

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, Receipt, Download, Loader2, Trash2, Users, User, Eye, CheckCircle2, XCircle, AlertCircle, Mail, Upload, Search, X, FileDown, Award, Sparkles, TrendingUp, RefreshCw } from "lucide-react";
+import { Plus, Receipt, Download, Loader2, Trash2, Users, User, Eye, CheckCircle2, XCircle, AlertCircle, Info, Mail, Upload, Search, X, FileDown, Award, Sparkles, TrendingUp, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 
 
@@ -30,6 +30,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -76,7 +77,15 @@ const statusBadge = (s: string) => {
   return <Badge variant="secondary">{s}</Badge>;
 };
 
-export default function FeeVouchersModule() {
+/** Which half of this module the Fees Centre is asking for. */
+export type FeeVoucherSection = "billing" | "proofs";
+
+/**
+ * `section` splits the module between two Fees Centre tabs: "billing" is
+ * generating and managing voucher batches, "proofs" is the payment proofs
+ * queue. Neither half loses anything; they simply stopped sharing one screen.
+ */
+export default function FeeVouchersModule({ section }: { section?: FeeVoucherSection } = {}) {
   const { schoolSlug } = useParams();
   const tenant = useTenant(schoolSlug);
   const schoolId = tenant.status === "ready" ? tenant.schoolId : null;
@@ -153,7 +162,7 @@ export default function FeeVouchersModule() {
 
   return (
     <div className="space-y-6">
-      <Card className="shadow-elevated">
+      <Card className={`shadow-elevated${section === "proofs" ? " hidden" : ""}`}>
         <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">
             <CardTitle className="font-display text-xl flex items-center gap-2">
@@ -180,7 +189,7 @@ export default function FeeVouchersModule() {
         </CardHeader>
       </Card>
 
-      <Card className="shadow-elevated">
+      <Card className={`shadow-elevated${section === "proofs" ? " hidden" : ""}`}>
         <CardHeader>
           <CardTitle className="text-lg">Recent batches</CardTitle>
         </CardHeader>
@@ -228,7 +237,7 @@ export default function FeeVouchersModule() {
         </CardContent>
       </Card>
 
-      <PaymentProofsCard schoolId={schoolId} />
+      {section === "billing" ? null : <PaymentProofsCard schoolId={schoolId} />}
 
       <GenerateVoucherDialog
         open={dialogOpen}
@@ -1496,7 +1505,11 @@ function GenerateVoucherDialog({
   const [failCount, setFailCount] = useState(0);
   const [runTotal, setRunTotal] = useState(0);
   const [failedStudentIds, setFailedStudentIds] = useState<string[]>([]);
-  const [results, setResults] = useState<Array<{ studentId: string; name: string; status: "success" | "error"; error?: string; invoiceId?: string }>>([]);
+  const [results, setResults] = useState<Array<{ studentId: string; name: string; status: "success" | "error" | "skipped"; error?: string; invoiceId?: string }>>([]);
+  // Billing the same child twice for one period used to be a click away, and
+  // both invoices counted as money owed. The run now knows who is already
+  // billed, skips them by default, and only re-bills when asked to.
+  const [billAgain, setBillAgain] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewData, setPreviewData] = useState<VoucherCopyData | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
@@ -1595,6 +1608,37 @@ function GenerateVoucherDialog({
     () => (planItems.data ?? []).reduce((s, i) => s + Number(i.amount || 0), 0),
     [planItems.data],
   );
+
+  const targetStudentIds = useMemo(
+    () => (mode === "individual" ? (studentId ? [studentId] : []) : students.map((st) => st.id)),
+    [mode, studentId, students],
+  );
+
+  /** invoice number per student who already has a live voucher for this period. */
+  const alreadyBilled = useQuery({
+    queryKey: ["fee_invoices", "period_check", schoolId, feePlanId, periodLabel, targetStudentIds.length],
+    queryFn: async () => {
+      if (!schoolId || !feePlanId || !periodLabel || targetStudentIds.length === 0) return {} as Record<string, string>;
+      const { data, error } = await (api as any)
+        .from("fee_invoices")
+        .select("student_id, invoice_number, status")
+        .eq("school_id", schoolId)
+        .eq("fee_plan_id", feePlanId)
+        .eq("period_label", periodLabel)
+        .in("student_id", targetStudentIds);
+      if (error) throw error;
+      const map: Record<string, string> = {};
+      for (const row of data ?? []) {
+        if (row.status !== "cancelled") map[row.student_id] = row.invoice_number;
+      }
+      return map;
+    },
+    enabled: !!schoolId && !!feePlanId && !!periodLabel && targetStudentIds.length > 0,
+    staleTime: 15_000,
+  });
+
+  const billedMap = alreadyBilled.data ?? {};
+  const billedCount = targetStudentIds.filter((id) => billedMap[id]).length;
 
   const targetStudents = useMemo<Student[]>(() => {
     if (mode === "individual") {
@@ -1883,6 +1927,16 @@ function GenerateVoucherDialog({
         if (tier) reasonParts.push(`Merit ≥${tier.minGrade}% → ${tier.discountPct}%`);
         const reason = reasonParts.join(" | ") || null;
 
+        if (!billAgain && billedMap[st.id]) {
+          setDoneCount((c) => c + 1);
+          setResults((r) => [
+            ...r,
+            { studentId: st.id, name: studentName, status: "skipped", invoiceId: billedMap[st.id],
+              error: `Already billed for ${periodLabel} (${billedMap[st.id]})` },
+          ]);
+          continue;
+        }
+
         try {
           const invoiceId = await callWithRetry(async () => {
             const { data, error } = await (api as any).rpc("generate_fee_voucher", {
@@ -1896,6 +1950,7 @@ function GenerateVoucherDialog({
               _extra_discount_reason: reason,
               _notes: notes || null,
               _batch_id: batchId,
+              _allow_duplicate: billAgain,
             });
             if (error) throw new Error(error.message ?? "the server refused to create the invoice");
             if (!data) throw new Error("the server did not return an invoice");
@@ -1974,6 +2029,17 @@ function GenerateVoucherDialog({
           setDoneCount((c) => c + 1);
           setResults((r) => [...r, { studentId: st.id, name: studentName, status: "success", invoiceId: invoice.invoice_number }]);
         } catch (err: any) {
+          // The database guard refuses a second voucher for the same period.
+          // That is not a failure of this run - it is the run being stopped
+          // from double-billing a family.
+          if (String(err?.message ?? err).includes("duplicate_voucher")) {
+            setDoneCount((c) => c + 1);
+            setResults((r) => [
+              ...r,
+              { studentId: st.id, name: studentName, status: "skipped", error: String(err.message ?? err).replace(/^.*duplicate_voucher:\s*/, "Already billed: ") },
+            ]);
+            continue;
+          }
           console.error("voucher failed for", st.id, err);
           failedIds.push(st.id);
           setFailCount((c) => c + 1);
@@ -2023,13 +2089,17 @@ function GenerateVoucherDialog({
 
       // ── Report exactly what happened ───────────────────────────────────────
       setFailedStudentIds(failedIds);
+      const skippedCount = runStudents.length - successCount - failedIds.length;
+      const skippedNote = skippedCount > 0 ? ` ${skippedCount} already had a voucher for ${periodLabel} and were left alone.` : "";
       if (successCount > 0 && savedAs) {
         const failedNote = failedIds.length ? ` ${failedIds.length} failed — see the list and use Retry failed.` : "";
-        toast.success(`Created ${successCount} voucher(s) and notified parents. Saved ${savedAs}.${failedNote}`, {
-          duration: failedIds.length ? 10000 : 5000,
+        toast.success(`Created ${successCount} voucher(s) and notified parents. Saved ${savedAs}.${failedNote}${skippedNote}`, {
+          duration: failedIds.length || skippedCount ? 10000 : 5000,
         });
+      } else if (successCount === 0 && skippedCount === runStudents.length) {
+        toast.info(`Everyone in this run already has a voucher for ${periodLabel}. Nothing was billed twice.`);
       } else if (successCount === 0) {
-        toast.error(`No vouchers were created. ${failedIds.length} failed — the reasons are listed below.`);
+        toast.error(`No vouchers were created. ${failedIds.length} failed — the reasons are listed below.${skippedNote}`);
       }
       for (const w of warnings) toast.warning(w, { duration: 9000 });
 
@@ -2223,6 +2293,28 @@ function GenerateVoucherDialog({
                 </div>
               </TabsContent>
             </Tabs>
+
+            {/* Who already holds a voucher for this period. Skipped by default:
+                a second invoice for the same month is counted as owed twice. */}
+            {billedCount > 0 && (
+              <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 dark:border-amber-900 dark:bg-amber-950/40">
+                <div className="flex items-start gap-2">
+                  <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+                  <div className="min-w-0 flex-1 space-y-2">
+                    <p className="text-xs font-semibold text-amber-900 dark:text-amber-200">
+                      {billedCount} of {targetStudentIds.length} already have a voucher for {periodLabel}
+                    </p>
+                    <p className="text-[11px] text-amber-800 dark:text-amber-300">
+                      They will be skipped, so nobody is billed twice for the same period.
+                    </p>
+                    <label className="flex items-center gap-2 text-[11px] font-medium text-amber-900 dark:text-amber-200">
+                      <Switch checked={billAgain} onCheckedChange={setBillAgain} />
+                      Bill them again anyway (a genuine re-issue)
+                    </label>
+                  </div>
+                </div>
+              </div>
+            )}
           </ScrollArea>
 
           {/* Right – preview + progress */}
@@ -2274,15 +2366,25 @@ function GenerateVoucherDialog({
                         <div
                           key={`${r.studentId}-${idx}`}
                           className={`flex items-start gap-2 text-[11px] rounded px-2 py-1 ${
-                            r.status === "success" ? "bg-emerald-500/10" : "bg-destructive/10"
+                            r.status === "success"
+                              ? "bg-emerald-500/10"
+                              : r.status === "skipped"
+                                ? "bg-amber-500/10"
+                                : "bg-destructive/10"
                           }`}
                         >
                           {r.status === "success"
                             ? <CheckCircle2 className="h-3 w-3 mt-0.5 text-emerald-600 shrink-0" />
-                            : <XCircle className="h-3 w-3 mt-0.5 text-destructive shrink-0" />}
+                            : r.status === "skipped"
+                              ? <Info className="h-3 w-3 mt-0.5 text-amber-600 shrink-0" />
+                              : <XCircle className="h-3 w-3 mt-0.5 text-destructive shrink-0" />}
                           <div className="min-w-0 flex-1">
                             <div className="font-medium truncate">{r.name}</div>
-                            {r.error && <div className="text-destructive break-words">{r.error}</div>}
+                            {r.error && (
+                              <div className={`${r.status === "skipped" ? "text-amber-700 dark:text-amber-400" : "text-destructive"} break-words`}>
+                                {r.error}
+                              </div>
+                            )}
                           </div>
                         </div>
                       ))}

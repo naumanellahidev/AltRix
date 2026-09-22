@@ -46,9 +46,9 @@ def test_rejects_a_fiscal_year_it_cannot_read(bad):
 
 
 def test_only_the_finance_office_or_the_family_can_see_a_childs_certificate():
-    assert "_require_tax_certificate_access" in fn("generate_tax_certificate")
-    assert "_require_tax_certificate_access" in fn("get_tax_certificates")
-    guard = fn("_require_tax_certificate_access")
+    assert "_require_student_fee_access" in fn("generate_tax_certificate")
+    assert "_require_student_fee_access" in fn("get_tax_certificates")
+    guard = fn("_require_student_fee_access")
     assert "get_allowed_student_ids" in guard and "FINANCE_GOV" in guard
     assert "school_id" in guard
 

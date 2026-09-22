@@ -31,7 +31,7 @@ from app.schemas import (
     PaymentGatewayConfigCreate, PaymentGatewayConfigOut,
 )
 from app.utils.pagination import ListPageParams, PaginatedResponse
-from app.utils.money import D, is_settled, money
+from app.utils.money import D, is_settled, money, percentage
 from app.utils.tenant_guard import verify_resource_belongs_to_school
 from app.utils.permissions import expand_roles, FINANCE_GOV
 from app.utils.security import get_allowed_student_ids
@@ -283,11 +283,51 @@ async def get_voucher(voucher_id: UUID, current_user: CurrentUser, db: DbSession
 
 
 @router.patch("/vouchers/{voucher_id}/cancel", response_model=FeeVoucherOut)
-async def cancel_voucher(voucher_id: UUID, current_user: CurrentUser, db: DbSession):
-    result = await db.execute(select(FeeVoucher).where(FeeVoucher.id == voucher_id))
+async def cancel_voucher(
+    voucher_id: UUID,
+    current_user: CurrentUser,
+    db: DbSession,
+    reason: str = Query(..., min_length=3, description="Why this voucher is being cancelled"),
+):
+    """
+    Cancel one voucher, with the reason kept on the invoice.
+
+    Three things used to be missing: the id alone was enough, so any signed-in
+    user of any school could cancel any invoice; no role was required; and a
+    voucher money had already been received against could be cancelled without
+    a word, leaving a payment attached to nothing. The reason is now recorded
+    because the usual use of this endpoint is undoing a double billing, and
+    the school's books have to show which copy went and why.
+    """
+    if not current_user.school_id:
+        raise ForbiddenError("No school context")
+    effective_roles = expand_roles(current_user.roles)
+    if not (current_user.is_super_admin or any(r in effective_roles for r in FINANCE_GOV)):
+        raise ForbiddenError("Permission denied: cannot cancel a voucher")
+
+    result = await db.execute(
+        select(FeeVoucher).where(
+            FeeVoucher.id == voucher_id,
+            FeeVoucher.school_id == current_user.school_id,
+        )
+    )
     voucher = result.scalar_one_or_none()
     if not voucher:
         raise NotFoundError("Voucher", str(voucher_id))
+
+    if money(voucher.paid_amount) > 0:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"{voucher.invoice_number} has {money(voucher.paid_amount)} paid against it. "
+                "Refund or move that payment first; cancelling would leave it attached to nothing."
+            ),
+        )
+
+    stamp = datetime.now(_PK_TZ).strftime("%Y-%m-%d")
+    voucher.notes = "\n".join(
+        part for part in [voucher.notes, f"Cancelled {stamp} by {current_user.email or current_user.id}: {reason.strip()}"] if part
+    )
     voucher.status = "cancelled"  # type: ignore[assignment]
     await db.flush()
     await db.refresh(voucher)
@@ -471,6 +511,621 @@ async def finance_summary(
         "overdue": float(row[3]),
         "total_billed": float(row[4]),
         "collection_rate": round(float(row[1]) / float(row[4]) * 100, 1) if row[4] else 0,
+    }
+
+
+# ─── COLLECTION BOARD ────────────────────────────────────────────────────────
+#
+# What the Fees Centre overview reads. ``/reports/summary`` could not answer it:
+# it called an invoice "collected" when its status said paid, so a half-paid
+# invoice counted as nothing and a fully paid one whose status was never
+# updated counted as nothing either, and it returned floats. Here money comes
+# from the payments that were actually received, arithmetic stays in NUMERIC,
+# and every amount leaves as a string so no float ever touches it.
+
+#: An invoice that was cancelled, or still a draft, is not money anyone owes.
+LIVE_INVOICE_STATUSES = ("pending", "partial", "paid", "overdue")
+
+#: Only a payment that succeeded is money in hand.
+COLLECTED_PAYMENT_STATUS = "success"
+
+#: Karachi is UTC+5 all year. Written as an interval rather than a named zone
+#: because the embedded Postgres the tests run against carries no tzdata.
+_PKT_SHIFT = "INTERVAL '5 hours'"
+
+
+def _amount(value) -> str:
+    """A money column as an exact string, never a float."""
+    return str(money(value))
+
+
+def _period_bounds(from_date: Optional[str], to_date: Optional[str]) -> tuple[date, date]:
+    """The requested period, defaulting to the current month in Karachi time."""
+    today = datetime.now(_PK_TZ).date()
+    start = date(today.year, today.month, 1)
+    try:
+        if from_date:
+            start = date.fromisoformat(from_date)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="from_date must be YYYY-MM-DD")
+    end = today
+    try:
+        if to_date:
+            end = date.fromisoformat(to_date)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="to_date must be YYYY-MM-DD")
+    if end < start:
+        raise HTTPException(status_code=400, detail="to_date cannot be before from_date")
+    return start, end
+
+
+#: How the reminder ladder steps up with the age of the debt. One place, so the
+#: board a user reads and the notice the system raises cannot disagree.
+ESCALATION_LADDER = (
+    (90, 4, "suspension_warning"),
+    (60, 3, "final_notice"),
+    (30, 2, "warning"),
+    (0, 1, "reminder"),
+)
+
+
+def _escalation_step(overdue_days: int) -> tuple[int, str]:
+    """The level and kind of notice an invoice this old has earned."""
+    for threshold, level, kind in ESCALATION_LADDER:
+        if overdue_days > threshold:
+            return level, kind
+    return 1, "reminder"
+
+
+def _aging_bucket(overdue_days: int) -> str:
+    """The bucket the collection board shows this debt in."""
+    if overdue_days <= 0:
+        return "not_due"
+    if overdue_days <= 30:
+        return "0_30"
+    if overdue_days <= 60:
+        return "31_60"
+    if overdue_days <= 90:
+        return "61_90"
+    return "90_plus"
+
+
+@router.get("/collection-board")
+async def collection_board(
+    current_user: CurrentUser,
+    db: DbSession,
+    from_date: Optional[str] = Query(None, description="Period start, YYYY-MM-DD. Defaults to the 1st of this month."),
+    to_date: Optional[str] = Query(None, description="Period end, YYYY-MM-DD. Defaults to today."),
+    campus_id: Optional[UUID] = Query(None),
+    limit_defaulters: int = Query(10, ge=1, le=100),
+):
+    """
+    One read for the Fees Centre overview: what was billed for the period, what
+    was actually collected in it, what is still owed as of today, how old that
+    debt is, which classes are behind and which families owe the most.
+
+    Amounts are strings of an exact NUMERIC. A percentage is null when there is
+    nothing to divide by - not zero, because "no invoices" is not "0% collected".
+    """
+    if not current_user.school_id:
+        raise ForbiddenError("No school context")
+    effective_roles = expand_roles(current_user.roles)
+    if not (current_user.is_super_admin or any(r in effective_roles for r in FINANCE_GOV)):
+        raise ForbiddenError("Permission denied: cannot read finance data")
+
+    if current_user.campus_id and not campus_id:
+        try:
+            campus_id = UUID(current_user.campus_id)
+        except (ValueError, TypeError):
+            pass
+
+    start, end = _period_bounds(from_date, to_date)
+    params: dict = {
+        "sid": str(current_user.school_id),
+        "start": start,
+        "end": end,
+        "live": list(LIVE_INVOICE_STATUSES),
+        "paid_status": COLLECTED_PAYMENT_STATUS,
+    }
+    inv_campus = ""
+    pay_campus = ""
+    if campus_id:
+        params["campus"] = str(campus_id)
+        inv_campus = " AND i.campus_id = CAST(:campus AS UUID)"
+        pay_campus = " AND p.campus_id = CAST(:campus AS UUID)"
+
+    currency_row = (
+        await db.execute(
+            text("SELECT currency FROM fee_settings WHERE school_id = CAST(:sid AS UUID) LIMIT 1"),
+            {"sid": params["sid"]},
+        )
+    ).fetchone()
+    currency = (currency_row[0] if currency_row and currency_row[0] else "PKR")
+
+    # ── Billed in the period, by invoice status ──────────────────────────────
+    billed_row = (
+        await db.execute(
+            text(f"""
+                SELECT
+                    COUNT(*)                                             AS invoices,
+                    COALESCE(SUM(i.total_amount), 0)                     AS billed,
+                    COALESCE(SUM(i.discount_amount + i.sibling_discount_amount
+                                 + i.merit_discount_amount + i.waiver), 0) AS concessions,
+                    COUNT(*) FILTER (WHERE i.status = 'paid')            AS paid,
+                    COUNT(*) FILTER (WHERE i.status = 'partial')         AS partial,
+                    COUNT(*) FILTER (WHERE i.status = 'pending')         AS pending,
+                    COUNT(*) FILTER (WHERE i.status = 'overdue')         AS overdue
+                FROM fee_invoices i
+                WHERE i.school_id = CAST(:sid AS UUID)
+                  AND i.status = ANY(CAST(:live AS fee_invoice_status[]))
+                  AND i.due_date BETWEEN :start AND :end
+                  {inv_campus}
+            """),
+            params,
+        )
+    ).fetchone()
+
+    # ── Collected in the period, from payments actually received ─────────────
+    collected_row = (
+        await db.execute(
+            text(f"""
+                SELECT COALESCE(SUM(p.amount), 0) AS collected, COUNT(*) AS payments
+                FROM fee_payments p
+                WHERE p.school_id = CAST(:sid AS UUID)
+                  AND p.status = CAST(:paid_status AS fee_payment_status)
+                  AND (p.paid_at AT TIME ZONE 'UTC' + {_PKT_SHIFT})::date BETWEEN :start AND :end
+                  {pay_campus}
+            """),
+            params,
+        )
+    ).fetchone()
+
+    today_row = (
+        await db.execute(
+            text(f"""
+                SELECT COALESCE(SUM(p.amount), 0)
+                FROM fee_payments p
+                WHERE p.school_id = CAST(:sid AS UUID)
+                  AND p.status = CAST(:paid_status AS fee_payment_status)
+                  AND (p.paid_at AT TIME ZONE 'UTC' + {_PKT_SHIFT})::date
+                      = (now() AT TIME ZONE 'UTC' + {_PKT_SHIFT})::date
+                  {pay_campus}
+            """),
+            params,
+        )
+    ).fetchone()
+
+    method_rows = (
+        await db.execute(
+            text(f"""
+                SELECT p.method::text, COALESCE(SUM(p.amount), 0), COUNT(*)
+                FROM fee_payments p
+                WHERE p.school_id = CAST(:sid AS UUID)
+                  AND p.status = CAST(:paid_status AS fee_payment_status)
+                  AND (p.paid_at AT TIME ZONE 'UTC' + {_PKT_SHIFT})::date BETWEEN :start AND :end
+                  {pay_campus}
+                GROUP BY p.method
+                ORDER BY 2 DESC
+            """),
+            params,
+        )
+    ).fetchall()
+
+    daily_rows = (
+        await db.execute(
+            text(f"""
+                SELECT (p.paid_at AT TIME ZONE 'UTC' + {_PKT_SHIFT})::date AS day,
+                       COALESCE(SUM(p.amount), 0)
+                FROM fee_payments p
+                WHERE p.school_id = CAST(:sid AS UUID)
+                  AND p.status = CAST(:paid_status AS fee_payment_status)
+                  AND (p.paid_at AT TIME ZONE 'UTC' + {_PKT_SHIFT})::date BETWEEN :start AND :end
+                  {pay_campus}
+                GROUP BY day
+                ORDER BY day
+            """),
+            params,
+        )
+    ).fetchall()
+
+    # ── The position as of today: what is still owed, and how old it is ──────
+    aging_row = (
+        await db.execute(
+            text(f"""
+                SELECT
+                    COALESCE(SUM(GREATEST(i.total_amount - i.paid_amount, 0)), 0)   AS outstanding,
+                    COALESCE(SUM(GREATEST(i.paid_amount - i.total_amount, 0)), 0)   AS advance,
+                    COALESCE(SUM(GREATEST(i.total_amount - i.paid_amount, 0))
+                             FILTER (WHERE i.due_date >= CURRENT_DATE), 0)          AS not_due,
+                    COALESCE(SUM(GREATEST(i.total_amount - i.paid_amount, 0))
+                             FILTER (WHERE CURRENT_DATE - i.due_date BETWEEN 0 AND 30), 0)  AS d30,
+                    COALESCE(SUM(GREATEST(i.total_amount - i.paid_amount, 0))
+                             FILTER (WHERE CURRENT_DATE - i.due_date BETWEEN 31 AND 60), 0) AS d60,
+                    COALESCE(SUM(GREATEST(i.total_amount - i.paid_amount, 0))
+                             FILTER (WHERE CURRENT_DATE - i.due_date BETWEEN 61 AND 90), 0) AS d90,
+                    COALESCE(SUM(GREATEST(i.total_amount - i.paid_amount, 0))
+                             FILTER (WHERE CURRENT_DATE - i.due_date > 90), 0)      AS d90plus,
+                    COUNT(*) FILTER (WHERE i.total_amount > i.paid_amount
+                                       AND i.due_date < CURRENT_DATE)               AS overdue_invoices
+                FROM fee_invoices i
+                WHERE i.school_id = CAST(:sid AS UUID)
+                  AND i.status = ANY(CAST(:live AS fee_invoice_status[]))
+                  {inv_campus}
+            """),
+            params,
+        )
+    ).fetchone()
+
+    # ── Class by class, over the period ──────────────────────────────────────
+    class_rows = (
+        await db.execute(
+            text(f"""
+                SELECT c.id::text, c.name, cs.name,
+                       COALESCE(SUM(i.total_amount), 0),
+                       COALESCE(SUM(i.paid_amount), 0),
+                       COALESCE(SUM(GREATEST(i.total_amount - i.paid_amount, 0)), 0),
+                       COUNT(DISTINCT i.student_id)
+                FROM fee_invoices i
+                JOIN students s ON s.id = i.student_id
+                LEFT JOIN student_enrollments se ON se.student_id = s.id AND se.end_date IS NULL
+                LEFT JOIN class_sections cs ON cs.id = se.class_section_id
+                LEFT JOIN academic_classes c ON c.id = cs.class_id
+                WHERE i.school_id = CAST(:sid AS UUID)
+                  AND i.status = ANY(CAST(:live AS fee_invoice_status[]))
+                  AND i.due_date BETWEEN :start AND :end
+                  {inv_campus}
+                GROUP BY c.id, c.name, cs.name
+                ORDER BY 6 DESC, c.name
+            """),
+            params,
+        )
+    ).fetchall()
+
+    # ── Who owes the most, as of today ───────────────────────────────────────
+    params["limit"] = limit_defaulters
+    defaulter_rows = (
+        await db.execute(
+            text(f"""
+                SELECT s.id::text,
+                       TRIM(CONCAT(s.first_name, ' ', COALESCE(s.last_name, ''))),
+                       COALESCE(s.student_code, s.registration_number, s.roll_number),
+                       c.name, cs.name,
+                       COALESCE(SUM(GREATEST(i.total_amount - i.paid_amount, 0)), 0),
+                       MIN(i.due_date) FILTER (WHERE i.total_amount > i.paid_amount),
+                       COUNT(*) FILTER (WHERE i.total_amount > i.paid_amount)
+                FROM fee_invoices i
+                JOIN students s ON s.id = i.student_id
+                LEFT JOIN student_enrollments se ON se.student_id = s.id AND se.end_date IS NULL
+                LEFT JOIN class_sections cs ON cs.id = se.class_section_id
+                LEFT JOIN academic_classes c ON c.id = cs.class_id
+                WHERE i.school_id = CAST(:sid AS UUID)
+                  AND i.status = ANY(CAST(:live AS fee_invoice_status[]))
+                  AND i.total_amount > i.paid_amount
+                  {inv_campus}
+                GROUP BY s.id, s.first_name, s.last_name, s.student_code, s.registration_number, s.roll_number, c.name, cs.name
+                HAVING SUM(GREATEST(i.total_amount - i.paid_amount, 0)) > 0
+                ORDER BY 6 DESC
+                LIMIT :limit
+            """),
+            params,
+        )
+    ).fetchall()
+
+    billed = money(billed_row[1] if billed_row else 0)
+    collected = money(collected_row[0] if collected_row else 0)
+    today_pkt = datetime.now(_PK_TZ).date()
+
+    return {
+        "currency": currency,
+        "as_of": datetime.now(timezone.utc).isoformat(),
+        "period": {"from": start.isoformat(), "to": end.isoformat()},
+        "billed": _amount(billed),
+        "concessions": _amount(billed_row[2] if billed_row else 0),
+        "collected": _amount(collected),
+        "collected_today": _amount(today_row[0] if today_row else 0),
+        # Against what the period billed. None when nothing was billed - there
+        # is no rate to state, and 0% would be a lie.
+        "collection_rate": (str(percentage(collected, billed)) if billed > 0 else None),
+        "payments": int(collected_row[1] if collected_row else 0),
+        "invoices": {
+            "total": int(billed_row[0] if billed_row else 0),
+            "paid": int(billed_row[3] if billed_row else 0),
+            "partial": int(billed_row[4] if billed_row else 0),
+            "pending": int(billed_row[5] if billed_row else 0),
+            "overdue": int(billed_row[6] if billed_row else 0),
+        },
+        "outstanding": _amount(aging_row[0] if aging_row else 0),
+        "advance": _amount(aging_row[1] if aging_row else 0),
+        "overdue_invoices": int(aging_row[7] if aging_row else 0),
+        "aging": [
+            {"bucket": "not_due", "label": "Not due yet", "amount": _amount(aging_row[2] if aging_row else 0)},
+            {"bucket": "0_30", "label": "1-30 days", "amount": _amount(aging_row[3] if aging_row else 0)},
+            {"bucket": "31_60", "label": "31-60 days", "amount": _amount(aging_row[4] if aging_row else 0)},
+            {"bucket": "61_90", "label": "61-90 days", "amount": _amount(aging_row[5] if aging_row else 0)},
+            {"bucket": "90_plus", "label": "Over 90 days", "amount": _amount(aging_row[6] if aging_row else 0)},
+        ],
+        "by_method": [
+            {"method": r[0], "amount": _amount(r[1]), "count": int(r[2])} for r in method_rows
+        ],
+        "daily": [
+            {"date": r[0].isoformat(), "collected": _amount(r[1])} for r in daily_rows
+        ],
+        "by_class": [
+            {
+                "class_id": r[0],
+                "class_name": r[1],
+                "section_name": r[2],
+                "billed": _amount(r[3]),
+                "collected": _amount(r[4]),
+                "outstanding": _amount(r[5]),
+                "students": int(r[6]),
+                "collection_rate": (str(percentage(r[4], r[3])) if money(r[3]) > 0 else None),
+            }
+            for r in class_rows
+        ],
+        "top_defaulters": [
+            {
+                "student_id": r[0],
+                "name": r[1] or "Unnamed student",
+                "student_code": r[2],
+                "class_name": r[3],
+                "section_name": r[4],
+                "outstanding": _amount(r[5]),
+                "oldest_due_date": r[6].isoformat() if r[6] else None,
+                "days_overdue": (today_pkt - r[6]).days if r[6] and r[6] < today_pkt else 0,
+                "unpaid_invoices": int(r[7]),
+            }
+            for r in defaulter_rows
+        ],
+    }
+
+
+
+@router.get("/defaulters")
+async def list_defaulters(
+    current_user: CurrentUser,
+    db: DbSession,
+    bucket: Optional[str] = Query(None, description="not_due | 0_30 | 31_60 | 61_90 | 90_plus"),
+    class_section_id: Optional[UUID] = Query(None),
+    search: Optional[str] = Query(None, description="Name or student code"),
+    min_amount: Optional[str] = Query(None, description="Only balances at or above this"),
+    campus_id: Optional[UUID] = Query(None),
+    limit: int = Query(50, ge=1, le=500),
+    offset: int = Query(0, ge=0),
+):
+    """
+    Every family that owes money, oldest debt first, with what the office needs
+    to chase it: the balance, how old it is, how to reach the parent, when they
+    last paid, and which notice has already gone out.
+
+    One row per student, not per invoice - a parent with four unpaid months is
+    one conversation, not four.
+    """
+    if not current_user.school_id:
+        raise ForbiddenError("No school context")
+    effective_roles = expand_roles(current_user.roles)
+    if not (current_user.is_super_admin or any(r in effective_roles for r in FINANCE_GOV)):
+        raise ForbiddenError("Permission denied: cannot read finance data")
+
+    if current_user.campus_id and not campus_id:
+        try:
+            campus_id = UUID(current_user.campus_id)
+        except (ValueError, TypeError):
+            pass
+
+    if bucket and bucket not in {"not_due", "0_30", "31_60", "61_90", "90_plus"}:
+        raise HTTPException(status_code=400, detail="Unknown aging bucket")
+
+    params: dict = {
+        "sid": str(current_user.school_id),
+        "live": list(LIVE_INVOICE_STATUSES),
+        "limit": limit,
+        "offset": offset,
+    }
+    where = ""
+    if campus_id:
+        params["campus"] = str(campus_id)
+        where += " AND i.campus_id = CAST(:campus AS UUID)"
+    if class_section_id:
+        params["section"] = str(class_section_id)
+        where += " AND se.class_section_id = CAST(:section AS UUID)"
+    if search:
+        params["q"] = f"%{search.strip()}%"
+        where += (
+            " AND (s.first_name ILIKE :q OR s.last_name ILIKE :q"
+            " OR s.student_code ILIKE :q OR s.registration_number ILIKE :q)"
+        )
+
+    having = ""
+    if min_amount:
+        try:
+            params["min_amount"] = money(min_amount)
+        except Exception:
+            raise HTTPException(status_code=400, detail="min_amount must be a number")
+        having = " AND SUM(GREATEST(i.total_amount - i.paid_amount, 0)) >= :min_amount"
+
+    rows = (
+        await db.execute(
+            text(f"""
+                SELECT s.id::text,
+                       TRIM(CONCAT(s.first_name, ' ', COALESCE(s.last_name, ''))) AS name,
+                       COALESCE(s.student_code, s.registration_number, s.roll_number) AS code,
+                       c.name AS class_name, cs.name AS section_name,
+                       s.parent_name, s.parent_phone, s.parent_email, s.phone,
+                       COALESCE(SUM(GREATEST(i.total_amount - i.paid_amount, 0)), 0) AS outstanding,
+                       COUNT(*) FILTER (WHERE i.total_amount > i.paid_amount) AS unpaid_invoices,
+                       MIN(i.due_date) FILTER (WHERE i.total_amount > i.paid_amount) AS oldest_due,
+                       -- Subqueries, not joins. Joining fee_payments multiplied
+                       -- every invoice row by that student's payments, so the
+                       -- balance came out two or three times too large.
+                       (SELECT MAX(p.paid_at) FROM fee_payments p
+                         WHERE p.student_id = s.id
+                           AND p.school_id = CAST(:sid AS UUID)
+                           AND p.status = 'success') AS last_payment_at,
+                       (SELECT MAX(e.escalation_level) FROM fee_escalations e
+                         WHERE e.student_id = s.id
+                           AND e.school_id = CAST(:sid AS UUID)
+                           AND e.resolved = FALSE) AS notice_level,
+                       (SELECT MAX(e.created_at) FROM fee_escalations e
+                         WHERE e.student_id = s.id
+                           AND e.school_id = CAST(:sid AS UUID)
+                           AND e.resolved = FALSE) AS notice_sent_at
+                FROM fee_invoices i
+                JOIN students s ON s.id = i.student_id
+                LEFT JOIN student_enrollments se ON se.student_id = s.id AND se.end_date IS NULL
+                LEFT JOIN class_sections cs ON cs.id = se.class_section_id
+                LEFT JOIN academic_classes c ON c.id = cs.class_id
+                WHERE i.school_id = CAST(:sid AS UUID)
+                  AND i.status = ANY(CAST(:live AS fee_invoice_status[]))
+                  AND i.total_amount > i.paid_amount
+                  {where}
+                GROUP BY s.id, s.first_name, s.last_name, s.student_code, s.registration_number,
+                         s.roll_number, c.name, cs.name, s.parent_name, s.parent_phone,
+                         s.parent_email, s.phone
+                HAVING SUM(GREATEST(i.total_amount - i.paid_amount, 0)) > 0 {having}
+                ORDER BY MIN(i.due_date) FILTER (WHERE i.total_amount > i.paid_amount) ASC NULLS LAST
+                LIMIT :limit OFFSET :offset
+            """),
+            params,
+        )
+    ).fetchall()
+
+    today = datetime.now(_PK_TZ).date()
+    out = []
+    for r in rows:
+        oldest = r[11]
+        overdue_days = (today - oldest).days if oldest else 0
+        row_bucket = _aging_bucket(overdue_days)
+        if bucket and row_bucket != bucket:
+            continue
+        level, kind = _escalation_step(overdue_days) if overdue_days > 0 else (0, "none")
+        out.append(
+            {
+                "student_id": r[0],
+                "name": r[1] or "Unnamed student",
+                "student_code": r[2],
+                "class_name": r[3],
+                "section_name": r[4],
+                "parent_name": r[5],
+                "parent_phone": r[6],
+                "parent_email": r[7],
+                "student_phone": r[8],
+                "outstanding": str(money(r[9])),
+                "unpaid_invoices": int(r[10]),
+                "oldest_due_date": oldest.isoformat() if oldest else None,
+                "days_overdue": max(0, overdue_days),
+                "bucket": row_bucket,
+                "last_payment_at": r[12].isoformat() if r[12] else None,
+                # What the ladder says this debt has earned, and what has in
+                # fact gone out. They differ when nobody ran the check.
+                "due_level": level,
+                "due_notice": kind,
+                "notice_level": int(r[13]) if r[13] is not None else 0,
+                "notice_sent_at": r[14].isoformat() if r[14] else None,
+            }
+        )
+
+    return {
+        "as_of": datetime.now(timezone.utc).isoformat(),
+        "count": len(out),
+        "limit": limit,
+        "offset": offset,
+        "defaulters": out,
+    }
+
+
+
+@router.get("/duplicate-invoices")
+async def list_duplicate_invoices(
+    current_user: CurrentUser,
+    db: DbSession,
+    limit: int = Query(50, ge=1, le=200),
+):
+    """
+    Periods a student was billed for more than once.
+
+    Until the duplicate guard went in, re-running a class billing issued a
+    second full invoice to everyone in it, and both copies counted as money
+    owed. Nothing is cancelled here: which copy goes is the school's decision,
+    so the office is shown the pairs and cancels one with a reason.
+    """
+    if not current_user.school_id:
+        raise ForbiddenError("No school context")
+    effective_roles = expand_roles(current_user.roles)
+    if not (current_user.is_super_admin or any(r in effective_roles for r in FINANCE_GOV)):
+        raise ForbiddenError("Permission denied: cannot read finance data")
+
+    rows = (
+        await db.execute(
+            text("""
+                WITH duplicated AS (
+                    SELECT student_id, fee_plan_id, COALESCE(period_label, '') AS period
+                      FROM fee_invoices
+                     WHERE school_id = CAST(:sid AS UUID)
+                       AND status = ANY(CAST(:live AS fee_invoice_status[]))
+                     GROUP BY student_id, fee_plan_id, COALESCE(period_label, '')
+                    HAVING COUNT(*) > 1
+                )
+                SELECT i.id::text, i.invoice_number, i.student_id::text,
+                       TRIM(CONCAT(s.first_name, ' ', COALESCE(s.last_name, ''))) AS student_name,
+                       COALESCE(i.period_label, '') AS period,
+                       i.fee_plan_id::text, fp.name AS plan_name,
+                       i.due_date, i.total_amount, i.paid_amount, i.status::text, i.created_at
+                  FROM fee_invoices i
+                  JOIN duplicated d
+                    ON d.student_id = i.student_id
+                   AND d.fee_plan_id IS NOT DISTINCT FROM i.fee_plan_id
+                   AND d.period = COALESCE(i.period_label, '')
+                  JOIN students s ON s.id = i.student_id
+             LEFT JOIN fee_plans fp ON fp.id = i.fee_plan_id
+                 WHERE i.school_id = CAST(:sid AS UUID)
+                   AND i.status = ANY(CAST(:live AS fee_invoice_status[]))
+                 ORDER BY s.first_name, period, i.created_at
+                 LIMIT :limit
+            """),
+            {"sid": str(current_user.school_id), "live": list(LIVE_INVOICE_STATUSES), "limit": limit * 4},
+        )
+    ).fetchall()
+
+    groups: dict[tuple, dict] = {}
+    for r in rows:
+        key = (r[2], r[5], r[4])
+        group = groups.setdefault(
+            key,
+            {
+                "student_id": r[2],
+                "student_name": r[3] or "Unnamed student",
+                "period": r[4] or "(no period)",
+                "plan_name": r[6],
+                "invoices": [],
+                "duplicated_amount": "0.00",
+            },
+        )
+        group["invoices"].append(
+            {
+                "id": r[0],
+                "invoice_number": r[1],
+                "due_date": r[7].isoformat() if r[7] else None,
+                "total_amount": str(money(r[8])),
+                "paid_amount": str(money(r[9])),
+                # The extra copies can only be cancelled while nothing has been
+                # paid against them.
+                "cancellable": money(r[9]) == 0,
+                "status": r[10],
+                "created_at": r[11].isoformat() if r[11] else None,
+            }
+        )
+
+    out = []
+    for group in list(groups.values())[:limit]:
+        extra = sum(money(inv["total_amount"]) for inv in group["invoices"][1:])
+        group["duplicated_amount"] = str(money(extra))
+        out.append(group)
+
+    return {
+        "as_of": datetime.now(timezone.utc).isoformat(),
+        "count": len(out),
+        "groups": out,
     }
 
 
@@ -897,7 +1552,7 @@ async def generate_tax_certificate(body: TaxCertificateGenerateRequest, current_
     returns the certificate already issued instead of a second one.
     """
     start_year, end_year = _fiscal_year_bounds(body.fiscal_year)
-    await _require_tax_certificate_access(current_user, db, body.student_id)
+    await _require_student_fee_access(current_user, db, body.student_id)
 
     period_start = datetime(start_year, 7, 1, tzinfo=_PK_TZ)
     period_end = datetime(end_year, 7, 1, tzinfo=_PK_TZ)
@@ -971,7 +1626,7 @@ async def generate_tax_certificate(body: TaxCertificateGenerateRequest, current_
 
 @router.get("/tax-certificates/{student_id}", response_model=List[TaxCertificateOut])
 async def get_tax_certificates(student_id: UUID, current_user: CurrentUser, db: DbSession, page: ListPageParams):
-    await _require_tax_certificate_access(current_user, db, student_id)
+    await _require_student_fee_access(current_user, db, student_id)
     result = await db.execute(
         page.apply(select(TaxCertificate).where(
             TaxCertificate.school_id == current_user.school_id,
@@ -998,8 +1653,12 @@ def _fiscal_year_bounds(value: str) -> tuple:
     return start, end
 
 
-async def _require_tax_certificate_access(current_user, db, student_id: UUID) -> None:
-    """The finance office for any student of the school; a family for its own."""
+async def _require_student_fee_access(current_user, db, student_id: UUID) -> None:
+    """The finance office for any student of the school; a family for its own.
+
+    Used by the tax certificate and by the student's fee ledger, which is why
+    it is not named after either.
+    """
     if not current_user.school_id:
         raise ForbiddenError("No school context")
     effective = expand_roles(current_user.roles)
@@ -1019,72 +1678,91 @@ async def _require_tax_certificate_access(current_user, db, student_id: UUID) ->
 
 @router.post("/escalations/check", response_model=MessageResponse)
 async def check_escalations(current_user: CurrentUser, db: DbSession):
-    """Run escalation check on all overdue invoices."""
+    """
+    Raise the reminder ladder for every invoice that is genuinely overdue, and
+    close the ladder for any that has since been settled.
+
+    It used to select ``status in ("unpaid", "partial")``. "unpaid" is not one
+    of this column's values - the enum is draft/pending/partial/paid/overdue/
+    cancelled - so Postgres rejected the query and the endpoint raised on every
+    call. It then read ``v.amount``, which the model does not map. Nobody was
+    ever chased, and the failure was invisible because nothing looked at the
+    result.
+    """
     if not current_user.school_id:
         raise ForbiddenError("No school context")
     effective_roles = expand_roles(current_user.roles)
     if not (current_user.is_super_admin or any(r in effective_roles for r in FINANCE_GOV)):
-        raise ForbiddenError()
+        raise ForbiddenError("Permission denied: cannot manage fee escalations")
 
-    from datetime import datetime as dt, timezone as tz
+    today = datetime.now(_PK_TZ).date()
 
-    # Get unpaid vouchers past due
-    vouchers_result = await db.execute(
-        select(FeeVoucher).where(
-            FeeVoucher.school_id == current_user.school_id,
-            FeeVoucher.status.in_(["unpaid", "partial"]),
-        )
-    )
-    count = 0
-    now = dt.now(tz.utc).date()
-    for v in vouchers_result.scalars().all():
-        try:
-            due = dt.strptime(v.due_date, "%Y-%m-%d").date() if isinstance(v.due_date, str) else v.due_date
-        except (ValueError, TypeError):
-            continue
-
-        if not due or due >= now:
-            continue
-
-        overdue_days = (now - due).days
-        amount = v.amount or 0
-
-        # Determine escalation level
-        if overdue_days > 90:
-            level, etype = 4, "suspension_warning"
-        elif overdue_days > 60:
-            level, etype = 3, "final_notice"
-        elif overdue_days > 30:
-            level, etype = 2, "warning"
-        else:
-            level, etype = 1, "reminder"
-
-        # Check if already escalated at this level
-        existing = await db.execute(
-            select(FeeEscalation).where(
-                FeeEscalation.invoice_id == v.id,
-                FeeEscalation.escalation_level == level,
-                FeeEscalation.resolved == False,
+    overdue = (
+        await db.execute(
+            select(FeeVoucher).where(
+                FeeVoucher.school_id == current_user.school_id,
+                FeeVoucher.status.in_(list(LIVE_INVOICE_STATUSES)),
+                FeeVoucher.due_date < today,
+                FeeVoucher.total_amount > FeeVoucher.paid_amount,
             )
         )
-        if existing.scalar_one_or_none():
+    ).scalars().all()
+
+    created = 0
+    for invoice in overdue:
+        overdue_days = (today - invoice.due_date).days
+        balance = money(invoice.total_amount) - money(invoice.paid_amount)
+        if balance <= 0:
             continue
 
-        esc = FeeEscalation(
-            school_id=current_user.school_id,
-            invoice_id=v.id,
-            student_id=v.student_id,
-            escalation_level=level,
-            escalation_type=etype,
-            overdue_days=overdue_days,
-            overdue_amount=amount,
-            escalated_by=current_user.id,
+        level, etype = _escalation_step(overdue_days)
+
+        already = await db.execute(
+            select(FeeEscalation).where(
+                FeeEscalation.invoice_id == invoice.id,
+                FeeEscalation.escalation_level == level,
+                FeeEscalation.resolved == False,  # noqa: E712 - SQL, not Python
+            )
         )
-        db.add(esc)
-        count += 1
+        if already.scalar_one_or_none():
+            continue
+
+        db.add(
+            FeeEscalation(
+                school_id=current_user.school_id,
+                invoice_id=invoice.id,
+                student_id=invoice.student_id,
+                escalation_level=level,
+                escalation_type=etype,
+                overdue_days=overdue_days,
+                overdue_amount=balance,
+                escalated_by=current_user.id,
+            )
+        )
+        created += 1
+
+    # An invoice that has been paid should stop generating notices.
+    closed = await db.execute(
+        text("""
+            UPDATE fee_escalations e
+               SET resolved = TRUE,
+                   resolved_at = now(),
+                   action_taken = COALESCE(e.action_taken, 'Invoice settled')
+              FROM fee_invoices i
+             WHERE e.invoice_id = i.id
+               AND e.school_id = CAST(:sid AS UUID)
+               AND e.resolved = FALSE
+               AND (i.paid_amount >= i.total_amount OR i.status IN ('paid', 'cancelled'))
+            RETURNING e.id
+        """),
+        {"sid": str(current_user.school_id)},
+    )
+    settled = len(closed.fetchall())
 
     await db.flush()
-    return MessageResponse(message=f"Created {count} new escalations")
+    return MessageResponse(
+        message=f"Raised {created} notice(s); closed {settled} for invoices already settled"
+    )
 
 
 @router.get("/escalations", response_model=List[FeeEscalationOut])
@@ -1095,6 +1773,9 @@ async def list_escalations(
 ):
     if not current_user.school_id:
         return []
+    effective_roles = expand_roles(current_user.roles)
+    if not (current_user.is_super_admin or any(r in effective_roles for r in FINANCE_GOV)):
+        raise ForbiddenError("Permission denied: cannot read fee escalations")
     query = select(FeeEscalation).where(FeeEscalation.school_id == current_user.school_id)
     if current_user.campus_id:
         from app.models.people import Student
@@ -1113,7 +1794,20 @@ async def list_escalations(
 @router.patch("/escalations/{escalation_id}/resolve", response_model=MessageResponse)
 async def resolve_escalation(escalation_id: UUID, current_user: CurrentUser, db: DbSession):
     from datetime import datetime as dt, timezone as tz
-    result = await db.execute(select(FeeEscalation).where(FeeEscalation.id == escalation_id))
+
+    # Scoped to the caller's school: the id alone used to be enough to resolve
+    # another school's notice.
+    if not current_user.school_id:
+        raise ForbiddenError("No school context")
+    effective_roles = expand_roles(current_user.roles)
+    if not (current_user.is_super_admin or any(r in effective_roles for r in FINANCE_GOV)):
+        raise ForbiddenError("Permission denied: cannot manage fee escalations")
+    result = await db.execute(
+        select(FeeEscalation).where(
+            FeeEscalation.id == escalation_id,
+            FeeEscalation.school_id == current_user.school_id,
+        )
+    )
     esc = result.scalar_one_or_none()
     if not esc:
         raise NotFoundError("Escalation", str(escalation_id))
@@ -1183,91 +1877,194 @@ async def upsert_gateway_config(body: PaymentGatewayConfigCreate, current_user: 
 
 @router.get("/balance-dashboard/{student_id}")
 async def balance_dashboard(student_id: UUID, current_user: CurrentUser, db: DbSession):
-    """Parent-facing balance overview for a student."""
-    if not current_user.school_id:
-        raise ForbiddenError("No school context")
+    """
+    One student's fee ledger: what was billed, what was paid, what is left.
 
-    from datetime import datetime as dt, timezone as tz
+    It answers both the parent's own screen and the Fees Centre's Student
+    Ledger tab.
 
-    # Total due (unpaid/partial vouchers)
-    due_result = await db.execute(
-        select(func.sum(FeeVoucher.amount)).where(
-            FeeVoucher.school_id == current_user.school_id,
-            FeeVoucher.student_id == student_id,
-            FeeVoucher.status.in_(["unpaid", "partial"]),
+    Every number it used to return was wrong or unreachable. It summed
+    ``FeeVoucher.amount``, which the model does not map, so the request raised;
+    it filtered invoices on ``status in ("unpaid", "partial")``, and "unpaid"
+    is not a value of that enum; it counted payments with status "completed",
+    while payments are recorded as "success"; and it compared a date column
+    against a string. The parent screen caught the error and showed zeros.
+
+    Access was school-wide, so any signed-in user of the school could read any
+    child's balance. It now uses the same rule as the tax certificate: the
+    finance office for any student of the school, a family for its own.
+    """
+    await _require_student_fee_access(current_user, db, student_id)
+
+    params = {"sid": str(current_user.school_id), "student": str(student_id), "live": list(LIVE_INVOICE_STATUSES)}
+
+    student_row = (
+        await db.execute(
+            text("""
+                SELECT TRIM(CONCAT(s.first_name, ' ', COALESCE(s.last_name, ''))),
+                       COALESCE(s.student_code, s.registration_number, s.roll_number),
+                       c.name, cs.name
+                  FROM students s
+             LEFT JOIN student_enrollments se ON se.student_id = s.id AND se.end_date IS NULL
+             LEFT JOIN class_sections cs ON cs.id = se.class_section_id
+             LEFT JOIN academic_classes c ON c.id = cs.class_id
+                 WHERE s.id = CAST(:student AS UUID) AND s.school_id = CAST(:sid AS UUID)
+            """),
+            params,
         )
-    )
-    total_due = due_result.scalar() or 0
+    ).fetchone()
 
-    # Total paid
-    paid_result = await db.execute(
-        select(func.sum(FeePayment.amount)).where(
-            FeePayment.school_id == current_user.school_id,
-            FeePayment.student_id == student_id,
-            FeePayment.status == "completed",
+    currency_row = (
+        await db.execute(
+            text("SELECT currency FROM fee_settings WHERE school_id = CAST(:sid AS UUID) LIMIT 1"),
+            {"sid": params["sid"]},
         )
-    )
-    total_paid = paid_result.scalar() or 0
+    ).fetchone()
 
-    # Overdue amount
-    now_str = dt.now(tz.utc).strftime("%Y-%m-%d")
-    overdue_result = await db.execute(
-        select(func.sum(FeeVoucher.amount)).where(
-            FeeVoucher.school_id == current_user.school_id,
-            FeeVoucher.student_id == student_id,
-            FeeVoucher.status.in_(["unpaid", "partial"]),
-            FeeVoucher.due_date < now_str,
+    invoice_rows = (
+        await db.execute(
+            text("""
+                SELECT i.id::text, i.invoice_number, i.period_label, i.due_date,
+                       i.subtotal, i.discount_amount + i.sibling_discount_amount
+                                 + i.merit_discount_amount + i.waiver AS concessions,
+                       i.total_amount, i.paid_amount, i.status::text, i.created_at
+                  FROM fee_invoices i
+                 WHERE i.school_id = CAST(:sid AS UUID)
+                   AND i.student_id = CAST(:student AS UUID)
+                   AND i.status = ANY(CAST(:live AS fee_invoice_status[]))
+                 ORDER BY i.due_date DESC, i.created_at DESC
+            """),
+            params,
         )
-    )
-    overdue = overdue_result.scalar() or 0
+    ).fetchall()
 
-    # Active installment plans
-    plans_result = await db.execute(
-        select(InstallmentPlan).where(
-            InstallmentPlan.school_id == current_user.school_id,
-            InstallmentPlan.student_id == student_id,
-            InstallmentPlan.status == "active",
+    payment_rows = (
+        await db.execute(
+            text("""
+                SELECT p.id::text, p.amount, p.method::text, p.status::text, p.paid_at,
+                       p.transaction_ref, i.invoice_number, p.notes
+                  FROM fee_payments p
+             LEFT JOIN fee_invoices i ON i.id = p.invoice_id
+                 WHERE p.school_id = CAST(:sid AS UUID)
+                   AND p.student_id = CAST(:student AS UUID)
+                 ORDER BY p.paid_at DESC
+                 LIMIT 100
+            """),
+            params,
         )
-    )
-    active_plans = plans_result.scalars().all()
+    ).fetchall()
 
-    # Recent payments
-    recent_result = await db.execute(
-        select(FeePayment).where(
-            FeePayment.school_id == current_user.school_id,
-            FeePayment.student_id == student_id,
-        ).order_by(FeePayment.created_at.desc()).limit(10)
-    )
-    recent = recent_result.scalars().all()
-
-    # Upcoming vouchers
-    upcoming_result = await db.execute(
-        select(FeeVoucher).where(
-            FeeVoucher.school_id == current_user.school_id,
-            FeeVoucher.student_id == student_id,
-            FeeVoucher.status == "unpaid",
-        ).order_by(FeeVoucher.due_date).limit(5)
-    )
-    upcoming = upcoming_result.scalars().all()
-
-    # Active escalations
-    esc_result = await db.execute(
-        select(FeeEscalation).where(
-            FeeEscalation.school_id == current_user.school_id,
-            FeeEscalation.student_id == student_id,
-            FeeEscalation.resolved == False,
+    plans = (
+        await db.execute(
+            select(InstallmentPlan).where(
+                InstallmentPlan.school_id == current_user.school_id,
+                InstallmentPlan.student_id == student_id,
+                InstallmentPlan.status == "active",
+            )
         )
-    )
-    escalations = esc_result.scalars().all()
+    ).scalars().all()
+
+    escalations = (
+        await db.execute(
+            select(FeeEscalation).where(
+                FeeEscalation.school_id == current_user.school_id,
+                FeeEscalation.student_id == student_id,
+                FeeEscalation.resolved == False,  # noqa: E712 - SQL, not Python
+            ).order_by(FeeEscalation.escalation_level.desc())
+        )
+    ).scalars().all()
+
+    today = datetime.now(_PK_TZ).date()
+    billed = money(0)
+    collected = money(0)
+    outstanding = money(0)
+    advance = money(0)
+    overdue = money(0)
+    unpaid_count = 0
+    overdue_count = 0
+    invoices = []
+
+    for r in invoice_rows:
+        total = money(r[6])
+        paid = money(r[7])
+        balance = total - paid
+        billed += total
+        collected += paid
+        if balance > 0:
+            outstanding += balance
+            unpaid_count += 1
+            if r[3] and r[3] < today:
+                overdue += balance
+                overdue_count += 1
+        elif balance < 0:
+            advance += -balance
+        invoices.append(
+            {
+                "id": r[0],
+                "invoice_number": r[1],
+                "period_label": r[2],
+                "due_date": r[3].isoformat() if r[3] else None,
+                "subtotal": str(money(r[4])),
+                "concessions": str(money(r[5])),
+                "total_amount": str(total),
+                "paid_amount": str(paid),
+                "balance": str(balance if balance > 0 else money(0)),
+                "advance": str(-balance) if balance < 0 else "0.00",
+                "status": r[8],
+                "days_overdue": (today - r[3]).days if r[3] and r[3] < today and balance > 0 else 0,
+                "created_at": r[9].isoformat() if r[9] else None,
+            }
+        )
+
+    payments = [
+        {
+            "id": r[0],
+            "amount": str(money(r[1])),
+            "method": r[2],
+            "status": r[3],
+            # A payment that failed or was refunded is shown as what it is,
+            # rather than quietly dropped from the family's history.
+            "counted": r[3] in PAID_PAYMENT_STATUSES,
+            "paid_at": r[4].isoformat() if r[4] else None,
+            "transaction_ref": r[5],
+            "invoice_number": r[6],
+            "notes": r[7],
+        }
+        for r in payment_rows
+    ]
 
     return {
-        "total_due": total_due,
-        "total_paid": total_paid,
-        "overdue_amount": overdue,
-        "active_installment_plans": len(active_plans),
+        "currency": (currency_row[0] if currency_row and currency_row[0] else "PKR"),
+        "as_of": datetime.now(timezone.utc).isoformat(),
+        "student": {
+            "id": str(student_id),
+            "name": (student_row[0] if student_row else None) or "Unnamed student",
+            "student_code": student_row[1] if student_row else None,
+            "class_name": student_row[2] if student_row else None,
+            "section_name": student_row[3] if student_row else None,
+        },
+        # The names the parent screen already reads, now carrying real numbers.
+        "total_due": str(outstanding),
+        "total_paid": str(collected),
+        "overdue_amount": str(overdue),
+        "active_installment_plans": len(plans),
         "active_escalations": len(escalations),
-        "recent_payments": [FeePaymentOut.model_validate(p).model_dump() for p in recent],
-        "upcoming_vouchers": [FeeVoucherOut.model_validate(v).model_dump() for v in upcoming],
+        "totals": {
+            "billed": str(billed),
+            "paid": str(collected),
+            "outstanding": str(outstanding),
+            "advance": str(advance),
+            "overdue": str(overdue),
+        },
+        "counts": {
+            "invoices": len(invoices),
+            "unpaid": unpaid_count,
+            "overdue": overdue_count,
+        },
+        "invoices": invoices,
+        "payments": payments,
+        "recent_payments": payments[:10],
+        "upcoming_vouchers": [i for i in invoices if i["days_overdue"] == 0 and i["balance"] != "0.00"][:5],
         "escalation_details": [FeeEscalationOut.model_validate(e).model_dump() for e in escalations],
     }
 
