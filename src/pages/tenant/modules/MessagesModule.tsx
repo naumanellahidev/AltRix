@@ -1133,7 +1133,6 @@ export function MessagesModule({ schoolId, isStudentPortal = false }: Props) {
         body: `${currentUserName} forwarded a message to you`,
         entity_type: "admin_message",
         entity_id: newMsg.id,
-        created_by: currentUserId,
       });
 
       // Update conversation list efficiently

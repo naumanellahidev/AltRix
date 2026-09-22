@@ -7,7 +7,7 @@ from uuid import UUID
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Query, status, Request
-from sqlalchemy import select, func, text
+from sqlalchemy import select, func, text, delete
 
 from app.utils.money import D, percentage
 from app.dependencies import CurrentUser, DbSession
@@ -22,7 +22,7 @@ from app.models.academic import ClassSection, Subject
 from app.schemas import (
     ReportCardTemplateCreate, ReportCardTemplateOut,
     ReportCardGenerateRequest, ReportCardOut,
-    ReportCardSubjectEntryOut, ReportCardUpdateRemarks,
+    ReportCardSubjectEntryCreate, ReportCardSubjectEntryOut, ReportCardUpdateRemarks,
     CoCurricularGradeCreate, CoCurricularGradeOut,
     GradeScaleCreate, GradeScaleOut,
     MessageResponse,
@@ -610,6 +610,67 @@ async def verify_report_card(token: str, db: DbSession):
 
 
 # ─── CO-CURRICULAR GRADES ────────────────────────────────────────────────────
+
+@router.put("/{card_id}/subject-entries", response_model=List[ReportCardSubjectEntryOut])
+async def replace_subject_entries(
+    card_id: UUID,
+    entries: List[ReportCardSubjectEntryCreate],
+    current_user: CurrentUser,
+    db: DbSession,
+):
+    """
+    Record the subject lines this card was built from, replacing what was there.
+
+    A report card is a record, not a live recomputation: what is printed has to
+    be what the school saved, even after a mark is later corrected or a subject
+    is renamed. These lines are what the printed card reads, and until now
+    nothing ever wrote them - the table held 0 rows for every school - so every
+    card printed "No subject results have been recorded on this card".
+
+    A subject with no mark is kept, with its marks left null. A blank mark on a
+    report card means "not recorded"; dropping the row would silently remove
+    the subject from the child's card instead.
+    """
+    effective_roles = expand_roles(current_user.roles)
+    if not (current_user.is_super_admin or any(r in effective_roles for r in [*ACADEMIC_GOV, "teacher"])):
+        raise ForbiddenError()
+
+    result = await db.execute(select(ReportCard).where(ReportCard.id == card_id))
+    card = result.scalar_one_or_none()
+    if not card:
+        raise NotFoundError("Report Card", str(card_id))
+    from app.utils.security import require_school_match
+    require_school_match(current_user, card.school_id)
+
+    await db.execute(
+        delete(ReportCardSubjectEntry).where(ReportCardSubjectEntry.report_card_id == card_id)
+    )
+
+    saved = []
+    for i, entry in enumerate(entries):
+        row = ReportCardSubjectEntry(
+            report_card_id=card_id,
+            subject_id=entry.subject_id,
+            subject_name=entry.subject_name,
+            marks_obtained=entry.marks_obtained,
+            max_marks=entry.max_marks,
+            percentage=entry.percentage,
+            grade=entry.grade,
+            gpa_points=entry.gpa_points,
+            position_in_subject=entry.position_in_subject,
+            class_average=entry.class_average,
+            highest_in_class=entry.highest_in_class,
+            teacher_comment=entry.teacher_comment,
+            sort_order=entry.sort_order if entry.sort_order is not None else i,
+        )
+        db.add(row)
+        saved.append(row)
+
+    await db.flush()
+    for row in saved:
+        await db.refresh(row)
+    return saved
+
 
 @router.post("/{card_id}/co-curricular", response_model=List[CoCurricularGradeOut])
 async def add_co_curricular(

@@ -1269,6 +1269,22 @@ class ReportCardGenerateRequest(BaseModel):
     academic_year: Optional[str] = None
 
 
+class ReportCardSubjectEntryCreate(BaseModel):
+    """One subject line as the school recorded it on a card."""
+    subject_id: Optional[UUID] = None
+    subject_name: str
+    marks_obtained: Optional[float] = None
+    max_marks: Optional[float] = None
+    percentage: Optional[float] = None
+    grade: Optional[str] = None
+    gpa_points: Optional[float] = None
+    position_in_subject: Optional[int] = None
+    class_average: Optional[float] = None
+    highest_in_class: Optional[float] = None
+    teacher_comment: Optional[str] = None
+    sort_order: Optional[int] = None
+
+
 class ReportCardSubjectEntryOut(BaseModel):
     id: UUID
     subject_id: Optional[UUID] = None

@@ -907,3 +907,40 @@ Four faults, found from the browser console on production:
   load answered 429 and came up empty. Raised to 600/minute; login and
   password reset keep their own much tighter limits, which is where brute
   force actually matters.
+
+### Slice 26 — the printed card's marks, and five writes that never landed (done)
+
+- **Every report card printed without its marks.**
+  `report_card_subject_entries` held **no rows at all**, for any school: the
+  Report Cards screen saved the card header and the exam results but never the
+  per-subject lines, and the printed card reads exactly those lines. So a card
+  came off the printer complete — letterhead, tiles, remarks, signatures — with
+  "No subject results have been recorded on this card" where the subjects
+  should be.
+  New `PUT /report-cards/{id}/subject-entries` records them (the table has no
+  `school_id`, so the data proxy rightly refuses to write it; the scoping comes
+  from the card's own school). Saving a card now writes its lines, and a
+  subject with no mark is still written with null marks — a blank mark means
+  "not recorded", and leaving the row out would drop the subject from the
+  child's card. If the lines fail to save, the toast says the printed card will
+  be missing its subjects instead of reporting a clean save.
+  Migration `20260922020000` rebuilds the lines for the cards that already
+  exist, from the exam results they were computed from, so nobody has to
+  re-save seven cards (verified on production: all 7 cards, 27 lines). It also
+  gives the table's `id` the default it never had — only the ORM could insert
+  there before.
+- **Five writes named columns that do not exist**, so each was rejected:
+  `app_notifications.created_by` (twice — every in-app message notification
+  failed), `hr_leave_requests.created_by` (the offline leave queue),
+  `academic_assessments.teacher_user_id` (a teacher could not create an
+  assessment; the column is `created_by`), and
+  `admission_application_documents.doc_type` (every uploaded admission document
+  failed to record; it now stores the file's MIME type, which the table does
+  have).
+- **The platform billing page had nowhere to save.** It writes `plan_tier`,
+  `billing_cycle`, `billing_amount` and `billing_email` onto `schools`; none of
+  the four existed. Changing a plan either failed or — when the page decided
+  the schema was "not applied" — was written to **localStorage**, which is not
+  a saved plan: it lives in one browser and no invoice or renewal can see it.
+  Migration `20260922030000` adds the columns; the localStorage branch now
+  raises instead of pretending.

@@ -272,7 +272,7 @@ export function TeacherGradebookModule() {
     const { error } = await api.from("academic_assessments").insert({
       school_id: schoolId,
       class_section_id: selectedSection,
-      teacher_user_id: user?.id,
+      created_by: user?.id,
       title: newAssessment.title.trim(),
       max_marks: newAssessment.max_marks,
       assessment_date: newAssessment.assessment_date,

@@ -322,15 +322,13 @@ export default function PlatformBillingPage() {
 
         if (error) throw error;
       } else {
-        // Save to localStorage
-        const updatedSchool: SchoolBillingData = {
-          ...selectedSchool,
-          plan_tier: newPlan,
-          billing_cycle: newCycle,
-          billing_amount: newAmount,
-          billing_email: newEmail,
-        };
-        localStorage.setItem(`local_billing_school:${selectedSchool.id}`, JSON.stringify(updatedSchool));
+        // The columns exist now (migration 20260922030000). If this school row
+        // still has no plan_tier, something is wrong with the database, and
+        // saying so beats writing the plan into this one browser's
+        // localStorage, where no invoice or renewal will ever see it.
+        throw new Error(
+          "This school's billing columns are missing from the database — the plan was not saved.",
+        );
       }
 
       toast.success("Plan updated successfully!", {

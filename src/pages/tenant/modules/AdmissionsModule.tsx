@@ -129,7 +129,7 @@ export default function AdmissionsModule() {
       await api.from("admission_application_documents").insert({
         school_id: schoolId,
         ...(activeCampusId ? { campus_id: activeCampusId } : {}),
-        application_id: app.id, file_path: path, file_name: f.name, doc_type: null,
+        application_id: app.id, file_path: path, file_name: f.name, mime_type: f.type || null,
       });
     }
 

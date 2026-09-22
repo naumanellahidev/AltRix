@@ -190,7 +190,7 @@ export function useOfflineUniversal({
         case 'leave_request': {
           const { leave_type_id, start_date, end_date, days_count, reason } = item.data as any;
           const { error } = await api.from("hr_leave_requests").insert({
-            school_id: schoolId, user_id: userId, leave_type_id, start_date, end_date, days_count, reason, status: "pending", created_by: userId,
+            school_id: schoolId, user_id: userId, leave_type_id, start_date, end_date, days_count, reason, status: "pending",
           });
           if (error) throw error;
           break;

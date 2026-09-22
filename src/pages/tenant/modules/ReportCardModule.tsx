@@ -680,14 +680,58 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
         .select("id,is_published,published_at")
         .maybeSingle();
       if (error) { toast.error(error.message); return null; }
-      toast.success("Marks & remarks saved successfully!");
+
+      // The subject lines the card was built from.
+      //
+      // A report card is a record, not a live recomputation: what is printed
+      // has to be what the school saved. Nothing wrote these lines before -
+      // report_card_subject_entries held no rows at all - so every printed
+      // card said "No subject results have been recorded on this card" under
+      // an otherwise complete page. A subject with no mark is still written,
+      // with its marks left null: a blank mark means "not recorded", and
+      // leaving the row out would drop the subject from the child's card.
+      const savedCardId = data?.id ?? null;
+      let entriesWarning: string | null = null;
+      if (savedCardId) {
+        const lines = subjects
+          .filter((subject) => results[subject.id])
+          .map((subject, index) => {
+            const row = results[subject.id];
+            const obtained = row.marks_obtained == null ? null : Number(row.marks_obtained);
+            const max = row.max_marks == null ? null : Number(row.max_marks);
+            return {
+              subject_id: subject.id,
+              subject_name: subject.name,
+              marks_obtained: obtained,
+              max_marks: max,
+              percentage: obtained != null && max ? Math.round((obtained / max) * 10000) / 100 : null,
+              grade: row.grade ?? null,
+              teacher_comment: row.remarks ?? null,
+              sort_order: index,
+            };
+          });
+        try {
+          await apiClient.put(`/report-cards/${savedCardId}/subject-entries`, lines);
+        } catch (e: any) {
+          // The card itself saved; say which half did not, rather than
+          // reporting a clean save over a card that will print empty.
+          entriesWarning =
+            e?.response?.data?.detail ?? e?.message ?? "the subject lines could not be saved";
+        }
+      }
+
+      if (entriesWarning) {
+        toast.warning(`Marks saved, but the printed card will be missing its subjects: ${entriesWarning}`, { duration: 10000 });
+      } else {
+        toast.success("Marks & remarks saved successfully!");
+      }
       setHasUnsavedChanges(false);
       if (data) setCard((c) => ({ ...c, id: data.id, is_published: data.is_published, published_at: data.published_at }));
-      return data?.id ?? null;
+      return savedCardId;
     } finally {
       setIsSaving(false);
     }
-  }, [schoolId, studentId, periodType, examId, results, totals, card, exams, currentPeriodLabel, currentPeriodRange, annualYear]);
+  }, [schoolId, studentId, periodType, examId, results, subjects, totals, card, exams, currentPeriodLabel, currentPeriodRange, annualYear]);
 
   // Keyboard shortcut Ctrl+S
   useEffect(() => {

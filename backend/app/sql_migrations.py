@@ -26,6 +26,8 @@ MIGRATIONS: List[str] = [
     "20260918010000_unified_invoice_numbering.sql",
     "20260922000000_fee_voucher_duplicate_guard.sql",
     "20260922010000_report_card_print_settings.sql",
+    "20260922020000_backfill_report_card_subject_entries.sql",
+    "20260922030000_school_billing_columns.sql",
     "20261027000000_hr_contract_reference_numbers.sql",
     "20261028000000_exam_seating_sessions.sql",
 ]

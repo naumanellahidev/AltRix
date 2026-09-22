@@ -118,7 +118,6 @@ export function ScheduledMessagesTab({ schoolId, currentUserId, profileMap, onSe
           body: msg.subject || msg.content.substring(0, 60),
           entity_type: "admin_message",
           entity_id: newMsg.id,
-          created_by: currentUserId,
         });
       }
 
