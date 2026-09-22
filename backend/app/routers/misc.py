@@ -3,6 +3,8 @@
 Remaining routers: complaints, assignments, behavior, HR, notifications, audit, AI, reports.
 """
 from datetime import datetime, timezone, timedelta
+from decimal import Decimal
+from app.utils.money import money
 from typing import List, Optional, Union, cast
 from uuid import UUID
 
@@ -1121,7 +1123,7 @@ async def dashboard_kpis(
                     (SELECT COUNT(*) FROM user_roles WHERE school_id = :sid AND role = 'teacher' AND (CAST(:cid AS uuid) IS NULL OR campus_id = CAST(:cid AS uuid))) as total_teachers,
                     (SELECT COUNT(*) FROM admission_applications WHERE school_id = :sid AND (CAST(:cid AS uuid) IS NULL OR campus_id = CAST(:cid AS uuid)) AND status = 'submitted') as pending_admissions,
                     (SELECT COUNT(*) FROM fee_invoices WHERE school_id = :sid AND (CAST(:cid AS uuid) IS NULL OR campus_id = CAST(:cid AS uuid)) AND status NOT IN ('paid', 'cancelled')) as pending_payments,
-                    (SELECT COALESCE(SUM(amount), 0) FROM fee_payments WHERE school_id = :sid AND (CAST(:cid AS uuid) IS NULL OR campus_id = CAST(:cid AS uuid)) AND (status IS NULL OR status IN ('success', 'paid', 'completed')) AND (paid_at >= :mtd_start OR created_at >= :mtd_start)) as collected_fees,
+                    (SELECT COALESCE(SUM(amount), 0) FROM fee_payments WHERE school_id = :sid AND (CAST(:cid AS uuid) IS NULL OR campus_id = CAST(:cid AS uuid)) AND (status IS NULL OR status = 'success') AND (paid_at >= :mtd_start OR created_at >= :mtd_start)) as collected_fees,
                     (SELECT COUNT(*) FROM campuses WHERE school_id = :sid AND is_active = true) as active_campuses,
                     (SELECT COUNT(DISTINCT c.id) FROM academic_classes c LEFT JOIN class_sections cs ON cs.class_id = c.id WHERE c.school_id = :sid AND (CAST(:cid AS uuid) IS NULL OR cs.campus_id = CAST(:cid AS uuid))) as total_classes,
                     (SELECT COUNT(*) FROM class_sections WHERE school_id = :sid AND (CAST(:cid AS uuid) IS NULL OR campus_id = CAST(:cid AS uuid))) as total_sections,
@@ -1129,7 +1131,7 @@ async def dashboard_kpis(
                     (SELECT COUNT(*) FROM crm_leads WHERE school_id = :sid) as total_leads,
                     (SELECT COUNT(*) FROM crm_leads WHERE school_id = :sid AND (status = 'open' OR stage_id IS NOT NULL)) as open_leads,
                     (SELECT COALESCE(SUM(amount), 0) FROM finance_expenses WHERE school_id = :sid AND (expense_date >= :mtd_date OR created_at >= :mtd_start)) as mtd_expenses,
-                    (SELECT COALESCE(SUM(amount), 0) FROM fee_payments WHERE school_id = :sid AND (CAST(:cid AS uuid) IS NULL OR campus_id = CAST(:cid AS uuid)) AND (status IS NULL OR status IN ('success', 'paid', 'completed')) AND (paid_at >= :ytd_start OR created_at >= :ytd_start)) as ytd_collected_fees,
+                    (SELECT COALESCE(SUM(amount), 0) FROM fee_payments WHERE school_id = :sid AND (CAST(:cid AS uuid) IS NULL OR campus_id = CAST(:cid AS uuid)) AND (status IS NULL OR status = 'success') AND (paid_at >= :ytd_start OR created_at >= :ytd_start)) as ytd_collected_fees,
                     (SELECT COALESCE(SUM(amount), 0) FROM finance_expenses WHERE school_id = :sid AND (expense_date >= :ytd_date OR created_at >= :ytd_start)) as ytd_expenses,
                     (SELECT COUNT(*) FROM attendance_entries WHERE school_id = :sid AND (CAST(:cid AS uuid) IS NULL OR campus_id = CAST(:cid AS uuid)) AND created_at >= :d7_start) as total_attendance_d7,
                     (SELECT COUNT(*) FROM attendance_entries WHERE school_id = :sid AND (CAST(:cid AS uuid) IS NULL OR campus_id = CAST(:cid AS uuid)) AND created_at >= :d7_start AND status IN ('present', 'late')) as present_attendance_d7
@@ -1221,7 +1223,7 @@ async def finance_trend(
     mtd_start = datetime.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
 
     try:
-        p_sql = "SELECT amount, COALESCE(paid_at, created_at) as paid_at FROM fee_payments WHERE school_id = :sid AND (status IS NULL OR status IN ('success', 'paid', 'completed')) AND (paid_at >= :fdate OR created_at >= :fdate) ORDER BY COALESCE(paid_at, created_at) ASC"
+        p_sql = "SELECT amount, COALESCE(paid_at, created_at) as paid_at FROM fee_payments WHERE school_id = :sid AND (status IS NULL OR status = 'success') AND (paid_at >= :fdate OR created_at >= :fdate) ORDER BY COALESCE(paid_at, created_at) ASC"
         p_res = await db.execute(text(p_sql), {"sid": effective_school_id, "fdate": mtd_start})
         payments = [
             {"amount": float(r[0]) if r[0] is not None else 0.0, "paid_at": r[1].isoformat() if r[1] else ""}
@@ -1320,6 +1322,146 @@ async def attendance_summary(
             "total": 100,
             "attendance_rate": 95.0,
         }
+
+
+@reports_router.get("/daily-series")
+@cache_response(ttl=300, key_prefix="reports:daily-series")
+async def daily_series(
+    current_user: CurrentUser,
+    db: DbSession,
+    request: Request,
+    school_id: Optional[str] = Query(None),
+    campus_id: Optional[str] = Query(None),
+    days: int = Query(30, ge=7, le=120),
+):
+    """
+    One row per day, for the figures on the principal's dashboard that have a
+    real history.
+
+    The dashboard used to draw a "trend" under every KPI by making numbers up
+    from the current value - `openLeads - 6, -4, -5, -3, -2, -1` - and it
+    printed a staff attendance rate of 96% that was a literal constant in the
+    source. A line that was never measured is worse than no line: it is read as
+    evidence.
+
+    Only series that can be counted are returned. A figure with no history -
+    how many classes exist, how many leave requests are pending right now - is
+    a position, not a trend, and the screen shows the number alone.
+    """
+    effective_school_id = await resolve_effective_school_id(school_id, request, current_user, db)
+    if not effective_school_id:
+        return {"days": days, "series": {}}
+
+    params = {"sid": str(effective_school_id), "days": days, "cid": None}
+    if campus_id:
+        try:
+            params["cid"] = str(UUID(str(campus_id)))
+        except (ValueError, TypeError):
+            params["cid"] = None
+
+    # Every series is left-joined onto a full run of dates, so a day nobody
+    # marked attendance is an absent point rather than a missing one.
+    calendar = """
+        SELECT generate_series(
+            (CURRENT_DATE - (:days || ' days')::interval)::date,
+            CURRENT_DATE,
+            '1 day'
+        )::date AS day
+    """
+
+    attendance = (await db.execute(text(f"""
+        WITH cal AS ({calendar}),
+        marked AS (
+            SELECT ses.session_date AS day,
+                   COUNT(*) AS total,
+                   COUNT(*) FILTER (WHERE ae.status IN ('present', 'late')) AS present
+              FROM attendance_entries ae
+              JOIN attendance_sessions ses ON ses.id = ae.session_id
+             WHERE ae.school_id = CAST(:sid AS uuid)
+               AND (CAST(:cid AS uuid) IS NULL OR ae.campus_id = CAST(:cid AS uuid))
+               AND ses.session_date >= (CURRENT_DATE - (:days || ' days')::interval)::date
+             GROUP BY ses.session_date
+        )
+        SELECT cal.day, marked.present, marked.total
+          FROM cal LEFT JOIN marked ON marked.day = cal.day
+         ORDER BY cal.day
+    """), params)).fetchall()
+
+    staff_attendance = (await db.execute(text(f"""
+        WITH cal AS ({calendar}),
+        marked AS (
+            SELECT attendance_date AS day,
+                   COUNT(*) AS total,
+                   COUNT(*) FILTER (WHERE status IN ('present', 'late', 'half_day')) AS present
+              FROM hr_staff_attendance
+             WHERE school_id = CAST(:sid AS uuid)
+               AND (CAST(:cid AS uuid) IS NULL OR campus_id = CAST(:cid AS uuid))
+               AND attendance_date >= (CURRENT_DATE - (:days || ' days')::interval)::date
+             GROUP BY attendance_date
+        )
+        SELECT cal.day, marked.present, marked.total
+          FROM cal LEFT JOIN marked ON marked.day = cal.day
+         ORDER BY cal.day
+    """), params)).fetchall()
+
+    collections = (await db.execute(text(f"""
+        WITH cal AS ({calendar}),
+        taken AS (
+            SELECT (paid_at AT TIME ZONE 'UTC' + INTERVAL '5 hours')::date AS day,
+                   COALESCE(SUM(amount), 0) AS amount
+              FROM fee_payments
+             WHERE school_id = CAST(:sid AS uuid)
+               AND (CAST(:cid AS uuid) IS NULL OR campus_id = CAST(:cid AS uuid))
+               AND (status IS NULL OR status = 'success')
+               AND (paid_at AT TIME ZONE 'UTC' + INTERVAL '5 hours')::date
+                   >= (CURRENT_DATE - (:days || ' days')::interval)::date
+             GROUP BY 1
+        )
+        SELECT cal.day, COALESCE(taken.amount, 0)
+          FROM cal LEFT JOIN taken ON taken.day = cal.day
+         ORDER BY cal.day
+    """), params)).fetchall()
+
+    leads = (await db.execute(text(f"""
+        WITH cal AS ({calendar}),
+        made AS (
+            SELECT (created_at AT TIME ZONE 'UTC' + INTERVAL '5 hours')::date AS day, COUNT(*) AS total
+              FROM crm_leads
+             WHERE school_id = CAST(:sid AS uuid)
+               AND (created_at AT TIME ZONE 'UTC' + INTERVAL '5 hours')::date
+                   >= (CURRENT_DATE - (:days || ' days')::interval)::date
+             GROUP BY 1
+        )
+        SELECT cal.day, COALESCE(made.total, 0)
+          FROM cal LEFT JOIN made ON made.day = cal.day
+         ORDER BY cal.day
+    """), params)).fetchall()
+
+    def rate_series(rows) -> list:
+        out = []
+        for day, present, total in rows:
+            # No attendance taken that day: the rate is unknown, and null is
+            # the only honest way to draw it.
+            value = None
+            if total:
+                value = float(round(Decimal(present or 0) / Decimal(total) * 100, 1))
+            out.append({"date": day.isoformat(), "value": value, "present": int(present or 0), "total": int(total or 0)})
+        return out
+
+    return {
+        "days": days,
+        "as_of": datetime.now(timezone.utc).isoformat(),
+        "series": {
+            "student_attendance_rate": rate_series(attendance),
+            "staff_attendance_rate": rate_series(staff_attendance),
+            "collections": [
+                {"date": day.isoformat(), "value": str(money(amount))} for day, amount in collections
+            ],
+            "new_leads": [
+                {"date": day.isoformat(), "value": int(total)} for day, total in leads
+            ],
+        },
+    }
 
 
 @reports_router.get("/cache/stats")
@@ -1476,6 +1618,49 @@ async def set_school_ai_status(db: DbSession, school_id: str, enabled: bool):
                 logger.warning("Optional step failed (%s): %s", "db.rollback", exc, exc_info=True)
 
 
+#: Roughly how much database context a prompt may carry, in characters.
+#:
+#: The builder can assemble a hundred students, fifty invoices, fifty staff and
+#: twenty-five payments into one prompt. A 1.5B model with a 32k window cannot
+#: hold that and the question and the instructions, so the end - which is where
+#: the answer's evidence usually is - fell off the edge, and the replies came
+#: back vague. Four thousand words of context is already generous; what matters
+#: is that the sections nearest the question survive.
+AI_CONTEXT_BUDGET_CHARS = 16000
+
+
+def trim_ai_context(context: str, budget: int = AI_CONTEXT_BUDGET_CHARS) -> str:
+    """
+    Cut the context to the budget on a section boundary, and say that it was cut.
+
+    Sections are kept in the order the builder wrote them, which puts the
+    targeted matches for this question first. Half a table is worse than no
+    table, so nothing is truncated mid-section, and the model is told that some
+    sections were left out rather than being allowed to imply it saw everything.
+    """
+    if not context or len(context) <= budget:
+        return context
+
+    sections = context.split("\n\n")
+    kept: list = []
+    used = 0
+    dropped = 0
+    for section in sections:
+        cost = len(section) + 2
+        if used + cost > budget:
+            dropped += 1
+            continue
+        kept.append(section)
+        used += cost
+
+    if dropped:
+        kept.append(
+            f"[{dropped} further section(s) of records were left out of this prompt "
+            "for length. Say so if the answer would need them.]"
+        )
+    return "\n\n".join(kept)
+
+
 async def fetch_ai_context(
     db: DbSession,
     user: AuthenticatedUser,
@@ -1487,7 +1672,7 @@ async def fetch_ai_context(
     user_query: Optional[str] = None,
 ) -> str:
     from app.utils.ai_context_builder import build_scoped_ai_context
-    return await build_scoped_ai_context(
+    context = await build_scoped_ai_context(
         db=db,
         user=user,
         school_id=school_id,
@@ -1497,6 +1682,30 @@ async def fetch_ai_context(
         current_screen=current_screen,
         user_query=user_query,
     )
+    trimmed = trim_ai_context(context or "")
+    if context and len(trimmed) < len(context):
+        logger.info(
+            "AI context trimmed from %d to %d characters for school %s",
+            len(context), len(trimmed), school_id,
+        )
+    return trimmed
+
+
+@ai_router.get("/health")
+async def ai_health(current_user: CurrentUser):
+    """
+    What the Copilot can actually reach.
+
+    The screen used to have no way to tell "the model is thinking" from "no
+    model answered", so a service that was simply down looked like a slow one.
+    This says which provider is in use, which local models the server has, and
+    whether anything is available at all.
+    """
+    from app.utils.ai_service import AIService
+
+    status_report = await AIService.health()
+    # The key itself never leaves the server; only whether one is configured.
+    return status_report
 
 
 @ai_router.get("/settings")
@@ -1938,7 +2147,8 @@ async def get_timeline(
         if not category or category.lower() in ("academic", "admissions"):
             st_res = await db.execute(
                 text("""
-                    SELECT id, first_name, last_name, roll_number, admission_number, created_at 
+                    SELECT id, first_name, last_name, roll_number,
+                           COALESCE(student_code, registration_number) AS student_ref, created_at 
                     FROM students 
                     WHERE school_id = :sid 
                     ORDER BY created_at DESC LIMIT 8
@@ -1955,7 +2165,7 @@ async def get_timeline(
                     user_id=None,
                     event_name="student.enrolled",
                     title=f"Enrollment: {name}",
-                    description=f"Student registered with Roll #{s_roll or s_adm or 'N/A'} (Admission #{s_adm or 'N/A'}).",
+                    description=f"Student registered with Roll #{s_roll or 'N/A'} (Code {s_adm or 'not issued'}).",
                     category="academic",
                     entity_type="students",
                     entity_id=s_id if isinstance(s_id, uuid.UUID) else uuid.UUID(str(s_id)),
@@ -1993,7 +2203,7 @@ async def get_timeline(
         if not category or category.lower() in ("admissions", "general"):
             lead_res = await db.execute(
                 text("""
-                    SELECT id, student_name, parent_name, phone, created_at 
+                    SELECT id, full_name, email, phone, created_at 
                     FROM crm_leads 
                     WHERE school_id = :sid 
                     ORDER BY created_at DESC LIMIT 5
@@ -2009,7 +2219,7 @@ async def get_timeline(
                     user_id=None,
                     event_name="crm_lead.created",
                     title=f"Admission Inquiry: {l_name or 'Prospective Student'}",
-                    description=f"Parent {l_parent or 'Guardian'} inquiry received ({l_phone or 'Contact logged'}).",
+                    description=f"Inquiry received ({l_phone or l_parent or 'no contact recorded'}).",
                     category="general",
                     entity_type="crm_leads",
                     entity_id=l_id if isinstance(l_id, uuid.UUID) else uuid.UUID(str(l_id)),

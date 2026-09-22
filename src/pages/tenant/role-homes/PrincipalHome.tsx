@@ -57,6 +57,21 @@ import {
   CartesianGrid,
 } from "recharts";
 
+/** One measured day. `value` is null when nothing was recorded that day. */
+interface SeriesPoint {
+  date: string;
+  value: number | string | null;
+  present?: number;
+  total?: number;
+}
+
+interface DailySeries {
+  student_attendance_rate: SeriesPoint[];
+  staff_attendance_rate: SeriesPoint[];
+  collections: SeriesPoint[];
+  new_leads: SeriesPoint[];
+}
+
 const SparklineTooltip = ({ active, payload }: any) => {
   if (active && payload && payload.length) {
     return (
@@ -198,62 +213,47 @@ export function PrincipalHome() {
     }
   };
 
-  const classesTrend = useMemo(() => [
-    { val: Math.max(1, kpis.classes) },
-    { val: Math.max(1, kpis.classes) },
-    { val: Math.max(1, kpis.classes) },
-    { val: Math.max(1, kpis.classes) },
-    { val: Math.max(1, kpis.classes) },
-    { val: Math.max(1, kpis.classes) },
-    { val: Math.max(1, kpis.classes) }
-  ], [kpis.classes]);
+  /*
+   * Every line under a KPI used to be invented from the current number:
+   * `openLeads - 6, -4, -5, -3, -2, -1`, an attendance rate wobbled by plus
+   * or minus three, a class count repeated seven times, and a staff
+   * attendance rate of 96% that was a literal constant. A line nobody
+   * measured is worse than no line, because it is read as evidence.
+   *
+   * These come from /reports/daily-series, which counts them. A figure with
+   * no history - how many classes exist, how many leave requests are pending
+   * right now - is a position, not a trend, and is shown as a number alone.
+   */
+  const [series, setSeries] = useState<DailySeries | null>(null);
 
-  const leavesTrend = useMemo(() => [
-    { val: Math.max(0, kpis.pendingLeaves + 1) },
-    { val: Math.max(0, kpis.pendingLeaves + 2) },
-    { val: Math.max(0, kpis.pendingLeaves + 1) },
-    { val: Math.max(0, kpis.pendingLeaves) },
-    { val: Math.max(0, kpis.pendingLeaves) },
-    { val: Math.max(0, kpis.pendingLeaves) },
-    { val: kpis.pendingLeaves }
-  ], [kpis.pendingLeaves]);
+  const toSparkline = (points: SeriesPoint[] | undefined) =>
+    (points ?? []).filter((p) => p.value !== null).map((p) => ({ val: Number(p.value) }));
+
+  const attendanceSeries = useMemo(() => toSparkline(series?.student_attendance_rate), [series]);
+  const staffAttendanceSeries = useMemo(() => toSparkline(series?.staff_attendance_rate), [series]);
+  const leadsTrend = useMemo(() => toSparkline(series?.new_leads), [series]);
+
+  /** The most recent day anyone actually marked attendance. */
+  const latestRate = (points: SeriesPoint[] | undefined): number | null => {
+    for (let i = (points ?? []).length - 1; i >= 0; i -= 1) {
+      const value = points![i].value;
+      if (value !== null) return Number(value);
+    }
+    return null;
+  };
 
   const attendanceRate = useMemo(() => {
-    if (kpis.attendanceEntries7d === 0) return 0;
+    const measured = latestRate(series?.student_attendance_rate);
+    if (measured !== null) return Math.round(measured);
+    // Falls back to the seven-day aggregate the KPI call already returns.
+    if (kpis.attendanceEntries7d === 0) return null;
     return Math.round((kpis.attendancePresent7d / kpis.attendanceEntries7d) * 100);
-  }, [kpis.attendanceEntries7d, kpis.attendancePresent7d]);
+  }, [series, kpis.attendanceEntries7d, kpis.attendancePresent7d]);
 
-  const attendanceTrend = useMemo(() => [
-    { val: Math.max(0, attendanceRate - 3) },
-    { val: Math.max(0, attendanceRate - 1) },
-    { val: Math.max(0, attendanceRate + 2) },
-    { val: Math.max(0, attendanceRate - 2) },
-    { val: Math.max(0, attendanceRate - 1) },
-    { val: Math.max(0, attendanceRate + 1) },
-    { val: attendanceRate }
-  ], [attendanceRate]);
-
-  const staffAttendanceRate = 96;
-
-  const staffAttendanceTrend = useMemo(() => [
-    { val: 95 },
-    { val: 96 },
-    { val: 95 },
-    { val: 97 },
-    { val: 96 },
-    { val: 98 },
-    { val: 96 }
-  ], []);
-
-  const leadsTrend = useMemo(() => [
-    { val: Math.max(0, kpis.openLeads - 6) },
-    { val: Math.max(0, kpis.openLeads - 4) },
-    { val: Math.max(0, kpis.openLeads - 5) },
-    { val: Math.max(0, kpis.openLeads - 3) },
-    { val: Math.max(0, kpis.openLeads - 2) },
-    { val: Math.max(0, kpis.openLeads - 1) },
-    { val: kpis.openLeads }
-  ], [kpis.openLeads]);
+  const staffAttendanceRate = useMemo(() => {
+    const measured = latestRate(series?.staff_attendance_rate);
+    return measured === null ? null : Math.round(measured);
+  }, [series]);
 
   const monthStart = useMemo(() => {
     const d = new Date();
@@ -271,7 +271,7 @@ export function PrincipalHome() {
       let fetchedViaFastApi = false;
       if (USE_FASTAPI) {
         try {
-          const [dashResp, attResp, trendResp] = await Promise.all([
+          const [dashResp, attResp, trendResp, seriesResp] = await Promise.all([
             apiClient.get("/reports/dashboard", {
               params: { school_id: schoolId }
             }),
@@ -280,12 +280,19 @@ export function PrincipalHome() {
             }),
             apiClient.get("/reports/finance-trend", {
               params: { school_id: schoolId }
-            })
+            }),
+            // The measured history behind the sparklines. It is allowed to
+            // fail on its own: a dashboard without lines is still a dashboard,
+            // and invented lines are what this replaced.
+            apiClient
+              .get("/reports/daily-series", { params: { school_id: schoolId, days: 30 } })
+              .catch(() => null)
           ]);
 
           const dbKpis = dashResp.data;
           const attSummary = attResp.data;
           const finTrend = trendResp.data;
+          setSeries((seriesResp?.data?.series as DailySeries) ?? null);
 
           const hasRealData = dbKpis && (
             (Number(dbKpis.total_students) || 0) > 0 ||
@@ -645,19 +652,10 @@ export function PrincipalHome() {
               </div>
               
               <div className="mt-1.5 sm:mt-3 space-y-1.5 sm:space-y-3">
-                <div className="h-[30px] sm:h-[45px] w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={classesTrend} margin={{ top: 2, bottom: 2, left: 2, right: 2 }}>
-                      <defs>
-                        <linearGradient id="gradClasses" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="hsl(238, 80%, 60%)" stopOpacity={0.25}/>
-                          <stop offset="95%" stopColor="hsl(238, 80%, 60%)" stopOpacity={0}/>
-                        </linearGradient>
-                      </defs>
-                      <Tooltip content={<SparklineTooltip />} cursor={{ stroke: "hsl(238, 80%, 60%, 0.2)", strokeWidth: 1, strokeDasharray: "2 2" }} />
-                      <Area type="monotone" dataKey="val" stroke="hsl(238, 80%, 60%)" fill="url(#gradClasses)" strokeWidth={2.0} dot={false} />
-                    </AreaChart>
-                  </ResponsiveContainer>
+                <div className="h-[30px] sm:h-[45px] w-full flex items-end">
+                  <p className="text-[9px] sm:text-[10px] text-muted-foreground leading-tight">
+                    A count of what exists today — not a trend.
+                  </p>
                 </div>
                 <div className="space-y-1">
                   <div className="flex items-center justify-between text-[9px] sm:text-[10px]">
@@ -701,19 +699,10 @@ export function PrincipalHome() {
               </div>
               
               <div className="mt-1.5 sm:mt-3 space-y-1.5 sm:space-y-3">
-                <div className="h-[30px] sm:h-[45px] w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={leavesTrend} margin={{ top: 2, bottom: 2, left: 2, right: 2 }}>
-                      <defs>
-                        <linearGradient id="gradLeaves" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="hsl(38, 92%, 50%)" stopOpacity={0.25}/>
-                          <stop offset="95%" stopColor="hsl(38, 92%, 50%)" stopOpacity={0}/>
-                        </linearGradient>
-                      </defs>
-                      <Tooltip content={<SparklineTooltip />} cursor={{ stroke: "hsl(38, 92%, 50%, 0.2)", strokeWidth: 1, strokeDasharray: "2 2" }} />
-                      <Area type="monotone" dataKey="val" stroke="hsl(38, 92%, 50%)" fill="url(#gradLeaves)" strokeWidth={2.0} dot={false} />
-                    </AreaChart>
-                  </ResponsiveContainer>
+                <div className="h-[30px] sm:h-[45px] w-full flex items-end">
+                  <p className="text-[9px] sm:text-[10px] text-muted-foreground leading-tight">
+                    Awaiting a decision right now.
+                  </p>
                 </div>
                 <div className="space-y-1">
                   <div className="flex items-center justify-between text-[9px] sm:text-[10px]">
@@ -748,7 +737,7 @@ export function PrincipalHome() {
                 </div>
                 <div className="mt-1.5 sm:mt-3">
                   <h3 className="text-base sm:text-xl md:text-2xl lg:text-3xl font-bold tracking-tight font-display text-foreground flex items-baseline gap-1 truncate">
-                    <span>{attendanceRate}%</span>
+                    <span>{attendanceRate === null ? "—" : `${attendanceRate}%`}</span>
                     <ArrowRight className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-emerald-500 opacity-0 -translate-x-1 group-hover/kpi:opacity-100 group-hover/kpi:translate-x-0 transition-all duration-200" />
                   </h3>
                   <p className="mt-0.5 sm:mt-1 text-[9px] sm:text-xs text-muted-foreground truncate">
@@ -760,7 +749,7 @@ export function PrincipalHome() {
               <div className="mt-1.5 sm:mt-3 space-y-1.5 sm:space-y-3">
                 <div className="h-[30px] sm:h-[45px] w-full">
                   <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={attendanceTrend} margin={{ top: 2, bottom: 2, left: 2, right: 2 }}>
+                    <AreaChart data={attendanceSeries} margin={{ top: 2, bottom: 2, left: 2, right: 2 }}>
                       <defs>
                         <linearGradient id="gradAttendance" x1="0" y1="0" x2="0" y2="1">
                           <stop offset="5%" stopColor="hsl(142, 70%, 45%)" stopOpacity={0.25}/>
@@ -775,7 +764,7 @@ export function PrincipalHome() {
                 <div className="space-y-1">
                   <div className="flex items-center justify-between text-[9px] sm:text-[10px]">
                     <span className="text-muted-foreground">Target (95%)</span>
-                    <span className="font-semibold text-foreground">{attendanceRate}%</span>
+                    <span className="font-semibold text-foreground">{attendanceRate === null ? "—" : `${attendanceRate}%`}</span>
                   </div>
                   <div className="h-1 w-full bg-muted rounded-full overflow-hidden">
                     <div 
@@ -803,11 +792,11 @@ export function PrincipalHome() {
                 </div>
                 <div className="mt-1.5 sm:mt-3">
                   <h3 className="text-base sm:text-xl md:text-2xl lg:text-3xl font-bold tracking-tight font-display text-foreground flex items-baseline gap-1 truncate">
-                    <span>{staffAttendanceRate}%</span>
+                    <span>{staffAttendanceRate === null ? "—" : `${staffAttendanceRate}%`}</span>
                     <ArrowRight className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-teal-500 opacity-0 -translate-x-1 group-hover/kpi:opacity-100 group-hover/kpi:translate-x-0 transition-all duration-200" />
                   </h3>
                   <p className="mt-0.5 sm:mt-1 text-[9px] sm:text-xs text-muted-foreground truncate">
-                    Checked-in today
+                    {staffAttendanceRate === null ? "No staff attendance recorded yet" : "Latest day staff attendance was marked"}
                   </p>
                 </div>
               </div>
@@ -815,7 +804,7 @@ export function PrincipalHome() {
               <div className="mt-1.5 sm:mt-3 space-y-1.5 sm:space-y-3">
                 <div className="h-[30px] sm:h-[45px] w-full">
                   <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={staffAttendanceTrend} margin={{ top: 2, bottom: 2, left: 2, right: 2 }}>
+                    <AreaChart data={staffAttendanceSeries} margin={{ top: 2, bottom: 2, left: 2, right: 2 }}>
                       <defs>
                         <linearGradient id="gradStaffAttendance" x1="0" y1="0" x2="0" y2="1">
                           <stop offset="5%" stopColor="hsl(173, 70%, 40%)" stopOpacity={0.25}/>
@@ -830,12 +819,12 @@ export function PrincipalHome() {
                 <div className="space-y-1">
                   <div className="flex items-center justify-between text-[9px] sm:text-[10px]">
                     <span className="text-muted-foreground">Target (95%)</span>
-                    <span className="font-semibold text-foreground">{staffAttendanceRate}%</span>
+                    <span className="font-semibold text-foreground">{staffAttendanceRate === null ? "—" : `${staffAttendanceRate}%`}</span>
                   </div>
                   <div className="h-1 w-full bg-muted rounded-full overflow-hidden">
                     <div 
                       className="h-full bg-teal-500 transition-all duration-500" 
-                      style={{ width: `${staffAttendanceRate}%` }}
+                      style={{ width: `${staffAttendanceRate ?? 0}%` }}
                     />
                   </div>
                 </div>
