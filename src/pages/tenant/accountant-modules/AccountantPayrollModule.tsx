@@ -1,5 +1,6 @@
 import { useState, useCallback, useMemo } from "react";
 import { useParams } from "react-router-dom";
+import { money } from "@/lib/documents/format";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Plus,
@@ -146,10 +147,16 @@ type PayRunBatch = {
 
 const periodKey = (start: string, end: string) => `${start}__${end}`;
 
-const fmt = (n: number, currency = "PKR") => {
-  const displayCurrency = currency === "PKR" ? "Rs." : currency;
-  return `${displayCurrency} ${(n || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
-};
+/**
+ * Pay keeps its paisa.
+ *
+ * This rounded every figure to whole units, on the screen that decides what
+ * staff are paid: a gross, a deduction and a net that each disagree with the
+ * payslip by up to a rupee, and a payroll total that is the sum of the
+ * rounded figures rather than the sum of the pay.
+ */
+const fmt = (n: number | string, currency = "PKR") =>
+  money(String(n ?? 0), { currency: currency === "PKR" ? "PKR" : currency });
 
 export function AccountantPayrollModule() {
   const { schoolSlug } = useParams();

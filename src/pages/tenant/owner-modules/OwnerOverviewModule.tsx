@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
+import { money } from "@/lib/documents/format";
 import {
   Activity,
   AlertTriangle,
@@ -73,8 +74,9 @@ type Kpis = {
   collectionRate: number;
 };
 
-const formatCurrency = (val: number) =>
-  new Intl.NumberFormat("en-PK", { style: "currency", currency: "PKR", maximumFractionDigits: 0 }).format(val);
+// Amounts keep their paisa: the owner's overview is read against the ledger,
+// and rounded figures do not reconcile with it.
+const formatCurrency = (val: number | string) => money(String(val ?? 0), { currency: "PKR" });
 
 export function OwnerOverviewModule({ schoolId }: Props) {
   const { schoolSlug } = useParams();

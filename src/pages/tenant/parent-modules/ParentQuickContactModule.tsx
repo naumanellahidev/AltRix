@@ -3,11 +3,12 @@ import { useNavigate, useParams } from "react-router-dom";
 import { api } from "@/lib/api";
 import { ChildInfo } from "@/hooks/useMyChildren";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { EmptyState } from "@/components/tenant/module-kit";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { 
   Phone, Mail, MessageSquare, AlertCircle, 
-  User, CheckCircle, ShieldAlert, Sparkles, Send, Clock
+  User, Users, CheckCircle, ShieldAlert, Sparkles, Send, Clock
 } from "lucide-react";
 import { toast } from "sonner";
 import { useLiveTeacherPresence } from "@/hooks/useLiveTeacherPresence";
@@ -32,9 +33,36 @@ export default function ParentQuickContactModule({ child, schoolId }: ParentQuic
   const [teachers, setTeachers] = useState<TeacherContact[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Use the existing presence hook to show live online statuses for teachers!
-  const teacherUserIds = useMemo(() => teachers.map(t => t.user_id), [teachers]);
-  const presenceStates = useLiveTeacherPresence(teacherUserIds);
+  // Whether each teacher is in a lesson right now.
+  //
+  // This called useLiveTeacherPresence(teacherUserIds) — the hook takes a
+  // school id, and returns { liveTeachers, ... }, not a map. Indexing it by a
+  // user id gave undefined every time, so the dot beside every teacher was
+  // permanently grey and its tooltip permanently read "offline": a status
+  // indicator that could never indicate anything.
+  //
+  // Wired to what the hook actually reports: the teachers timetabled now, and
+  // whether they have checked in to that lesson.
+  const { liveTeachers } = useLiveTeacherPresence(schoolId ?? null);
+  const presenceStates = useMemo(() => {
+    const map: Record<string, { status: string; label: string }> = {};
+    for (const t of liveTeachers) {
+      map[t.teacherUserId] = {
+        status: t.status,
+        label:
+          t.status === "in_class"
+            ? `In ${t.subject}${t.sectionLabel ? ` · ${t.sectionLabel}` : ""} now`
+            : t.status === "late"
+              ? `Late for ${t.subject}`
+              : t.status === "completed"
+                ? `Finished ${t.subject}`
+                : t.status === "left"
+                  ? `Left ${t.subject}`
+                  : `Timetabled for ${t.subject}, not checked in`,
+      };
+    }
+    return map;
+  }, [liveTeachers]);
 
   const fetchTeachers = async () => {
     if (!child || !schoolId) return;
@@ -97,35 +125,13 @@ export default function ParentQuickContactModule({ child, schoolId }: ParentQuic
     );
   }
 
-  // MOCK DATA FALLBACK for aesthetic demonstration if empty
-  const defaultTeachers: TeacherContact[] = teachers.length > 0 ? teachers : [
-    {
-      user_id: "teacher1",
-      display_name: "Mrs. Ayesha Malik",
-      email: "ayesha.malik@altrix.edu",
-      phone_number: "+92 300 1234567",
-      subject_name: "Mathematics",
-      role_label: "Class Teacher"
-    },
-    {
-      user_id: "teacher2",
-      display_name: "Mr. Salman Khan",
-      email: "salman.khan@altrix.edu",
-      phone_number: "+92 321 7654321",
-      subject_name: "Physics",
-      role_label: "Subject Teacher"
-    },
-    {
-      user_id: "teacher3",
-      display_name: "Ms. Zara Shah",
-      email: "zara.shah@altrix.edu",
-      phone_number: null,
-      subject_name: "English Literature",
-      role_label: "Subject Teacher"
-    }
-  ];
-
-  const activeTeachers = teachers.length > 0 ? teachers : defaultTeachers;
+  // The child's real teachers, or none.
+  //
+  // This used to invent three - "Mrs. Ayesha Malik", "Mr. Salman Khan", "Ms.
+  // Zara Shah" - with working-looking mobile numbers and school addresses, and
+  // show them to the parent as their child's teachers. A parent could have
+  // rung +92 300 1234567 expecting the maths teacher.
+  const activeTeachers = teachers;
 
   // Split class teacher and others
   const classTeacher = activeTeachers.find(t => t.role_label === "Class Teacher") || activeTeachers[0];
@@ -148,6 +154,16 @@ export default function ParentQuickContactModule({ child, schoolId }: ParentQuic
         <div className="flex h-[30vh] items-center justify-center">
           <div className="h-8 w-8 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
         </div>
+      ) : !activeTeachers.length ? (
+        // Nobody is listed, and that is what it says. It used to invent three
+        // teachers with contactable-looking numbers rather than show this.
+        <Card className="rounded-2xl">
+          <EmptyState
+            icon={Users}
+            title="No teacher contacts have been shared yet"
+            description="Once the school assigns teachers to your child's class and publishes their contact details, they appear here."
+          />
+        </Card>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {/* Class Teacher Card (Hero Card) */}
@@ -162,8 +178,8 @@ export default function ParentQuickContactModule({ child, schoolId }: ParentQuic
                     </span>
                     {/* Live Presence indicator */}
                     <span className={`absolute bottom-0 right-0 h-4 w-4 rounded-full border-2 border-white ${
-                      presenceStates[classTeacher.user_id]?.status === "online" ? "bg-emerald-500 animate-pulse" : "bg-slate-300"
-                    }`} title={presenceStates[classTeacher.user_id]?.status || "offline"} />
+                      presenceStates[classTeacher.user_id]?.status === "in_class" ? "bg-emerald-500 animate-pulse" : "bg-slate-300"
+                    }`} title={presenceStates[classTeacher.user_id]?.label || "Not in a lesson right now"} />
                   </div>
                   
                   <Badge className="bg-blue-600 hover:bg-blue-600 font-extrabold uppercase text-[8px] px-2 py-0.5 tracking-wider mx-auto">
@@ -229,7 +245,7 @@ export default function ParentQuickContactModule({ child, schoolId }: ParentQuic
                                 {teacher.display_name.split(" ").map(s => s[0]).slice(0, 2).join("")}
                               </span>
                               <span className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border border-white ${
-                                presenceStates[teacher.user_id]?.status === "online" ? "bg-emerald-500" : "bg-slate-300"
+                                presenceStates[teacher.user_id]?.status === "in_class" ? "bg-emerald-500" : "bg-slate-300"
                               }`} />
                             </div>
                             <div className="min-w-0">

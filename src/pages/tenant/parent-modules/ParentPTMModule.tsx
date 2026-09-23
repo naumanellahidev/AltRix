@@ -133,73 +133,15 @@ export default function ParentPTMModule({ child, schoolId }: ParentPTMModuleProp
     );
   }
 
-  // MOCK DATA FALLBACK for aesthetic demonstration if database returns empty
-  const defaultSlots: PTMSlot[] = slots.length > 0 ? slots : [
-    {
-      id: "slot1",
-      teacher_user_id: "t1",
-      teacher_name: "Mrs. Ayesha Malik",
-      subject_name: "Mathematics",
-      slot_date: "2026-07-20",
-      start_time: "09:30 AM",
-      end_time: "09:45 AM",
-      location: "Room 101 / Zoom",
-      max_bookings: 1,
-      current_bookings: 0,
-      status: "available",
-      is_booked_by_me: false,
-    },
-    {
-      id: "slot2",
-      teacher_user_id: "t2",
-      teacher_name: "Mr. Salman Khan",
-      subject_name: "Physics",
-      slot_date: "2026-07-20",
-      start_time: "10:15 AM",
-      end_time: "10:30 AM",
-      location: "Physics Lab A",
-      max_bookings: 1,
-      current_bookings: 0,
-      status: "available",
-      is_booked_by_me: false,
-    },
-    {
-      id: "slot3",
-      teacher_user_id: "t3",
-      teacher_name: "Ms. Zara Shah",
-      subject_name: "English Literature",
-      slot_date: "2026-07-22",
-      start_time: "11:00 AM",
-      end_time: "11:15 AM",
-      location: "Staff Room 2",
-      max_bookings: 1,
-      current_bookings: 1,
-      status: "fully_booked",
-      is_booked_by_me: false,
-    },
-  ];
-
-  const defaultBookings: PTMBooking[] = bookings.length > 0 ? bookings : [
-    {
-      id: "b1",
-      slot_id: "slot4",
-      teacher_name: "Mrs. Ayesha Malik",
-      subject_name: "Mathematics",
-      slot_date: "2026-07-20",
-      start_time: "09:00 AM",
-      end_time: "09:15 AM",
-      location: "Room 101",
-      student_id: child.student_id,
-      student_name: `${child.first_name || ""} ${child.last_name || ""}`.trim(),
-      status: "confirmed",
-      parent_notes: "Discuss algebra test performance.",
-      teacher_notes: null,
-      meeting_summary: null,
-    },
-  ];
-
-  const activeSlots = slots.length > 0 ? slots : defaultSlots;
-  const activeBookings = bookings.length > 0 ? bookings : defaultBookings;
+  // What the school has actually scheduled, and nothing else.
+  //
+  // This used to invent three parent-teacher slots - named teachers, real
+  // -looking rooms and times - and a *confirmed booking* for this parent's own
+  // child, annotated "Discuss algebra test performance." A parent could have
+  // turned up at Room 101 on a date the school never set, believing they had
+  // an appointment.
+  const activeSlots = slots;
+  const activeBookings = bookings;
 
   return (
     <div className="space-y-6">
