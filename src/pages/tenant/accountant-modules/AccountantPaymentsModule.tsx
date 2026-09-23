@@ -1,4 +1,6 @@
 import { describeShare, downloadReceipt, printReceipt, shareReceipt, type ReceiptInput } from "@/lib/documents";
+import { Banknote } from "lucide-react";
+import { ModuleHeader } from "@/components/tenant/module-kit";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useState, useCallback, useMemo } from "react";
 import { useParams } from "react-router-dom";
@@ -535,6 +537,12 @@ export function AccountantPaymentsModule() {
 
   return (
     <div className="space-y-6">
+      <ModuleHeader
+        icon={Banknote}
+        tone="emerald"
+        title="Payments"
+        description="Money received — when it came in, how it was paid, and which invoice it settled."
+      />
       {/* Summary KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
         <Card className="border-blue-100 bg-gradient-to-br from-white to-blue-50/20 shadow-sm rounded-2xl">

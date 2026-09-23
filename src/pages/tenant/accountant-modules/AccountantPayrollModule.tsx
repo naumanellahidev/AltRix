@@ -1,4 +1,5 @@
 import { useState, useCallback, useMemo } from "react";
+import { ModuleHeader } from "@/components/tenant/module-kit";
 import { useParams } from "react-router-dom";
 import { money } from "@/lib/documents/format";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -802,6 +803,12 @@ export function AccountantPayrollModule() {
 
   return (
     <div className="space-y-6">
+      <ModuleHeader
+        icon={Wallet}
+        tone="violet"
+        title="Payroll"
+        description="What each member of staff is paid this period, the deductions against it, and the payslips it produces."
+      />
       <OfflineDataBanner
         isOffline={isOffline}
         isUsingCache={isUsingCache}

@@ -1,4 +1,5 @@
 import { describeShare, downloadInvoice, printInvoice, shareInvoice, type InvoiceInput } from "@/lib/documents";
+import { ModuleHeader } from "@/components/tenant/module-kit";
 import { useState, useCallback } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -762,6 +763,12 @@ export function AccountantInvoicesModule() {
 
   return (
     <div className="space-y-6">
+      <ModuleHeader
+        icon={FileText}
+        tone="blue"
+        title="Invoices"
+        description="What each family has been billed, what has been paid against it, and what is still outstanding."
+      />
 
       {/* Stats Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">

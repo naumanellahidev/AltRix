@@ -1,4 +1,6 @@
 import { useState, useMemo } from "react";
+import { Receipt } from "lucide-react";
+import { ModuleHeader } from "@/components/tenant/module-kit";
 import { useParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, TrendingDown, Trash2, Edit, Filter, WifiOff, RefreshCw } from "lucide-react";
@@ -261,6 +263,12 @@ export function AccountantExpensesModule() {
 
   return (
     <div className="space-y-6">
+      <ModuleHeader
+        icon={Receipt}
+        tone="rose"
+        title="Expenses"
+        description="Everything the school has spent, by category and by vendor, with the receipts behind it."
+      />
       <OfflineDataBanner isOffline={isOffline} isUsingCache={isUsingCache} onRefresh={refreshOffline} />
       {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-4">
