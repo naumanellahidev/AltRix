@@ -1015,3 +1015,40 @@ builds.
 automatically and **names the people**, and the principal's dashboard shows
 them in a card that links to the tab where each is fixed. It appears only when
 there is something to say.
+
+### Slice 29 — real samples in the pickers, and the shell's premium kit (in progress)
+
+- **Choosing a design showed nothing.** The ID card settings screen previewed
+  a card by re-drawing it in HTML, and that drawing **ignored `design_style`
+  entirely** — so picking a design changed a database column and nothing a
+  principal could see; only the printed PDF differed, which is the one place
+  they could not check before committing. The report card picker had the same
+  shape of problem: a schematic, not the card.
+  `buildIdCardPreview` draws one card on a card-sized page with the real
+  builder, and `PdfSamplePreview` shows any built document in the page itself.
+  Both pickers are now galleries of **the real document**: seven report cards
+  and seven ID cards, each built by the same code that prints, on the school's
+  own letterhead, with the chosen one marked. The per-student Preview Card
+  modal and the big live preview show the real card too, front and back.
+  Samples use a clearly fictional pupil — a design gallery is not a place for
+  a real child's marks or photograph.
+- **The premium kit.** Sixty screens each solved "no heading", "empty looks
+  like broken", "blank flash while loading" and "a failure with nothing on
+  screen" in their own way, or not at all. `src/components/tenant/module-kit.tsx`
+  holds the shared answers — `ModuleHeader`, `StatTiles`, `PanelCard`,
+  `EmptyState`, `LoadingRows`, `ErrorState` — so a module is premium by using
+  them, and the next module looks like it belongs beside it.
+  A scan scored all 62 principal modules against those five; the work is being
+  done worst-first.
+- **Applied so far**: Offboarding, Leads, At-Risk Students, Budget Simulator,
+  Support, Parent Notes (all opened with no heading at all — several were
+  indistinguishable from the tab beside them), Attendance Heatmap and Fee
+  Configurations.
+- The heatmap's banner announced "Live Security Feed", "Centroid Lock:
+  Verified", "Geofence Max: 100m Radius" and "WS Sync: Active" as fixed text.
+  Nothing measured any of them. A banner that reports a status it never checked
+  is worse than no banner; it now says what the map actually shows.
+- Fee Configurations swallowed its own load failure — `catch { setDiscounts([]) }`
+  — so a permissions error and a school that had configured nothing looked
+  identical. It reports now, and its three figures say what each means when the
+  count is zero.

@@ -596,3 +596,46 @@ function contrastOk(a: Rgb, b: Rgb) {
   const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
   return (hi + 0.05) / (lo + 0.05) >= 3;
 }
+
+/**
+ * One card, on a page the size of a card, for showing on screen.
+ *
+ * The settings screen used to preview an ID card by re-drawing it in HTML —
+ * and that drawing ignored `design_style` entirely, so choosing a design
+ * changed a database column and nothing a principal could see. Only the
+ * printed PDF was different, which is the one place they could not check.
+ *
+ * This draws the real card with the real builder, so the preview and the
+ * print cannot disagree.
+ */
+export async function buildIdCardPreview(
+  student: IdCardStudent,
+  settings: IdCardSettings,
+  options: { brand?: SchoolBrand; side?: "front" | "back" } = {},
+): Promise<Blob> {
+  const [brand] = await Promise.all([options.brand ?? loadActiveSchoolBrand(), ensureUnicodeFontLoaded()]);
+  const vertical = (settings.card_layout || "vertical") !== "horizontal";
+  const w = vertical ? CARD_SHORT : CARD_LONG;
+  const h = vertical ? CARD_LONG : CARD_SHORT;
+
+  const pdf = new jsPDF({ orientation: vertical ? "portrait" : "landscape", unit: "mm", format: [w, h], compress: true });
+  installTextSafety(pdf);
+  applyLoadedUnicodeFont(pdf);
+
+  const accent = parseColor(settings.primary_color) ?? brand.accent;
+  const configured = parseColor(settings.text_color);
+  const onAccent = configured && contrastOk(configured, accent) ? configured : readableOn(accent);
+  const ctx: Ctx = { pdf, brand, settings, accent, onAccent, logo: brand.logo };
+
+  // A sample never fetches a photograph: the preview must not wait on the
+  // network, and the fallback initials are what most cards show anyway.
+  if (options.side === "back") {
+    drawBack(ctx, student, 0, 0, w, h);
+  } else if (vertical) {
+    drawFrontVertical(ctx, student, null, 0, 0, w, h);
+  } else {
+    drawFrontHorizontal(ctx, student, null, 0, 0, w, h);
+  }
+
+  return pdf.output("blob");
+}

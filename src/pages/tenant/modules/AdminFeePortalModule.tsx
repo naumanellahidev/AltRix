@@ -8,9 +8,11 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { apiClient } from "@/lib/api-client";
+import { ErrorState, ModuleHeader, StatTiles } from "@/components/tenant/module-kit";
+import { reportLoadFailure } from "@/lib/load-failure";
 import { toast } from "sonner";
 import {
-  CreditCard, DollarSign, Percent, ShieldAlert, Plus, Trash2, RefreshCw, CheckCircle2, Layers
+  CreditCard, DollarSign, Percent, ShieldAlert, Plus, Trash2, RefreshCw, CheckCircle2, Layers, Settings2
 } from "lucide-react";
 
 interface SiblingDiscount {
@@ -41,6 +43,7 @@ export function AdminFeePortalModule() {
   const [gateways, setGateways] = useState<GatewayConfig[]>([]);
   const [escalations, setEscalations] = useState<Escalation[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState<unknown>(null);
 
   const [showAddDiscount, setShowAddDiscount] = useState(false);
   const [newDisc, setNewDisc] = useState({ sibling_number: 2, discount_percentage: 15 });
@@ -56,10 +59,15 @@ export function AdminFeePortalModule() {
       setDiscounts(resDisc.data ?? []);
       setGateways(resGate.data ?? []);
       setEscalations(resEsc.data ?? []);
-    } catch {
+      setLoadError(null);
+    } catch (err) {
+      // This used to reset all three lists and say nothing, so a permissions
+      // error and a school that has configured nothing looked identical.
       setDiscounts([]);
       setGateways([]);
       setEscalations([]);
+      setLoadError(err);
+      reportLoadFailure("the fee configuration", err);
     }
     setLoading(false);
   };
@@ -90,65 +98,47 @@ export function AdminFeePortalModule() {
   };
 
   return (
-    <div className="space-y-6">
-      {/* Header Banner */}
-      <div className="bg-gradient-to-r from-blue-700 via-indigo-600 to-blue-800 text-white rounded-2xl p-6 shadow-lg shadow-blue-500/10 border border-blue-400/20">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <div className="p-3 bg-white/10 rounded-xl backdrop-blur-md border border-white/20">
-              <DollarSign className="h-8 w-8 text-blue-100" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight">Fee Policy & Payment Gateway Control</h1>
-              <p className="text-blue-100 text-sm mt-0.5">Automated sibling discounts, online gateway API keys (Stripe, 1Link, JazzCash) & fee escalations</p>
-            </div>
-          </div>
-          <Button onClick={loadData} className="bg-white text-blue-700 hover:bg-blue-50 font-semibold shadow-md">
-            <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} /> Sync Configs
+    <div className="space-y-5">
+      <ModuleHeader
+        icon={Settings2}
+        tone="blue"
+        title="Fee configuration"
+        description="The rules the fee system applies on its own: sibling concessions, the payment gateways parents can use, and the reminder ladder for unpaid fees."
+        actions={
+          <Button variant="outline" onClick={loadData} disabled={loading}>
+            <RefreshCw className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`} /> Refresh
           </Button>
-        </div>
-      </div>
+        }
+      />
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm p-5 hover:shadow-md transition-all">
-          <div className="flex items-center gap-3">
-            <div className="p-3 rounded-xl bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-900/50">
-              <Percent className="h-6 w-6" />
-            </div>
-            <div>
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Sibling Concessions</p>
-              <p className="text-2xl font-bold text-slate-900 dark:text-slate-100 mt-0.5">{discounts.length} Rules Active</p>
-            </div>
-          </div>
+      {loadError ? (
+        <Card className="rounded-2xl border-rose-200 dark:border-rose-900">
+          <ErrorState title="The fee configuration could not be loaded" error={loadError} onRetry={loadData} />
         </Card>
+      ) : null}
 
-        <Card className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm p-5 hover:shadow-md transition-all">
-          <div className="flex items-center gap-3">
-            <div className="p-3 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-900/50">
-              <CreditCard className="h-6 w-6" />
-            </div>
-            <div>
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Payment Gateways</p>
-              <p className="text-2xl font-bold text-indigo-600 dark:text-indigo-400 mt-0.5">{gateways.length} Integrated</p>
-            </div>
-          </div>
-        </Card>
+      <StatTiles
+        stats={[
+          {
+            label: "Sibling concessions",
+            value: discounts.length,
+            hint: discounts.length ? "Applied automatically when a voucher is generated" : "None set — no sibling discount is applied",
+          },
+          {
+            label: "Payment gateways",
+            value: gateways.length,
+            hint: gateways.length ? "Parents can pay online" : "None configured — parents pay at the bank or the office",
+          },
+          {
+            label: "Unresolved escalations",
+            value: escalations.filter((e) => !e.resolved).length,
+            tone: escalations.filter((e) => !e.resolved).length ? "warning" : "default",
+            hint: "Notices raised against overdue invoices",
+          },
+        ]}
+      />
 
-        <Card className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm p-5 hover:shadow-md transition-all">
-          <div className="flex items-center gap-3">
-            <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-900/50">
-              <ShieldAlert className="h-6 w-6" />
-            </div>
-            <div>
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Fee Audit Escalations</p>
-              <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-0.5">{escalations.filter(e => !e.resolved).length} Pending</p>
-            </div>
-          </div>
-        </Card>
-      </div>
-
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
+            <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="bg-slate-100 dark:bg-slate-800 p-1 border border-slate-200 dark:border-slate-700 mb-4">
           <TabsTrigger value="discounts" className="data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-sm font-medium">
             <Percent className="h-4 w-4 mr-2" /> Sibling Discount Matrix

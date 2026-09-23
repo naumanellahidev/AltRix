@@ -24,10 +24,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { PdfSamplePreview } from "@/components/documents/PdfSamplePreview";
+import { buildFittedReportCard } from "@/lib/documents/report-card";
+import { SAMPLE_REPORT_CARD } from "@/lib/documents/samples";
 import {
   REPORT_CARD_TEMPLATES,
   TEMPLATE_ORDER,
-  type ReportCardTemplate,
 } from "@/lib/documents/report-card-templates";
 import {
   FIT_STRATEGY_CHOICES,
@@ -170,7 +172,7 @@ export function ReportCardPrintSetup({
                 the border. Pick one now and change it whenever you like.
               </p>
             </div>
-            <div className="grid gap-2 sm:grid-cols-2">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {TEMPLATE_ORDER.map((id) => {
                 const template = REPORT_CARD_TEMPLATES[id];
                 const active = draft.template === id;
@@ -179,23 +181,45 @@ export function ReportCardPrintSetup({
                     key={id}
                     type="button"
                     onClick={() => setDraft({ ...draft, template: id })}
-                    className={`rounded-xl border p-3 text-left transition ${
+                    aria-pressed={active}
+                    className={`group overflow-hidden rounded-xl border text-left transition ${
                       active
-                        ? "border-primary bg-primary/5 ring-1 ring-primary/30"
+                        ? "border-primary ring-2 ring-primary/40"
                         : "hover:border-slate-300 dark:hover:border-slate-700"
                     }`}
                   >
-                    <div className="flex items-start gap-2.5">
-                      <TemplateThumbnail template={template} active={active} />
-                      <div className="min-w-0">
-                        <p className="font-medium">{template.name}</p>
-                        <p className="text-xs text-muted-foreground">{template.description}</p>
-                      </div>
+                    <div className="relative bg-slate-100 dark:bg-slate-800">
+                      {/* The card itself, built by the same code that prints it,
+                          on this school's letterhead. */}
+                      <PdfSamplePreview
+                        cacheKey={`${id}-${draft.showPhoto}-${draft.showAttendance}-${draft.showActivities}-${draft.showTermTrend}-${draft.showGradeKey}-${draft.showRank}`}
+                        title={`${template.name} report card sample`}
+                        className="h-[260px] w-full"
+                        build={async () => {
+                          const built = await buildFittedReportCard(SAMPLE_REPORT_CARD, {
+                            settings: { ...draft, template: id },
+                          });
+                          return built.doc.blob();
+                        }}
+                      />
+                      {active && (
+                        <span className="absolute right-2 top-2 rounded-full bg-primary px-2 py-0.5 text-[10px] font-bold text-primary-foreground shadow">
+                          Chosen
+                        </span>
+                      )}
+                    </div>
+                    <div className="border-t p-2.5">
+                      <p className="text-sm font-medium">{template.name}</p>
+                      <p className="text-xs text-muted-foreground">{template.description}</p>
                     </div>
                   </button>
                 );
               })}
             </div>
+            <p className="text-xs text-muted-foreground">
+              Each sample is the real card, built the way it prints, on your school's letterhead.
+              The pupil on it is fictional.
+            </p>
           </section>
         </div>
 
@@ -216,107 +240,3 @@ export function ReportCardPrintSetup({
 }
 
 export default ReportCardPrintSetup;
-
-/**
- * A miniature of the design, so the choice is made by eye rather than by name.
- *
- * It mirrors what the builder actually draws — the page border, the heading
- * style, the shape of the figures and the table — at the size of a stamp.
- */
-function TemplateThumbnail({
-  template,
-  active,
-}: {
-  template: ReportCardTemplate;
-  active: boolean;
-}) {
-  const accent = active ? "currentColor" : "#94a3b8";
-  const rule = "#cbd5e1";
-
-  return (
-    <svg
-      viewBox="0 0 34 46"
-      className={`h-[46px] w-[34px] shrink-0 rounded-sm border bg-white ${active ? "text-primary" : "text-slate-400"}`}
-      aria-hidden="true"
-    >
-      {/* page border */}
-      {template.pageFrame === "topBand" && <rect x="0" y="0" width="34" height="3" fill={accent} />}
-      {template.pageFrame === "hairline" && (
-        <rect x="1.5" y="1.5" width="31" height="43" fill="none" stroke={rule} strokeWidth="0.6" />
-      )}
-      {template.pageFrame === "double" && (
-        <>
-          <rect x="1.2" y="1.2" width="31.6" height="43.6" fill="none" stroke={accent} strokeWidth="0.9" />
-          <rect x="2.6" y="2.6" width="28.8" height="40.8" fill="none" stroke={rule} strokeWidth="0.4" />
-        </>
-      )}
-
-      {/* letterhead */}
-      <rect x="5" y={template.pageFrame === "topBand" ? 6 : 5} width="14" height="2" rx="0.6" fill={accent} />
-      <rect x="5" y={template.pageFrame === "topBand" ? 9.5 : 8.5} width="24" height="0.8" rx="0.4" fill={rule} />
-
-      {/* headline figures */}
-      {template.tileStyle === "strip" ? (
-        <>
-          <rect x="5" y="13" width="24" height="0.7" fill={rule} />
-          <rect x="5" y="15.5" width="24" height="0.5" fill={rule} />
-        </>
-      ) : (
-        [0, 1, 2].map((i) => (
-          <rect
-            key={i}
-            x={5 + i * 8.4}
-            y="12.5"
-            width="7.2"
-            height="5"
-            rx="1"
-            fill={template.tileStyle === "filled" ? accent : "none"}
-            fillOpacity={template.tileStyle === "filled" ? 0.18 : 1}
-            stroke={template.tileStyle === "outlined" ? rule : "none"}
-            strokeWidth="0.5"
-          />
-        ))
-      )}
-
-      {/* section heading */}
-      {template.sectionStyle === "band" ? (
-        <rect x="5" y="20" width="24" height="2.6" fill={accent} />
-      ) : template.sectionStyle === "sideRules" ? (
-        <>
-          <rect x="5" y="21.2" width="7" height="0.5" fill={accent} />
-          <rect x="13.5" y="20.2" width="7" height="2" rx="0.4" fill={accent} fillOpacity="0.5" />
-          <rect x="22" y="21.2" width="7" height="0.5" fill={accent} />
-        </>
-      ) : (
-        <>
-          <rect x="5" y="20.2" width="10" height="1.4" rx="0.4" fill={accent} fillOpacity="0.55" />
-          {template.sectionStyle === "rule" && <rect x="5" y="22.4" width="24" height="0.5" fill={accent} />}
-        </>
-      )}
-
-      {/* result table */}
-      <g>
-        {template.table.accentHeader && <rect x="5" y="25" width="24" height="2.4" fill={accent} />}
-        {[0, 1, 2, 3].map((i) => (
-          <g key={i}>
-            {template.table.zebra && i % 2 === 1 && (
-              <rect x="5" y={28 + i * 3} width="24" height="2.6" fill={rule} fillOpacity="0.35" />
-            )}
-            <rect x="6" y={29 + i * 3} width="12" height="0.6" fill={rule} />
-            <rect x="24" y={29 + i * 3} width="4" height="0.6" fill={rule} />
-            {template.table.rowRules && (
-              <rect x="5" y={30.6 + i * 3} width="24" height="0.3" fill={rule} fillOpacity="0.8" />
-            )}
-          </g>
-        ))}
-        {template.table.frame && (
-          <rect x="5" y="25" width="24" height="15.5" fill="none" stroke={rule} strokeWidth="0.5" />
-        )}
-      </g>
-
-      {/* signature lines */}
-      <rect x="5" y="42.5" width="8" height="0.5" fill={rule} />
-      <rect x="21" y="42.5" width="8" height="0.5" fill={rule} />
-    </svg>
-  );
-}

@@ -1,5 +1,19 @@
 import { useEffect, useMemo, useState, useRef } from "react";
 import { reportLoadFailure } from "@/lib/load-failure";
+import { PdfSamplePreview } from "@/components/documents/PdfSamplePreview";
+import { buildIdCardPreview } from "@/lib/documents/id-card";
+import { SAMPLE_ID_CARD_STUDENT } from "@/lib/documents/samples";
+
+/** The seven designs, in the order the gallery shows them. */
+const CARD_DESIGNS: Array<{ id: string; name: string; description: string }> = [
+  { id: "modern", name: "Modern", description: "Gradient head, rounded photograph." },
+  { id: "classic", name: "Classic", description: "Solid head inside a framed card." },
+  { id: "minimal", name: "Minimal", description: "One hairline of colour and nothing else." },
+  { id: "playful", name: "Playful", description: "Soft shapes, for the younger years." },
+  { id: "crest", name: "Crest", description: "A double-ruled border and a serif school name." },
+  { id: "ribbon", name: "Ribbon", description: "A diagonal sweep of the school colour." },
+  { id: "corporate", name: "Corporate", description: "A deep solid head, staff-badge look." },
+];
 import { useParams } from "react-router-dom";
 import { api } from "@/lib/api";
 import { getVPSFileUrl, uploadVPSFile } from "@/lib/vpsStorage";
@@ -1329,26 +1343,61 @@ export function StudentCardsModule() {
                         />
                       </div>
 
-                      {/* Design theme selection */}
-                      <div className="space-y-1.5">
-                        <Label className="text-slate-700 font-medium">Design Style</Label>
-                        <Select 
-                          value={settings?.design_style || "modern"} 
-                          onValueChange={(v) => setSettings(prev => prev ? { ...prev, design_style: v } : null)}
-                        >
-                          <SelectTrigger className="border-slate-200">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="modern">Modern — gradient head, rounded photo</SelectItem>
-                            <SelectItem value="classic">Classic — solid head, framed card</SelectItem>
-                            <SelectItem value="minimal">Minimal — a hairline of colour, nothing else</SelectItem>
-                            <SelectItem value="playful">Playful — soft shapes, for the younger years</SelectItem>
-                            <SelectItem value="crest">Crest — a double-ruled border, serif school name</SelectItem>
-                            <SelectItem value="ribbon">Ribbon — a diagonal sweep of the school colour</SelectItem>
-                            <SelectItem value="corporate">Corporate — deep solid head, staff-badge look</SelectItem>
-                          </SelectContent>
-                        </Select>
+                      {/* Design, chosen by looking at it */}
+                      <div className="space-y-2">
+                        <Label className="text-slate-700 font-medium">Design</Label>
+                        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                          {CARD_DESIGNS.map((design) => {
+                            const active = (settings?.design_style || "modern") === design.id;
+                            return (
+                              <button
+                                key={design.id}
+                                type="button"
+                                aria-pressed={active}
+                                onClick={() =>
+                                  setSettings((prev) => (prev ? { ...prev, design_style: design.id } : null))
+                                }
+                                className={`group overflow-hidden rounded-xl border text-left transition ${
+                                  active
+                                    ? "border-blue-600 ring-2 ring-blue-500/40"
+                                    : "border-slate-200 hover:border-slate-300"
+                                }`}
+                                title={design.description}
+                              >
+                                <div className="relative bg-slate-100">
+                                  {settings && (
+                                    <PdfSamplePreview
+                                      cacheKey={`${design.id}-${settings.card_layout}-${settings.primary_color}-${settings.text_color}-${settings.show_logo}-${settings.show_qr_code}-${settings.card_title}`}
+                                      title={`${design.name} ID card sample`}
+                                      zoom="Fit"
+                                      className="h-[150px] w-full"
+                                      build={() =>
+                                        buildIdCardPreview(SAMPLE_ID_CARD_STUDENT, {
+                                          ...settings,
+                                          design_style: design.id,
+                                        })
+                                      }
+                                    />
+                                  )}
+                                  {active && (
+                                    <span className="absolute right-1.5 top-1.5 rounded-full bg-blue-600 px-2 py-0.5 text-[10px] font-bold text-white shadow">
+                                      Chosen
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="border-t px-2 py-1.5">
+                                  <p className="text-xs font-semibold text-slate-800">{design.name}</p>
+                                  <p className="text-[10px] leading-tight text-slate-500">{design.description}</p>
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                        <p className="text-[11px] text-slate-500">
+                          Each sample is the real card, drawn by the same code that prints it. Remember to
+                          save &mdash; the design is stored against the school and used for every card
+                          printed after that.
+                        </p>
                       </div>
 
                       {/* Orientation layout toggle */}
@@ -1535,31 +1584,24 @@ export function StudentCardsModule() {
                     Live Layout Preview (Double-Sided)
                   </h3>
                   
-                  {/* High Fidelity Card Preview Container */}
-                  <div className={`flex flex-row flex-wrap justify-center items-center gap-6 w-full ${settings?.card_layout === 'horizontal' ? 'flex-col' : ''}`}>
-                    {/* FRONT SIDE */}
-                    <IDCard 
-                      student={{ first_name: "John", last_name: "Doe", registration_number: "REG-992381", emergency_contact: "123-456-789" }}
-                      settings={settings}
-                      schoolName={schoolName}
-                      schoolLogo={schoolLogo}
-                      schoolAddress={schoolAddress}
-                      schoolPhone={schoolPhone}
-                      schoolEmail={schoolEmail}
-                      side="front"
-                    />
-
-                    {/* BACK SIDE */}
-                    <IDCard 
-                      student={{ id: "preview", first_name: "Sample Student" }}
-                      settings={settings}
-                      schoolName={schoolName}
-                      schoolLogo={schoolLogo}
-                      schoolAddress={schoolAddress}
-                      schoolPhone={schoolPhone}
-                      schoolEmail={schoolEmail}
-                      side="back"
-                    />
+                  {/* The real card, both sides, exactly as it prints. */}
+                  <div className={`flex w-full flex-wrap items-center justify-center gap-6 ${settings?.card_layout === "horizontal" ? "flex-col" : "flex-row"}`}>
+                    {settings && (["front", "back"] as const).map((side) => (
+                      <div key={side} className="flex flex-col items-center gap-2">
+                        <PdfSamplePreview
+                          cacheKey={`${side}-${settings.design_style}-${settings.card_layout}-${settings.primary_color}-${settings.text_color}-${settings.card_title}-${settings.show_logo}-${settings.show_qr_code}-${settings.show_roll_number}-${settings.show_class}-${settings.show_dob}-${settings.show_blood_group}-${settings.show_emergency_contact}-${settings.show_signature}-${settings.signature_text}`}
+                          title={`ID card ${side}`}
+                          zoom="Fit"
+                          className={`rounded-xl border border-slate-200 shadow-soft ${
+                            settings.card_layout === "horizontal" ? "h-[260px] w-[410px]" : "h-[410px] w-[260px]"
+                          }`}
+                          build={() => buildIdCardPreview(SAMPLE_ID_CARD_STUDENT, settings, { side })}
+                        />
+                        <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                          {side}
+                        </span>
+                      </div>
+                    ))}
                   </div>
                 </div>
               </div>
@@ -1942,35 +1984,43 @@ export function StudentCardsModule() {
 
           {previewStudent && (
             <div className="flex flex-col md:flex-row justify-center items-center gap-8 py-6 bg-slate-50 border border-slate-200 rounded-2xl overflow-auto max-h-[70vh] w-full">
-              {/* FRONT SIDE */}
-              <div className="flex flex-col items-center">
-                <span className="text-xs font-bold text-slate-500 mb-2 uppercase tracking-widest">Front Side</span>
-                <IDCard 
-                  student={previewStudent}
-                  settings={settings}
-                  schoolName={schoolName}
-                  schoolLogo={schoolLogo}
-                  schoolAddress={schoolAddress}
-                  schoolPhone={schoolPhone}
-                  schoolEmail={schoolEmail}
-                  side="front"
-                />
-              </div>
-
-              {/* BACK SIDE */}
-              <div className="flex flex-col items-center">
-                <span className="text-xs font-bold text-slate-500 mb-2 uppercase tracking-widest">Back Side</span>
-                <IDCard 
-                  student={previewStudent}
-                  settings={settings}
-                  schoolName={schoolName}
-                  schoolLogo={schoolLogo}
-                  schoolAddress={schoolAddress}
-                  schoolPhone={schoolPhone}
-                  schoolEmail={schoolEmail}
-                  side="back"
-                />
-              </div>
+              {/* The card as it will print - the same builder, this student's
+                  own details, and the design the school has chosen. */}
+              {settings && (["front", "back"] as const).map((side) => (
+                <div key={side} className="flex flex-col items-center">
+                  <span className="mb-2 text-xs font-bold uppercase tracking-widest text-slate-500">
+                    {side} side
+                  </span>
+                  <PdfSamplePreview
+                    cacheKey={`${previewStudent.id}-${side}-${settings.design_style}-${settings.card_layout}-${settings.primary_color}`}
+                    title={`ID card ${side} for ${previewStudent.first_name}`}
+                    zoom="Fit"
+                    className={`rounded-xl border border-slate-200 shadow-soft ${
+                      settings.card_layout === "horizontal" ? "h-[260px] w-[410px]" : "h-[410px] w-[260px]"
+                    }`}
+                    build={() =>
+                      buildIdCardPreview(
+                        {
+                          id: previewStudent.id,
+                          first_name: previewStudent.first_name,
+                          last_name: previewStudent.last_name ?? null,
+                          roll_number: previewStudent.roll_number ?? null,
+                          registration_number: previewStudent.registration_number ?? null,
+                          date_of_birth: previewStudent.date_of_birth ?? null,
+                          blood_group: previewStudent.blood_group ?? null,
+                          card_valid_until: previewStudent.card_valid_until ?? null,
+                          profile_image_url: null,
+                          emergency_contact: previewStudent.emergency_contact ?? null,
+                          class_name: previewStudent.class_name ?? null,
+                          section_name: previewStudent.section_name ?? null,
+                        },
+                        settings,
+                        { side },
+                      )
+                    }
+                  />
+                </div>
+              ))}
             </div>
           )}
 
