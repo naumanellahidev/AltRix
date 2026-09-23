@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import {
   Package, Plus, Search, RefreshCw, AlertTriangle, ArrowUpRight, ArrowDownLeft, Boxes
 } from "lucide-react";
+import { ErrorState, ModuleHeader, QueryState, StatTiles } from "@/components/tenant/module-kit";
 
 interface InventoryItem {
   id: string;
@@ -29,6 +30,7 @@ export function InventoryModule() {
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [alerts, setAlerts] = useState<InventoryItem[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState<unknown>(null);
   const [search, setSearch] = useState("");
 
   const [showAddItem, setShowAddItem] = useState(false);
@@ -45,9 +47,13 @@ export function InventoryModule() {
       ]);
       setItems(resItems.data ?? []);
       setAlerts(resAlerts.data ?? []);
-    } catch {
+      setLoadError(null);
+    } catch (err) {
+      // This used to empty both lists and say nothing, so a permissions error
+      // and a school that has recorded no stock looked exactly alike.
       setItems([]);
       setAlerts([]);
+      setLoadError(err);
     }
     setLoading(false);
   };
@@ -91,11 +97,12 @@ export function InventoryModule() {
       toast.success(`Stock updated: ${adjustItem.item_name} is now ${newQty}`);
       setAdjustItem(null);
       loadInventory();
-    } catch {
-      // Optimistic local fallback
-      setItems(prev => prev.map(i => i.id === adjustItem.id ? { ...i, available_quantity: newQty } : i));
-      toast.success(`Stock recorded: ${adjustItem.item_name}`);
-      setAdjustItem(null);
+    } catch (err: any) {
+      // This used to change the number on screen and report success. The
+      // server had refused the write, so the storekeeper was told the stock
+      // had been adjusted and the figure reverted on the next refresh. A
+      // write that did not land is reported as a write that did not land.
+      toast.error(err?.response?.data?.detail || `${adjustItem.item_name} could not be adjusted — the change was not saved`);
     }
   };
 
@@ -109,62 +116,42 @@ export function InventoryModule() {
 
   return (
     <div className="space-y-6">
-      {/* Header Banner */}
-      <div className="bg-gradient-to-r from-blue-700 via-indigo-600 to-blue-800 text-white rounded-2xl p-6 shadow-lg shadow-blue-500/10 border border-blue-400/20">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <div className="p-3 bg-white/10 rounded-xl backdrop-blur-md border border-white/20">
-              <Boxes className="h-8 w-8 text-blue-100" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight">School Assets & Inventory Store</h1>
-              <p className="text-blue-100 text-sm mt-0.5">Track lab equipment, stationery stock, furniture & store requisitions</p>
-            </div>
-          </div>
-          <Button onClick={() => setShowAddItem(true)} className="bg-white text-blue-700 hover:bg-blue-50 font-semibold shadow-md rounded-xl">
-            <Plus className="h-4 w-4 mr-2" /> Add New Asset Item
+      <ModuleHeader
+        icon={Boxes}
+        tone="blue"
+        title="Assets & inventory"
+        description="Everything the school owns and issues — lab equipment, furniture, stationery stock — with what is left on the shelf."
+        actions={
+          <Button onClick={() => setShowAddItem(true)}>
+            <Plus className="h-4 w-4 mr-2" /> Add asset item
           </Button>
-        </div>
-      </div>
+        }
+      />
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm p-5 hover:shadow-md transition-all rounded-2xl">
-          <div className="flex items-center gap-3">
-            <div className="p-3 rounded-xl bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-900/50">
-              <Package className="h-6 w-6" />
-            </div>
-            <div>
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Store Items</p>
-              <p className="text-2xl font-bold text-slate-900 dark:text-slate-100 mt-0.5">{items.length}</p>
-            </div>
-          </div>
+      {loadError ? (
+        <Card className="rounded-2xl border-rose-200 dark:border-rose-900">
+          <ErrorState title="The inventory could not be loaded" error={loadError} onRetry={loadInventory} />
         </Card>
+      ) : null}
 
-        <Card className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm p-5 hover:shadow-md transition-all rounded-2xl">
-          <div className="flex items-center gap-3">
-            <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 border border-amber-100 dark:border-amber-900/50">
-              <AlertTriangle className="h-6 w-6" />
-            </div>
-            <div>
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Low Stock Reorders</p>
-              <p className="text-2xl font-bold text-amber-600 dark:text-amber-400 mt-0.5">{alerts.length} Items</p>
-            </div>
-          </div>
-        </Card>
-
-        <Card className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm p-5 hover:shadow-md transition-all rounded-2xl">
-          <div className="flex items-center gap-3">
-            <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-900/50">
-              <ArrowDownLeft className="h-6 w-6" />
-            </div>
-            <div>
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Store Requisitions</p>
-              <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-0.5">Active Desk</p>
-            </div>
-          </div>
-        </Card>
-      </div>
+      <StatTiles
+        stats={[
+          { label: "Items on record", value: items.length, hint: "Every asset the store has catalogued" },
+          {
+            label: "Below reorder level",
+            value: alerts.length,
+            tone: alerts.length ? "warning" : "default",
+            hint: alerts.length ? "Stock has fallen under the threshold set for the item" : "Nothing needs reordering",
+          },
+          {
+            label: "Units available",
+            // "Active Desk" stood here as though it were a measurement of
+            // something. This counts what is actually on the shelf.
+            value: items.reduce((total, item) => total + Number(item.available_quantity || 0), 0),
+            hint: "Across every catalogued item",
+          },
+        ]}
+      />
 
       {/* Main Table Card */}
       <Card className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm rounded-2xl">
@@ -201,13 +188,21 @@ export function InventoryModule() {
             ))}
           </div>
 
-          {filteredItems.length === 0 ? (
-            <div className="text-center py-12 text-slate-400">
-              <Package className="h-12 w-12 mx-auto mb-3 text-slate-300" />
-              <p className="font-semibold text-slate-700 dark:text-slate-300">No Asset Items Found</p>
-              <p className="text-xs text-slate-500 mt-1">Click "Add New Asset Item" to track school store items.</p>
-            </div>
-          ) : (
+          <QueryState
+            loading={loading && !items.length}
+            error={loadError}
+            onRetry={loadInventory}
+            errorTitle="The inventory could not be loaded"
+            isEmpty={!filteredItems.length}
+            empty={{
+              icon: Package,
+              title: items.length ? "Nothing matches that search" : "No asset items yet",
+              description: items.length
+                ? "Clear the search, or pick a different category."
+                : 'Add the first item with "Add asset item" — lab equipment, furniture or stationery the store issues.',
+            }}
+          >
+            {(
             <div className="overflow-x-auto no-scrollbar -mx-2 px-2">
               <Table>
                 <TableHeader>
@@ -250,6 +245,7 @@ export function InventoryModule() {
               </Table>
             </div>
           )}
+          </QueryState>
         </CardContent>
       </Card>
 

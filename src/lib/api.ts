@@ -87,7 +87,19 @@ export class VpsQueryBuilder {
     return this;
   }
 
-  upsert(payload: any, options?: { onConflict?: string; ignoreDuplicates?: boolean }) {
+  upsert(
+    payload: any,
+    options?: {
+      onConflict?: string;
+      /**
+       * The predicate of a *partial* unique index, when that is what should
+       * arbitrate the conflict — "exam_id IS NULL". Postgres will not use a
+       * partial index as an arbiter unless the statement repeats it.
+       */
+      onConflictWhere?: string;
+      ignoreDuplicates?: boolean;
+    },
+  ) {
     this.context.action = 'upsert';
     this.context.payload = payload;
     this.context.options = options;

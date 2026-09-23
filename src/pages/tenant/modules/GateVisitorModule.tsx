@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -42,6 +42,101 @@ interface BlacklistRecord {
   created_at: string;
 }
 
+/**
+ * The gate camera.
+ *
+ * Opens the device camera, shows what it sees, and hands back a JPEG of the
+ * frame the operator chose. Every failure - no camera on the machine, a
+ * browser that will not allow it, permission refused at the prompt - is
+ * reported as itself, and nothing is handed back. A visitor whose photograph
+ * could not be taken is recorded without one.
+ */
+function GateCamera({ onCapture, onClose }: { onCapture: (dataUrl: string) => void; onClose: () => void }) {
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const [problem, setProblem] = useState<string | null>(null);
+  const [ready, setReady] = useState(false);
+
+  const stop = useCallback(() => {
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    streamRef.current = null;
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        setProblem("This browser cannot open a camera. Check the visitor in without a photograph, or use a device that can.");
+        return;
+      }
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: "environment", width: { ideal: 640 } },
+          audio: false,
+        });
+        if (cancelled) {
+          stream.getTracks().forEach((t) => t.stop());
+          return;
+        }
+        streamRef.current = stream;
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          await videoRef.current.play().catch(() => undefined);
+        }
+        setReady(true);
+      } catch (err: any) {
+        const denied = err?.name === "NotAllowedError" || err?.name === "SecurityError";
+        setProblem(
+          denied
+            ? "The browser was not allowed to use the camera. Allow it for this site, or check the visitor in without a photograph."
+            : err?.name === "NotFoundError"
+              ? "No camera was found on this machine."
+              : "The camera could not be opened.",
+        );
+      }
+    })();
+    return () => {
+      cancelled = true;
+      stop();
+    };
+  }, [stop]);
+
+  const take = () => {
+    const video = videoRef.current;
+    if (!video || !video.videoWidth) return;
+    const canvas = document.createElement("canvas");
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const context = canvas.getContext("2d");
+    if (!context) {
+      setProblem("The frame could not be read from the camera.");
+      return;
+    }
+    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+    onCapture(canvas.toDataURL("image/jpeg", 0.82));
+    stop();
+    onClose();
+  };
+
+  return (
+    <div className="space-y-3 rounded-xl border p-3">
+      {problem ? (
+        <p className="text-sm text-rose-600 dark:text-rose-400">{problem}</p>
+      ) : (
+        <video ref={videoRef} playsInline muted className="w-full max-w-sm rounded-lg bg-black" />
+      )}
+      <div className="flex gap-2">
+        <Button onClick={take} disabled={!ready || !!problem} size="sm">
+          <Camera className="mr-2 h-4 w-4" /> Take photograph
+        </Button>
+        <Button onClick={() => { stop(); onClose(); }} variant="outline" size="sm">
+          Cancel
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 export default function GateVisitorModule() {
   const { schoolSlug } = useParams<{ schoolSlug: string }>();
   const gateRegisterUrl = `${window.location.origin}/${schoolSlug || "demo"}/visitor-register`;
@@ -53,6 +148,7 @@ export default function GateVisitorModule() {
   const [qrInput, setQrInput] = useState("");
   const [verificationResult, setVerificationResult] = useState<any | null>(null);
   const [gatePhoto, setGatePhoto] = useState<string>("");
+  const [cameraOpen, setCameraOpen] = useState(false);
 
   // Blacklist state
   const [blacklist, setBlacklist] = useState<BlacklistRecord[]>([]);
@@ -310,31 +406,42 @@ export default function GateVisitorModule() {
                       </div>
                     )}
 
-                    {/* Camera simulation check-in photo capture */}
+                    {/* The gate camera. Optional: a visitor with no photograph
+                        is checked in without one, never with a stand-in. */}
                     {verificationResult.pass.checkin_status !== "checked_in" && (
                       <div className="space-y-3">
                         <Label className="flex items-center gap-2">
-                          <Camera className="h-4 w-4 text-muted-foreground" /> Capture Visitor Photo (Gate camera)
+                          <Camera className="h-4 w-4 text-muted-foreground" /> Visitor photograph (optional)
                         </Label>
-                        <div className="flex items-center gap-4">
-                          <Button
-                            onClick={() => {
-                              setGatePhoto("https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&h=100&q=80");
-                              toast.info("Live gate photo captured!");
-                            }}
-                            variant="outline"
-                            className="border-primary/20 hover:bg-primary/5 text-foreground gap-2"
-                          >
-                            Capture Gate Photo
-                          </Button>
-                          {gatePhoto && (
-                            <img
-                              src={gatePhoto}
-                              alt="Gate Snapshot"
-                              className="h-14 w-14 rounded-lg object-cover border border-border"
-                            />
-                          )}
-                        </div>
+                        {cameraOpen ? (
+                          <GateCamera onCapture={setGatePhoto} onClose={() => setCameraOpen(false)} />
+                        ) : (
+                          <div className="flex items-center gap-4">
+                            <Button
+                              onClick={() => setCameraOpen(true)}
+                              variant="outline"
+                              className="border-primary/20 hover:bg-primary/5 text-foreground gap-2"
+                            >
+                              {gatePhoto ? "Retake photograph" : "Open camera"}
+                            </Button>
+                            {gatePhoto ? (
+                              <>
+                                <img
+                                  src={gatePhoto}
+                                  alt="Photograph taken at the gate"
+                                  className="h-14 w-14 rounded-lg object-cover border border-border"
+                                />
+                                <Button variant="ghost" size="sm" onClick={() => setGatePhoto("")}>
+                                  Discard
+                                </Button>
+                              </>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">
+                                None taken — the visitor will be checked in without a photograph.
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </div>
                     )}
 

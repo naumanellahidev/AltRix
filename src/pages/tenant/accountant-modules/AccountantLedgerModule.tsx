@@ -13,6 +13,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { ReportExportMenu } from "@/components/accountant/ReportExportMenu";
+import { ModuleHeader, QueryState } from "@/components/tenant/module-kit";
+import { money } from "@/lib/documents/format";
+import { sum } from "@/lib/documents/decimal";
 
 type Entry = {
   id: string;
@@ -24,8 +27,14 @@ type Entry = {
   amount: number;
 };
 
-const fmt = (n: number) =>
-  new Intl.NumberFormat("en-PK", { style: "currency", currency: "PKR", maximumFractionDigits: 0 }).format(n || 0);
+/**
+ * Amounts keep their paisa.
+ *
+ * This rounded to whole rupees, which a ledger cannot do: the running balance
+ * column is meant to be added up by the person reading it, and a column of
+ * rounded figures does not reconcile with the payments it was built from.
+ */
+const fmt = (value: number | string) => money(String(value ?? 0), { currency: "PKR" });
 
 export function AccountantLedgerModule() {
   const { schoolSlug } = useParams();
@@ -42,7 +51,7 @@ export function AccountantLedgerModule() {
   const [typeFilter, setTypeFilter] = useState<string>("__all");
   const [tab, setTab] = useState("journal");
 
-  const { data: payments = [] } = useQuery({
+  const paymentsQuery = useQuery({
     queryKey: ["ledger_payments", schoolId, from, to],
     enabled: !!schoolId,
     queryFn: async () => {
@@ -59,7 +68,7 @@ export function AccountantLedgerModule() {
     },
   });
 
-  const { data: expenses = [] } = useQuery({
+  const expensesQuery = useQuery({
     queryKey: ["ledger_expenses", schoolId, from, to],
     enabled: !!schoolId,
     queryFn: async () => {
@@ -74,6 +83,17 @@ export function AccountantLedgerModule() {
       return data ?? [];
     },
   });
+
+  const payments = paymentsQuery.data ?? [];
+  const expenses = expensesQuery.data ?? [];
+  // Half a ledger is not a ledger: if either side failed to load, the screen
+  // says so rather than showing the other side as though it were the whole.
+  const loading = paymentsQuery.isLoading || expensesQuery.isLoading;
+  const failure = paymentsQuery.error ?? expensesQuery.error;
+  const reload = () => {
+    void paymentsQuery.refetch();
+    void expensesQuery.refetch();
+  };
 
   const entries: Entry[] = useMemo(() => {
     const inflows: Entry[] = (payments as any[]).map((p) => ({
@@ -111,9 +131,9 @@ export function AccountantLedgerModule() {
   }, [entries, search, typeFilter]);
 
   const totals = useMemo(() => {
-    const inflow = entries.filter((e) => e.type === "inflow").reduce((s, e) => s + e.amount, 0);
-    const outflow = entries.filter((e) => e.type === "outflow").reduce((s, e) => s + e.amount, 0);
-    return { inflow, outflow, net: inflow - outflow };
+    const inflow = sum(entries.filter((e) => e.type === "inflow").map((e) => String(e.amount)));
+    const outflow = sum(entries.filter((e) => e.type === "outflow").map((e) => String(e.amount)));
+    return { inflow, outflow, net: String(Number(inflow) - Number(outflow)) };
   }, [entries]);
 
   // Running balance (oldest -> newest)
@@ -152,14 +172,13 @@ export function AccountantLedgerModule() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="font-display text-2xl font-semibold tracking-tight">Cash Ledger</h1>
-          <p className="text-sm text-muted-foreground">
-            Unified journal of every inflow and outflow across the school.
-          </p>
-        </div>
-        <ReportExportMenu
+      <ModuleHeader
+        icon={Wallet}
+        tone="emerald"
+        title="Cash ledger"
+        description="Every rupee that came in and every rupee that went out, in one journal, with the balance carried down."
+        actions={
+          <ReportExportMenu
           baseName="cash-ledger"
           rows={exportRows}
           print={{
@@ -172,8 +191,9 @@ export function AccountantLedgerModule() {
               { label: "Entries", value: String(entries.length) },
             ],
           }}
-        />
-      </div>
+          />
+        }
+      />
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-4">
         <Card className="rounded-2xl shadow-sm">
@@ -200,7 +220,7 @@ export function AccountantLedgerModule() {
               <p className="text-[10px] sm:text-xs text-muted-foreground uppercase font-semibold">Net Position</p>
               <p
                 className={`truncate text-xl sm:text-2xl font-bold tabular-nums mt-0.5 sm:mt-1 ${
-                  totals.net >= 0 ? "text-emerald-600" : "text-rose-600"
+                  Number(totals.net) >= 0 ? "text-emerald-600" : "text-rose-600"
                 }`}
               >
                 {fmt(totals.net)}
@@ -256,6 +276,20 @@ export function AccountantLedgerModule() {
               <CardTitle className="text-sm">Journal Entries ({withBalance.length})</CardTitle>
             </CardHeader>
             <CardContent className="p-0">
+              <QueryState
+                loading={loading}
+                error={failure}
+                onRetry={reload}
+                errorTitle="The ledger could not be loaded"
+                isEmpty={!withBalance.length}
+                empty={{
+                  icon: Wallet,
+                  title: entries.length ? "Nothing matches those filters" : "No entries in this period",
+                  description: entries.length
+                    ? "Widen the dates, or clear the type and search filters."
+                    : "Fee payments received and expenses recorded between these dates appear here as one journal.",
+                }}
+              >
               <div className="w-full overflow-auto">
                 <Table>
                   <TableHeader>
@@ -288,16 +322,10 @@ export function AccountantLedgerModule() {
                         <TableCell className="text-right tabular-nums font-medium">{fmt(e.balance)}</TableCell>
                       </TableRow>
                     ))}
-                    {withBalance.length === 0 && (
-                      <TableRow>
-                        <TableCell colSpan={7} className="py-8 text-center text-sm text-muted-foreground">
-                          No entries for the selected period.
-                        </TableCell>
-                      </TableRow>
-                    )}
                   </TableBody>
                 </Table>
               </div>
+              </QueryState>
             </CardContent>
           </Card>
         </TabsContent>
@@ -308,6 +336,18 @@ export function AccountantLedgerModule() {
               <CardTitle className="text-sm">Category Breakdown</CardTitle>
             </CardHeader>
             <CardContent className="p-0">
+              <QueryState
+                loading={loading}
+                error={failure}
+                onRetry={reload}
+                errorTitle="The ledger could not be loaded"
+                isEmpty={!breakdown.length}
+                empty={{
+                  icon: Wallet,
+                  title: "Nothing to summarise",
+                  description: "Once there are entries in this period, they are totalled here by category.",
+                }}
+              >
               <div className="w-full overflow-auto">
                 <Table>
                   <TableHeader>
@@ -329,16 +369,10 @@ export function AccountantLedgerModule() {
                         <TableCell className="text-right tabular-nums font-medium">{fmt(b.total)}</TableCell>
                       </TableRow>
                     ))}
-                    {breakdown.length === 0 && (
-                      <TableRow>
-                        <TableCell colSpan={4} className="py-8 text-center text-sm text-muted-foreground">
-                          Nothing to summarise.
-                        </TableCell>
-                      </TableRow>
-                    )}
                   </TableBody>
                 </Table>
               </div>
+              </QueryState>
             </CardContent>
           </Card>
         </TabsContent>

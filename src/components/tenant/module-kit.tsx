@@ -179,6 +179,45 @@ export function LoadingRows({ rows = 5, className = "" }: { rows?: number; class
   );
 }
 
+/**
+ * The three states a screen full of records has before it has records.
+ *
+ * Written out by hand in each module, this is where they diverged: some
+ * showed a spinner and no error, some showed neither, and a failed query and
+ * an empty table looked exactly alike. One component, so a module gets all
+ * three by asking for them.
+ *
+ * `isEmpty` is the caller's judgement — `!rows.length`, or `!rows.length &&
+ * !search` when a search that matches nothing is a different sentence.
+ */
+export function QueryState({
+  loading,
+  error,
+  onRetry,
+  isEmpty = false,
+  empty,
+  errorTitle,
+  rows = 5,
+  children,
+}: {
+  loading?: boolean;
+  error?: unknown;
+  onRetry?: () => void;
+  isEmpty?: boolean;
+  /** What to say when the query worked and there is nothing to show. */
+  empty?: { icon?: ComponentType<{ className?: string }>; title: string; description: string; action?: ReactNode };
+  errorTitle?: string;
+  rows?: number;
+  children: ReactNode;
+}) {
+  if (loading) return <LoadingRows rows={rows} />;
+  // A failure is reported before anything else: an empty table drawn over a
+  // query that never returned is the screen telling the user a lie.
+  if (error) return <ErrorState title={errorTitle} error={error} onRetry={onRetry} />;
+  if (isEmpty && empty) return <EmptyState {...empty} />;
+  return <>{children}</>;
+}
+
 /** A failure the user can read, and retry. */
 export function ErrorState({
   title = "This could not be loaded",

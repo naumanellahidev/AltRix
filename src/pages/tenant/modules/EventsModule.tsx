@@ -20,6 +20,7 @@ import {
   MapPin, Flag, Image as ImageIcon
 } from "lucide-react";
 import { toast } from "sonner";
+import { EmptyState, ErrorState, ModuleHeader } from "@/components/tenant/module-kit";
 
 interface SchoolEvent {
   id: string;
@@ -61,44 +62,16 @@ interface PlanningTask {
 
 export default function EventsModule() {
   const { user } = useSession();
-  const [events, setEvents] = useState<SchoolEvent[]>([
-    {
-      id: "event-1",
-      title: "Annual Sports Gala 2026",
-      description: "Inter-house athletics competitions, relay races, football finals, and prize distribution ceremony.",
-      event_type: "sports",
-      event_date: new Date().toISOString().slice(0, 10),
-      start_time: "08:30 AM",
-      end_time: "02:00 PM",
-      location: "Main Sports Complex Ground",
-      cover_image_url: "https://images.unsplash.com/photo-1461896836934-ffe607ba8211?auto=format&fit=crop&w=1200&q=80",
-      status: "upcoming",
-      audience: "all",
-      rsvp_enabled: true,
-      rsvp_count: 48,
-      photo_count: 12
-    },
-    {
-      id: "event-2",
-      title: "Parent-Teacher Meeting (Q3 Evaluation)",
-      description: "Individual academic performance review and term result card discussion.",
-      event_type: "ptm",
-      event_date: new Date(Date.now() + 86400000 * 5).toISOString().slice(0, 10),
-      start_time: "09:00 AM",
-      end_time: "01:30 PM",
-      location: "Auditorium Hall A",
-      cover_image_url: "https://images.unsplash.com/photo-1577896851231-70ef18881754?auto=format&fit=crop&w=1200&q=80",
-      status: "upcoming",
-      audience: "parents",
-      rsvp_enabled: true,
-      rsvp_count: 92,
-      photo_count: 0
-    }
-  ]);
+  // Empty until the school's own events load. This used to be seeded with
+  // two invented events - a sports gala with 48 RSVPs, a PTM with 92 - under
+  // stock photographs, and the loader kept them when the request failed. A
+  // school was shown a calendar that was not its own.
+  const [events, setEvents] = useState<SchoolEvent[]>([]);
+  const [loadError, setLoadError] = useState<unknown>(null);
 
   const [loading, setLoading] = useState(false);
-  const [selectedEventId, setSelectedEventId] = useState<string | null>("event-1");
-  const [selectedEvent, setSelectedEvent] = useState<SchoolEvent | null>(events[0]);
+  const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
+  const [selectedEvent, setSelectedEvent] = useState<SchoolEvent | null>(null);
 
   // Calendar month state
   const [currentMonth, setCurrentMonth] = useState(new Date());
@@ -120,18 +93,13 @@ export default function EventsModule() {
   const [rsvpEnabled, setRsvpEnabled] = useState(true);
 
   // Sub-items for selected event
-  const [photos, setPhotos] = useState<EventPhoto[]>([
-    { id: "p1", photo_url: "https://images.unsplash.com/photo-1546519638-68e109498ffc?auto=format&fit=crop&w=600&q=80", caption: "Relay Race 100m Sprint" },
-    { id: "p2", photo_url: "https://images.unsplash.com/photo-1517649763962-0c623266ddc0?auto=format&fit=crop&w=600&q=80", caption: "Trophy Ceremony" }
-  ]);
-  const [scores, setScores] = useState<SportsScorecard[]>([
-    { id: "s1", title: "Football Championship", house_name: "Red Jinnah House", points: 50, position: 1 },
-    { id: "s2", title: "Football Championship", house_name: "Green Iqbal House", points: 30, position: 2 }
-  ]);
-  const [tasks, setTasks] = useState<PlanningTask[]>([
-    { id: "t1", task_name: "Confirm Sound & PA System Setup", status: "completed", priority: "high" },
-    { id: "t2", task_name: "Arrange Chief Guest & Trophies", status: "pending", priority: "high" }
-  ]);
+  // These were seeded too: two stock photographs as the school's gallery, a
+  // house leaderboard awarding points nobody scored, and a planning checklist
+  // with items already ticked. An empty gallery is the truth about an event
+  // nobody has photographed.
+  const [photos, setPhotos] = useState<EventPhoto[]>([]);
+  const [scores, setScores] = useState<SportsScorecard[]>([]);
+  const [tasks, setTasks] = useState<PlanningTask[]>([]);
 
   const [photoUrl, setPhotoUrl] = useState("");
   const [photoCaption, setPhotoCaption] = useState("");
@@ -144,14 +112,14 @@ export default function EventsModule() {
     setLoading(true);
     try {
       const res = await apiClient.get("/school-events");
-      if (res.data && res.data.length > 0) {
-        setEvents(res.data);
-        if (!selectedEventId) {
-          setSelectedEventId(res.data[0].id);
-        }
-      }
-    } catch {
-      // keep initial fallback list
+      const rows = res.data ?? [];
+      setEvents(rows);
+      setLoadError(null);
+      if (!selectedEventId && rows.length) setSelectedEventId(rows[0].id);
+    } catch (err) {
+      // It used to swallow this and leave the invented events on screen.
+      setEvents([]);
+      setLoadError(err);
     } finally {
       setLoading(false);
     }
@@ -168,18 +136,18 @@ export default function EventsModule() {
     const ev = events.find(e => e.id === selectedEventId);
     if (ev) {
       setSelectedEvent(ev);
-      // Fetch photos, scorecards, tasks if this is a real backend UUID
-      if (!ev.id.startsWith("event-")) {
-        apiClient.get(`/school-events/${ev.id}/photos`).then(r => {
-          if (r.data) setPhotos(r.data);
-        }).catch(() => {});
-        apiClient.get(`/school-events/${ev.id}/scorecard`).then(r => {
-          if (r.data) setScores(r.data);
-        }).catch(() => {});
-        apiClient.get(`/school-events/${ev.id}/tasks`).then(r => {
-          if (r.data) setTasks(r.data);
-        }).catch(() => {});
-      }
+      // Every id is now a real one, so there is nothing to guard against. A
+      // sub-list that fails to load is emptied rather than left showing the
+      // previous event's photographs beside this event's name.
+      apiClient.get(`/school-events/${ev.id}/photos`)
+        .then(r => setPhotos(r.data ?? []))
+        .catch(() => setPhotos([]));
+      apiClient.get(`/school-events/${ev.id}/scorecard`)
+        .then(r => setScores(r.data ?? []))
+        .catch(() => setScores([]));
+      apiClient.get(`/school-events/${ev.id}/tasks`)
+        .then(r => setTasks(r.data ?? []))
+        .catch(() => setTasks([]));
     }
   }, [selectedEventId, events]);
 
@@ -302,21 +270,33 @@ export default function EventsModule() {
 
   return (
     <div className="space-y-4 sm:space-y-6 max-w-7xl mx-auto p-3 sm:p-6">
-      {/* Header Banner */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-gradient-to-r from-blue-700 via-indigo-600 to-purple-700 text-white p-4 sm:p-6 rounded-2xl sm:rounded-3xl shadow-lg border border-blue-400/20">
-        <div className="space-y-1 sm:space-y-1.5">
-          <div className="flex items-center gap-2">
-            <CalendarIcon className="h-6 w-6 sm:h-7 sm:w-7 text-blue-200 shrink-0" />
-            <h1 className="text-xl sm:text-3xl font-bold tracking-tight">Events & Sports Calendar</h1>
-          </div>
-          <p className="text-blue-100 font-medium text-xs sm:text-sm">
-            Interactive month calendar, instant event publisher, house sports leaderboards, and gallery photo uploads.
-          </p>
-        </div>
-        <Button size="sm" onClick={() => setShowCreateEvent(true)} className="bg-white text-blue-700 hover:bg-blue-50 font-bold shadow-md rounded-xl text-xs h-9">
-          <Plus className="h-3.5 w-3.5 mr-1.5" /> Add New Event
-        </Button>
-      </div>
+      <ModuleHeader
+        icon={CalendarIcon}
+        tone="violet"
+        title="Events & sports"
+        description="The school's calendar month by month — what is happening, who it is for, who has replied, and the photographs and house points once it is over."
+        actions={
+          <Button onClick={() => setShowCreateEvent(true)}>
+            <Plus className="h-4 w-4 mr-2" /> Add event
+          </Button>
+        }
+      />
+
+      {loadError ? (
+        <Card className="rounded-2xl border-rose-200 dark:border-rose-900">
+          <ErrorState title="The calendar could not be loaded" error={loadError} onRetry={loadEvents} />
+        </Card>
+      ) : null}
+
+      {!loadError && !loading && !events.length ? (
+        <Card className="rounded-2xl">
+          <EmptyState
+            icon={CalendarIcon}
+            title="No events on the calendar yet"
+            description='Add the first one with "Add event" — it appears on the month grid below, and families see it in their own calendar.'
+          />
+        </Card>
+      ) : null}
 
       {/* 🌟 INTERACTIVE MONTH CALENDAR GRID */}
       <Card className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm rounded-2xl sm:rounded-3xl overflow-hidden">

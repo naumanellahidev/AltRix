@@ -1110,3 +1110,78 @@ gridlines running the whole page; a footer reading "Issued —" where the school
 never recorded a publication date; and the overall grade vanishing from the
 totals line of the Rail design, because a drawn cell is skipped on an emphasis
 row.
+
+## The shell pass, and what it turned up (23 Sep 2026)
+
+Going through every module the principal can open, worst-first, against five
+things: a heading that says what the tab is, a state for an empty list, a
+skeleton while it loads, something on screen when it fails, and a way to get
+the records out. `QueryState` joins the kit — loading, failure and empty in one
+component, so a retrofit is five lines rather than twenty, and a failed query
+can no longer be drawn as an empty table.
+
+**Done so far**: Cash Ledger, Tax Centre, Assets & Inventory, Contracts, Events
+& Sports, Academic structure — plus the earlier batch (Offboarding, Leads,
+At-Risk, Budget Simulator, Support, Parent Notes, Attendance Heatmap, Fee
+Configurations, Vendors).
+
+What the pass found, beyond the design:
+
+- **Events shipped an invented school.** Two hard-coded events — a sports gala
+  with 48 RSVPs and 12 photos, a PTM with 92 — under stock Unsplash
+  photographs; a gallery captioned "Relay Race 100m Sprint"; a leaderboard
+  giving "Red Jinnah House" 50 points and first place; a planning checklist
+  already ticked. `loadEvents` caught its own failure with the comment "keep
+  initial fallback list", so a school whose events could not be read was shown
+  these as its own calendar. All of it deleted.
+- **The parent photo gallery did the same**, with the comment `MOCK DATA
+  FALLBACK for aesthetic demonstration`: three invented albums, including a
+  Milad that never happened, shown to families whose school had uploaded
+  nothing. Deleted; an empty gallery now says it is empty.
+- **The gate camera was a stock portrait.** "Capture Gate Photo" set an
+  Unsplash headshot and toasted "Live gate photo captured!", and that URL was
+  posted to `/visitors/{id}/checkin` as `photo_url` — a stranger's photograph
+  written into the school's visitor log as the person who came through the
+  gate. It now opens the real device camera, and says so plainly when there is
+  none or permission is refused; a visitor with no photograph is recorded
+  without one.
+- **Inventory reported a refused write as a success.** A rejected stock
+  adjustment was caught, applied to local state, and announced with
+  `toast.success("Stock recorded")`; the figure reverted on the next refresh.
+- **Academic had no `catch` at all** around eleven parallel queries called as
+  `void refresh()` — one rejection left an unhandled promise and a screen of
+  five zeros, so a school with a thousand students looked like a school with
+  none.
+- **Cash Ledger and Tax Centre rounded money to whole rupees.** A running
+  balance column that cannot be added up is not a ledger, and a liability
+  rounded to rupees is not the liability.
+
+## Saving a termly or annual card (23 Sep 2026)
+
+Reported from production:
+
+    there is no unique or exclusion constraint matching the ON CONFLICT
+    specification
+
+`report_cards_period_unique` is the index the statement asked for, but it is
+**partial** — `UNIQUE (school_id, student_id, period_type, period_label) WHERE
+exam_id IS NULL` — and Postgres will not use a partial index to arbitrate a
+conflict unless the statement repeats its predicate. The proxy had no way to
+say one, so **every monthly, termly and annual card failed to save**; only exam
+cards worked, because their index is a full one.
+
+`build_conflict_where` adds it, and is deliberately not a hole for free SQL: it
+accepts only `<column> IS NULL` / `<column> IS NOT NULL`, resolves the column
+case-insensitively against the real columns of the table being written, and
+quotes the resolved name — so `EXAM_ID` becomes `"exam_id"` and not a different
+identifier. Anything else is refused. 21 tests cover it, including stacked
+statements, widened predicates, quote break-outs, subqueries and columns of
+other tables.
+
+The same report also showed what would have been saved: `percentage=0`,
+`overall_grade='F'` for a student whose marks had not been entered. `max` was
+0, so `pct` was 0, and `calcGrade(0)` is "F". **A child nobody had marked would
+have been permanently recorded as having failed.** Totals are now null when
+nothing was marked, the screen shows an em dash rather than 0% and F, and the
+progress bar is not drawn at all — a bar of zero length reads as a score of
+zero.

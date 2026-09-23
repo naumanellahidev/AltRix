@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { Calculator, Percent, Receipt, Save } from "lucide-react";
+import { Calculator, Landmark, Percent, Receipt, Save } from "lucide-react";
 
 import { api } from "@/lib/api";
 import { useTenant } from "@/hooks/useTenant";
@@ -13,10 +13,18 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { ReportExportMenu } from "@/components/accountant/ReportExportMenu";
+import { ModuleHeader, QueryState } from "@/components/tenant/module-kit";
+import { money } from "@/lib/documents/format";
 import { toast } from "sonner";
 
-const fmt = (n: number) =>
-  new Intl.NumberFormat("en-PK", { style: "currency", currency: "PKR", maximumFractionDigits: 0 }).format(n || 0);
+/**
+ * Amounts keep their paisa.
+ *
+ * A liability rounded to whole rupees is not the liability. This rounded
+ * every figure on the screen, including the one an accountant would carry to
+ * a return.
+ */
+const fmt = (value: number | string) => money(String(value ?? 0), { currency: "PKR" });
 
 const TAX_STORAGE = "altrix:tax_settings:";
 
@@ -77,7 +85,7 @@ export function AccountantTaxModule() {
     setTo(fiscal.to);
   }, [fiscal.from, fiscal.to]);
 
-  const { data: payments = [] } = useQuery({
+  const paymentsQuery = useQuery({
     queryKey: ["tax_payments", schoolId, from, to],
     enabled: !!schoolId,
     queryFn: async () => {
@@ -93,7 +101,7 @@ export function AccountantTaxModule() {
     },
   });
 
-  const { data: expenses = [] } = useQuery({
+  const expensesQuery = useQuery({
     queryKey: ["tax_expenses", schoolId, from, to],
     enabled: !!schoolId,
     queryFn: async () => {
@@ -107,6 +115,17 @@ export function AccountantTaxModule() {
       return data ?? [];
     },
   });
+
+  const payments = paymentsQuery.data ?? [];
+  const expenses = expensesQuery.data ?? [];
+  // Revenue without expenses, or expenses without revenue, is a wrong tax
+  // figure rather than a partial one - so either failure stops the screen.
+  const loading = paymentsQuery.isLoading || expensesQuery.isLoading;
+  const failure = paymentsQuery.error ?? expensesQuery.error;
+  const reload = () => {
+    void paymentsQuery.refetch();
+    void expensesQuery.refetch();
+  };
 
   const monthly = useMemo(() => {
     const buckets = new Map<string, { period: string; revenue: number; expenses: number; taxPaid: number }>();
@@ -174,14 +193,13 @@ export function AccountantTaxModule() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="font-display text-2xl font-semibold tracking-tight">Tax Center</h1>
-          <p className="text-sm text-muted-foreground">
-            Tax liability, payments and filings — {fiscal.label}.
-          </p>
-        </div>
-        <ReportExportMenu
+      <ModuleHeader
+        icon={Landmark}
+        tone="amber"
+        title="Tax centre"
+        description={`What the school earned, what it may deduct and what it owes — computed month by month for ${fiscal.label}.`}
+        actions={
+          <ReportExportMenu
           baseName="tax-summary"
           rows={monthlyRows}
           print={{
@@ -194,8 +212,9 @@ export function AccountantTaxModule() {
               { label: "Outstanding", value: fmt(totals.due) },
             ],
           }}
-        />
-      </div>
+          />
+        }
+      />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
         <Card className="rounded-2xl shadow-sm">
@@ -255,6 +274,19 @@ export function AccountantTaxModule() {
               <CardTitle className="text-sm">Monthly Tax Computation</CardTitle>
             </CardHeader>
             <CardContent className="p-0">
+              <QueryState
+                loading={loading}
+                error={failure}
+                onRetry={reload}
+                errorTitle="The tax figures could not be computed"
+                isEmpty={!monthly.length}
+                empty={{
+                  icon: Landmark,
+                  title: "Nothing recorded in this fiscal year",
+                  description:
+                    "Fee payments received and expenses recorded inside the year are what this computation is built from.",
+                }}
+              >
               <div className="w-full overflow-auto">
                 <Table>
                   <TableHeader>
@@ -282,16 +314,10 @@ export function AccountantTaxModule() {
                         </TableRow>
                       );
                     })}
-                    {monthly.length === 0 && (
-                      <TableRow>
-                        <TableCell colSpan={6} className="py-8 text-center text-sm text-muted-foreground">
-                          No data in this fiscal year.
-                        </TableCell>
-                      </TableRow>
-                    )}
                   </TableBody>
                 </Table>
               </div>
+              </QueryState>
             </CardContent>
           </Card>
         </TabsContent>
@@ -346,6 +372,18 @@ export function AccountantTaxModule() {
               </CardTitle>
             </CardHeader>
             <CardContent className="p-0">
+              <QueryState
+                loading={loading}
+                error={failure}
+                onRetry={reload}
+                errorTitle="The tax payments could not be loaded"
+                isEmpty={!taxExpenseRows.length}
+                empty={{
+                  icon: Landmark,
+                  title: "No tax payments recorded",
+                  description: 'Record an expense with the category "taxes" and it is counted here as tax paid.',
+                }}
+              >
               <div className="w-full overflow-auto">
                 <Table>
                   <TableHeader>
@@ -365,16 +403,10 @@ export function AccountantTaxModule() {
                         <TableCell className="text-right tabular-nums">{fmt(Number(t.amount || 0))}</TableCell>
                       </TableRow>
                     ))}
-                    {taxExpenseRows.length === 0 && (
-                      <TableRow>
-                        <TableCell colSpan={4} className="py-8 text-center text-sm text-muted-foreground">
-                          Add an expense with category "taxes" to record a tax payment.
-                        </TableCell>
-                      </TableRow>
-                    )}
                   </TableBody>
                 </Table>
               </div>
+              </QueryState>
             </CardContent>
           </Card>
         </TabsContent>

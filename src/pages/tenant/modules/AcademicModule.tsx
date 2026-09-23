@@ -10,6 +10,7 @@ import {
   UserCog,
   Users,
 } from "lucide-react";
+import { ErrorState, LoadingRows, ModuleHeader, StatTiles } from "@/components/tenant/module-kit";
 import { StudentTransferDialog } from "@/components/academic/StudentTransferDialog";
 import { TeacherDetailsCard } from "@/components/academic/TeacherDetailsCard";
 import { ClassStructureCard } from "@/components/academic/ClassStructureCard";
@@ -111,10 +112,13 @@ export function AcademicModule() {
     section_id: "",
   });
   const [studentSubmitting, setStudentSubmitting] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<unknown>(null);
 
   const refresh = async () => {
     if (!schoolId) return;
-
+    setLoading(true);
+    try {
     const [c, s, st, enr, ta, dirUsers, roleRows, dir, subj, css, tsa] = await Promise.all([
       api.from("academic_classes").select("id,name,grade_level").eq("school_id", schoolId).order("name"),
       api.from("class_sections").select("id,name,class_id,room").eq("school_id", schoolId).order("name"),
@@ -171,6 +175,14 @@ export function AcademicModule() {
 
     const ids = new Set((roleRows.data ?? []).map((r: any) => r.user_id as string));
     setTeachers(((dir.data ?? []) as any[]).filter((d) => ids.has(d.user_id)) as any);
+    setLoadError(null);
+    } catch (err) {
+      // There was no catch here at all. One of the eleven queries rejecting
+      // left an unhandled rejection and a screen of zeros.
+      setLoadError(err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -379,34 +391,47 @@ export function AcademicModule() {
 
   return (
     <div className="space-y-6">
-      {/* Header Stats */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-        <div className="rounded-2xl border bg-surface p-4 text-center">
-          <Building2 className="mx-auto h-5 w-5 text-muted-foreground" />
-          <p className="mt-2 text-2xl font-bold">{stats.classes}</p>
-          <p className="text-xs text-muted-foreground">Classes</p>
-        </div>
-        <div className="rounded-2xl border bg-surface p-4 text-center">
-          <GraduationCap className="mx-auto h-5 w-5 text-muted-foreground" />
-          <p className="mt-2 text-2xl font-bold">{stats.sections}</p>
-          <p className="text-xs text-muted-foreground">Sections</p>
-        </div>
-        <div className="rounded-2xl border bg-surface p-4 text-center">
-          <Users className="mx-auto h-5 w-5 text-muted-foreground" />
-          <p className="mt-2 text-2xl font-bold">{stats.students}</p>
-          <p className="text-xs text-muted-foreground">Students</p>
-        </div>
-        <div className="rounded-2xl border bg-surface p-4 text-center">
-          <User className="mx-auto h-5 w-5 text-muted-foreground" />
-          <p className="mt-2 text-2xl font-bold">{stats.teachers}</p>
-          <p className="text-xs text-muted-foreground">Teachers</p>
-        </div>
-        <div className="rounded-2xl border bg-surface p-4 text-center">
-          <BookOpen className="mx-auto h-5 w-5 text-muted-foreground" />
-          <p className="mt-2 text-2xl font-bold">{stats.subjects}</p>
-          <p className="text-xs text-muted-foreground">Subjects</p>
-        </div>
-      </div>
+      <ModuleHeader
+        icon={GraduationCap}
+        tone="blue"
+        title="Academic structure"
+        description="The shape of the school — its classes and sections, the subjects each one is taught, which teacher takes them, and which child sits where."
+        actions={
+          <Button variant="outline" onClick={() => void refresh()} disabled={loading}>
+            Refresh
+          </Button>
+        }
+      />
+
+      {loadError ? (
+        <Card className="rounded-2xl border-rose-200 dark:border-rose-900">
+          <ErrorState
+            title="The academic structure could not be loaded"
+            error={loadError}
+            onRetry={() => void refresh()}
+          />
+        </Card>
+      ) : null}
+
+      {loading && !classes.length ? (
+        <Card className="rounded-2xl">
+          <LoadingRows rows={2} />
+        </Card>
+      ) : (
+        <StatTiles
+          stats={[
+            { label: "Classes", value: stats.classes },
+            { label: "Sections", value: stats.sections },
+            {
+              label: "Students enrolled",
+              value: stats.students,
+              hint: "Counted from the enrolled status, not the whole roll",
+            },
+            { label: "Teachers", value: stats.teachers },
+            { label: "Subjects", value: stats.subjects },
+          ]}
+        />
+      )}
 
       {/* Main Tabs */}
       <Tabs defaultValue="overview" className="space-y-4">

@@ -18,6 +18,7 @@ import { toast } from "sonner";
 import {
   Plus, AlertTriangle, FileText, Printer, Pencil, Eye, Trash2, Search, Download, MessageCircle, Loader2,
 } from "lucide-react";
+import { ModuleHeader, QueryState, StatTiles } from "@/components/tenant/module-kit";
 import { ContractLetterhead } from "@/components/hr/ContractLetterhead";
 import {
   type AppointmentLetterInput,
@@ -81,7 +82,7 @@ export function HrContractsModule() {
     },
   });
 
-  const { data: contracts = [], isLoading } = useQuery({
+  const contractsQuery = useQuery({
     queryKey: ["hr_contracts_full", schoolId],
     enabled: !!schoolId,
     queryFn: async () => {
@@ -92,6 +93,9 @@ export function HrContractsModule() {
       return data || [];
     },
   });
+
+  const contracts = contractsQuery.data ?? [];
+  const isLoading = contractsQuery.isLoading;
 
   const { data: staff = [] } = useQuery({
     queryKey: ["hr_staff_dir_contracts", schoolId],
@@ -330,11 +334,12 @@ export function HrContractsModule() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <h1 className="font-display text-xl sm:text-2xl font-bold">Contracts</h1>
-          <p className="text-xs sm:text-sm text-muted-foreground">Click any contract to open the branded letterhead view, edit, or print.</p>
-        </div>
+      <ModuleHeader
+        icon={FileText}
+        tone="slate"
+        title="Contracts"
+        description="Who the school has employed and on what terms, with the dates each agreement runs to. Open any one to read, edit or print it on the school's letterhead."
+        actions={
         <Dialog open={createOpen} onOpenChange={(o) => { setCreateOpen(o); if (o) setForm(blankForm); }}>
           <DialogTrigger asChild>
             <Button size="sm" className="rounded-xl text-xs h-9"><Plus className="h-3.5 w-3.5 mr-1" />New Contract</Button>
@@ -347,7 +352,26 @@ export function HrContractsModule() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
-      </div>
+        }
+      />
+
+      <StatTiles
+        stats={[
+          { label: "Contracts on record", value: contracts.length, hint: "Every agreement the school has stored" },
+          {
+            label: "Expiring within 60 days",
+            value: expiringSoon.length,
+            tone: expiringSoon.length ? "warning" : "default",
+            hint: expiringSoon.length ? "Renew or let lapse before the end date" : "Nothing falls due in the next two months",
+          },
+          {
+            label: "Expired, still marked active",
+            value: expired.length,
+            tone: expired.length ? "danger" : "default",
+            hint: expired.length ? "The end date has passed but the status was never changed" : "None",
+          },
+        ]}
+      />
 
       <div className="relative max-w-md">
         <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
@@ -380,8 +404,30 @@ export function HrContractsModule() {
           { v: "expired", list: expired },
         ].map((tab) => (
           <TabsContent key={tab.v} value={tab.v} className="space-y-2 mt-4">
-            {isLoading && <p className="text-sm text-muted-foreground">Loading...</p>}
-            {!isLoading && tab.list.length === 0 && <p className="text-sm text-muted-foreground">Nothing here.</p>}
+            <QueryState
+              loading={isLoading}
+              error={contractsQuery.error}
+              onRetry={() => contractsQuery.refetch()}
+              errorTitle="The contracts could not be loaded"
+              isEmpty={!tab.list.length}
+              empty={{
+                icon: FileText,
+                title:
+                  tab.v === "expiring"
+                    ? "No contract falls due in the next 60 days"
+                    : tab.v === "expired"
+                      ? "No contract has run past its end date"
+                      : search
+                        ? "Nothing matches that search"
+                        : "No contracts recorded yet",
+                description:
+                  tab.v === "all"
+                    ? search
+                      ? "Search by the member of staff's name, their position, their department or the reference number."
+                      : 'Add the first one with "New Contract" — it prints on the school\'s own letterhead.'
+                    : "Contracts appear here as their end dates approach, so a renewal is never missed.",
+              }}
+            >
             {tab.list.map((c: any) => {
               const dleft = c.end_date ? daysBetween(c.end_date, t) : null;
               return (
@@ -410,6 +456,7 @@ export function HrContractsModule() {
                 </Card>
               );
             })}
+            </QueryState>
           </TabsContent>
         ))}
       </Tabs>

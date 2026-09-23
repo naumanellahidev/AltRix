@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { apiClient } from "@/lib/api-client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { EmptyState } from "@/components/tenant/module-kit";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { 
@@ -123,60 +124,15 @@ export default function ParentGalleryModule() {
     );
   }
 
-  // MOCK DATA FALLBACK for aesthetic demonstration if database is empty
-  const defaultEvents: SchoolEvent[] = events.length > 0 ? events : [
-    {
-      id: "ev1",
-      title: "Annual Sports Day Gala 2026",
-      description: "Celebrating athletic excellence, teamwork, and high spirit across campuses.",
-      event_type: "sports_day",
-      event_date: "2026-03-12",
-      location: "Main Ground",
-      cover_image_url: "https://images.unsplash.com/photo-1502086223501-7ea6ecd79368?w=800&auto=format&fit=crop&q=80",
-      photo_count: 6
-    },
-    {
-      id: "ev2",
-      title: "Science & STEAM Exhibition",
-      description: "Young innovators displaying science projects, robotics, and creative models.",
-      event_type: "competition",
-      event_date: "2026-04-20",
-      location: "Auditorium",
-      cover_image_url: "https://images.unsplash.com/photo-1564069114053-6996d9803d57?w=800&auto=format&fit=crop&q=80",
-      photo_count: 4
-    },
-    {
-      id: "ev3",
-      title: "Milad & Quran Recitation",
-      description: "Annual religious blessings gatherings at the school auditorium.",
-      event_type: "cultural",
-      event_date: "2026-05-02",
-      location: "School Mosque Hall",
-      cover_image_url: "https://images.unsplash.com/photo-1542838132-92c53300491e?w=800&auto=format&fit=crop&q=80",
-      photo_count: 3
-    }
-  ];
-
-  const defaultPhotos: Record<string, EventPhoto[]> = {
-    ev1: [
-      { id: "p1", photo_url: "https://images.unsplash.com/photo-1502086223501-7ea6ecd79368?w=800&auto=format&fit=crop&q=80", caption: "Opening ceremony March Past" },
-      { id: "p2", photo_url: "https://images.unsplash.com/photo-1461896836934-ffe607ba8211?w=800&auto=format&fit=crop&q=80", caption: "100m sprint finals" },
-      { id: "p3", photo_url: "https://images.unsplash.com/photo-1517649763962-0c623066013b?w=800&auto=format&fit=crop&q=80", caption: "High jump contest" },
-      { id: "p4", photo_url: "https://images.unsplash.com/photo-1476480862126-209bfaa8edc8?w=800&auto=format&fit=crop&q=80", caption: "Award ceremony champions" }
-    ],
-    ev2: [
-      { id: "p5", photo_url: "https://images.unsplash.com/photo-1564069114053-6996d9803d57?w=800&auto=format&fit=crop&q=80", caption: "Robotics demonstration booth" },
-      { id: "p6", photo_url: "https://images.unsplash.com/photo-1532094349884-543bc11b234d?w=800&auto=format&fit=crop&q=80", caption: "Chemistry volcano experiment" }
-    ],
-    ev3: [
-      { id: "p7", photo_url: "https://images.unsplash.com/photo-1542838132-92c53300491e?w=800&auto=format&fit=crop&q=80", caption: "Quran Recitation Contest Winners" }
-    ]
-  };
-
-  const activeEventList = events.length > 0 ? events : defaultEvents;
-  const activePhotos = selectedEvent 
-    ? (photos.length > 0 ? photos : (defaultPhotos[selectedEvent.id] || []))
-    : [];
+  // What the school has actually uploaded, and nothing else.
+  //
+  // This used to fall back to three invented events under stock photographs -
+  // a sports gala, a science exhibition and a Milad - whenever the school's
+  // own gallery was empty, with the comment "for aesthetic demonstration".
+  // Parents were shown photographs of a day that never happened at a school
+  // their child does not attend.
+  const activeEventList = events;
+  const activePhotos = selectedEvent ? photos : [];
 
   return (
     <div className="space-y-6">
@@ -192,6 +148,18 @@ export default function ParentGalleryModule() {
               <p className="text-xs text-slate-400">Glimpses of school life, sports, and cultural events</p>
             </div>
           </div>
+
+          {/* An empty gallery says so, rather than borrowing someone
+              else's photographs to look full. */}
+          {!activeEventList.length ? (
+            <Card className="rounded-2xl">
+              <EmptyState
+                icon={Camera}
+                title="No photographs have been shared yet"
+                description="When the school uploads pictures from a sports day, a function or a trip, the album appears here for you to look through."
+              />
+            </Card>
+          ) : null}
 
           {/* Grid of Events */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

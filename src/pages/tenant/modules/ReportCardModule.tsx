@@ -487,16 +487,30 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
   };
 
   const totals = useMemo(() => {
-    let total = 0, max = 0;
+    let total = 0, max = 0, marked = 0;
     Object.values(results).forEach((r) => {
       if (r.marks_obtained != null) {
         total += Number(r.marks_obtained);
         max += Number(r.max_marks || 100);
+        marked += 1;
       }
     });
-    const pct = max > 0 ? (total / max) * 100 : 0;
-    const g = calcGrade(pct);
-    return { total, max, pct: Math.round(pct * 100) / 100, grade: g.grade };
+    // Nothing marked is not a score of nothing.
+    //
+    // This fell through to pct = 0 and calcGrade(0) = "F", and the card was
+    // saved that way: a child nobody had marked was recorded as having
+    // failed, permanently, on the school's own transcript.
+    if (!marked || max <= 0) {
+      return { total: null as number | null, max: null as number | null, pct: null as number | null, grade: null as string | null, marked: 0 };
+    }
+    const pct = (total / max) * 100;
+    return {
+      total: total as number | null,
+      max: max as number | null,
+      pct: (Math.round(pct * 100) / 100) as number | null,
+      grade: calcGrade(pct).grade as string | null,
+      marked,
+    };
   }, [results]);
 
   const appendix = useMemo(() => {
@@ -661,6 +675,7 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
       };
 
       let onConflict: string;
+      let onConflictWhere: string | undefined;
       if (periodType === "exam") {
         basePayload.exam_id = examId;
         basePayload.period_label = exams.find((e) => e.id === examId)?.name ?? null;
@@ -672,11 +687,16 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
         basePayload.period_end = currentPeriodRange.end;
         basePayload.academic_year = periodType === "annual" ? annualYear : null;
         onConflict = "school_id,student_id,period_type,period_label";
+        // The index behind this is partial - UNIQUE (…) WHERE exam_id IS NULL
+        // - and Postgres only uses a partial index to arbitrate a conflict
+        // when the statement repeats its predicate. Without this the save
+        // failed outright for every monthly, termly and annual card.
+        onConflictWhere = "exam_id IS NULL";
       }
 
       const { data, error } = await (api as any)
         .from("report_cards")
-        .upsert(basePayload, { onConflict })
+        .upsert(basePayload, { onConflict, onConflictWhere })
         .select("id,is_published,published_at")
         .maybeSingle();
       if (error) { toast.error(error.message); return null; }
@@ -1845,16 +1865,16 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
                           {/* ─── SUMMARY TOTALS ROW ─── */}
                           <tr className="bg-slate-100/90 font-extrabold border-t-2 border-slate-300 text-slate-900">
                             <td className="py-3.5 px-4 uppercase text-xs tracking-wider font-black">CUMULATIVE TOTAL</td>
-                            <td className="py-3.5 px-3 text-center text-sm font-black text-slate-900">{totals.total}</td>
-                            <td className="py-3.5 px-3 text-center text-sm font-bold text-slate-600">{totals.max}</td>
+                            <td className="py-3.5 px-3 text-center text-sm font-black text-slate-900">{totals.total ?? "—"}</td>
+                            <td className="py-3.5 px-3 text-center text-sm font-bold text-slate-600">{totals.max ?? "—"}</td>
                             <td className="py-3.5 px-3 text-center text-sm font-black text-primary align-middle">
                               <span className="inline-flex items-center justify-center min-w-[56px] h-7 px-3 rounded-full text-xs font-black bg-blue-100 text-blue-800 border border-blue-300 leading-none shadow-2xs">
-                                {totals.pct}%
+                                {totals.pct == null ? "—" : `${totals.pct}%`}
                               </span>
                             </td>
                             <td className="py-3.5 px-3 text-center align-middle">
                               <span className={`inline-flex items-center justify-center min-w-[42px] h-7 px-2.5 rounded-full text-xs font-black border leading-none shadow-2xs ${getGradeBadge(totals.grade)}`}>
-                                {totals.grade}
+                                {totals.grade ?? "—"}
                               </span>
                             </td>
                             <td className="py-3.5 px-4 print:hidden"></td>
@@ -1868,23 +1888,29 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-5">
                     <div className="rounded-2xl bg-gradient-to-br from-blue-50 to-indigo-50/60 p-5 sm:p-6 border border-blue-200/90 shadow-2xs flex flex-col justify-between min-h-[145px] sm:min-h-[150px] box-border">
                       <p className="text-[11px] sm:text-xs font-extrabold uppercase tracking-wider text-blue-700 leading-snug">Percentage Score</p>
-                      <p className="font-display text-3xl sm:text-4xl font-black text-blue-800 my-2 leading-none">{totals.pct}%</p>
+                      <p className="font-display text-3xl sm:text-4xl font-black text-blue-800 my-2 leading-none">
+                        {totals.pct == null ? "—" : `${totals.pct}%`}
+                      </p>
                       <div className="w-full bg-blue-200/80 h-2.5 rounded-full overflow-hidden mt-auto">
-                        <div className="bg-blue-600 h-full rounded-full transition-all" style={{ width: `${Math.min(100, totals.pct)}%` }} />
+                        {/* No bar at all where nothing was marked: a bar of
+                            zero length reads as a score of zero. */}
+                        {totals.pct == null ? null : (
+                          <div className="bg-blue-600 h-full rounded-full transition-all" style={{ width: `${Math.min(100, totals.pct)}%` }} />
+                        )}
                       </div>
                     </div>
 
                     <div className="rounded-2xl bg-gradient-to-br from-amber-50 to-orange-50/60 p-5 sm:p-6 border border-amber-200/90 shadow-2xs flex flex-col justify-between min-h-[145px] sm:min-h-[150px] box-border">
                       <p className="text-[11px] sm:text-xs font-extrabold uppercase tracking-wider text-amber-700 leading-snug">Aggregate Marks</p>
                       <p className="font-display text-3xl sm:text-4xl font-black text-amber-800 my-2 leading-none">
-                        {totals.total} <span className="text-sm sm:text-base font-bold text-amber-600">/ {totals.max}</span>
+                        {totals.total ?? "—"} <span className="text-sm sm:text-base font-bold text-amber-600">/ {totals.max ?? "—"}</span>
                       </p>
                       <p className="text-[11px] sm:text-xs text-amber-800/90 font-bold leading-normal mt-auto pt-1">{subjects.length} Evaluated Subjects</p>
                     </div>
 
                     <div className="rounded-2xl bg-gradient-to-br from-emerald-50 to-teal-50/60 p-5 sm:p-6 border border-emerald-200/90 shadow-2xs flex flex-col justify-between min-h-[145px] sm:min-h-[150px] box-border">
                       <p className="text-[11px] sm:text-xs font-extrabold uppercase tracking-wider text-emerald-700 leading-snug">Overall Grade</p>
-                      <p className="font-display text-3xl sm:text-4xl font-black text-emerald-800 my-2 leading-none">{totals.grade}</p>
+                      <p className="font-display text-3xl sm:text-4xl font-black text-emerald-800 my-2 leading-none">{totals.grade ?? "—"}</p>
                       <p className="text-[11px] sm:text-xs text-emerald-800/90 font-bold leading-normal mt-auto pt-1">Standard Grading Scale</p>
                     </div>
 

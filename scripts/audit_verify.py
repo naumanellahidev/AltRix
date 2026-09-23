@@ -516,6 +516,23 @@ def run():
     check(S, "rcft", "a one-page card carries no 'Page 1 of 1' across its foot",
           'footerStyle: "minimal"' in rc
           and 'footerStyle === "minimal"' in txt("src/lib/documents/document.ts"))
+    proxy = txt("backend/app/routers/vps_db.py")
+    check(S, "rcsv", "a termly or annual card can be saved at all",
+          "build_conflict_where" in proxy and "onConflictWhere" in rcm
+          and 'onConflictWhere = "exam_id IS NULL"' in rcm)
+    check(S, "rcf", "a student nobody marked is not recorded as having failed",
+          "if (!marked || max <= 0)" in rcm and "grade: null as string | null" in rcm)
+    check(S, "fake", "no screen ships someone else's photographs as the school's",
+          not any("unsplash" in txt(p).lower() for p in (
+              "src/pages/tenant/modules/EventsModule.tsx",
+              "src/pages/tenant/modules/GateVisitorModule.tsx",
+              "src/pages/tenant/parent-modules/ParentGalleryModule.tsx"))
+          and "MOCK DATA FALLBACK" not in txt("src/pages/tenant/parent-modules/ParentGalleryModule.tsx"))
+    check(S, "gate", "a visitor photograph is taken by a camera or not taken",
+          "getUserMedia" in txt("src/pages/tenant/modules/GateVisitorModule.tsx"))
+    check(S, "stok", "a refused stock adjustment is reported as refused",
+          "could not be adjusted" in txt("src/pages/tenant/modules/InventoryModule.tsx"))
+
     rct = txt("src/lib/documents/report-card-templates.ts")
     check(S, "rcds", "the seven designs differ in the shape of the page, not only its colours",
           all(k in rct for k in ("sidebar", "banner", "centred", "register", "standard"))

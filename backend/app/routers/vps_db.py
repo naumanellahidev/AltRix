@@ -1,5 +1,6 @@
 import logging
 import json
+import re
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
@@ -299,6 +300,40 @@ def parse_or_conditions(or_str: str) -> List[Any]:
             parsed.append((col, op, val))
             
     return parsed
+
+def build_conflict_where(predicate: Optional[str], valid_columns) -> str:
+    """The WHERE of an ON CONFLICT target, for a partial unique index.
+
+    Postgres will not use a partial unique index to arbitrate a conflict
+    unless the statement repeats the index's predicate, so an upsert against
+    one needs a way to say it.
+
+    This is not a hole for free SQL. A partial unique index's predicate, in
+    this schema, is always "<column> IS NULL" or "<column> IS NOT NULL", and
+    that is the only thing accepted: the column must be a real column of the
+    table being written, and anything else raises rather than being passed
+    through to the database.
+    """
+    if not predicate:
+        return ""
+    parsed = re.fullmatch(
+        r"\s*([A-Za-z_][A-Za-z0-9_]*)\s+IS\s+(NOT\s+)?NULL\s*",
+        str(predicate),
+        re.IGNORECASE,
+    )
+    if not parsed:
+        raise ValueError(f"Unsupported onConflictWhere: {predicate}")
+    # Resolved against the table's real columns, case-insensitively, and the
+    # *resolved* name is what gets quoted into the statement. Emitting the
+    # caller's spelling would quote "EXAM_ID", which Postgres treats as a
+    # different identifier from exam_id and would not match the index.
+    wanted = parsed.group(1).lower()
+    column = next((c for c in valid_columns if c.lower() == wanted), None)
+    if column is None:
+        raise ValueError(f"Unsupported onConflictWhere: {predicate}")
+    negated = "NOT " if parsed.group(2) else ""
+    return f' WHERE "{column}" IS {negated}NULL'
+
 
 def build_select_clause(requested: Optional[str], valid_columns: set) -> str:
     """
@@ -802,6 +837,18 @@ async def execute_query(query: QueryPayload, current_user: CurrentUser, db: DbSe
             # Default to "id" if present in table columns
             on_conflict = "id" if "id" in valid_columns else None
             
+        # A partial unique index can only arbitrate a conflict when the
+        # statement repeats its predicate. report_cards has exactly that: a
+        # UNIQUE (school_id, student_id, period_type, period_label) WHERE
+        # exam_id IS NULL, so without this every monthly, termly and annual
+        # card failed to save with "no unique or exclusion constraint
+        # matching the ON CONFLICT specification".
+        conflict_where = query.options.get("onConflictWhere") if query.options else None
+        try:
+            conflict_where_sql = build_conflict_where(conflict_where, valid_columns)
+        except ValueError as exc:
+            return {"data": None, "error": {"message": str(exc)}}
+
         if on_conflict:
             conflict_cols = ", ".join(f'"{c.strip()}"' for c in on_conflict.split(",") if is_valid_identifier(c.strip()))
             conflict_set = {c.strip() for c in on_conflict.split(",")}
@@ -812,9 +859,9 @@ async def execute_query(query: QueryPayload, current_user: CurrentUser, db: DbSe
                     update_clauses.append(f'"{k}" = EXCLUDED."{k}"')
                     
             if update_clauses:
-                conflict_sql = f'ON CONFLICT ({conflict_cols}) DO UPDATE SET {", ".join(update_clauses)}'
+                conflict_sql = f'ON CONFLICT ({conflict_cols}){conflict_where_sql} DO UPDATE SET {", ".join(update_clauses)}'
             else:
-                conflict_sql = f'ON CONFLICT ({conflict_cols}) DO NOTHING'
+                conflict_sql = f'ON CONFLICT ({conflict_cols}){conflict_where_sql} DO NOTHING'
         else:
             conflict_sql = ''
             
