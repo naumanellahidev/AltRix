@@ -194,6 +194,31 @@ describe("document", () => {
     expect(raw.split("Page 1 of 1").length - 1).toBe(1);
   });
 
+  it("keeps 'Page 1 of 1' off a document that is one page", () => {
+    // A report card a family frames should not carry the school's name and a
+    // page count ruled across its foot. The note it does need stays.
+    const doc = createDocument({
+      ...base,
+      title: "Report Card",
+      reference: "Ayesha Khan",
+      footerStyle: "minimal",
+      footerNote: "Issued 18 Sep 2026",
+    });
+    doc.text("Result");
+    const raw = doc.finish().pdf.output();
+    expect(raw).not.toContain("Page 1 of 1");
+    expect(raw).not.toContain("Ayesha Khan  \u00b7  ");
+    expect(raw).toContain("Issued 18 Sep 2026");
+  });
+
+  it("brings the page count back the moment there is a second sheet", () => {
+    const doc = createDocument({ ...base, title: "Report Card", footerStyle: "minimal" });
+    for (let i = 0; i < 200; i += 1) doc.text(`Row ${i}`);
+    expect(doc.pages).toBeGreaterThan(1);
+    const raw = doc.finish().pdf.output();
+    expect(raw).toContain(`1 / ${doc.pages}`);
+  });
+
   it("names the file from the title and reference", () => {
     const doc = createDocument({ ...base, title: "Fee Voucher", reference: "INV-2026-0412" });
     expect(doc.filename()).toBe("Fee Voucher - INV-2026-0412 - Crescent Model School.pdf");

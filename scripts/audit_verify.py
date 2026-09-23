@@ -511,6 +511,15 @@ def run():
     check(S, "rcst", "how a school prints its cards is asked once and stored",
           exists("backend/sql_migrations/20260922010000_report_card_print_settings.sql")
           and exists("src/lib/report-card-settings.ts"))
+    check(S, "rcfl", "a short card fills its sheet instead of stopping a third of the way down",
+          "stretch" in rc and "MAX_DENSITY" in rc and "minRowHeight" in txt("src/lib/documents/table.ts"))
+    check(S, "rcft", "a one-page card carries no 'Page 1 of 1' across its foot",
+          'footerStyle: "minimal"' in rc
+          and 'footerStyle === "minimal"' in txt("src/lib/documents/document.ts"))
+    rct = txt("src/lib/documents/report-card-templates.ts")
+    check(S, "rcds", "the seven designs differ in the shape of the page, not only its colours",
+          all(k in rct for k in ("sidebar", "banner", "centred", "register", "standard"))
+          and rct.count("layout:") >= 8)
 
     ai = txt("backend/app/utils/ai_service.py")
     copilot = txt("src/components/ai/AltrixCopilot.tsx")

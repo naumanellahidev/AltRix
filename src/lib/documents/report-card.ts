@@ -14,6 +14,11 @@
  *   across terms; teacher and principal remarks; signature lines; and a QR code
  *   that anyone can scan to confirm the card with the school.
  *
+ * It comes out on one sheet, and filling that sheet is part of the job: a card
+ * with six subjects is opened up until it reaches the foot of the page, and a
+ * card with twenty is tightened until it fits — both without dropping a single
+ * mark. See buildFittedReportCard.
+ *
  * What it never does: print 0 for a mark that was not recorded, print a
  * signature that was not given, or print a verification code for a draft. An
  * unpublished card is marked DRAFT across every page.
@@ -24,11 +29,17 @@ import { tryLoadImage } from "./assets";
 import { type SchoolBrand, loadActiveSchoolBrand } from "./brand";
 import { type PdfDocument, createDocumentAsync } from "./document";
 import { DEFAULT_MARGINS } from "./paper";
-import { scaledSizes } from "./theme";
+import { scaledSizes, tint } from "./theme";
 import {
+  type HeadlineFigure,
   type ReportCardTemplateId,
+  drawFigures,
+  drawNameplate,
   drawPageFrame,
+  drawParticulars,
+  drawSeal,
   drawSectionTitle,
+  railWidth,
   templateFor,
 } from "./report-card-templates";
 import { type BulkResult, generateArchive, print as printPdf, shareFile, triggerDownload, type ShareOutcome } from "./deliver";
@@ -109,11 +120,17 @@ export interface ReportCardResult {
   doc: PdfDocument;
   fileName: string;
   warnings: string[];
-  /** What it took to fit: 1 is the comfortable layout. */
+  /** What it took to fit: 1 is the comfortable layout, above it is opened up. */
   density: number;
   orientation: "portrait" | "landscape";
   /** 2 when the subjects were set side by side to save height. */
   subjectColumns: 1 | 2;
+  /**
+   * Millimetres of page left over below the content, before the signature
+   * block was moved down to the foot. This is the white space the fitting pass
+   * spends, and zero is what it aims for.
+   */
+  slack: number;
 }
 
 function present(v: unknown): boolean {
@@ -164,7 +181,8 @@ export interface BuildReportCardOptions {
   settings?: ReportCardPrintSettings;
   /**
    * 1 is the comfortable layout. Below that, type and spacing tighten
-   * together so a long subject list still fits one sheet. No content is
+   * together so a long subject list still fits one sheet; above it, they open
+   * up so a short one still reaches the foot of the page. No content is
    * dropped at any density: a mark that is not printed is a mark the family
    * never sees.
    */
@@ -172,10 +190,18 @@ export interface BuildReportCardOptions {
   orientation?: "portrait" | "landscape";
   /** Subjects side by side, which a landscape sheet has room for. */
   subjectColumns?: 1 | 2;
+  /**
+   * Millimetres of empty page to absorb into the layout — taller result rows,
+   * more air between the blocks. Measured by the fitting pass and handed back
+   * on a second build. See buildFittedReportCard.
+   */
+  stretch?: number;
 }
 
 /** The lowest density that still prints legibly on a domestic printer. */
 export const MIN_DENSITY = 0.72;
+/** The largest a short card may be opened up before the type looks shouted. */
+export const MAX_DENSITY = 1.22;
 
 /** Build the report card PDF. Does not download it. */
 export async function buildReportCard(
@@ -184,12 +210,22 @@ export async function buildReportCard(
 ): Promise<ReportCardResult> {
   const warnings: string[] = [];
   const settings = options.settings ?? DEFAULT_PRINT_SETTINGS;
-  // The school's chosen look. It drives the headings, the figures, the table
-  // and the page border together - a template is a design, not a colour.
+  // The school's chosen look. It drives the shape of the page - where the name
+  // sits, how the particulars are set, whether there is a rail or a nameplate -
+  // and not only its colours.
   const template = templateFor(settings.template);
-  const density = Math.max(MIN_DENSITY, Math.min(1, options.density ?? 1));
+  const density = Math.max(MIN_DENSITY, Math.min(MAX_DENSITY, options.density ?? 1));
   /** A millimetre constant at this density. */
   const mm = (value: number) => Math.round(value * density * 100) / 100;
+  const stretch = Math.max(0, options.stretch ?? 0);
+  /**
+   * The head's share of the empty page, per line.
+   *
+   * The particulars and the headline figures are set more generously on a card
+   * that has room, which is most of what stops a short report from huddling
+   * under the letterhead with the rest of the sheet white.
+   */
+  const headStretch = stretch > 0 ? Math.min(mm(19), stretch * 0.11) : 0;
   const brand = options.brand ?? (await loadActiveSchoolBrand());
   if (brand.logoProblem) warnings.push(brand.logoProblem);
 
@@ -198,6 +234,7 @@ export async function buildReportCard(
   const studentName = student ? joinName(student.first_name, student.last_name) : ABSENT;
   const published = card.is_published === true;
   const period = [card.period_label, card.academic_year].filter(present).join(" · ");
+  const classLine = [student?.class_name, student?.section_name].filter(present).join(" – ");
 
   const doc = await createDocumentAsync({
     title: "Report Card",
@@ -207,7 +244,7 @@ export async function buildReportCard(
     // so the page keeps its proportions instead of only shrinking the words.
     theme: {
       headingFont: template.headingFont,
-      ...(density < 1 ? { size: scaledSizes(density) } : {}),
+      ...(density !== 1 ? { size: scaledSizes(density) } : {}),
     },
     margins: density < 1
       ? {
@@ -228,60 +265,42 @@ export async function buildReportCard(
     accent: brand.accentHex,
     reference: studentName,
     watermark: published ? "none" : "draft",
+    // A card a family keeps does not want "Beacon International School ·
+    // Nauman Ellahi" and "Page 1 of 1" ruled across its foot: the school is on
+    // the letterhead and the child's name is the largest thing on the sheet.
+    // Only what the reader cannot get anywhere else stays.
+    footerStyle: "minimal",
     footerNote: published
-      ? `Issued ${formatDate(card.published_at)}${card.qr_verification_token ? " · Scan the code to verify with the school" : ""}`
+      ? [
+          present(card.published_at) ? `Issued ${formatDate(card.published_at)}` : null,
+          card.qr_verification_token ? "Scan the code to verify with the school" : null,
+        ]
+          .filter(Boolean)
+          .join(" · ") || null
       : "DRAFT — not yet published by the school",
   });
 
-  // ── Student particulars, with photo ───────────────────────────────────────
-  const photoSize = mm(26);
-  let photoDrawn = false;
-  if (settings.showPhoto && student?.photo_url) {
-    const { image, failure } = await tryLoadImage(student.photo_url, "student-photos");
-    if (image && (image.format === "PNG" || image.format === "JPEG")) {
-      doc.pdf.setDrawColor(...doc.theme.rule);
-      doc.pdf.setLineWidth(0.3);
-      doc.pdf.rect(doc.x + doc.width - photoSize, doc.y, photoSize, photoSize * 1.2, "S");
-      photoDrawn = doc.image(image.data, image.format, {
-        x: doc.x + doc.width - photoSize + 0.6,
-        y: doc.y + 0.6,
-        width: photoSize - 1.2,
-        height: photoSize * 1.2 - 1.2,
-      });
-    } else if (failure) {
-      warnings.push(`the student's photo could not be loaded (${failure.reason})`);
-    }
-  }
+  // ── The facts the head of the card is built from ──────────────────────────
+  const particulars = [
+    { label: "Student", value: studentName },
+    { label: "Class", value: classLine },
+    { label: "Roll No.", value: student?.roll_number },
+    { label: "Registration No.", value: student?.registration_number },
+    { label: "Date of Birth", value: student?.date_of_birth ? formatDate(student.date_of_birth) : null },
+    // Term and session are in the heading; they are only repeated here when
+    // there is no heading line to carry them.
+    ...(period ? [] : [{ label: "Term", value: card.period_label ?? null }]),
+  ];
 
-  const startY = doc.y;
-  const classLine = [student?.class_name, student?.section_name].filter(present).join(" – ");
-  doc.fields(
-    [
-      { label: "Student", value: studentName },
-      { label: "Class", value: classLine },
-      { label: "Roll No.", value: student?.roll_number },
-      { label: "Registration No.", value: student?.registration_number },
-      { label: "Date of Birth", value: student?.date_of_birth ? formatDate(student.date_of_birth) : null },
-      // Term and session are in the heading; they are only repeated here when
-      // there is no heading line to carry them.
-      ...(period ? [] : [{ label: "Term", value: card.period_label }]),
-    ],
-    photoDrawn ? 2 : 3,
-    { width: photoDrawn ? doc.width - photoSize - 4 : doc.width },
-  );
-  if (photoDrawn) doc.y = Math.max(doc.y, startY + photoSize * 1.2 + 2);
-  doc.advance(1);
-
-  // ── Headline results ──────────────────────────────────────────────────────
-  const tiles: Array<{ label: string; value: string }> = [];
+  const figures: HeadlineFigure[] = [];
   if (present(card.total_marks) && present(card.max_total_marks)) {
-    tiles.push({ label: "Marks", value: `${marks(card.total_marks)} / ${marks(card.max_total_marks)}` });
+    figures.push({ label: "Marks", value: `${marks(card.total_marks)} / ${marks(card.max_total_marks)}` });
   }
-  if (present(card.percentage)) tiles.push({ label: "Percentage", value: percent(card.percentage, { places: 2 }) });
-  if (present(card.overall_grade)) tiles.push({ label: "Grade", value: String(card.overall_grade) });
-  if (present(card.gpa)) tiles.push({ label: "GPA", value: marks(card.gpa) });
+  if (present(card.percentage)) figures.push({ label: "Percentage", value: percent(card.percentage, { places: 2 }) });
+  if (present(card.overall_grade)) figures.push({ label: "Grade", value: String(card.overall_grade) });
+  if (present(card.gpa)) figures.push({ label: "GPA", value: marks(card.gpa) });
   if (settings.showRank && card.position_in_class) {
-    tiles.push({
+    figures.push({
       label: "Position",
       value: card.total_students_in_class
         ? `${ordinal(card.position_in_class)} of ${card.total_students_in_class}`
@@ -292,315 +311,517 @@ export async function buildReportCard(
     const days =
       card.total_present_days != null && card.total_school_days ? `${card.total_present_days}/${card.total_school_days} days` : null;
     const pct = present(card.attendance_percentage) ? percent(card.attendance_percentage) : null;
-    tiles.push({ label: "Attendance", value: [pct, days].filter(Boolean).join(" · ") });
+    figures.push({ label: "Attendance", value: [pct, days].filter(Boolean).join(" · ") });
   }
 
-  if (tiles.length) {
-    if (template.tileStyle === "strip") {
-      // One line of figures over a rule: the register look, where the marks
-      // below are the point and these are a caption to them.
-      const height = mm(8);
-      doc.ensureSpace(height + mm(3));
-      const slot = doc.width / tiles.length;
-      const baseline = doc.y + mm(5);
-      tiles.forEach((t, i) => {
-        const centre = doc.x + slot * i + slot / 2;
-        doc.pdf.setFont(doc.theme.bodyFont, "normal");
-        doc.pdf.setFontSize(doc.theme.size.caption * 0.95);
-        doc.pdf.setTextColor(...doc.theme.inkMuted);
-        doc.pdf.text(t.label.toUpperCase(), centre, doc.y + mm(1.8), { align: "center" });
-        doc.pdf.setFont(doc.theme.bodyFont, "bold");
-        doc.pdf.setFontSize((t.value.length > 14 ? 9 : 11) * density);
-        doc.pdf.setTextColor(...doc.theme.ink);
-        doc.pdf.text(doc.pdf.splitTextToSize(t.value, slot - mm(2))[0] as string, centre, baseline, { align: "center" });
-        if (i > 0) {
-          doc.pdf.setDrawColor(...doc.theme.ruleFaint);
-          doc.pdf.setLineWidth(0.2);
-          doc.pdf.line(doc.x + slot * i, doc.y, doc.x + slot * i, doc.y + height - mm(2));
-        }
-      });
-      doc.y += height;
-      doc.pdf.setDrawColor(...doc.theme.rule);
-      doc.pdf.setLineWidth(0.3);
-      doc.pdf.line(doc.x, doc.y, doc.x + doc.width, doc.y);
-      doc.advance(mm(3));
-    } else {
-      const perRow = Math.min(tiles.length, 6);
-      const gap = mm(2.5);
-      const w = (doc.width - gap * (perRow - 1)) / perRow;
-      const h = mm(13);
-      const rows = Math.ceil(tiles.length / perRow);
-      const outlined = template.tileStyle === "outlined";
-      doc.ensureSpace(rows * (h + gap));
-      tiles.forEach((t, i) => {
-        const x = doc.x + (i % perRow) * (w + gap);
-        const y = doc.y + Math.floor(i / perRow) * (h + gap);
-        if (outlined) {
-          doc.pdf.setDrawColor(...doc.theme.rule);
-          doc.pdf.setLineWidth(0.3);
-          doc.pdf.roundedRect(x, y, w, h, 1.5, 1.5, "S");
-        } else {
-          doc.pdf.setFillColor(...doc.theme.accentWash);
-          doc.pdf.roundedRect(x, y, w, h, 1.5, 1.5, "F");
-        }
-        doc.pdf.setFont(doc.theme.bodyFont, "bold");
-        doc.pdf.setFontSize(doc.theme.size.caption);
-        doc.pdf.setTextColor(...doc.theme.inkMuted);
-        doc.pdf.text(t.label.toUpperCase(), x + w / 2, y + mm(4.4), { align: "center" });
-        doc.pdf.setFontSize((t.value.length > 14 ? 9 : 11.5) * density);
-        doc.pdf.setTextColor(...(outlined ? doc.theme.ink : doc.theme.accent));
-        doc.pdf.text(doc.pdf.splitTextToSize(t.value, w - mm(3))[0] as string, x + w / 2, y + mm(10.2), { align: "center" });
-      });
-      doc.advance(rows * (h + gap) + 1);
+  // Loaded once, before anything is drawn. `inBand` restores the content box
+  // as soon as its callback returns, so awaiting inside one would hand the
+  // page back mid-draw and set the rest of the rail across the full width.
+  let photo: { data: string; format: string } | null = null;
+  if (settings.showPhoto && student?.photo_url) {
+    const { image, failure } = await tryLoadImage(student.photo_url, "student-photos");
+    if (image && (image.format === "PNG" || image.format === "JPEG")) {
+      photo = { data: image.data, format: image.format };
+    } else if (failure) {
+      warnings.push(`the student's photo could not be loaded (${failure.reason})`);
     }
   }
 
-  // ── Subjects ──────────────────────────────────────────────────────────────
-  drawSectionTitle(doc, template, "Academic performance", density);
+  /** Place the child's photo in the given box. Returns false if there is none. */
+  const placePhoto = (box: { x: number; y: number; width: number; height: number }, framed: boolean) => {
+    if (!photo) return false;
+    if (framed) {
+      doc.pdf.setFillColor(255, 255, 255);
+      doc.pdf.rect(box.x - 0.8, box.y - 0.8, box.width + 1.6, box.height + 1.6, "F");
+      doc.pdf.setDrawColor(...doc.theme.rule);
+      doc.pdf.setLineWidth(0.3);
+      doc.pdf.rect(box.x - 0.8, box.y - 0.8, box.width + 1.6, box.height + 1.6, "S");
+    }
+    return doc.image(photo.data, photo.format, box);
+  };
+
+  // ── The head of the card, in the shape this design gives it ───────────────
+  let railTop = doc.y;
+  let bandX = doc.x;
+  let bandWidth = doc.width;
+
+  if (template.layout === "banner") {
+    // The child leads the page: name and result reversed out of a deep band,
+    // with the photo set into it.
+    const photoBox = drawNameplate(
+      doc,
+      template,
+      { name: studentName, sub: [classLine, period].filter(Boolean).join("  ·  "), figures },
+      { density, photo: Boolean(photo) },
+    );
+    if (photoBox) placePhoto(photoBox, true);
+    drawParticulars(doc, template, particulars.slice(2), { density, columns: 3, stretch: headStretch });
+  } else if (template.layout === "sidebar") {
+    // A tinted rail carrying who the child is, with the marks in their own
+    // column beside it. The rail runs to the foot of the sheet, so a short
+    // card has a designed page rather than a blank lower half.
+    const rail = railWidth(doc, density);
+    const gap = mm(6);
+    railTop = doc.y;
+    doc.pdf.setFillColor(...tint(doc.theme.accent, 0.94));
+    doc.pdf.rect(doc.x - mm(2), railTop - mm(2), rail + mm(4), doc.bottomLimit - railTop + mm(2), "F");
+    doc.pdf.setFillColor(...doc.theme.accent);
+    doc.pdf.rect(doc.x - mm(2), railTop - mm(2), mm(1.2), doc.bottomLimit - railTop + mm(2), "F");
+
+    doc.inBand(doc.x, rail, () => {
+      if (photo) {
+        const size = Math.min(rail, mm(30));
+        const box = { x: doc.x + (rail - size) / 2, y: doc.y, width: size, height: size * 1.2 };
+        if (placePhoto(box, true)) doc.y += box.height + mm(4);
+      }
+      doc.pdf.setFont(template.headingFont, "bold");
+      doc.pdf.setFontSize(13 * density);
+      doc.pdf.setTextColor(...doc.theme.ink);
+      for (const line of doc.wrap(studentName, rail, { size: 13 * density, style: "bold", font: template.headingFont })) {
+        doc.pdf.text(line, doc.x, doc.y + mm(4));
+        doc.y += mm(5);
+      }
+      doc.advance(mm(1));
+      drawParticulars(doc, template, particulars.slice(1), {
+        density,
+        columns: 1,
+        width: rail,
+        stretch: headStretch,
+      });
+      doc.advance(mm(1));
+      drawFigures(doc, template, figures, { density, width: rail, stacked: true, stretch: headStretch });
+    });
+
+    doc.y = railTop;
+    bandX = doc.x + rail + gap;
+    bandWidth = doc.width - rail - gap;
+  } else if (template.layout === "centred") {
+    // The formal statement: a centred overline, then the particulars on dot
+    // leaders, then the results. The photo sits under the overline, centred.
+    doc.pdf.setFont(doc.theme.bodyFont, "normal");
+    doc.pdf.setFontSize(doc.theme.size.caption);
+    doc.pdf.setTextColor(...doc.theme.inkMuted);
+    doc.pdf.text(
+      "STATEMENT OF ACADEMIC PROGRESS".split("").join(" "),
+      doc.x + doc.width / 2,
+      doc.y + mm(3),
+      { align: "center" },
+    );
+    doc.y += mm(6);
+    if (photo) {
+      const size = mm(24);
+      const box = { x: doc.x + (doc.width - size) / 2, y: doc.y, width: size, height: size * 1.2 };
+      if (placePhoto(box, true)) doc.y += box.height + mm(4);
+    }
+    drawParticulars(doc, template, particulars, { density, stretch: headStretch });
+    doc.advance(mm(1));
+    drawFigures(doc, template, figures, { density, stretch: headStretch });
+  } else {
+    // standard and register: particulars across the top with the photo at the
+    // right, then the headline figures.
+    const photoSize = mm(26);
+    const photoDrawn = photo
+      ? placePhoto({ x: doc.x + doc.width - photoSize, y: doc.y, width: photoSize, height: photoSize * 1.2 }, true)
+      : false;
+    const startY = doc.y;
+    drawParticulars(doc, template, particulars, {
+      density,
+      columns: photoDrawn ? 2 : 3,
+      width: photoDrawn ? doc.width - photoSize - mm(5) : doc.width,
+      stretch: headStretch,
+    });
+    if (photoDrawn) doc.y = Math.max(doc.y, startY + photoSize * 1.2 + mm(3));
+    doc.advance(mm(1));
+    drawFigures(doc, template, figures, { density, stretch: headStretch });
+  }
+
+  // ── Everything below the head ─────────────────────────────────────────────
   type Entry = ReportCardDetail["subject_entries"][number];
   const entries = detail.subject_entries ?? [];
-  const hasStats = entries.some((e) => present(e.class_average) || present(e.highest_in_class));
-  const hasPosition = entries.some((e) => e.position_in_subject);
   const hasComments = entries.some((e) => present(e.teacher_comment));
-
   // Two columns when the fitting pass asks for them and the table is narrow
-  // enough to halve — a per-subject comment needs the full width, so a card
+  // enough to halve - a per-subject comment needs the full width, so a card
   // that carries comments stays in one column and is tightened instead.
   const twoColumns = (options.subjectColumns ?? 1) === 2 && !hasComments && entries.length >= 6;
 
-  // Half the width means half the room for headings, so they are abbreviated
-  // rather than cut off mid-word ("Ma…", "Ou…").
-  const head = (full: string, short: string) => (twoColumns ? short : full);
+  /**
+   * The body of the card. Run inside a narrower band for the rail layout, and
+   * across the full width for every other one.
+   */
+  const drawBody = () => {
+    // Air between the blocks is the second place the empty page goes, after
+    // the result rows. A card with three subjects wants to breathe; one with
+    // twenty has nothing to give and this is zero.
+    const sectionGap = stretch > 0 ? Math.min(mm(6), stretch * 0.06) : 0;
+    const openSection = (label: string) => {
+      if (sectionGap > 0) doc.advance(sectionGap);
+      drawSectionTitle(doc, template, label, density);
+    };
 
-  // When every subject is marked out of the same number, that column repeats
-  // one fact down the page. In the narrow layout it is said once, above the
-  // table, and the column gives its width to the subject names.
-  const maxMarksValues = new Set(entries.filter((e) => present(e.max_marks)).map((e) => String(e.max_marks)));
-  const uniformMax = twoColumns && maxMarksValues.size === 1 ? [...maxMarksValues][0] : null;
+    openSection("Academic performance");
 
-  const columns = [
-    { header: "Subject", width: twoColumns ? 2.1 : 2.4, value: (e: Entry) => e.subject_name },
-    { header: head("Marks", "Mks"), width: 0.9, align: "right" as const, value: (e: Entry) => (present(e.marks_obtained) ? marks(e.marks_obtained) : "") },
-    ...(uniformMax
-      ? []
-      : [{ header: head("Out of", "Max"), width: 0.9, align: "right" as const, value: (e: Entry) => (present(e.max_marks) ? marks(e.max_marks) : "") }]),
-    { header: "%", width: 0.9, align: "right" as const, value: (e: Entry) => (present(e.percentage) ? percent(e.percentage) : "") },
-    {
+    const hasStats = entries.some((e) => present(e.class_average) || present(e.highest_in_class));
+    const hasPosition = entries.some((e) => e.position_in_subject);
+
+    // Less width means less room for headings, so they are abbreviated rather
+    // than cut off mid-word ("Ma…", "Ou…"). It is the band that decides, not
+    // the column count: the rail layout is narrow at full width too.
+    const narrow = twoColumns || doc.width < 150;
+    const head = (full: string, short: string) => (narrow ? short : full);
+
+    // When every subject is marked out of the same number, that column repeats
+    // one fact down the page. In the narrow layout it is said once, above the
+    // table, and the column gives its width to the subject names.
+    const maxMarksValues = new Set(entries.filter((e) => present(e.max_marks)).map((e) => String(e.max_marks)));
+    const uniformMax = twoColumns && maxMarksValues.size === 1 ? [...maxMarksValues][0] : null;
+
+    /** The grade, as a filled chip rather than a letter in a column. */
+    const gradePill = {
       header: head("Grade", "Gr"),
-      width: 0.8,
+      width: 0.9,
       align: "center" as const,
-      value: (e: Entry) => e.grade ?? "",
-      bold: () => true,
-    },
-    ...(hasStats
-      ? [
-          { header: "Avg", width: 0.8, align: "right" as const, value: (e: Entry) => (present(e.class_average) ? marks(e.class_average) : "") },
-          { header: "Top", width: 0.8, align: "right" as const, value: (e: Entry) => (present(e.highest_in_class) ? marks(e.highest_in_class) : "") },
-        ]
-      : []),
-    ...(hasPosition
-      ? [{ header: head("Pos.", "Pos"), width: 0.75, align: "center" as const, value: (e: Entry) => (e.position_in_subject ? ordinal(e.position_in_subject) : "") }]
-      : []),
-    ...(hasComments ? [{ header: "Comment", width: 2.6, value: (e: Entry) => e.teacher_comment ?? "" }] : []),
-  ];
+      // The totals line is drawn as an emphasis row, which skips drawn cells,
+      // so its grade is set as ordinary text there. Without this the overall
+      // grade simply vanished off the bottom of the table.
+      value: (e: Entry, i: number) => (i >= entries.length ? (e.grade ?? "") : ""),
+      bold: (_e: Entry, i: number) => i >= entries.length,
+      drawCell: (d2: PdfDocument, row: Entry, _i: number, box: { x: number; y: number; w: number; h: number }) => {
+        const label = row.grade ?? "";
+        if (!label.trim()) return;
+        d2.pdf.setFont(d2.theme.bodyFont, "bold");
+        d2.pdf.setFontSize(d2.theme.size.small);
+        const textWidth = d2.pdf.getTextWidth(label);
+        const w = Math.min(box.w - 2, textWidth + mm(4));
+        const h = Math.min(box.h - 1.4, mm(5));
+        const x = box.x + (box.w - w) / 2;
+        const y = box.y + (box.h - h) / 2;
+        d2.pdf.setFillColor(...tint(d2.theme.accent, 0.84));
+        d2.pdf.roundedRect(x, y, w, h, h / 2, h / 2, "F");
+        d2.pdf.setTextColor(...d2.theme.accent);
+        d2.pdf.text(label, x + w / 2, y + h * 0.72, { align: "center" });
+      },
+    };
 
-  const totals: Entry | null =
-    entries.length && present(card.total_marks)
-      ? {
-          subject_name: "Total",
-          marks_obtained: card.total_marks,
-          max_marks: card.max_total_marks,
-          percentage: card.percentage,
-          grade: card.overall_grade ?? null,
+    /**
+     * A bar for the subject, and a tick where the class average fell.
+     *
+     * Only drawn from a percentage that was recorded. A subject with no mark
+     * gets no bar — an empty track is not a score of zero.
+     */
+    const markBar = {
+      header: head("Against the class", "vs class"),
+      headerAlign: "center" as const,
+      width: 1.7,
+      value: () => "",
+      minHeight: mm(5.4),
+      drawCell: (d2: PdfDocument, row: Entry, _i: number, box: { x: number; y: number; w: number; h: number }) => {
+        if (!present(row.percentage)) return;
+        const value = Math.max(0, Math.min(100, Number(row.percentage)));
+        const pad = mm(1.5);
+        const trackW = box.w - pad * 2;
+        const trackH = mm(2.6);
+        const x = box.x + pad;
+        const y = box.y + (box.h - trackH) / 2;
+        d2.pdf.setFillColor(...d2.theme.ruleFaint);
+        d2.pdf.rect(x, y, trackW, trackH, "F");
+        d2.pdf.setFillColor(...d2.theme.accent);
+        d2.pdf.rect(x, y, (trackW * value) / 100, trackH, "F");
+        if (present(row.class_average) && present(row.max_marks) && Number(row.max_marks) > 0) {
+          const avg = Math.max(0, Math.min(100, (Number(row.class_average) / Number(row.max_marks)) * 100));
+          d2.pdf.setDrawColor(...d2.theme.ink);
+          d2.pdf.setLineWidth(0.4);
+          d2.pdf.line(x + (trackW * avg) / 100, y - 0.6, x + (trackW * avg) / 100, y + trackH + 0.6);
         }
-      : null;
+      },
+    };
 
-  if (uniformMax) {
-    doc.text(`Every subject is marked out of ${marks(uniformMax)}.`, {
-      size: doc.theme.size.caption,
-      color: doc.theme.inkMuted,
-      spaceAfter: mm(1),
-    });
-  }
+    const columns = [
+      { header: "Subject", width: narrow ? 2 : 2.4, value: (e: Entry) => e.subject_name },
+      { header: head("Marks", "Mks"), width: 1, align: "right" as const, value: (e: Entry) => (present(e.marks_obtained) ? marks(e.marks_obtained) : "") },
+      ...(uniformMax
+        ? []
+        : [{ header: head("Out of", "Max"), width: 1, align: "right" as const, value: (e: Entry) => (present(e.max_marks) ? marks(e.max_marks) : "") }]),
+      // Wide enough for a bold "85.42%" on the totals line: a percentage that
+      // wraps onto a second line reads as two numbers.
+      { header: "%", width: 1.15, align: "right" as const, value: (e: Entry) => (present(e.percentage) ? percent(e.percentage) : "") },
+      ...(template.subjectMark === "pill"
+        ? [gradePill]
+        : [{
+            header: head("Grade", "Gr"),
+            width: 0.8,
+            align: "center" as const,
+            value: (e: Entry) => e.grade ?? "",
+            bold: () => true,
+          }]),
+      // The bar needs real width, so it is only offered when the table has it.
+      ...(template.subjectMark === "bar" && !twoColumns && !hasComments ? [markBar] : []),
+      ...(hasStats
+        ? [
+            { header: "Avg", width: 0.8, align: "right" as const, value: (e: Entry) => (present(e.class_average) ? marks(e.class_average) : "") },
+            { header: "Top", width: 0.8, align: "right" as const, value: (e: Entry) => (present(e.highest_in_class) ? marks(e.highest_in_class) : "") },
+          ]
+        : []),
+      ...(hasPosition
+        ? [{ header: head("Pos.", "Pos"), width: 0.75, align: "center" as const, value: (e: Entry) => (e.position_in_subject ? ordinal(e.position_in_subject) : "") }]
+        : []),
+      ...(hasComments ? [{ header: "Comment", width: 2.6, value: (e: Entry) => e.teacher_comment ?? "" }] : []),
+    ];
 
-  if (twoColumns) {
-    const gap = mm(5);
-    const colWidth = (doc.width - gap) / 2;
-    const half = Math.ceil(entries.length / 2);
-    const top = doc.y;
-    let deepest = top;
+    const totals: Entry | null =
+      entries.length && present(card.total_marks)
+        ? {
+            subject_name: "Total",
+            marks_obtained: card.total_marks,
+            max_marks: card.max_total_marks,
+            percentage: card.percentage,
+            grade: card.overall_grade ?? null,
+          }
+        : null;
 
-    doc.inBand(doc.x, colWidth, () => {
-      drawTable(doc, {
-        columns,
-        rows: entries.slice(0, half),
-        emptyMessage: "No subject results have been recorded on this card.",
-        padding: mm(1.5),
-        accentHeader: template.table.accentHeader,
-        zebra: template.table.zebra,
-        rowRules: template.table.rowRules,
+    if (uniformMax) {
+      doc.text(`Every subject is marked out of ${marks(uniformMax)}.`, {
+        size: doc.theme.size.caption,
+        color: doc.theme.inkMuted,
+        spaceAfter: mm(1),
       });
-      deepest = Math.max(deepest, doc.y);
-    });
+    }
 
-    doc.y = top;
-    doc.inBand(doc.x + colWidth + gap, colWidth, () => {
-      drawTable(doc, {
-        columns,
-        rows: entries.slice(half),
-        footerRows: totals ? [totals] : [],
-        emptyMessage: "",
-        padding: mm(1.5),
-        accentHeader: template.table.accentHeader,
-        zebra: template.table.zebra,
-        rowRules: template.table.rowRules,
-      });
-      deepest = Math.max(deepest, doc.y);
-    });
-
-    doc.y = deepest;
-  } else {
-    const tableTop = doc.y;
-    drawTable(doc, {
-      columns,
-      rows: entries,
-      footerRows: totals ? [totals] : [],
-      emptyMessage: "No subject results have been recorded on this card.",
+    // Most of the empty page is spent here: taller result rows, which is what
+    // a printed card does with a short subject list - three subjects on ruled
+    // lines an inch apart, not three lines huddled under the letterhead. The
+    // cap is what keeps a row a row rather than a band of white.
+    const stretchedRows = Math.max(1, twoColumns ? Math.ceil(entries.length / 2) : entries.length) + (totals ? 1 : 0);
+    const rowStretch = stretch > 0 ? Math.min(mm(19), (stretch * 0.55) / stretchedRows) : 0;
+    const shared = {
       padding: mm(1.5),
       accentHeader: template.table.accentHeader,
       zebra: template.table.zebra,
       rowRules: template.table.rowRules,
-    });
-    // A framed table is what makes the register-style templates read as a
-    // record rather than a list.
-    if (template.table.frame && doc.y > tableTop) {
-      doc.pdf.setDrawColor(...doc.theme.rule);
-      doc.pdf.setLineWidth(0.3);
-      doc.pdf.rect(doc.x, tableTop, doc.width, doc.y - tableTop, "S");
+      columnRules: template.table.columnRules,
+      minRowHeight: rowStretch > 0 ? mm(6) + rowStretch : 0,
+    };
+
+    if (twoColumns) {
+      const gap = mm(5);
+      const colWidth = (doc.width - gap) / 2;
+      const half = Math.ceil(entries.length / 2);
+      const top = doc.y;
+      let deepest = top;
+
+      doc.inBand(doc.x, colWidth, () => {
+        drawTable(doc, {
+          ...shared,
+          columns,
+          rows: entries.slice(0, half),
+          emptyMessage: "No subject results have been recorded on this card.",
+        });
+        deepest = Math.max(deepest, doc.y);
+      });
+
+      const leftX = doc.x;
+      doc.y = top;
+      doc.inBand(leftX + colWidth + gap, colWidth, () => {
+        drawTable(doc, {
+          ...shared,
+          columns,
+          rows: entries.slice(half),
+          footerRows: totals ? [totals] : [],
+          emptyMessage: "",
+        });
+        deepest = Math.max(deepest, doc.y);
+      });
+
+      doc.y = deepest;
+    } else {
+      const tableTop = doc.y;
+      drawTable(doc, {
+        ...shared,
+        columns,
+        rows: entries,
+        footerRows: totals ? [totals] : [],
+        emptyMessage: "No subject results have been recorded on this card.",
+      });
+      // A framed table is what makes the register-style templates read as a
+      // record rather than a list.
+      if (template.table.frame && doc.y > tableTop) {
+        doc.pdf.setDrawColor(...doc.theme.rule);
+        doc.pdf.setLineWidth(0.3);
+        doc.pdf.rect(doc.x, tableTop, doc.width, doc.y - tableTop, "S");
+      }
     }
-  }
 
-  // A subject with no mark recorded is shown blank, never as zero, and says why.
-  if (entries.some((e) => !present(e.marks_obtained))) {
-    doc.text("A blank mark means no result was recorded for that subject; it is not a score of zero.", {
-      size: doc.theme.size.caption,
-      color: doc.theme.inkMuted,
-      style: "italic",
-      spaceAfter: 1,
-    });
-  }
-
-  // ── Co-curricular ─────────────────────────────────────────────────────────
-  const co = settings.showActivities ? (detail.co_curricular ?? []) : [];
-  if (co.length) {
-    drawSectionTitle(doc, template, "Co-curricular activities", density);
-    type Co = (typeof co)[number];
-    const coColumns = [
-      { header: "Activity", width: 2, value: (c: Co) => c.activity_name },
-      ...(co.some((c) => present(c.category)) ? [{ header: "Category", width: 1.3, value: (c: Co) => c.category ?? "" }] : []),
-      ...(co.some((c) => present(c.grade)) ? [{ header: "Grade", width: 0.8, align: "center" as const, value: (c: Co) => c.grade ?? "" }] : []),
-      ...(co.some((c) => present(c.score))
-        ? [{
-            header: "Score",
-            width: 1,
-            align: "right" as const,
-            value: (c: Co) => (present(c.score) ? `${marks(c.score)}${present(c.max_score) ? ` / ${marks(c.max_score)}` : ""}` : ""),
-          }]
-        : []),
-      ...(co.some((c) => present(c.remarks)) ? [{ header: "Remarks", width: 2.6, value: (c: Co) => c.remarks ?? "" }] : []),
-    ];
-    drawTable(doc, {
-      columns: coColumns,
-      padding: mm(1.4),
-      rows: co,
-    });
-  }
-
-  // ── Trend across terms ────────────────────────────────────────────────────
-  const trend = settings.showTermTrend ? (card.trend_data ?? []).filter((t) => present(t.percentage)) : [];
-  if (trend.length >= 2) {
-    drawSectionTitle(doc, template, "Progress across terms", density);
-    const chartH = mm(16);
-    doc.ensureSpace(chartH + mm(10));
-    const top = doc.y;
-    const barGap = mm(4);
-    const barW = Math.min(mm(18), (doc.width - barGap * (trend.length - 1)) / trend.length);
-    const totalW = trend.length * barW + (trend.length - 1) * barGap;
-    const left = doc.x + (doc.width - totalW) / 2;
-    doc.pdf.setDrawColor(...doc.theme.ruleFaint);
-    doc.pdf.setLineWidth(0.2);
-    for (const pct of [25, 50, 75, 100]) {
-      const y = top + chartH - (chartH * pct) / 100;
-      doc.pdf.line(doc.x, y, doc.x + doc.width, y);
+    // A subject with no mark recorded is shown blank, never as zero, and says why.
+    if (entries.some((e) => !present(e.marks_obtained))) {
+      doc.text("A blank mark means no result was recorded for that subject; it is not a score of zero.", {
+        size: doc.theme.size.caption,
+        color: doc.theme.inkMuted,
+        style: "italic",
+        spaceAfter: 1,
+      });
     }
-    trend.forEach((t, i) => {
-      const value = Math.max(0, Math.min(100, Number(t.percentage)));
-      const h = (chartH * value) / 100;
-      const x = left + i * (barW + barGap);
-      const last = i === trend.length - 1;
-      doc.pdf.setFillColor(...(last ? doc.theme.accent : doc.theme.accentWash));
-      if (!last) doc.pdf.setDrawColor(...doc.theme.accent);
-      doc.pdf.rect(x, top + chartH - h, barW, h, last ? "F" : "FD");
-      doc.pdf.setFont(doc.theme.bodyFont, "bold");
-      doc.pdf.setFontSize(doc.theme.size.caption);
-      doc.pdf.setTextColor(...doc.theme.ink);
-      doc.pdf.text(percent(t.percentage), x + barW / 2, top + chartH - h - mm(1.2), { align: "center" });
-      doc.pdf.setFont(doc.theme.bodyFont, "normal");
-      doc.pdf.setTextColor(...doc.theme.inkMuted);
-      doc.pdf.text(String(t.label ?? t.term ?? ""), x + barW / 2, top + chartH + mm(4), { align: "center" });
-    });
-    doc.y = top + chartH + mm(8);
-  }
+    if (template.subjectMark === "bar" && entries.some((e) => present(e.class_average))) {
+      doc.text("On each bar, the upright mark is the class average for that subject.", {
+        size: doc.theme.size.caption,
+        color: doc.theme.inkMuted,
+        style: "italic",
+        spaceAfter: 1,
+      });
+    }
 
-  // ── Remarks ───────────────────────────────────────────────────────────────
-  if (present(card.teacher_remarks) || present(card.principal_remarks)) {
-    drawSectionTitle(doc, template, "Remarks", density);
-    doc.note(
-      [
-        present(card.teacher_remarks) ? `Class teacher: ${card.teacher_remarks}` : null,
-        present(card.principal_remarks) ? `Principal: ${card.principal_remarks}` : null,
-      ]
-        .filter(Boolean)
-        .join("\n"),
-    );
-  }
+    // ── Co-curricular ───────────────────────────────────────────────────────
+    const co = settings.showActivities ? (detail.co_curricular ?? []) : [];
+    if (co.length) {
+      openSection("Co-curricular activities");
+      type Co = (typeof co)[number];
+      const coColumns = [
+        { header: "Activity", width: 2, value: (c: Co) => c.activity_name },
+        ...(co.some((c) => present(c.category)) ? [{ header: "Category", width: 1.3, value: (c: Co) => c.category ?? "" }] : []),
+        ...(co.some((c) => present(c.grade)) ? [{ header: "Grade", width: 0.8, align: "center" as const, value: (c: Co) => c.grade ?? "" }] : []),
+        ...(co.some((c) => present(c.score))
+          ? [{
+              header: "Score",
+              width: 1,
+              align: "right" as const,
+              value: (c: Co) => (present(c.score) ? `${marks(c.score)}${present(c.max_score) ? ` / ${marks(c.max_score)}` : ""}` : ""),
+            }]
+          : []),
+        ...(co.some((c) => present(c.remarks)) ? [{ header: "Remarks", width: 2.6, value: (c: Co) => c.remarks ?? "" }] : []),
+      ];
+      drawTable(doc, {
+        columns: coColumns,
+        padding: mm(1.4),
+        rows: co,
+        accentHeader: template.table.accentHeader,
+        zebra: template.table.zebra,
+        columnRules: template.table.columnRules,
+        minRowHeight: stretch > 0 ? Math.min(mm(14), mm(6) + (stretch * 0.18) / co.length) : 0,
+      });
+    }
 
-  // ── Grading key ───────────────────────────────────────────────────────────
-  const scale = settings.showGradeKey ? (options.gradeScale ?? []).filter((g) => present(g.grade)) : [];
-  if (scale.length) {
-    doc.ensureSpace(mm(10));
-    doc.text(
-      `Grading key: ${scale.map((g) => `${g.grade} ${marks(g.min)}${present(g.max) ? `–${marks(g.max)}` : "+"}%`).join("   ")}`,
-      { size: doc.theme.size.caption, color: doc.theme.inkMuted, spaceAfter: 1 },
-    );
+    // ── Trend across terms ──────────────────────────────────────────────────
+    const trend = settings.showTermTrend ? (card.trend_data ?? []).filter((t) => present(t.percentage)) : [];
+    if (trend.length >= 2) {
+      openSection("Progress across terms");
+      const chartH = mm(16) + (stretch > 0 ? Math.min(mm(10), stretch * 0.12) : 0);
+      doc.ensureSpace(chartH + mm(10));
+      const top = doc.y;
+      const barGap = mm(6);
+      const barW = Math.min(mm(34), (doc.width - barGap * (trend.length + 1)) / trend.length);
+      const totalW = trend.length * barW + (trend.length - 1) * barGap;
+      const left = doc.x + (doc.width - totalW) / 2;
+      doc.pdf.setDrawColor(...doc.theme.ruleFaint);
+      doc.pdf.setLineWidth(0.2);
+      for (const pct of [25, 50, 75, 100]) {
+        const y = top + chartH - (chartH * pct) / 100;
+        doc.pdf.line(left - barGap, y, left + totalW + barGap, y);
+      }
+      trend.forEach((t, i) => {
+        const value = Math.max(0, Math.min(100, Number(t.percentage)));
+        const h = (chartH * value) / 100;
+        const x = left + i * (barW + barGap);
+        // Every term is filled; the one being reported is filled in the
+        // school's colour and the earlier ones in a tint of it. An outline
+        // reads as an empty bar, which is a score nobody got.
+        const last = i === trend.length - 1;
+        doc.pdf.setFillColor(...(last ? doc.theme.accent : tint(doc.theme.accent, 0.62)));
+        doc.pdf.rect(x, top + chartH - h, barW, h, "F");
+        doc.pdf.setFont(doc.theme.bodyFont, "bold");
+        doc.pdf.setFontSize(doc.theme.size.caption);
+        doc.pdf.setTextColor(...doc.theme.ink);
+        doc.pdf.text(percent(t.percentage), x + barW / 2, top + chartH - h - mm(1.2), { align: "center" });
+        doc.pdf.setFont(doc.theme.bodyFont, "normal");
+        doc.pdf.setTextColor(...doc.theme.inkMuted);
+        doc.pdf.text(String(t.label ?? t.term ?? ""), x + barW / 2, top + chartH + mm(4), { align: "center" });
+      });
+      doc.y = top + chartH + mm(8);
+    }
+
+    // ── Remarks ─────────────────────────────────────────────────────────────
+    // The narrative is the part of a report a family actually reads twice, so
+    // it is set as its own block and given room, not tucked under the numbers.
+    if (present(card.teacher_remarks) || present(card.principal_remarks)) {
+      openSection("Remarks");
+      doc.note(
+        [
+          present(card.teacher_remarks) ? `Class teacher: ${card.teacher_remarks}` : null,
+          present(card.principal_remarks) ? `Principal: ${card.principal_remarks}` : null,
+        ]
+          .filter(Boolean)
+          .join("\n"),
+      );
+    }
+
+    // ── Grading key ─────────────────────────────────────────────────────────
+    // A grade nobody can interpret is not a report, so the scale prints on the
+    // card itself rather than in a prospectus the family does not have.
+    const scale = settings.showGradeKey ? (options.gradeScale ?? []).filter((g) => present(g.grade)) : [];
+    if (scale.length) {
+      doc.ensureSpace(mm(10));
+      doc.text(
+        `Grading key: ${scale.map((g) => `${g.grade} ${marks(g.min)}${present(g.max) ? `–${marks(g.max)}` : "+"}%`).join("   ")}`,
+        { size: doc.theme.size.caption, color: doc.theme.inkMuted, spaceAfter: 1 },
+      );
+    }
+  };
+
+  if (template.layout === "sidebar") {
+    doc.inBand(bandX, bandWidth, drawBody);
+  } else {
+    drawBody();
   }
 
   // ── Signatures and verification ───────────────────────────────────────────
+  const signatureX = template.layout === "sidebar" ? bandX : doc.x;
+  const signatureWidth = template.layout === "sidebar" ? bandWidth : doc.width;
   const qrSize = mm(18);
   const token = published ? card.qr_verification_token : null;
-  doc.ensureSpace(mm(26));
-  const blockTop = doc.y;
-  if (token) {
-    drawQrVector(doc.pdf, reportCardVerificationUrl(token), doc.x + doc.width - qrSize, blockTop + mm(4), qrSize, doc.theme.ink);
-    doc.pdf.setFont(doc.theme.bodyFont, "normal");
-    doc.pdf.setFontSize(doc.theme.size.caption);
-    doc.pdf.setTextColor(...doc.theme.inkMuted);
-    doc.pdf.text("Scan to verify", doc.x + doc.width - qrSize / 2, blockTop + qrSize + mm(7), { align: "center" });
-  }
-  // Signature lines in the space left of the code. A digital sign-off is
-  // stated as what it is; an unsigned line stays empty for a pen.
-  doc.signatures([
-    { title: "Class Teacher" },
-    {
-      title: card.signed_by_title || "Principal",
-      name: card.signed_by_name ?? null,
-      note: card.signed_at ? `Signed digitally ${formatDate(card.signed_at)}` : null,
-    },
-    { title: "Parent / Guardian" },
-  ], { width: token ? doc.width - qrSize - mm(6) : doc.width });
-  doc.y = Math.max(doc.y, blockTop + qrSize + mm(10));
+  // `signatures()` reserves a fixed 24mm of its own, whatever the density —
+  // it is shared with every other document and does not scale. Reserving less
+  // than that here is what sent a tightened card onto a second sheet: the QR
+  // was placed at the foot of page one and the signature lines, finding 24mm
+  // were not left, started page two.
+  const blockHeight = Math.max(24, token || template.ornament === "seal" ? mm(4) + qrSize + mm(8) : 0);
 
-  if (template.pageFrame !== "none") {
+  // How much of the sheet the card did not use. Measured before the block is
+  // moved, because moving it is what hides the gap rather than closing it.
+  const slack = doc.pages === 1 ? Math.max(0, doc.bottomLimit - (doc.y + blockHeight)) : 0;
+
+  doc.inBand(signatureX, signatureWidth, () => {
+    doc.ensureSpace(blockHeight);
+    // Signature lines belong at the foot of the page, where a pen expects
+    // them — and putting them there is also what stops a short card from
+    // ending two-thirds of the way down with nothing underneath.
+    if (doc.bottomLimit - blockHeight > doc.y) {
+      doc.y = doc.bottomLimit - blockHeight;
+    }
+    const blockTop = doc.y;
+    if (token) {
+      drawQrVector(doc.pdf, reportCardVerificationUrl(token), doc.x + doc.width - qrSize, blockTop + mm(4), qrSize, doc.theme.ink);
+      doc.pdf.setFont(doc.theme.bodyFont, "normal");
+      doc.pdf.setFontSize(doc.theme.size.caption);
+      doc.pdf.setTextColor(...doc.theme.inkMuted);
+      doc.pdf.text("Scan to verify", doc.x + doc.width - qrSize / 2, blockTop + qrSize + mm(7), { align: "center" });
+    } else if (template.ornament === "seal") {
+      drawSeal(doc, doc.x + doc.width - qrSize / 2, blockTop + mm(4) + qrSize / 2, qrSize / 2);
+    }
+    // A digital sign-off is stated as what it is; an unsigned line stays empty
+    // for a pen.
+    doc.signatures(
+      [
+        { title: "Class Teacher" },
+        {
+          title: card.signed_by_title || "Principal",
+          name: card.signed_by_name ?? null,
+          note: card.signed_at ? `Signed digitally ${formatDate(card.signed_at)}` : null,
+        },
+        { title: "Parent / Guardian" },
+      ],
+      { width: token || template.ornament === "seal" ? doc.width - qrSize - mm(6) : doc.width },
+    );
+    doc.y = Math.max(doc.y, blockTop + qrSize + mm(10));
+  });
+
+  if (template.pageFrame !== "none" || template.ornament === "corners") {
     const finished = doc.pdf.getNumberOfPages();
     for (let page = 1; page <= finished; page += 1) {
       doc.pdf.setPage(page);
@@ -622,16 +843,25 @@ export async function buildReportCard(
     density,
     orientation: options.orientation ?? "portrait",
     subjectColumns: twoColumns ? 2 : 1,
+    slack,
   };
 }
 
 /**
- * Build a card that comes out on one sheet.
+ * Build a card that comes out on one sheet — and fills it.
  *
- * It builds at the comfortable layout first and only tightens if the page
- * overflows, one step at a time, down to the legible floor. Nothing is ever
- * dropped to make room: a subject, a remark or an activity that is on the card
- * is on the print.
+ * Two things are wrong with a report card: one that spills onto a second sheet,
+ * and one that stops a third of the way down leaving the rest of the page
+ * blank. This closes both, and never by dropping data.
+ *
+ *   1. It opens the card up first — larger type and more air — and keeps the
+ *      largest size that still comes out on one sheet.
+ *   2. If nothing that large fits, it tightens instead, one step at a time,
+ *      down to the legible floor, trying the two-column subject list at each
+ *      size before making the type smaller again.
+ *   3. Whatever wins, it measures the page that is left over and builds once
+ *      more with that slack handed back, so the result rows open out and the
+ *      signature block sits on the foot of the sheet.
  *
  * If it still will not fit, the school's own answer decides — given once, on
  * the Report Cards screen, and applied to every card after that:
@@ -649,9 +879,40 @@ export async function buildFittedReportCard(
   options: BuildReportCardOptions = {},
 ): Promise<ReportCardResult & { fittedOnOnePage: boolean }> {
   const settings = options.settings ?? DEFAULT_PRINT_SETTINGS;
-  // Steps, not a search: each is a layout a printer can be handed, and four
-  // builds is cheaper than a binary search over a continuum nobody can see.
-  const steps = [1, 0.92, 0.85, 0.78, MIN_DENSITY];
+  // Steps, not a search: each is a layout a printer can be handed, and a
+  // handful of builds is cheaper than a binary search over a continuum nobody
+  // can see.
+  const grow = [MAX_DENSITY, 1.12, 1.05];
+  const shrink = [1, 0.92, 0.85, 0.78, MIN_DENSITY];
+
+  /**
+   * Spend the leftover page on the layout.
+   *
+   * How much taller a row becomes for a given stretch is not a straight line -
+   * the caps see to that - so one pass cannot land on the foot of the sheet.
+   * It is re-measured and re-spent instead, which converges in two or three
+   * builds, and stops the moment a pass stops helping or tips onto a second
+   * sheet.
+   */
+  const fill = async (result: ReportCardResult): Promise<ReportCardResult> => {
+    let best = result;
+    let spent = 0;
+    for (let pass = 0; pass < 6 && best.slack >= 6; pass += 1) {
+      spent += best.slack;
+      const stretched = await buildReportCard(detail, {
+        ...options,
+        density: best.density,
+        subjectColumns: best.subjectColumns,
+        orientation: best.orientation,
+        stretch: spent,
+      });
+      // Overshot onto a second sheet, or stopped closing the gap: the build
+      // before it is the right answer.
+      if (stretched.doc.pages !== 1 || stretched.slack >= best.slack) break;
+      best = stretched;
+    }
+    return best;
+  };
 
   if (settings.fitStrategy === "two_pages") {
     const result = await buildReportCard(detail, options);
@@ -659,13 +920,22 @@ export async function buildFittedReportCard(
   }
 
   let last: ReportCardResult | null = null;
-  for (const density of steps) {
+
+  // Open it up as far as it will go. A card with six subjects should use the
+  // sheet it is printed on.
+  for (const density of grow) {
+    const result = await buildReportCard(detail, { ...options, density, subjectColumns: 1 });
+    if (result.doc.pages === 1) return { ...(await fill(result)), fittedOnOnePage: true };
+    last = result;
+  }
+
+  for (const density of shrink) {
     // At each size, one column first — it reads better — then two, which
     // halves the height a long subject list takes. Both are tried before the
     // type is made smaller again.
     for (const subjectColumns of [1, 2] as const) {
       const result = await buildReportCard(detail, { ...options, density, subjectColumns });
-      if (result.doc.pages === 1) return { ...result, fittedOnOnePage: true };
+      if (result.doc.pages === 1) return { ...(await fill(result)), fittedOnOnePage: true };
       last = result;
     }
   }
@@ -673,7 +943,7 @@ export async function buildFittedReportCard(
   if (settings.fitStrategy === "landscape") {
     // A landscape sheet is wider but shorter, so it only helps a card whose
     // subjects can be set side by side.
-    for (const density of steps) {
+    for (const density of shrink) {
       for (const subjectColumns of [2, 1] as const) {
         const result = await buildReportCard(detail, {
           ...options,
@@ -681,7 +951,7 @@ export async function buildFittedReportCard(
           subjectColumns,
           orientation: "landscape",
         });
-        if (result.doc.pages === 1) return { ...result, fittedOnOnePage: true };
+        if (result.doc.pages === 1) return { ...(await fill(result)), fittedOnOnePage: true };
         last = result;
       }
     }

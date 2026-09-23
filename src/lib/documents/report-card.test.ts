@@ -8,11 +8,13 @@ import type { SchoolBrand } from "./brand";
 import { seedUnicodeFont } from "./fonts";
 import {
   DEFAULT_PRINT_SETTINGS,
+  MAX_DENSITY,
   MIN_DENSITY,
   type ReportCardDetail,
   buildFittedReportCard,
   buildReportCard,
 } from "./report-card";
+import { TEMPLATE_ORDER } from "./report-card-templates";
 
 const brand: SchoolBrand = {
   id: "s1",
@@ -193,11 +195,59 @@ describe("fitting a card onto one sheet", () => {
     expect(fitted.density).toBeLessThan(1);
   });
 
-  it("leaves a short card at the comfortable layout", async () => {
-    const fitted = await buildFittedReportCard(detail(), { brand });
+  it("opens a short card out until it reaches the foot of the sheet", async () => {
+    // Three subjects, nothing else on: the card that used to stop a third of
+    // the way down and leave the rest of the page white.
+    const sparse: ReportCardDetail = {
+      report_card: {
+        id: "c3",
+        period_label: "Term 1",
+        academic_year: "2026-2027",
+        total_marks: "255.000",
+        max_total_marks: "300.000",
+        percentage: "85.000",
+        overall_grade: "A",
+        is_published: true,
+      },
+      subject_entries: [
+        { subject_name: "English", marks_obtained: "88", max_marks: "100", percentage: "88", grade: "A" },
+        { subject_name: "Urdu", marks_obtained: "84", max_marks: "100", percentage: "84", grade: "A" },
+        { subject_name: "Mathematics", marks_obtained: "83", max_marks: "100", percentage: "83", grade: "A" },
+      ],
+      co_curricular: [],
+      student: { id: "st3", first_name: "Hamza", last_name: "Iqbal", roll_number: "4", class_name: "Grade 4" },
+    };
+
+    const fitted = await buildFittedReportCard(sparse, { brand });
     expect(fitted.doc.pages).toBe(1);
-    expect(fitted.density).toBe(1);
+    // Less than a centimetre of the sheet left unused, measured before the
+    // signature block is dropped to the foot.
+    expect(fitted.slack).toBeLessThan(10);
+    expect(fitted.density).toBeLessThanOrEqual(MAX_DENSITY);
   });
+
+  it("fills the sheet for every one of the seven designs", async () => {
+    for (const template of TEMPLATE_ORDER) {
+      const fitted = await buildFittedReportCard(detail(), {
+        brand,
+        settings: { ...DEFAULT_PRINT_SETTINGS, template },
+      });
+      expect(fitted.doc.pages, `${template} needed ${fitted.doc.pages} pages`).toBe(1);
+      expect(fitted.slack, `${template} left ${fitted.slack}mm of the sheet empty`).toBeLessThan(28);
+    }
+  }, 60_000);
+
+  it("never loses a subject to any design, however the page is arranged", async () => {
+    // The fitting pass may tighten, halve the table or open it out. What it
+    // may never do is print fewer subjects than the card carries.
+    for (const template of TEMPLATE_ORDER) {
+      const { warnings } = await buildFittedReportCard(detail(), {
+        brand,
+        settings: { ...DEFAULT_PRINT_SETTINGS, template },
+      });
+      expect(warnings, `${template} reported ${warnings.join("; ")}`).toEqual([]);
+    }
+  }, 60_000);
 
   it("never tightens past the legible floor", async () => {
     const fitted = await buildFittedReportCard(crowded(22, { comments: true }), { brand });

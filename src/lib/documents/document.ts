@@ -69,6 +69,19 @@ export interface DocumentOptions {
   issuedAt?: Date | null;
   /** Free text in the footer, e.g. "This is a computer-generated document." */
   footerNote?: string | null;
+  /**
+   * How much furniture the footer carries.
+   *
+   *   standard  a rule, "School · reference" on the left, "Page X of Y" on the
+   *             right, and the note centred beneath. Right for anything that
+   *             travels in a stack — a payroll run, a class set of vouchers.
+   *   minimal   the note alone, centred, with the page count added only when
+   *             there is more than one page to count. A single-sheet document
+   *             a family frames does not want "Page 1 of 1" across its foot,
+   *             and the school's name is already on the letterhead above.
+   *   none      nothing at all.
+   */
+  footerStyle?: "standard" | "minimal" | "none";
   /** Suppress the letterhead on continuation pages. Default true. */
   repeatLetterheadOnEveryPage?: boolean;
   /**
@@ -115,7 +128,11 @@ export class PdfDocument {
    * documents in one PDF: each keeps its own reference and its own
    * "Page 1 of 2", so a stack printed from it separates cleanly.
    */
-  private readonly groups: Array<{ reference: string | null; footerNote: string | null }> = [];
+  private readonly groups: Array<{
+    reference: string | null;
+    footerNote: string | null;
+    footerStyle: NonNullable<DocumentOptions["footerStyle"]>;
+  }> = [];
 
   constructor(options: DocumentOptions) {
     this.options = options;
@@ -152,7 +169,11 @@ export class PdfDocument {
     });
 
     this.cursor = this.geo.contentY;
-    this.groups.push({ reference: options.reference ?? null, footerNote: options.footerNote ?? null });
+    this.groups.push({
+      reference: options.reference ?? null,
+      footerNote: options.footerNote ?? null,
+      footerStyle: options.footerStyle ?? "standard",
+    });
     this.drawLetterhead();
     this.footerQueue.push({ page: 1, group: 0 });
   }
@@ -243,11 +264,19 @@ export class PdfDocument {
    * letterhead, reference and page numbering — one payslip per employee, one
    * report card per child, all in a single printable PDF.
    */
-  beginDocument(next: Partial<Pick<DocumentOptions, "subtitle" | "reference" | "footerNote" | "watermark" | "title">>): this {
+  beginDocument(
+    next: Partial<
+      Pick<DocumentOptions, "subtitle" | "reference" | "footerNote" | "footerStyle" | "watermark" | "title">
+    >,
+  ): this {
     this.options = { ...this.options, ...next };
     this.pdf.addPage(this.geo.size, this.geo.orientation);
     this.pageCount += 1;
-    this.groups.push({ reference: this.options.reference ?? null, footerNote: this.options.footerNote ?? null });
+    this.groups.push({
+      reference: this.options.reference ?? null,
+      footerNote: this.options.footerNote ?? null,
+      footerStyle: this.options.footerStyle ?? "standard",
+    });
     this.footerQueue.push({ page: this.pageCount, group: this.groups.length - 1 });
     this.cursor = this.geo.contentY;
     this.drawLetterhead();
@@ -351,22 +380,29 @@ export class PdfDocument {
   fields(
     entries: Array<{ label: string; value: string | null | undefined }>,
     columns = 2,
-    options: { width?: number; x?: number } = {},
+    options: { width?: number; x?: number; rowHeight?: number } = {},
   ): this {
     const present = entries.filter((e) => e.value != null && String(e.value).trim() !== "");
     if (!present.length) return this;
 
     const colWidth = (options.width ?? this.width) / columns;
-    const rowHeight = 7.6;
+    // Openable, so a document with room to spare can set its particulars
+    // generously rather than leaving the space at the foot of the sheet.
+    const rowHeight = Math.max(7.6, options.rowHeight ?? 0);
     const rows = Math.ceil(present.length / columns);
 
     this.ensureSpace(rows * rowHeight);
+
+    // An opened-up row centres its pair of lines in the space it was given.
+    // Without this the extra height all lands below the text and prints as a
+    // gap between the particulars and whatever follows them.
+    const lift = (rowHeight - 7.6) / 2;
 
     present.forEach((entry, index) => {
       const col = index % columns;
       const row = Math.floor(index / columns);
       const cellX = (options.x ?? this.x) + col * colWidth;
-      const cellY = this.cursor + row * rowHeight;
+      const cellY = this.cursor + row * rowHeight + lift;
 
       this.pdf.setFont(this.theme.bodyFont, "normal");
       this.pdf.setFontSize(this.theme.size.caption);
@@ -647,8 +683,28 @@ export class PdfDocument {
 
     for (const [group, pages] of perGroup) {
       const meta = this.groups[group];
+      if (meta.footerStyle === "none") continue;
+
       pages.forEach((pageNumber, index) => {
         this.pdf.setPage(pageNumber);
+        const note = meta.footerNote ?? `Generated ${stampedOn}`;
+
+        if (meta.footerStyle === "minimal") {
+          // No rule, no repeated school name, and no page count on a document
+          // that is one page: "Page 1 of 1" tells a reader nothing and is the
+          // first thing that makes a certificate look like a printout. The
+          // count comes back the moment there is a second sheet to lose.
+          this.pdf.setFont(this.theme.bodyFont, "normal");
+          this.pdf.setFontSize(this.theme.size.caption);
+          this.pdf.setTextColor(...this.theme.inkFaint);
+          if (note) this.pdf.text(note, g.contentX + g.contentWidth / 2, g.footerY + 2, { align: "center" });
+          if (pages.length > 1) {
+            this.pdf.text(`${index + 1} / ${pages.length}`, g.contentX + g.contentWidth, g.footerY + 2, {
+              align: "right",
+            });
+          }
+          return;
+        }
 
         this.pdf.setDrawColor(...this.theme.ruleFaint);
         this.pdf.setLineWidth(0.2);
@@ -662,7 +718,6 @@ export class PdfDocument {
         this.pdf.text(left, g.contentX, g.footerY);
         this.pdf.text(`Page ${index + 1} of ${pages.length}`, g.contentX + g.contentWidth, g.footerY, { align: "right" });
 
-        const note = meta.footerNote ?? `Generated ${stampedOn}`;
         this.pdf.setTextColor(...this.theme.inkFaint);
         this.pdf.text(note, g.contentX + g.contentWidth / 2, g.footerY + 3.6, { align: "center" });
       });

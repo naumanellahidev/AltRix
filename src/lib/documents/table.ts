@@ -60,6 +60,20 @@ export interface TableOptions<Row> {
   padding?: number;
   /** Draw the header band in the school's colour. Default true. */
   accentHeader?: boolean;
+  /**
+   * A hairline between every column, top to bottom — the examination register
+   * look, where the grid itself is part of the document.
+   */
+  columnRules?: boolean;
+  /**
+   * The least height a row may take, in millimetres.
+   *
+   * A report card with six subjects and one with eighteen are the same
+   * document on the same sheet; without this the short one leaves a third of
+   * the page blank. The caller works out the slack and hands it here, so the
+   * rows open up to fill the sheet instead of huddling at the top.
+   */
+  minRowHeight?: number;
   /** Called once per drawn page, for a "continued" marker. */
   onPageBreak?: (doc: PdfDocument, pageNumber: number) => void;
 }
@@ -123,6 +137,8 @@ export function drawTable<Row>(doc: PdfDocument, options: TableOptions<Row>): nu
     fontSize = doc.theme.size.small,
     padding = 2,
     accentHeader = true,
+    columnRules = false,
+    minRowHeight = 0,
     onPageBreak,
   } = options;
 
@@ -131,6 +147,15 @@ export function drawTable<Row>(doc: PdfDocument, options: TableOptions<Row>): nu
   const cols = layout(doc, columns);
   const lineMm = fontSize * 1.3 * MM_PER_PT;
   const headerHeight = lineMm + padding * 2;
+
+  /** The hairlines between columns, for a banded row of the given height. */
+  const drawColumnRules = (top: number, height: number, onAccent: boolean) => {
+    if (!columnRules) return;
+    const stroke = onAccent ? readableOn(doc.theme.accent) : doc.theme.ruleFaint;
+    doc.pdf.setDrawColor(stroke[0], stroke[1], stroke[2]);
+    doc.pdf.setLineWidth(0.15);
+    cols.slice(1).forEach(({ x }) => doc.pdf.line(x, top, x, top + height));
+  };
 
   const drawHeader = () => {
     const bg = accentHeader ? doc.theme.accent : doc.theme.accentWash;
@@ -154,6 +179,7 @@ export function drawTable<Row>(doc: PdfDocument, options: TableOptions<Row>): nu
         { align },
       );
     }
+    drawColumnRules(doc.y, headerHeight, accentHeader);
     doc.y += headerHeight;
   };
 
@@ -170,7 +196,11 @@ export function drawTable<Row>(doc: PdfDocument, options: TableOptions<Row>): nu
     });
     const tallest = cells.reduce((max, lines) => Math.max(max, lines.length), 1);
     const drawn = cols.reduce((max, { column }) => Math.max(max, column.minHeight ?? 0), 0);
-    return { cells, height: Math.max(tallest * lineMm + padding * 2, drawn) };
+    // A one-line row may be opened up to fill the sheet, but a wrapped one is
+    // already as tall as its text: stretching it further would only push the
+    // rows below it off the page.
+    const floor = tallest === 1 ? minRowHeight : 0;
+    return { cells, height: Math.max(tallest * lineMm + padding * 2, drawn, floor) };
   };
 
   const drawRow = (
@@ -199,15 +229,19 @@ export function drawTable<Row>(doc: PdfDocument, options: TableOptions<Row>): nu
       doc.pdf.setFontSize(fontSize);
       doc.pdf.setTextColor(color[0], color[1], color[2]);
 
+      // Sit the text in the middle of the row's box. With rows at their
+      // natural height this is the old top-padded position; with rows opened
+      // up to fill the sheet it is what keeps the marks on the rule instead of
+      // floating at the top of a tall, half-empty cell.
+      const top = doc.y + Math.max(padding, (measured.height - lines.length * lineMm) / 2);
       lines.forEach((line, lineIndex) => {
-        doc.pdf.text(
-          line,
-          anchorFor(align, x, width, padding),
-          doc.y + padding + lineMm * 0.72 + lineIndex * lineMm,
-          { align },
-        );
+        doc.pdf.text(line, anchorFor(align, x, width, padding), top + lineMm * 0.72 + lineIndex * lineMm, {
+          align,
+        });
       });
     });
+
+    drawColumnRules(doc.y, measured.height, false);
 
     cols.forEach(({ column, x, width }) => {
       if (column.drawCell && !emphasis) {

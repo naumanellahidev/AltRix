@@ -1052,3 +1052,61 @@ there is something to say.
   — so a permissions error and a school that had configured nothing looked
   identical. It reports now, and its three figures say what each means when the
   count is zero.
+
+## The report card, redesigned (23 Sep 2026)
+
+Three complaints, all of them fair.
+
+**"Yeh chiz footer se hatao."** Every card carried
+`Beacon International School · Nauman Ellahi` on the left and `Page 1 of 1` on
+the right, ruled off with a hairline. On a one-page document a family keeps,
+that is noise: the school is already on the letterhead and the child's name is
+the largest thing on the sheet. `DocumentOptions.footerStyle` now takes
+`standard` / `minimal` / `none`; the report card asks for `minimal`, which
+prints the issue note alone and brings the page count back only when there is a
+second sheet to lose. Nothing else changed — a payslip run still numbers every
+page, because a stack of those does get separated.
+
+**"Designs ek doosre se bilkul different hon."** The seven were one layout with
+seven colour schemes — a fair description of what they were. Each now has its
+own page architecture, in `report-card-templates.ts` under `layout`:
+
+| id | name | the page |
+| --- | --- | --- |
+| `classic` | Classic | particulars across the top, coloured table head |
+| `modern` | Rail | a tinted rail down the left holds the photo, particulars and figures; marks run beside it; grades set in chips |
+| `minimal` | Minimal | hairlines only, figures on one ruled strip |
+| `crest` | Crest | centred, particulars on dot leaders, double border, a place for the school's seal |
+| `ledger` | Register | particulars as a bordered form, marks in a full ruled grid |
+| `bulletin` | Nameplate | a deep band with the name and result reversed out, and a bar per subject against the class average |
+| `heritage` | Heritage | double border with ruled corners, serif throughout, particulars in a tinted panel |
+
+The ids are unchanged, so a school that already chose one keeps its choice.
+
+What the conventions came from, rather than invention: the particulars are a
+block set apart from the marks; the grading key prints on the card, because a
+grade nobody can interpret is not a report; the narrative gets its own block
+and real width; the signature lines sit at the foot where a pen expects them.
+
+**"Page mein white space nahi honi chahiye."** A card with three subjects
+stopped a third of the way down. `buildFittedReportCard` now opens a card up
+before it ever tightens one — densities above 1 are tried first and the largest
+that still comes out on one sheet wins — then measures what is left over
+(`ReportCardResult.slack`) and rebuilds with that slack handed back, repeating
+until it closes. The slack goes where a printed card puts it: taller ruled
+result rows (`TableOptions.minRowHeight`, with the text centred in the row),
+more generous particulars and figures, air between the blocks, and the
+signature block anchored to the foot of the sheet. A three-subject card went
+from 96mm of empty page to under 10mm. Nothing is dropped at any density, and
+nothing is invented to fill: the page is opened, never padded.
+
+Checked by looking at them — all seven rendered to PNG and read, which is what
+turned up the rest: column headings cut to "Ma…", "Gr…" and "Against the cl…"
+in any narrow band (headings now shorten by the width they have, not by whether
+the subjects were halved); a bold total wrapping "85.4 %" onto two lines; an
+attendance figure losing the word "days" off the end (figures shrink to fit
+now, never truncate); two of three term bars drawn as hollow outlines under
+gridlines running the whole page; a footer reading "Issued —" where the school
+never recorded a publication date; and the overall grade vanishing from the
+totals line of the Rail design, because a drawn cell is skipped on an emphasis
+row.

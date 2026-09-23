@@ -167,9 +167,11 @@ export function ReportCardPrintSetup({
             <div>
               <h4 className="font-semibold">The design</h4>
               <p className="text-sm text-muted-foreground">
-                Seven finished designs. Each prints on the school's own letterhead in its own
-                colour; what changes is the whole look — headings, figures, the result table and
-                the border. Pick one now and change it whenever you like.
+                Seven finished designs, shown below as the real card on your own letterhead.
+                They differ in the shape of the page, not just its colours — where the child's
+                name sits, whether the particulars are a grid, a ruled form or a line of dot
+                leaders, and whether the sheet carries a border or a seal. Pick one now and
+                change it whenever you like; every card the school prints follows it.
               </p>
             </div>
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">

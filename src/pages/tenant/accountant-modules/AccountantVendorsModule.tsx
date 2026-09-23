@@ -12,9 +12,19 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { ReportExportMenu } from "@/components/accountant/ReportExportMenu";
+import { ErrorState, LoadingRows, ModuleHeader } from "@/components/tenant/module-kit";
+import { money } from "@/lib/documents/format";
+import { sum } from "@/lib/documents/decimal";
 
-const fmt = (n: number) =>
-  new Intl.NumberFormat("en-PK", { style: "currency", currency: "PKR", maximumFractionDigits: 0 }).format(n || 0);
+/**
+ * Amounts keep their paisa.
+ *
+ * This used to format with `maximumFractionDigits: 0`, which rounds every
+ * vendor's spend to whole rupees before it is shown - and the total was the
+ * sum of the rounded figures, so the screen disagreed with the ledger it was
+ * built from.
+ */
+const fmt = (value: number | string) => money(String(value ?? 0), { currency: "PKR" });
 
 export function AccountantVendorsModule() {
   const { schoolSlug } = useParams();
@@ -30,7 +40,7 @@ export function AccountantVendorsModule() {
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<string | null>(null);
 
-  const { data: expenses = [] } = useQuery({
+  const { data: expenses = [], isLoading, isError, error, refetch } = useQuery({
     queryKey: ["vendor_expenses", schoolId, from, to],
     enabled: !!schoolId,
     queryFn: async () => {
@@ -69,7 +79,8 @@ export function AccountantVendorsModule() {
   const totals = useMemo(
     () => ({
       vendors: vendors.length,
-      spend: vendors.reduce((s, v) => s + v.total, 0),
+      // Added as decimals, so the total is the ledger's total.
+      spend: sum(vendors.map((v) => String(v.total))),
       transactions: vendors.reduce((s, v) => s + v.count, 0),
     }),
     [vendors],
@@ -91,12 +102,13 @@ export function AccountantVendorsModule() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="font-display text-2xl font-semibold tracking-tight">Vendors</h1>
-          <p className="text-sm text-muted-foreground">Suppliers and service providers ranked by spend.</p>
-        </div>
-        <ReportExportMenu
+      <ModuleHeader
+        icon={Building2}
+        tone="slate"
+        title="Vendors"
+        description="Every supplier and service provider the school has paid in this period, ranked by what they were paid."
+        actions={
+          <ReportExportMenu
           baseName="vendors-spend"
           rows={exportRows}
           print={{
@@ -108,12 +120,19 @@ export function AccountantVendorsModule() {
               { label: "Total Spend", value: fmt(totals.spend) },
               {
                 label: "Avg / Vendor",
-                value: fmt(totals.vendors ? totals.spend / totals.vendors : 0),
+                value: totals.vendors ? fmt(Number(totals.spend) / totals.vendors) : "—",
               },
             ],
           }}
-        />
-      </div>
+          />
+        }
+      />
+
+      {isError ? (
+        <Card className="rounded-2xl border-rose-200 dark:border-rose-900">
+          <ErrorState title="The vendor spend could not be loaded" error={error} onRetry={() => refetch()} />
+        </Card>
+      ) : null}
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-4">
         <Card className="rounded-2xl shadow-sm">
@@ -216,14 +235,23 @@ export function AccountantVendorsModule() {
                         <TableCell className="whitespace-nowrap">{v.last}</TableCell>
                         <TableCell className="text-right tabular-nums font-medium">{fmt(v.total)}</TableCell>
                         <TableCell className="text-right tabular-nums text-muted-foreground">
-                          {totals.spend ? ((v.total / totals.spend) * 100).toFixed(1) : "0.0"}%
+                          {Number(totals.spend) ? ((v.total / Number(totals.spend)) * 100).toFixed(1) : "0.0"}%
                         </TableCell>
                       </TableRow>
                     ))}
-                    {filteredVendors.length === 0 && (
+                    {isLoading && filteredVendors.length === 0 && (
                       <TableRow>
-                        <TableCell colSpan={7} className="py-8 text-center text-sm text-muted-foreground">
-                          No vendors in this period.
+                        <TableCell colSpan={7} className="p-0">
+                          <LoadingRows rows={4} />
+                        </TableCell>
+                      </TableRow>
+                    )}
+                    {!isLoading && filteredVendors.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={7} className="py-10 text-center text-sm text-muted-foreground">
+                          {search.trim()
+                            ? `No vendor matches "${search.trim()}" in this period.`
+                            : "No expense in this period names a vendor. Record the supplier on an expense and it will appear here."}
                         </TableCell>
                       </TableRow>
                     )}
