@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { NotebookPen } from "lucide-react";
+import { ModuleHeader, QueryState } from "@/components/tenant/module-kit";
 import { api } from "@/lib/api";
 import { useSession } from "@/hooks/useSession";
 import { Button } from "@/components/ui/button";
@@ -27,12 +29,20 @@ export default function DiaryModule({ schoolId, canManage = false, studentSectio
   const today = new Date().toISOString().slice(0, 10);
   const [form, setForm] = useState({ title: "", content: "", category: "homework", entry_date: today, class_section_id: "", subject_id: "" });
 
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<unknown>(null);
+
   const load = async () => {
     if (!schoolId) return;
+    setLoading(true);
     let q = (api as any).from("diary_entries").select("*").eq("school_id", schoolId).order("entry_date", { ascending: false });
     if (studentSectionId) q = q.eq("class_section_id", studentSectionId);
-    const { data } = await q;
-    setItems(data || []);
+    // The error half of this used to be thrown away, so a query the tenant
+    // was not allowed to run showed a class with no homework set.
+    const { data, error } = await q;
+    setLoadError(error ?? null);
+    setItems(error ? [] : data || []);
+    setLoading(false);
   };
   const loadMeta = async () => {
     if (!schoolId) return;
@@ -64,10 +74,13 @@ export default function DiaryModule({ schoolId, canManage = false, studentSectio
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div><h2 className="font-display text-2xl font-semibold">Class Diary</h2>
-        <p className="text-sm text-muted-foreground">Homework, announcements & reminders</p></div>
-        {canManage && (
+      <ModuleHeader
+        icon={NotebookPen}
+        tone="amber"
+        title="Class diary"
+        description="Homework set, announcements made and reminders sent — what a family sees when they ask what was given today."
+        actions={
+        canManage ? (
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild><Button><Plus className="mr-2 h-4 w-4" />New entry</Button></DialogTrigger>
             <DialogContent>
@@ -101,14 +114,24 @@ export default function DiaryModule({ schoolId, canManage = false, studentSectio
               <DialogFooter><Button variant="ghost" onClick={() => setOpen(false)}>Cancel</Button><Button onClick={submit}>Save</Button></DialogFooter>
             </DialogContent>
           </Dialog>
-        )}
-      </div>
+        ) : null
+        }
+      />
 
-      {items.length === 0 ? (
-        <Card><CardContent className="py-12 text-center text-muted-foreground">
-          <BookOpen className="mx-auto h-10 w-10 opacity-50" /><p className="mt-3">No diary entries yet.</p>
-        </CardContent></Card>
-      ) : (
+      <QueryState
+        loading={loading}
+        error={loadError}
+        onRetry={load}
+        errorTitle="The diary could not be loaded"
+        isEmpty={!items.length}
+        empty={{
+          icon: BookOpen,
+          title: "Nothing in the diary yet",
+          description: canManage
+            ? "Add the first entry — homework, an announcement or a reminder. Families see it in their own diary."
+            : "When a teacher sets homework or posts a reminder, it appears here.",
+        }}
+      >
         <div className="space-y-3">
           {items.map((d) => (
             <Card key={d.id}>
@@ -130,7 +153,7 @@ export default function DiaryModule({ schoolId, canManage = false, studentSectio
             </Card>
           ))}
         </div>
-      )}
+      </QueryState>
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { ModuleHeader } from "@/components/tenant/module-kit";
 import { useParams } from "react-router-dom";
 import { api } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -103,6 +104,12 @@ export function MarketingSourcesModule() {
 
   return (
     <div className="space-y-6">
+      <ModuleHeader
+        icon={Compass}
+        tone="violet"
+        title="Where enquiries come from"
+        description="Which channels families actually arrive through, and how many of each go on to enrol."
+      />
       
       {/* Sources Overview Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
+import { AlarmClock } from "lucide-react";
+import { ModuleHeader } from "@/components/tenant/module-kit";
 import { useParams } from "react-router-dom";
 import { api } from "@/lib/api";
 import { Input } from "@/components/ui/input";
@@ -208,6 +210,12 @@ export function MarketingFollowUpsModule() {
 
   return (
     <div className="space-y-6">
+      <ModuleHeader
+        icon={AlarmClock}
+        tone="amber"
+        title="Follow-ups"
+        description="Families waiting to hear back, and who owes them a reply — overdue ones first."
+      />
       
       {/* Control Bar */}
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">

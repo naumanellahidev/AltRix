@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { ModuleHeader } from "@/components/tenant/module-kit";
 import { useParams } from "react-router-dom";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -159,6 +160,12 @@ export function MarketingCallsModule() {
 
   return (
     <div className="space-y-6">
+      <ModuleHeader
+        icon={PhoneCall}
+        tone="blue"
+        title="Call log"
+        description="Every call made to a family who enquired — who rang, when, what was said, and what happens next."
+      />
       
       {/* Logger Panel */}
       <Card className="shadow-sm">

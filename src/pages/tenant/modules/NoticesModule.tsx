@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { ErrorState } from "@/components/tenant/module-kit";
 import { api } from "@/lib/api";
 import { useSession } from "@/hooks/useSession";
 import { Button } from "@/components/ui/button";
@@ -53,6 +54,8 @@ export default function NoticesModule({ schoolId, canManage = false }: Props) {
   const [search, setSearch] = useState("");
   const [tab, setTab] = useState<"all" | "pinned" | "urgent">("all");
 
+  const [loadError, setLoadError] = useState<unknown>(null);
+
   const load = async () => {
     if (!schoolId) return;
     setLoading(true);
@@ -62,8 +65,10 @@ export default function NoticesModule({ schoolId, canManage = false }: Props) {
       .eq("school_id", schoolId)
       .order("pinned", { ascending: false })
       .order("created_at", { ascending: false });
-    if (error) toast.error("Failed to load notices");
-    setNotices(data || []);
+    // A toast is gone in four seconds; a school looking at an empty board
+    // needs to keep being told why it is empty.
+    setLoadError(error ?? null);
+    setNotices(error ? [] : data || []);
     setLoading(false);
   };
 
@@ -125,6 +130,12 @@ export default function NoticesModule({ schoolId, canManage = false }: Props) {
 
   return (
     <div className="space-y-6">
+      {loadError ? (
+        <Card className="rounded-2xl border-rose-200 dark:border-rose-900">
+          <ErrorState title="The notice board could not be loaded" error={loadError} onRetry={load} />
+        </Card>
+      ) : null}
+
       {/* Hero */}
       <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl border bg-gradient-to-br from-primary/10 via-background to-background p-4 sm:p-6 md:p-7">
         <div className="absolute -top-24 -right-16 h-56 w-56 rounded-full bg-primary/15 blur-3xl pointer-events-none" />

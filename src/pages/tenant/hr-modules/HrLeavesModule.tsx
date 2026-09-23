@@ -1,4 +1,6 @@
 import { useState, useMemo } from "react";
+import { CalendarOff } from "lucide-react";
+import { ModuleHeader, QueryState, StatTiles } from "@/components/tenant/module-kit";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useTenant } from "@/hooks/useTenant";
@@ -23,7 +25,7 @@ export function HrLeavesModule() {
   const [typeOpen, setTypeOpen] = useState(false);
   const [typeForm, setTypeForm] = useState({ name: "", max_days: "20", is_paid: true });
 
-  const { data: requests = [], isLoading } = useQuery({
+  const requestsQuery = useQuery({
     queryKey: ["hr_leave_requests_full", schoolId],
     enabled: !!schoolId,
     queryFn: async () => {
@@ -32,6 +34,9 @@ export function HrLeavesModule() {
       return data || [];
     },
   });
+
+  const requests = requestsQuery.data ?? [];
+  const isLoading = requestsQuery.isLoading;
 
   const { data: staffDir = [] } = useQuery({
     queryKey: ["school_staff_directory_leaves", schoolId],
@@ -105,7 +110,20 @@ export function HrLeavesModule() {
 
   return (
     <div className="space-y-6">
-      <h1 className="font-display text-2xl font-bold">Leave Management</h1>
+      <ModuleHeader
+        icon={CalendarOff}
+        tone="violet"
+        title="Leave"
+        description="Who has asked to be away, who has been approved, and how much of each entitlement is left."
+      />
+
+      <StatTiles
+        stats={[
+          { label: "Awaiting a decision", value: pending.length, tone: pending.length ? "warning" : "default" },
+          { label: "Requests on record", value: (requests as any[]).length },
+          { label: "Leave types", value: (leaveTypes as any[]).length, hint: (leaveTypes as any[]).length ? undefined : "None set — staff have nothing to apply for" },
+        ]}
+      />
 
       <Tabs defaultValue="requests">
         <TabsList>
@@ -115,8 +133,19 @@ export function HrLeavesModule() {
         </TabsList>
 
         <TabsContent value="requests" className="space-y-3 mt-4">
-          {isLoading && <p className="text-sm text-muted-foreground">Loading...</p>}
-          {!isLoading && requests.length === 0 && <p className="text-sm text-muted-foreground">No requests.</p>}
+          <QueryState
+            loading={isLoading}
+            error={requestsQuery.error}
+            onRetry={() => requestsQuery.refetch()}
+            errorTitle="The leave requests could not be loaded"
+            isEmpty={!requests.length}
+            empty={{
+              icon: CalendarOff,
+              title: "No leave requests",
+              description: "When a member of staff applies for leave it appears here for approval.",
+            }}
+          >
+          <div className="space-y-3">
           {(requests as any[]).map((req) => (
             <Card key={req.id}><CardContent className="p-4 flex items-center justify-between">
               <div>
@@ -134,6 +163,8 @@ export function HrLeavesModule() {
               </div>
             </CardContent></Card>
           ))}
+          </div>
+          </QueryState>
         </TabsContent>
 
         <TabsContent value="types" className="space-y-3 mt-4">

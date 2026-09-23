@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { ModuleHeader } from "@/components/tenant/module-kit";
 import { useParams } from "react-router-dom";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -134,6 +135,12 @@ export function MarketingCampaignsModule() {
 
   return (
     <div className="space-y-6">
+      <ModuleHeader
+        icon={Megaphone}
+        tone="rose"
+        title="Campaigns"
+        description="What the school has run to attract families, what each one cost, and what came of it."
+      />
       
       {/* Visual Analytics */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

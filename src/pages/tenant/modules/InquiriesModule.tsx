@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
+import { loadActiveSchoolBrand } from "@/lib/documents/brand";
+import { ModuleHeader } from "@/components/tenant/module-kit";
 import { useParams } from "react-router-dom";
 import { api } from "@/lib/api";
 import { useTenant } from "@/hooks/useTenant";
@@ -90,8 +92,22 @@ export function InquiriesModule() {
   const { schoolSlug } = useParams();
   const tenant = useTenant(schoolSlug);
   const schoolId = useMemo(() => (tenant.status === "ready" ? tenant.schoolId : null), [tenant.status, tenant.schoolId]);
-  const schoolLogo = useMemo(() => (tenant.status === "ready" ? tenant.logoUrl : null), [tenant.status, tenant.logoUrl]);
-  const schoolName = useMemo(() => (tenant.status === "ready" ? tenant.name : "Our School"), [tenant.status, tenant.name]);
+  // The tenant carries { id, slug, name } and no logo. This read
+  // `tenant.logoUrl` and `tenant.name`, neither of which exists, so the
+  // preview of the public intake form showed no crest and the words "Our
+  // School" to every school in the system.
+  const schoolName = useMemo(
+    () => (tenant.status === "ready" ? tenant.school.name : "Our School"),
+    [tenant.status, tenant.status === "ready" ? tenant.school.name : null],
+  );
+  const [schoolLogo, setSchoolLogo] = useState<string | null>(null);
+  useEffect(() => {
+    let alive = true;
+    void loadActiveSchoolBrand()
+      .then((brand) => { if (alive) setSchoolLogo(brand.logoUrl ?? null); })
+      .catch(() => { if (alive) setSchoolLogo(null); });
+    return () => { alive = false; };
+  }, [schoolId]);
 
   const perms = usePermissions(schoolId);
   const canManage = useMemo(() => {
@@ -416,18 +432,12 @@ export function InquiriesModule() {
 
   return (
     <div className="space-y-6 pb-12">
-      {/* Top Header Section */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-primary/20 pb-4">
-        <div>
-          <h1 className="text-3xl font-bold text-primary tracking-tight flex items-center gap-2">
-            <Inbox className="h-8 w-8 text-primary" />
-            Admissions Inquiry Center
-          </h1>
-          <p className="text-muted-foreground text-sm">
-            Track inquiries, update conversion pipelines, configure the public intake form, and sync data in real-time.
-          </p>
-        </div>
-        
+      <ModuleHeader
+        icon={Inbox}
+        tone="blue"
+        title="Inquiries"
+        description="Every family who has asked about a place — where each enquiry has reached, and the public form they arrive through."
+        actions={
         <div className="flex gap-2">
           <Button 
             variant="outline"
@@ -444,7 +454,8 @@ export function InquiriesModule() {
             Log Inquiry
           </Button>
         </div>
-      </div>
+        }
+      />
 
       {loading ? (
         <div className="h-[60vh] flex flex-col justify-center items-center gap-2">

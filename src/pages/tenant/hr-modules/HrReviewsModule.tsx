@@ -1,4 +1,6 @@
 import { useMemo, useState } from "react";
+import { ClipboardCheck } from "lucide-react";
+import { ModuleHeader } from "@/components/tenant/module-kit";
 import { useParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
@@ -108,9 +110,12 @@ export function HrReviewsModule() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="font-display text-2xl font-bold">Performance Reviews</h1>
-      </div>
+      <ModuleHeader
+        icon={ClipboardCheck}
+        tone="emerald"
+        title="Performance reviews"
+        description="Appraisal cycles and the reviews recorded in each — what was discussed with a member of staff, and when."
+      />
 
       <Tabs defaultValue="reviews">
         <TabsList>

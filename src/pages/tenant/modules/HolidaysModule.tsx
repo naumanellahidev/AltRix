@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { ErrorState, LoadingRows } from "@/components/tenant/module-kit";
 import { api } from "@/lib/api";
 import { useSession } from "@/hooks/useSession";
 import { useActiveCampus } from "@/hooks/useActiveCampus";
@@ -54,15 +55,23 @@ export default function HolidaysModule({ schoolId, canManage = false }: Props) {
   const [form, setForm] = useState<any>(blank);
   const [editing, setEditing] = useState<Holiday | null>(null);
 
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<unknown>(null);
+
   const load = async () => {
     if (!schoolId) return;
+    setLoading(true);
     let query = (api as any)
       .from("holidays")
       .select("*")
       .eq("school_id", schoolId);
     if (activeCampusId) query = query.eq("campus_id", activeCampusId);
-    const { data } = await query.order("start_date", { ascending: true });
-    setItems(data || []);
+    const { data, error } = await query.order("start_date", { ascending: true });
+    // Same as the diary: the error used to be dropped, and a school whose
+    // calendar could not be read was told it had no holidays.
+    setLoadError(error ?? null);
+    setItems(error ? [] : data || []);
+    setLoading(false);
   };
   useEffect(() => { load(); }, [schoolId, activeCampusId]);
 
@@ -159,6 +168,14 @@ export default function HolidaysModule({ schoolId, canManage = false }: Props) {
 
   return (
     <div className="space-y-4">
+      {loadError ? (
+        <Card className="rounded-2xl border-rose-200 dark:border-rose-900">
+          <ErrorState title="The holiday calendar could not be loaded" error={loadError} onRetry={load} />
+        </Card>
+      ) : null}
+
+      {loading && !items.length ? <Card className="rounded-2xl"><LoadingRows rows={3} /></Card> : null}
+
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
           <h2 className="font-display text-2xl font-semibold">Holidays</h2>

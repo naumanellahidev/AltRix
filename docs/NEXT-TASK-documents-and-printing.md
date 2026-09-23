@@ -1266,3 +1266,22 @@ writes nothing.
 row cannot reach `school_id`, `id` or `status`, that the section named is
 verified against the caller's own school, and that the setter which used to
 swallow the class is not assigned to again.
+
+### Shell pass, batch four (24 Sep 2026)
+
+Diary, Holidays, Leave, Performance Reviews, Notices, Inquiries and the four
+marketing tabs (Calls, Sources, Follow-ups, Campaigns).
+
+- **Diary and Holidays both read `const { data } = await query`** and dropped
+  the error half on the floor. A query the tenant was not allowed to run set an
+  empty list, so a class with homework set showed none and a school with a full
+  calendar showed no holidays.
+- **Notices** reported its failure with a toast, which is gone in four seconds
+  — on a board that is then empty for the rest of the session. It keeps saying
+  so now.
+- **Inquiries read `tenant.logoUrl` and `tenant.name`, neither of which
+  exists** on the tenant (it carries `{ id, slug, name }` under `school`). The
+  preview of the public intake form therefore showed no crest and the words
+  "Our School" to every school in the system. It reads the real brand now.
+- The four marketing tabs each opened straight into a card or a table. Side by
+  side in one sidebar group, nothing said which of the four you were on.
