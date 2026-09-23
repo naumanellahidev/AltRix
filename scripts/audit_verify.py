@@ -533,6 +533,31 @@ def run():
     check(S, "stok", "a refused stock adjustment is reported as refused",
           "could not be adjusted" in txt("src/pages/tenant/modules/InventoryModule.tsx"))
 
+    adm = txt("src/pages/tenant/modules/AdmissionsModule.tsx")
+    admr = txt("backend/app/routers/admissions.py")
+    admsql = txt("backend/sql_migrations/20260923000000_admission_completes_the_student.sql")
+    check(S, "admp", "an admission asks for the photograph the cards need",
+          "StudentPhotoField" in adm and "student-photos" in adm and "photo_url: photoUrl" in adm)
+    check(S, "admf", "an admission collects what the student record can hold",
+          all(f in adm for f in ("blood_group", "medical_notes", "emergency_contact",
+                                 "admission_date", "guardian2_name", "student_phone")))
+    check(S, "adme", "approving an admission puts the child on a class register",
+          "StudentEnrollment(" in admr
+          and "INSERT INTO public.student_enrollments" in admsql
+          and not re.search(r"(?<![_\w])section_id\s*=\s*app\.", admr))
+    check(S, "admd", "documents handed in at admission reach the student's record",
+          "INSERT INTO public.student_documents" in admsql
+          and exists("src/components/academic/StudentDocumentsPanel.tsx"))
+    check(S, "bulk", "a school can bring in the register it already keeps",
+          exists("src/lib/admissions/bulk-import.ts")
+          and "bulk-import" in admr
+          and "db.begin_nested()" in admr)
+    check(S, "bnkg", "a bulk import never invents a class or guesses a date",
+          all(p in txt("src/lib/admissions/bulk-import.ts") for p in
+              ("nothing is created automatically", "is not a date this can read")))
+    check(S, "phot", "a stored photo path resolves wherever the photo is shown",
+          count_matches("getVPSFileUrl(.student-photos", "src") >= 8)
+
     rct = txt("src/lib/documents/report-card-templates.ts")
     check(S, "rcds", "the seven designs differ in the shape of the page, not only its colours",
           all(k in rct for k in ("sidebar", "banner", "centred", "register", "standard"))

@@ -192,7 +192,7 @@ function IDCard({
               <div className="w-20 h-24 border-[2.5px] border-slate-100 shadow-sm overflow-hidden bg-slate-50 flex items-center justify-center" style={{ borderRadius: "8px 38px 8px 8px" }}>
                 {student.profile_image_url && !imageError ? (
                   <img 
-                    src={student.profile_image_url} 
+                    src={getVPSFileUrl("student-photos", student.profile_image_url)} 
                     alt="Photo" 
                     className="w-full h-full object-cover" 
                     onError={() => setImageError(true)}
@@ -251,7 +251,7 @@ function IDCard({
               <div className="w-[85px] h-[100px] border-[2.5px] border-slate-100 shadow-sm overflow-hidden bg-slate-50 flex items-center justify-center" style={{ borderRadius: "6px 32px 6px 6px" }}>
                 {student.profile_image_url && !imageError ? (
                   <img 
-                    src={student.profile_image_url} 
+                    src={getVPSFileUrl("student-photos", student.profile_image_url)} 
                     alt="Photo" 
                     className="w-full h-full object-cover" 
                     onError={() => setImageError(true)}
@@ -1632,7 +1632,7 @@ export function StudentCardsModule() {
                 <div className="w-20 h-20 rounded-full border border-slate-100 overflow-hidden flex items-center justify-center bg-slate-50 shrink-0">
                   {editingStudent.profile_image_url && !editPhotoError ? (
                     <img 
-                      src={editingStudent.profile_image_url} 
+                      src={getVPSFileUrl("student-photos", editingStudent.profile_image_url)} 
                       alt="Photo" 
                       className="w-full h-full object-cover" 
                       onError={() => setEditPhotoError(true)}

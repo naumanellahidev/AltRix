@@ -1185,3 +1185,84 @@ have been permanently recorded as having failed.** Totals are now null when
 nothing was marked, the screen shows an em dash rather than 0% and F, and the
 progress bar is not drawn at all — a bar of zero length reads as a score of
 zero.
+
+## Admissions, and moving a school in (23 Sep 2026)
+
+### What admission was leaving undone
+
+Approving an application called `convert_admission_to_student`, which created
+the student row and stopped. Three things it never did, all of them visible to
+the school:
+
+- **No enrolment.** The form asks which class and section the child is applying
+  for; the function read that only to pick a fee plan. The child ended up in no
+  class at all — off every register, every report card run and every seating
+  plan. Production had a student in exactly that state. The REST endpoint had
+  the same defect by a different route: it passed `section_id=` to the
+  `Student` constructor, and `Student.section_id` is a read-only view over the
+  enrolments whose setter does nothing, so the choice was discarded in silence.
+- **No documents.** Birth certificate, B-form, previous report card — all
+  uploaded at admission, all left attached to the application, which is
+  archived the moment it is approved. The child's own record had none of them.
+- **No photograph, ever.** The form never asked for one. `photo_url` on the
+  application was always null, the conversion dutifully copied null across, and
+  every ID card and report card printed with an empty box where the face goes.
+
+It also collected fourteen fields while the students table holds a blood group,
+medical notes, an emergency contact, a town, an area and the child's own phone
+— so a school that gathered those on paper typed them in twice.
+
+### What it does now
+
+`20260923000000_admission_completes_the_student.sql` adds the missing columns
+to the application and rewrites the conversion to carry everything across in
+one transaction: the particulars, the photograph, **the enrolment** (including
+picking the only section when a class has just one), both guardians, and the
+documents — which land in `student_documents` with a pointer back to the
+application, under a partial unique index so the carry-over can be repeated
+without duplicating rows.
+
+The form is in sections now — the child, placement, the family, health and
+notes — and opens with `StudentPhotoField`: a photograph from a file or from
+the device camera, shrunk to 900px before it is stored. If there is no camera,
+or permission is refused, it says so and the admission proceeds without one.
+
+A photograph is no good if it only appears on the PDF. `profile_image_url`
+holds either a full URL (what the old system wrote) or a storage path (what the
+app writes); nine screens passed it straight to an `<img src>`, which works for
+the first and shows a broken box for the second. All of them resolve it through
+`getVPSFileUrl` now, so the photograph taken at the desk shows on the ID card,
+the report card, the parent shell, the hall ticket and the student's profile.
+The profile also grew a **Documents** tab, which is where what the family handed
+in is now read.
+
+### Bringing in a paper register
+
+A school joining AltRix does not have a hundred new admissions; it has four
+hundred children in a ledger. There was no way in but the form, one child at a
+time.
+
+`src/lib/admissions/bulk-import.ts` reads the school's own spreadsheet — or the
+template it can download, which lists that school's real classes and sections
+on a second sheet so the names match. Every row is checked before any row is
+written, and the rules are the ones that matter:
+
+- **Nothing is guessed.** A date it cannot read is a problem on that row, never
+  replaced with today. Dates are read day-first, as they are written in
+  Pakistan; `31/02/2015` is refused rather than rolled into March.
+- **No class or section is ever created.** A name that does not match one the
+  school already has is reported, with the instruction to create it first.
+- **A blank cell stays blank** — never "unknown", never a placeholder.
+- **Duplicates are caught twice**: against the rest of the file, and against
+  the students already on the roll.
+
+The screen shows every problem with its row, its column and what to do, then
+what will happen, and only then imports. `POST /admissions/bulk-import` writes
+each row in **its own savepoint**, so one bad line does not cost the school the
+other 399, and reports per row what landed. `dry_run` does all the checking and
+writes nothing.
+
+28 tests cover the parsing and checking, 19 the endpoint — including that a
+row cannot reach `school_id`, `id` or `status`, that the section named is
+verified against the caller's own school, and that the setter which used to
+swallow the class is not assigned to again.

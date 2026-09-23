@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
-import { Plus, CheckCircle2, XCircle, FileText, Upload, Eye, Printer, Check } from "lucide-react";
+import { Plus, CheckCircle2, XCircle, FileText, Upload, Eye, Printer, Check, UserPlus } from "lucide-react";
 import { api } from "@/lib/api";
 import { getVPSFileUrl } from "@/lib/vpsStorage";
 import { printStudentCards } from "@/lib/id-card-print";
@@ -20,6 +20,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { DataExportMenu } from "@/components/documents/DataExportMenu";
+import { BulkImportPanel } from "@/components/admissions/BulkImportPanel";
+import { StudentPhotoField } from "@/components/admissions/StudentPhotoField";
+import { ErrorState, ModuleHeader, StatTiles } from "@/components/tenant/module-kit";
 
 type App = {
   id: string; school_id: string; first_name: string; last_name: string;
@@ -50,13 +53,25 @@ export default function AdmissionsModule() {
   const [filter, setFilter] = useState<string>("submitted");
 
   const [newOpen, setNewOpen] = useState(false);
-  const [form, setForm] = useState({
+  // Every field here lands on the student record when the application is
+  // approved. Before this, half of them had nowhere to be typed, so a school
+  // that collected them on paper had to enter them a second time afterwards.
+  const BLANK_FORM = {
     first_name: "", last_name: "", date_of_birth: "", gender: "",
     parent_name: "", parent_email: "", parent_phone: "", parent_address: "",
     applying_for_class_id: "", applying_for_section_id: "",
     previous_school: "", registration_number: "", roll_number: "", notes: "",
-  });
+    student_phone: "", city: "", area: "", blood_group: "",
+    emergency_contact: "", medical_notes: "", admission_date: "",
+    guardian2_name: "", guardian2_phone: "", guardian2_relation: "",
+  };
+  const [form, setForm] = useState({ ...BLANK_FORM });
   const [docFiles, setDocFiles] = useState<File[]>([]);
+  const [photo, setPhoto] = useState<{ url: string; blob: Blob } | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [loadError, setLoadError] = useState<unknown>(null);
+  // The roll as it stands, so an import can spot a child who is already on it.
+  const [roll, setRoll] = useState<Array<{ registration_number: string | null; first_name: string; last_name: string | null; date_of_birth: string | null }>>([]);
 
   const [reviewApp, setReviewApp] = useState<App | null>(null);
   const [decisionNotes, setDecisionNotes] = useState("");
@@ -76,16 +91,27 @@ export default function AdmissionsModule() {
       let secQuery = api.from("class_sections").select("id, name, class_id").eq("school_id", schoolId).order("name");
       if (activeCampusId) secQuery = secQuery.eq("campus_id", activeCampusId);
 
-      const [aRes, cRes, sRes, dRes] = await Promise.all([
-        appQuery,
-        classQuery,
-        secQuery,
-        api.from("admission_application_documents").select("*").eq("school_id", schoolId),
-      ]);
-      setApps((aRes.data as any) ?? []);
-      setClasses((cRes.data as any) ?? []);
-      setSections((sRes.data as any) ?? []);
-      setDocs((dRes.data as any) ?? []);
+      try {
+        const [aRes, cRes, sRes, dRes, rRes] = await Promise.all([
+          appQuery,
+          classQuery,
+          secQuery,
+          api.from("admission_application_documents").select("*").eq("school_id", schoolId),
+          api.from("students").select("registration_number, first_name, last_name, date_of_birth").eq("school_id", schoolId),
+        ]);
+        const failure = aRes.error ?? cRes.error ?? sRes.error;
+        if (failure) throw failure;
+        setApps((aRes.data as any) ?? []);
+        setClasses((cRes.data as any) ?? []);
+        setSections((sRes.data as any) ?? []);
+        setDocs((dRes.data as any) ?? []);
+        setRoll((rRes.data as any) ?? []);
+        setLoadError(null);
+      } catch (err) {
+        // Reported rather than swallowed: an empty applications table and a
+        // permissions error used to look identical.
+        setLoadError(err);
+      }
     })();
   }, [schoolId, activeCampusId]);
 
@@ -103,7 +129,26 @@ export default function AdmissionsModule() {
   const sectionsForClass = useMemo(() => sections.filter(s => s.class_id === form.applying_for_class_id), [sections, form.applying_for_class_id]);
 
   const submitApp = async () => {
-    if (!schoolId || !form.first_name || !form.last_name) return toast.error("First and last name required");
+    if (!schoolId || !form.first_name) return toast.error("A first name is required");
+    setSubmitting(true);
+    try {
+    // The photograph goes up first: it is the field that puts a face on the
+    // ID card and the report card, and an application saved without it would
+    // have to be edited afterwards to add one.
+    let photoUrl: string | null = null;
+    if (photo) {
+      const path = `${schoolId}/photos/${Date.now()}.jpg`;
+      const file = new File([photo.blob], "student.jpg", { type: "image/jpeg" });
+      const { error: upErr } = await api.storage.from("student-photos").upload(path, file);
+      if (upErr) {
+        // Said plainly, and the admission is not silently saved faceless.
+        toast.error(`The photograph could not be saved: ${upErr.message}`);
+        setSubmitting(false);
+        return;
+      }
+      photoUrl = path;
+    }
+
     const { data: app, error } = await api.from("admission_applications").insert({
       school_id: schoolId,
       ...(activeCampusId ? { campus_id: activeCampusId } : {}),
@@ -117,9 +162,20 @@ export default function AdmissionsModule() {
       registration_number: form.registration_number || null,
       roll_number: form.roll_number || null,
       notes: form.notes || null,
+      photo_url: photoUrl,
+      student_phone: form.student_phone || null,
+      city: form.city || null,
+      area: form.area || null,
+      blood_group: form.blood_group || null,
+      emergency_contact: form.emergency_contact || null,
+      medical_notes: form.medical_notes || null,
+      admission_date: form.admission_date || null,
+      guardian2_name: form.guardian2_name || null,
+      guardian2_phone: form.guardian2_phone || null,
+      guardian2_relation: form.guardian2_relation || null,
       status: "submitted",
     }).select("*").single();
-    if (error) return toast.error(error.message);
+    if (error) { setSubmitting(false); return toast.error(error.message); }
 
     // Upload documents
     for (const f of docFiles) {
@@ -135,8 +191,12 @@ export default function AdmissionsModule() {
 
     toast.success("Application submitted");
     setNewOpen(false);
-    setForm({ first_name: "", last_name: "", date_of_birth: "", gender: "", parent_name: "", parent_email: "", parent_phone: "", parent_address: "", applying_for_class_id: "", applying_for_section_id: "", previous_school: "", registration_number: "", roll_number: "", notes: "" });
+    setForm({ ...BLANK_FORM });
     setDocFiles([]);
+    setPhoto(null);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const approve = async (app: App) => {
@@ -196,60 +256,166 @@ export default function AdmissionsModule() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="font-display text-2xl font-bold tracking-tight">Admissions</h1>
-          <p className="text-muted-foreground">Manage student admission applications, documents and approvals.</p>
-        </div>
+      <ModuleHeader
+        icon={UserPlus}
+        tone="emerald"
+        title="Admissions"
+        description="Every child applying to the school, what the family handed in, and the decision — and, for a school just moving in, the register it already keeps."
+        actions={
         <Dialog open={newOpen} onOpenChange={setNewOpen}>
-          <DialogTrigger asChild><Button><Plus className="h-4 w-4 mr-1" />New Application</Button></DialogTrigger>
-          <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
-            <DialogHeader><DialogTitle>New Admission Application</DialogTitle></DialogHeader>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <div><Label>First name *</Label><Input value={form.first_name} onChange={e => setForm({ ...form, first_name: e.target.value })} /></div>
-              <div><Label>Last name *</Label><Input value={form.last_name} onChange={e => setForm({ ...form, last_name: e.target.value })} /></div>
-              <div><Label>Date of birth</Label><Input type="date" value={form.date_of_birth} onChange={e => setForm({ ...form, date_of_birth: e.target.value })} /></div>
-              <div><Label>Gender</Label>
-                <Select value={form.gender || "__none"} onValueChange={v => setForm({ ...form, gender: v === "__none" ? "" : v })}>
-                  <SelectTrigger><SelectValue placeholder="—" /></SelectTrigger>
-                  <SelectContent><SelectItem value="__none">—</SelectItem><SelectItem value="male">Male</SelectItem><SelectItem value="female">Female</SelectItem><SelectItem value="other">Other</SelectItem></SelectContent>
-                </Select>
-              </div>
-              <div><Label>Applying for class</Label>
-                <Select value={form.applying_for_class_id || "__none"} onValueChange={v => setForm({ ...form, applying_for_class_id: v === "__none" ? "" : v, applying_for_section_id: "" })}>
-                  <SelectTrigger><SelectValue placeholder="Select class" /></SelectTrigger>
-                  <SelectContent><SelectItem value="__none">—</SelectItem>{classes.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
-                </Select>
-              </div>
-              <div><Label>Section (optional)</Label>
-                <Select value={form.applying_for_section_id || "__none"} onValueChange={v => setForm({ ...form, applying_for_section_id: v === "__none" ? "" : v })}>
-                  <SelectTrigger><SelectValue placeholder="Select section" /></SelectTrigger>
-                  <SelectContent><SelectItem value="__none">—</SelectItem>{sectionsForClass.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}</SelectContent>
-                </Select>
-              </div>
-              <div><Label>Parent name</Label><Input value={form.parent_name} onChange={e => setForm({ ...form, parent_name: e.target.value })} /></div>
-              <div><Label>Parent email</Label><Input type="email" value={form.parent_email} onChange={e => setForm({ ...form, parent_email: e.target.value })} /></div>
-              <div><Label>Parent phone</Label><Input value={form.parent_phone} onChange={e => setForm({ ...form, parent_phone: e.target.value })} /></div>
-              <div><Label>Parent address</Label><Input value={form.parent_address} onChange={e => setForm({ ...form, parent_address: e.target.value })} /></div>
-              <div><Label>Previous school</Label><Input value={form.previous_school} onChange={e => setForm({ ...form, previous_school: e.target.value })} /></div>
-              <div><Label>Registration #</Label><Input value={form.registration_number} onChange={e => setForm({ ...form, registration_number: e.target.value })} /></div>
-              <div className="md:col-span-2"><Label>Notes</Label><Textarea value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} /></div>
-              <div className="md:col-span-2">
-                <Label>Documents (birth certificate, prev. report card, etc.)</Label>
-                <Input type="file" multiple onChange={e => setDocFiles(Array.from(e.target.files || []))} />
-                {docFiles.length > 0 && <p className="text-xs text-muted-foreground mt-1">{docFiles.length} file(s) ready to upload</p>}
-              </div>
+          <DialogTrigger asChild><Button><Plus className="h-4 w-4 mr-1" />New application</Button></DialogTrigger>
+          <DialogContent className="max-w-3xl max-h-[88vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>New admission application</DialogTitle>
+              <p className="text-sm text-muted-foreground">
+                Only a first name is required. Everything else can be filled in now or later — but
+                what is entered here carries straight onto the student record when the application
+                is approved, so there is nothing to type twice.
+              </p>
+            </DialogHeader>
+
+            <div className="space-y-5">
+              {/* ── The child ───────────────────────────────────────────── */}
+              <section className="space-y-3">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">The child</h4>
+                <StudentPhotoField value={photo} onChange={setPhoto} />
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <div><Label>First name *</Label><Input value={form.first_name} onChange={e => setForm({ ...form, first_name: e.target.value })} /></div>
+                  <div><Label>Last name</Label><Input value={form.last_name} onChange={e => setForm({ ...form, last_name: e.target.value })} /></div>
+                  <div><Label>Date of birth</Label><Input type="date" value={form.date_of_birth} onChange={e => setForm({ ...form, date_of_birth: e.target.value })} /></div>
+                  <div><Label>Gender</Label>
+                    <Select value={form.gender || "__none"} onValueChange={v => setForm({ ...form, gender: v === "__none" ? "" : v })}>
+                      <SelectTrigger><SelectValue placeholder="—" /></SelectTrigger>
+                      <SelectContent><SelectItem value="__none">—</SelectItem><SelectItem value="male">Male</SelectItem><SelectItem value="female">Female</SelectItem><SelectItem value="other">Other</SelectItem></SelectContent>
+                    </Select>
+                  </div>
+                  <div><Label>Student phone</Label><Input value={form.student_phone} onChange={e => setForm({ ...form, student_phone: e.target.value })} /></div>
+                  <div><Label>Blood group</Label><Input placeholder="A+, O−, …" value={form.blood_group} onChange={e => setForm({ ...form, blood_group: e.target.value })} /></div>
+                </div>
+              </section>
+
+              {/* ── Placement ───────────────────────────────────────────── */}
+              <section className="space-y-3">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Placement</h4>
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <div><Label>Applying for class</Label>
+                    <Select value={form.applying_for_class_id || "__none"} onValueChange={v => setForm({ ...form, applying_for_class_id: v === "__none" ? "" : v, applying_for_section_id: "" })}>
+                      <SelectTrigger><SelectValue placeholder="Select class" /></SelectTrigger>
+                      <SelectContent><SelectItem value="__none">—</SelectItem>{classes.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </div>
+                  <div><Label>Section</Label>
+                    <Select value={form.applying_for_section_id || "__none"} onValueChange={v => setForm({ ...form, applying_for_section_id: v === "__none" ? "" : v })}>
+                      <SelectTrigger><SelectValue placeholder="Select section" /></SelectTrigger>
+                      <SelectContent><SelectItem value="__none">—</SelectItem>{sectionsForClass.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}</SelectContent>
+                    </Select>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Choosing a section is what puts the child on a class register when the application is approved.
+                    </p>
+                  </div>
+                  <div><Label>Admission date</Label><Input type="date" value={form.admission_date} onChange={e => setForm({ ...form, admission_date: e.target.value })} /></div>
+                  <div><Label>Previous school</Label><Input value={form.previous_school} onChange={e => setForm({ ...form, previous_school: e.target.value })} /></div>
+                  <div><Label>Registration number</Label><Input value={form.registration_number} onChange={e => setForm({ ...form, registration_number: e.target.value })} /></div>
+                  <div><Label>Roll number</Label><Input value={form.roll_number} onChange={e => setForm({ ...form, roll_number: e.target.value })} /></div>
+                </div>
+              </section>
+
+              {/* ── The family ──────────────────────────────────────────── */}
+              <section className="space-y-3">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">The family</h4>
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <div><Label>Guardian name</Label><Input value={form.parent_name} onChange={e => setForm({ ...form, parent_name: e.target.value })} /></div>
+                  <div><Label>Guardian phone</Label><Input value={form.parent_phone} onChange={e => setForm({ ...form, parent_phone: e.target.value })} /></div>
+                  <div className="md:col-span-2">
+                    <Label>Guardian email</Label>
+                    <Input type="email" value={form.parent_email} onChange={e => setForm({ ...form, parent_email: e.target.value })} />
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      This is what links the family to the parent portal, so they can see marks, fees and notices.
+                    </p>
+                  </div>
+                  <div><Label>Second guardian</Label><Input value={form.guardian2_name} onChange={e => setForm({ ...form, guardian2_name: e.target.value })} /></div>
+                  <div><Label>Second guardian phone</Label><Input value={form.guardian2_phone} onChange={e => setForm({ ...form, guardian2_phone: e.target.value })} /></div>
+                  <div><Label>Relationship</Label><Input placeholder="mother, father, uncle…" value={form.guardian2_relation} onChange={e => setForm({ ...form, guardian2_relation: e.target.value })} /></div>
+                  <div><Label>Emergency contact</Label><Input placeholder="Name and number" value={form.emergency_contact} onChange={e => setForm({ ...form, emergency_contact: e.target.value })} /></div>
+                  <div className="md:col-span-2"><Label>Address</Label><Input value={form.parent_address} onChange={e => setForm({ ...form, parent_address: e.target.value })} /></div>
+                  <div><Label>City</Label><Input value={form.city} onChange={e => setForm({ ...form, city: e.target.value })} /></div>
+                  <div><Label>Area</Label><Input value={form.area} onChange={e => setForm({ ...form, area: e.target.value })} /></div>
+                </div>
+              </section>
+
+              {/* ── What the school must know ───────────────────────────── */}
+              <section className="space-y-3">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Health and notes</h4>
+                <div className="grid grid-cols-1 gap-3">
+                  <div>
+                    <Label>Medical notes</Label>
+                    <Textarea placeholder="Allergies, conditions, medication the school must know about" value={form.medical_notes} onChange={e => setForm({ ...form, medical_notes: e.target.value })} />
+                  </div>
+                  <div><Label>Notes</Label><Textarea value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} /></div>
+                  <div>
+                    <Label>Documents</Label>
+                    <Input type="file" multiple onChange={e => setDocFiles(Array.from(e.target.files || []))} />
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Birth certificate, previous report card, B-form. These are carried onto the
+                      student's own record when the application is approved.
+                    </p>
+                    {docFiles.length > 0 && <p className="mt-1 text-xs font-medium">{docFiles.length} file(s) ready to upload</p>}
+                  </div>
+                </div>
+              </section>
             </div>
-            <DialogFooter><Button variant="outline" onClick={() => setNewOpen(false)}>Cancel</Button><Button onClick={submitApp}>Submit</Button></DialogFooter>
+
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setNewOpen(false)} disabled={submitting}>Cancel</Button>
+              <Button onClick={submitApp} disabled={submitting || !form.first_name.trim()}>
+                {submitting ? "Saving…" : "Submit application"}
+              </Button>
+            </DialogFooter>
           </DialogContent>
         </Dialog>
-      </div>
+        }
+      />
+
+      {loadError ? (
+        <Card className="rounded-2xl border-rose-200 dark:border-rose-900">
+          <ErrorState title="Admissions could not be loaded" error={loadError} />
+        </Card>
+      ) : null}
+
+      <StatTiles
+        stats={[
+          { label: "Awaiting a decision", value: apps.filter(a => a.status === "submitted" || a.status === "under_review").length },
+          { label: "Waitlisted", value: apps.filter(a => a.status === "waitlisted").length },
+          { label: "Approved", value: apps.filter(a => a.status === "approved").length, tone: "positive" },
+          { label: "Students on the roll", value: roll.length, hint: "Everyone currently enrolled" },
+        ]}
+      />
 
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList>
           <TabsTrigger value="queue">Applications</TabsTrigger>
           <TabsTrigger value="approved">Approved</TabsTrigger>
+          <TabsTrigger value="import">Import a register</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="import" className="space-y-4">
+          <BulkImportPanel
+            classes={classes}
+            sections={sections}
+            existingRegistrations={roll.map(r => r.registration_number).filter(Boolean) as string[]}
+            existingIdentities={roll.map(r => `${r.first_name} ${r.last_name ?? ""}|${r.date_of_birth ?? ""}`)}
+            onImported={() => {
+              // The roll is what the duplicate check is made against, so it
+              // has to be current before a second file is uploaded.
+              if (!schoolId) return;
+              void api
+                .from("students")
+                .select("registration_number, first_name, last_name, date_of_birth")
+                .eq("school_id", schoolId)
+                .then((r: any) => setRoll(r.data ?? []));
+            }}
+          />
+        </TabsContent>
 
         <TabsContent value="queue" className="space-y-4">
           <Card>

@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { getVPSFileUrl } from "@/lib/vpsStorage";
 import { Link, useParams } from "react-router-dom";
 import { RoleAwareShell } from "@/components/tenant/RoleAwareShell";
 import { OwnerContextSwitcher } from "@/components/tenant/OwnerContextSwitcher";
@@ -38,7 +39,7 @@ function ChildSwitcher() {
             }`}
           >
             <Avatar className="h-5 w-5">
-              <AvatarImage src={c.profile_image_url ?? undefined} />
+              <AvatarImage src={getVPSFileUrl("student-photos", c.profile_image_url)} />
               <AvatarFallback className="text-[10px]">
                 {(c.first_name ?? "?").charAt(0)}
               </AvatarFallback>

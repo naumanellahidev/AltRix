@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useMemo } from "react";
+import { getVPSFileUrl } from "@/lib/vpsStorage";
 import { useParams } from "react-router-dom";
 import { Plus, Search, UserPlus, WifiOff } from "lucide-react";
 import { api } from "@/lib/api";
@@ -626,7 +627,7 @@ export function TeacherStudentsModule() {
               <div className="flex items-start gap-4">
                 {detailStudent.profile_image_url ? (
                   <img
-                    src={detailStudent.profile_image_url}
+                    src={getVPSFileUrl("student-photos", detailStudent.profile_image_url)}
                     alt={detailStudent.first_name}
                     className="h-20 w-20 rounded-full object-cover border"
                   />

@@ -1,4 +1,5 @@
 import { ReactNode, useState, useEffect } from "react";
+import { getVPSFileUrl } from "@/lib/vpsStorage";
 import { NavLink } from "@/components/NavLink";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -289,7 +290,7 @@ export function ParentShell({
                 <span className="relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary/10 text-sm font-semibold text-primary">
                   {selectedChild?.profile_image_url ? (
                     <img
-                      src={selectedChild.profile_image_url}
+                      src={getVPSFileUrl("student-photos", selectedChild.profile_image_url)}
                       alt={selectedChild.first_name ?? "Child"}
                       className="h-full w-full object-cover"
                     />
@@ -330,7 +331,7 @@ export function ParentShell({
                     <span className="relative flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary/10 text-xs font-semibold text-primary">
                       {child.profile_image_url ? (
                         <img
-                          src={child.profile_image_url}
+                          src={getVPSFileUrl("student-photos", child.profile_image_url)}
                           alt={child.first_name ?? "Child"}
                           className="h-full w-full object-cover"
                         />

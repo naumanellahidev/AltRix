@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
+import { getVPSFileUrl } from "@/lib/vpsStorage";
 import { useParams } from "react-router-dom";
 import { api } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -122,7 +123,7 @@ export default function PublicHallTicketVerification() {
         <CardHeader className="border-b border-slate-50 px-6 py-6 bg-slate-50/20">
           <div className="flex flex-col sm:flex-row gap-6 items-center sm:items-start text-center sm:text-left">
             {student.profile_image_url ? (
-              <img src={student.profile_image_url} alt="" className="h-20 w-20 rounded-2xl object-cover ring-4 ring-slate-100" />
+              <img src={getVPSFileUrl("student-photos", student.profile_image_url)} alt="" className="h-20 w-20 rounded-2xl object-cover ring-4 ring-slate-100" />
             ) : (
               <div className="h-20 w-20 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center ring-4 ring-slate-100">
                 <User className="h-8 w-8" />

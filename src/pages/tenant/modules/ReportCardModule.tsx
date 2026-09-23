@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
+import { getVPSFileUrl } from "@/lib/vpsStorage";
 import { useSearchParams } from "react-router-dom";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -1705,7 +1706,7 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
                   {/* ─── STUDENT PROFILE CARD ─── */}
                   <div className="grid grid-cols-1 gap-5 rounded-2xl border border-slate-200/90 bg-slate-50/70 p-5 md:grid-cols-[auto_1fr] items-center">
                     {studentInfo.profile_image_url ? (
-                      <img src={studentInfo.profile_image_url} alt="" className="h-20 w-20 rounded-2xl object-cover ring-2 ring-primary/20 shadow-sm" />
+                      <img src={getVPSFileUrl("student-photos", studentInfo.profile_image_url)} alt="" className="h-20 w-20 rounded-2xl object-cover ring-2 ring-primary/20 shadow-sm" />
                     ) : (
                       <div className="grid h-20 w-20 place-items-center rounded-2xl bg-primary/10 text-primary ring-2 ring-primary/20 font-black text-2xl">
                         {studentInfo.first_name[0]}

@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
+import { StudentDocumentsPanel } from "@/components/academic/StudentDocumentsPanel";
+import { getVPSFileUrl } from "@/lib/vpsStorage";
 import { Loader2, Upload, UserPlus, X } from "lucide-react";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
@@ -394,11 +396,14 @@ export function StudentFormDialog({
         </DialogHeader>
 
         <Tabs defaultValue="basic" className="px-6">
-          <TabsList className="grid grid-cols-4 w-full">
+          <TabsList className={cn("grid w-full", isEdit ? "grid-cols-5" : "grid-cols-4")}>
             <TabsTrigger value="basic">Basic</TabsTrigger>
             <TabsTrigger value="academic">Academic</TabsTrigger>
             <TabsTrigger value="parent">Parent</TabsTrigger>
             <TabsTrigger value="more">More</TabsTrigger>
+            {/* Only once the child exists: there is nothing to attach a
+                document to until the record has been saved. */}
+            {isEdit ? <TabsTrigger value="documents">Documents</TabsTrigger> : null}
           </TabsList>
 
           <ScrollArea className="h-[55vh] mt-4 pr-3">
@@ -416,7 +421,7 @@ export function StudentFormDialog({
                   {form.profile_image_url ? (
                     <>
                       <img
-                        src={form.profile_image_url}
+                        src={getVPSFileUrl("student-photos", form.profile_image_url)}
                         alt="Student"
                         className="h-full w-full object-cover"
                       />
@@ -783,6 +788,12 @@ export function StudentFormDialog({
                 />
               </div>
             </TabsContent>
+
+            {isEdit && studentId ? (
+              <TabsContent value="documents" className="mt-0">
+                <StudentDocumentsPanel studentId={studentId} schoolId={schoolId} />
+              </TabsContent>
+            ) : null}
           </ScrollArea>
         </Tabs>
 
