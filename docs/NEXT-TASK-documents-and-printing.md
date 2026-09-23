@@ -1285,3 +1285,46 @@ marketing tabs (Calls, Sources, Follow-ups, Campaigns).
   "Our School" to every school in the system. It reads the real brand now.
 - The four marketing tabs each opened straight into a card or a table. Side by
   side in one sidebar group, nothing said which of the four you were on.
+
+### Nothing fails in silence (24 Sep 2026)
+
+The single most common defect across the whole shell was one shape: a screen
+drawing an empty table over a request that never succeeded.
+
+    const { data = [] } = useQuery(...)      // the error half, dropped
+    const { data } = await api.from(...)     // the error half, dropped
+
+There are well over a hundred of them. A permissions error and a school with
+no records then look exactly alike — which is how a report card endpoint
+answered 500 for every card in the database without anyone noticing, and how
+the fee configuration screen, the diary, the holiday calendar and the events
+calendar all told schools they had nothing.
+
+Fixing the call sites one at a time is worth doing where a screen deserves a
+proper inline state, and the bigger ones now have `ErrorState` with a retry.
+The *guarantee* belongs in two places, not a hundred and fifty:
+
+- **`App.tsx`** gives the QueryClient a `QueryCache` with an `onError`, so
+  every `useQuery` in the app reports its failure once, named from its own
+  query key. `meta: { silent: true }` opts a background poll out.
+- **`src/lib/api.ts`** reports a failed `select` from inside the query
+  builder, so a caller that destructures only `data` still cannot hide it.
+  `.single()` matching nothing is not reported — that is a normal answer the
+  caller handles — and writes are left alone, since they already report
+  through their own toast and offline queue.
+
+`reportLoadFailure` de-duplicates, so a tab that loads eight things does not
+stack eight toasts when the network drops.
+
+`src/lib/silent-failures.test.ts` holds both in place.
+
+### Every module has a heading
+
+All 61 real modules in the shell now open with a `ModuleHeader` (or an
+existing hero that does the same job): what the tab is, in one sentence, with
+its actions beside it. The last ones were Attendance, the admissions pipeline,
+Directory, Salaries, Fees, the Admin console, Presence diagnostics, the Vice
+Principal home, Schools, the Timetable, Fee vouchers and the fallback home.
+
+The remaining gaps in the scan are exports (32) and loading skeletons (19),
+which are next.

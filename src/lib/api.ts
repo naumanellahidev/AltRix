@@ -1,4 +1,5 @@
 import { apiClient } from './api-client';
+import { reportLoadFailure } from "@/lib/load-failure";
 import { addToOfflineQueue } from '@/lib/offline-db';
 import { getAccessToken, setAccessToken, clearTokens } from '@/lib/token-store';
 import { toast } from 'sonner';
@@ -239,7 +240,18 @@ export class VpsQueryBuilder {
       } else if (isMaybeSingle) {
         res.data = (res.data && res.data.length > 0) ? res.data[0] : null;
       }
-      
+
+      // A read that failed is said out loud, once, wherever it was called
+      // from. Most callers destructure only `data`, so without this the error
+      // half was dropped on the floor and an empty table was drawn over a
+      // request that never succeeded.
+      //
+      // "Row not found" from .single() is not a failure to report: it is a
+      // normal answer that the caller is expected to handle.
+      if (res.error && this.context.action === 'select' && res.error.message !== 'Row not found') {
+        reportLoadFailure(this.table.replace(/[_-]+/g, ' '), res.error);
+      }
+
       return onfulfilled ? onfulfilled(res) : res;
     } catch (err: any) {
       if (this.context.action !== 'select' && err.message?.toLowerCase().includes('network')) {

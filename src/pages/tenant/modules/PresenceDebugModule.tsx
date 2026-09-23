@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { ModuleHeader } from "@/components/tenant/module-kit";
 import { useParams } from "react-router-dom";
 import { Activity, Trash2, Pause, Play } from "lucide-react";
 import { api } from "@/lib/api";
@@ -91,6 +92,12 @@ export default function PresenceDebugModule() {
 
   return (
     <div className="space-y-4">
+      <ModuleHeader
+        icon={Activity}
+        tone="slate"
+        title="Presence diagnostics"
+        description="Who the server currently believes is online, and what the live connection is doing. For checking the plumbing, not for daily use."
+      />
       <Card>
         <CardHeader className="flex flex-row items-center justify-between pb-3">
           <CardTitle className="flex items-center gap-2 text-base">

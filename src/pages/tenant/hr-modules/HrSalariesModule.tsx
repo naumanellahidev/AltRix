@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { ModuleHeader } from "@/components/tenant/module-kit";
 import { useParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash2, Edit, Users, Coins, TrendingUp, Calendar, FileText, Download, History } from "lucide-react";
@@ -430,6 +431,12 @@ export function HrSalariesModule() {
 
   return (
     <div className="space-y-6">
+      <ModuleHeader
+        icon={Coins}
+        tone="emerald"
+        title="Salaries"
+        description="What each member of staff is on, the structure behind it, and what changed when."
+      />
       {/* Stats Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
         <Card className="shadow-elevated rounded-2xl">

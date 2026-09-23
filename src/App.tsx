@@ -1,8 +1,9 @@
 import { useEffect, lazy, Suspense, useMemo } from "react";
+import { reportLoadFailure } from "@/lib/load-failure";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryCache, QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { toast } from "sonner";
 import Index from "./pages/Index";
@@ -86,7 +87,40 @@ function CopilotWrapper() {
   );
 }
 
+/**
+ * Every failed query says so, once.
+ *
+ * Most screens run `const { data = [] } = useQuery(...)` and never look at
+ * the error, so a request that failed set an empty list and the tab showed
+ * "no records" - which is exactly what a school with no records sees. That is
+ * how a report card endpoint answered 500 for every card in the database
+ * without anyone noticing.
+ *
+ * The per-screen ErrorState is still the better answer where it fits, and the
+ * bigger screens have one. This is the floor underneath them: nothing fails
+ * in silence anywhere in the app.
+ *
+ * A query opts out with `meta: { silent: true }` when a failure really is not
+ * worth interrupting anyone for - a background prefetch, a poll that comes
+ * round again in thirty seconds.
+ */
+const queryCache = new QueryCache({
+  onError: (error, query) => {
+    if (query.meta?.silent) return;
+    const what =
+      typeof query.meta?.describe === "string"
+        ? query.meta.describe
+        : // Falls back to the first string in the query key, which is how
+          // nearly every key in this app is written: ["ledger_payments", …].
+          (Array.isArray(query.queryKey) && typeof query.queryKey[0] === "string"
+            ? String(query.queryKey[0]).replace(/[_-]+/g, " ")
+            : "this data");
+    reportLoadFailure(what, error);
+  },
+});
+
 const queryClient = new QueryClient({
+  queryCache,
   defaultOptions: {
     queries: {
       staleTime: 15 * 1000, // 15 seconds

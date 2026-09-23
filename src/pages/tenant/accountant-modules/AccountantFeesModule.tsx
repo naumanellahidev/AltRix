@@ -1,4 +1,6 @@
 import { useState, useMemo } from "react";
+import { CreditCard } from "lucide-react";
+import { ModuleHeader } from "@/components/tenant/module-kit";
 import { useParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { 
@@ -541,6 +543,12 @@ export function AccountantFeesModule() {
   return (
     <div className="space-y-6">
       <OfflineDataBanner isOffline={isOffline} isUsingCache={isUsingCache} onRefresh={refreshOffline} />
+      <ModuleHeader
+        icon={CreditCard}
+        tone="amber"
+        title="Fees"
+        description="What each family owes, what has been collected, and what is overdue."
+      />
 
       {/* Summary KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-4">

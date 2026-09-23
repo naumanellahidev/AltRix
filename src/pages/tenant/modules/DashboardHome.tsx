@@ -4,6 +4,7 @@
  * links instead of placeholder marketing cards.
  */
 import { useNavigate, useParams } from "react-router-dom";
+import { ModuleHeader } from "@/components/tenant/module-kit";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowRight, Bell, LayoutGrid, MessageSquare, Settings, Users } from "lucide-react";
 
@@ -31,14 +32,12 @@ export function DashboardHome() {
 
   return (
     <div className="space-y-6">
-      <div className="rounded-2xl border border-primary/15 bg-gradient-to-br from-primary/10 via-accent/30 to-transparent p-6">
-        <p className="font-display text-xl font-semibold tracking-tight">
-          Welcome{school?.name ? ` to ${school.name}` : ""}
-        </p>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Use the sidebar to navigate, or jump into a common workspace below.
-        </p>
-      </div>
+      <ModuleHeader
+        icon={LayoutGrid}
+        tone="blue"
+        title={school?.name ? `Welcome to ${school.name}` : "Welcome"}
+        description="Your role does not have a dashboard of its own yet. Use the sidebar, or start from one of the workspaces below."
+      />
 
       <Card>
         <CardHeader className="pb-2"><CardTitle className="text-base">Quick links</CardTitle></CardHeader>

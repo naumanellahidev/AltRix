@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Contact } from "lucide-react";
+import { ModuleHeader } from "@/components/tenant/module-kit";
 import { useNavigate, useParams } from "react-router-dom";
 import { Edit, Plus, Search, Printer, Check } from "lucide-react";
 
@@ -323,6 +325,12 @@ export function DirectoryModule() {
 
   return (
     <div className="space-y-4">
+      <ModuleHeader
+        icon={Contact}
+        tone="blue"
+        title="Directory"
+        description="Everyone attached to the school — staff, students and families — with how to reach them."
+      />
       <Card className="shadow-soft">
         <CardHeader className="space-y-2">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">

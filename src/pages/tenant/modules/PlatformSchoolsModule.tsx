@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
+import { Building2 } from "lucide-react";
+import { ModuleHeader } from "@/components/tenant/module-kit";
 import { useParams } from "react-router-dom";
 import { ExternalLink, Search, ShieldCheck } from "lucide-react";
 
@@ -94,6 +96,12 @@ export function PlatformSchoolsModule() {
 
   return (
     <div className="space-y-4">
+      <ModuleHeader
+        icon={Building2}
+        tone="violet"
+        title="Schools"
+        description="Every school on the platform, what plan each is on, and how much of it they are using."
+      />
       <Card className="shadow-elevated">
         <CardHeader>
           <CardTitle className="font-display text-xl">All Schools</CardTitle>

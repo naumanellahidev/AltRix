@@ -1,4 +1,6 @@
 import { DataExportMenu } from "@/components/documents/DataExportMenu";
+import { CalendarRange } from "lucide-react";
+import { ModuleHeader } from "@/components/tenant/module-kit";
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { DndContext, type DragEndEvent, useDraggable, useDroppable, TouchSensor, MouseSensor, useSensor, useSensors, PointerSensor } from "@dnd-kit/core";
 import { useParams } from "react-router-dom";
@@ -496,6 +498,12 @@ export function TimetableBuilderModule() {
 
   return (
     <div className="space-y-6">
+      <ModuleHeader
+        icon={CalendarRange}
+        tone="violet"
+        title="Timetable"
+        description="Which class is taught what, when, by whom and where — with the clashes shown before the term starts."
+      />
       {schoolId && (
         <Card className="shadow-premium border-primary/10 bg-surface/30 backdrop-blur-md rounded-3xl overflow-hidden no-print">
           <CardHeader className="border-b border-primary/5 bg-primary/5">

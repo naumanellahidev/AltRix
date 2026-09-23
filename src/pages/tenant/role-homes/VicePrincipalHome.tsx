@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
+import { ShieldCheck } from "lucide-react";
+import { ModuleHeader } from "@/components/tenant/module-kit";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   BarChart3,
@@ -268,6 +270,12 @@ export function VicePrincipalHome() {
 
   return (
     <div className="space-y-6">
+      <ModuleHeader
+        icon={ShieldCheck}
+        tone="blue"
+        title="Vice principal"
+        description="The day at a glance — what needs a decision, what is running late, and where to go next."
+      />
       {/* Real-time Alerts Panel */}
       {alerts.length > 0 && (
         <DashboardAlertsPanel

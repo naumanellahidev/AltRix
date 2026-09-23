@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { ModuleHeader } from "@/components/tenant/module-kit";
 import { useParams, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, Receipt, Download, Loader2, Trash2, Users, User, Eye, CheckCircle2, XCircle, AlertCircle, Info, Mail, Upload, Search, X, FileDown, Award, Sparkles, TrendingUp, RefreshCw } from "lucide-react";
@@ -162,6 +163,16 @@ export default function FeeVouchersModule({ section }: { section?: FeeVoucherSec
 
   return (
     <div className="space-y-6">
+      <ModuleHeader
+        icon={Receipt}
+        tone="amber"
+        title={section === "proofs" ? "Payment proofs" : "Fee vouchers"}
+        description={
+          section === "proofs"
+            ? "Receipts families have sent in, waiting to be matched against a voucher and marked paid."
+            : "Vouchers for one child or a whole class, on the school’s own letterhead, with the family notified."
+        }
+      />
       <Card className={`shadow-elevated${section === "proofs" ? " hidden" : ""}`}>
         <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">

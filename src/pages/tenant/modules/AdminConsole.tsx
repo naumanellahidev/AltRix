@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
+import { SlidersHorizontal } from "lucide-react";
+import { ModuleHeader } from "@/components/tenant/module-kit";
 import { useParams } from "react-router-dom";
 import { ShieldCheck } from "lucide-react";
 
@@ -82,6 +84,12 @@ export function AdminConsole() {
 
   return (
     <div className="space-y-4">
+      <ModuleHeader
+        icon={SlidersHorizontal}
+        tone="slate"
+        title="Admin console"
+        description="The switches behind the school — what each role may do, and the settings the rest of the app reads."
+      />
       <Card className="shadow-elevated">
         <CardHeader>
           <CardTitle className="font-display text-xl">Admin Console</CardTitle>

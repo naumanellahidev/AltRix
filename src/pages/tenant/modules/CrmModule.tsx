@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
+import { UserPlus } from "lucide-react";
+import { ModuleHeader } from "@/components/tenant/module-kit";
 import { useParams } from "react-router-dom";
 import { DndContext, DragEndEvent, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
 import { SortableContext, arrayMove, verticalListSortingStrategy } from "@dnd-kit/sortable";
@@ -397,6 +399,12 @@ export function CrmModule() {
   return (
     <div className="space-y-4">
       <OfflineDataBanner isOffline={isOffline} isUsingCache={isUsingCache} onRefresh={refresh} />
+      <ModuleHeader
+        icon={UserPlus}
+        tone="violet"
+        title="Admissions pipeline"
+        description="Every family who has enquired, where each one has reached, and who is following them up."
+      />
       {!perms.loading && !perms.canWorkCrm && (
         <Card className="shadow-elevated">
           <CardHeader>

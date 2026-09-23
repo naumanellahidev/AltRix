@@ -1,4 +1,6 @@
 import { useEffect, useState, useRef, useCallback, useMemo } from "react";
+import { CalendarCheck } from "lucide-react";
+import { ModuleHeader } from "@/components/tenant/module-kit";
 import { useParams } from "react-router-dom";
 import { api } from "@/lib/api";
 import { useTenant } from "@/hooks/useTenant";
@@ -281,6 +283,12 @@ export function AttendanceModule() {
   return (
     <div className="space-y-4">
       <OfflineDataBanner isOffline={isOffline} isUsingCache={isUsingCache} />
+      <ModuleHeader
+        icon={CalendarCheck}
+        tone="teal"
+        title="Attendance"
+        description="Who was present, who was absent and who was late — by class, by day, and across the term."
+      />
 
       {/* Session Selection */}
       <Card>

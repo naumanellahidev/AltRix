@@ -558,6 +558,15 @@ def run():
     check(S, "phot", "a stored photo path resolves wherever the photo is shown",
           count_matches("getVPSFileUrl(.student-photos", "src") >= 8)
 
+    check(S, "sil1", "every failed query in the app is reported, not drawn as an empty table",
+          "new QueryCache(" in txt("src/App.tsx")
+          and "reportLoadFailure(" in txt("src/App.tsx"))
+    check(S, "sil2", "a failed read through the data layer says so wherever it was called",
+          "reportLoadFailure(" in apis
+          and "res.error.message !== 'Row not found'" in apis)
+    check(S, "hdr", "every module in the shell opens with a heading that says what it is",
+          count_matches("ModuleHeader", "src/pages/tenant") >= 30)
+
     rct = txt("src/lib/documents/report-card-templates.ts")
     check(S, "rcds", "the seven designs differ in the shape of the page, not only its colours",
           all(k in rct for k in ("sidebar", "banner", "centred", "register", "standard"))
