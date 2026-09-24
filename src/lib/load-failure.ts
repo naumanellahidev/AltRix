@@ -39,10 +39,71 @@ export function failureReason(error: unknown): string {
  * seconds, so a screen that loads eight things does not stack eight toasts
  * over each other when the network drops.
  */
+/**
+ * Background work: warmed caches, prefetches, polls.
+ *
+ * A failure there is not something the user asked for and cannot act on, so
+ * it belongs in the console rather than across the screen. Counted rather
+ * than a boolean, so two overlapping background runs do not un-suppress each
+ * other when the first one finishes.
+ */
 const recentlyReported = new Map<string, number>();
 const REPEAT_WINDOW_MS = 5000;
 
+let backgroundDepth = 0;
+
+export function beginBackgroundLoads(): void {
+  backgroundDepth += 1;
+}
+
+export function endBackgroundLoads(): void {
+  backgroundDepth = Math.max(0, backgroundDepth - 1);
+}
+
+export async function duringBackgroundLoads<T>(run: () => Promise<T>): Promise<T> {
+  beginBackgroundLoads();
+  try {
+    return await run();
+  } finally {
+    endBackgroundLoads();
+  }
+}
+
+/** True while a background warm-up is in flight. */
+export function isBackgroundLoad(): boolean {
+  return backgroundDepth > 0;
+}
+
+/** The status, when the failure came from an HTTP response. */
+function statusOf(error: unknown): number | null {
+  const status = (error as { response?: { status?: number }; status?: number })?.response?.status
+    ?? (error as { status?: number })?.status;
+  return typeof status === "number" ? status : null;
+}
+
 export function reportLoadFailure(what: string, error: unknown): void {
+  if (backgroundDepth > 0) {
+    // eslint-disable-next-line no-console
+    console.warn(`[background load failed] ${what}:`, error);
+    return;
+  }
+
+  // Being rate limited is one condition, not one per table. Saying it once
+  // is the whole message; twelve toasts naming twelve tables is noise on top
+  // of a problem the user cannot do anything about anyway.
+  if (statusOf(error) === 429) {
+    const now = Date.now();
+    const last = recentlyReported.get("__rate_limited__");
+    if (last && now - last < 15000) return;
+    recentlyReported.set("__rate_limited__", now);
+    // eslint-disable-next-line no-console
+    console.warn(`[rate limited] while loading ${what}`);
+    toast.error("The app is asking the server for too much at once. Give it a moment.", {
+      duration: 6000,
+    });
+    return;
+  }
+
   const reason = failureReason(error);
   const key = `${what}::${reason}`;
   const now = Date.now();

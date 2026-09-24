@@ -1328,3 +1328,53 @@ Principal home, Schools, the Timetable, Fee vouchers and the fallback home.
 
 The remaining gaps in the scan are exports (32) and loading skeletons (19),
 which are next.
+
+## The 429 storm, and the Copilot (24 Sep 2026)
+
+### Why half the console was red
+
+A dashboard mount fired the entire universal prefetch at once: twelve groups,
+thirty-four tasks, each with its own handful of queries — well over a hundred
+requests in about two seconds, on top of the queries the screen itself needs.
+The server refused the overflow, so `/api/notifications`, `/api/notifications/counts`
+and a dozen `/api/vps-db/query` calls all came back 429 and the page loaded
+half-empty.
+
+Nobody is waiting for a warm-up. It now starts when the browser goes idle
+(or after 1.5s), runs **one group at a time** with a breath between them, and
+reports nothing to the user when a piece of it fails — `duringBackgroundLoads`
+routes those to the console. Being rate limited is also now said **once**, as
+one condition, rather than once per table.
+
+### The Copilot
+
+**It could be asked about someone else's school.** The endpoint resolved its
+school as `current_user.school_id or request.headers["X-School-Id"]`. A header
+is whatever the caller says it is, so any authenticated user whose token
+carried no school could name another school and have the Copilot read that
+school's live records back to them — students, fees, salaries. Only a super
+admin may name a school now; everyone else gets the school on their token, and
+naming a different one is refused.
+
+**One lookup in the context was not school-scoped.** Every other personal query
+in the builder carries `AND school_id = :sid`; the student-attendance one did
+not, so an email that exists as a student in two schools had both schools'
+attendance summed into one percentage. A test now walks every SQL statement in
+the builder and fails on any that touches a school-scoped table without a
+school filter — directly, or through an id that was itself resolved with one.
+
+**It answered about things nobody asked.** The prompt was trimmed by keeping
+sections in the order the builder wrote them until the budget ran out. The
+direct answer survived — it is written first — but everything after was kept
+or dropped by *position*: a question about attendance could lose the
+attendance section because the fee ledger was written before it and was long,
+and the model then talked about fees. Sections are now ranked against the
+question's own words, with the direct-answer sections pinned, and the budget
+comes down from 16,000 characters to 9,000. A smaller prompt of the right
+records is both a faster answer and a more focused one.
+
+**The cache stats measured nothing.** `find_similar` and `store` both return
+None unconditionally — the Copilot reads live on every question on purpose,
+because a stale fee figure presented as current is worse than a slow answer.
+That is the right call, but the admin endpoint still served a "hit rate" for
+it. It says the cache is off now.

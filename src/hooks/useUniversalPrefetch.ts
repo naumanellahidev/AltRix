@@ -1,4 +1,5 @@
 import { useEffect, useRef, useCallback } from 'react';
+import { duringBackgroundLoads } from "@/lib/load-failure";
 import { api } from '@/lib/api';
 import {
   // Core caches
@@ -119,44 +120,45 @@ export function useUniversalPrefetch(options: UniversalPrefetchOptions) {
         console.log('[TotalPrefetch] Starting comprehensive background sync for school:', schoolId);
         const startTime = Date.now();
 
-        // Run ALL prefetch tasks in parallel groups to maximize speed
-        await Promise.allSettled([
-          // Group 1: Core Academic Structure
-          prefetchAcademicStructure(schoolId!, cancelled, updateProgress),
-          
-          // Group 2: Students & Enrollments
-          prefetchStudentsAndEnrollments(schoolId!, cancelled, updateProgress),
-          
-          // Group 3: Timetable
-          prefetchTimetableData(schoolId!, cancelled, updateProgress),
-          
-          // Group 4: Assignments & Homework
-          prefetchAssignmentsAndHomework(schoolId!, cancelled, updateProgress),
-          
-          // Group 5: Attendance
-          prefetchAttendanceData(schoolId!, cancelled, updateProgress),
-          
-          // Group 6: Assessments & Grades
-          prefetchAssessmentsAndGrades(schoolId!, cancelled, updateProgress),
-          
-          // Group 7: HR Data
-          prefetchHrData(schoolId!, cancelled, updateProgress),
-          
-          // Group 8: Finance Data
-          prefetchFinanceData(schoolId!, cancelled, updateProgress),
-          
-          // Group 9: CRM/Marketing Data
-          prefetchCrmData(schoolId!, cancelled, updateProgress),
-          
-          // Group 10: Messaging & Notifications
-          prefetchMessagingData(schoolId!, userId!, cancelled, updateProgress),
-          
-          // Group 11: Support & Admin
-          prefetchSupportData(schoolId!, cancelled, updateProgress),
-          
-          // Group 12: Comprehensive Stats
-          prefetchAllStats(schoolId!, cancelled, updateProgress),
-        ]);
+        // One group at a time, not all twelve at once.
+        //
+        // This used to fire every group in parallel, and each group fires its
+        // own handful of queries, so a dashboard mount put well over a
+        // hundred requests on the wire inside two seconds — on top of the
+        // queries the screen itself needs. The server refused the overflow
+        // with 429s and the user watched half the page fail to load.
+        //
+        // Nobody is waiting for a warm-up. Run it steadily and let the
+        // screen's own queries go first.
+        const groups: Array<() => Promise<void>> = [
+          () => prefetchAcademicStructure(schoolId!, cancelled, updateProgress),
+          () => prefetchStudentsAndEnrollments(schoolId!, cancelled, updateProgress),
+          () => prefetchTimetableData(schoolId!, cancelled, updateProgress),
+          () => prefetchAssignmentsAndHomework(schoolId!, cancelled, updateProgress),
+          () => prefetchAttendanceData(schoolId!, cancelled, updateProgress),
+          () => prefetchAssessmentsAndGrades(schoolId!, cancelled, updateProgress),
+          () => prefetchHrData(schoolId!, cancelled, updateProgress),
+          () => prefetchFinanceData(schoolId!, cancelled, updateProgress),
+          () => prefetchCrmData(schoolId!, cancelled, updateProgress),
+          () => prefetchMessagingData(schoolId!, userId!, cancelled, updateProgress),
+          () => prefetchSupportData(schoolId!, cancelled, updateProgress),
+          () => prefetchAllStats(schoolId!, cancelled, updateProgress),
+        ];
+
+        // A failure in here is not the user's problem and not something they
+        // can act on: it goes to the console, never across the screen.
+        await duringBackgroundLoads(async () => {
+          for (const group of groups) {
+            if (cancelled) break;
+            await group().catch((err) => {
+              // eslint-disable-next-line no-console
+              console.warn("[TotalPrefetch] group failed:", err);
+            });
+            // A breath between groups, so the warm-up never crowds out a
+            // query the user is actually waiting for.
+            await new Promise((r) => setTimeout(r, 250));
+          }
+        });
 
         if (!cancelled) {
           markPrefetched(schoolId!);
@@ -168,10 +170,23 @@ export function useUniversalPrefetch(options: UniversalPrefetchOptions) {
       }
     }
 
-    void prefetchAllData();
+    // Let the screen finish asking for what it needs before the warm-up
+    // starts. requestIdleCallback where it exists, a short timer elsewhere.
+    const idle = (window as any).requestIdleCallback as
+      | ((cb: () => void, opts?: { timeout: number }) => number)
+      | undefined;
+    let startHandle: number;
+    if (idle) {
+      startHandle = idle(() => void prefetchAllData(), { timeout: 4000 });
+    } else {
+      startHandle = window.setTimeout(() => void prefetchAllData(), 1500);
+    }
 
     return () => {
       cancelled = true;
+      const cancelIdle = (window as any).cancelIdleCallback as ((h: number) => void) | undefined;
+      if (idle && cancelIdle) cancelIdle(startHandle);
+      else window.clearTimeout(startHandle);
     };
   }, [enabled, schoolId, userId, updateProgress]);
 }

@@ -567,6 +567,21 @@ def run():
     check(S, "hdr", "every module in the shell opens with a heading that says what it is",
           count_matches("ModuleHeader", "src/pages/tenant") >= 30)
 
+    misc = txt("backend/app/routers/misc.py")
+    # Checked against the parsed source, not the raw file: the comment that
+    # explains the old expression contains the old expression.
+    misc_code = code("backend/app/routers/misc.py")
+    check(S, "cop1", "the Copilot only ever answers about the caller's own school",
+          "You can only ask about your own school." in misc
+          and "current_user.school_id or request.headers" not in misc_code
+          and "current_user.is_super_admin" in misc_code)
+    check(S, "cop2", "the Copilot keeps the records the question needs, not the first ones",
+          "_context_relevance" in misc and "AI_CONTEXT_PINNED_MARKERS" in misc)
+    check(S, "cop3", "a background warm-up neither shouts nor stampedes",
+          "duringBackgroundLoads" in txt("src/hooks/useUniversalPrefetch.ts")
+          and "requestIdleCallback" in txt("src/hooks/useUniversalPrefetch.ts")
+          and "backgroundDepth" in txt("src/lib/load-failure.ts"))
+
     rct = txt("src/lib/documents/report-card-templates.ts")
     check(S, "rcds", "the seven designs differ in the shape of the page, not only its colours",
           all(k in rct for k in ("sidebar", "banner", "centred", "register", "standard"))

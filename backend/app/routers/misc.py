@@ -9,6 +9,7 @@ from typing import List, Optional, Union, cast
 from uuid import UUID
 
 import json
+import re
 from fastapi import APIRouter, Query, status, Request, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import func, select, text
@@ -1748,32 +1749,86 @@ async def set_school_ai_status(db: DbSession, school_id: str, enabled: bool):
 #: the answer's evidence usually is - fell off the edge, and the replies came
 #: back vague. Four thousand words of context is already generous; what matters
 #: is that the sections nearest the question survive.
-AI_CONTEXT_BUDGET_CHARS = 16000
+#: How much of the school's records may go into one prompt.
+#:
+#: Smaller than it was. The model this runs on is small, and a prompt of
+#: sixteen thousand characters is most of its attention spent on records
+#: that have nothing to do with the question. Nine thousand of the *right*
+#: records answers better and answers sooner - see trim_ai_context.
+AI_CONTEXT_BUDGET_CHARS = 9000
+
+#: Sections that are the direct answer to the question and are never cut.
+AI_CONTEXT_PINNED_MARKERS = ("DIRECT QUERY ANSWER DATA", "[Role Context")
 
 
-def trim_ai_context(context: str, budget: int = AI_CONTEXT_BUDGET_CHARS) -> str:
+def _context_relevance(section: str, terms: set) -> int:
+    """How much of the question this section actually speaks to."""
+    if not terms:
+        return 0
+    lowered = section.lower()
+    return sum(1 for term in terms if term in lowered)
+
+
+def _question_terms(question: str) -> set:
+    """The words in the question worth matching a section against."""
+    stop = {
+        "the", "and", "for", "are", "was", "were", "what", "when", "how", "many",
+        "much", "with", "that", "this", "have", "has", "about", "which", "where",
+        "please", "could", "would", "from", "school", "show", "tell", "give", "list",
+        "kitni", "kitne", "kitna", "kya", "kaun", "kahan", "mujhe", "batao", "hai",
+        "hain", "mera", "meri", "mere", "aur", "kar", "karo", "ka", "ki", "ke",
+    }
+    words = re.findall(r"[a-zA-Z؀-ۿ]{3,}", question or "")
+    return {w.lower() for w in words if w.lower() not in stop}
+
+
+def trim_ai_context(
+    context: str,
+    budget: int = AI_CONTEXT_BUDGET_CHARS,
+    question: str = "",
+) -> str:
     """
-    Cut the context to the budget on a section boundary, and say that it was cut.
+    Cut the context to the budget on a section boundary, keeping what answers
+    the question, and say that it was cut.
 
-    Sections are kept in the order the builder wrote them, which puts the
-    targeted matches for this question first. Half a table is worse than no
-    table, so nothing is truncated mid-section, and the model is told that some
-    sections were left out rather than being allowed to imply it saw everything.
+    This used to keep sections in the order the builder wrote them until the
+    budget ran out. The targeted matches are written first so they survived,
+    but everything after was kept or dropped by position: a question about
+    attendance could lose the attendance section because the fee ledger was
+    written before it and was long.
+
+    Sections that are the direct answer are pinned. The rest are ranked by how
+    many of the question's own words they contain, so what is left in is what
+    was asked about. Half a table is worse than no table, so nothing is cut
+    mid-section, and the model is told that some were left out rather than
+    being allowed to imply it saw everything.
     """
     if not context or len(context) <= budget:
         return context
 
     sections = context.split("\n\n")
-    kept: list = []
+    terms = _question_terms(question)
+
+    ranked = []
+    for order, section in enumerate(sections):
+        pinned = any(marker in section for marker in AI_CONTEXT_PINNED_MARKERS)
+        # Pinned first, then most relevant, then the builder's own order.
+        ranked.append((0 if pinned else 1, -_context_relevance(section, terms), order, section))
+    ranked.sort()
+
+    keep_orders = set()
     used = 0
     dropped = 0
-    for section in sections:
+    for _pin, _rel, order, section in ranked:
         cost = len(section) + 2
         if used + cost > budget:
             dropped += 1
             continue
-        kept.append(section)
+        keep_orders.add(order)
         used += cost
+
+    # Put them back the way the builder wrote them: the order carries meaning.
+    kept = [section for order, section in enumerate(sections) if order in keep_orders]
 
     if dropped:
         kept.append(
@@ -1804,7 +1859,7 @@ async def fetch_ai_context(
         current_screen=current_screen,
         user_query=user_query,
     )
-    trimmed = trim_ai_context(context or "")
+    trimmed = trim_ai_context(context or "", question=user_query or "")
     if context and len(trimmed) < len(context):
         logger.info(
             "AI context trimmed from %d to %d characters for school %s",
@@ -1922,8 +1977,35 @@ async def copilot_chat(
         semantic_cache, classify_cache_type, classify_data_deps,
     )
     
-    # 1. Resolve effective school_id (header, current_user, or database fallback)
-    raw_school_id = current_user.school_id or request.headers.get("X-School-Id")
+    # 1. Resolve the school this conversation is about.
+    #
+    # This used to read `current_user.school_id or request.headers["X-School-Id"]`.
+    # A header is whatever the caller says it is, so any authenticated user
+    # whose token carried no school could name someone else's school and have
+    # the Copilot read that school's live records back to them.
+    #
+    # A super admin may choose a school, because that is their job. Everyone
+    # else gets the school on their token, and asking for another one is
+    # refused rather than honoured.
+    requested_school_id = request.headers.get("X-School-Id")
+    if current_user.is_super_admin:
+        raw_school_id = requested_school_id or current_user.school_id
+    else:
+        raw_school_id = current_user.school_id
+        if (
+            requested_school_id
+            and raw_school_id
+            and str(requested_school_id).strip() != str(raw_school_id).strip()
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You can only ask about your own school.",
+            )
+        if not raw_school_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Your account is not attached to a school, so there is nothing to ask about.",
+            )
     effective_school_id = str(raw_school_id) if raw_school_id else None
     if effective_school_id:
         try:
@@ -2079,7 +2161,19 @@ async def get_ai_cache_stats(
         raise ForbiddenError("Access denied. School administrator role required.")
     if not current_user.school_id:
         raise ForbiddenError("No school context.")
-    return await _sc.get_stats(db, current_user.school_id)
+    stats = await _sc.get_stats(db, current_user.school_id)
+    # Say plainly that answers are not cached, rather than serving a hit rate
+    # for a cache that is switched off. The Copilot reads the database on
+    # every question on purpose: a stale fee figure presented as current is
+    # worse than an answer that took a moment.
+    if isinstance(stats, dict):
+        stats["enabled"] = False
+        stats["note"] = (
+            "Answers are never cached. The Copilot reads the school's live records on "
+            "every question, so the figures it quotes are the figures in the database "
+            "at that moment. These counters are historical."
+        )
+    return stats
 
 
 @ai_router.post(

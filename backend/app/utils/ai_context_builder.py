@@ -258,9 +258,15 @@ async def build_scoped_ai_context(
                         COUNT(*) as total_days
                     FROM attendance_entries ae
                     WHERE ae.student_id IN (
-                        SELECT id FROM students WHERE user_id = :uid OR email = :uemail
+                        -- Scoped to this school, like every other personal
+                        -- lookup here. Without it, an email that exists as a
+                        -- student in two schools had both schools' attendance
+                        -- added into one percentage.
+                        SELECT id FROM students
+                        WHERE (user_id = :uid OR email = :uemail)
+                          AND school_id = CAST(:sid AS UUID)
                     )
-                """, {"uid": str(user.id), "uemail": getattr(user, "email", "") or ""})
+                """, {"uid": str(user.id), "uemail": getattr(user, "email", "") or "", "sid": school_id})
                 if student_att and student_att[0] and student_att[0][2] > 0:
                     r = student_att[0]
                     pct = round(r[0] / r[2] * 100, 1)
