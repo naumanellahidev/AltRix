@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { DataExportMenu } from "@/components/documents/DataExportMenu";
 import { NotebookPen } from "lucide-react";
 import { ModuleHeader, QueryState } from "@/components/tenant/module-kit";
 import { api } from "@/lib/api";
@@ -79,8 +80,21 @@ export default function DiaryModule({ schoolId, canManage = false, studentSectio
         tone="amber"
         title="Class diary"
         description="Homework set, announcements made and reminders sent — what a family sees when they ask what was given today."
-        actions={
-        canManage ? (
+        actions={<>
+          <DataExportMenu
+            title="Class diary"
+            rows={items.map((d: any) => ({
+              Date: d.entry_date ?? "",
+              Title: d.title ?? "",
+              Category: d.category ?? "",
+              Section: sections.find((s) => s.id === d.class_section_id)?.name ?? "",
+              Subject: subjects.find((s) => s.id === d.subject_id)?.name ?? "",
+              Details: d.content ?? "",
+            }))}
+            disabled={!items.length}
+            size="sm"
+          />
+        {canManage ? (
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild><Button><Plus className="mr-2 h-4 w-4" />New entry</Button></DialogTrigger>
             <DialogContent>
@@ -114,7 +128,8 @@ export default function DiaryModule({ schoolId, canManage = false, studentSectio
               <DialogFooter><Button variant="ghost" onClick={() => setOpen(false)}>Cancel</Button><Button onClick={submit}>Save</Button></DialogFooter>
             </DialogContent>
           </Dialog>
-        ) : null
+        ) : null}
+        </>
         }
       />
 

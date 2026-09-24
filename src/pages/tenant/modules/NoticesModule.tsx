@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { DataExportMenu } from "@/components/documents/DataExportMenu";
 import { ErrorState } from "@/components/tenant/module-kit";
 import { api } from "@/lib/api";
 import { useSession } from "@/hooks/useSession";
@@ -151,6 +152,20 @@ export default function NoticesModule({ schoolId, canManage = false }: Props) {
               {counts.urgent > 0 && <> · <span className="text-amber-600 dark:text-amber-400 font-medium">{counts.urgent} urgent</span></>}
             </p>
           </div>
+          <div className="flex items-center gap-2">
+          <DataExportMenu
+            title="Notices"
+            rows={notices.map((n: any) => ({
+              Notice: n.title,
+              Audience: n.audience,
+              Priority: n.priority,
+              Pinned: n.pinned ? "Yes" : "",
+              Posted: (n.created_at ?? "").slice(0, 10),
+              Body: n.body ?? "",
+            }))}
+            disabled={!notices.length}
+            size="sm"
+          />
           {canManage && (
             <Dialog open={open} onOpenChange={setOpen}>
               <DialogTrigger asChild>
@@ -199,6 +214,7 @@ export default function NoticesModule({ schoolId, canManage = false }: Props) {
               </DialogContent>
             </Dialog>
           )}
+          </div>
         </div>
       </div>
 

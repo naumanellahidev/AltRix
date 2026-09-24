@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from "react";
+import { DataExportMenu } from "@/components/documents/DataExportMenu";
 import { useParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
@@ -339,7 +340,22 @@ export function HrContractsModule() {
         tone="slate"
         title="Contracts"
         description="Who the school has employed and on what terms, with the dates each agreement runs to. Open any one to read, edit or print it on the school's letterhead."
-        actions={
+        actions={<>
+        <DataExportMenu
+          title="Contracts"
+          rows={(contracts as any[]).map((c) => ({
+            Staff: nameOf(c.user_id),
+            Reference: c.reference_number ?? "",
+            Position: c.position ?? "",
+            Department: c.department ?? "",
+            Type: c.contract_type ?? "",
+            Starts: c.start_date ?? "",
+            Ends: c.end_date ?? "",
+            Status: c.status ?? "",
+          }))}
+          disabled={!(contracts as any[]).length}
+          size="sm"
+        />
         <Dialog open={createOpen} onOpenChange={(o) => { setCreateOpen(o); if (o) setForm(blankForm); }}>
           <DialogTrigger asChild>
             <Button size="sm" className="rounded-xl text-xs h-9"><Plus className="h-3.5 w-3.5 mr-1" />New Contract</Button>
@@ -352,6 +368,7 @@ export function HrContractsModule() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+        </>
         }
       />
 

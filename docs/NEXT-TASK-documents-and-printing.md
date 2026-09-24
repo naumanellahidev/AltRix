@@ -1378,3 +1378,16 @@ None unconditionally — the Copilot reads live on every question on purpose,
 because a stale fee figure presented as current is worse than a slow answer.
 That is the right call, but the admin endpoint still served a "hit rate" for
 it. It says the cache is off now.
+
+### Exports and loading states (24 Sep 2026)
+
+Six more record lists a school could read on screen but not get out of the
+app — leave requests, contracts, the holiday calendar, notices, performance
+reviews and the class diary — now carry a `DataExportMenu`, so an office asked
+for any of them by an auditor or a board can produce it.
+
+Two shared components that made their wrappers look finished when they were
+not: `SupportInbox` printed "No tickets found." while its tickets were still
+loading, telling a school its help desk was empty when it was not; and the
+salary forecast had neither a skeleton nor a word for a year with no budget
+set.

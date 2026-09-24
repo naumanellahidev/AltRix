@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { DataExportMenu } from "@/components/documents/DataExportMenu";
 import { ErrorState, LoadingRows } from "@/components/tenant/module-kit";
 import { api } from "@/lib/api";
 import { useSession } from "@/hooks/useSession";
@@ -183,6 +184,19 @@ export default function HolidaysModule({ schoolId, canManage = false }: Props) {
             Upcoming holidays and breaks. Past holidays auto-archive below.
           </p>
         </div>
+        <div className="flex items-center gap-2">
+        <DataExportMenu
+          title="Holiday calendar"
+          rows={items.map((h: any) => ({
+            Holiday: h.title ?? h.name ?? "",
+            From: h.start_date ?? "",
+            To: h.end_date ?? h.start_date ?? "",
+            Type: h.holiday_type ?? h.type ?? "",
+            Notes: h.description ?? "",
+          }))}
+          disabled={!items.length}
+          size="sm"
+        />
         {canManage && (
           <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) { setEditing(null); setForm(blank); } }}>
             <DialogTrigger asChild>
@@ -238,6 +252,7 @@ export default function HolidaysModule({ schoolId, canManage = false }: Props) {
             </DialogContent>
           </Dialog>
         )}
+        </div>
       </div>
 
       <Tabs defaultValue="upcoming" className="w-full">

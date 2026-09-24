@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { DataExportMenu } from "@/components/documents/DataExportMenu";
 import { ClipboardCheck } from "lucide-react";
 import { ModuleHeader } from "@/components/tenant/module-kit";
 import { useParams } from "react-router-dom";
@@ -115,6 +116,21 @@ export function HrReviewsModule() {
         tone="emerald"
         title="Performance reviews"
         description="Appraisal cycles and the reviews recorded in each — what was discussed with a member of staff, and when."
+        actions={
+          <DataExportMenu
+            title="Performance reviews"
+            rows={(reviews as any[]).map((r) => ({
+              Staff: r.user_name ?? r.employee_name ?? r.user_id ?? "",
+              Cycle: r.cycle_name ?? r.cycle_id ?? "",
+              Rating: r.overall_rating ?? r.rating ?? "",
+              Status: r.status ?? "",
+              Reviewed: (r.reviewed_at ?? r.created_at ?? "").slice(0, 10),
+              Notes: r.comments ?? r.notes ?? "",
+            }))}
+            disabled={!(reviews as any[]).length}
+            size="sm"
+          />
+        }
       />
 
       <Tabs defaultValue="reviews">

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { LoadingRows } from "@/components/tenant/module-kit";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,6 +23,9 @@ type Message = { id: string; content: string; sender_user_id: string; created_at
 
 export function SupportInbox({ schoolId }: { schoolId?: string }) {
   const [conversations, setConversations] = useState<Conversation[]>([]);
+  // Without this the list printed "No tickets found." while it was still
+  // loading — telling a school its help desk was empty when it was not.
+  const [loadingConversations, setLoadingConversations] = useState(true);
   const [selected, setSelected] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [draft, setDraft] = useState("");
@@ -31,6 +35,7 @@ export function SupportInbox({ schoolId }: { schoolId?: string }) {
   const [searchQuery, setSearchQuery] = useState("");
 
   const refreshConversations = async () => {
+    setLoadingConversations(true);
     let q = api
       .from("support_conversations")
       .select("id,school_id,student_id,status,created_at,updated_at")
@@ -40,6 +45,7 @@ export function SupportInbox({ schoolId }: { schoolId?: string }) {
     const { data } = await q;
     const next = (data ?? []) as Conversation[];
     setConversations(next);
+    setLoadingConversations(false);
 
     const studentIds = next.map((c) => c.student_id);
     const map = await fetchStudentLabelMap(api, {
@@ -316,14 +322,20 @@ export function SupportInbox({ schoolId }: { schoolId?: string }) {
                   <TableCell>{getStatusBadge(c.status)}</TableCell>
                 </TableRow>
               ))}
-              {filteredConversations.length === 0 && (
+              {loadingConversations && !conversations.length ? (
+                <TableRow>
+                  <TableCell colSpan={2} className="py-4">
+                    <LoadingRows rows={4} className="p-0" />
+                  </TableCell>
+                </TableRow>
+              ) : filteredConversations.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={2} className="text-sm text-muted-foreground py-8 text-center">
                     <MessageSquare className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                    No tickets found.
+                    {conversations.length ? "No tickets match those filters." : "No tickets have been raised yet."}
                   </TableCell>
                 </TableRow>
-              )}
+              ) : null}
             </TableBody>
           </Table>
         </ScrollArea>

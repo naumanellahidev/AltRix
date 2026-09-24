@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { LoadingRows } from "@/components/tenant/module-kit";
 import { useParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -108,7 +109,7 @@ export function SalaryBudgetForecast() {
   const [formNotes, setFormNotes] = useState("");
 
   // Fetch budget targets
-  const { data: budgetTargets = [] } = useQuery({
+  const { data: budgetTargets = [], isLoading: loadingTargets } = useQuery({
     queryKey: ["salary_budget_targets", schoolId, selectedYear],
     queryFn: async () => {
       if (USE_FASTAPI) {
@@ -774,6 +775,20 @@ export function SalaryBudgetForecast() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
+                  {loadingTargets && !budgetTargets.length ? (
+                    <TableRow>
+                      <TableCell colSpan={6} className="py-4">
+                        <LoadingRows rows={3} className="p-0" />
+                      </TableCell>
+                    </TableRow>
+                  ) : null}
+                  {!loadingTargets && !budgetTargets.length ? (
+                    <TableRow>
+                      <TableCell colSpan={6} className="py-10 text-center text-sm text-muted-foreground">
+                        No budget has been set for {selectedYear} yet. Add one to project next year&apos;s salary bill against it.
+                      </TableCell>
+                    </TableRow>
+                  ) : null}
                   {budgetTargets.map((budget) => {
                     const actual = budget.role ? actualByRole.get(budget.role)?.annual || 0 : totals.totalActualAnnual;
                     const variance = budget.budget_amount - actual;

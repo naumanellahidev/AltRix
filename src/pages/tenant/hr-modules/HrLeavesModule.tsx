@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { DataExportMenu } from "@/components/documents/DataExportMenu";
 import { CalendarOff } from "lucide-react";
 import { ModuleHeader, QueryState, StatTiles } from "@/components/tenant/module-kit";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -115,6 +116,22 @@ export function HrLeavesModule() {
         tone="violet"
         title="Leave"
         description="Who has asked to be away, who has been approved, and how much of each entitlement is left."
+        actions={
+          <DataExportMenu
+            title="Leave requests"
+            rows={(requests as any[]).map((r) => ({
+              Staff: nameById.get(r.user_id) || "Unknown",
+              Type: typeNameById.get(r.leave_type_id) || "Leave",
+              From: r.start_date,
+              To: r.end_date,
+              Days: r.days_count,
+              Status: r.status,
+              Reason: r.reason ?? "",
+            }))}
+            disabled={!(requests as any[]).length}
+            size="sm"
+          />
+        }
       />
 
       <StatTiles
