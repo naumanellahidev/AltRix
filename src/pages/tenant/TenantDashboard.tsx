@@ -13,10 +13,19 @@ import { useUniversalPrefetch, getCachedStats } from "@/hooks/useUniversalPrefet
 import { isEduverseRole, roleLabel, type EduverseRole } from "@/lib/eduverse-roles";
 import { TenantShell } from "@/components/tenant/TenantShell";
 import { Button } from "@/components/ui/button";
+// The component a lazily loaded module provides: the named export, else the
+// default. It used to fall back to the module object itself, which React then
+// tried to render — "Cannot convert object to primitive value" on Fee
+// Configurations, whose module has only a named export.
 const safeLazy = (factory: () => Promise<any>, exportName?: string) =>
   lazy(() =>
     factory().then(m => {
-      const comp = (exportName && m[exportName]) ? m[exportName] : (m.default || m);
+      const comp = (exportName && m[exportName]) || m.default;
+      if (typeof comp !== "function" && typeof comp !== "object") {
+        throw new Error(
+          `This screen's code has no ${exportName ? `"${exportName}"` : "default"} export. Please report it.`,
+        );
+      }
       return { default: comp };
     })
   );
@@ -70,7 +79,7 @@ const PrincipalParentNotesModule = safeLazy(() => import("@/pages/tenant/modules
 const FeesAdvancedModule = safeLazy(() => import("@/pages/tenant/modules/FeesAdvancedModule"));
 const AdmissionsModule = safeLazy(() => import("@/pages/tenant/modules/AdmissionsModule"));
 const FeeVouchersModule = safeLazy(() => import("@/pages/tenant/modules/FeeVouchersModule"));
-const AdminFeePortalModule = safeLazy(() => import("@/pages/tenant/modules/AdminFeePortalModule"));
+const AdminFeePortalModule = safeLazy(() => import("@/pages/tenant/modules/AdminFeePortalModule"), "AdminFeePortalModule");
 const CurriculumModule = safeLazy(() => import("@/pages/tenant/modules/CurriculumModule"));
 const GateVisitorModule = safeLazy(() => import("@/pages/tenant/modules/GateVisitorModule"));
 const EventsModule = safeLazy(() => import("@/pages/tenant/modules/EventsModule"));

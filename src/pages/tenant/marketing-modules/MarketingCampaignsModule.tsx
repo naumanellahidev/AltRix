@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { ModuleHeader } from "@/components/tenant/module-kit";
+import { DataExportMenu } from "@/components/documents/DataExportMenu";
 import { useParams } from "react-router-dom";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -153,7 +154,7 @@ export function MarketingCampaignsModule() {
             </div>
             <div>
               <p className="text-[10px] uppercase font-semibold text-muted-foreground tracking-wider">Total Marketing Budget</p>
-              <p className="text-xl font-bold font-display">${stats.totalBudget.toLocaleString()}</p>
+              <p className="text-xl font-bold font-display">Rs. {Number(stats.totalBudget).toLocaleString()}</p>
             </div>
           </CardContent>
         </Card>
@@ -179,7 +180,7 @@ export function MarketingCampaignsModule() {
             </div>
             <div>
               <p className="text-[10px] uppercase font-semibold text-muted-foreground tracking-wider">Avg Cost Per Lead (CPL)</p>
-              <p className="text-xl font-bold font-display">${stats.avgCpl}</p>
+              <p className="text-xl font-bold font-display">{stats.avgCpl ? `Rs. ${Number(stats.avgCpl).toLocaleString()}` : "—"}</p>
             </div>
           </CardContent>
         </Card>
@@ -216,7 +217,7 @@ export function MarketingCampaignsModule() {
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold">Budget ($)</label>
+              <label className="text-xs font-semibold">Budget (Rs.)</label>
               <Input value={budget} onChange={(e) => setBudget(e.target.value)} placeholder="Budget" className="text-sm" />
             </div>
 
@@ -244,6 +245,22 @@ export function MarketingCampaignsModule() {
             <CardTitle className="text-sm font-semibold flex items-center gap-1.5">
               <UserCheck className="h-4 w-4 text-sky-500" /> Lead Attribution Engine
             </CardTitle>
+            <DataExportMenu
+              title="Marketing campaigns"
+              rows={campaigns.map((c) => {
+                const leadsCount = (attributedLeadIds.get(c.id) ?? []).length;
+                return {
+                  Campaign: c.name,
+                  Channel: c.channel,
+                  Status: c.status,
+                  "Budget (Rs.)": Number(c.budget ?? 0),
+                  "Leads attributed": leadsCount,
+                  "Cost per lead (Rs.)": leadsCount > 0 ? Math.round(c.budget / leadsCount) : "",
+                };
+              })}
+              disabled={!campaigns.length}
+              size="sm"
+            />
           </CardHeader>
           <CardContent className="p-4 space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -292,7 +309,8 @@ export function MarketingCampaignsModule() {
                 <TableBody>
                   {campaigns.map((c) => {
                     const leadsCount = (attributedLeadIds.get(c.id) ?? []).length;
-                    const cpl = leadsCount > 0 ? Math.round(c.budget / leadsCount) : 0;
+                    // No leads yet means no cost per lead, not a cost of zero.
+                    const cpl = leadsCount > 0 ? Math.round(c.budget / leadsCount) : null;
                     return (
                       <TableRow key={c.id} className="hover:bg-muted/30">
                         <TableCell className="font-medium text-xs whitespace-nowrap">{c.name}</TableCell>
@@ -304,9 +322,9 @@ export function MarketingCampaignsModule() {
                             {c.status}
                           </Badge>
                         </TableCell>
-                        <TableCell className="text-muted-foreground text-xs font-mono whitespace-nowrap">${c.budget}</TableCell>
+                        <TableCell className="text-muted-foreground text-xs font-mono whitespace-nowrap">Rs. {Number(c.budget ?? 0).toLocaleString()}</TableCell>
                         <TableCell className="text-muted-foreground text-xs whitespace-nowrap font-medium">{leadsCount} leads</TableCell>
-                        <TableCell className="text-right text-xs font-mono whitespace-nowrap font-semibold">${cpl}</TableCell>
+                        <TableCell className="text-right text-xs font-mono whitespace-nowrap font-semibold">{cpl === null ? "—" : `Rs. ${cpl.toLocaleString()}`}</TableCell>
                       </TableRow>
                     );
                   })}

@@ -398,10 +398,62 @@ const activeChannels = new Set<VpsChannel>();
 let socket: WebSocket | null = null;
 let isConnecting = false;
 
+// Reconnection. It used to retry every 5 s for ever — through an outage, while
+// offline, and after the browser parked the page in its back-forward cache —
+// logging an error each time, and a failed ticket request stopped it for good.
+const RECONNECT_MIN_MS = 5_000;
+const RECONNECT_MAX_MS = 60_000;
+let reconnectDelay = RECONNECT_MIN_MS;
+let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+/** Closed on purpose (page hidden in the back-forward cache): no reconnect, no warning. */
+let closingOnPurpose = false;
+/** Said once per outage, not once per attempt. */
+let outageReported = false;
+
+function scheduleReconnect() {
+  if (reconnectTimer || closingOnPurpose) return;
+  if (typeof navigator !== "undefined" && navigator.onLine === false) return; // "online" reconnects
+  const delay = reconnectDelay;
+  reconnectDelay = Math.min(reconnectDelay * 2, RECONNECT_MAX_MS);
+  reconnectTimer = setTimeout(() => {
+    reconnectTimer = null;
+    connectRealtimeWebSocket();
+  }, delay);
+}
+
+function reportOutage(reason: string, detail?: unknown) {
+  if (outageReported) return;
+  outageReported = true;
+  console.warn(`Live updates paused (${reason}); retrying in the background.`, detail ?? "");
+}
+
+if (typeof window !== "undefined") {
+  window.addEventListener("online", () => {
+    reconnectDelay = RECONNECT_MIN_MS;
+    connectRealtimeWebSocket();
+  });
+  // The back-forward cache cannot keep a page with an open socket. Close it
+  // cleanly when the page is parked, and reconnect when it is shown again.
+  window.addEventListener("pagehide", (event) => {
+    if ((event as PageTransitionEvent).persisted && socket) {
+      closingOnPurpose = true;
+      socket.close(1000, "page hidden");
+    }
+  });
+  window.addEventListener("pageshow", (event) => {
+    if ((event as PageTransitionEvent).persisted) {
+      closingOnPurpose = false;
+      reconnectDelay = RECONNECT_MIN_MS;
+      connectRealtimeWebSocket();
+    }
+  });
+}
+
 function connectRealtimeWebSocket() {
   const token = getAccessToken();
   if (!token || socket || isConnecting) return;
-  
+  if (typeof navigator !== "undefined" && navigator.onLine === false) return;
+
   isConnecting = true;
   
   let host = window.location.host;
@@ -425,24 +477,27 @@ function connectRealtimeWebSocket() {
     const ticket = res.data?.ticket;
     if (!ticket) {
       isConnecting = false;
+      scheduleReconnect();
       return;
     }
     openRealtimeSocket(`${protocol}//${host}/api/ws?ticket=${encodeURIComponent(ticket)}`);
   }).catch((e) => {
-    console.warn("Could not obtain a realtime ticket", e);
     isConnecting = false;
+    reportOutage("could not reach the server", e?.message ?? e);
+    scheduleReconnect();
   });
 }
 
 function openRealtimeSocket(wsUrl: string) {
   // Deliberately not logging the URL: it carries the credential.
-  console.log("Connecting to VPS Realtime WebSocket");
   const ws = new WebSocket(wsUrl);
-  
+
   ws.onopen = () => {
-    console.log("VPS Realtime WebSocket connected");
+    if (outageReported) console.info("Live updates resumed.");
     socket = ws;
     isConnecting = false;
+    reconnectDelay = RECONNECT_MIN_MS;
+    outageReported = false;
   };
   
   ws.onmessage = (event) => {
@@ -475,8 +530,7 @@ function openRealtimeSocket(wsUrl: string) {
         const targetAction = dbChange.action;
         const targetData = dbChange.data;
         
-        console.log(`Realtime DB event received: table=${targetTable}, action=${targetAction}`);
-        
+                
         activeChannels.forEach(ch => {
           ch.listeners.forEach((listener: any) => {
             if (listener.table === targetTable) {
@@ -498,15 +552,19 @@ function openRealtimeSocket(wsUrl: string) {
     }
   };
   
-  ws.onclose = () => {
-    console.log("VPS Realtime WebSocket closed, reconnecting in 5s...");
-    socket = null;
+  ws.onclose = (event) => {
+    if (socket === ws) socket = null;
     isConnecting = false;
-    setTimeout(connectRealtimeWebSocket, 5000);
+    if (closingOnPurpose) return;
+    // 1000 is a clean close by the server (a deploy restarting it): quietly
+    // come back. Anything else is an outage, said once.
+    if (event.code !== 1000) reportOutage(`connection closed, code ${event.code}`);
+    scheduleReconnect();
   };
-  
-  ws.onerror = (err) => {
-    console.error("VPS Realtime WebSocket error", err);
+
+  // The close event that follows carries what went wrong; logging the bare
+  // error Event as well only put an unreadable object in the console.
+  ws.onerror = () => {
     ws.close();
   };
 }

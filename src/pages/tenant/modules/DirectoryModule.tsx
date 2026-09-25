@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Contact } from "lucide-react";
-import { ModuleHeader } from "@/components/tenant/module-kit";
+import { ErrorState, ModuleHeader } from "@/components/tenant/module-kit";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useNavigate, useParams } from "react-router-dom";
 import { Edit, Plus, Search, Printer, Check } from "lucide-react";
 
@@ -46,6 +47,36 @@ function useDebounced<T>(value: T, ms = 250) {
     return () => window.clearTimeout(t);
   }, [value, ms]);
   return v;
+}
+
+/**
+ * What a results table shows when it has no rows: the shape of rows while
+ * they load, nothing while an error is shown above it, and otherwise a
+ * sentence that tells "nothing matches this search" from "nothing yet".
+ * It used to print "No students found." for a search that had failed.
+ */
+function EmptyBody({ cols, loading, error, text }: { cols: number; loading: boolean; error: unknown; text: string }) {
+  if (loading) {
+    return (
+      <>
+        {Array.from({ length: 5 }, (_, i) => (
+          <TableRow key={`loading-${i}`}>
+            <TableCell colSpan={cols}>
+              <Skeleton className="h-6 w-full rounded-lg" />
+            </TableCell>
+          </TableRow>
+        ))}
+      </>
+    );
+  }
+  if (error) return null;
+  return (
+    <TableRow>
+      <TableCell colSpan={cols} className="py-8 text-center text-sm text-muted-foreground">
+        {text}
+      </TableCell>
+    </TableRow>
+  );
 }
 
 export function DirectoryModule() {
@@ -409,6 +440,11 @@ export function DirectoryModule() {
           </div>
         </CardHeader>
         <CardContent>
+          {search.error ? (
+            <div className="mb-4">
+              <ErrorState title="The directory search failed" error={search.error} onRetry={() => void search.refetch()} />
+            </div>
+          ) : null}
           <Tabs value={tab} onValueChange={(v) => setTab(v as any)} className="space-y-4">
             <div className="overflow-x-auto no-scrollbar -mx-1 px-1">
               <TabsList className="inline-flex w-max min-w-full sm:w-auto p-1 rounded-xl">
@@ -448,10 +484,13 @@ export function DirectoryModule() {
                         <TableCell className="text-right font-mono text-xs text-muted-foreground">{r.id.slice(0, 8)}</TableCell>
                       </TableRow>
                     ))}
-                    {!search.isFetching && rows.length === 0 && (
-                      <TableRow>
-                        <TableCell colSpan={3} className="text-sm text-muted-foreground">No students found.</TableCell>
-                      </TableRow>
+                    {rows.length === 0 && (
+                      <EmptyBody
+                        cols={3}
+                        loading={search.isFetching}
+                        error={search.error}
+                        text={needle ? `No students match “${needle}”.` : "No students yet. Admissions and imports add them here."}
+                      />
                     )}
                   </TableBody>
                 </Table>
@@ -486,10 +525,13 @@ export function DirectoryModule() {
                         <TableCell className="text-right font-mono text-xs text-muted-foreground">{r.id.slice(0, 8)}</TableCell>
                       </TableRow>
                     ))}
-                    {!search.isFetching && rows.length === 0 && (
-                      <TableRow>
-                        <TableCell colSpan={2} className="text-sm text-muted-foreground">No staff found.</TableCell>
-                      </TableRow>
+                    {rows.length === 0 && (
+                      <EmptyBody
+                        cols={2}
+                        loading={search.isFetching}
+                        error={search.error}
+                        text={needle ? `No staff match “${needle}”.` : "No staff yet. Invite them from Users & Roles."}
+                      />
                     )}
                   </TableBody>
                 </Table>
@@ -528,10 +570,13 @@ export function DirectoryModule() {
                         </TableCell>
                       </TableRow>
                     ))}
-                    {!search.isFetching && rows.length === 0 && (
-                      <TableRow>
-                        <TableCell colSpan={3} className="text-sm text-muted-foreground">No leads found.</TableCell>
-                      </TableRow>
+                    {rows.length === 0 && (
+                      <EmptyBody
+                        cols={3}
+                        loading={search.isFetching}
+                        error={search.error}
+                        text={needle ? `No leads match “${needle}”.` : "No leads yet. Enquiries from the website and the CRM appear here."}
+                      />
                     )}
                   </TableBody>
                 </Table>

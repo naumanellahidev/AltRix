@@ -172,7 +172,11 @@ apiClient.interceptors.response.use(
   (response) => response,
   async (error) => {
     if (isNetworkOrProxyError(error)) {
-      console.warn("VPS API Proxy Warning:", error);
+      // One readable line — which request, and why — rather than the whole
+      // AxiosError object. The screen reports the failure to the user.
+      console.warn(
+        `Request failed: ${String(error?.config?.method ?? "").toUpperCase()} ${error?.config?.url ?? ""} (${error?.message ?? "network error"})`,
+      );
     }
 
     const originalRequest = error.config;

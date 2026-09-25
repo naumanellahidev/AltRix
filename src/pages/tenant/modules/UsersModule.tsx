@@ -59,6 +59,8 @@ import { useSession } from "@/hooks/useSession";
 import { useActiveCampus } from "@/hooks/useActiveCampus";
 import { EDUVERSE_ROLES, roleLabel, type EduverseRole } from "@/lib/eduverse-roles";
 import { DataExportMenu } from "@/components/documents/DataExportMenu";
+import { ErrorState } from "@/components/tenant/module-kit";
+import { Skeleton } from "@/components/ui/skeleton";
 import { parseCsv, toCsv } from "@/lib/csv";
 import { useSchoolPermissions } from "@/hooks/useSchoolPermissions";
 import { Button } from "@/components/ui/button";
@@ -160,6 +162,11 @@ export function UsersModule() {
   // Invitations management states
   const [invitations, setInvitations] = useState<InvitationRecord[]>([]);
   const [invitationsLoading, setInvitationsLoading] = useState(false);
+  // "No users found" is only true once the list has come back; before that
+  // the table shows rows loading, and a failed load says so with a retry.
+  const [usersLoaded, setUsersLoaded] = useState(false);
+  const [usersError, setUsersError] = useState<unknown>(null);
+  const [invitationsError, setInvitationsError] = useState<unknown>(null);
   const [inviteSearchQuery, setInviteSearchQuery] = useState("");
   const [inviteStatusFilter, setInviteStatusFilter] = useState<string>("all");
   const [editInviteDialog, setEditInviteDialog] = useState<InvitationRecord | null>(null);
@@ -208,8 +215,10 @@ export function UsersModule() {
         params: { school_id: schoolId },
       });
       setInvitations(res.data || []);
+      setInvitationsError(null);
     } catch (err: any) {
       console.error("Failed to load invitations", err);
+      setInvitationsError(err);
     } finally {
       setInvitationsLoading(false);
     }
@@ -219,7 +228,11 @@ export function UsersModule() {
     if (!schoolId) return;
 
     // 1. Fetch directory data
-    const { data: dir } = await api.rpc("get_school_user_directory", { _school_id: schoolId });
+    const { data: dir, error: dirError } = await api.rpc("get_school_user_directory", { _school_id: schoolId });
+    if (dirError) {
+      setUsersError(dirError);
+      return;
+    }
 
     // Filter out super master admin details
     const filteredDir = (dir ?? []).filter(
@@ -254,6 +267,12 @@ export function UsersModule() {
       api.from("campuses").select("id, name").eq("school_id", schoolId).order("name"),
     ]);
 
+    const listFailed = rolesRes.error || campusesRes.error;
+    if (listFailed) {
+      setUsersError(listFailed);
+      return;
+    }
+
     const campusList = campusesRes.data || [];
     const campusMap = new Map<string, string>();
     campusList.forEach((c: any) => campusMap.set(c.id, c.name));
@@ -280,6 +299,8 @@ export function UsersModule() {
     setRolesByUser(nextRoles);
     setCampusByUser(nextCampusMap);
     setCampuses(campusList);
+    setUsersError(null);
+    setUsersLoaded(true);
 
     // Also refresh invitations
     void refreshInvitations();
@@ -939,6 +960,26 @@ export function UsersModule() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
+                      {invitationsError ? (
+                        <TableRow>
+                          <TableCell colSpan={6}>
+                            <ErrorState
+                              title="Invitations could not be loaded"
+                              error={invitationsError}
+                              onRetry={() => void refreshInvitations()}
+                            />
+                          </TableCell>
+                        </TableRow>
+                      ) : null}
+                      {invitationsLoading && !invitations.length
+                        ? Array.from({ length: 4 }, (_, i) => (
+                            <TableRow key={`inv-loading-${i}`}>
+                              <TableCell colSpan={6}>
+                                <Skeleton className="h-9 w-full rounded-lg" />
+                              </TableCell>
+                            </TableRow>
+                          ))
+                        : null}
                       {filteredInvitations.map((inv) => {
                         const isPending = inv.status === "pending" || inv.status === "sent";
                         const isOpened = inv.status === "opened";
@@ -1064,7 +1105,7 @@ export function UsersModule() {
                         );
                       })}
 
-                      {filteredInvitations.length === 0 && (
+                      {!invitationsLoading && !invitationsError && filteredInvitations.length === 0 && (
                         <TableRow>
                           <TableCell colSpan={6} className="py-12 text-center text-muted-foreground">
                             <div className="flex flex-col items-center justify-center gap-2">
@@ -1113,6 +1154,22 @@ export function UsersModule() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
+                    {usersError ? (
+                      <TableRow>
+                        <TableCell colSpan={5}>
+                          <ErrorState title="Users could not be loaded" error={usersError} onRetry={() => void refresh()} />
+                        </TableCell>
+                      </TableRow>
+                    ) : null}
+                    {!usersLoaded && !usersError
+                      ? Array.from({ length: 6 }, (_, i) => (
+                          <TableRow key={`loading-${i}`}>
+                            <TableCell colSpan={5}>
+                              <Skeleton className="h-9 w-full rounded-lg" />
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      : null}
                     {filteredUsers.map((r) => {
                       const userRoles = rolesByUser[r.user_id] ?? [];
                       const userCampus = campusByUser[r.user_id];
@@ -1366,7 +1423,7 @@ export function UsersModule() {
                       );
                     })}
 
-                    {filteredUsers.length === 0 && (
+                    {usersLoaded && !usersError && filteredUsers.length === 0 && (
                       <TableRow>
                         <TableCell colSpan={5} className="py-12 text-center text-muted-foreground">
                           <div className="flex flex-col items-center justify-center gap-2">

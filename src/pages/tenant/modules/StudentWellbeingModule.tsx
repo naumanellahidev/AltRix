@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { reportLoadFailure } from "@/lib/load-failure";
+import { LoadingRows } from "@/components/tenant/module-kit";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -95,6 +97,9 @@ export default function StudentWellbeingModule() {
   
   // Wellbeing index
   const [wellbeingStats, setWellbeingStats] = useState<any | null>(null);
+  // While the chosen student's records load, the sections show rows loading
+  // rather than "no records" (and never the previous student's records).
+  const [recordsLoading, setRecordsLoading] = useState(false);
 
   // Modal display toggles
   const [showMedicalDialog, setShowMedicalDialog] = useState(false);
@@ -186,6 +191,16 @@ export default function StudentWellbeingModule() {
         setInsurance(active.health_insurance_info || "");
         setEmerContact(active.emergency_contact_name || "");
         setEmerPhone(active.emergency_contact_phone || "");
+      } else {
+        // A student with no medical profile starts from an empty form. The
+        // previous student's allergies and medications used to stay in it,
+        // and "Update" saved them onto this child.
+        setAllergies("");
+        setConditions("");
+        setMedications("");
+        setInsurance("");
+        setEmerContact("");
+        setEmerPhone("");
       }
     } catch (e) {
       reportLoadFailure("the medical records", e);
@@ -251,10 +266,13 @@ export default function StudentWellbeingModule() {
 
   useEffect(() => {
     if (selectedStudentId) {
-      loadMedicalRecords();
-      loadInfirmary();
-      loadVaccinations();
-      loadIncidents();
+      setRecordsLoading(true);
+      void Promise.allSettled([
+        loadMedicalRecords(),
+        loadInfirmary(),
+        loadVaccinations(),
+        loadIncidents(),
+      ]).finally(() => setRecordsLoading(false));
     }
   }, [selectedStudentId]);
 
@@ -471,7 +489,9 @@ export default function StudentWellbeingModule() {
                   </Button>
                 </CardHeader>
                 <CardContent className="pt-6">
-                  {medRecords.length === 0 ? (
+                  {recordsLoading ? (
+                    <LoadingRows rows={3} />
+                  ) : medRecords.length === 0 ? (
                     <div className="text-center py-8 text-muted-foreground text-sm">
                       No health profile variables saved yet. Click "Edit Profile Details" to set medical info.
                     </div>
@@ -531,7 +551,13 @@ export default function StudentWellbeingModule() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {infirmaryLogs.length === 0 ? (
+                      {recordsLoading ? (
+                        <TableRow>
+                          <TableCell colSpan={12}>
+                            <Skeleton className="h-9 w-full rounded-lg" />
+                          </TableCell>
+                        </TableRow>
+                      ) : infirmaryLogs.length === 0 ? (
                         <TableRow>
                           <TableCell colSpan={4} className="text-center py-8 text-muted-foreground text-sm">
                             No infirmary check-ins registered for this student.
@@ -578,7 +604,13 @@ export default function StudentWellbeingModule() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {vaccinations.length === 0 ? (
+                      {recordsLoading ? (
+                        <TableRow>
+                          <TableCell colSpan={12}>
+                            <Skeleton className="h-9 w-full rounded-lg" />
+                          </TableCell>
+                        </TableRow>
+                      ) : vaccinations.length === 0 ? (
                         <TableRow>
                           <TableCell colSpan={4} className="text-center py-8 text-muted-foreground text-sm">
                             No vaccinations registered.
@@ -623,7 +655,13 @@ export default function StudentWellbeingModule() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {incidents.length === 0 ? (
+                      {recordsLoading ? (
+                        <TableRow>
+                          <TableCell colSpan={12}>
+                            <Skeleton className="h-9 w-full rounded-lg" />
+                          </TableCell>
+                        </TableRow>
+                      ) : incidents.length === 0 ? (
                         <TableRow>
                           <TableCell colSpan={4} className="text-center py-8 text-muted-foreground text-sm">
                             No first-aid incident reports logged.

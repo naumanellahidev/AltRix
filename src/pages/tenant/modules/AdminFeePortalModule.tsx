@@ -37,6 +37,13 @@ interface Escalation {
   resolved: boolean;
 }
 
+/** 2 → "2nd", 3 → "3rd", 11 → "11th". */
+function ordinal(n: number): string {
+  const tens = n % 100;
+  if (tens >= 11 && tens <= 13) return `${n}th`;
+  return `${n}${({ 1: "st", 2: "nd", 3: "rd" } as Record<number, string>)[n % 10] ?? "th"}`;
+}
+
 export function AdminFeePortalModule() {
   const [activeTab, setActiveTab] = useState("discounts");
   const [discounts, setDiscounts] = useState<SiblingDiscount[]>([]);
@@ -169,11 +176,25 @@ export function AdminFeePortalModule() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
+                  {!loading && !loadError && discounts.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={4} className="py-8 text-center text-sm text-muted-foreground">
+                        No sibling concessions yet. Add a rule to discount the second or third child automatically.
+                      </TableCell>
+                    </TableRow>
+                  )}
                   {discounts.map(d => (
                     <TableRow key={d.id} className="hover:bg-blue-50/50 dark:hover:bg-slate-800/50">
-                      <TableCell className="font-bold text-slate-900 dark:text-slate-100">{d.sibling_number}nd / {d.sibling_number}rd Child</TableCell>
+                      {/* "2nd / 2rd Child" became "2nd child". */}
+                      <TableCell className="font-bold text-slate-900 dark:text-slate-100">{ordinal(d.sibling_number)} child</TableCell>
                       <TableCell className="font-bold text-blue-700 dark:text-blue-400">{d.discount_percentage}% Concession</TableCell>
-                      <TableCell><Badge className="bg-emerald-100 text-emerald-800 border-emerald-200">Active</Badge></TableCell>
+                      <TableCell>
+                        {d.is_active === false ? (
+                          <Badge variant="outline">Inactive</Badge>
+                        ) : (
+                          <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200">Active</Badge>
+                        )}
+                      </TableCell>
                       <TableCell>
                         <Button size="sm" variant="ghost" onClick={() => handleDeleteDiscount(d.id)} className="text-red-500 hover:text-red-700">
                           <Trash2 className="h-4 w-4" />
@@ -204,11 +225,24 @@ export function AdminFeePortalModule() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
+                  {!loading && !loadError && gateways.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={3} className="py-8 text-center text-sm text-muted-foreground">
+                        No payment gateway is set up, so parents pay at the bank or the school office.
+                      </TableCell>
+                    </TableRow>
+                  )}
                   {gateways.map(g => (
                     <TableRow key={g.id} className="hover:bg-blue-50/50 dark:hover:bg-slate-800/50">
                       <TableCell className="font-bold uppercase text-slate-900 dark:text-slate-100">{g.provider_name}</TableCell>
                       <TableCell className="capitalize font-mono">{g.mode}</TableCell>
-                      <TableCell><Badge className="bg-emerald-100 text-emerald-800 border-emerald-200">Integrated</Badge></TableCell>
+                      <TableCell>
+                        {g.is_active ? (
+                          <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200">Active</Badge>
+                        ) : (
+                          <Badge variant="outline">Switched off</Badge>
+                        )}
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

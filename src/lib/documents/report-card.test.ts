@@ -144,7 +144,10 @@ describe("report card", () => {
  * density constant exists: the only thing that matters is what the printer
  * receives.
  */
-describe("fitting a card onto one sheet", () => {
+// Each case lays out and measures real PDFs: about a second alone, but over
+// the 5 s default when the machine is also type-checking, which failed the
+// suite for no fault in the code.
+describe("fitting a card onto one sheet", { timeout: 30_000 }, () => {
   /** A card long enough that the comfortable layout runs over. */
   function crowded(subjects: number, options: { comments?: boolean } = {}): ReportCardDetail {
     const base = detail();

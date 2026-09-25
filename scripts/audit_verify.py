@@ -596,6 +596,41 @@ def run():
           'add_listener("altrix_changes"' in txt("backend/app/websocket_manager.py")
           and "anyWrite: true" in panel and "listener.anyWrite" in txt("src/lib/api.ts"))
 
+    # Every lazily loaded screen names an export its module really has. Fee
+    # Configurations had none, and crashed with "Cannot convert object to
+    # primitive value" when React was handed the module object.
+    broken_lazy = []
+    for path in glob.glob("src/**/*.tsx", recursive=True) + glob.glob("src/**/*.ts", recursive=True):
+        body = txt(path)
+        for m in re.finditer(r'(safeLazy|lazy)\(\s*\(\)\s*=>\s*import\("@/([^"]+)"\)(?:\s*,\s*"(\w+)")?', body):
+            if m.group(1) == "lazy" and ".then(" in body[m.end():m.end() + 40]:
+                continue
+            target = next((p for p in ("src/" + m.group(2) + ext for ext in (".tsx", ".ts", "/index.tsx", "/index.ts"))
+                           if os.path.exists(p)), None)
+            if not target:
+                broken_lazy.append(m.group(2))
+                continue
+            t = txt(target)
+            name = m.group(3)
+            if name:
+                ok = re.search(rf"export\s+(?:async\s+)?(?:function|const|class)\s+{name}\b", t) \
+                    or re.search(rf"export\s*\{{[^}}]*\b{name}\b", t)
+            else:
+                ok = re.search(r"export\s+default\b|export\s*\{[^}]*\bdefault\b", t)
+            if not ok:
+                broken_lazy.append(f"{m.group(2)}:{name or 'default'}")
+    check(S, "lazy1", "every lazily loaded screen names an export its module has",
+          not broken_lazy and "|| m.default;" in txt("src/pages/tenant/TenantDashboard.tsx"),
+          f"broken: {broken_lazy}")
+
+    rts = txt("src/hooks/useRealtimeSocket.ts")
+    check(S, "rt1", "live updates back off, wait for the network, survive the back-forward cache, and retry a failed ticket",
+          all(k in apis for k in ("scheduleReconnect", "pagehide", "pageshow", '"online"'))
+          and "reportOutage(" in apis and 'console.error("VPS Realtime WebSocket error"' not in apis
+          and "pagehide" in rts and "attemptsRef" in rts)
+    check(S, "dh1", "the data-health card reports invoices with no student and photos on the old storage",
+          '"invoices_without_student"' in misc and '"photos_on_old_storage"' in misc)
+
     rct = txt("src/lib/documents/report-card-templates.ts")
     check(S, "rcds", "the seven designs differ in the shape of the page, not only its colours",
           all(k in rct for k in ("sidebar", "banner", "centred", "register", "standard"))

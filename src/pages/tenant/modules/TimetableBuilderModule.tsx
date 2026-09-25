@@ -1,6 +1,6 @@
 import { DataExportMenu } from "@/components/documents/DataExportMenu";
 import { CalendarRange } from "lucide-react";
-import { ModuleHeader } from "@/components/tenant/module-kit";
+import { ErrorState, ModuleHeader } from "@/components/tenant/module-kit";
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { DndContext, type DragEndEvent, useDraggable, useDroppable, TouchSensor, MouseSensor, useSensor, useSensors, PointerSensor } from "@dnd-kit/core";
 import { useParams } from "react-router-dom";
@@ -256,6 +256,9 @@ export function TimetableBuilderModule() {
   // render without ever being declared, so the module threw a ReferenceError as
   // soon as it painted.
   const [busy, setBusy] = useState(false);
+  // A failed read used to be dropped (only `data` was destructured), so the
+  // grid simply looked empty — as if the school had no periods or classes.
+  const [loadError, setLoadError] = useState<unknown>(null);
 
   // State for touch-friendly "Add Subject" dialog
   const [addSlot, setAddSlot] = useState<{ day: number; periodId: string } | null>(null);
@@ -272,12 +275,19 @@ export function TimetableBuilderModule() {
     let periodQuery = api.from("timetable_periods").select("id,label,sort_order,start_time,end_time,is_break").eq("school_id", schoolId).order("sort_order", { ascending: true });
     if (activeCampusId) periodQuery = periodQuery.eq("campus_id", activeCampusId);
 
-    const [{ data: c }, { data: s }, { data: p }, { data: dir }] = await Promise.all([
+    const results = await Promise.all([
       classQuery,
       secQuery,
       periodQuery,
       api.from("school_user_directory").select("user_id,display_name,email").eq("school_id", schoolId),
     ]);
+    const failed = results.find((r) => r.error)?.error;
+    if (failed) {
+      setLoadError(failed);
+      return;
+    }
+    setLoadError(null);
+    const [{ data: c }, { data: s }, { data: p }, { data: dir }] = results;
 
     setClasses((c ?? []) as ClassRow[]);
     setSections((s ?? []) as SectionRow[]);
@@ -292,13 +302,17 @@ export function TimetableBuilderModule() {
       .select("id,day_of_week,period_id,subject_name,teacher_user_id,room,class_section_id,is_published")
       .eq("school_id", schoolId);
     if (activeCampusId) query = query.eq("campus_id", activeCampusId);
-    const { data } = await query;
+    const { data, error } = await query;
+    if (error) {
+      setLoadError(error);
+      return;
+    }
     setAllSchoolEntries((data ?? []) as AllEntryRow[]);
   }, [schoolId, activeCampusId]);
 
   const refreshSection = useCallback(async () => {
     if (!schoolId || !sectionId) return;
-    const [{ data: css }, { data: subj }, { data: tsa }, { data: tte }] = await Promise.all([
+    const sectionResults = await Promise.all([
       api
         .from("class_section_subjects")
         .select("class_section_id,subject_id")
@@ -316,6 +330,12 @@ export function TimetableBuilderModule() {
         .eq("school_id", schoolId)
         .eq("class_section_id", sectionId),
     ]);
+    const sectionFailed = sectionResults.find((r) => r.error)?.error;
+    if (sectionFailed) {
+      setLoadError(sectionFailed);
+      return;
+    }
+    const [{ data: css }, { data: subj }, { data: tsa }, { data: tte }] = sectionResults;
 
     const allowedSubjectIds = new Set([
       ...(css ?? []).map((r) => (r as ClassSectionSubjectRow).subject_id),
@@ -579,6 +599,21 @@ export function TimetableBuilderModule() {
           )}
         </CardContent>
       </Card>
+
+      {loadError ? (
+        <div className="no-print">
+          <ErrorState
+            title="The timetable could not be loaded"
+            error={loadError}
+            onRetry={() => {
+              setLoadError(null);
+              void refreshStatic();
+              void refreshAllEntries();
+              void refreshSection();
+            }}
+          />
+        </div>
+      ) : null}
 
       {!perms.loading && perms.error && (
         <div className="rounded-3xl border border-red-500/10 bg-red-500/5 p-5 shadow-premium no-print">

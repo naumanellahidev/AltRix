@@ -1603,3 +1603,87 @@ in the wrong place or saying too little:
   `admission_status` enum did not have, so every click was refused. The
   value is now added by migration `20261030000000_admission_waitlist_status.sql`,
   and the Copilot understands "waitlisted".
+
+## The parked list, done (25 Sep 2026)
+
+- **Timetable builder.** A failed read had only its `data` destructured, so
+  the grid looked empty, as if the school had no periods. It now shows an
+  error with a retry.
+- **Exports.** Curriculum presets and grade boundaries, principal complaints
+  and marketing campaigns now have exports. On paper, an anonymous complaint
+  stays "Anonymous student". The campaigns screen showed budgets in `$`; it
+  now uses Rs. A campaign with no leads showed a cost per lead of "$0"; it
+  now shows "—".
+- **Loading, empty and failed states:**
+  - Users & Roles and its invitations show rows loading, and a failure
+    appears with a retry. Before, "No users found" appeared while the list
+    was still loading, and a failed load was dropped.
+  - The Directory used to print "No students found." for a search that had
+    failed. Now each tab shows rows loading, a failure appears with a retry,
+    and "no match for x" is told apart from "none yet".
+  - Curriculum and principal complaints show a skeleton and an empty state.
+- **Student wellbeing.** When a different student was chosen and had no
+  medical profile, the previous child's allergies and medications stayed in
+  the form, and "Update" saved them onto the new child. The form now starts
+  empty. The sections show rows loading while a student's records load.
+- **Admin console.** A failed read of the setup lock left it "Unlocked (can
+  run once)" with the button live. It now says the lock could not be read,
+  and keeps the button disabled. A school that is already set up sees a plain
+  "already set up" instead of a form it cannot use. The header now says what
+  the screen actually does.
+- **Data-health card.** Two new checks:
+  - fee invoices whose student record no longer exists (7 in Beacon, 3 still
+    pending, Rs. 17,000 counted as owed that no family can see or pay; they
+    are reported, never deleted);
+  - student photos still on the old Supabase storage (1).
+  The Copilot now names such records "(student record removed)" instead of
+  "—". The student who is in no class was already on this card.
+- **The 429s: the edge limit was per Cloudflare server, not per visitor.**
+  nginx logged Cloudflare's addresses (172.69.x, 104.23.x) as the client, so
+  the `altrix_edge_api` limit (30 r/s, burst 50 per IP) was shared by
+  everyone behind the same Cloudflare edge. The 300 refusals in the error log
+  (most of them `/api/vps-db/query` from the report-cards screen on 24 Sep)
+  were a school's users tripping one shared bucket.
+  `/etc/nginx/conf.d/98-cloudflare-realip.conf` now takes the visitor's
+  address from `CF-Connecting-IP`, trusting it only from Cloudflare's
+  published ranges (22 of them), so it cannot be spoofed. After a reload, the
+  access log shows real visitor addresses. The installer is
+  `scripts/install_cloudflare_realip.sh`: it fetches the current ranges,
+  backs up the old file, and reloads only if `nginx -t` passes. The app's own
+  limiter already keys on the signed-in user.
+
+### The errors in the console, and Fee Configurations (25 Sep 2026)
+
+- **Fee Configurations crashed** with "Cannot convert object to primitive
+  value". Its route was loaded without naming the module's export, and the
+  lazy loader fell back to the module object, which React cannot render.
+  The route now names the export. The loader throws a readable error when
+  an export is missing instead of rendering the module. A new audit gate
+  (`lazy1`) checks every one of the ~100 lazily loaded screens against its
+  module's real exports.
+  The screen itself:
+  - showed "2nd / 2rd Child" for every tier; it now reads "2nd child";
+  - labelled every rule "Active" and every gateway "Integrated" whatever
+    their state; the badges now follow the data;
+  - showed empty tables with no explanation; each table now says what
+    would appear there.
+- **Live-update connection.** It retried every 5 seconds forever, during
+  outages, while offline, and after the browser parked the page in its
+  back-forward cache ("WebSocket connection failed: Page entered
+  Back-Forward Cache"), and logged an error each time. A failed ticket
+  request also stopped it until a reload. Now:
+  - retries back off from 5 s up to 60 s;
+  - it waits for the browser's `online` event while offline;
+  - it closes cleanly when the page is parked and reconnects when it is
+    shown again;
+  - a failed ticket is retried;
+  - an outage is reported once ("Live updates paused … retrying"), and the
+    recovery once.
+  The collaboration hub's own socket had the same faults and gets the same
+  treatment.
+- **Console noise.** The "VPS API Proxy Warning" printed a whole AxiosError
+  object; it is now one line: which request, and why. The mobile navigation
+  sheets had no description, so Radix warned on every open. They now have a
+  screen-reader description. `net::ERR_NAME_NOT_RESOLVED` in that screenshot
+  was the computer's own DNS failing for a moment, which no code on the site
+  can cause or prevent. The app now recovers from it on its own.

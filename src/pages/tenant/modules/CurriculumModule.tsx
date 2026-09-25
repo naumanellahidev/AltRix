@@ -9,6 +9,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "sonner";
+import { DataExportMenu } from "@/components/documents/DataExportMenu";
+import { EmptyState, ErrorState, LoadingRows } from "@/components/tenant/module-kit";
 import {
   BookOpenCheck, Layers, Award, Plus, Search, RefreshCw, CheckCircle, GraduationCap
 } from "lucide-react";
@@ -34,6 +36,10 @@ export function CurriculumModule() {
   const [presets, setPresets] = useState<Preset[]>([]);
   const [boundaries, setBoundaries] = useState<Boundary[]>([]);
   const [loading, setLoading] = useState(false);
+  // A failed load used to be caught and turned into two empty lists, which
+  // read as "this school has no curriculum" rather than "it did not load".
+  const [loadError, setLoadError] = useState<unknown>(null);
+  const [loaded, setLoaded] = useState(false);
 
   const loadData = async () => {
     setLoading(true);
@@ -44,9 +50,10 @@ export function CurriculumModule() {
       ]);
       setPresets(resPresets.data ?? []);
       setBoundaries(resBoundaries.data ?? []);
-    } catch {
-      setPresets([]);
-      setBoundaries([]);
+      setLoadError(null);
+      setLoaded(true);
+    } catch (e) {
+      setLoadError(e);
     }
     setLoading(false);
   };
@@ -74,6 +81,10 @@ export function CurriculumModule() {
           </Button>
         </div>
       </div>
+
+      {loadError ? (
+        <ErrorState title="The curriculum could not be loaded" error={loadError} onRetry={() => void loadData()} />
+      ) : null}
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -126,12 +137,32 @@ export function CurriculumModule() {
 
         <TabsContent value="presets">
           <Card className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm">
-            <CardHeader>
+            <CardHeader className="flex flex-row items-center justify-between gap-3 space-y-0">
               <CardTitle className="text-lg font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
                 <Layers className="h-5 w-5 text-blue-600" /> Active Educational Frameworks
               </CardTitle>
+              <DataExportMenu
+                title="Curriculum presets"
+                rows={presets.map((p) => ({
+                  Preset: p.name,
+                  Code: p.code,
+                  Scope: p.is_global ? "Global standard" : "School custom",
+                  Description: p.description ?? "",
+                }))}
+                disabled={!presets.length}
+                size="sm"
+              />
             </CardHeader>
             <CardContent>
+              {loading && !loaded ? (
+                <LoadingRows rows={4} />
+              ) : loaded && !presets.length ? (
+                <EmptyState
+                  icon={Layers}
+                  title="No curriculum presets yet"
+                  description="Presets such as Cambridge, Oxford or the Single National Curriculum appear here once they are added."
+                />
+              ) : (
               <Table>
                 <TableHeader>
                   <TableRow className="bg-slate-50 dark:bg-slate-800/50">
@@ -152,18 +183,39 @@ export function CurriculumModule() {
                   ))}
                 </TableBody>
               </Table>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
 
         <TabsContent value="boundaries">
           <Card className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm">
-            <CardHeader>
+            <CardHeader className="flex flex-row items-center justify-between gap-3 space-y-0">
               <CardTitle className="text-lg font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
                 <Award className="h-5 w-5 text-blue-600" /> Grade Scales & Percentile Thresholds
               </CardTitle>
+              <DataExportMenu
+                title="Grade boundaries"
+                rows={boundaries.map((b) => ({
+                  Grade: b.label,
+                  "Min %": b.min_percentage,
+                  "Max %": b.max_percentage,
+                  "GPA equivalent": b.gpa_equivalent ?? "",
+                }))}
+                disabled={!boundaries.length}
+                size="sm"
+              />
             </CardHeader>
             <CardContent>
+              {loading && !loaded ? (
+                <LoadingRows rows={4} />
+              ) : loaded && !boundaries.length ? (
+                <EmptyState
+                  icon={Award}
+                  title="No grade boundaries set"
+                  description="Set the percentage bands for each grade, and their GPA, to have them used on results and report cards."
+                />
+              ) : (
               <Table>
                 <TableHeader>
                   <TableRow className="bg-slate-50 dark:bg-slate-800/50">
@@ -184,6 +236,7 @@ export function CurriculumModule() {
                   ))}
                 </TableBody>
               </Table>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

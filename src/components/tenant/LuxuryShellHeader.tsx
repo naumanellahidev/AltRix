@@ -1,5 +1,5 @@
 import React, { ReactNode } from "react";
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetDescription, SheetTrigger } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -198,6 +198,8 @@ export function LuxuryShellHeader({
                 side="left"
                 className="w-[300px] p-4 overflow-y-auto bg-surface/95 backdrop-blur-2xl border-r border-primary/15"
               >
+                {/* Radix warns on every open without one; screen readers read it. */}
+                <SheetDescription className="sr-only">The school's modules and settings</SheetDescription>
                 {navContent}
               </SheetContent>
             </Sheet>

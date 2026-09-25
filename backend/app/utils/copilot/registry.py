@@ -40,6 +40,12 @@ def pk(col: str) -> str:
 
 STUDENT_JOIN = "LEFT JOIN students s ON s.id = t.student_id AND s.school_id = t.school_id"
 STUDENT_NAME = "trim(concat_ws(' ', s.first_name, s.last_name))"
+#: A fee record's student, saying so when the student record is gone. A
+#: dash read as "a nameless child owes Rs. 6,000".
+BILLED_STUDENT = (
+    f"COALESCE(NULLIF({STUDENT_NAME}, ''), CASE WHEN t.student_id IS NULL "
+    "THEN '(no student)' ELSE '(student record removed)' END)"
+)
 
 
 def student_class(sid: str) -> str:
@@ -263,7 +269,7 @@ SOURCES: Tuple[Source, ...] = (
         frm="fee_invoices t " + STUDENT_JOIN,
         columns=(
             Col("Invoice", "t.invoice_number"),
-            Col("Student", STUDENT_NAME, label_ur="Talib-e-ilm"),
+            Col("Student", BILLED_STUDENT, label_ur="Talib-e-ilm"),
             Col("Class", student_class("t.student_id")),
             Col("Period", "t.period_label"),
             Col("Due", "t.due_date", "date"),
@@ -311,7 +317,7 @@ SOURCES: Tuple[Source, ...] = (
              "GROUP BY fi.school_id, fi.student_id) t " + STUDENT_JOIN),
         table="fee_invoices",
         columns=(
-            Col("Student", STUDENT_NAME, label_ur="Talib-e-ilm"),
+            Col("Student", BILLED_STUDENT, label_ur="Talib-e-ilm"),
             Col("Class", student_class("t.student_id")),
             Col("Guardian", "s.parent_name", label_ur="Sarparast"),
             Col("Phone", "s.parent_phone"),
@@ -337,7 +343,7 @@ SOURCES: Tuple[Source, ...] = (
         frm="fee_payments t " + STUDENT_JOIN,
         columns=(
             Col("Date", "t.paid_at", "datetime", "Tareekh"),
-            Col("Student", STUDENT_NAME, label_ur="Talib-e-ilm"),
+            Col("Student", BILLED_STUDENT, label_ur="Talib-e-ilm"),
             Col("Class", student_class("t.student_id")),
             Col("Amount", "t.amount", "money", "Raqam"),
             Col("Method", "t.method::text", label_ur="Tareeqa"),

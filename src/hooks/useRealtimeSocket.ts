@@ -11,6 +11,8 @@ export function useRealtimeSocket(
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<number | null>(null);
   const pingIntervalRef = useRef<number | null>(null);
+  const attemptsRef = useRef(0);
+  const parkedRef = useRef(false);
 
   // Keep references to latest callbacks to avoid restarting websocket on render
   const callbacksRef = useRef({ onNewConversation, onNewMessage, onPresenceUpdate });
@@ -29,7 +31,8 @@ export function useRealtimeSocket(
         const { data: { session } } = await api.auth.getSession();
         const token = session?.access_token;
         if (!token) {
-          console.warn("No Supabase session found for WebSocket auth");
+          // Signed out (or not yet signed in): nothing to connect as, and
+          // nothing wrong. Checked again after a pause.
           setStatus("disconnected");
           scheduleReconnect();
           return;
@@ -57,16 +60,18 @@ export function useRealtimeSocket(
           const res = await apiClient.post("/realtime/ws-ticket");
           ticket = res.data?.ticket;
           if (!ticket) throw new Error("no ticket issued");
-        } catch (e) {
-          console.warn("Could not obtain a realtime ticket", e);
+        } catch (e: any) {
+          // Retried, not abandoned: a failed ticket used to end live updates
+          // for this screen until it was reloaded.
+          if (attemptsRef.current === 0) console.warn(`Collaboration live updates paused (${e?.message ?? e}); retrying.`);
           setStatus("disconnected");
+          scheduleReconnect();
           return;
         }
 
         const wsUrl = `${protocol}//${host}/api/ws?ticket=${encodeURIComponent(ticket)}`;
 
         // Deliberately not logging the URL: it carries the credential.
-        console.log("Connecting to WebSocket");
         const ws = new WebSocket(wsUrl);
         wsRef.current = ws;
 
@@ -75,7 +80,7 @@ export function useRealtimeSocket(
             ws.close();
             return;
           }
-          console.log("WebSocket connected successfully");
+          attemptsRef.current = 0;
           setStatus("connected");
           
           if (pingIntervalRef.current) window.clearInterval(pingIntervalRef.current);
@@ -111,36 +116,67 @@ export function useRealtimeSocket(
             window.clearInterval(pingIntervalRef.current);
             pingIntervalRef.current = null;
           }
-          if (active) {
-            console.warn(`WebSocket closed: ${event.reason}. Reconnecting in 3s...`);
+          if (active && !parkedRef.current) {
+            if (event.code !== 1000 && attemptsRef.current === 0) {
+              console.warn(`Collaboration live updates paused (connection closed, code ${event.code}); retrying.`);
+            }
             setStatus("disconnected");
             scheduleReconnect();
           }
         };
 
-        ws.onerror = (err) => {
-          console.error("WebSocket error:", err);
+        // The close event that follows says what went wrong.
+        ws.onerror = () => {
           ws.close();
         };
 
       } catch (err) {
-        console.error("WebSocket connection failed:", err);
         setStatus("disconnected");
         scheduleReconnect();
       }
     }
 
+    // Backing off (3 s, 6 s, … 60 s), and waiting for the network rather than
+    // retrying while offline.
     function scheduleReconnect() {
       if (reconnectTimeoutRef.current) window.clearTimeout(reconnectTimeoutRef.current);
+      if (navigator.onLine === false) return;
+      const delay = Math.min(3000 * 2 ** attemptsRef.current, 60000);
+      attemptsRef.current += 1;
       reconnectTimeoutRef.current = window.setTimeout(() => {
         if (active) connect();
-      }, 3000);
+      }, delay);
     }
+
+    const onOnline = () => {
+      attemptsRef.current = 0;
+      if (active && !wsRef.current) connect();
+    };
+    // Parked in the back-forward cache: close cleanly, reconnect on return.
+    const onPageHide = (e: PageTransitionEvent) => {
+      if (e.persisted && wsRef.current) {
+        parkedRef.current = true;
+        wsRef.current.close(1000, "page hidden");
+      }
+    };
+    const onPageShow = (e: PageTransitionEvent) => {
+      if (e.persisted) {
+        parkedRef.current = false;
+        attemptsRef.current = 0;
+        if (active && !wsRef.current) connect();
+      }
+    };
+    window.addEventListener("online", onOnline);
+    window.addEventListener("pagehide", onPageHide);
+    window.addEventListener("pageshow", onPageShow);
 
     connect();
 
     return () => {
       active = false;
+      window.removeEventListener("online", onOnline);
+      window.removeEventListener("pagehide", onPageHide);
+      window.removeEventListener("pageshow", onPageShow);
       if (wsRef.current) {
         wsRef.current.close();
         wsRef.current = null;

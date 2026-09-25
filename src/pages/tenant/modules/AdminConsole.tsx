@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { SlidersHorizontal } from "lucide-react";
-import { ModuleHeader } from "@/components/tenant/module-kit";
+import { EmptyState, ErrorState, ModuleHeader } from "@/components/tenant/module-kit";
 import { useParams } from "react-router-dom";
 import { ShieldCheck } from "lucide-react";
 
@@ -21,6 +21,8 @@ export function AdminConsole() {
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [locked, setLocked] = useState<boolean | null>(null);
+  // A failed read of the lock used to leave it "unlocked" and the button live.
+  const [lockError, setLockError] = useState<unknown>(null);
   const [adminPassword, setAdminPassword] = useState<string>("");
 
   const [schoolName, setSchoolName] = useState("New School");
@@ -28,14 +30,25 @@ export function AdminConsole() {
 
   const schoolId = useMemo(() => (tenant.status === "ready" ? tenant.schoolId : null), [tenant.status, tenant.schoolId]);
 
-  useEffect(() => {
+  const readLock = async () => {
     if (!schoolId) return;
-    api
+    setLockError(null);
+    const { data, error } = await api
       .from("school_bootstrap")
       .select("locked,bootstrapped_at")
       .eq("school_id", schoolId)
-      .maybeSingle()
-      .then(({ data }) => setLocked(data?.locked ?? false));
+      .maybeSingle();
+    if (error) {
+      setLocked(null);
+      setLockError(error);
+      return;
+    }
+    setLocked(data?.locked ?? false);
+  };
+
+  useEffect(() => {
+    void readLock();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [schoolId]);
 
   const run = async () => {
@@ -77,6 +90,9 @@ export function AdminConsole() {
           metadata: { ok: true },
         });
       }
+    } catch (e) {
+      // A thrown request is a failure to report, not a click that did nothing.
+      setStatus(e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(false);
     }
@@ -88,7 +104,7 @@ export function AdminConsole() {
         icon={SlidersHorizontal}
         tone="slate"
         title="Admin console"
-        description="The switches behind the school — what each role may do, and the settings the rest of the app reads."
+        description="One-time setup of a new school: its first administrator account. It locks itself once it has run."
       />
       <Card className="shadow-elevated">
         <CardHeader>
@@ -102,12 +118,30 @@ export function AdminConsole() {
               <div>
                 <p className="font-medium">Bootstrap lock</p>
                 <p className="mt-1">
-                  {locked === null ? "Loading…" : locked ? "Locked (already bootstrapped)." : "Unlocked (can run once)."}
+                  {lockError
+                    ? "The lock could not be read, so setup stays disabled."
+                    : locked === null
+                    ? "Loading…"
+                    : locked
+                    ? "Locked (already bootstrapped)."
+                    : "Unlocked (can run once)."}
                 </p>
               </div>
             </div>
           </div>
 
+          {lockError ? (
+            <ErrorState title="The setup lock could not be read" error={lockError} onRetry={() => void readLock()} />
+          ) : null}
+
+          {locked === true ? (
+            <EmptyState
+              icon={ShieldCheck}
+              title="This school is already set up"
+              description="Setup runs once, to create a new school's first administrator, and has locked itself. Add staff and administrators from Users & Roles."
+            />
+          ) : (
+          <>
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             <div className="space-y-2">
               <label className="text-sm font-medium">School name</label>
@@ -135,9 +169,17 @@ export function AdminConsole() {
             </div>
           </div>
 
-          <Button variant="hero" size="xl" className="w-full" disabled={busy || locked === true} onClick={run}>
+          <Button
+            variant="hero"
+            size="xl"
+            className="w-full"
+            disabled={busy || locked !== false || !!lockError}
+            onClick={run}
+          >
             Run bootstrap (once)
           </Button>
+          </>
+          )}
 
           {status && (
             <pre className="max-h-[260px] overflow-auto rounded-2xl bg-accent p-4 text-xs text-accent-foreground">

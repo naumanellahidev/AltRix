@@ -26,6 +26,8 @@ import {
 import { format, formatDistanceToNow } from "date-fns";
 import { toast } from "sonner";
 import { ComplaintThread } from "@/components/complaints/ComplaintThread";
+import { DataExportMenu } from "@/components/documents/DataExportMenu";
+import { ErrorState, LoadingRows } from "@/components/tenant/module-kit";
 
 interface PrincipalComplaint {
   id: string;
@@ -67,6 +69,10 @@ export default function PrincipalComplaintsModule() {
   const [studentNames, setStudentNames] = useState<Record<string, string>>({});
   const [senderNames, setSenderNames] = useState<Record<string, string>>({});
   const [drafts, setDrafts] = useState<Record<string, string>>({});
+  // Until the first load returns, "No anonymous complaints" would be a claim
+  // the screen cannot yet make; a failed load is shown, not left blank.
+  const [loaded, setLoaded] = useState(false);
+  const [loadError, setLoadError] = useState<unknown>(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "open" | "resolved">("all");
   const [priorityFilter, setPriorityFilter] = useState<string>("all");
@@ -85,10 +91,13 @@ export default function PrincipalComplaintsModule() {
       
     if (error) { 
       toast.error(error.message); 
+      setLoadError(error);
       return; 
     }
     const list = (data ?? []) as PrincipalComplaint[];
     setItems(list);
+    setLoadError(null);
+    setLoaded(true);
 
     const sids = Array.from(new Set(list.map((c) => c.student_id).filter(Boolean) as string[]));
     if (sids.length) {
@@ -399,6 +408,33 @@ export default function PrincipalComplaintsModule() {
         </CardContent>
       </Card>
 
+      {loadError ? (
+        <ErrorState title="Complaints could not be loaded" error={loadError} onRetry={() => void load()} />
+      ) : null}
+
+      <div className="flex justify-end">
+        <DataExportMenu
+          title="Complaints"
+          rows={[...anonItems, ...teacherItems].map((c) => ({
+            Subject: c.subject,
+            // An anonymous report stays anonymous on paper too.
+            From: c.anonymous ? "Anonymous student" : senderNames[c.sender_user_id ?? ""] || "Teacher",
+            About: c.student_id ? studentNames[c.student_id] || "" : "",
+            Category: c.category ?? "",
+            Priority: c.priority,
+            Status: (STATUS_TONE[c.status] || STATUS_TONE.open).label,
+            Rating: c.rating ?? "",
+            Filed: format(new Date(c.created_at), "yyyy-MM-dd"),
+            Resolution: c.resolution_note ?? "",
+          }))}
+          disabled={!anonItems.length && !teacherItems.length}
+          size="sm"
+        />
+      </div>
+
+      {!loaded && !loadError ? (
+        <LoadingRows rows={6} />
+      ) : (
       <Tabs defaultValue="anon" className="space-y-4">
         <TabsList className="bg-muted/50 p-1 rounded-xl">
           <TabsTrigger value="anon" className="gap-2 rounded-lg text-xs font-bold">
@@ -423,6 +459,7 @@ export default function PrincipalComplaintsModule() {
           )}
         </TabsContent>
       </Tabs>
+      )}
 
       {/* Side Detail Dialog Drawer */}
       <Dialog open={!!selectedComplaint} onOpenChange={(open) => !open && setSelectedComplaint(null)}>

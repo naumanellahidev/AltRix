@@ -1541,7 +1541,51 @@ async def data_health(
         """
     )
 
+    # An invoice whose student no longer exists. Its balance is counted in the
+    # school's outstanding total, but no family can see it or pay it. It is
+    # reported, never deleted: it is a record of money billed.
+    orphan_invoice_count, orphan_invoices = await names(
+        """
+        SELECT CONCAT(fi.invoice_number, ' (', fi.status::text, ')')
+          FROM fee_invoices fi
+         WHERE fi.school_id = CAST(:sid AS uuid)
+           AND (fi.student_id IS NULL
+                OR NOT EXISTS (SELECT 1 FROM students s WHERE s.id = fi.student_id))
+         ORDER BY fi.invoice_number
+        """
+    )
+
+    # Photos still pointing at the old Supabase storage, which is gone: the
+    # profile, the ID card and the report card show a broken image.
+    old_photo_count, old_photos = await names(
+        """
+        SELECT TRIM(CONCAT(s.first_name, ' ', COALESCE(s.last_name, '')))
+          FROM students s
+         WHERE s.school_id = CAST(:sid AS uuid)
+           AND s.profile_image_url ILIKE '%supabase.co%'
+         ORDER BY 1
+        """
+    )
+
     checks = [
+        {
+            "id": "invoices_without_student",
+            "label": "Fee invoices whose student no longer exists",
+            "detail": "Their balance counts in the outstanding total, but no family can see or pay it. Cancel or reassign them.",
+            "count": orphan_invoice_count,
+            "examples": orphan_invoices,
+            "fix_tab": "invoices",
+            "severity": "high" if orphan_invoice_count else "ok",
+        },
+        {
+            "id": "photos_on_old_storage",
+            "label": "Student photos that no longer load",
+            "detail": "They were stored on the old hosting, which has been switched off. Upload the photo again.",
+            "count": old_photo_count,
+            "examples": old_photos,
+            "fix_tab": "student-cards",
+            "severity": "medium" if old_photo_count else "ok",
+        },
         {
             "id": "unenrolled_students",
             "label": "Students not in any class",
