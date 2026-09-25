@@ -86,6 +86,58 @@ async def create_ws_ticket(current_user: CurrentUser):
     }
 
 
+async def _family_views_for_user(user_id: str, school_rooms: List[str]) -> dict:
+    """
+    For each school where this user is only a parent and/or a student: their
+    children (or their own student record) and the notices meant for them.
+    Live changes to that school are filtered through it (ws_manager).
+    """
+    views: dict = {}
+    schools = [r.split(":", 1)[1] for r in school_rooms]
+    try:
+        uid = UUID(str(user_id))
+    except (ValueError, TypeError):
+        return views
+    async with AsyncSessionLocal() as db:
+        try:
+            staff = {r[0] for r in (await db.execute(
+                text(
+                    "SELECT school_id::text FROM public.user_roles WHERE user_id = :uid"
+                    " AND role::text NOT IN ('parent', 'student')"
+                    " AND (end_date IS NULL OR end_date >= CURRENT_DATE)"
+                    " UNION SELECT school_id::text FROM public.school_owner_assignments WHERE owner_user_id = :uid"
+                ),
+                {"uid": uid},
+            )).fetchall()}
+            roles = {}
+            for sid, role in (await db.execute(
+                text("SELECT school_id::text, role::text FROM public.user_roles WHERE user_id = :uid"),
+                {"uid": uid},
+            )).fetchall():
+                roles.setdefault(sid, set()).add(role)
+            for school_id in schools:
+                if school_id in staff:
+                    continue
+                kids = await db.execute(
+                    text(
+                        "SELECT g.student_id::text FROM public.student_guardians g"
+                        " JOIN public.students s ON s.id = g.student_id"
+                        " WHERE g.user_id = :uid AND s.school_id = CAST(:sid AS uuid)"
+                        " UNION SELECT s.id::text FROM public.students s"
+                        " WHERE s.profile_id = :uid AND s.school_id = CAST(:sid AS uuid)"
+                    ),
+                    {"uid": uid, "sid": school_id},
+                )
+                mine = roles.get(school_id, set())
+                audiences = ["all"] + [a for r, a in (("parent", "parents"), ("student", "students")) if r in mine]
+                views[school_id] = {"kids": {r[0] for r in kids.fetchall()}, "audiences": audiences}
+        except Exception as e:
+            # Unknown: nothing of anyone else's is pushed to them.
+            logger.error(f"WebSocket: could not resolve family view for {user_id}: {e}")
+            return {s: {"kids": set(), "audiences": ["all"]} for s in schools}
+    return views
+
+
 async def _rooms_for_user(user_id: str) -> List[str]:
     """
     Work out which broadcast rooms this user may join, from the database.
@@ -222,6 +274,8 @@ async def websocket_endpoint(
 
     # 3. Connect
     await ws_manager.connect(websocket, user_id, rooms)
+    for school_id, view in (await _family_views_for_user(user_id, school_rooms)).items():
+        ws_manager.set_family_view(user_id, school_id, view)
 
     async def _broadcast_presence(status: str) -> None:
         for room in school_rooms:

@@ -39,6 +39,13 @@ interface UniversalPrefetchOptions {
   schoolId: string | null;
   userId: string | null;
   enabled?: boolean;
+  /**
+   * "family" for the parent and student portals: only the school's public
+   * structure (classes, subjects, timetable) is kept offline. The full
+   * warm-up copied every student, the staff's HR and payroll records, the
+   * school's finances and its admission leads onto a parent's device.
+   */
+  scope?: "school" | "family";
 }
 
 interface PrefetchProgress {
@@ -97,7 +104,7 @@ export function getCachedStats(schoolId: string, _role?: string): Record<string,
 // ==================== Main Hook ====================
 
 export function useUniversalPrefetch(options: UniversalPrefetchOptions) {
-  const { schoolId, userId, enabled = true } = options;
+  const { schoolId, userId, enabled = true, scope = "school" } = options;
   const prefetchedRef = useRef(false);
   const progressRef = useRef<PrefetchProgress>({ total: 0, completed: 0, currentTask: '' });
 
@@ -130,7 +137,10 @@ export function useUniversalPrefetch(options: UniversalPrefetchOptions) {
         //
         // Nobody is waiting for a warm-up. Run it steadily and let the
         // screen's own queries go first.
-        const groups: Array<() => Promise<void>> = [
+        const groups: Array<() => Promise<void>> = scope === "family" ? [
+          () => prefetchAcademicStructure(schoolId!, cancelled, updateProgress),
+          () => prefetchTimetableData(schoolId!, cancelled, updateProgress),
+        ] : [
           () => prefetchAcademicStructure(schoolId!, cancelled, updateProgress),
           () => prefetchStudentsAndEnrollments(schoolId!, cancelled, updateProgress),
           () => prefetchTimetableData(schoolId!, cancelled, updateProgress),
@@ -188,7 +198,7 @@ export function useUniversalPrefetch(options: UniversalPrefetchOptions) {
       if (idle && cancelIdle) cancelIdle(startHandle);
       else window.clearTimeout(startHandle);
     };
-  }, [enabled, schoolId, userId, updateProgress]);
+  }, [enabled, schoolId, userId, scope, updateProgress]);
 }
 
 // ==================== Prefetch Functions ====================

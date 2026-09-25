@@ -154,6 +154,16 @@ async def review_appraisal(
     db: DbSession,
 ):
     """Review and approve/reject staff self-appraisals. Updates payroll salary if approved."""
+    # An approval raises the person's salary. Anyone could approve any
+    # appraisal, their own included; now HR and the administration only.
+    from app.utils.permissions import STAFF_GOV, expand_roles
+    roles = expand_roles(current_user.roles or [])
+    if not (current_user.is_super_admin or any(r in roles for r in STAFF_GOV)):
+        raise ForbiddenError("Only HR and the school's administration review appraisals.")
+    if status_choice not in ("approved", "rejected"):
+        raise HTTPException(status_code=400, detail="status_choice must be 'approved' or 'rejected'")
+    if not (0 <= salary_increment_pct <= 100):
+        raise HTTPException(status_code=400, detail="salary_increment_pct must be between 0 and 100")
     res = await db.execute(
         select(StaffAppraisal).where(
             StaffAppraisal.id == appraisal_id,
@@ -164,6 +174,8 @@ async def review_appraisal(
     if not appraisal:
         raise NotFoundError("Appraisal", str(appraisal_id))
         
+    if str(appraisal.staff_user_id) == str(current_user.id) and not current_user.is_super_admin:
+        raise ForbiddenError("You cannot review your own appraisal.")
     appraisal.status = status_choice
     appraisal.review_comments = review_comments
     appraisal.reviewer_user_id = current_user.id

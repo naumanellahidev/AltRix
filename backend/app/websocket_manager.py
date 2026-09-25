@@ -30,6 +30,10 @@ class ConnectionManager:
         self._user_connections: Dict[str, List[WebSocket]] = defaultdict(list)
         # room_key → set of user_ids in that room
         self._rooms: Dict[str, Set[str]] = defaultdict(set)
+        # (user_id, school_id) → what a parent or student may be shown live:
+        # {"kids": their children's ids, "audiences": notice audiences}.
+        # Absent for staff, who see the whole school's changes.
+        self._family_views: Dict[tuple, dict] = {}
         self._lock = asyncio.Lock()
 
     async def connect(
@@ -59,6 +63,8 @@ class ConnectionManager:
                 connections.remove(websocket)
             if not connections:
                 self._user_connections.pop(user_id, None)
+                for key in [k for k in self._family_views if k[0] == str(user_id)]:
+                    self._family_views.pop(key, None)
             for room in rooms or []:
                 room_users = self._rooms.get(room, set())
                 room_users.discard(user_id)
@@ -88,6 +94,42 @@ class ConnectionManager:
             *[self.send_to_user(uid, data) for uid in user_ids],
             return_exceptions=True,
         )
+
+    def set_family_view(self, user_id: str, school_id: str, view: Optional[dict]) -> None:
+        if view is None:
+            self._family_views.pop((str(user_id), str(school_id)), None)
+        else:
+            self._family_views[(str(user_id), str(school_id))] = view
+
+    async def broadcast_change(self, school_id: str, payload: dict) -> None:
+        """
+        A write through the data proxy, with its rows, to the school's open
+        sessions. It went to everyone in the school unfiltered, so a parent's
+        browser received every child's marks, every fee payment and every
+        salary as they were saved. A parent or student now receives only rows
+        that are theirs to see; otherwise only that the table changed.
+        """
+        from app.utils.family_scope import row_visible
+
+        rows = payload.get("data")
+        rows = rows if isinstance(rows, list) else ([rows] if isinstance(rows, dict) else [])
+        table = str(payload.get("table") or "")
+        for uid in list(self._rooms.get(f"school:{school_id}", set())):
+            view = self._family_views.get((str(uid), str(school_id)))
+            if view is None:
+                message = {"event": "event_bus_event", "data": payload}
+            else:
+                mine = [r for r in rows if row_visible(table, r, str(uid), view["kids"], view["audiences"])]
+                if mine:
+                    message = {"event": "event_bus_event", "data": {**payload, "data": mine}}
+                else:
+                    message = {"event": "event_bus_event", "data": {
+                        "event_name": "table_changed", "school_id": str(school_id),
+                        "table": table, "action": payload.get("action") or "update"}}
+            try:
+                await self.send_to_user(uid, message)
+            except Exception as e:
+                logger.debug(f"Live change not delivered to {uid}: {e}")
 
     async def broadcast_to_school(self, school_id: str, data: dict) -> None:
         """Broadcast to all connected users in a school."""
@@ -160,10 +202,7 @@ class ConnectionManager:
                                 # Broadcast Event Bus event to the entire school room
                                 school_id = payload.get("school_id")
                                 if school_id:
-                                    await self.broadcast_to_room(f"school:{school_id}", {
-                                        "event": "event_bus_event",
-                                        "data": payload
-                                    })
+                                    await self.broadcast_change(school_id, payload)
                         except Exception as parse_err:
                             logger.error(f"Error parsing Redis pub/sub message payload: {parse_err}")
             except Exception as e:

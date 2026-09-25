@@ -154,14 +154,22 @@ async def pre_register_visitor(
 
     # Verify if student belongs to the parent (if mapping student)
     if body.student_id:
-        query = select(Student).join(Student.guardians).where(
-            Student.id == body.student_id,
-            Student.school_id == current_user.school_id,
+        # The child must be the caller's own (this checked only that the child
+        # had some guardian, and failed outright when it had two).
+        from sqlalchemy import text as _text
+        roles = expand_roles(current_user.roles or [])
+        staff = current_user.is_super_admin or bool(set(roles) - {"parent", "student"})
+        res = await db.execute(
+            _text(
+                "SELECT 1 FROM students s WHERE s.id = CAST(:st AS uuid) AND s.school_id = CAST(:sch AS uuid)"
+                " AND (:staff OR EXISTS (SELECT 1 FROM student_guardians g"
+                " WHERE g.student_id = s.id AND g.user_id = CAST(:me AS uuid)))"
+            ),
+            {"st": str(body.student_id), "sch": str(current_user.school_id), "me": str(current_user.id),
+             "staff": staff},
         )
-        res = await db.execute(query)
-        student = res.scalar_one_or_none()
-        if not student:
-            raise ForbiddenError("Invalid student mapping")
+        if res.first() is None:
+            raise ForbiddenError("You can only register a visitor for your own child.")
 
     # Check if visitor is on the blacklist
     blacklist_query = select(VisitorBlacklist).where(

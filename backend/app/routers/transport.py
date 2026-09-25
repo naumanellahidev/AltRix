@@ -859,6 +859,10 @@ async def update_bus_location(
 async def list_assignments(current_user: CurrentUser, db: DbSession):
     if not current_user.school_id:
         return []
+    # Every child's route and stop: the school's staff. A family has /my-bus.
+    from app.utils.permissions import expand_roles
+    if not (current_user.is_super_admin or set(expand_roles(current_user.roles or [])) - {"parent", "student"}):
+        raise HTTPException(status_code=403, detail="Transport assignments are for the school's staff.")
     stmt = (
         select(
             StudentTransportAssignment,

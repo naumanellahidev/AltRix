@@ -1927,3 +1927,125 @@ writes (following a local `const x = {...}` and its spreads), and a new
 gate `rpc1` checks that every database function the frontend calls exists
 (production, snapshot in `scripts/db/schema_functions.txt`, or a
 migration) and is on the proxy's allowlist.
+
+### What a parent or student could see: the whole school (25 Sep 2026)
+
+Found while fixing the command palette's search, which let any account
+search every student, parents' phone numbers and emails, staff contacts and
+admission leads (fixed: `search.py` is scoped by role, and a parent finds
+only their own children, the classes and the library catalogue).
+
+The same hole was wider in three other places:
+
+- **The data proxy** (`/api/vps-db`) confined a caller to their school and
+  nothing more. A parent or student could read every table in it (every
+  child's marks, fees, attendance, health and behaviour records, the
+  staff's payroll and contracts, the leads) and write to most of them. Now
+  (`app/utils/family_scope.py`), for an account whose only roles are
+  parent and/or student:
+  - reads: their own children's rows in any table keyed by a student;
+    their own messages, notifications, complaints, support threads and
+    settings; the school's staff and their own children's guardians in the
+    people tables; notices for everyone or for parents/students; and the
+    school's public structure (classes, subjects, timetable, calendar,
+    homework, library catalogue). Every other table is refused. Deny by
+    default.
+  - writes: only what the family screens do (messages, reactions,
+    notifications, complaints and replies, support threads, submissions,
+    payment proofs, behaviour notes, preferences), with the owner column
+    always set to the caller, a named student always their own child, and
+    a reply only into a conversation they are part of.
+  - database functions: only those about themselves;
+    `get_school_user_directory` (every user's email) is answered with the
+    staff directory, and `get_at_risk_students` and the other school-wide
+    functions are refused.
+- **Live updates.** Every write through the proxy was pushed, rows and all,
+  to every open session in the school, so a parent's browser received each
+  child's marks and every salary as they were saved. A parent or student
+  now receives only rows that are theirs; otherwise only that the table
+  changed, and the screen reads it again through the proxy.
+- **The offline warm-up** on the parent and student portals copied the whole
+  school (students, HR, payroll, finances, leads) into the browser's
+  offline store. It now keeps only the school's classes, subjects and
+  timetable.
+
+Staff keep the school-wide access they had. Every rule's SQL was run on
+production as the app's own role, as a real parent (their one child's
+record, their invoices, 15 people: staff and their child's guardians),
+inside a rolled-back transaction. Tests: `test_family_proxy_scope.py`;
+audit gate `fam1`.
+
+### Endpoints that never looked at the caller (26 Sep 2026)
+
+A sweep of the API for endpoints reading children's, money or staff records
+without checking the caller's role found:
+
+- **Guardian links.** Any signed-in account could link itself as a guardian
+  of any student, in any school, and so read that child's records through
+  every family screen. Now only the school's administration links parents,
+  and only to its own students. The per-student guardian routes also read,
+  changed and deleted any school's guardians by id; they are confined to
+  the school. Their schemas asked for columns the table does not have, so
+  every add and edit failed, and "guardian not found" came back as a
+  database failure (503); both fixed.
+- **Attendance.** A parent or student could mark a session, wipe it, or read
+  any section's register and the school-wide report; a session from
+  another school was accepted by id. Staff attendance, with each check-in's
+  location, could be read for any school by naming it, and anyone could
+  mark any staff member. Registers are now for teachers and the
+  administration; staff attendance for staff, own school only, and a staff
+  member marks only themselves unless HR or administration.
+- **Money.** Every fee payment and the school's financial summary went to any
+  account (a family now sees its own children's payments). The salary
+  budget answered for whatever school was named, deleted any target by id,
+  and when the database failed served three invented salaries or a JSON
+  file shipped with the code (older figures than the database holds) and
+  called an unsaved change saved. It is now for finance and HR staff of
+  the school, and a failure is reported as one. The file is removed.
+- **Appraisals.** Anyone could approve an appraisal, their own included,
+  which raises the salary on payroll. Now HR and administration only,
+  never one's own, with the increment bounded.
+- **Dashboards.** The principal's and owner's report endpoints served any
+  school named in the URL to any account. Now staff of that school (or its
+  owner) only.
+- **Also:** every child's transport assignment, every parent's email and
+  every enrolment are for staff; a visitor pre-registered for a child must
+  be for the caller's own child.
+
+Tests: `test_guardian_links.py`, `test_attendance_access.py`,
+`test_staff_only_endpoints.py`; audit gate `acc1`.
+
+### Endpoints that never asked who was calling (26 Sep 2026)
+
+A scan of every route that reads student, fee or staff data without looking
+at the caller's role found these, now fixed:
+
+- **Guardian links** (`/students/guardians`, `/students/{id}/guardians`):
+  any account could link itself to any student, in any school, and then
+  read that child's marks, fees and health everywhere. Only the school's
+  administration links parents to children now, and only its own students;
+  the school-wide guardian list (every family's phone and email) is for
+  staff. The per-student routes also crashed on every add or edit (their
+  schema asked for first/last name, CNIC and pickup fields the table does not
+  have) and a missing guardian was reported as a database failure.
+- **Attendance**: a parent or student could mark or wipe a session and read
+  any section's register and the school-wide report; sessions were looked
+  up in any school; staff attendance, with each check-in's location, was
+  readable for any school named in the URL, and anyone could mark any staff
+  member. Now teachers and the academic administration take registers, staff
+  read them, and a staff member marks only their own attendance unless they
+  are HR or administration.
+- **Dashboard reports** (`/reports/dashboard`, finance trend, attendance
+  summary, daily series, data health, activity timeline): served whatever
+  school was named. Now for staff of that school only.
+- **Payments and the financial summary**: every payment went to any
+  account. Finance staff see the school's; a family sees its own children's.
+- **Salary budget**: any account, any school, any target deleted by id. On a
+  database error it served a JSON file shipped with the code (older figures
+  than the database: 3,000,000 against 1,800,000) or three invented
+  salaries, and reported unsaved changes as saved. The file is gone; finance
+  and HR staff see their own school's budget; a failure says so. Money now
+  comes back as exact strings.
+
+Tests: `test_guardian_links.py`, `test_attendance_access.py`,
+`test_salary_budget_access.py`.

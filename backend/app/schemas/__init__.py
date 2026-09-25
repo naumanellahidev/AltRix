@@ -374,30 +374,40 @@ class SchoolInquirySettingsOut(BaseModel):
 # ─── GUARDIANS / PARENTS ──────────────────────────────────────────────────────
 
 class GuardianCreate(BaseModel):
-    student_id: UUID
-    first_name: str
-    last_name: str
+    """A guardian as student_guardians stores one: a full name (or first and
+    last, joined). This asked for first_name, last_name, cnic, occupation,
+    address and can_pickup, none of which the table has, so every add and
+    edit through the per-student routes failed."""
+    student_id: Optional[UUID] = None
+    full_name: Optional[str] = None
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
     relationship: Optional[str] = None
     phone: Optional[str] = None
     email: Optional[str] = None
-    cnic: Optional[str] = None
-    occupation: Optional[str] = None
-    address: Optional[str] = None
-    is_primary: Optional[bool] = True
-    can_pickup: Optional[bool] = True
+    user_id: Optional[UUID] = None
+    is_primary: Optional[bool] = None
+    is_emergency_contact: Optional[bool] = None
+
+    def stored_fields(self) -> dict:
+        out = self.model_dump(exclude_none=True, exclude={"student_id", "first_name", "last_name", "full_name"})
+        name = (self.full_name or " ".join(p for p in (self.first_name, self.last_name) if p)).strip()
+        if name:
+            out["full_name"] = name
+        return out
 
 
 class GuardianOut(BaseModel):
     id: UUID
-    school_id: UUID
+    school_id: Optional[UUID] = None
     student_id: UUID
     user_id: Optional[UUID] = None
-    first_name: str
-    last_name: str
+    full_name: Optional[str] = None
     relationship: Optional[str] = None
     phone: Optional[str] = None
     email: Optional[str] = None
     is_primary: Optional[bool] = None
+    is_emergency_contact: Optional[bool] = None
     created_at: Optional[datetime] = None
 
     model_config = {"from_attributes": True}

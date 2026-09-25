@@ -1042,7 +1042,7 @@ Constraints:
 reports_router = APIRouter(prefix="/reports", tags=["Reports"])
 
 
-async def resolve_effective_school_id(
+async def _candidate_school_id(
     school_id: Optional[str],
     request: Request,
     current_user: CurrentUser,
@@ -1087,6 +1087,41 @@ async def resolve_effective_school_id(
                 logger.warning("Optional step failed (%s): %s", "db.rollback", exc, exc_info=True)
 
     return current_user.school_id if getattr(current_user, "school_id", None) else None
+
+
+async def resolve_effective_school_id(
+    school_id: Optional[str],
+    request: Request,
+    current_user: CurrentUser,
+    db: DbSession,
+) -> Optional[UUID]:
+    """
+    The school a dashboard report is for: named in the query or header, or
+    the caller's own. Only for staff, and only a school they belong to.
+
+    Whatever school was named was served: any signed-in account, a parent
+    included, could read any school's KPIs, fee collections, attendance,
+    data health and activity timeline by putting its id in the URL.
+    """
+    if not current_user.is_super_admin and not (set(expand_roles(current_user.roles or [])) - {"parent", "student"}):
+        raise ForbiddenError("School reports are for the school's staff.")
+    sid = await _candidate_school_id(school_id, request, current_user, db)
+    if sid is None or current_user.is_super_admin:
+        return sid
+    if current_user.school_id and str(sid) == str(current_user.school_id):
+        return sid
+    member = await db.execute(
+        text(
+            "SELECT 1 FROM public.user_roles WHERE user_id = CAST(:uid AS uuid) AND school_id = CAST(:sid AS uuid)"
+            " AND role::text NOT IN ('parent', 'student')"
+            " UNION SELECT 1 FROM public.school_owner_assignments"
+            " WHERE owner_user_id = CAST(:uid AS uuid) AND school_id = CAST(:sid AS uuid) LIMIT 1"
+        ),
+        {"uid": str(current_user.id), "sid": str(sid)},
+    )
+    if member.first() is None:
+        raise ForbiddenError("You are not on the staff of that school.")
+    return sid
 
 
 @reports_router.get("/dashboard")

@@ -12,6 +12,8 @@ from app.exceptions import ForbiddenError
 from app.cache import get_redis
 from app.utils.db_proxy_policy import authorize_proxy_request
 from app.utils.permissions import expand_roles
+from app.utils import family_scope
+from app.utils.security import get_allowed_student_ids
 
 logger = logging.getLogger("app.vps_db")
 router = APIRouter(prefix="/vps-db", tags=["Generic DB Proxy"])
@@ -201,6 +203,34 @@ SUPER_ADMIN_RPC_FUNCTIONS = {
 _TENANT_PARAM_NAMES = ("_school_id", "school_id", "p_school_id", "in_school_id")
 
 
+async def _family_check_rows(db, rule, items, valid_columns, current_user, kids: set, params: dict) -> None:
+    """A family's insert: owner columns are the caller; a student is their own
+    child; and the table's own condition holds (e.g. the message replied to
+    is one they can see)."""
+    me = str(current_user.id)
+    for item in items:
+        if not isinstance(item, dict):
+            raise HTTPException(status_code=400, detail="Invalid payload format")
+        for col in rule.owner_cols:
+            if col in valid_columns:
+                item[col] = me
+        if (rule.child and "student_id" in valid_columns and item.get("student_id") is not None
+                and str(item["student_id"]) not in kids):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                                detail="You can only record this for your own child.")
+        if rule.insert_check:
+            bound = {k: v for k, v in params.items() if k.startswith("__") and not k.startswith("__v_")}
+            for col, val in item.items():
+                if is_valid_identifier(col):
+                    bound[f"__v_{col}"] = None if val is None else str(val)
+            for needed in re.findall(r":(__v_\w+)", rule.insert_check):
+                bound.setdefault(needed, None)
+            ok = (await db.execute(text(f"SELECT {rule.insert_check}"), bound)).scalar()
+            if not ok:
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                                    detail="That is not a conversation you are part of.")
+
+
 @router.post("/rpc")
 async def execute_rpc(payload: RpcPayload, current_user: CurrentUser, db: DbSession):
     fn = payload.fn
@@ -218,6 +248,15 @@ async def execute_rpc(payload: RpcPayload, current_user: CurrentUser, db: DbSess
             status_code=status.HTTP_403_FORBIDDEN,
             detail=f"Function '{fn}' is not callable through the data proxy.",
         )
+
+    # A parent or student calls only what concerns them (family_scope.py).
+    if family_scope.is_family_caller(current_user):
+        fn = family_scope.FAMILY_RPC_SUBSTITUTE.get(fn, fn)
+        if fn not in family_scope.FAMILY_RPC:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Function '{fn}' is not available to parent or student accounts.",
+            )
 
     # The request identity is published on the connection by get_db(); it used
     # to be set here with is_local=true, which any mid-request COMMIT discarded.
@@ -514,6 +553,35 @@ async def execute_query(query: QueryPayload, current_user: CurrentUser, db: DbSe
         params["__scope_school"] = scope_school
         params["__me"] = me
 
+    # Parents and students: their own children's rows, their own messages and
+    # settings, and the school's public structure. Everything else in the
+    # school was readable by them, and most of it writable (family_scope.py).
+    family_write = None
+    family_kids: set = set()
+    if family_scope.is_family_caller(current_user):
+        if action == "select":
+            family_filter = family_scope.read_rule(table_key, valid_columns)
+            if family_filter is None:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=f"'{query.table}' is not available to parent or student accounts.",
+                )
+        else:
+            family_write = family_scope.WRITE_RULES.get(table_key)
+            if family_write is None or action not in family_write.actions:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=f"Parent and student accounts cannot {action} '{query.table}'.",
+                )
+            family_filter = family_write.scope if action in ("update", "delete") else ""
+        family_kids = {str(k) for k in (await get_allowed_student_ids(current_user, db) or [])}
+        params["__kids"] = [uuid.UUID(k) for k in sorted(family_kids)]
+        params["__me"] = uuid.UUID(str(current_user.id))
+        params["__fam_school"] = await resolve_school_id_val(current_user.school_id)
+        params["__aud"] = family_scope.notice_audiences(current_user)
+        if family_filter:
+            where_clauses.append(f"({family_filter})")
+
     order_by_clauses = []
     limit_clause = ""
     filters_to_process = []
@@ -764,7 +832,10 @@ async def execute_query(query: QueryPayload, current_user: CurrentUser, db: DbSe
         items = query.payload if isinstance(query.payload, list) else [query.payload]
         if not items:
             return {"data": [], "error": None}
-            
+
+        if family_write is not None:
+            await _family_check_rows(db, family_write, items, valid_columns, current_user, family_kids, params)
+
         keys = list(items[0].keys())
         for k in keys:
             if not is_valid_identifier(k) or k not in valid_columns:
@@ -829,7 +900,13 @@ async def execute_query(query: QueryPayload, current_user: CurrentUser, db: DbSe
             if not is_valid_identifier(k) or k not in valid_columns:
                 return {"data": None, "error": {"message": f"Invalid column {k}"}}
             if k == "school_id" and not current_user.is_super_admin:
-                continue 
+                continue
+            if family_write is not None:
+                if k in family_write.owner_cols:
+                    continue
+                if k == "student_id" and v is not None and str(v) not in family_kids:
+                    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                                        detail="You can only record this for your own child.")
             updates.append(f'"{k}" = :u_{k}')
             params[f"u_{k}"] = cast_value(v, columns_types[k])
             
@@ -867,7 +944,10 @@ async def execute_query(query: QueryPayload, current_user: CurrentUser, db: DbSe
         items = query.payload if isinstance(query.payload, list) else [query.payload]
         if not items:
             return {"data": [], "error": None}
-            
+
+        if family_write is not None:
+            await _family_check_rows(db, family_write, items, valid_columns, current_user, family_kids, params)
+
         keys = list(items[0].keys())
         for k in keys:
             if not is_valid_identifier(k) or k not in valid_columns:

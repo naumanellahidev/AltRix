@@ -359,7 +359,18 @@ async def list_payments(
     if not current_user.school_id:
         return PaginatedResponse.create([], 0, page, page_size)
 
+    # Every payment in the school went to any signed-in account. Finance
+    # staff see the school's; a family sees its own children's.
     query = select(FeePayment).where(FeePayment.school_id == current_user.school_id)
+    effective_roles = expand_roles(current_user.roles or [])
+    if not (current_user.is_super_admin or any(r in effective_roles for r in FINANCE_GOV)):
+        if set(effective_roles) - {"parent", "student"}:
+            raise ForbiddenError("Payments are for the school's finance staff.")
+        from app.utils.security import get_allowed_student_ids
+        own = await get_allowed_student_ids(current_user, db) or []
+        if not own:
+            return PaginatedResponse.create([], 0, page, page_size)
+        query = query.where(FeePayment.student_id.in_(own))
     if current_user.campus_id:
         try:
             query = query.where(FeePayment.campus_id == UUID(current_user.campus_id))
@@ -468,6 +479,9 @@ async def finance_summary(
     """School financial summary: collected, outstanding, overdue."""
     if not current_user.school_id:
         raise ForbiddenError("No school context")
+    effective_roles = expand_roles(current_user.roles or [])
+    if not (current_user.is_super_admin or any(r in effective_roles for r in FINANCE_GOV)):
+        raise ForbiddenError("The school's financial summary is for its finance staff.")
 
     if current_user.campus_id and not campus_id:
         try:
@@ -1129,29 +1143,39 @@ async def list_duplicate_invoices(
     }
 
 
-import os
-import json
 from uuid import uuid4
 
-current_dir = os.path.dirname(os.path.abspath(__file__))
-BUDGET_STORE_FILE = os.path.abspath(os.path.join(current_dir, "..", "budget_store.json"))
+# ─── SALARY BUDGET (the accountant's forecast) ───────────────────────────────
+#
+# These answered for whatever school the caller named, to any signed-in
+# account, and deleted any target by id. When the database failed they
+# served a JSON file shipped with the code (older figures than the database
+# holds) or three invented salaries for made-up staff, and reported a save
+# that never reached the database as done. Now: finance and HR staff of the
+# school, their own school only, and a failure is reported as a failure.
 
-def load_budget_store():
-    if not os.path.exists(BUDGET_STORE_FILE):
-        return {"budget_targets": []}
-    try:
-        with open(BUDGET_STORE_FILE, "r") as f:
-            return json.load(f)
-    except:
-        return {"budget_targets": []}
+SALARY_VIEWERS = {*FINANCE_GOV, "hr_manager"}
 
-def save_budget_store(data):
-    try:
-        os.makedirs(os.path.dirname(BUDGET_STORE_FILE), exist_ok=True)
-        with open(BUDGET_STORE_FILE, "w") as f:
-            json.dump(data, f, indent=2)
-    except Exception as e:
-        logger.info("Failed to save budget store:", e)
+
+def _salary_school(current_user, school_id: Optional[UUID]) -> UUID:
+    roles = expand_roles(current_user.roles or [])
+    if not (current_user.is_super_admin or any(r in roles for r in SALARY_VIEWERS)):
+        raise ForbiddenError("Salary budgets are for the school's finance and HR staff.")
+    own = UUID(str(current_user.school_id)) if current_user.school_id else None
+    if school_id and not current_user.is_super_admin and school_id != own:
+        raise ForbiddenError("You can only see your own school's salary budget.")
+    target = school_id or own
+    if not target:
+        raise ForbiddenError("No school context")
+    return target
+
+
+def _unavailable(what: str, e: Exception) -> HTTPException:
+    logger.error(f"Salary budget: {what} failed: {e}")
+    return HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                         detail=f"Could not {what}. Nothing was changed; please try again.")
+
+
 @router.get("/budget-targets")
 async def get_budget_targets(
     current_user: CurrentUser,
@@ -1159,124 +1183,96 @@ async def get_budget_targets(
     school_id: Optional[UUID] = Query(None),
     year: Optional[int] = Query(None),
 ):
-    target_sid = school_id or (UUID(str(current_user.school_id)) if current_user.school_id else None)
-    if not target_sid:
-        raise ForbiddenError("No school context")
+    target_sid = _salary_school(current_user, school_id)
     target_year = year or datetime.now(timezone.utc).year
     try:
-        sql = "SELECT id, fiscal_year, department, role, budget_amount, notes FROM salary_budget_targets WHERE school_id = :sid AND fiscal_year = :year ORDER BY role ASC"
-        res = await db.execute(text(sql), {"sid": str(target_sid), "year": target_year})
+        res = await db.execute(
+            text("SELECT id, fiscal_year, department, role, budget_amount, notes FROM salary_budget_targets"
+                 " WHERE school_id = :sid AND fiscal_year = :year ORDER BY role ASC"),
+            {"sid": str(target_sid), "year": target_year},
+        )
         rows = res.fetchall()
-        return [
-            {
-                "id": str(r[0]),
-                "fiscal_year": r[1],
-                "department": r[2],
-                "role": r[3],
-                "budget_amount": float(r[4]) if r[4] is not None else 0,
-                "notes": r[5]
-            }
-            for r in rows
-        ]
     except Exception as e:
-        logger.info("DB error fetching budget targets, using local store:", e)
-        store = load_budget_store()
-        targets = [
-            t for t in store["budget_targets"]
-            if t.get("school_id") == str(target_sid) and t.get("fiscal_year") == target_year
-        ]
-        return targets
+        raise _unavailable("load the budget targets", e)
+    return [
+        {
+            "id": str(r[0]),
+            "fiscal_year": r[1],
+            "department": r[2],
+            "role": r[3],
+            "budget_amount": float(money(r[4])) if r[4] is not None else None,
+            "notes": r[5],
+        }
+        for r in rows
+    ]
 
 
 @router.post("/budget-targets")
 async def create_or_update_budget_target(body: dict, current_user: CurrentUser, db: DbSession):
-    if not current_user.school_id:
-        raise ForbiddenError("No school context")
-        
+    raw_school = body.get("school_id")
+    try:
+        school_id = UUID(str(raw_school)) if raw_school else None
+    except ValueError:
+        raise HTTPException(status_code=400, detail="school_id is not a valid id")
+    school_id = _salary_school(current_user, school_id)
     target_id = body.get("id")
-    school_id = body.get("school_id")
     fiscal_year = body.get("fiscal_year")
     role = body.get("role") or None
     department = body.get("department") or None
-    budget_amount = body.get("budget_amount")
     notes = body.get("notes") or None
-    
-    if not school_id or not fiscal_year or budget_amount is None:
+    if not fiscal_year or body.get("budget_amount") in (None, ""):
         raise HTTPException(status_code=400, detail="Missing required budget parameters")
-        
-    if not target_id:
-        target_id = str(uuid4())
-        is_new = True
-    else:
-        is_new = False
-        
     try:
-        if is_new:
-            sql = """
-                INSERT INTO salary_budget_targets (id, school_id, fiscal_year, role, department, budget_amount, notes)
-                VALUES (:id, :sid, :year, :role, :dept, :amount, :notes)
-            """
+        amount = money(body.get("budget_amount"))
+    except Exception:
+        raise HTTPException(status_code=400, detail="budget_amount is not a number")
+    if amount < 0:
+        raise HTTPException(status_code=400, detail="budget_amount cannot be negative")
+
+    params = {"id": str(target_id or uuid4()), "sid": str(school_id), "year": fiscal_year,
+              "role": role, "dept": department, "amount": amount, "notes": notes}
+    try:
+        if target_id:
+            res = await db.execute(
+                text("UPDATE salary_budget_targets SET role = :role, department = :dept,"
+                     " budget_amount = :amount, notes = :notes WHERE id = CAST(:id AS uuid) AND school_id = CAST(:sid AS uuid)"),
+                params,
+            )
+            if not res.rowcount:
+                raise NotFoundError("Budget target", str(target_id))
         else:
-            sql = """
-                UPDATE salary_budget_targets 
-                SET role = :role, department = :dept, budget_amount = :amount, notes = :notes
-                WHERE id = :id
-            """
-        await db.execute(text(sql), {
-            "id": target_id,
-            "sid": str(school_id),
-            "year": fiscal_year,
-            "role": role,
-            "dept": department,
-            "amount": budget_amount,
-            "notes": notes
-        })
+            await db.execute(
+                text("INSERT INTO salary_budget_targets (id, school_id, fiscal_year, role, department, budget_amount, notes)"
+                     " VALUES (CAST(:id AS uuid), CAST(:sid AS uuid), :year, :role, :dept, :amount, :notes)"),
+                params,
+            )
         await db.commit()
-        return {"id": target_id, "school_id": school_id, "fiscal_year": fiscal_year, "role": role, "department": department, "budget_amount": budget_amount, "notes": notes}
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.info("DB error saving budget target, using local store:", e)
-        store = load_budget_store()
-        if is_new:
-            target = {
-                "id": target_id,
-                "school_id": str(school_id),
-                "fiscal_year": fiscal_year,
-                "role": role,
-                "department": department,
-                "budget_amount": budget_amount,
-                "notes": notes
-            }
-            store["budget_targets"].append(target)
-        else:
-            for t in store["budget_targets"]:
-                if t.get("id") == target_id:
-                    t["role"] = role
-                    t["department"] = department
-                    t["budget_amount"] = budget_amount
-                    t["notes"] = notes
-                    break
-        save_budget_store(store)
-        return {"id": target_id, "school_id": school_id, "fiscal_year": fiscal_year, "role": role, "department": department, "budget_amount": budget_amount, "notes": notes}
+        await db.rollback()
+        raise _unavailable("save the budget target", e)
+    return {"id": params["id"], "school_id": str(school_id), "fiscal_year": fiscal_year, "role": role,
+            "department": department, "budget_amount": float(amount), "notes": notes}
 
 
 @router.delete("/budget-targets/{target_id}")
 async def delete_budget_target(target_id: UUID, current_user: CurrentUser, db: DbSession):
-    if not current_user.school_id:
-        raise ForbiddenError("No school context")
+    school_id = _salary_school(current_user, None)
     try:
-        sql = "DELETE FROM salary_budget_targets WHERE id = :id"
-        await db.execute(text(sql), {"id": str(target_id)})
+        res = await db.execute(
+            text("DELETE FROM salary_budget_targets WHERE id = :id AND school_id = CAST(:sid AS uuid)"),
+            {"id": str(target_id), "sid": str(school_id)},
+        )
+        if not res.rowcount:
+            raise NotFoundError("Budget target", str(target_id))
         await db.commit()
-        return {"message": "Budget target deleted"}
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.info("DB error deleting budget target, using local store:", e)
-        store = load_budget_store()
-        store["budget_targets"] = [
-            t for t in store["budget_targets"]
-            if t.get("id") != str(target_id)
-        ]
-        save_budget_store(store)
-        return {"message": "Budget target deleted"}
+        await db.rollback()
+        raise _unavailable("delete the budget target", e)
+    return {"message": "Budget target deleted"}
 
 
 @router.get("/salary-records")
@@ -1285,35 +1281,28 @@ async def get_salary_records(
     db: DbSession,
     school_id: Optional[UUID] = Query(None),
 ):
-    target_sid = school_id or (UUID(str(current_user.school_id)) if current_user.school_id else None)
-    if not target_sid:
-        raise ForbiddenError("No school context")
+    target_sid = _salary_school(current_user, school_id)
+    sql = ("SELECT id, user_id, base_salary, allowances, deductions, is_active FROM hr_salary_records"
+           " WHERE school_id = :sid AND is_active = true")
+    params = {"sid": str(target_sid)}
+    if current_user.campus_id:
+        sql += " AND user_id IN (SELECT user_id FROM user_roles WHERE school_id = :sid AND campus_id = :campus_id)"
+        params["campus_id"] = current_user.campus_id
     try:
-        sql = "SELECT id, user_id, base_salary, allowances, deductions, is_active FROM hr_salary_records WHERE school_id = :sid AND is_active = true"
-        params = {"sid": str(target_sid)}
-        if current_user.campus_id:
-            sql += " AND user_id IN (SELECT user_id FROM user_roles WHERE school_id = :sid AND campus_id = :campus_id)"
-            params["campus_id"] = current_user.campus_id
-        res = await db.execute(text(sql), params)
-        rows = res.fetchall()
-        return [
-            {
-                "id": str(r[0]),
-                "user_id": str(r[1]),
-                "base_salary": float(r[2]) if r[2] is not None else 0,
-                "allowances": float(r[3]) if r[3] is not None else 0,
-                "deductions": float(r[4]) if r[4] is not None else 0,
-                "is_active": r[5]
-            }
-            for r in rows
-        ]
+        rows = (await db.execute(text(sql), params)).fetchall()
     except Exception as e:
-        logger.info("DB error fetching salary records, using local fallback:", e)
-        return [
-            {"id": "sal-1", "user_id": "a1701267-3759-4fcf-bc08-bdf73c91fb65", "base_salary": 50000, "allowances": 5000, "deductions": 2000, "is_active": True},
-            {"id": "sal-2", "user_id": "b2701267-3759-4fcf-bc08-bdf73c91fb66", "base_salary": 120000, "allowances": 15000, "deductions": 5000, "is_active": True},
-            {"id": "sal-3", "user_id": "c3701267-3759-4fcf-bc08-bdf73c91fb67", "base_salary": 45000, "allowances": 4000, "deductions": 1500, "is_active": True}
-        ]
+        raise _unavailable("load the salary records", e)
+    return [
+        {
+            "id": str(r[0]),
+            "user_id": str(r[1]),
+            "base_salary": float(money(r[2])) if r[2] is not None else None,
+            "allowances": float(money(r[3])) if r[3] is not None else None,
+            "deductions": float(money(r[4])) if r[4] is not None else None,
+            "is_active": r[5],
+        }
+        for r in rows
+    ]
 
 
 @router.get("/staff-roles")
@@ -1322,25 +1311,17 @@ async def get_staff_roles(
     db: DbSession,
     school_id: Optional[UUID] = Query(None),
 ):
-    target_sid = school_id or (UUID(str(current_user.school_id)) if current_user.school_id else None)
-    if not target_sid:
-        raise ForbiddenError("No school context")
+    target_sid = _salary_school(current_user, school_id)
+    sql = "SELECT user_id, role FROM user_roles WHERE school_id = :sid"
+    params = {"sid": str(target_sid)}
+    if current_user.campus_id:
+        sql += " AND campus_id = :campus_id"
+        params["campus_id"] = current_user.campus_id
     try:
-        sql = "SELECT user_id, role FROM user_roles WHERE school_id = :sid"
-        params = {"sid": str(target_sid)}
-        if current_user.campus_id:
-            sql += " AND campus_id = :campus_id"
-            params["campus_id"] = current_user.campus_id
-        res = await db.execute(text(sql), params)
-        rows = res.fetchall()
-        return [{"user_id": str(r[0]), "role": r[1]} for r in rows]
+        rows = (await db.execute(text(sql), params)).fetchall()
     except Exception as e:
-        logger.info("DB error fetching staff roles, using local fallback:", e)
-        return [
-            {"user_id": "a1701267-3759-4fcf-bc08-bdf73c91fb65", "role": "teacher"},
-            {"user_id": "b2701267-3759-4fcf-bc08-bdf73c91fb66", "role": "principal"},
-            {"user_id": "c3701267-3759-4fcf-bc08-bdf73c91fb67", "role": "accountant"}
-        ]
+        raise _unavailable("load the staff roles", e)
+    return [{"user_id": str(r[0]), "role": r[1]} for r in rows]
 
 
 # ─── INSTALLMENT PLANS ───────────────────────────────────────────────────────

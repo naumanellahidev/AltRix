@@ -26,6 +26,31 @@ from app.schemas import (
 from app.utils.pagination import ListPageParams, PaginatedResponse, PaginationParams
 from app.utils.permissions import expand_roles, ACADEMIC_GOV
 
+
+# A guardian link is what gives an account a child's records: marks, fees,
+# attendance, health. Any signed-in account could create one, for any
+# student, in any school, and so read any child. Only the school's
+# administration links parents to children now, and only its own students.
+def _require_guardian_admin(user) -> None:
+    roles = expand_roles(user.roles or [])
+    if not (user.is_super_admin or any(r in roles for r in ACADEMIC_GOV)):
+        raise ForbiddenError("Only the school's administration can link parents to students.")
+
+
+def _is_staff(user) -> bool:
+    return bool(user.is_super_admin or set(expand_roles(user.roles or [])) - {"parent", "student"})
+
+
+async def _own_student(db, student_id, user) -> None:
+    """The student belongs to the caller's school (404 otherwise, as for a missing one)."""
+    if not user.school_id:
+        raise ForbiddenError("No school context")
+    found = await db.execute(
+        select(Student.id).where(Student.id == student_id, Student.school_id == user.school_id)
+    )
+    if found.first() is None:
+        raise NotFoundError("Student", str(student_id))
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/students", tags=["Students"])
@@ -228,6 +253,8 @@ class GuardianUpdateAll(BaseModel):
 async def get_student_enrollments(current_user: CurrentUser, db: DbSession):
     if not current_user.school_id:
         return []
+    if not _is_staff(current_user):
+        raise ForbiddenError("Only school staff can list enrolments.")
     try:
         sql = "SELECT student_id, class_section_id FROM student_enrollments WHERE school_id = :school_id"
         res = await db.execute(text(sql), {"school_id": current_user.school_id})
@@ -248,6 +275,9 @@ async def get_student_enrollments(current_user: CurrentUser, db: DbSession):
 async def get_parents_directory(current_user: CurrentUser, db: DbSession):
     if not current_user.school_id:
         return []
+    # Every parent's name and email: the school's staff only.
+    if not _is_staff(current_user):
+        raise ForbiddenError("Only school staff can list parents.")
     try:
         sql = """
             SELECT DISTINCT r.user_id, p.display_name, u.email
@@ -275,11 +305,16 @@ async def get_parents_directory(current_user: CurrentUser, db: DbSession):
 async def get_all_guardians(current_user: CurrentUser, db: DbSession):
     if not current_user.school_id:
         return []
+    # Every family's names, phones and emails: the school's staff only.
+    if not _is_staff(current_user):
+        raise ForbiddenError("Only school staff can list guardians.")
     try:
         result = await db.execute(
             select(Guardian).where(Guardian.school_id == current_user.school_id).order_by(Guardian.created_at.desc())
         )
         return result.scalars().all()
+    except HTTPException:
+        raise
     except Exception as e:
         import logging
         logging.getLogger("app.students").warning(f"Error fetching all guardians: {e}")
@@ -290,6 +325,8 @@ async def get_all_guardians(current_user: CurrentUser, db: DbSession):
 async def create_school_guardian(body: GuardianCreateAll, current_user: CurrentUser, db: DbSession):
     if not current_user.school_id:
         raise ForbiddenError("No school context")
+    _require_guardian_admin(current_user)
+    await _own_student(db, body.student_id, current_user)
     try:
         guardian = Guardian(
             school_id=current_user.school_id,
@@ -305,6 +342,8 @@ async def create_school_guardian(body: GuardianCreateAll, current_user: CurrentU
         await db.flush()
         await db.refresh(guardian)
         return guardian
+    except HTTPException:
+        raise
     except Exception as e:
         import logging
         logging.getLogger("app.students").error(f"Error creating guardian: {e}")
@@ -315,6 +354,9 @@ async def create_school_guardian(body: GuardianCreateAll, current_user: CurrentU
 async def update_school_guardian(guardian_id: UUID, body: GuardianUpdateAll, current_user: CurrentUser, db: DbSession):
     if not current_user.school_id:
         raise ForbiddenError("No school context")
+    _require_guardian_admin(current_user)
+    if getattr(body, "student_id", None):
+        await _own_student(db, body.student_id, current_user)
     try:
         result = await db.execute(
             select(Guardian).where(Guardian.id == guardian_id, Guardian.school_id == current_user.school_id)
@@ -328,6 +370,8 @@ async def update_school_guardian(guardian_id: UUID, body: GuardianUpdateAll, cur
         await db.flush()
         await db.refresh(guardian)
         return guardian
+    except HTTPException:
+        raise
     except Exception as e:
         import logging
         logging.getLogger("app.students").error(f"Error updating guardian: {e}")
@@ -338,6 +382,7 @@ async def update_school_guardian(guardian_id: UUID, body: GuardianUpdateAll, cur
 async def delete_school_guardian(guardian_id: UUID, current_user: CurrentUser, db: DbSession):
     if not current_user.school_id:
         raise ForbiddenError("No school context")
+    _require_guardian_admin(current_user)
     try:
         result = await db.execute(
             select(Guardian).where(Guardian.id == guardian_id, Guardian.school_id == current_user.school_id)
@@ -347,6 +392,8 @@ async def delete_school_guardian(guardian_id: UUID, current_user: CurrentUser, d
             raise NotFoundError("Guardian", str(guardian_id))
         await db.delete(guardian)
         return {"status": "success"}
+    except HTTPException:
+        raise
     except Exception as e:
         import logging
         logging.getLogger("app.students").error(f"Error deleting guardian: {e}")
@@ -469,6 +516,12 @@ async def delete_student(student_id: UUID, current_user: CurrentUser, db: DbSess
 
 @router.get("/{student_id}/guardians", response_model=List[GuardianOut])
 async def list_guardians(student_id: UUID, current_user: CurrentUser, db: DbSession, page: ListPageParams):
+    # Any student's guardians, in any school, were readable by id.
+    await _own_student(db, student_id, current_user)
+    if not _is_staff(current_user):
+        from app.utils.security import get_allowed_student_ids
+        if student_id not in {UUID(str(s)) for s in (await get_allowed_student_ids(current_user, db) or [])}:
+            raise NotFoundError("Student", str(student_id))
     result = await db.execute(
         page.apply(select(Guardian).where(Guardian.student_id == student_id).order_by(Guardian.is_primary.desc()))
     )
@@ -479,11 +532,12 @@ async def list_guardians(student_id: UUID, current_user: CurrentUser, db: DbSess
 async def add_guardian(student_id: UUID, body: GuardianCreate, current_user: CurrentUser, db: DbSession):
     if not current_user.school_id:
         raise ForbiddenError("No school context")
-    guardian = Guardian(
-        school_id=current_user.school_id,
-        student_id=student_id,
-        **{k: v for k, v in body.model_dump().items() if k != "student_id"},
-    )
+    _require_guardian_admin(current_user)
+    await _own_student(db, student_id, current_user)
+    fields = body.stored_fields()
+    if not fields.get("full_name"):
+        raise HTTPException(status_code=422, detail="The guardian's name is required.")
+    guardian = Guardian(school_id=current_user.school_id, student_id=student_id, **fields)
     db.add(guardian)
     await db.flush()
     await db.refresh(guardian)
@@ -495,13 +549,15 @@ async def update_guardian(
     student_id: UUID, guardian_id: UUID, body: GuardianCreate,
     current_user: CurrentUser, db: DbSession,
 ):
+    _require_guardian_admin(current_user)
+    await _own_student(db, student_id, current_user)
     result = await db.execute(
         select(Guardian).where(Guardian.id == guardian_id, Guardian.student_id == student_id)
     )
     guardian = result.scalar_one_or_none()
     if not guardian:
         raise NotFoundError("Guardian", str(guardian_id))
-    for field, value in body.model_dump(exclude_none=True, exclude={"student_id"}).items():
+    for field, value in body.stored_fields().items():
         setattr(guardian, field, value)
     await db.flush()
     await db.refresh(guardian)
@@ -510,6 +566,8 @@ async def update_guardian(
 
 @router.delete("/{student_id}/guardians/{guardian_id}", response_model=MessageResponse)
 async def delete_guardian(student_id: UUID, guardian_id: UUID, current_user: CurrentUser, db: DbSession):
+    _require_guardian_admin(current_user)
+    await _own_student(db, student_id, current_user)
     result = await db.execute(
         select(Guardian).where(Guardian.id == guardian_id, Guardian.student_id == student_id)
     )

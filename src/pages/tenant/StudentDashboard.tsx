@@ -91,6 +91,7 @@ const StudentDashboard = () => {
 
   // Universal prefetch for offline support
   useUniversalPrefetch({
+    scope: "family",
     schoolId,
     userId: user?.id ?? null,
     enabled: !!schoolId && !!user && authzState === 'ok',

@@ -18,7 +18,22 @@ from app.schemas import (
     AttendanceSessionOut, AttendanceEntryOut,
     MessageResponse,
 )
-from app.utils.permissions import expand_roles, ACADEMIC_GOV
+from app.utils.permissions import expand_roles, ACADEMIC_GOV, STAFF_GOV
+
+
+# Marking and reading a class's register is for its teachers and the
+# academic administration. None of the endpoints below checked the caller:
+# a parent or student could mark a session, wipe one, or read any section's
+# register and the school-wide report.
+def _require_marker(user) -> None:
+    roles = expand_roles(user.roles or [])
+    if not (user.is_super_admin or "teacher" in roles or any(r in roles for r in ACADEMIC_GOV)):
+        raise ForbiddenError("Only teachers and the school's administration can take attendance.")
+
+
+def _require_staff(user) -> None:
+    if not (user.is_super_admin or set(expand_roles(user.roles or [])) - {"parent", "student"}):
+        raise ForbiddenError("Only school staff can see this.")
 from app.utils.pagination import ListPageParams
 
 router = APIRouter(prefix="/attendance", tags=["Attendance"])
@@ -175,9 +190,12 @@ async def bulk_mark_attendance(
     if not current_user.school_id:
         raise ForbiddenError("No school context")
 
-    # Verify session exists
+    _require_marker(current_user)
+    # Verify the session exists in this school (it was looked up in any school).
     session_result = await db.execute(
-        select(AttendanceSession).where(AttendanceSession.id == session_id)
+        select(AttendanceSession).where(
+            AttendanceSession.id == session_id, AttendanceSession.school_id == current_user.school_id
+        )
     )
     session = session_result.scalar_one_or_none()
     if not session:
@@ -244,6 +262,7 @@ async def attendance_report(
     """Generate attendance summary: present/absent/late counts."""
     if not current_user.school_id:
         return []
+    _require_staff(current_user)
 
     conditions = ["ae.school_id = :school_id"]
     params: dict = {"school_id": current_user.school_id}
@@ -314,6 +333,7 @@ async def get_or_create_session(
 ):
     if not current_user.school_id:
         raise ForbiddenError("No school context")
+    _require_marker(current_user)
     
     import datetime
     from fastapi import HTTPException
@@ -393,7 +413,16 @@ async def save_attendance_entries(
 ):
     if not current_user.school_id:
         raise ForbiddenError("No school context")
-        
+    _require_marker(current_user)
+    # The session must be this school's; entries were written against any id.
+    owned = await db.execute(
+        select(AttendanceSession.id).where(
+            AttendanceSession.id == session_id, AttendanceSession.school_id == current_user.school_id
+        )
+    )
+    if owned.first() is None:
+        raise NotFoundError("Session", str(session_id))
+
     await db.execute(
         text("DELETE FROM attendance_entries WHERE session_id = :session_id AND school_id = :school_id"),
         {"session_id": str(session_id), "school_id": current_user.school_id}
@@ -441,6 +470,7 @@ async def list_session_history(
 ):
     if not current_user.school_id:
         return []
+    _require_staff(current_user)
     query = (
         select(AttendanceSession)
         .where(
@@ -462,6 +492,7 @@ async def load_student_attendance_stats(
 ):
     if not current_user.school_id:
         return []
+    _require_staff(current_user)
         
     sessions_res = await db.execute(
         select(AttendanceSession.id).where(
@@ -528,6 +559,7 @@ async def get_session_roster(
 ):
     if not current_user.school_id:
         return []
+    _require_marker(current_user)
         
     res = await db.execute(
         select(AttendanceSession.class_section_id).where(
@@ -579,6 +611,7 @@ async def list_staff_attendance(
 ):
     if not current_user.school_id:
         return []
+    _require_staff(current_user)
     query = select(StaffAttendance).where(StaffAttendance.school_id == current_user.school_id)
     if user_id:
         query = query.where(StaffAttendance.user_id == user_id)
@@ -603,6 +636,13 @@ async def list_staff_attendance(
 async def mark_staff_attendance(body: dict, current_user: CurrentUser, db: DbSession):
     if not current_user.school_id:
         raise ForbiddenError("No school context")
+    # HR and the administration mark anyone; a member of staff only themselves.
+    _require_staff(current_user)
+    roles = expand_roles(current_user.roles or [])
+    if not (current_user.is_super_admin or any(r in roles for r in STAFF_GOV)):
+        if str(body.get("user_id") or current_user.id) != str(current_user.id):
+            raise ForbiddenError("You can only record your own attendance.")
+        body = {**body, "user_id": str(current_user.id)}
     
     import datetime
     data = {k: v for k, v in body.items() if k in [
@@ -634,6 +674,11 @@ async def get_staff_today(
     school_id: Optional[UUID] = Query(None),
     date: Optional[str] = Query(None),
 ):
+    # Another school's staff, with where each checked in, was one query
+    # parameter away. Only a platform administrator names a school.
+    _require_staff(current_user)
+    if school_id and not current_user.is_super_admin and str(school_id) != str(current_user.school_id):
+        raise ForbiddenError("You can only see your own school's staff attendance.")
     target_school_id = school_id or (UUID(str(current_user.school_id)) if current_user.school_id else None)
     if not target_school_id:
         raise ForbiddenError("No school context")

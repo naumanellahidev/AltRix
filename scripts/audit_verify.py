@@ -795,6 +795,29 @@ def run():
     check(S, "nav1", "every command-palette destination is a screen the role can open",
           not dead and "reachable(item.href)" in palette, f"dead: {dead}")
 
+    # Parents and students see their own children, not the school: through
+    # the data proxy (reads, writes and functions), live updates, and the
+    # offline warm-up, which copied the whole school onto a parent's device.
+    wsm = code("backend/app/websocket_manager.py")
+    check(S, "fam1", "parents and students reach only their own children's data, however they ask",
+          vps.count("family_scope.is_family_caller(current_user)") >= 2
+          and "_family_check_rows(" in vps
+          and "await self.broadcast_change(school_id, payload)" in wsm
+          and "_family_views_for_user(" in code(R + "realtime.py")
+          and all('scope: "family"' in txt(f"src/pages/tenant/{d}Dashboard.tsx") for d in ("Parent", "Student")))
+
+    # Endpoints that never looked at the caller: guardian links (which grant a
+    # child's records), registers, payments, salary budgets, appraisals and
+    # dashboards named by any school id.
+    stu, att, fin = code(R + "students.py"), code(R + "attendance.py"), code(R + "finance.py")
+    check(S, "acc1", "guardian links, registers, payments, salaries, appraisals and dashboards check the caller",
+          stu.count("_require_guardian_admin(current_user)") >= 5
+          and att.count("_require_marker(current_user)") >= 4
+          and "_salary_school(current_user" in fin and "budget_store" not in fin
+          and not exists("backend/app/budget_store.json")
+          and "STAFF_GOV" in code(R + "appraisals.py")
+          and "You are not on the staff of that school." in code(R + "misc.py"))
+
     check(S, "inv1", "no screen invents the figures, people, files or backups it shows",
           "/platform/health-metrics" in txt("src/pages/platform/PlatformHealthPage.tsx")
           and "mockData" not in txt("src/pages/platform/PlatformDashboardPage.tsx")

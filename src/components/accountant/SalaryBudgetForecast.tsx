@@ -114,7 +114,8 @@ export function SalaryBudgetForecast() {
     queryFn: async () => {
       if (USE_FASTAPI) {
         const { data } = await apiClient.get(`/finance/budget-targets?school_id=${schoolId}&year=${selectedYear}`);
-        return (data || []) as BudgetTarget[];
+        // Amounts arrive as exact decimal strings.
+        return ((data || []) as any[]).map((b) => ({ ...b, budget_amount: Number(b.budget_amount ?? 0) })) as BudgetTarget[];
       } else {
         const { data, error } = await api
           .from("salary_budget_targets")
@@ -135,7 +136,12 @@ export function SalaryBudgetForecast() {
     queryFn: async () => {
       if (USE_FASTAPI) {
         const { data } = await apiClient.get(`/finance/salary-records?school_id=${schoolId}`);
-        return (data || []) as SalaryRecord[];
+        return ((data || []) as any[]).map((r) => ({
+          ...r,
+          base_salary: Number(r.base_salary ?? 0),
+          allowances: Number(r.allowances ?? 0),
+          deductions: Number(r.deductions ?? 0),
+        })) as SalaryRecord[];
       } else {
         const { data, error } = await api
           .from("hr_salary_records")
