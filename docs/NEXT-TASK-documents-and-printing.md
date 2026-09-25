@@ -1687,3 +1687,33 @@ in the wrong place or saying too little:
   screen-reader description. `net::ERR_NAME_NOT_RESOLVED` in that screenshot
   was the computer's own DNS failing for a moment, which no code on the site
   can cause or prevent. The app now recovers from it on its own.
+
+### The platform owner, and counting people in their own groups (25 Sep 2026)
+
+- **The platform owner is never listed in a school.** The owner's account
+  (the platform super admin) can open any school, and nobody else may see
+  it. The Users and Directory screens had hidden it by a hard-coded email in
+  the browser. Now:
+  - migration `20261031000000_hide_platform_owner.sql` adds
+    `is_platform_owner()`;
+  - every people list the database hands out leaves the account out:
+    `get_school_user_directory`, `list_school_user_profiles`,
+    `get_school_staff_directory` and the `school_user_directory` view;
+  - the Copilot's staff, teacher, parent and user answers leave it out too.
+  The rule is by role (`platform_super_admins`), not by address, so it holds
+  even if the account is ever given a role in a school. (It has none today,
+  so no school's numbers change.)
+- **Each group is counted on its own** (Beacon, live):
+  - staff: 13 (every role but parent and student, plus the HR directory);
+  - teachers: 5, with the classes and subjects each teaches;
+  - parent accounts: 1, and how many students have one linked (1) or not (8);
+  - user accounts: 19 in all, by role (staff 13, teachers 5, parents 1,
+    students 5);
+  - students: 9, from the student records.
+  "Teachers" used to be a filter on the staff answer ("5 staff members —
+  teachers"); it is now its own answer. The school overview lists teachers
+  and parent accounts too. Contact details now come from the user's profile:
+  the directory view returns an empty email for everyone.
+- `user_roles` now announces its changes (migration
+  `20261031000100_copilot_change_notifications_people.sql`), so a users or
+  parents answer is flagged when someone is added.

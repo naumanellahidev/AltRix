@@ -64,24 +64,45 @@ def section_label(expr: str) -> str:
     )
 
 
+#: The platform's own administrator: may open any school, is one of nobody's
+#: people, and is never listed or counted (the owner's instruction).
+def not_platform_owner(uid: str) -> str:
+    return f"NOT EXISTS (SELECT 1 FROM platform_super_admins psa WHERE psa.user_id = {uid})"
+
+
 #: Everyone who works at the school: the HR directory, plus every staff
 #: account (any role but parent or student) not already linked to an entry
-#: in it. Named by the directory, or else by the account.
+#: in it. Named by the directory, or else by the account's profile.
 STAFF_UNION = (
     "(SELECT d.school_id, d.full_name, d.position, d.department, "
     "COALESCE(d.phone, d.email) AS contact, d.joining_date, d.is_active, d.linked_user_id AS user_id "
     "FROM hr_staff_directory d "
+    "WHERE d.linked_user_id IS NULL OR " + not_platform_owner("d.linked_user_id") + " "
     "UNION ALL "
-    "SELECT ur.school_id, COALESCE(NULLIF(u.display_name, ''), u.email, 'Unnamed account') AS full_name, "
+    "SELECT ur.school_id, COALESCE(NULLIF(p.display_name, ''), p.email, 'Unnamed account') AS full_name, "
     "string_agg(DISTINCT initcap(replace(ur.role::text, '_', ' ')), ', ') AS position, "
-    "NULL::text AS department, u.email AS contact, NULL::date AS joining_date, true AS is_active, "
-    "ur.user_id "
-    "FROM user_roles ur LEFT JOIN school_user_directory u "
-    "ON u.user_id = ur.user_id AND u.school_id = ur.school_id "
-    "WHERE ur.role::text NOT IN ('parent', 'student') "
+    "NULL::text AS department, COALESCE(p.phone, p.email) AS contact, NULL::date AS joining_date, "
+    "true AS is_active, ur.user_id "
+    "FROM user_roles ur LEFT JOIN profiles p ON p.id = ur.user_id "
+    "WHERE ur.role::text NOT IN ('parent', 'student') AND " + not_platform_owner("ur.user_id") + " "
     "AND NOT EXISTS (SELECT 1 FROM hr_staff_directory d2 "
     "WHERE d2.linked_user_id = ur.user_id AND d2.school_id = ur.school_id) "
-    "GROUP BY ur.school_id, ur.user_id, u.display_name, u.email) t"
+    "GROUP BY ur.school_id, ur.user_id, p.display_name, p.email, p.phone) t"
+)
+
+#: Every account in the school, one row per person, with what they are.
+USERS_UNION = (
+    "(SELECT ur.school_id, ur.user_id, "
+    "COALESCE(NULLIF(p.display_name, ''), p.email, 'Unnamed account') AS name, p.email, p.phone, "
+    "string_agg(DISTINCT initcap(replace(ur.role::text, '_', ' ')), ', ') AS roles, "
+    "bool_or(ur.role::text NOT IN ('parent', 'student')) AS is_staff, "
+    "bool_or(ur.role::text = 'teacher') AS is_teacher, "
+    "bool_or(ur.role::text = 'parent') AS is_parent, "
+    "bool_or(ur.role::text = 'student') AS is_student, "
+    "MIN(p.created_at) AS joined "
+    "FROM user_roles ur LEFT JOIN profiles p ON p.id = ur.user_id "
+    "WHERE " + not_platform_owner("ur.user_id") + " "
+    "GROUP BY ur.school_id, ur.user_id, p.display_name, p.email, p.phone) t"
 )
 
 
@@ -658,10 +679,88 @@ SOURCES: Tuple[Source, ...] = (
         aggregates=(Agg("Budget", "SUM(t.budget)", label_ur="Budget"),),
     ),
     Source(
+        key="teachers", module="Staff", title="teachers", title_ur="asatza",
+        keywords=("teacher", "teachers", "ustad", "ustaad", "asatza", "asatiza", "faculty",
+                  "current teachers", "all teachers", "teaching staff", "kitne teachers", "kitne ustad"),
+        frm=STAFF_UNION, table="hr_staff_directory",
+        columns=(
+            Col("Name", "t.full_name", label_ur="Naam"),
+            Col("Classes", "(SELECT string_agg(DISTINCT concat_ws(' ', ac.name, cs.name), ', ') "
+                "FROM class_sections cs JOIN academic_classes ac ON ac.id = cs.class_id "
+                "WHERE cs.id IN (SELECT ta.class_section_id FROM teacher_assignments ta WHERE ta.teacher_user_id = t.user_id "
+                "UNION SELECT tsa.class_section_id FROM teacher_subject_assignments tsa WHERE tsa.teacher_user_id = t.user_id "
+                "UNION SELECT te.class_section_id FROM timetable_entries te WHERE te.teacher_user_id = t.user_id))"),
+            Col("Subjects", "(SELECT string_agg(DISTINCT sub.name, ', ') FROM subjects sub WHERE sub.id IN ("
+                "SELECT ta.subject_id FROM teacher_assignments ta WHERE ta.teacher_user_id = t.user_id "
+                "UNION SELECT tsa.subject_id FROM teacher_subject_assignments tsa WHERE tsa.teacher_user_id = t.user_id))"),
+            Col("Contact", "t.contact"),
+            Col("Joined", "t.joining_date", "date"),
+        ),
+        roles=STAFF, order_by="t.full_name ASC",
+        always_where="t.is_active = true AND lower(COALESCE(t.position, '')) LIKE '%teach%'",
+        name_cols=("t.full_name",), self_expr="t.user_id",
+        count_noun="teachers", count_noun_ur="asatza",
+    ),
+    Source(
+        key="parents", module="Parents", title="parent accounts", title_ur="walidain ke accounts",
+        keywords=("parent", "parents", "walidain", "waldain", "guardian", "guardians", "sarparast",
+                  "parent accounts", "parents accounts", "kitne parents", "mothers", "fathers"),
+        frm=USERS_UNION, table="user_roles",
+        columns=(
+            Col("Parent", "t.name", label_ur="Naam"),
+            Col("Children", "(SELECT string_agg(DISTINCT trim(concat_ws(' ', s.first_name, s.last_name)), ', ') "
+                "FROM student_guardians g JOIN students s ON s.id = g.student_id "
+                "WHERE g.user_id = t.user_id AND s.school_id = t.school_id)", label_ur="Bachay"),
+            Col("Phone", "t.phone"),
+            Col("Email", "t.email"),
+        ),
+        roles=GOV | {"accountant", "counselor", "academic_coordinator", "marketing_staff", "teacher"},
+        order_by="t.name ASC", always_where="t.is_parent",
+        name_cols=("t.name",),
+        count_noun="parent accounts", count_noun_ur="walidain ke accounts",
+        aggregates=(
+            Agg("Students with a parent account linked",
+                "(SELECT COUNT(DISTINCT g.student_id) FROM student_guardians g JOIN students s ON s.id = g.student_id "
+                "WHERE s.school_id = CAST(:sid AS uuid) AND g.user_id IS NOT NULL "
+                "AND s.status::text IN ('active', 'enrolled'))", "number", "Jin talaba ka parent account hai"),
+            Agg("Students with none",
+                "(SELECT COUNT(*) FROM students s WHERE s.school_id = CAST(:sid AS uuid) "
+                "AND s.status::text IN ('active', 'enrolled') AND NOT EXISTS (SELECT 1 FROM student_guardians g "
+                "WHERE g.student_id = s.id AND g.user_id IS NOT NULL))", "number", "Jin ka nahi"),
+        ),
+    ),
+    Source(
+        key="users", module="Users", title="user accounts", title_ur="user accounts",
+        keywords=("user", "users", "account", "accounts", "login", "logins", "user accounts", "all users",
+                  "kitne users", "system users", "app users", "sign in accounts"),
+        frm=USERS_UNION, table="user_roles",
+        columns=(
+            Col("Name", "t.name", label_ur="Naam"),
+            Col("Roles", "t.roles"),
+            Col("Email", "t.email"),
+            Col("Phone", "t.phone"),
+        ),
+        roles=GOV, order_by="t.is_staff DESC, t.name ASC",
+        name_cols=("t.name", "t.roles"),
+        statuses=(
+            Status(("staff",), "t.is_staff", "staff", "staff"),
+            Status(("parent", "parents"), "t.is_parent", "parents", "walidain"),
+            Status(("student", "students"), "t.is_student", "students", "talaba"),
+            Status(("teacher", "teachers"), "t.is_teacher", "teachers", "asatza"),
+        ),
+        count_noun="user accounts", count_noun_ur="user accounts",
+        aggregates=(
+            Agg("Staff", "COUNT(*) FILTER (WHERE t.is_staff)", "number"),
+            Agg("Teachers", "COUNT(*) FILTER (WHERE t.is_teacher)", "number", "Asatza"),
+            Agg("Parents", "COUNT(*) FILTER (WHERE t.is_parent)", "number", "Walidain"),
+            Agg("Students", "COUNT(*) FILTER (WHERE t.is_student)", "number", "Talaba"),
+        ),
+    ),
+    Source(
         key="staff", module="Staff", title="staff", title_ur="staff",
-        keywords=("staff", "teacher", "teachers", "ustad", "ustaad", "asatza", "asatiza", "employee",
-                  "employees", "mulazim", "mulazmeen", "faculty", "team", "principal", "clerk",
-                  "staff directory", "active staff", "staff list", "current teachers", "all teachers"),
+        keywords=("staff", "employee", "employees", "mulazim", "mulazmeen", "team", "principal", "clerk",
+                  "staff directory", "active staff", "staff list", "staff members", "all staff",
+                  "workers", "non teaching staff"),
         # The HR directory and the staff accounts together. A school that
         # added its teachers as users and never filled in the HR directory
         # was told it had "0 staff members".

@@ -83,7 +83,7 @@ def responder_for(source, count=2):
     def respond(sql, binds):
         if sql.startswith("SELECT cs.id::text, ac.name, cs.name"):
             return [(SEC_A, "Class 5", "A")]
-        if " AS n" in sql:
+        if re.search(r" AS n(,| FROM)", sql):  # the summary, not "AS name"
             row = {"n": count}
             for i, a in enumerate(source.aggregates):
                 row[f"a{i}"] = _value(a.kind)
@@ -129,7 +129,7 @@ ROUTES = [
     ("class sections", "classes"),
     ("teacher assignments", "teacher_assignments"),
     ("staff list", "staff"),
-    ("ustad kitne hain", "staff"),
+    ("ustad kitne hain", "teachers"),
     ("staff absent today", "staff_attendance"),
     ("teachers on leave today", "leave"),
     ("show me the leave requests", "leave"),
@@ -167,7 +167,11 @@ ROUTES = [
     ("compare all campuses", "campuses"),
     ("active marketing campaigns", "campaigns"),
     ("how many staff", "staff"),
-    ("current teachers", "staff"),
+    ("current teachers", "teachers"),
+    ("how many teachers", "teachers"),
+    ("kitne parents hain", "parents"),
+    ("how many users", "users"),
+    ("user accounts by role", "users"),
     ("top outstanding fee defaulters", "defaulters"),
     ("what is mtd revenue", "fee_payments"),
 ]
@@ -246,6 +250,26 @@ def test_a_parent_or_a_rate_means_the_month_not_just_today(roles, question, labe
     db = FakeDB(responder_for(src))
     out = run(answer(db, src, parse(question, VOCAB), scope(roles, child_ids=[KID]), question, L.EN))
     assert label in out.markdown
+
+
+@pytest.mark.parametrize("key", ["staff", "teachers", "parents", "users"])
+def test_the_platform_owner_is_never_listed_or_counted(key):
+    # The owner of the platform can open any school; nobody else may see the
+    # account. Excluded by role (platform_super_admins), not by address.
+    src = SOURCES_BY_KEY[key]
+    assert "platform_super_admins" in src.frm
+    assert "@gmail.com" not in src.frm
+
+
+def test_people_are_counted_in_their_own_groups():
+    # Staff are staff (no parents, no students); teachers, parents, students
+    # and every account are separate answers.
+    assert "NOT IN ('parent', 'student')" in SOURCES_BY_KEY["staff"].frm
+    assert "teach" in SOURCES_BY_KEY["teachers"].always_where
+    assert SOURCES_BY_KEY["parents"].always_where == "t.is_parent"
+    assert SOURCES_BY_KEY["students"].frm.startswith("students ")
+    labels = {a.label for a in SOURCES_BY_KEY["users"].aggregates}
+    assert {"Staff", "Teachers", "Parents", "Students"} <= labels
 
 
 def test_staff_counts_accounts_as_well_as_the_hr_directory():
@@ -678,7 +702,8 @@ def test_nothing_the_model_writes_runs_by_itself():
 def test_every_watched_table_announces_its_changes():
     announced = set()
     for path in ("sql_migrations/20261029000000_copilot_change_notifications.sql",
-                 "sql_migrations/20261030000100_copilot_change_notifications_campuses.sql"):
+                 "sql_migrations/20261030000100_copilot_change_notifications_campuses.sql",
+                 "sql_migrations/20261031000100_copilot_change_notifications_people.sql"):
         migration = _src(path)
         announced |= set(re.findall(r"'([a-z_]+)'", migration.split("ARRAY[", 1)[1].split("]", 1)[0]))
     missing = (set(curated_tables()) | set(engine.OVERVIEW_TABLES)) - announced

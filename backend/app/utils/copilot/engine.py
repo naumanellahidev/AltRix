@@ -22,7 +22,7 @@ from sqlalchemy import text
 from app.utils.copilot import lang as L
 from app.utils.copilot.generic import generic_sources
 from app.utils.copilot.params import has_any, now_label, parse, today
-from app.utils.copilot.registry import FAMILY, FINANCE, GOV, SOURCES, STAFF_UNION, vocabulary
+from app.utils.copilot.registry import FAMILY, FINANCE, GOV, SOURCES, STAFF_UNION, USERS_UNION, vocabulary
 from app.utils.copilot.resolver import Scope, access, answer, fmt
 from app.utils.copilot.router import MIN_SCORE, rank
 
@@ -249,6 +249,9 @@ async def overview(db, scope: Scope, lang: str) -> Optional[str]:
         "students": "SELECT COUNT(*) FROM students WHERE school_id = CAST(:sid AS uuid) AND status IN ('active','enrolled')",
         # The directory and the staff accounts, as the Staff answer counts them.
         "staff": f"SELECT COUNT(*) FROM {STAFF_UNION} WHERE t.school_id = CAST(:sid AS uuid) AND t.is_active",
+        "teachers": (f"SELECT COUNT(*) FROM {STAFF_UNION} WHERE t.school_id = CAST(:sid AS uuid) AND t.is_active "
+                     "AND lower(COALESCE(t.position, '')) LIKE '%teach%'"),
+        "parents": f"SELECT COUNT(*) FROM {USERS_UNION} WHERE t.school_id = CAST(:sid AS uuid) AND t.is_parent",
         "absent": ("SELECT COUNT(DISTINCT e.student_id) FROM attendance_entries e JOIN attendance_sessions a "
                    "ON a.id = e.session_id WHERE e.school_id = CAST(:sid AS uuid) AND a.session_date = :today "
                    "AND e.status = 'absent'"),
@@ -279,6 +282,8 @@ async def overview(db, scope: Scope, lang: str) -> Optional[str]:
     items = [
         ("Students enrolled", "Enrolled talaba", fmt(one("students"), "number", lang, cur)),
         ("Active staff", "Active staff", fmt(one("staff"), "number", lang, cur)),
+        ("Teachers", "Asatza", fmt(one("teachers"), "number", lang, cur)),
+        ("Parent accounts", "Walidain ke accounts", fmt(one("parents"), "number", lang, cur)),
         ("Absent today", "Aaj ghair hazir", fmt(one("absent"), "number", lang, cur)),
         ("Unpaid invoices", "Baqaya invoices",
          f"{fmt(one('unpaid'), 'number', lang, cur)} ({fmt(one('unpaid', 1), 'money', lang, cur)})"),
