@@ -65,3 +65,18 @@ def test_every_endpoint_the_screen_calls_exists():
 def test_every_certificate_type_has_a_prefix_and_title():
     for spec in CERTIFICATE_TYPES.values():
         assert spec["prefix"] and spec["title"]
+
+
+def test_one_childs_certificates_stay_inside_the_family_scope():
+    # The parent and student screens ask for one child's certificates; the
+    # family scope is applied first, so another family's child yields nothing.
+    body = fn("list_certificates")
+    assert "student_id: Optional[UUID]" in body
+    assert body.index("_family_scope") < body.index("IssuedCertificate.student_id == student_id")
+
+
+def test_the_family_screens_read_issued_certificates_and_draw_the_pdf():
+    for screen in ("parent-modules/ParentCertificatesModule.tsx", "student-modules/StudentCertificatesModule.tsx"):
+        src = io.open("../src/pages/tenant/" + screen, encoding="utf-8").read()
+        assert "student_certificates" not in src and "file_url" not in src, screen
+        assert '"/documents/certificates"' in src and "downloadCertificate(" in src, screen

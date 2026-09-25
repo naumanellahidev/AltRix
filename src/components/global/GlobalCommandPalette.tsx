@@ -49,6 +49,12 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { apiClient } from "@/lib/api-client";
+import { resolvePermissions } from "@/lib/permissions";
+import { isEduverseRole } from "@/lib/eduverse-roles";
+
+/** The URL segment some shells use for a role, and the role it stands for. */
+const ROLE_SEGMENT: Record<string, string> = { hr: "hr_manager", marketing: "marketing_staff" };
+const FAMILY_ROLES = new Set(["parent", "student"]);
 
 type Props = {
   basePath: string; // e.g. "/beacon/principal" or "/beacon/teacher"
@@ -85,9 +91,26 @@ export function GlobalCommandPalette({ basePath }: Props) {
     const parts = basePath.split("/").filter(Boolean);
     return {
       schoolSlug: parts[0] || "",
-      currentRole: parts[1] || "principal",
+      currentRole: ROLE_SEGMENT[parts[1]] ?? parts[1] ?? "",
     };
   }, [basePath]);
+
+  // The screens this role has (the same list its sidebar and routes come
+  // from). An entry leading anywhere else used to drop the user back on
+  // the dashboard: a parent was offered payroll, a principal "id-cards".
+  const allowedPaths = useMemo(
+    () => (isEduverseRole(currentRole) ? resolvePermissions([currentRole]).allowedPaths : new Set<string>([""])),
+    [currentRole],
+  );
+  const isFamily = FAMILY_ROLES.has(currentRole);
+  const reachable = useCallback(
+    (href: string) => {
+      if (!href.startsWith(basePath)) return false;
+      const segment = href.slice(basePath.length).replace(/^\//, "").split(/[/?#]/)[0];
+      return allowedPaths.has(segment);
+    },
+    [allowedPaths, basePath],
+  );
 
   const [schoolId, setSchoolId] = useState<string | null>(null);
 
@@ -166,16 +189,24 @@ export function GlobalCommandPalette({ basePath }: Props) {
             url,
           };
         });
-        setResults(mappedResults);
+        setResults(mappedResults.map((r) => ({ ...r, url: r.url && reachable(r.url) ? r.url : basePath })));
         setSearching(false);
         return;
       }
+      // The search answered: nothing matched. (This used to fall through to
+      // the direct queries below, which searched the whole school whatever
+      // the role.)
+      setResults([]);
+      setSearching(false);
+      return;
     } catch (err) {
       console.warn("FastAPI global search fallback:", err);
     }
 
-    // 2. Fallback: Direct safe entity queries (resilient with try/catch)
-    if (!schoolId) {
+    // 2. Fallback, only when the search service could not be reached, and
+    //    only for staff: families see their own children through the search
+    //    service and nowhere else.
+    if (!schoolId || isFamily) {
       setResults([]);
       setSearching(false);
       return;
@@ -234,7 +265,7 @@ export function GlobalCommandPalette({ basePath }: Props) {
           .catch(() => ({ data: [] })),
         // 6. Fleet / Vehicles
         api
-          .from("transport_vehicles")
+          .from("vehicles")
           .select("id, bus_number, registration_no, driver_name")
           .eq("school_id", schoolId)
           .or(`bus_number.ilike.%${q}%,registration_no.ilike.%${q}%,driver_name.ilike.%${q}%`)
@@ -334,14 +365,14 @@ export function GlobalCommandPalette({ basePath }: Props) {
         ...transportList,
         ...libraryList,
         ...inventoryList,
-      ]);
+      ].map((r) => ({ ...r, url: r.url && reachable(r.url) ? r.url : basePath })));
     } catch (error) {
       console.error("Global search fallback error:", error);
       setResults([]);
     } finally {
       setSearching(false);
     }
-  }, [schoolId, debouncedQuery, basePath]);
+  }, [schoolId, debouncedQuery, basePath, isFamily, reachable]);
 
   useEffect(() => {
     performSearch();
@@ -355,11 +386,11 @@ export function GlobalCommandPalette({ basePath }: Props) {
       { label: "Academic Management", icon: GraduationCap, href: `${basePath}/academic`, keywords: "classes sections subjects teachers students curriculum enrollment" },
       { label: "Timetable Builder", icon: CalendarDays, href: `${basePath}/timetable`, keywords: "schedule periods routine slots teacher allocation weekly master timetable" },
       { label: "Student Attendance Center", icon: CheckCircle2, href: `${basePath}/attendance`, keywords: "attendance present absent late excused daily rollcall register" },
-      { label: "Seating Planner", icon: Layers, href: `${basePath}/seating-planner`, keywords: "seating arrangement exam seats classroom layout desks" },
+      { label: "Seating Planner", icon: Layers, href: `${basePath}/seating-plan`, keywords: "seating arrangement exam seats classroom layout desks" },
       { label: "Curriculum Standards", icon: BookOpen, href: `${basePath}/curriculum`, keywords: "syllabus learning outcomes lesson plans standards rubrics" },
       { label: "Events Calendar", icon: CalendarDays, href: `${basePath}/events`, keywords: "annual calendar school events sports gala meetings parent teacher meeting" },
       { label: "School Diary", icon: BookOpen, href: `${basePath}/diary`, keywords: "homework daily diary class notes student assignments tasks" },
-      { label: "Academic Setup", icon: Settings, href: `${basePath}/academic-setup`, keywords: "sessions terms grading scales academic years" },
+      { label: "Academic Sessions & Promotions", icon: Settings, href: `${basePath}/promotions`, keywords: "sessions terms academic years promote retain graduate next class" },
 
       // People & HR
       { label: "Staff & Faculty Directory", icon: Users, href: `${basePath}/users`, keywords: "employees teachers staff profiles user accounts permissions" },
@@ -379,9 +410,9 @@ export function GlobalCommandPalette({ basePath }: Props) {
 
       // Student Services & Wellbeing
       { label: "Student Wellbeing & Infirmary", icon: HeartPulse, href: `${basePath}/student-wellbeing`, keywords: "medical clinic infirmary doctor nurse vaccinations allergies health records" },
-      { label: "Counseling & Guidance Center", icon: Sparkles, href: `${basePath}/counselor`, keywords: "counselor appointments behavioral sessions student support guidance" },
-      { label: "At-Risk Students (Early Warning)", icon: AlertTriangle, href: `${basePath}/counselor/at-risk`, keywords: "early warning dropouts attendance risk academic intervention support" },
-      { label: "Student Behavior & Disciplinary Notes", icon: FileText, href: `${basePath}/counselor/behavior`, keywords: "behavior incidents infractions warnings disciplinary records praise" },
+      { label: "Counseling & Guidance Center", icon: Sparkles, href: `${basePath}/counseling`, keywords: "counselor appointments behavioral sessions student support guidance" },
+      { label: "At-Risk Students (Early Warning)", icon: AlertTriangle, href: `${basePath}/at-risk`, keywords: "early warning dropouts attendance risk academic intervention support" },
+      { label: "Student Behavior & Disciplinary Notes", icon: FileText, href: `${basePath}/behavior`, keywords: "behavior incidents infractions warnings disciplinary records praise" },
       { label: "Gate & Visitor Security Console", icon: DoorClosed, href: `${basePath}/gate-visitor`, keywords: "security gate visitor passes checkin checkout badges entry log" },
 
       // CRM & Admissions
@@ -403,7 +434,7 @@ export function GlobalCommandPalette({ basePath }: Props) {
       { label: "AI Board & Owner Insights", icon: Sparkles, href: `${basePath}/owner-insights`, keywords: "ai forecasting board summary revenue predictions growth retention" },
       { label: "Complaints & Grievance Desk", icon: AlertTriangle, href: `${basePath}/complaints`, keywords: "parent complaints teacher issues unresolved tickets disputes feedback" },
       { label: "Parent Communication Notes", icon: MessageSquare, href: `${basePath}/parent-notes`, keywords: "parent messages feedback diary notes meetings" },
-      { label: "Student ID Cards Studio", icon: CreditCard, href: `${basePath}/id-cards`, keywords: "generate id cards student badges printable barcode qr code" },
+      { label: "Student ID Cards Studio", icon: CreditCard, href: `${basePath}/student-cards`, keywords: "generate id cards student badges printable barcode qr code" },
       { label: "Examinations & Term Assessments", icon: FileText, href: `${basePath}/exams`, keywords: "exams datesheet term marks grading entry roll numbers" },
       { label: "Report Cards & Transcripts", icon: Award, href: `${basePath}/report-cards`, keywords: "result cards print transcripts term evaluations gpa grades" },
       { label: "School Notices & Circulars", icon: Bell, href: `${basePath}/notices`, keywords: "announcements circulars public notices staff alerts" },
@@ -430,25 +461,27 @@ export function GlobalCommandPalette({ basePath }: Props) {
 
   // Filter navigation items based on query
   const filteredNavItems = useMemo(() => {
-    if (!query.trim()) return navItems.slice(0, 10);
+    const open = navItems.filter((item) => reachable(item.href));
+    if (!query.trim()) return open.slice(0, 10);
     const q = query.toLowerCase();
-    return navItems.filter(
+    return open.filter(
       (item) =>
         item.label.toLowerCase().includes(q) ||
         item.keywords.toLowerCase().includes(q)
     );
-  }, [navItems, query]);
+  }, [navItems, query, reachable]);
 
   // Filter quick actions
   const filteredQuickActions = useMemo(() => {
-    if (!query.trim()) return quickActions;
+    const open = quickActions.filter((item) => reachable(item.href));
+    if (!query.trim()) return open;
     const q = query.toLowerCase();
-    return quickActions.filter(
+    return open.filter(
       (item) =>
         item.label.toLowerCase().includes(q) ||
         item.keywords.toLowerCase().includes(q)
     );
-  }, [quickActions, query]);
+  }, [quickActions, query, reachable]);
 
   const getEntityIcon = (entity: string) => {
     switch (entity) {

@@ -102,7 +102,7 @@ export function FinancialReportGenerator({ schoolId, schoolName }: FinancialRepo
         .from("fee_payments")
         .select("id, amount, paid_at, method, status")
         .eq("school_id", schoolId)
-        .in("status", ["success", "completed", "paid"])
+        .eq("status", "success")
         .gte("paid_at", startDate.toISOString())
         .lte("paid_at", endDate.toISOString());
       if (error) throw error;

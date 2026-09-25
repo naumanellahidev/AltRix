@@ -628,7 +628,7 @@ async def build_scoped_ai_context(
                     (SELECT COUNT(*) FROM campuses WHERE school_id = CAST(:sid AS UUID) AND is_active = true) as active_campuses,
                     (SELECT COUNT(*) FROM bus_routes WHERE school_id = CAST(:sid AS UUID) AND status = 'active') as active_routes,
                     (SELECT COUNT(*) FROM library_books WHERE school_id = CAST(:sid AS UUID)) as library_books_count,
-                    (SELECT COUNT(*) FROM complaints WHERE school_id = CAST(:sid AS UUID) AND status IN ('open', 'pending', 'in_progress')) as open_complaints_count
+                    (SELECT COUNT(*) FROM complaints WHERE school_id = CAST(:sid AS UUID) AND status IN ('open', 'in_review')) as open_complaints_count
             """
             rows = await fetch_rows(sql, campus_param)
             if rows and len(rows[0]) >= 8:

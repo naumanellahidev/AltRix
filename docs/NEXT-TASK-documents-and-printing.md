@@ -1892,3 +1892,38 @@ backend's routes found 15 calls with nowhere to go (now audit gate `api1`):
   school's own (the lookup had no school filter), and parents and students
   can no longer add items or move stock. There is now a PUT for editing an
   item's details.
+
+### Tables and columns that did not exist (25 Sep 2026)
+
+A check of every data-proxy read in the frontend against the production
+schema (and what the migrations add) found three screens asking for things
+that were never there. It is now audit gate `col1`, with the schema kept in
+`scripts/db/schema_columns.txt` (refresh it from `information_schema` when
+the schema changes outside a migration).
+
+- **Certificates for parents and students** read a `student_certificates`
+  table that was never created, with a `file_url` nobody stored, so both
+  screens were always empty and "Download" had nowhere to go. They now list
+  the school's issued certificates (`GET /documents/certificates?student_id=`,
+  still limited to the family's own children) and draw the PDF through the
+  documents library, with the certificate number, and a badge on a revoked
+  one (which prints as VOID).
+- **Messages** looked a chat partner's name up by `profiles.user_id`, which
+  does not exist, so every new chat was titled "User". It uses `id`.
+- **The command palette** searched buses in `transport_vehicles`; the table
+  is `vehicles`, so a bus never appeared in search.
+- **Expenses could not be saved.** Both expense forms (accountant and
+  fees) and the offline sync send a reference (cheque or receipt number)
+  and a payment method. `finance_expenses` had neither column, and the data
+  proxy refuses a write naming an unknown column, so every expense recorded
+  or edited from those screens failed with "Invalid column reference".
+  Migration `20261031000600_finance_expense_reference.sql` adds both (the
+  payment method as a reference to `finance_payment_methods`). It was run
+  twice on production inside a rolled-back transaction, and an insert as
+  the app's role with both fields succeeded.
+
+Gate `col1` now also checks the keys every `insert`/`update`/`upsert`
+writes (following a local `const x = {...}` and its spreads), and a new
+gate `rpc1` checks that every database function the frontend calls exists
+(production, snapshot in `scripts/db/schema_functions.txt`, or a
+migration) and is on the proxy's allowlist.

@@ -214,7 +214,12 @@ async def certificate_types(current_user: CurrentUser):
 
 
 @router.get("/certificates", response_model=List[CertificateOutSchema])
-async def list_certificates(current_user: CurrentUser, db: DbSession, page: ListPageParams):
+async def list_certificates(
+    current_user: CurrentUser,
+    db: DbSession,
+    page: ListPageParams,
+    student_id: Optional[UUID] = Query(None),
+):
     if not current_user.school_id:
         return []
     stmt = (
@@ -227,6 +232,10 @@ async def list_certificates(current_user: CurrentUser, db: DbSession, page: List
         if not scope:
             return []
         stmt = stmt.where(IssuedCertificate.student_id.in_(scope))
+    # One child's certificates (the parent and student screens). The family
+    # scope above still applies, so another family's child yields nothing.
+    if student_id:
+        stmt = stmt.where(IssuedCertificate.student_id == student_id)
     certs = list((await db.execute(page.apply(stmt))).scalars().all())
 
     names = {}

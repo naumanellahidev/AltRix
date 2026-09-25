@@ -436,7 +436,7 @@ export function PrincipalHome() {
           api.from("academic_classes").select("id", { count: "exact", head: true }).eq("school_id", schoolId),
           api.from("class_sections").select("id", { count: "exact", head: true }).eq("school_id", schoolId),
           api.from("hr_leave_requests").select("id", { count: "exact", head: true }).eq("school_id", schoolId).eq("status", "pending"),
-          api.from("complaints").select("id", { count: "exact", head: true }).eq("school_id", schoolId).in("status", ["pending", "open"]),
+          api.from("complaints").select("id", { count: "exact", head: true }).eq("school_id", schoolId).in("status", ["open", "in_review"]),
         ]);
 
         const mtdMonth = monthStart.getMonth();

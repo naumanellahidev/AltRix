@@ -449,7 +449,7 @@ export function MessagesModule({ schoolId, isStudentPortal = false }: Props) {
       const { data: profile } = await api
         .from("profiles")
         .select("display_name")
-        .eq("user_id", targetPartnerId)
+        .eq("id", targetPartnerId)
         .maybeSingle();
       
       const partnerName = profile?.display_name || "User";

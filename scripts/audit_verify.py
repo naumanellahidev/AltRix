@@ -112,6 +112,48 @@ def app_routes():
 results = []
 
 
+def _object_keys(src: str, i: int):
+    """Top-level keys of the object literal whose "{" is at src[i]; spreads of
+    a local `const x = {...}` are followed. None when it cannot be read."""
+    depth, parts, cur = 0, [], ""
+    for j in range(i, min(len(src), i + 6000)):
+        ch = src[j]
+        if ch in "{[(":
+            depth += 1
+            if depth == 1:
+                continue
+        elif ch in "}])":
+            depth -= 1
+            if depth == 0:
+                parts.append(cur)
+                break
+        if ch == "," and depth == 1:
+            parts.append(cur)
+            cur = ""
+        else:
+            cur += ch
+    else:
+        return None
+    keys = []
+    for p in parts:
+        p = re.sub(r"//.*", "", p).strip()
+        spread = re.fullmatch(r"\.\.\.(\w+)", p)
+        if spread:
+            keys += _declared_keys(src, spread.group(1), i) or []
+            continue
+        k = re.match(r"[\"']?(\w+)[\"']?\s*:", p) or re.fullmatch(r"(\w+)", p)
+        if k:
+            keys.append(k.group(1))
+    return keys
+
+
+def _declared_keys(src: str, name: str, before: int):
+    decl = None
+    for decl in re.finditer(r"(?:const|let|var)\s+" + re.escape(name) + r"\b[^=;]*?=\s*\{", src[:before]):
+        pass
+    return _object_keys(src, decl.end() - 1) if decl else None
+
+
 def check(section: str, ident: str, label: str, ok: bool, detail: str = ""):
     results.append((section, ident, bool(ok), label, detail))
 
@@ -339,6 +381,104 @@ def run():
             if not any(meth == method and rx.match(full) for meth, rx in route_rx):
                 unrouted.add(f"{method} {full}")
     check(S, "api1", "every backend call the frontend makes has a route", not unrouted, str(sorted(unrouted)))
+
+    # Every table and column the frontend reads through the data proxy exists:
+    # the production schema (scripts/db/schema_columns.txt, from
+    # information_schema) plus what the migrations create or add. Certificates
+    # were read from a table that was never made, the command palette searched
+    # a vehicles table by the wrong name, and a chat looked profiles up by a
+    # column profiles does not have.
+    schema = {}
+    for line in txt("scripts/db/schema_columns.txt").splitlines():
+        if "|" in line:
+            t, cs = line.strip().split("|", 1)
+            schema.setdefault(t, set()).update(c for c in cs.split(",") if c)
+    ident = r'(?:public\.)?"?(\w+)"?'
+    for mig in sorted(glob.glob("backend/sql_migrations/*.sql")):
+        sql = txt(mig)
+        for m in re.finditer(r"CREATE\s+(?:OR\s+REPLACE\s+)?(?:TABLE|VIEW)\s+(?:IF\s+NOT\s+EXISTS\s+)?" + ident +
+                             r"\s*(\((.*?)\n\s*\)\s*;|AS\b)", sql, re.S | re.I):
+            cols = schema.setdefault(m.group(1).lower(), set())
+            for col_line in (m.group(3) or "").split("\n"):
+                w = re.match(r'\s*"?(\w+)"?\s+\w', col_line)
+                if w and w.group(1).upper() not in ("CONSTRAINT", "PRIMARY", "UNIQUE", "FOREIGN", "CHECK", "EXCLUDE"):
+                    cols.add(w.group(1).lower())
+        for m in re.finditer(r"ALTER\s+TABLE\s+(?:IF\s+EXISTS\s+)?(?:ONLY\s+)?" + ident + r"(.*?);", sql, re.S | re.I):
+            for c in re.findall(r"ADD\s+COLUMN\s+(?:IF\s+NOT\s+EXISTS\s+)?\"?(\w+)", m.group(2), re.I):
+                schema.setdefault(m.group(1).lower(), set()).add(c.lower())
+    # Enum and CHECK columns: the values each accepts (scripts/db/schema_values.txt).
+    values = {}
+    for line in txt("scripts/db/schema_values.txt").splitlines():
+        if "|" in line:
+            tc, vs = line.strip().split("|", 1)
+            values[tuple(tc.split(".", 1))] = set(vs.split(","))
+    from_rx = re.compile(r"(?<!storage)\.from\(\s*[\"'`](\w+)[\"'`]\s*(?:as any)?\s*\)")
+    unknown, bad_values = set(), set()
+    for path in glob.glob("src/**/*.ts", recursive=True) + glob.glob("src/**/*.tsx", recursive=True):
+        if ".test." in path:
+            continue
+        src = txt(path)
+        for m in from_rx.finditer(src):
+            table = m.group(1)
+            if table not in schema:
+                unknown.add(f"table {table} ({path})")
+                continue
+            chain = src[m.end(): m.end() + 900]
+            cuts = [i for i in (chain.find(";"), chain.find(".from("), chain.find("api."),
+                                chain.find("apiClient"), chain.find("\n\n")) if i >= 0]
+            chain = chain[: min(cuts)] if cuts else chain
+            sel = re.search(r"\.select\(\s*([\"'`])(.*?)\1", chain, re.S)
+            named = []
+            if sel and "(" not in sel.group(2) and "${" not in sel.group(2):
+                named += [c.split(":")[-1].strip() for c in sel.group(2).split(",")]
+            named += re.findall(r"\.(?:eq|neq|in|order|is|gte|lte|gt|lt|ilike|like|not)\(\s*[\"'`](\w+)[\"'`]", chain)
+            for c in named:
+                if c and c != "*" and c not in schema[table]:
+                    unknown.add(f"column {table}.{c} ({path})")
+            # A value an enum does not have fails the whole query; one a
+            # CHECK does not allow matches nothing, or fails the save.
+            if any(t == table for t, _ in values):
+                used = re.findall(r"\.(?:eq|neq)\(\s*[\"'](\w+)[\"']\s*,\s*[\"']([^\"']*)[\"']", chain)
+                for c, vs in re.findall(r"\.in\(\s*[\"'](\w+)[\"']\s*,\s*\[([^\]]*)\]", chain):
+                    used += [(c, v) for v in re.findall(r"[\"']([^\"']*)[\"']", vs)]
+                used += re.findall(r"\b(\w+)\s*:\s*[\"']([a-z_]+)[\"']", chain)
+                for c, v in used:
+                    if (table, c) in values and v not in values[(table, c)]:
+                        bad_values.add(f"{table}.{c} = '{v}' ({path})")
+            # Writes: the proxy refuses a key that is not a column, so a stray
+            # key fails the whole save (expenses sent a reference and a
+            # payment method the table did not have).
+            w = re.match(r"\s*\.(?:insert|update|upsert)\(\s*\[?\s*(\{|\w+)", src[m.end(): m.end() + 200])
+            if w:
+                at = m.end() + w.start(1)
+                keys = _object_keys(src, at) if w.group(1) == "{" else _declared_keys(src, w.group(1), at)
+                for c in keys or []:
+                    if c not in schema[table]:
+                        unknown.add(f"column {table}.{c} written ({path})")
+    check(S, "col1", "every table and column the frontend reads exists in the schema",
+          len(schema) > 200 and not unknown, str(sorted(unknown)[:12]))
+    check(S, "val1", "every status the frontend filters on or writes is one its column accepts",
+          len(values) > 20 and not bad_values, str(sorted(bad_values)[:12]))
+
+    # Every database function the frontend calls exists (production, or a
+    # migration that creates it) and is on the proxy's allowlist.
+    functions = set(txt("scripts/db/schema_functions.txt").split())
+    for mig in glob.glob("backend/sql_migrations/*.sql"):
+        functions.update(f.lower() for f in re.findall(
+            r"CREATE\s+(?:OR\s+REPLACE\s+)?FUNCTION\s+(?:public\.)?\"?(\w+)", txt(mig), re.I))
+    vps_raw = txt(R + "vps_db.py")
+    allowed_rpc = set(re.findall(r'"(\w+)"', vps_raw[vps_raw.index("ALLOWED_RPC_FUNCTIONS"):vps_raw.index("_TENANT_PARAM_NAMES")]))
+    rpc_bad = set()
+    for path in glob.glob("src/**/*.ts", recursive=True) + glob.glob("src/**/*.tsx", recursive=True):
+        if ".test." in path:
+            continue
+        for name in re.findall(r"\.rpc\(\s*[\"'`](\w+)[\"'`]", txt(path)):
+            if name not in functions:
+                rpc_bad.add(f"{name} does not exist ({path})")
+            elif name not in allowed_rpc:
+                rpc_bad.add(f"{name} is not on the allowlist ({path})")
+    check(S, "rpc1", "every database function the frontend calls exists and is allowed",
+          len(functions) > 100 and not rpc_bad, str(sorted(rpc_bad)[:12]))
     tr = code(R + "transport.py")
     te = code(R + "teachers.py")
     check(S, "28", "no fabricated bus, driver or stop",
@@ -644,6 +784,16 @@ def run():
     check(S, "lazy1", "every lazily loaded screen names an export its module has",
           not broken_lazy and "|| m.default;" in txt("src/pages/tenant/TenantDashboard.tsx"),
           f"broken: {broken_lazy}")
+
+    # Every palette destination is a screen in the navigation catalog (the
+    # list routes and sidebars come from): "id-cards", "counselor/at-risk"
+    # and "seating-planner" led nowhere.
+    catalog = set(re.findall(r'path:\s*"([\w-]*)"', txt("src/lib/role-navigation.ts")))
+    palette = txt("src/components/global/GlobalCommandPalette.tsx")
+    dead = sorted({seg for seg in re.findall(r"href:\s*`\$\{basePath\}/([\w/-]+)", palette)
+                   if seg.split("/")[0] not in catalog or "/" in seg})
+    check(S, "nav1", "every command-palette destination is a screen the role can open",
+          not dead and "reachable(item.href)" in palette, f"dead: {dead}")
 
     check(S, "inv1", "no screen invents the figures, people, files or backups it shows",
           "/platform/health-metrics" in txt("src/pages/platform/PlatformHealthPage.tsx")

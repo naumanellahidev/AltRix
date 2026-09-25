@@ -185,7 +185,7 @@ ALLOWED_RPC_FUNCTIONS = {
     "get_at_risk_students", "get_child_teachers_detailed",
     "get_school_public_by_slug", "get_school_staff_directory",
     "get_school_user_directory", "has_role", "list_school_user_profiles",
-    "my_student_id", "notify_exam_datesheet_ready",
+    "my_children_detailed", "my_student_id", "notify_exam_datesheet_ready",
     "notify_exam_result_publish", "owner_campuses", "owner_schools_strict",
     "search_messages", "verify_exam_hall_ticket", "verify_fee_payment_proof",
 }

@@ -1,19 +1,39 @@
 import { useEffect, useState, useMemo } from "react";
-import { api } from "@/lib/api";
+import { apiClient } from "@/lib/api-client";
+import { downloadCertificate } from "@/lib/documents/certificate";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Award, FileDown, Calendar, Search, RefreshCw, Trophy } from "lucide-react";
+import { Award, FileDown, Calendar, Search, RefreshCw, Trophy, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import type { ChildInfo } from "@/hooks/useMyChildren";
 
+// The school's issued certificates. The PDF is drawn from the record on
+// download (the documents library), so there is no stored file to link to.
 interface Certificate {
   id: string;
   title: string;
   certificate_type: string;
-  issued_at: string;
-  file_url: string;
+  certificate_number: string;
+  issue_date: string | null;
+  status: string;
+}
+
+async function loadCertificates(studentId: string): Promise<Certificate[]> {
+  const [types, certs] = await Promise.all([
+    apiClient.get<{ type: string; title: string }[]>("/documents/certificates/types"),
+    apiClient.get<any[]>("/documents/certificates", { params: { student_id: studentId } }),
+  ]);
+  const titles = new Map((types.data ?? []).map((t) => [t.type, t.title]));
+  return (certs.data ?? []).map((c) => ({
+    id: c.id,
+    title: titles.get(c.certificate_type) ?? c.certificate_type.replace(/_/g, " "),
+    certificate_type: c.certificate_type,
+    certificate_number: c.certificate_number,
+    issue_date: c.issue_date,
+    status: c.status,
+  }));
 }
 
 interface ParentCertificatesModuleProps {
@@ -26,23 +46,28 @@ export default function ParentCertificatesModule({ child, schoolId }: ParentCert
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedType, setSelectedType] = useState<string>("all");
+  const [downloading, setDownloading] = useState<string | null>(null);
+
+  const download = async (cert: Certificate) => {
+    setDownloading(cert.id);
+    try {
+      const { warnings } = await downloadCertificate(cert.id);
+      warnings.forEach((w) => toast.warning(w));
+    } catch (err: any) {
+      toast.error(err?.response?.data?.detail || err?.message || "The certificate could not be downloaded");
+    } finally {
+      setDownloading(null);
+    }
+  };
 
   const fetchCertificates = async () => {
     if (!child || !schoolId) return;
     setLoading(true);
     try {
-      const { data, error } = await api
-        .from("student_certificates" as any)
-        .select("id, title, certificate_type, issued_at, file_url")
-        .eq("school_id", schoolId)
-        .eq("student_id", child.student_id)
-        .order("issued_at", { ascending: false });
-
-      if (error) throw error;
-      setCertificates(data || []);
+      setCertificates(await loadCertificates(child.student_id));
     } catch (err: any) {
       console.error("Error fetching certificates:", err);
-      toast.error(err.message || "Failed to load certificates");
+      toast.error(err?.response?.data?.detail || err?.message || "Failed to load certificates");
     } finally {
       setLoading(false);
     }
@@ -154,7 +179,7 @@ export default function ParentCertificatesModule({ child, schoolId }: ParentCert
           <p className="text-xs text-slate-400 max-w-sm mt-1">
             {searchQuery || selectedType !== "all" 
               ? "We couldn't find any certificates matching your filters." 
-              : `No academic or extracurricular certificates have been uploaded for ${childName} yet.`}
+              : `No certificates have been issued to ${childName} yet.`}
           </p>
           {(searchQuery || selectedType !== "all") && (
             <Button 
@@ -189,7 +214,8 @@ export default function ParentCertificatesModule({ child, schoolId }: ParentCert
                 
                 <div className="flex items-center gap-1.5 text-white/90 text-[10px] font-semibold">
                   <Calendar className="h-3 w-3" />
-                  {cert.issued_at ? new Date(cert.issued_at).toLocaleDateString("en-US", {
+                  {cert.issue_date ? new Date(cert.issue_date).toLocaleDateString("en-US", {
+                    day: "numeric",
                     month: "long",
                     year: "numeric"
                   }) : "Date not set"}
@@ -202,20 +228,24 @@ export default function ParentCertificatesModule({ child, schoolId }: ParentCert
                     {cert.title}
                   </h4>
                   <p className="text-[10px] text-slate-450 font-bold uppercase tracking-wider">
-                    Issued to {childName}
+                    Issued to {childName} · {cert.certificate_number}
                   </p>
+                  {cert.status !== "valid" && (
+                    <Badge variant="destructive" className="text-[10px] capitalize">{cert.status}</Badge>
+                  )}
                 </div>
                 
-                <Button 
-                  asChild
-                  variant="soft" 
+                <Button
+                  variant="soft"
                   size="sm"
                   className="w-full mt-4 gap-2 rounded-xl text-xs font-semibold"
+                  disabled={downloading === cert.id}
+                  onClick={() => download(cert)}
                 >
-                  <a href={cert.file_url} target="_blank" rel="noreferrer">
-                    <FileDown className="h-3.5 w-3.5" />
-                    Download PDF Certificate
-                  </a>
+                  {downloading === cert.id
+                    ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    : <FileDown className="h-3.5 w-3.5" />}
+                  Download PDF Certificate
                 </Button>
               </CardContent>
             </Card>
