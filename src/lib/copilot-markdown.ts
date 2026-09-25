@@ -32,7 +32,9 @@ export function renderMarkdown(text: string): string {
 
   // Escape first. Everything below either strips text or inserts markup that
   // this function controls; nothing re-introduces caller-supplied HTML.
-  let formatted = escapeHtml(text);
+  // NUL is removed before anything else: it marks the table placeholders
+  // below, and a reply must not be able to forge one.
+  let formatted = escapeHtml(text.replace(/\u0000/g, ""));
 
   // Strip any action tags or internal protocol tags. These are matched in their
   // escaped form because escaping already ran.
@@ -70,13 +72,12 @@ export function renderMarkdown(text: string): string {
     }
   }
 
-  return formatted
-    // Bold
-    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
-    // Italic
-    .replace(/\*(.+?)\*/g, "<em>$1</em>")
-    // Inline code
-    .replace(/`(.+?)`/g, '<code class="bg-slate-100 text-primary px-1 rounded text-[10px]">$1</code>')
+  // Tables are lifted out first and put back last, so the line-based rules
+  // below (lists, headings, newlines to <br/>) never touch their markup.
+  const tables: string[] = [];
+  formatted = extractTables(formatted, tables);
+
+  formatted = inline(formatted)
     // Bullet points
     .replace(/^- (.+)$/gm, '<li class="ml-3 list-disc list-outside">$1</li>')
     // Numbered list
@@ -88,4 +89,62 @@ export function renderMarkdown(text: string): string {
     // Newlines
     .replace(/\n\n/g, '<br/><br/>')
     .replace(/\n/g, '<br/>');
+
+  return formatted.replace(/\u0000T(\d+)\u0000(<br\/>)*/g, (_m, i) => tables[Number(i)] ?? "");
+}
+
+/** Bold, italic and code inside one run of already-escaped text. */
+function inline(text: string): string {
+  return text
+    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+    .replace(/\*(.+?)\*/g, "<em>$1</em>")
+    // _italic_ — only as a whole word, so snake_case names are left alone.
+    .replace(/(^|[\s(])_([^_\n]+?)_(?=$|[\s.,;:!?)])/gm, "$1<em>$2</em>")
+    .replace(/`(.+?)`/g, '<code class="bg-slate-100 text-primary px-1 rounded text-[10px]">$1</code>');
+}
+
+const isRow = (line: string) => /^\s*\|.*\|\s*$/.test(line);
+const isSeparator = (line: string) => /^\s*\|(\s*:?-{3,}:?\s*\|)+\s*$/.test(line);
+const cellsOf = (line: string) => line.trim().replace(/^\||\|$/g, "").split("|").map((c) => c.trim());
+/** Figures read better right-aligned: amounts, counts, percentages, dates. */
+const looksNumeric = (cell: string) => /^(Rs\.|PKR|-?\d)[\d,.\s%:–-]*/.test(cell) && !/[a-z]{3,}/i.test(cell.replace(/^(Rs\.|PKR)/, ""));
+
+/**
+ * Markdown tables to HTML.
+ *
+ * The Copilot's answers from the school's records are tables — invoices,
+ * attendance, results — and this renderer used to print them as rows of raw
+ * pipe characters. Cells are already escaped by the time they get here.
+ */
+function extractTables(text: string, store: string[]): string {
+  const lines = text.split("\n");
+  const out: string[] = [];
+  for (let i = 0; i < lines.length; i += 1) {
+    if (isRow(lines[i]) && i + 1 < lines.length && isSeparator(lines[i + 1])) {
+      const header = cellsOf(lines[i]);
+      const body: string[][] = [];
+      i += 2;
+      while (i < lines.length && isRow(lines[i])) {
+        body.push(cellsOf(lines[i]));
+        i += 1;
+      }
+      i -= 1;
+      const numeric = header.map((_, c) => body.length > 0 && body.every((r) => !r[c] || r[c] === "—" || looksNumeric(r[c])));
+      const th = header
+        .map((h, c) => `<th class="px-2 py-1.5 font-semibold text-slate-600 whitespace-nowrap border-b border-slate-200 ${numeric[c] ? "text-right" : "text-left"}">${inline(h)}</th>`)
+        .join("");
+      const rows = body
+        .map((r) => `<tr class="odd:bg-white even:bg-slate-50/60">${header
+          .map((_, c) => `<td class="px-2 py-1.5 text-slate-700 whitespace-nowrap border-b border-slate-100 ${numeric[c] ? "text-right tabular-nums" : ""}">${inline(r[c] ?? "")}</td>`)
+          .join("")}</tr>`)
+        .join("");
+      store.push(
+        `<div class="my-2 max-w-full overflow-x-auto rounded-xl border border-slate-200 bg-white"><table class="w-full border-collapse text-[11px]"><thead class="bg-slate-50"><tr>${th}</tr></thead><tbody>${rows}</tbody></table></div>`,
+      );
+      out.push(`\u0000T${store.length - 1}\u0000`);
+      continue;
+    }
+    out.push(lines[i]);
+  }
+  return out.join("\n");
 }

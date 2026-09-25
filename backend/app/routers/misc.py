@@ -11,7 +11,7 @@ from uuid import UUID
 import json
 import re
 from fastapi import APIRouter, Query, status, Request, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import func, select, text
 
 from app.dependencies import CurrentUser, DbSession, AuthenticatedUser
@@ -1619,6 +1619,10 @@ class CopilotChatRequest(BaseModel):
     active_campus_id: Optional[str] = None
     active_class_section_id: Optional[str] = None
     active_student_id: Optional[str] = None
+    #: A text file the user attached, sent on its own rather than stuffed into
+    #: a message capped at 2,000 characters — which refused every real file.
+    attachment_name: Optional[str] = Field(None, max_length=200)
+    attachment_text: Optional[str] = Field(None, max_length=4000)
 
 class AiSettingsUpdate(BaseModel):
     enabled: bool
@@ -1972,40 +1976,23 @@ async def copilot_chat(
 ):
     from fastapi import HTTPException
     from fastapi.responses import StreamingResponse
-    from app.utils.ai_service import OllamaAIService
-    from app.utils.ai_semantic_cache import (
-        semantic_cache, classify_cache_type, classify_data_deps,
+    # 1. The school this conversation is about.
+    #
+    # `get_current_user_with_roles` has already resolved the X-School-Id header
+    # (slug or id) into `current_user.school_id` and loaded the caller's roles
+    # *in that school only* — a non-member is refused there with a 403. So the
+    # school on the user is both the one asked about and one they belong to.
+    # A super admin may look at any school, which is their job; everyone else
+    # must have one. (An earlier check compared the raw header to the resolved
+    # id as strings, which refused a correct request made with a slug.)
+    raw_school_id = current_user.school_id or (
+        request.headers.get("X-School-Id") if current_user.is_super_admin else None
     )
-    
-    # 1. Resolve the school this conversation is about.
-    #
-    # This used to read `current_user.school_id or request.headers["X-School-Id"]`.
-    # A header is whatever the caller says it is, so any authenticated user
-    # whose token carried no school could name someone else's school and have
-    # the Copilot read that school's live records back to them.
-    #
-    # A super admin may choose a school, because that is their job. Everyone
-    # else gets the school on their token, and asking for another one is
-    # refused rather than honoured.
-    requested_school_id = request.headers.get("X-School-Id")
-    if current_user.is_super_admin:
-        raw_school_id = requested_school_id or current_user.school_id
-    else:
-        raw_school_id = current_user.school_id
-        if (
-            requested_school_id
-            and raw_school_id
-            and str(requested_school_id).strip() != str(raw_school_id).strip()
-        ):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="You can only ask about your own school.",
-            )
-        if not raw_school_id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Your account is not attached to a school, so there is nothing to ask about.",
-            )
+    if not raw_school_id and not current_user.is_super_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Your account is not attached to a school, so there is nothing to ask about.",
+        )
     effective_school_id = str(raw_school_id) if raw_school_id else None
     if effective_school_id:
         try:
@@ -2063,80 +2050,57 @@ async def copilot_chat(
         active_campus_id=body.active_campus_id,
         active_class_section_id=body.active_class_section_id,
         active_student_id=body.active_student_id,
+        attachment_name=body.attachment_name,
+        attachment_text=(
+            re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]', '', body.attachment_text)
+            if body.attachment_text else None
+        ),
     )
 
-    # 2. Fetch scoped DB context based on role permissions (100% Realtime Synced Live Execution)
-    db_context = await fetch_ai_context(
-        db=db,
-        user=current_user,
-        school_id=effective_school_id or "",
-        active_campus_id=body.active_campus_id,
-        active_student_id=body.active_student_id,
-        current_module=body.current_module,
-        current_screen=body.current_screen,
-        user_query=body.message,
-    )
-    
-    # 3. Build System Prompt
-    system_prompt = """You are the **AltRix AI Copilot**, the high-precision operational ERP intelligence engine for AltRix Core.
-Always reply in the EXACT SAME LANGUAGE and script used by the user (Roman Urdu for Roman Urdu queries, English for English queries, Urdu for Urdu script, Arabic for Arabic queries).
+    # 2. Answer. Most questions are answered from one scoped query with exact
+    #    figures and never reach the model; see app/utils/copilot.
+    #
+    # This used to build an eighteen-thousand-character dump of the school's
+    # records — the same dump for every question — and hand it to a 1.5B model
+    # on a four-core CPU, which read it at about sixty tokens a second: forty
+    # to eighty-five seconds before the first word, and figures the model had
+    # to count and add up for itself.
+    from app.database import AsyncSessionLocal
+    from app.utils.copilot import copilot_stream
+    from app.utils.db_session_context import apply_identity_to_session, clear_identity_from_session
 
-### LIVE ERP DATABASE RECORDS:
-__DB_CONTEXT__
-
-__ACTIVE_CONTEXT__
-
-### STRICT OPERATIONAL RULES:
-1. **Direct, Laser-Focused Answers**:
-   - Answer ONLY what the user explicitly asks. 
-   - NEVER dump, cite, repeat, or summarize unrelated background sections from the database records (e.g. do NOT mention exam marks, student results, or holidays when the user asks about assigned classes or subjects; do NOT mention fees when asked about attendance).
-   - NEVER output internal section headers like "### School Branding:", "### Active UI Context:", "### Exam Results:", or "Based on the information provided in your exam results...". Start immediately with the direct answer.
-
-2. **No Links, No Buttons, No URLs, No Action Tags**:
-   - Strictly NEVER generate URLs (e.g. `http://...`, `/fees`, `/teachers`), markdown links `[label](url)`, navigation buttons, or `<altrix_action>` tags in your replies.
-   - Deliver clean, structured, and informative text, bulleted lists, and markdown tables only.
-
-3. **100% Factuality & Current User Awareness ("My ..." / "Mera ...")**:
-   - Ground every number, student count, teacher assignment, fee balance, and attendance rate strictly in the **LIVE ERP DATABASE RECORDS** provided above.
-   - When any user asks personal questions (e.g. "My classes", "My subjects", "My attendance", "My salary", "My children", "My fees", "My timetable", "Mere bachay", "Meri attendance", "Mera schedule"):
-     * The system automatically identifies the current authenticated user from the records.
-     * Answer using ONLY this user's personal records under "🎯 DIRECT QUERY ANSWER DATA (Your ...)", "Assigned Classes & Subjects", or personal profile sections.
-     * State the factual details directly without guessing or confusing with other users.
-   - NEVER output raw database UUIDs or internal system IDs.
-
-4. **Multilingual Fluency & Language Matching**:
-   - **Roman Urdu**: If the user writes in Roman Urdu (e.g. *"mere assigned classes aur subjects batao"*, *"mere students dikhao"*, *"Class 3 ke assigned teachers batao"*, *"kitni fee collect hui hai"*, *"aaj kitne bache absent hain"*), reply in natural, fluent, and polite **Roman Urdu**. Do NOT translate into English.
-   - **English**: If the user writes in English, reply in clear, professional **English**.
-   - **Urdu Script (اردو)**: If the user writes in Urdu script, reply in standard **Urdu script**.
-   - Adapt seamlessly to informal phrasing, short questions, and detailed analytical requests.
-"""
-
-    # 4. Replace placeholders with actual user details and db_context
-    roles_str = ", ".join(current_user.roles) if isinstance(current_user.roles, list) else str(current_user.roles)
-    
-    active_context_str = ""
-    if body.current_screen or body.current_module:
-        active_context_str = f"<!-- Current UI Screen: {body.current_screen or 'N/A'}, Module: {body.current_module or 'N/A'} -->\n"
-
-    system_prompt = (
-        system_prompt.replace("__USER_ID__", current_user.id or "")
-        .replace("__USER_EMAIL__", current_user.email or "")
-        .replace("__USER_ROLES__", roles_str)
-        .replace("__USER_SCHOOL_ID__", current_user.school_id or "")
-        .replace("__ACTIVE_CONTEXT__", active_context_str)
-        .replace("__DB_CONTEXT__", db_context or "")
-    )
-
-    # 5. Stream response directly from OllamaAIService in real time
     async def event_generator():
-        async for chunk in OllamaAIService.stream_completion(
-            system_prompt=system_prompt,
-            user_message=body.message,
-            history=body.history,
-        ):
-            yield chunk
+        # Its own session, not the request's: on this FastAPI version a
+        # `yield` dependency is torn down before a StreamingResponse body is
+        # sent, so the request's session is already closed — and its identity
+        # cleared — by the time these queries run.
+        async with AsyncSessionLocal() as stream_db:
+            await apply_identity_to_session(stream_db)
+            try:
+                async for chunk in copilot_stream(
+                    db=stream_db,
+                    user=current_user,
+                    school_id=effective_school_id or "",
+                    message=body.message,
+                    history=body.history,
+                    current_module=body.current_module,
+                    active_student_id=body.active_student_id,
+                    attachment_name=body.attachment_name,
+                    attachment_text=body.attachment_text,
+                ):
+                    yield chunk
+            finally:
+                # Read-only: nothing to commit.
+                await stream_db.rollback()
+                await clear_identity_from_session(stream_db)
 
-    return StreamingResponse(event_generator(), media_type="text/event-stream")
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        # Without these nginx buffers the stream and the tokens arrive in lumps
+        # long after they were generated.
+        headers={"X-Accel-Buffering": "no", "Cache-Control": "no-cache"},
+    )
 
 
 # ─── AI SEMANTIC CACHE ADMIN ENDPOINTS ───────────────────────────────────────

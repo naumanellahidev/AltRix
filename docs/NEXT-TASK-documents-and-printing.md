@@ -1391,3 +1391,155 @@ not: `SupportInbox` printed "No tickets found." while its tickets were still
 loading, telling a school its help desk was empty when it was not; and the
 salary forecast had neither a skeleton nor a word for a year with no budget
 set.
+
+## The Copilot, rebuilt to answer from the records (24 Sep 2026)
+
+### What was measured on the server
+
+The VPS has four CPU cores, no GPU and one local model (`qwen2.5:1.5b` on
+Ollama). The model reads a prompt at about sixty tokens a second before it
+says a word. The old Copilot sent it roughly eighteen thousand characters of
+the school's records, the same dump for every question, and then 40 to 85
+seconds passed before the first word. After all that wait the figures still
+came from a 1.5B model counting and adding rows of text. For "list unpaid
+invoices" the targeted search found nothing, so the answer was not in the
+prompt at all.
+
+### What it does now
+
+**The answer is computed; the model only explains it.**
+`backend/app/utils/copilot/` has:
+- a registry of 45 curated sources covering every module schools use daily,
+  such as fees, defaulters, attendance, exams, homework, timetable, staff,
+  leave, payroll, library, transport, hostel, inventory, visitors, CRM,
+  health and certificates;
+- a generic source for each of the ~125 other school-scoped tables, read from
+  `information_schema`;
+- a router and parameter parser (period, shape, status, class, name) that
+  read English, Roman Urdu and Urdu script without a model.
+
+A record question becomes one parameterised query. Postgres does the counting
+and summing, so a balance is the ledger's balance to the paisa. The answer
+comes back as a table in about 0.01 to 0.04 seconds, with the time it was
+read. The model is used only in three cases, each with a small prompt:
+- a short explanation over those figures, when asked "why" or "compare";
+- an attached file;
+- a question no module matches.
+
+**Scope is in the SQL.** Every statement filters on the caller's school.
+Leadership sees the whole school. A teacher sees their own sections, and only
+their own leave and pay. A parent sees their own children, and cannot point
+the screen at another family's child. A member of staff without the HR role
+reads only their own payslip. Generic tables are for leadership only. Tables
+holding credentials, sessions, gateways, audit logs or private messages are
+never offered, and no id, token or URL column is ever shown.
+
+**A correction to the entry above.** It said the Copilot could be asked about
+another school through the `X-School-Id` header. The dependency
+(`get_current_user_with_roles`) already prevented that: it loads roles for the
+named school only and returns 403 to anyone who is not a member. The
+string-compare check added then was redundant, and it also refused correct
+requests that sent the school's slug. The endpoint now trusts the school the
+dependency resolved, and still refuses an account with no school.
+
+**It says what is happening, and when something fails.**
+- The stream is unbuffered (`X-Accel-Buffering: no`) and runs on its own
+  database session.
+- The panel shows status lines while it works ("Reading fee records…").
+- If no word has arrived after 90 seconds, the panel says so instead of
+  spinning.
+- Each failure gives its real reason: 403, 429, server error or no
+  connection.
+- If the explanation fails, a note appears under the figures, which are
+  already complete.
+- A database failure is reported plainly without the SQL text.
+- Ollama error lines and mid-stream failures now surface; before, they were
+  ignored, or the next endpoint was tried and appended a second answer.
+
+**Nothing runs by itself.** Before, the panel executed any action that the
+model's text marked `execute: true`. That path has been removed.
+
+**Realtime.** Each answer carries the tables it was read from, and the panel
+watches them. A new trigger (`sql_migrations/20261029000000_copilot_change_notifications.sql`)
+sends a NOTIFY for every committed write on those tables. It includes only the
+table, the school and the kind of change, never row data. Each API worker
+LISTENs and passes the change to that school's open sessions. So a payment
+recorded through the fees endpoint marks an answer as out of date, just as a
+write through the data proxy does, and the panel offers "The figures have
+changed since — ask again".
+
+### Found and fixed on the way
+
+- "Show me …" had been treated as "mine", so a principal asking "show me the
+  leave requests" saw only their own leave.
+- "Help me find unpaid invoices" returned the help text instead of the
+  invoices.
+- "Fee summary" returned the school overview instead of the fee answer.
+- The screen name the panel sent ("Finance", "Exams & Results") never matched
+  a module, so the tie-breaker had never worked.
+- The old parent lookup queried `students.parent_id`, a column that does not
+  exist. The error was swallowed, so every parent was told they had no linked
+  children.
+- `active_student_id` used to be any id found in the URL, such as an invoice
+  or a card. Now it is only the student the user actually selected.
+- Attachments of up to 2 MB were accepted and then refused by a
+  2,000-character limit on the server. They are now capped at 4,000
+  characters and sent in their own field.
+
+### Tests
+
+`backend/tests/test_copilot_engine.py` has 329 cases:
+- 55 phrasings, each reaching its module, with every curated module covered;
+- periods, shape and "mine";
+- role access for leadership, teachers, parents and staff;
+- a walk of every statement for every source, asserting the school filter
+  and bind;
+- the generic denylist and safe columns;
+- the SSE contract;
+- the realtime wiring.
+
+Audit gates cop4 to cop7 were added.
+
+### Still to do for the Copilot
+
+- (Done) The model defaults in `config.py` are now `qwen2.5:1.5b`, the model
+  the server has; `glm-5.3` was never installed. `OLLAMA_URL=127.0.0.1:11434`
+  is correct as it is, because the backend container runs on the host
+  network. The plan had called it wrong; it was checked from inside the
+  container.
+- (Done) **The model, chosen by measurement.** Four models that fit the box
+  were benchmarked on the prompts the Copilot actually sends: an explanation
+  over fee figures in English and in Roman Urdu, an open question, and a trap
+  question whose answer is not in the facts.
+
+  | Model | First word (~550-token prompt) | Writing speed | What it got wrong |
+  |---|---|---|---|
+  | qwen2.5:1.5b | 11.5 s | 6–8 tok/s | Invented a deadline ("due by the end of this month"); repeated the table; misread the open question |
+  | qwen2.5:3b | 25 s | 3.4 tok/s | Invented a due date ("October 2026") |
+  | llama3.2:3b | 21–27 s | 3–5 tok/s | Its Roman Urdu came out as Hindi ("darshate", "prapt", "jankari"), and it invented a "Parent Reminders tab" |
+  | **gemma2:2b** | 21–24 s | 4–6 tok/s | Nothing: every figure it quoted was right, and it kept to five points |
+
+  **gemma2:2b** is now the default, with qwen2.5:1.5b installed as the
+  fallback; the other two were removed. It takes 1.9 GB of the 8 GB. Ollama
+  runs with `OLLAMA_MAX_LOADED_MODELS=1` and `OLLAMA_NUM_PARALLEL=1` (a
+  systemd drop-in), so a second model or a burst of questions cannot exhaust
+  memory. The app asks for 3 of the 4 cores (`ollama_num_thread`), so pages
+  stay responsive while the model writes. The explanation reads at most 700
+  characters of figures, and every prompt says in so many words which
+  language to answer in.
+- **Fixed on the way:** `choose_local_model` matched the model *family*
+  before the exact tag. With `qwen2.5:3b` also installed, a configured
+  `qwen2.5:1.5b` was answered by whichever of the two `/api/tags` listed
+  first.
+
+### Parked by the user, to pick up after the Copilot
+
+1. TimetableBuilder inline error state with retry.
+2. Export menus for Curriculum, PrincipalComplaints and MarketingCampaigns.
+3. Skeletons for Users, Directory, StudentWellbeing and PrincipalComplaints.
+4. Empty states for AdminConsole and Curriculum.
+5. The one student who is in no class.
+6. A report on students whose photo URLs still point at Supabase.
+7. A review of the nginx edge limit (30 r/s, burst 50 per IP).
+8. The Admissions UI sets a `waitlisted` status that the enum does not have.
+9. Some fee invoices have no student (e.g. INV-2026-000020).

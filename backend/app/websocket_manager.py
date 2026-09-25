@@ -170,6 +170,68 @@ class ConnectionManager:
                 logger.debug(f"Redis Pub/Sub listener standing by: {e}")
                 await asyncio.sleep(60)
 
+    def _on_table_changed(self, _conn, _pid, _channel, payload: str) -> None:
+        """A NOTIFY from `altrix_notify_change()`: which table of which school changed."""
+        try:
+            change = json.loads(payload)
+            table, school_id, action = change.get("t"), change.get("s"), change.get("a")
+        except (ValueError, AttributeError):
+            return
+        if not (table and school_id):
+            return
+        asyncio.get_running_loop().create_task(self.broadcast_to_room(f"school:{school_id}", {
+            "event": "event_bus_event",
+            "data": {"event_name": "table_changed", "school_id": school_id,
+                     "table": table, "action": action or "update"},
+        }))
+
+    async def start_table_change_listener(self) -> None:
+        """
+        LISTEN on `altrix_changes` and pass each change to that school's
+        connected sessions.
+
+        The database announces every committed write on the watched tables
+        (sql_migrations/20261029000000_copilot_change_notifications.sql), so a
+        payment recorded through the fees endpoint reaches an open screen just
+        as a write through the data proxy does. Every worker listens and tells
+        only its own connections — publishing to Redis from each of them would
+        deliver every change once per worker.
+        """
+        import asyncpg
+
+        from app.config import settings
+
+        url = settings.database_url or ""
+        for prefix in ("postgresql+asyncpg://", "postgres://"):
+            if url.startswith(prefix):
+                url = "postgresql://" + url[len(prefix):]
+        for gw in ("172.17.0.1", "172.18.0.1", "172.19.0.1", "172.20.0.1"):
+            url = url.replace(f"@{gw}", "@127.0.0.1")  # same rewrite as app.database
+        if not url:
+            return
+
+        while True:
+            conn = None
+            try:
+                conn = await asyncpg.connect(url, timeout=10)
+                await conn.add_listener("altrix_changes", self._on_table_changed)
+                logger.info("Listening for table changes on 'altrix_changes'")
+                # A dropped connection shows up here as a failed ping.
+                while True:
+                    await asyncio.sleep(30)
+                    await conn.execute("SELECT 1")
+            except asyncio.CancelledError:
+                raise
+            except Exception as e:
+                logger.warning(f"Table-change listener reconnecting in 15s: {e}")
+            finally:
+                if conn is not None:
+                    try:
+                        await conn.close(timeout=5)
+                    except Exception:
+                        pass
+            await asyncio.sleep(15)
+
 
 # Singleton instance
 ws_manager = ConnectionManager()

@@ -151,3 +151,57 @@ describe("renderMarkdown — formatting still works", () => {
     expect(renderMarkdown(null as unknown as string)).toBe("");
   });
 });
+
+/**
+ * Answers from the school's records are tables. The renderer used to print
+ * them as rows of raw pipe characters.
+ */
+describe("tables in Copilot answers", () => {
+  const table = [
+    "**3 invoices** — unpaid",
+    "",
+    "| Invoice | Student | Balance |",
+    "| --- | --- | --- |",
+    "| INV-1 | Ayesha Khan | Rs. 5,500.00 |",
+    "| INV-2 | Ali <b>x</b> | Rs. 1,000.00 |",
+    "",
+    "_Live data · as of 19:50_",
+  ].join("\n");
+
+  it("renders a markdown table as a table", () => {
+    const html = renderMarkdown(table);
+    const doc = new DOMParser().parseFromString(html, "text/html");
+    expect(doc.querySelectorAll("table")).toHaveLength(1);
+    expect(doc.querySelectorAll("th")).toHaveLength(3);
+    expect(doc.querySelectorAll("tbody tr")).toHaveLength(2);
+    expect(html).not.toContain("| INV-1");
+  });
+
+  it("keeps cell text escaped", () => {
+    const doc = new DOMParser().parseFromString(renderMarkdown(table), "text/html");
+    expect(doc.querySelectorAll("td b")).toHaveLength(0);
+    expect(doc.body.textContent).toContain("Ali <b>x</b>");
+  });
+
+  it("right-aligns a column of amounts", () => {
+    const doc = new DOMParser().parseFromString(renderMarkdown(table), "text/html");
+    const balance = doc.querySelectorAll("tbody tr")[0].querySelectorAll("td")[2];
+    expect(balance.className).toContain("text-right");
+  });
+
+  it("renders the text around the table as before", () => {
+    const html = renderMarkdown(table);
+    expect(html).toContain("<strong>3 invoices</strong>");
+    expect(html).toContain("<em>Live data · as of 19:50</em>");
+  });
+
+  it("does not italicise snake_case words", () => {
+    expect(renderMarkdown("fee_invoices and class_sections")).not.toContain("<em>");
+  });
+
+  it("cannot be tricked into emitting a stored table by a forged placeholder", () => {
+    const html = renderMarkdown("\u0000T0\u0000 hello");
+    expect(html).not.toContain("<table");
+    expect(html).toContain("hello");
+  });
+});

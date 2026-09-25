@@ -118,7 +118,31 @@ type Message = {
   chart?: ChartPayload;
   fileAttachment?: { name: string; size: number };
   isError?: boolean;
+  /** When the figures in this answer were read, and from which tables. */
+  asOf?: string;
+  tables?: string[];
+  /** The question it answered, so it can be asked again. */
+  question?: string;
+  /** The data behind it has changed since it was read. */
+  stale?: boolean;
 };
+
+/** The most a file can contribute: the model on the server reads about sixty
+ * tokens a second, so four thousand characters is already a long wait. */
+const ATTACHMENT_LIMIT = 4000;
+
+/** How long to wait for the first word before saying the model is not answering. */
+const FIRST_WORD_TIMEOUT_MS = 90_000;
+
+/** What went wrong, in words the reader can act on. */
+function describeFailure(status: number | null, detail: string): string {
+  if (status === 403) return detail || "You do not have access to the Copilot for this school.";
+  if (status === 429) return "Too many requests at once. Wait a few seconds and ask again.";
+  if (status === 400) return detail || "That question could not be sent.";
+  if (status && status >= 500) return `The server could not answer (error ${status}). Please try again in a moment.`;
+  if (status === null) return detail || "Could not reach the server. Check the connection and try again.";
+  return detail || `The request failed (error ${status}).`;
+}
 
 const genId = () => Math.random().toString(36).slice(2, 9);
 
@@ -588,6 +612,9 @@ export default function AltrixCopilot() {
   const [input, setInput] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
   const [isThinking, setIsThinking] = useState(false);
+  // What the Copilot says it is doing ("Reading fee records…"), from the
+  // server's status events, shown under the typing indicator.
+  const [streamStatus, setStreamStatus] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [attachedFile, setAttachedFile] = useState<{ name: string; content: string; size: number } | null>(null);
   const [showScrollBtn, setShowScrollBtn] = useState(false);
@@ -599,6 +626,41 @@ export default function AltrixCopilot() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef<AbortController | null>(null);
+
+  // Answers from the records are read live, at the moment they are asked. If
+  // the tables behind the latest one change afterwards — a payment recorded,
+  // attendance marked — it is flagged, so nobody acts on a figure that has
+  // moved since.
+  const liveAnswer = useMemo(() => {
+    for (let i = messages.length - 1; i >= 0; i -= 1) {
+      const m = messages[i];
+      if (m.role === "assistant" && m.tables?.length && !m.stale) return { id: m.id, tables: m.tables };
+    }
+    return null;
+  }, [messages]);
+  const liveKey = liveAnswer ? `${liveAnswer.id}:${liveAnswer.tables.join(",")}` : "";
+
+  useEffect(() => {
+    if (!liveAnswer || !schoolId || typeof schoolId !== "string") return;
+    const channels = liveAnswer.tables.map((table) =>
+      api
+        .channel(`copilot-${liveAnswer.id}-${table}`)
+        .on(
+          "postgres_changes",
+          // anyWrite: also changes made through the app's own endpoints
+          // (fees, attendance), announced by the database.
+          { event: "*", schema: "public", table, filter: `school_id=eq.${schoolId}`, anyWrite: true },
+          () => setMessages((prev) => prev.map((m) => (m.id === liveAnswer.id ? { ...m, stale: true } : m))),
+        )
+        .subscribe(),
+    );
+    return () => {
+      channels.forEach((ch) => {
+        void api.removeChannel(ch);
+      });
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [liveKey, schoolId]);
   const recognitionRef = useRef<any>(null);
   const storageKey = getStorageKey(schoolId, user?.id);
 
@@ -842,7 +904,7 @@ export default function AltrixCopilot() {
         {
           id: genId(),
           role: "assistant",
-          content: `👋 Hi! I'm your **AltRix AI Copilot** — deeply connected to your ERP.\n\nI can help you:\n- 📊 Analyze fee collection & defaulters\n- 👥 Monitor student attendance & performance\n- 📋 Generate official reports & vouchers\n- 🧭 Navigate any ERP module\n\nWhat would you like to know?`,
+          content: `👋 Hi! I'm your **AltRix AI Copilot**. I answer from your school's live records — in English or Roman Urdu.\n\nTry asking:\n- 📊 *Who has unpaid fees?* · *Is mahine kitni fee aayi?*\n- 👥 *Aaj kaun absent hai?* · *Class 5 ke students*\n- 📝 *Upcoming exams* · *Latest results*\n- 🧑‍🏫 *Staff on leave today* · *Open complaints*\n\nEvery figure comes straight from the database, with the time it was read.`,
           timestamp: new Date(),
         },
       ]);
@@ -1057,9 +1119,11 @@ export default function AltrixCopilot() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // File size constraint: 2MB limit
+    // Only text the model can actually read. A 2 MB limit here used to let a
+    // file through that the server then refused, because it was stuffed into
+    // a message capped at 2,000 characters — a silent 400 on every real file.
     if (file.size > 2 * 1024 * 1024) {
-      toast.error("File is too large. Limit is 2MB.");
+      toast.error("That file is too large. Attach a text file of a few pages at most.");
       return;
     }
 
@@ -1067,6 +1131,13 @@ export default function AltrixCopilot() {
     reader.onload = (event) => {
       const text = event.target?.result;
       if (typeof text === "string") {
+        if (text.length > ATTACHMENT_LIMIT) {
+          toast.error(
+            `The Copilot can read up to ${ATTACHMENT_LIMIT.toLocaleString()} characters of a file ` +
+              `(this one has ${text.length.toLocaleString()}). Paste the part you need instead.`,
+          );
+          return;
+        }
         setAttachedFile({
           name: file.name,
           content: text,
@@ -1106,6 +1177,7 @@ export default function AltrixCopilot() {
     setInput("");
     setIsThinking(true);
     setIsStreaming(true);
+    setStreamStatus(null);
 
     // Smoothly focus viewport on the start of the user question / reply
     setTimeout(() => {
@@ -1115,22 +1187,38 @@ export default function AltrixCopilot() {
     abortRef.current = new AbortController();
 
     try {
-      const history = messages.map((msg) => ({
-        role: msg.role,
-        content: msg.content,
-      }));
+      // The last few turns, without the panel's own error messages — the
+      // model used to read "I couldn't reach the AI backend" as something it
+      // had said.
+      const history = messages
+        .filter((msg) => !msg.isError && msg.content)
+        .slice(-8)
+        .map((msg) => ({ role: msg.role, content: msg.content.slice(0, 600) }));
 
-      // Prepend file content to user message prompt if available
-      let promptToSend = textToSend;
-      if (fileToAttach) {
-        promptToSend = `[Attached File: ${fileToAttach.name} (${fileToAttach.size} bytes)]\n\nContent:\n${fileToAttach.content}\n\nUser Question:\n${textToSend || "Analyze the attached file."}`;
-      }
+      const promptToSend = textToSend || (fileToAttach ? "Summarise the attached file." : "");
 
       const session = await api.auth.getSession();
       const token = session.data.session?.access_token || "";
 
       const getModuleFromPath = (path: string): string => {
         const p = path.toLowerCase();
+        // The server uses this to break ties ("pending" on the admissions
+        // screen means admissions), so the more specific screens come first.
+        if (p.includes("/library")) return "Library";
+        if (p.includes("/transport")) return "Transport";
+        if (p.includes("/hostel")) return "Hostel";
+        if (p.includes("/timetable")) return "Timetable";
+        if (p.includes("/homework")) return "Homework";
+        if (p.includes("/assignment")) return "Assignments";
+        if (p.includes("/holiday")) return "Holidays";
+        if (p.includes("/leave")) return "Leave";
+        if (p.includes("/payroll") || p.includes("/payslip") || p.includes("/salar")) return "Payroll";
+        if (p.includes("/inventory")) return "Inventory";
+        if (p.includes("/visitor")) return "Visitors";
+        if (p.includes("/event")) return "Events";
+        if (p.includes("/alumni")) return "Alumni";
+        if (p.includes("/certificate")) return "Certificates";
+        if (p.includes("/recruit") || p.includes("/job")) return "Recruitment";
         if (p.includes("/finance") || p.includes("/fees") || p.includes("/invoices") || p.includes("/payments") || p.includes("/expenses")) return "Finance";
         if (p.includes("/attendance")) return "Attendance";
         if (p.includes("/exam") || p.includes("/result") || p.includes("/report-card")) return "Exams & Results";
@@ -1142,9 +1230,6 @@ export default function AltrixCopilot() {
         return "General";
       };
 
-      const pathParts = location.pathname.split("/").filter(Boolean);
-      const lastPart = pathParts[pathParts.length - 1];
-      const pathUuid = lastPart && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(lastPart) ? lastPart : null;
 
       const response = await fetch(
         `${apiClient.defaults.baseURL || "/api"}/ai/copilot`,
@@ -1161,17 +1246,19 @@ export default function AltrixCopilot() {
             current_screen: location.pathname,
             current_module: getModuleFromPath(location.pathname),
             active_campus_id: activeCampusId || null,
-            active_student_id: activeStudentId || pathUuid || null,
+            // Only the student the user has chosen. Any id in the URL used to
+            // be sent as a student id — an invoice's, a report card's.
+            active_student_id: activeStudentId || null,
+            attachment_name: fileToAttach?.name ?? null,
+            attachment_text: fileToAttach?.content ?? null,
           }),
           signal: abortRef.current.signal,
         }
       );
 
-      setIsThinking(false);
-
       if (!response.ok) {
         const errData = await response.json().catch(() => ({}));
-        let errorMsg = `Error ${response.status}`;
+        let errorMsg = "";
         if (errData.detail) {
           if (typeof errData.detail === "string") {
             errorMsg = errData.detail;
@@ -1181,7 +1268,9 @@ export default function AltrixCopilot() {
             errorMsg = errData.detail.message || errData.detail.error || JSON.stringify(errData.detail);
           }
         }
-        throw new Error(errorMsg);
+        const failure = new Error(describeFailure(response.status, errorMsg));
+        (failure as any).handled = true;
+        throw failure;
       }
       if (!response.body) throw new Error("No response stream");
 
@@ -1194,11 +1283,26 @@ export default function AltrixCopilot() {
       // occasionally a whole event - were dropped without trace.
       let buffered = "";
       const assistantId = genId();
-
-      setMessages((prev) => [
-        ...prev,
-        { id: assistantId, role: "assistant", content: "", timestamp: new Date() },
-      ]);
+      // The bubble is added with the first word, not before: an empty bubble
+      // under a spinner looked like an answer that had failed to arrive.
+      let bubbleAdded = false;
+      let meta: { asOf?: string; tables?: string[] } = {};
+      const firstWordTimer = window.setTimeout(() => {
+        if (!bubbleAdded) {
+          abortRef.current?.abort();
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: genId(),
+              role: "assistant",
+              content:
+                "The model on the school's server did not start answering in time. Questions about records — fees, attendance, results, staff — are answered straight from the database and are quick; open-ended questions depend on the model and can be slow when it is busy.",
+              timestamp: new Date(),
+              isError: true,
+            },
+          ]);
+        }
+      }, FIRST_WORD_TIMEOUT_MS);
 
       const applyEvent = (jsonStr: string) => {
         if (!jsonStr || jsonStr === "[DONE]") return;
@@ -1207,6 +1311,14 @@ export default function AltrixCopilot() {
           data = JSON.parse(jsonStr);
         } catch {
           return; // not a whole event yet
+        }
+        if (typeof data.status === "string") {
+          setStreamStatus(data.status);
+          return;
+        }
+        if (data.meta && typeof data.meta === "object") {
+          meta = { asOf: data.meta.as_of, tables: Array.isArray(data.meta.tables) ? data.meta.tables : [] };
+          return;
         }
         if (data.error) {
           // The Copilot could not reach a model. Say so. This used to answer
@@ -1218,14 +1330,30 @@ export default function AltrixCopilot() {
               : String(data.error);
           return;
         }
-        assistantText += data.choices?.[0]?.delta?.content || "";
+        const piece = data.choices?.[0]?.delta?.content || "";
+        if (!piece) return;
+        assistantText += piece;
         const parsed = parseMessageContent(assistantText);
+        if (!bubbleAdded) {
+          bubbleAdded = true;
+          window.clearTimeout(firstWordTimer);
+          setIsThinking(false);
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: assistantId,
+              role: "assistant",
+              content: parsed.content,
+              timestamp: new Date(),
+              asOf: meta.asOf,
+              tables: meta.tables,
+              question: promptToSend,
+            },
+          ]);
+          return;
+        }
         setMessages((prev) =>
-          prev.map((m) =>
-            m.id === assistantId
-              ? { ...m, content: parsed.content, action: parsed.action, actions: parsed.actions, chart: parsed.chart }
-              : m
-          )
+          prev.map((m) => (m.id === assistantId ? { ...m, content: parsed.content } : m))
         );
       };
 
@@ -1243,51 +1371,39 @@ export default function AltrixCopilot() {
         }
       }
       if (buffered.trim().startsWith("data:")) applyEvent(buffered.trim().slice(5).trim());
+      window.clearTimeout(firstWordTimer);
 
       if (streamError && !assistantText) {
-        setMessages((prev) => prev.filter((m) => m.id !== assistantId));
-        throw new Error(streamError);
+        const failure = new Error(streamError);
+        (failure as any).handled = true;
+        throw failure;
       }
       if (streamError) {
         toast.warning("The answer stopped early: " + streamError, { duration: 9000 });
       }
 
-      // ── Auto-execute Action if flagged ──────────────────────────────────────
-      const finalParsed = parseMessageContent(assistantText);
-      if (finalParsed.actions && finalParsed.actions.length > 0) {
-        const shouldExecute = finalParsed.actions.some(a => a.execute || a.auto_execute);
-        if (shouldExecute) {
-          const executeMsg = {
-            id: assistantId,
-            role: "assistant" as const,
-            content: finalParsed.content,
-            action: finalParsed.action,
-            actions: finalParsed.actions,
-            chart: finalParsed.chart,
-            timestamp: new Date()
-          };
-          await handleExecuteAction(executeMsg);
-        }
-      }
+      // Nothing in a reply is ever executed by itself. This used to run any
+      // action the model's text flagged with `execute: true` — generating
+      // vouchers, navigating, exporting — without a click, on the say-so of a
+      // small model that had been told never to emit actions at all.
     } catch (err: any) {
       if (err.name === "AbortError") {
         // User stopped generation
         return;
       }
       console.error("Copilot stream error:", err);
+      // The reason, not a guess at one. Every failure used to read "Is the
+      // backend server running?" — including a 403 for a disabled Copilot
+      // and a 429 for a busy one.
+      const reason = err?.handled ? err.message : describeFailure(null, "");
       setMessages((prev) => [
         ...prev,
-        {
-          id: genId(),
-          role: "assistant",
-          content: `I couldn't reach the AI backend. Please check:\n- Is the backend server running?\n- Is the AI Copilot enabled in platform settings?\n\n_Error: ${err.message}_`,
-          timestamp: new Date(),
-          isError: true,
-        },
+        { id: genId(), role: "assistant", content: reason, timestamp: new Date(), isError: true },
       ]);
     } finally {
       setIsStreaming(false);
       setIsThinking(false);
+      setStreamStatus(null);
     }
   };
 
@@ -1625,6 +1741,17 @@ export default function AltrixCopilot() {
                 </div>
 
                 {/* Timestamp for user */}
+                {msg.role === "assistant" && msg.stale && msg.question && (
+                  <button
+                    type="button"
+                    onClick={() => void handleSend(msg.question!)}
+                    disabled={isStreaming}
+                    className="mt-1 ml-1 inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-800 hover:bg-amber-100 disabled:opacity-50"
+                    title="The records behind this answer have changed since it was read"
+                  >
+                    The figures have changed since — ask again
+                  </button>
+                )}
                 {msg.role === "user" && (
                   <span className="text-[9px] text-slate-400 mt-1 mr-1">
                     {msg.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
@@ -1640,7 +1767,7 @@ export default function AltrixCopilot() {
                   <Brain className="h-3 w-3 text-white" />
                 </div>
                 <div className="bg-slate-50 border border-slate-200/60 rounded-2xl rounded-bl-sm px-3 py-2.5 flex items-center gap-1.5 shadow-sm">
-                  <span className="text-[11px] text-slate-500 italic">Analyzing ERP data</span>
+                  <span className="text-[11px] text-slate-500 italic">{streamStatus || "Understanding your question…"}</span>
                   <TypingDots />
                 </div>
               </div>

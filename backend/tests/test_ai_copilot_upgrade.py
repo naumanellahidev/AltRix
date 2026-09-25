@@ -73,6 +73,18 @@ def test_only_an_installed_model_is_ever_requested():
     assert OllamaAIService.choose_local_model((), "hello") is None
 
 
+def test_the_configured_tag_wins_over_a_sibling_of_the_same_family(monkeypatch):
+    # /api/tags lists the newest pull first; a family match must not beat
+    # the exact tag that was configured.
+    from app.utils import ai_service
+    monkeypatch.setattr(ai_service.settings, "ollama_general_model", "qwen2.5:1.5b")
+    monkeypatch.setattr(ai_service.settings, "ollama_reasoning_model", "qwen2.5:1.5b")
+    installed = ("qwen2.5:3b", "gemma2:2b", "qwen2.5:1.5b")
+    assert OllamaAIService.choose_local_model(installed, "hello") == "qwen2.5:1.5b"
+    monkeypatch.setattr(ai_service.settings, "ollama_general_model", "qwen2.5:3b")
+    assert OllamaAIService.choose_local_model(installed, "hello") == "qwen2.5:3b"
+
+
 def test_the_best_installed_model_wins():
     installed = ("llama3.2:1b", "qwen2.5:7b", "qwen2.5:1.5b")
     assert OllamaAIService.choose_local_model(installed) == "qwen2.5:7b"

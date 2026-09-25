@@ -57,6 +57,11 @@ CLOUD_DEFAULT_MODELS: Dict[str, str] = {
 #: the server reports are ever requested.
 LOCAL_PREFERENCE: Tuple[str, ...] = (
     "qwen2.5:14b", "qwen2.5:7b", "llama3.1:8b", "gemma2:9b",
+    # Measured on the VPS (25 Sep 2026): of the models that fit a four-core,
+    # 8 GB CPU box, gemma2:2b was the only one that invented nothing across
+    # the Copilot's real prompts; qwen2.5:3b made up a due date, and
+    # llama3.2:3b's Roman Urdu came out as Hindi.
+    "gemma2:2b",
     "qwen2.5:3b", "llama3.2:3b", "deepseek-r1:7b", "deepseek-r1:1.5b",
     "qwen2.5:1.5b", "llama3.2:1b",
 )
@@ -75,6 +80,33 @@ MODEL_CACHE_SECONDS = 300
 
 #: Room for a full answer. 512 cut tables and lists off mid-row.
 MAX_OUTPUT_TOKENS = 1024
+
+#: Keep the model in memory between questions. Ollama unloads it after five
+#: idle minutes by default, and the next question then pays to load it again.
+KEEP_ALIVE = "30m"
+
+#: The context window to allocate. The Copilot's prompts are now a few hundred
+#: to a couple of thousand tokens; a larger window only makes Ollama allocate
+#: (and on this CPU, fill) a bigger cache for nothing.
+NUM_CTX = 4096
+
+
+def _thread_options() -> Dict[str, int]:
+    """CPU threads for the model, leaving the rest to the app.
+
+    On the four-core VPS the model would otherwise take every core while it
+    writes, and pages and API calls slow down for everyone else in the school.
+    0 lets Ollama decide.
+    """
+    threads = int(getattr(settings, "ollama_num_thread", 0) or 0)
+    return {"num_thread": threads} if threads > 0 else {}
+
+#: The longest a reader waits for the first word, and for the whole answer,
+#: before being told plainly that the model did not answer in time. Without
+#: these, five endpoints times a 300-second read timeout could hold a question
+#: open for twenty-five minutes.
+FIRST_TOKEN_SECONDS = 60.0
+TOTAL_SECONDS = 150.0
 
 
 class AIServiceError(RuntimeError):
@@ -218,8 +250,14 @@ class AIService:
         ) or ""
         configured = configured.strip()
         if configured:
+            # The exact tag first: "qwen2.5:1.5b" must not be answered by
+            # "qwen2.5:3b" just because /api/tags lists the newer pull first.
+            if configured in installed:
+                return configured
+            if ":" not in configured and f"{configured}:latest" in installed:
+                return f"{configured}:latest"
             for name in installed:
-                if name == configured or name.split(":")[0] == configured.split(":")[0]:
+                if name.split(":")[0] == configured.split(":")[0]:
                     return name
             logger.info(
                 "Configured model %r is not installed; using the best of %s",
@@ -345,7 +383,7 @@ class AIService:
 
     @classmethod
     async def _stream_local(
-        cls, messages: List[Dict[str, str]], query: str
+        cls, messages: List[Dict[str, str]], query: str, max_tokens: int = MAX_OUTPUT_TOKENS
     ) -> AsyncGenerator[str, None]:
         """Ollama's own streaming format, from a model the server reports having."""
         installed = await cls.installed_local_models()
@@ -360,7 +398,8 @@ class AIService:
             "model": model,
             "messages": messages,
             "stream": True,
-            "options": {"temperature": 0.2, "num_predict": MAX_OUTPUT_TOKENS},
+            "options": {"temperature": 0.2, "num_predict": max_tokens, "num_ctx": NUM_CTX, **_thread_options()},
+            "keep_alive": KEEP_ALIVE,
         }
         headers = {"Content-Type": "application/json"}
         if settings.ollama_api_key:
@@ -368,8 +407,11 @@ class AIService:
         timeout = httpx.Timeout(connect=8.0, read=300.0, write=30.0, pool=30.0)
 
         last_error: Optional[str] = None
+        started = time.monotonic()
         for endpoint in cls.get_ollama_endpoints():
             streamed = False
+            if time.monotonic() - started > FIRST_TOKEN_SECONDS:
+                break
             try:
                 async with httpx.AsyncClient(timeout=timeout) as client:
                     async with client.stream("POST", endpoint, json=payload, headers=headers) as response:
@@ -388,15 +430,31 @@ class AIService:
                                 chunk = json.loads(line)
                             except json.JSONDecodeError:
                                 continue
+                            if chunk.get("error"):
+                                # Ollama reports a failure mid-stream as a line
+                                # of its own. It used to be skipped, so the
+                                # answer simply stopped with no reason given.
+                                raise AIServiceError(f"the model stopped: {chunk['error']}")
                             token = chunk.get("message", {}).get("content", "")
                             if token:
                                 streamed = True
                                 yield _delta(token)
                             if chunk.get("done"):
                                 break
+                            elapsed = time.monotonic() - started
+                            if (not streamed and elapsed > FIRST_TOKEN_SECONDS) or elapsed > TOTAL_SECONDS:
+                                raise AIServiceError(
+                                    "the model on the server took too long to answer"
+                                    + (" — the reply was cut short" if streamed else "")
+                                )
                 if streamed:
                     return
             except Exception as exc:
+                if streamed:
+                    # Part of the answer is already on the reader's screen.
+                    # Asking the next endpoint would append a second answer
+                    # to the first; the failure is reported instead.
+                    raise
                 last_error = str(exc)
                 logger.warning("Ollama at %s failed: %s", endpoint, exc)
 
@@ -408,6 +466,7 @@ class AIService:
         system_prompt: str,
         user_message: str,
         history: Optional[List[Dict[str, str]]] = None,
+        max_tokens: int = MAX_OUTPUT_TOKENS,
     ) -> AsyncGenerator[str, None]:
         """
         Stream an answer as Server-Sent Events.
@@ -434,12 +493,16 @@ class AIService:
 
         if not produced:
             try:
-                async for event in cls._stream_local(messages, user_message):
+                async for event in cls._stream_local(messages, user_message, max_tokens):
                     produced = True
                     yield event
             except Exception as exc:
                 errors.append(f"local: {exc}")
                 logger.error("AltRix AI: no provider could answer. %s", "; ".join(errors))
+                if produced:
+                    # Say why the answer stopped, rather than leave it
+                    # hanging mid-sentence as if it had finished.
+                    yield _sse({"error": {"code": "ai_interrupted", "message": str(exc)}})
 
         if not produced:
             yield _sse(

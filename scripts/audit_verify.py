@@ -243,7 +243,7 @@ def run():
     check(S, "19", "tenant prefix imposed server-side", "[prefix, *segments]" in sto)
     check(S, "19", "bucket boundary uses commonpath", "os.path.commonpath" in sto)
     check(S, "20", "assistant output escaped before formatting",
-          md.index("escapeHtml(text)") < md.index("altrix_action"))
+          md.index("escapeHtml(text") < md.index("altrix_action"))
     check(S, "21", "safe CSP directives enforced",
           "add_header Content-Security-Policy \"frame-ancestors 'none'" in ngx)
     check(S, "21", "full policy shipped in report-only",
@@ -572,7 +572,8 @@ def run():
     # explains the old expression contains the old expression.
     misc_code = code("backend/app/routers/misc.py")
     check(S, "cop1", "the Copilot only ever answers about the caller's own school",
-          "You can only ask about your own school." in misc
+          "you are not a member of this school" in txt("backend/app/dependencies.py")
+          and "not attached to a school" in misc
           and "current_user.school_id or request.headers" not in misc_code
           and "current_user.is_super_admin" in misc_code)
     check(S, "cop2", "the Copilot keeps the records the question needs, not the first ones",
@@ -581,6 +582,19 @@ def run():
           "duringBackgroundLoads" in txt("src/hooks/useUniversalPrefetch.ts")
           and "requestIdleCallback" in txt("src/hooks/useUniversalPrefetch.ts")
           and "backgroundDepth" in txt("src/lib/load-failure.ts"))
+
+    panel = txt("src/components/ai/AltrixCopilot.tsx")
+    cop_res = txt("backend/app/utils/copilot/resolver.py")
+    check(S, "cop4", "record questions are answered by one scoped query, not by the model reading a dump",
+          'where: List[str] = ["t.school_id = CAST(:sid AS uuid)"]' in cop_res
+          and "copilot_stream" in misc_code and "build_scoped_ai_context" not in code("backend/app/utils/copilot/engine.py"))
+    check(S, "cop5", "nothing the model writes is executed without a click",
+          "shouldExecute" not in panel and "await handleExecuteAction(executeMsg)" not in panel)
+    check(S, "cop6", "the Copilot stream is not held back by the proxy",
+          '"X-Accel-Buffering": "no"' in misc and "async with AsyncSessionLocal() as stream_db" in misc)
+    check(S, "cop7", "a change made through any endpoint marks a Copilot answer as out of date",
+          'add_listener("altrix_changes"' in txt("backend/app/websocket_manager.py")
+          and "anyWrite: true" in panel and "listener.anyWrite" in txt("src/lib/api.ts"))
 
     rct = txt("src/lib/documents/report-card-templates.ts")
     check(S, "rcds", "the seven designs differ in the shape of the page, not only its colours",

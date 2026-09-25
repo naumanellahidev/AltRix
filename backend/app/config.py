@@ -80,8 +80,14 @@ class Settings(BaseSettings):
     gemini_api_key: str = ""
     ollama_url: str = "http://127.0.0.1:11434"
     ollama_api_key: str = ""
-    ollama_reasoning_model: str = "glm-5.3"
-    ollama_general_model: str = "glm-5.3"
+    # Chosen by measurement on the VPS (see LOCAL_PREFERENCE in ai_service):
+    # the most accurate model that fits the box. qwen2.5:1.5b stays installed
+    # as the fallback. ("glm-5.3", the old default, was never installed.)
+    ollama_reasoning_model: str = "gemma2:2b"
+    ollama_general_model: str = "gemma2:2b"
+    # Threads the model may use. The VPS has four cores; three for the model
+    # leaves one for the API, the database and the workers while it writes.
+    ollama_num_thread: int = 3
 
     # Cloud AI Flexibility
     ai_provider: str = "ollama"  # "ollama", "openrouter", "groq", "deepseek"

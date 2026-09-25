@@ -64,8 +64,20 @@ def test_only_a_super_admin_may_name_a_school_in_a_header():
 
 
 def test_another_school_named_in_the_header_is_refused():
+    # Refused before the endpoint runs: the dependency resolves the header
+    # (slug or id), loads roles in that school only, and 403s a non-member.
+    # The endpoint then uses the school on the user, which is that one. An
+    # earlier string comparison here also refused correct requests made
+    # with a slug.
+    deps = io.open("app/dependencies.py", encoding="utf-8").read()
+    assert "Depends(get_current_user_with_roles)" in deps
+    assert "you are not a member of this school" in deps
     body = fn("copilot_chat")
-    assert "You can only ask about your own school." in body
+    assert "current_user: CurrentUser" in SRC[SRC.index("async def copilot_chat"):][:400]
+    assert re.search(
+        r"current_user\.school_id or \(?\s*request\.headers\.get\('X-School-Id'\) if current_user\.is_super_admin else None",
+        body,
+    )
     assert "HTTP_403_FORBIDDEN" in body
 
 

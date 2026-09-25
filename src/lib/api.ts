@@ -448,6 +448,27 @@ function openRealtimeSocket(wsUrl: string) {
   ws.onmessage = (event) => {
     try {
       const payload = JSON.parse(event.data);
+      // A write announced by the database itself (any endpoint, not only the
+      // data proxy). It carries no row, so it goes only to listeners that
+      // asked for it with `anyWrite: true` — the others read `payload.new`.
+      if (payload.event === 'event_bus_event' && payload.data?.event_name === 'table_changed') {
+        const { table, action } = payload.data;
+        activeChannels.forEach(ch => {
+          ch.listeners.forEach((listener: any) => {
+            if (listener.anyWrite && listener.table === table) {
+              listener.callback({
+                schema: 'public',
+                table,
+                commit_timestamp: new Date().toISOString(),
+                eventType: String(action || 'update').toUpperCase(),
+                new: {},
+                old: {},
+              });
+            }
+          });
+        });
+        return;
+      }
       if (payload.event === 'event_bus_event' && payload.data?.event_name === 'postgres_changes') {
         const dbChange = payload.data;
         const targetTable = dbChange.table;
@@ -509,6 +530,7 @@ export class VpsChannel {
       this.listeners.push({
         event,
         table: filter.table,
+        anyWrite: !!filter.anyWrite,
         callback
       });
     } else {

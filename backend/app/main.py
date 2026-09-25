@@ -206,6 +206,8 @@ async def lifespan(app: FastAPI):
         from app.websocket_manager import ws_manager
         asyncio.create_task(ws_manager.start_redis_listener())
         logger.info("Background Redis Pub/Sub WebSocket listener task created")
+        # Writes made through any endpoint, announced by the database itself.
+        asyncio.create_task(ws_manager.start_table_change_listener())
     except Exception as ws_err:
         logger.error(f"Failed to start Redis Pub/Sub WebSocket listener: {ws_err}")
 
