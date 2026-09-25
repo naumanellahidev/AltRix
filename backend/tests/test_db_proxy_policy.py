@@ -192,3 +192,34 @@ def test_denied(label, kwargs):
 )
 def test_allowed(label, kwargs):
     _authorize(**kwargs)  # must not raise
+
+
+# --- The platform's own records -----------------------------------------------
+
+@pytest.mark.parametrize("action", ["select", "insert", "update", "delete"])
+@pytest.mark.parametrize("roles", [OWNER, PRINCIPAL, ACCOUNTANT])
+def test_a_school_can_neither_read_nor_change_its_platform_invoices(action, roles):
+    # platform_invoices sat among the school's own config tables, so a school
+    # owner could mark their own invoice Paid.
+    with pytest.raises(HTTPException) as err:
+        _authorize(table="platform_invoices", action=action, roles=roles, has_school_id=True)
+    assert err.value.status_code == 403
+
+
+def test_the_platform_owner_keeps_the_platform_invoices():
+    _authorize(table="platform_invoices", action="update", roles=SUPER, is_super_admin=True,
+               has_school_id=True)
+
+
+def test_readable_tables_without_a_school_are_confined_to_the_callers_school():
+    # They used to be served whole: every school's marks, seating, message
+    # recipients and bus stops, every user's profile and every school's record.
+    import io
+    proxy = io.open("app/routers/vps_db.py", encoding="utf-8").read()
+    block = proxy[proxy.index("CROSS_TENANT_SCOPES = {"):]
+    block = block[: block.index("}")]
+    for table in ("schools", "profiles", "report_card_subject_entries", "co_curricular_grades",
+                  "exam_seat_assignments", "exam_invigilators", "admin_message_recipients", "bus_stops"):
+        assert f'"{table}"' in block, table
+    assert "table_key in CROSS_TENANT_SCOPES" in proxy
+    assert "psa.user_id = profiles.id" in proxy  # nor the platform owner's profile

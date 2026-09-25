@@ -87,8 +87,14 @@ SCHOOL_CONFIG_TABLES: Set[str] = {
     "school_inquiry_settings", "report_card_settings",
     "fee_settings", "jazzcash_settings",
     "easypaisa_settings", "grade_thresholds", "white_label_settings",
-    "custom_domains", "platform_invoices", "platform_requests", "campuses",
+    "custom_domains", "platform_requests", "campuses",
 }
+
+#: The platform's own records about a school: what it is billed. They carry a
+#: school_id, but a school may neither read nor change them through the
+#: proxy -- "platform_invoices" used to sit in SCHOOL_CONFIG_TABLES, so a
+#: school's owner could mark their own invoice Paid.
+PLATFORM_ONLY_TABLES: Set[str] = {"platform_invoices"}
 
 #: Money and academic results. Students and parents may never write these.
 FINANCE_TABLES: Set[str] = {
@@ -142,6 +148,9 @@ def authorize_proxy_request(
             f"Table '{table}' is not accessible through the data proxy. "
             "Use the dedicated API endpoint for this resource."
         )
+
+    if table in PLATFORM_ONLY_TABLES and not is_super_admin:
+        raise _deny(f"'{table}' is kept by the platform and is not available to schools.")
 
     if is_super_admin:
         if action in ("update", "delete") and not has_user_filter:

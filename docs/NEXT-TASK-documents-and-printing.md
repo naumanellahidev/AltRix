@@ -1754,8 +1754,49 @@ rolled back:
 - an enquiry became a lead and notified 4 staff;
 - a child's teachers came back with the class teacher first.
 
-**Still open:** `cron_generate_platform_invoices`, the platform billing run.
-The table it needs (`platform_invoices`) does not exist. Without it, the
-platform billing page falls back to a "local simulation" that makes up
-invoices in the browser. It is the platform owner's own screen, and it
-needs a real billing schema; to be decided with the owner.
+
+### Platform billing, and data a school could read from other schools (25 Sep 2026)
+
+- **Platform billing made invoices up.** The page read `platform_invoices`
+  and called `cron_generate_platform_invoices`, and neither existed. When the
+  read failed, the page invented invoices in the browser
+  ("PLAT-INV-202605-100", one of them "Paid") and kept them in localStorage.
+  It also showed every school, all four of which are on the free plan, as
+  paying the template price of Rs. 15,000 a month, due in 30 days. That made
+  a monthly recurring revenue of Rs. 60,000 that does not exist. And after a
+  manual invoice it said "notification sent to …", though no email is sent.
+  Migration `20261031000300_platform_billing.sql` adds:
+  - `next_billing_date` and `billing_status` on schools;
+  - the `platform_invoices` table (exact money, never deleted with its
+    school, one recurring invoice per school per date);
+  - the billing run. It bills a school on a paid plan when its date has
+    come and moves the date on by the cycle. A school with no date is given
+    one rather than billed by surprise. Unpaid invoices past due become
+    Overdue, and so does their school. It is for the platform owner only.
+
+  The page shows only what is stored ("Not billed", "Not scheduled"), and
+  reports a failure instead of simulating. Its message after a manual
+  invoice now says no email was sent. Tried on the production data and
+  rolled back: Beacon at Rs. 15,000, billed from yesterday, raised
+  PLAT-20260924-BEACON due 4 Oct and moved to 24 Oct. A second run raised
+  nothing.
+- **A school could mark its own platform invoice Paid.** `platform_invoices`
+  sat among the tables a school's own administrators may write. It is now
+  kept by the platform: `PLATFORM_ONLY_TABLES` refuses it to schools, both
+  reading and writing.
+- **Readable tables without a school_id were served whole.** Through the data
+  proxy, any signed-in user of any school could read:
+  - every school's record;
+  - every user's profile (name, phone and email);
+  - report-card marks (`report_card_subject_entries`,
+    `co_curricular_grades`);
+  - exam seating and invigilators;
+  - message recipients;
+  - bus stops.
+
+  For anyone but the platform owner, each is now confined through the row it
+  belongs to: the schools the caller belongs to; the people who share the
+  caller's school (never the platform owner); and marks, seats, recipients
+  and stops whose report card, seating plan, message or route is in the
+  caller's school. For Beacon's principal, schools went from 4 to 1 and
+  profiles from 23 to 19.

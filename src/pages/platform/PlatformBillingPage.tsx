@@ -30,7 +30,6 @@ import {
   RefreshCw,
   PlusCircle,
   Database,
-  Mail,
   Trash2,
   Settings,
   Pencil,
@@ -53,7 +52,8 @@ interface SchoolBillingData {
   name: string;
   slug: string;
   is_active: boolean;
-  plan_tier: "Basic" | "Standard" | "Enterprise" | "Premium";
+  /** "free" is what a school starts on until the platform sets a plan. */
+  plan_tier: "free" | "Basic" | "Standard" | "Enterprise" | "Premium";
   billing_cycle: "monthly" | "yearly";
   billing_amount: number;
   next_billing_date: string;
@@ -165,121 +165,60 @@ export default function PlatformBillingPage() {
 
       if (schoolsError) throw schoolsError;
 
-      // Check if billing columns exist on the first school returned
-      let dbSchemaMissing = false;
-      if (schoolsData && schoolsData.length > 0) {
-        const firstSchool = schoolsData[0];
-        if (!("plan_tier" in firstSchool)) {
-          dbSchemaMissing = true;
-          setIsDbSchemaApplied(false);
-        } else {
-          setIsDbSchemaApplied(true);
-        }
+      // The billing columns are part of the schema (migrations 20260922030000
+      // and 20261031000300). If they are missing, the server needs its
+      // migrations — this used to switch to a "local simulation" that invented
+      // plans, amounts and invoices in the browser.
+      if (schoolsData && schoolsData.length > 0 && !("plan_tier" in schoolsData[0])) {
+        setIsDbSchemaApplied(false);
+        throw new Error("The billing columns are missing on the server; its migrations have not run.");
       }
+      setIsDbSchemaApplied(true);
 
-      // Map Supabase schools with local storage fallbacks if DB columns are missing
-      const mappedSchools: SchoolBillingData[] = (schoolsData || []).map((s: any) => {
-        if (dbSchemaMissing) {
-          // Read from localStorage if schema not applied
-          const localOverride = localStorage.getItem(`local_billing_school:${s.id}`);
-          if (localOverride) {
-            return JSON.parse(localOverride);
-          }
-          return {
-            id: s.id,
-            name: s.name,
-            slug: s.slug,
-            is_active: s.is_active ?? true,
-            plan_tier: "Basic",
-            billing_cycle: "monthly",
-            billing_amount: planTemplates.Basic?.monthly ?? 15000,
-            next_billing_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
-            billing_status: "Active",
-            billing_email: s.email || "",
-          };
-        }
-
-        return {
-          id: s.id,
-          name: s.name,
-          slug: s.slug,
-          is_active: s.is_active ?? true,
-          plan_tier: s.plan_tier || "Basic",
-          billing_cycle: s.billing_cycle || "monthly",
-          billing_amount: s.billing_amount || (planTemplates.Basic?.monthly ?? 15000),
-          next_billing_date: s.next_billing_date || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
-          billing_status: s.billing_status || "Active",
-          billing_email: s.billing_email || s.email || "",
-        };
-      });
+      // What is stored, and nothing else: a school with no amount or no billing
+      // date shows as such, rather than as a template price due in 30 days.
+      const mappedSchools: SchoolBillingData[] = (schoolsData || []).map((s: any) => ({
+        id: s.id,
+        name: s.name,
+        slug: s.slug,
+        is_active: s.is_active ?? true,
+        plan_tier: s.plan_tier || "free",
+        billing_cycle: s.billing_cycle || "monthly",
+        billing_amount: Number(s.billing_amount ?? 0),
+        next_billing_date: s.next_billing_date || "",
+        billing_status: s.billing_status || "Active",
+        billing_email: s.billing_email || s.email || "",
+      }));
 
       setSchools(mappedSchools);
 
-      // 2. Fetch platform invoices
-      if (!dbSchemaMissing) {
-        const { data: invoicesData, error: invoicesError } = await api
-          .from("platform_invoices" as any)
-          .select("*")
-          .order("created_at", { ascending: false });
-
-        if (!invoicesError && invoicesData) {
-          const mappedInvoices = invoicesData.map((inv: any) => {
-            const matchedSchool = mappedSchools.find((sch) => sch.id === inv.school_id);
-            return {
-              id: inv.id,
-              school_id: inv.school_id,
-              school_name: matchedSchool ? matchedSchool.name : "Unknown School",
-              invoice_number: inv.invoice_number,
-              amount: inv.amount,
-              billing_date: inv.billing_date,
-              due_date: inv.due_date,
-              status: inv.status,
-              paid_at: inv.paid_at,
-            };
-          });
-          setInvoices(mappedInvoices);
-        } else {
-          // If query fails, fall back to localStorage invoices
-          loadLocalInvoices(mappedSchools);
-        }
-      } else {
-        loadLocalInvoices(mappedSchools);
-      }
+      // 2. The platform's invoices to schools.
+      const { data: invoicesData, error: invoicesError } = await api
+        .from("platform_invoices" as any)
+        .select("*")
+        .order("created_at", { ascending: false });
+      if (invoicesError) throw invoicesError;
+      setInvoices(
+        (invoicesData ?? []).map((inv: any) => {
+          const matchedSchool = mappedSchools.find((sch) => sch.id === inv.school_id);
+          return {
+            id: inv.id,
+            school_id: inv.school_id,
+            school_name: matchedSchool ? matchedSchool.name : "Unknown School",
+            invoice_number: inv.invoice_number,
+            amount: Number(inv.amount),
+            billing_date: inv.billing_date,
+            due_date: inv.due_date,
+            status: inv.status,
+            paid_at: inv.paid_at,
+          };
+        }),
+      );
     } catch (err: any) {
       console.error("Error loading billing data:", err);
-      toast.error("Failed to fetch database records");
+      toast.error(`Billing records could not be loaded: ${err?.message ?? err}`);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const loadLocalInvoices = (activeSchools: SchoolBillingData[]) => {
-    const localInvRaw = localStorage.getItem("local_platform_invoices");
-    if (localInvRaw) {
-      const parsed = JSON.parse(localInvRaw) as PlatformInvoice[];
-      // Update school names in case they changed
-      const updated = parsed.map((inv) => {
-        const matched = activeSchools.find((s) => s.id === inv.school_id);
-        return {
-          ...inv,
-          school_name: matched ? matched.name : inv.school_name,
-        };
-      });
-      setInvoices(updated);
-    } else {
-      // Mock initial invoices
-      const mockInvoices: PlatformInvoice[] = activeSchools.map((s, idx) => ({
-        id: `local-inv-${s.id}-${idx}`,
-        school_id: s.id,
-        school_name: s.name,
-        invoice_number: `PLAT-INV-202605-${100 + idx}`,
-        amount: s.billing_amount,
-        billing_date: "2026-05-01",
-        due_date: "2026-05-15",
-        status: idx === 0 ? "Paid" : "Unpaid",
-      }));
-      localStorage.setItem("local_platform_invoices", JSON.stringify(mockInvoices));
-      setInvoices(mockInvoices);
     }
   };
 
@@ -296,7 +235,7 @@ export default function PlatformBillingPage() {
   // Edit Plan trigger
   const handleOpenPlanModal = (school: SchoolBillingData) => {
     setSelectedSchool(school);
-    setNewPlan(school.plan_tier);
+    setNewPlan(school.plan_tier === "free" ? "Basic" : school.plan_tier);
     setNewCycle(school.billing_cycle);
     setNewAmount(school.billing_amount);
     setNewEmail(school.billing_email || "");
@@ -393,25 +332,12 @@ export default function PlatformBillingPage() {
 
         if (error) throw error;
       } else {
-        const newInvoice: PlatformInvoice = {
-          id: `local-inv-man-${Date.now()}`,
-          school_id: invoiceSchoolId,
-          school_name: matchedSchool.name,
-          invoice_number: invoiceNumber,
-          amount: invoiceAmount,
-          billing_date: new Date().toISOString().split("T")[0],
-          due_date: invoiceDueDate,
-          status: "Unpaid",
-        };
-        const updatedList = [newInvoice, ...invoices];
-        localStorage.setItem("local_platform_invoices", JSON.stringify(updatedList));
+        throw new Error("Billing is not set up on the server, so nothing was saved.");
       }
 
-      // Simulate notification to School Principal/Owner
-      const targetEmail = matchedSchool.billing_email || "principal@school.com";
-      toast.success("Invoice generated & notification sent!", {
-        description: `Invoice ${invoiceNumber} sent to ${targetEmail}`,
-        icon: <Mail className="h-4 w-4 text-blue-700" />,
+      // No email goes out from here, so the message does not say one did.
+      toast.success("Invoice recorded", {
+        description: `${invoiceNumber} for ${matchedSchool.name}. Send it to ${matchedSchool.billing_email || "the school"} yourself — no email is sent automatically.`,
       });
 
       setIsInvoiceModalOpen(false);
@@ -437,52 +363,7 @@ export default function PlatformBillingPage() {
           toast.success("Billing cycle finished! All schools are up to date.");
         }
       } else {
-        // Local simulation
-        const today = new Date();
-        let invoicesCreated = 0;
-        const updatedSchools = schools.map((sch) => {
-          const nextDate = new Date(sch.next_billing_date);
-          if (today >= nextDate) {
-            invoicesCreated++;
-            const invoiceNumber = `PLAT-INV-REC-${sch.slug}-${today.toISOString().slice(0, 10).replace(/-/g, "")}`;
-            
-            // Add local invoice
-            const newInv: PlatformInvoice = {
-              id: `local-inv-auto-${sch.id}-${Date.now()}`,
-              school_id: sch.id,
-              school_name: sch.name,
-              invoice_number: invoiceNumber,
-              amount: sch.billing_amount,
-              billing_date: today.toISOString().split("T")[0],
-              due_date: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
-              status: "Unpaid",
-            };
-            
-            // Update local invoices array & store
-            setInvoices((prev) => {
-              const nextList = [newInv, ...prev];
-              localStorage.setItem("local_platform_invoices", JSON.stringify(nextList));
-              return nextList;
-            });
-
-            // Rollover next billing date (+30 days)
-            const nextBilling = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
-            const updatedSch = {
-              ...sch,
-              next_billing_date: nextBilling,
-            };
-            localStorage.setItem(`local_billing_school:${sch.id}`, JSON.stringify(updatedSch));
-            return updatedSch;
-          }
-          return sch;
-        });
-
-        if (invoicesCreated > 0) {
-          setSchools(updatedSchools);
-          toast.success(`Billing cycle finished! Simulated ${invoicesCreated} recurring invoices.`);
-        } else {
-          toast.success("Billing cycle checked. All school accounts are up to date.");
-        }
+        throw new Error("Billing is not set up on the server, so nothing was saved.");
       }
       void loadData();
     } catch (err: any) {
@@ -493,7 +374,7 @@ export default function PlatformBillingPage() {
   // Mark invoice as paid
   const handleMarkAsPaid = async (invId: string) => {
     try {
-      if (isDbSchemaApplied && !invId.startsWith("local-")) {
+      if (isDbSchemaApplied) {
         const { error } = await api
           .from("platform_invoices" as any)
           .update({
@@ -504,18 +385,7 @@ export default function PlatformBillingPage() {
 
         if (error) throw error;
       } else {
-        const updated = invoices.map((inv) => {
-          if (inv.id === invId) {
-            return {
-              ...inv,
-              status: "Paid" as const,
-              paid_at: new Date().toISOString(),
-            };
-          }
-          return inv;
-        });
-        localStorage.setItem("local_platform_invoices", JSON.stringify(updated));
-        setInvoices(updated);
+        throw new Error("Billing is not set up on the server, so nothing was saved.");
       }
 
       toast.success("Invoice marked as Paid!");
@@ -530,7 +400,7 @@ export default function PlatformBillingPage() {
     if (!confirm("Are you sure you want to delete this invoice record?")) return;
 
     try {
-      if (isDbSchemaApplied && !invId.startsWith("local-")) {
+      if (isDbSchemaApplied) {
         const { error } = await api
           .from("platform_invoices" as any)
           .delete()
@@ -538,9 +408,7 @@ export default function PlatformBillingPage() {
 
         if (error) throw error;
       } else {
-        const updated = invoices.filter((inv) => inv.id !== invId);
-        localStorage.setItem("local_platform_invoices", JSON.stringify(updated));
-        setInvoices(updated);
+        throw new Error("Billing is not set up on the server, so nothing was saved.");
       }
 
       toast.success("Invoice deleted successfully");
@@ -553,7 +421,7 @@ export default function PlatformBillingPage() {
   const handleSaveEditInvoice = async () => {
     if (!editingInvoice) return;
     try {
-      if (isDbSchemaApplied && !editingInvoice.id.startsWith("local-")) {
+      if (isDbSchemaApplied) {
         const { error } = await api
           .from("platform_invoices" as any)
           .update({
@@ -567,21 +435,7 @@ export default function PlatformBillingPage() {
 
         if (error) throw error;
       } else {
-        const updated = invoices.map((inv) => {
-          if (inv.id === editingInvoice.id) {
-            return {
-              ...inv,
-              amount: editAmount,
-              billing_date: editBillingDate,
-              due_date: editDueDate,
-              status: editStatus,
-              paid_at: editStatus === "Paid" ? new Date().toISOString() : undefined,
-            };
-          }
-          return inv;
-        });
-        localStorage.setItem("local_platform_invoices", JSON.stringify(updated));
-        setInvoices(updated);
+        throw new Error("Billing is not set up on the server, so nothing was saved.");
       }
 
       toast.success("Invoice updated successfully!");
@@ -658,15 +512,15 @@ export default function PlatformBillingPage() {
             <div className="space-y-1">
               <div className="flex items-center gap-2 text-blue-700 font-semibold">
                 <Database className="h-5 w-5" />
-                <span>Local Storage Mode Active</span>
+                <span>Billing is not set up on this server</span>
               </div>
               <p className="text-xs text-slate-500 max-w-2xl">
-                The billing schema columns (plan_tier, billing_cycle, invoices table) are not yet fully compiled in your Supabase database. 
-                The system is running on a high-fidelity local cache so you can test all features immediately. Apply the migration SQL to save changes persistently.
+                The billing columns or the invoices table are missing, so nothing on this page can be shown or saved.
+                Run the server's migrations (deploy) and reload.
               </p>
             </div>
             <Badge variant="outline" className="border-blue-200 text-blue-700 font-mono">
-              20260605000000_platform_billing.sql
+              20261031000300_platform_billing.sql
             </Badge>
           </Card>
         )}
@@ -816,10 +670,12 @@ export default function PlatformBillingPage() {
                           {s.billing_cycle}
                         </TableCell>
                         <TableCell className="text-slate-700 font-mono">
-                          Rs. {s.billing_amount.toLocaleString()}/{s.billing_cycle === "yearly" ? "yr" : "mo"}
+                          {s.billing_amount > 0
+                            ? `Rs. ${s.billing_amount.toLocaleString()}/${s.billing_cycle === "yearly" ? "yr" : "mo"}`
+                            : "Not billed"}
                         </TableCell>
                         <TableCell className="text-slate-500 text-xs">
-                          {s.next_billing_date}
+                          {s.next_billing_date || "Not scheduled"}
                         </TableCell>
                         <TableCell className="text-slate-500 text-xs font-mono">
                           {s.billing_email || <span className="text-slate-500 italic">No email set</span>}

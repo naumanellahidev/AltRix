@@ -60,6 +60,21 @@ def _bounded_limit(requested: int) -> int:
     return min(requested, MAX_ROW_LIMIT)
 
 
+#: Readable tables without a school_id, and how each belongs to a school:
+#: (the column pointing at the parent row, the parent table). "schools" and
+#: "profiles" are special-cased: the schools the caller belongs to, and the
+#: people who share the caller's school.
+CROSS_TENANT_SCOPES = {
+    "schools": ("id", "schools"),
+    "profiles": ("id", "profiles"),
+    "report_card_subject_entries": ("report_card_id", "report_cards"),
+    "co_curricular_grades": ("report_card_id", "report_cards"),
+    "exam_seat_assignments": ("seating_plan_id", "exam_seating_plans"),
+    "exam_invigilators": ("seating_plan_id", "exam_seating_plans"),
+    "admin_message_recipients": ("message_id", "admin_messages"),
+    "bus_stops": ("route_id", "bus_routes"),
+}
+
 GLOBAL_TABLES = {
     "users",
     "schools",
@@ -465,6 +480,39 @@ async def execute_query(query: QueryPayload, current_user: CurrentUser, db: DbSe
         resolved_tenant_id = await resolve_school_id_val(current_user.school_id) or current_user.school_id
         where_clauses.append("school_id = :__tenant_id")
         params["__tenant_id"] = cast_value(resolved_tenant_id, columns_types["school_id"])
+
+    # Readable tables without a school_id used to be served whole: any signed-in
+    # user of any school could read every school's report-card marks, exam
+    # seating, message recipients and bus stops, every user's profile (name,
+    # phone, email) and every school's record. Each is now confined to the
+    # caller's school, through the row it belongs to.
+    table_key = query.table.lower()
+    if not has_school_id and not current_user.is_super_admin and table_key in CROSS_TENANT_SCOPES:
+        scope_school = await resolve_school_id_val(current_user.school_id)
+        me = uuid.UUID(str(current_user.id))
+        if table_key == "schools":
+            where_clauses.append(
+                "(id = :__scope_school"
+                " OR id IN (SELECT ur.school_id FROM public.user_roles ur WHERE ur.user_id = :__me)"
+                " OR id IN (SELECT oa.school_id FROM public.school_owner_assignments oa WHERE oa.owner_user_id = :__me))"
+            )
+        elif table_key == "profiles":
+            where_clauses.append(
+                "(id = :__me OR ("
+                "id IN (SELECT ur.user_id FROM public.user_roles ur WHERE ur.school_id = :__scope_school"
+                " UNION SELECT sm.user_id FROM public.school_memberships sm WHERE sm.school_id = :__scope_school)"
+                " AND NOT EXISTS (SELECT 1 FROM public.platform_super_admins psa WHERE psa.user_id = profiles.id)))"
+            )
+        else:
+            if scope_school is None:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="No school context. Send the X-School-Id header.",
+                )
+            fk, parent = CROSS_TENANT_SCOPES[table_key]
+            where_clauses.append(f"{fk} IN (SELECT p.id FROM public.{parent} p WHERE p.school_id = :__scope_school)")
+        params["__scope_school"] = scope_school
+        params["__me"] = me
 
     order_by_clauses = []
     limit_clause = ""
