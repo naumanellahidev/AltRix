@@ -672,10 +672,29 @@ async def book_ptm(body: PTMBookRequest, current_user: CurrentUser, db: DbSessio
     if not school_uuid or not slot_uuid or not student_uuid or not parent_uuid:
         raise HTTPException(status_code=400, detail="Invalid school, slot, or student context")
 
-    slot_res = await db.execute(select(PTMSlot).where(PTMSlot.id == slot_uuid))
+    # The slot must be this school's, and the student this parent's own child:
+    # neither was checked, so a slot could be booked in another school, or
+    # a meeting booked about someone else's child.
+    slot_res = await db.execute(
+        select(PTMSlot).where(PTMSlot.id == slot_uuid, PTMSlot.school_id == school_uuid)
+    )
     slot = slot_res.scalar_one_or_none()
     if not slot:
         raise HTTPException(status_code=404, detail="PTM slot not found")
+    own_child = await db.execute(
+        text(
+            """
+            SELECT 1 FROM students s
+            LEFT JOIN student_guardians g ON g.student_id = s.id
+            WHERE s.id = :st AND s.school_id = :sch
+              AND (g.user_id = :parent OR s.profile_id = :parent)
+            LIMIT 1
+            """
+        ),
+        {"st": student_uuid, "sch": school_uuid, "parent": parent_uuid},
+    )
+    if own_child.first() is None:
+        raise HTTPException(status_code=403, detail="You can only book a meeting about your own child.")
     if slot.status == "cancelled":
         raise HTTPException(status_code=400, detail="This slot has been cancelled")
     if slot.current_bookings >= slot.max_bookings:

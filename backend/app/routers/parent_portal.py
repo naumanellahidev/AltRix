@@ -29,11 +29,10 @@ async def get_parent_children(current_user: CurrentUser, db: DbSession):
         )
     )
     res = await db.execute(stmt)
+    # Only the children linked to this account. When there were none, this
+    # used to return the school's first five students as this parent's own —
+    # other families' children, with their records one click away.
     students = res.scalars().all()
-    if not students:
-        stmt_all = select(Student).where(Student.school_id == current_user.school_id).limit(5)
-        res_all = await db.execute(stmt_all)
-        students = res_all.scalars().all()
 
     return [
         {
@@ -107,6 +106,18 @@ async def book_ptm_slot(payload: PTMBookingCreateSchema, current_user: CurrentUs
         raise HTTPException(status_code=404, detail="PTM Slot not found")
     if slot.status != "open":
         raise HTTPException(status_code=400, detail="PTM Slot is no longer open")
+    # Only about the parent's own child (this was not checked).
+    from sqlalchemy import text as _text
+    own_child = await db.execute(
+        _text(
+            "SELECT 1 FROM students s LEFT JOIN student_guardians g ON g.student_id = s.id "
+            "WHERE s.id = CAST(:st AS uuid) AND s.school_id = CAST(:sch AS uuid) "
+            "AND (g.user_id = CAST(:parent AS uuid) OR s.profile_id = CAST(:parent AS uuid)) LIMIT 1"
+        ),
+        {"st": str(payload.student_id), "sch": str(current_user.school_id), "parent": str(current_user.id)},
+    )
+    if own_child.first() is None:
+        raise HTTPException(status_code=403, detail="You can only book a meeting about your own child.")
 
     booking = PTMBooking(
         school_id=current_user.school_id,

@@ -152,7 +152,7 @@ export default function StudentWellbeingModule() {
       try {
         res = await apiClient.get("/students?page_size=200");
       } catch {
-        res = await apiClient.get("/parents/children").catch(() => ({ data: [] }));
+        res = await apiClient.get("/parent-portal/children").catch(() => ({ data: [] }));
       }
       const raw = res?.data;
       const list = Array.isArray(raw?.data)
@@ -568,7 +568,7 @@ export default function StudentWellbeingModule() {
                           <TableRow key={log.id}>
                             <TableCell className="pl-6 text-xs">{format(new Date(log.visit_date), "PP")}</TableCell>
                             <TableCell className="font-bold text-foreground">{log.reason}</TableCell>
-                            <TableCell className="text-xs text-muted-foreground">{log.treatment_given || "Rest / Observation"}</TableCell>
+                            <TableCell className="text-xs text-muted-foreground">{log.treatment_given || "Not recorded"}</TableCell>
                             <TableCell className="text-right pr-6">
                               <Badge variant={log.status === "referred_to_hospital" ? "destructive" : "secondary"}>
                                 {log.status.toUpperCase()}
@@ -623,7 +623,7 @@ export default function StudentWellbeingModule() {
                             <TableCell className="text-center font-semibold">Dose #{vac.dose_number}</TableCell>
                             <TableCell className="text-center text-xs">{format(new Date(vac.administered_date), "PP")}</TableCell>
                             <TableCell className="text-right pr-6 text-xs text-destructive font-semibold">
-                              {vac.next_due_date ? format(new Date(vac.next_due_date), "PP") : "Fully Immunized"}
+                              {vac.next_due_date ? format(new Date(vac.next_due_date), "PP") : "No next dose recorded"}
                             </TableCell>
                           </TableRow>
                         ))
@@ -707,7 +707,7 @@ export default function StudentWellbeingModule() {
                       {contacts.map((cont) => (
                         <TableRow key={cont.id} className="hover:bg-muted/30">
                           <TableCell className="pl-6 font-bold text-foreground">{cont.contact_name}</TableCell>
-                          <TableCell className="text-xs font-semibold">{cont.specialty || "General Service"}</TableCell>
+                          <TableCell className="text-xs font-semibold">{cont.specialty || "—"}</TableCell>
                           <TableCell className="text-xs text-primary font-bold font-mono">{cont.phone}</TableCell>
                           <TableCell className="text-right pr-6 text-xs text-muted-foreground">{cont.hospital_name || "—"}</TableCell>
                         </TableRow>

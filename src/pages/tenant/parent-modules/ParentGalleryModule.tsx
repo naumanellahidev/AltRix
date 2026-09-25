@@ -42,7 +42,7 @@ export default function ParentGalleryModule() {
   const fetchEvents = async () => {
     setLoading(true);
     try {
-      const resp = await apiClient.get<SchoolEvent[]>("/events");
+      const resp = await apiClient.get<SchoolEvent[]>("/school-events");
       setEvents(resp.data || []);
     } catch (err) {
       console.error(err);
@@ -55,7 +55,7 @@ export default function ParentGalleryModule() {
   const fetchEventPhotos = async (eventId: string) => {
     setLoadingPhotos(true);
     try {
-      const resp = await apiClient.get<EventPhoto[]>(`/events/${eventId}/photos`);
+      const resp = await apiClient.get<EventPhoto[]>(`/school-events/${eventId}/photos`);
       setPhotos(resp.data || []);
     } catch (err) {
       console.error(err);

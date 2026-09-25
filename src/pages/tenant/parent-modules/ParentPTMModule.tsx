@@ -67,8 +67,8 @@ export default function ParentPTMModule({ child, schoolId }: ParentPTMModuleProp
     setLoading(true);
     try {
       const [slotsResp, bookingsResp] = await Promise.all([
-        apiClient.get<PTMSlot[]>(`/events/ptm/my-slots?student_id=${child.student_id}`),
-        apiClient.get<PTMBooking[]>("/events/ptm/my-bookings"),
+        apiClient.get<PTMSlot[]>(`/school-events/ptm/my-slots?student_id=${child.student_id}`),
+        apiClient.get<PTMBooking[]>("/school-events/ptm/my-bookings"),
       ]);
       setSlots(slotsResp.data || []);
       setBookings(bookingsResp.data || []);
@@ -97,7 +97,7 @@ export default function ParentPTMModule({ child, schoolId }: ParentPTMModuleProp
     if (!selectedSlot || !child) return;
     setBookingInProgress(true);
     try {
-      await apiClient.post("/events/ptm/book", {
+      await apiClient.post("/school-events/ptm/book", {
         slot_id: selectedSlot.id,
         student_id: child.student_id,
         parent_notes: parentNotes.trim(),
@@ -115,7 +115,7 @@ export default function ParentPTMModule({ child, schoolId }: ParentPTMModuleProp
   const handleCancelBooking = async (bookingId: string, teacherName: string) => {
     if (!confirm(`Are you sure you want to cancel your meeting with ${teacherName}?`)) return;
     try {
-      await apiClient.delete(`/events/ptm/bookings/${bookingId}`);
+      await apiClient.delete(`/school-events/ptm/bookings/${bookingId}`);
       toast.success("Meeting cancelled successfully");
       fetchData();
     } catch (err) {

@@ -87,14 +87,21 @@ export function InventoryModule() {
 
   const handleAdjustStock = async () => {
     if (!adjustItem) return;
-    const delta = adjustType === "inward" ? adjustQty : -adjustQty;
-    const newQty = Math.max(0, adjustItem.available_quantity + delta);
+    if (!adjustQty || adjustQty < 1) {
+      toast.error("Enter a quantity of at least 1");
+      return;
+    }
     try {
-      await apiClient.put(`/inventory/items/${adjustItem.id}`, {
-        available_quantity: newQty,
-        total_quantity: Math.max(adjustItem.total_quantity, newQty)
+      // Recorded as a stock transaction — who moved how many, and why —
+      // rather than an overwritten number. The server refuses to issue more
+      // than is in stock. (This used to PUT to a route that did not exist.)
+      const res = await apiClient.post("/inventory/transactions", {
+        item_id: adjustItem.id,
+        transaction_type: adjustType === "inward" ? "restock" : "issue",
+        quantity: adjustQty,
+        notes: adjustReason.trim() || null,
       });
-      toast.success(`Stock updated: ${adjustItem.item_name} is now ${newQty}`);
+      toast.success(`Stock updated: ${adjustItem.item_name} is now ${res.data?.available_quantity ?? "updated"}`);
       setAdjustItem(null);
       loadInventory();
     } catch (err: any) {

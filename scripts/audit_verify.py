@@ -317,6 +317,28 @@ def run():
     dupes = {k for k, v in
              __import__("collections").Counter(map(tuple, routes)).items() if v > 1}
     check(S, "27", "no endpoint shadows another", routes and not dupes, str(dupes))
+
+    # Every call the frontend makes reaches a route that exists. Parent PTM
+    # and gallery called /events/... (the router is /school-events), the
+    # wellbeing screen called five routes that did not exist, and inventory
+    # adjusted stock through a PUT nobody had written.
+    route_rx = [(m, re.compile("^" + re.sub(r"\{\}", "[^/]+", re.escape(p).replace(r"\{\}", "{}")) + "$"))
+                for m, p in routes]
+    api_call = re.compile(r"apiClient\s*\.\s*(get|post|put|patch|delete)\s*(?:<[^>]*>)?\s*\(\s*([`'\"])(.*?)\2", re.S)
+    unrouted = set()
+    for path in glob.glob("src/**/*.ts", recursive=True) + glob.glob("src/**/*.tsx", recursive=True):
+        if ".test." in path:
+            continue
+        for m in api_call.finditer(txt(path)):
+            url = m.group(3).split("?")[0]
+            url = re.sub(r"(?<=[^/])\$\{[^}]*\}$", "", url)   # `${qs}` appended as a query string
+            url = re.sub(r"\$\{[^}]*\}", "X", url)
+            if not url.startswith("/"):
+                continue
+            method, full = m.group(1).upper(), "/api" + url
+            if not any(meth == method and rx.match(full) for meth, rx in route_rx):
+                unrouted.add(f"{method} {full}")
+    check(S, "api1", "every backend call the frontend makes has a route", not unrouted, str(sorted(unrouted)))
     tr = code(R + "transport.py")
     te = code(R + "teachers.py")
     check(S, "28", "no fabricated bus, driver or stop",

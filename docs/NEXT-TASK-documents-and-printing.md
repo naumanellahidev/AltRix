@@ -1843,3 +1843,52 @@ Also:
   made-up "model-school" address;
 - the database page's schedule no longer comes pre-filled with
   "admin@altrix.com", and it says that no email is sent from it yet.
+
+### Calls to routes that did not exist, and the health desk (25 Sep 2026)
+
+A check that matches every `apiClient` call in the frontend against the
+backend's routes found 15 calls with nowhere to go (now audit gate `api1`):
+
+- **Parent PTM booking and the parent gallery** called `/events/...`, but
+  the router is `/school-events`, so a parent could neither see nor book a
+  meeting, nor open a photo album. They now call the right paths. The
+  booking also checked neither that the slot was the parent's school's nor
+  that the student was their own child; it checks both now (and so does
+  the older `/parent-portal/ptm/book`).
+- **`/parent-portal/children`** returned the school's first five students
+  as a parent's own children whenever the parent had none linked, which put
+  other families' children, and their records, one click away. It now
+  returns only the children linked to the account.
+- **Student wellbeing** (router rewritten):
+  - Access: any signed-in account could list every child's medical file,
+    and `/medical-records/{student}` did not check the school. Now staff
+    read their school's files, a guardian only their own children's and a
+    student only their own. Health files, vaccinations and the emergency
+    contacts are written by leadership and counsellors; infirmary visits
+    and first aid by any staff member.
+  - The screen and the router disagreed. The screen sent `reason` and the
+    router required `symptoms`, so no infirmary visit ever saved.
+    Medications and insurance were dropped. There was no way to save a
+    vaccination. The first-aid screen called `/first-aid` while the router
+    had `/incidents`. The emergency contacts directory and the wellness
+    check-ins had no route and no table. Both spellings are now accepted
+    and returned, and migration `20261031000500_wellbeing_complete.sql`
+    adds the missing columns, the `school_medical_contacts` and
+    `wellbeing_surveys` tables, and id defaults the ORM had been filling
+    in.
+  - A first-aid incident was stored as "parent notified" and answered
+    "parent notification dispatched" whatever happened. The student's
+    guardians with an account are now notified, and the record and reply
+    say how many were.
+  - Invented defaults ("School Nurse", "Playground") are gone, and so is
+    "Fully Immunized", which was shown whenever no next dose was recorded.
+  - With no check-ins, the mood index shows nothing rather than 0.
+
+  All 29 statements the new router issues were run on the production schema
+  as the app's own database role, inside a transaction that was rolled back.
+- **Inventory**: stock was adjusted by a PUT to a route that did not exist.
+  It is now recorded as a stock transaction (restock or issue, with the
+  reason). Issuing more than is in stock is refused, the item must be the
+  school's own (the lookup had no school filter), and parents and students
+  can no longer add items or move stock. There is now a PUT for editing an
+  item's details.
