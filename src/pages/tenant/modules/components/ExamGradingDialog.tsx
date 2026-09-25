@@ -178,9 +178,29 @@ export default function ExamGradingDialog({
   const handleLockGrading = async () => {
     setLocking(true);
     try {
-      // Simulate lock by creating draft report cards for the class so they are ready for principal review
+      // Each student's card for this exam is totalled over every subject
+      // recorded so far — not over this one subject. It used to write this
+      // subject's marks as the card's whole total, so whichever teacher locked
+      // last decided every student's total, and the other subjects vanished.
+      const { data: allResults, error: resultsError } = await api
+        .from("exam_results")
+        .select("student_id, marks_obtained, max_marks")
+        .eq("school_id", schoolId)
+        .eq("exam_id", examId);
+      if (resultsError) throw resultsError;
+      const totals = new Map<string, { obtained: number; max: number }>();
+      for (const r of (allResults ?? []) as { student_id: string; marks_obtained: number | null; max_marks: number | null }[]) {
+        if (r.marks_obtained === null || r.marks_obtained === undefined) continue; // not recorded is not zero
+        const t = totals.get(r.student_id) ?? { obtained: 0, max: 0 };
+        t.obtained += Number(r.marks_obtained);
+        t.max += Number(r.max_marks ?? 0);
+        totals.set(r.student_id, t);
+      }
+
       const savePromises = rows.map(async (row) => {
         if (row.marks_obtained === null) return;
+        const total = totals.get(row.student_id);
+        if (!total || total.max <= 0) return;
         
         // Find if report card exists
         const { data: existingCard } = await api
@@ -191,21 +211,20 @@ export default function ExamGradingDialog({
           .eq("exam_id", examId)
           .maybeSingle();
 
-        const allStudentMarks = [row.marks_obtained];
-        const pct = (row.marks_obtained / maxMarks) * 100;
+        const pct = (total.obtained / total.max) * 100;
         const grade = getGradeSymbol(pct);
 
         const payload = {
           school_id: schoolId,
           student_id: row.student_id,
           exam_id: examId,
-          total_marks: row.marks_obtained,
-          max_total: maxMarks,
+          total_marks: total.obtained,
+          max_total: total.max,
           percentage: Math.round(pct * 100) / 100,
           overall_grade: grade,
           period_type: "exam",
           period_label: examName,
-          teacher_remarks: existingCard?.teacher_remarks || "Grading locked by Subject Teacher.",
+          teacher_remarks: existingCard?.teacher_remarks ?? null,
           principal_remarks: existingCard?.principal_remarks || null,
           attendance_percentage: existingCard?.attendance_percentage || null,
           is_published: existingCard?.is_published || false,

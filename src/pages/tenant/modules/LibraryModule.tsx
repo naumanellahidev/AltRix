@@ -91,7 +91,7 @@ export function LibraryModule() {
   // Modals
   const [showAddBook, setShowAddBook] = useState(false);
   const [newBook, setNewBook] = useState({
-    title: "", author: "", isbn: "", barcode: "", category: "General", publisher: "", publication_year: 2024, total_copies: 5, available_copies: 5, shelf_location: "Rack A-1"
+    title: "", author: "", isbn: "", barcode: "", category: "General", publisher: "", publication_year: 0, total_copies: 1, available_copies: 1, shelf_location: ""
   });
 
   const [showEditBook, setShowEditBook] = useState<Book | null>(null);
@@ -272,14 +272,19 @@ export function LibraryModule() {
     const bookPayload: any = {
       title: newBook.title.trim(),
       author: newBook.author.trim(),
-      isbn: newBook.isbn.trim() || `978-969-${Math.floor(1000 + Math.random() * 9000)}-0`,
-      barcode: newBook.barcode.trim() || `LIB-${Math.floor(1000 + Math.random() * 9000)}`,
+      // What the librarian entered, and nothing invented: an ISBN is a real
+      // book's identifier, and a made-up one ("978-969-1234-0") was saved for
+      // every book entered without one, with a publisher of "Standard Edition",
+      // this year as its year and "Rack A-1" as its shelf.
+      isbn: newBook.isbn.trim() || null,
+      // The library's own label for the copy may be generated; it is ours.
+      barcode: newBook.barcode.trim() || `LIB-${Date.now().toString(36).toUpperCase()}`,
       category: newBook.category.trim() || "General",
-      publisher: newBook.publisher.trim() || "Standard Edition",
-      publication_year: Number(newBook.publication_year) || new Date().getFullYear(),
+      publisher: newBook.publisher.trim() || null,
+      publication_year: Number(newBook.publication_year) || null,
       total_copies: Number(newBook.total_copies) || 1,
       available_copies: Number(newBook.total_copies) || 1,
-      shelf_location: newBook.shelf_location.trim() || "Rack A-1",
+      shelf_location: newBook.shelf_location.trim() || null,
     };
 
     if (activeCampusId && activeCampusId !== "all" && activeCampusId !== "null" && activeCampusId !== "undefined") {
@@ -288,7 +293,7 @@ export function LibraryModule() {
 
     setShowAddBook(false);
     setNewBook({
-      title: "", author: "", isbn: "", barcode: "", category: "General", publisher: "", publication_year: 2024, total_copies: 5, available_copies: 5, shelf_location: "Rack A-1"
+      title: "", author: "", isbn: "", barcode: "", category: "General", publisher: "", publication_year: 0, total_copies: 1, available_copies: 1, shelf_location: ""
     });
 
     // Optimistic UI Update
@@ -707,7 +712,7 @@ export function LibraryModule() {
                       <div className="bg-slate-50 dark:bg-slate-800/60 p-2.5 rounded-xl border border-slate-100 dark:border-slate-800 space-y-2 text-xs">
                         <div className="flex items-center justify-between">
                           <span className="text-slate-400 text-[10px] uppercase font-extrabold">Shelf Location</span>
-                          <span className="font-bold text-slate-800 dark:text-slate-200">{b.shelf_location || "Rack A-1"}</span>
+                          <span className="font-bold text-slate-800 dark:text-slate-200">{b.shelf_location || "shelf not recorded"}</span>
                         </div>
                         <div className="flex items-center justify-between border-t border-slate-200/50 dark:border-slate-700/50 pt-1.5">
                           <span className="text-slate-400 text-[10px] uppercase font-extrabold">Barcode Tag</span>
@@ -730,8 +735,8 @@ export function LibraryModule() {
 
                       {/* ISBN details */}
                       <div className="text-[10px] sm:text-[11px] text-slate-500 font-mono flex flex-wrap items-center justify-between border-t border-slate-100 dark:border-slate-800 pt-2 gap-1">
-                        <span>ISBN: {b.isbn || "978-969-000-0"}</span>
-                        <span className="text-slate-400 font-sans">{b.publisher || "Standard Edition"}</span>
+                        <span>ISBN: {b.isbn || "not recorded"}</span>
+                        <span className="text-slate-400 font-sans">{b.publisher || "publisher not recorded"}</span>
                       </div>
                     </CardContent>
 
@@ -799,10 +804,10 @@ export function LibraryModule() {
                           </Badge>
                         </TableCell>
                         <TableCell>
-                          <p className="font-mono text-xs text-slate-700 dark:text-slate-300">{b.isbn || "978-969-0000"}</p>
+                          <p className="font-mono text-xs text-slate-700 dark:text-slate-300">{b.isbn || "not recorded"}</p>
                           <p className="font-mono text-[10px] font-bold text-blue-600">{b.barcode || "LIB-1001"}</p>
                         </TableCell>
-                        <TableCell className="font-semibold text-xs text-slate-800 dark:text-slate-200">{b.shelf_location || "Rack A-1"}</TableCell>
+                        <TableCell className="font-semibold text-xs text-slate-800 dark:text-slate-200">{b.shelf_location || "shelf not recorded"}</TableCell>
                         <TableCell>
                           <div className="space-y-1 w-28 sm:w-32">
                             <p className="text-xs font-bold text-slate-900 dark:text-slate-100">{b.available_copies} / {b.total_copies} Copies</p>
@@ -1417,8 +1422,8 @@ export function LibraryModule() {
                 </div>
 
                 <div className="flex justify-between text-xs text-slate-500">
-                  <span>ISBN: {showBarcodeModal.isbn || "978-969-000-0"}</span>
-                  <span>Rack: {showBarcodeModal.shelf_location || "Rack A-1"}</span>
+                  <span>ISBN: {showBarcodeModal.isbn || "not recorded"}</span>
+                  <span>Rack: {showBarcodeModal.shelf_location || "shelf not recorded"}</span>
                 </div>
               </div>
               <Button onClick={() => { toast.success("Barcode label sent to library printer"); setShowBarcodeModal(null); }} className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold py-5 rounded-xl shadow-md">
@@ -1473,7 +1478,7 @@ export function LibraryModule() {
                     </div>
                     <div>
                       <p className="text-xs text-slate-500">Category & Shelf Location</p>
-                      <p className="font-bold text-slate-800 dark:text-slate-200 text-sm">{selectedLoanDetail.book?.category || "General"} • {selectedLoanDetail.book?.shelf_location || "Rack A-1"}</p>
+                      <p className="font-bold text-slate-800 dark:text-slate-200 text-sm">{selectedLoanDetail.book?.category || "General"} • {selectedLoanDetail.book?.shelf_location || "shelf not recorded"}</p>
                       <p className="text-xs text-slate-500 mt-0.5">Stock: {selectedLoanDetail.book?.available_copies ?? 1} / {selectedLoanDetail.book?.total_copies ?? 1} Copies</p>
                     </div>
                     <div>
@@ -1488,7 +1493,7 @@ export function LibraryModule() {
                     <div>
                       <p className="text-xs text-slate-500">ISBN Serial Code</p>
                       <p className="font-mono text-xs font-bold text-slate-800 dark:text-slate-200 mt-1">
-                        {selectedLoanDetail.book?.isbn || "978-969-0000-00-0"}
+                        {selectedLoanDetail.book?.isbn || "not recorded"}
                       </p>
                     </div>
                   </div>

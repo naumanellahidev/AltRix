@@ -1816,6 +1816,8 @@ measured:
 | Student and teacher complaints | "Add mock file" attached "Witness_Declaration.pdf" and similar files that never existed, and the principal saw them as evidence | Real uploads (up to 5 files, 10 MB each) to the school's storage, opened through a signed link. Old invented entries show "file not stored". |
 | AI timetable generator | A draft lived only in the tab, and "approve" reported success without saving anything | The draft is saved to `ai_timetable_suggestions` and approval updates that row. A draft that could not be saved says so, and can still be applied. |
 | Parent report card and visitor pass | Headed "ALTRIX ACADEMY" for every school | The school's own name. |
+| Library | Every book entered without them was saved with a made-up ISBN ("978-969-xxxx-0"), the publisher "Standard Edition", the year 2024 (the form has no year field) and the shelf "Rack A-1", and the display showed the same values for empty fields | Blank stays blank ("not recorded"). The library's own barcode label may still be generated, since that one is ours. |
+| Exam grading lock | Each subject teacher's lock wrote their one subject's marks as the report card's whole total, so the last teacher to lock set every student's total, and the other subjects vanished. It also wrote "Grading locked by Subject Teacher." as the teacher's remark on the printed card. | The card is totalled over every subject recorded for the exam (a mark not recorded is not a zero), and no remark is written for the teacher. |
 
 These stay as they are, because they are labelled and are tools rather than
 records: the owner's finance what-if simulator, and the parent bus tracker's

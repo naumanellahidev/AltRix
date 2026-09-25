@@ -39,6 +39,13 @@ def read(path: str) -> str:
     ("components/ai/SmartTimetableGenerator.tsx", ["mock: true", "mockSuggestion"]),
     ("pages/tenant/parent-modules/ParentReportCardModule.tsx", [">ALTRIX ACADEMY<"]),
     ("pages/tenant/parent-modules/ParentVisitorModule.tsx", [">ALTRIX ACADEMY<"]),
+    # A made-up ISBN, publisher, year and shelf for every book entered without them.
+    ("pages/tenant/modules/LibraryModule.tsx", ["978-969", '|| "Standard Edition"', '|| "Rack A-1"',
+                                                "publication_year: 2024"]),
+    # One subject's marks written as the whole card's total, and a canned
+    # remark printed as the teacher's own words.
+    ("pages/tenant/modules/components/ExamGradingDialog.tsx", ["total_marks: row.marks_obtained",
+                                                               "Grading locked by Subject Teacher."]),
 ])
 def test_no_screen_invents_what_it_shows(path, forbidden):
     # Comments may describe what used to be there; only the code is checked.
