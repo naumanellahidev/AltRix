@@ -201,7 +201,7 @@ const [activeTab, setActiveTab] = useState<"global" | "schedules" | "hub" | "fil
   const [freq, setFreq] = useState<"daily" | "weekly" | "monthly" | "off">("daily");
   const [hour, setHour] = useState("02");
   const [minute, setMinute] = useState("00");
-  const [notifyEmail, setNotifyEmail] = useState("admin@altrix.com");
+  const [notifyEmail, setNotifyEmail] = useState("");
 
   // Restore states
   const [terminalLogs, setTerminalLogs] = useState<string[]>([]);
@@ -249,7 +249,7 @@ const [activeTab, setActiveTab] = useState<"global" | "schedules" | "hub" | "fil
             frequency: "off",
             hour: "02",
             minute: "00",
-            notifyEmail: "admin@altrix.com",
+            notifyEmail: "",
             enabled: false,
           };
         });
@@ -437,7 +437,7 @@ const [activeTab, setActiveTab] = useState<"global" | "schedules" | "hub" | "fil
       setFreq("off");
       setHour("02");
       setMinute("00");
-      setNotifyEmail("admin@altrix.com");
+      setNotifyEmail("");
     }
     setTerminalLogs([]);
     setUploadFile(null);
@@ -446,9 +446,7 @@ const [activeTab, setActiveTab] = useState<"global" | "schedules" | "hub" | "fil
   // Save Schedule settings
   const handleSaveSchedule = () => {
     if (!selectedSchool) return;
-    if (!notifyEmail.trim()) {
-      return toast.error("Notification email is required");
-    }
+    // No email is sent from here yet, so none is required; one entered is kept.
 
     const nextRun = freq !== "off" ? calculateNextBackupTime(freq, hour, minute) : undefined;
 
@@ -1335,7 +1333,7 @@ const [activeTab, setActiveTab] = useState<"global" | "schedules" | "hub" | "fil
                     </div>
 
                     <div className="space-y-2">
-                      <label className="text-sm font-medium text-slate-900">Recipient Email for logs</label>
+                      <label className="text-sm font-medium text-slate-900">Recipient email for logs <span className="font-normal text-slate-500">(kept with the schedule; no email is sent yet)</span></label>
                       <Input
                         className="bg-slate-50 border-slate-300 text-slate-900 focus-visible:ring-blue-500/30"
                         value={notifyEmail}

@@ -251,8 +251,8 @@ export default function PlatformDashboardPage() {
             name: `${s.first_name} ${s.last_name}`,
             subtext: s.roll_number ? `Roll #: ${s.roll_number}` : "No Roll Number",
             type: "Student",
-            schoolName: matchedSchool ? matchedSchool.name : "Platform School",
-            schoolSlug: matchedSchool ? matchedSchool.slug : "model-school",
+            schoolName: matchedSchool ? matchedSchool.name : "Unknown school",
+            schoolSlug: matchedSchool ? matchedSchool.slug : "",
           });
         });
       }

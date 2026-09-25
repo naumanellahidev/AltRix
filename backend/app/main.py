@@ -70,6 +70,7 @@ from app.routers.alumni import router as alumni_router
 from app.routers.public_admissions import router as public_admissions_router
 from app.routers.public_inquiries import router as public_inquiries_router
 from app.routers.platform_health import router as platform_health_router
+from app.routers.public_verify import router as public_verify_router
 from app.routers.hostel import router as hostel_router
 from app.routers.white_label import router as white_label_router
 from app.routers.vps_storage import router as vps_storage_router
@@ -494,6 +495,7 @@ app.include_router(alumni_router, prefix=_PREFIX)
 app.include_router(public_admissions_router, prefix=_PREFIX)
 app.include_router(public_inquiries_router, prefix=_PREFIX)
 app.include_router(platform_health_router, prefix=_PREFIX)
+app.include_router(public_verify_router, prefix=_PREFIX)
 app.include_router(hostel_router, prefix=_PREFIX)
 app.include_router(white_label_router, prefix=_PREFIX)
 app.include_router(ai_management_router, prefix=_PREFIX)

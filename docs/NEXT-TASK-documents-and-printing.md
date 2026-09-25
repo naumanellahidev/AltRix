@@ -1822,3 +1822,24 @@ measured:
 These stay as they are, because they are labelled and are tools rather than
 records: the owner's finance what-if simulator, and the parent bus tracker's
 "Demo GPS" (marked "Simulated position — not live").
+
+### The hall-ticket check at the exam-hall door (25 Sep 2026)
+
+The page an invigilator's phone opens when scanning an admit card's QR code
+called `verify_exam_hall_ticket` through the signed-in data proxy, which
+answers 401 to anyone not logged in. The check failed where it was meant to
+be used. `GET /public-verify/hall-ticket/{exam}/{student}` needs no login
+and is rate-limited (30 a minute); the page uses it. The function also never
+compared schools, so a card pairing a student with another school's exam
+verified as genuine. Migration `20261031000400_hall_ticket_same_school.sql`
+refuses that, as tried on the production data.
+
+`tests/test_public_pages.py` checks that no public page (enquiry, hall
+ticket, visitor registration, document verification) uses the signed-in
+proxy, and that the public endpoints need no login and are rate-limited.
+
+Also:
+- the platform search no longer links a school it cannot find to a
+  made-up "model-school" address;
+- the database page's schedule no longer comes pre-filled with
+  "admin@altrix.com", and it says that no email is sent from it yet.

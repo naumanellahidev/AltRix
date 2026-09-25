@@ -2,6 +2,7 @@ import { useEffect, useState, useMemo } from "react";
 import { getVPSFileUrl } from "@/lib/vpsStorage";
 import { useParams } from "react-router-dom";
 import { api } from "@/lib/api";
+import { apiClient } from "@/lib/api-client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -23,15 +24,21 @@ export default function PublicHallTicketVerification() {
       if (!examId || !studentId) return;
       setLoading(true);
       try {
-        // Query the public RPC verify function that bypasses RLS securely
-        const { data, error } = await api.rpc("verify_exam_hall_ticket", {
-          _exam_id: examId,
-          _student_id: studentId
-        });
-
-        if (error) {
-          console.error("Verification error:", error);
-          setErrorMsg(error.message);
+        // A public endpoint: whoever scans the card is rarely signed in, and
+        // the signed-in data proxy refused them (401) at the exam-hall door.
+        let data: any = null;
+        try {
+          const res = await apiClient.get(
+            `/public-verify/hall-ticket/${encodeURIComponent(examId)}/${encodeURIComponent(studentId)}`,
+          );
+          data = res.data;
+        } catch (err: any) {
+          console.error("Verification error:", err);
+          setErrorMsg(
+            typeof err?.response?.data?.detail === "string"
+              ? err.response.data.detail
+              : "The ticket could not be checked. Please check the connection and try again.",
+          );
           return;
         }
 
