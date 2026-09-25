@@ -107,6 +107,8 @@ async def get_school_users_directory(current_user: CurrentUser, db: DbSession):
             JOIN auth.users u ON u.id = r.user_id
             LEFT JOIN public.profiles p ON p.id = r.user_id
             WHERE r.school_id = :school_id
+              -- The platform owner is never listed inside a school.
+              AND NOT EXISTS (SELECT 1 FROM public.platform_super_admins psa WHERE psa.user_id = r.user_id)
         """
         res = await db.execute(text(sql), {"school_id": current_user.school_id})
         return [

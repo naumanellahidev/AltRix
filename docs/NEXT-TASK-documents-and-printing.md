@@ -1717,3 +1717,45 @@ in the wrong place or saying too little:
 - `user_roles` now announces its changes (migration
   `20261031000100_copilot_change_notifications_people.sql`), so a users or
   parents answer is flagged when someone is added.
+
+### Six functions the app called that did not exist (25 Sep 2026)
+
+The data proxy's allowlist named them and the screens called them, but none
+had ever been created on this database, so each call failed:
+
+| Function | What was broken | Now |
+|---|---|---|
+| `directory_search` | The Directory search. Every search failed, and the screen showed "No students found." | Students (name, roll or registration number, guardian), staff (never the platform owner) and leads, with paging and a total count. The caller must belong to the school. |
+| `ensure_default_crm_pipeline` | Opening CRM, and creating a lead from the Directory (12 failures in the log) | Returns the school's default pipeline. It adopts the oldest one if none is marked default, or creates "Admissions" with six stages. |
+| `create_public_lead` | The website enquiry form | Validates the enquiry, files it as a lead in the default pipeline and notifies the admissions staff. |
+| `get_child_teachers_detailed` | A parent's "contact my child's teachers" | The class teacher and the subject teachers of the child's current section. Only the child's guardian, the student or the school's staff may ask. |
+| `search_messages` | Message search | Searches the caller's own sent and received messages only. The `_user_id` the browser sends is ignored in favour of the signed-in identity. |
+| `export_table_schema` | The platform schema viewer | For the platform owner only. |
+
+**The website enquiry form had never worked for a visitor.** The page found
+the school, read its form settings and saved the enquiry through the
+signed-in data proxy, and all three return 401 without a login. A parent
+opening the link saw "School Portals Offline". New endpoints need no login:
+`GET /public-inquiries/{slug}` returns what the form shows, and
+`POST /public-inquiries/{slug}` saves the enquiry. The POST is rate-limited
+to 5 a minute and has a hidden field for bots, and it returns the
+function's own messages to the visitor. The page uses them now.
+
+**Beacon had two default CRM pipelines.** A race in the old browser-side
+fallback left both marked default, so every "the default pipeline" lookup
+failed with "multiple rows". One default is kept per school (the one with
+the most leads). A unique index stops a second one appearing. Nothing is
+deleted.
+
+All six were run against the production data inside a transaction that was
+rolled back:
+- a Directory search for "ali" found 4 students;
+- staff returned 13, without the platform owner;
+- an enquiry became a lead and notified 4 staff;
+- a child's teachers came back with the class teacher first.
+
+**Still open:** `cron_generate_platform_invoices`, the platform billing run.
+The table it needs (`platform_invoices`) does not exist. Without it, the
+platform billing page falls back to a "local simulation" that makes up
+invoices in the browser. It is the platform owner's own screen, and it
+needs a real billing schema; to be decided with the owner.

@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
-import { api } from "@/lib/api";
-import { useTenantOptimized } from "@/hooks/useTenantOptimized";
+import { apiClient } from "@/lib/api-client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -56,17 +55,13 @@ const DEFAULT_CONFIG: IntakeConfig = {
 
 export default function PublicInquiryPage() {
   const { schoolSlug } = useParams();
-  const tenant = useTenantOptimized(schoolSlug);
-  const schoolId = tenant.schoolId;
-  const [schoolDetails, setSchoolDetails] = useState<{ logo_url?: string | null; email?: string | null; phone?: string | null } | null>(null);
-
-  useEffect(() => {
-    if (!schoolId) return;
-    (async () => {
-      const { data } = await api.from("schools").select("logo_url,email,phone").eq("id", schoolId).maybeSingle();
-      if (data) setSchoolDetails(data);
-    })();
-  }, [schoolId]);
+  // Everything here is read and written through the public enquiry endpoints.
+  // The page used the signed-in data proxy, which refuses a visitor who is not
+  // logged in — so the parents this form is for could never send it.
+  const [school, setSchool] = useState<{ id: string; name: string; logo_url?: string | null; email?: string | null; phone?: string | null } | null>(null);
+  const [loadState, setLoadState] = useState<"loading" | "ready" | "missing" | "failed">("loading");
+  const schoolId = school?.id ?? null;
+  const schoolDetails = school;
 
   const [config, setConfig] = useState<IntakeConfig>(DEFAULT_CONFIG);
   const [submitted, setSubmitted] = useState(false);
@@ -81,20 +76,20 @@ export default function PublicInquiryPage() {
   const [priorSchool, setPriorSchool] = useState("");
   const [message, setMessage] = useState("");
 
-  // Load configuration
+  // The school's public details and the form's settings, in one request.
   useEffect(() => {
-    if (!schoolId) return;
+    if (!schoolSlug) return;
+    let cancelled = false;
     (async () => {
       try {
-        const { data } = await api
-          .from("school_inquiry_settings")
-          .select("*")
-          .eq("school_id", schoolId)
-          .maybeSingle();
+        const res = await apiClient.get(`/public-inquiries/${encodeURIComponent(schoolSlug)}`);
+        if (cancelled) return;
+        setSchool(res.data?.school ?? null);
+        const data = res.data?.settings;
         if (data) {
           setConfig({
-            formTitle: data.form_title,
-            showLogo: data.show_logo,
+            formTitle: data.form_title || DEFAULT_CONFIG.formTitle,
+            showLogo: data.show_logo ?? DEFAULT_CONFIG.showLogo,
             fields: {
               parentName: data.fields_config?.parentName ?? true,
               email: data.fields_config?.email ?? true,
@@ -110,15 +105,20 @@ export default function PublicInquiryPage() {
               studentName: data.required_config?.studentName ?? true,
               studentGrade: data.required_config?.studentGrade ?? false,
             },
-            successMessage: data.success_message,
-            accentColor: data.accent_color,
+            successMessage: data.success_message || DEFAULT_CONFIG.successMessage,
+            accentColor: data.accent_color || DEFAULT_CONFIG.accentColor,
           });
         }
-      } catch (err) {
-        console.error("Failed to load DB inquiry settings:", err);
+        setLoadState("ready");
+      } catch (err: any) {
+        if (cancelled) return;
+        setLoadState(err?.response?.status === 404 ? "missing" : "failed");
       }
     })();
-  }, [schoolId]);
+    return () => {
+      cancelled = true;
+    };
+  }, [schoolSlug]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -146,139 +146,60 @@ export default function PublicInquiryPage() {
 
     setBusy(true);
 
-    // Compile notes block
-    const notesArr: string[] = [];
-    if (config.fields.studentName && studentName) notesArr.push(`Child: ${studentName}`);
-    if (config.fields.studentGrade && studentGrade) notesArr.push(`Target Grade: ${studentGrade}`);
-    if (config.fields.priorSchool && priorSchool) notesArr.push(`Prior School: ${priorSchool}`);
-    if (config.fields.message && message) notesArr.push(`Message: ${message}`);
-    const compiledNotes = notesArr.join(" | ");
 
     try {
-      // 1) First attempt to invoke secure database RPC
-      const { error: rpcError } = await api.rpc("create_public_lead", {
-        _school_slug: schoolSlug,
-        _full_name: parentName.trim(),
-        _email: email.trim() || null,
-        _phone: phone.trim() || null,
-        _notes: compiledNotes || null,
-        _source: "Website Inquiry Form"
+      // One request: the server records the enquiry as a lead in the school's
+      // admissions pipeline and notifies the admissions staff. A fallback that
+      // wrote the lead and the notifications from the browser could never run
+      // for a visitor who is not signed in.
+      await apiClient.post(`/public-inquiries/${encodeURIComponent(schoolSlug)}`, {
+        parent_name: parentName.trim(),
+        email: email.trim() || null,
+        phone: phone.trim() || null,
+        student_name: config.fields.studentName ? studentName.trim() || null : null,
+        student_grade: config.fields.studentGrade ? studentGrade.trim() || null : null,
+        prior_school: config.fields.priorSchool ? priorSchool.trim() || null : null,
+        message: config.fields.message ? message.trim() || null : null,
       });
-
-      if (rpcError) {
-        console.warn("RPC insert failed, attempting fallback direct insert: ", rpcError.message);
-        
-        let fallbackPipelineId: string | null = null;
-        let fallbackStageId: string | null = null;
-
-        try {
-          const { data: pipelineData } = await api
-            .from("crm_pipelines")
-            .select("id")
-            .eq("school_id", schoolId)
-            .eq("is_default", true)
-            .maybeSingle();
-            
-          fallbackPipelineId = pipelineData?.id || null;
-          
-          if (!fallbackPipelineId) {
-            const { data: firstPipeline } = await api
-              .from("crm_pipelines")
-              .select("id")
-              .eq("school_id", schoolId)
-              .limit(1)
-              .maybeSingle();
-            fallbackPipelineId = firstPipeline?.id || null;
-          }
-
-          if (fallbackPipelineId) {
-            const { data: stageData } = await api
-              .from("crm_stages")
-              .select("id")
-              .eq("school_id", schoolId)
-              .eq("pipeline_id", fallbackPipelineId)
-              .order("sort_order", { ascending: true })
-              .limit(1)
-              .maybeSingle();
-            fallbackStageId = stageData?.id || null;
-          }
-        } catch (err) {
-          console.warn("Could not resolve default pipeline/stage for fallback: ", err);
-        }
-
-        // 2) Fallback direct insert using anonymous RLS policy
-        const { error: directError } = await api.from("crm_leads").insert({
-          school_id: schoolId,
-          pipeline_id: fallbackPipelineId,
-          stage_id: fallbackStageId,
-          full_name: parentName.trim(),
-          email: email.trim() || null,
-          phone: phone.trim() || null,
-          source: "Website Inquiry Form",
-          notes: compiledNotes || null,
-          status: "open",
-          score: 10
-        });
-
-        if (directError) {
-          throw new Error(directError.message);
-        }
-      }
-
-      // Dispatch in-app notifications to school staff
-      try {
-        const { data: staffRoles } = await api
-          .from("user_roles")
-          .select("user_id")
-          .eq("school_id", schoolId)
-          .in("role", ["marketing_staff", "principal", "school_admin", "school_owner"]);
-
-        if (staffRoles && staffRoles.length > 0) {
-          const userIds = Array.from(new Set(staffRoles.map(r => r.user_id).filter(Boolean)));
-          const notificationRows = userIds.map(uid => ({
-            school_id: schoolId,
-            user_id: uid,
-            type: "inquiry",
-            title: "New Admission Inquiry",
-            body: `A new inquiry has been submitted by parent ${parentName.trim()}${studentName ? ` for child ${studentName.trim()}` : ""}.`,
-            entity_type: "crm_leads",
-            entity_id: null
-          }));
-          await api.from("app_notifications").insert(notificationRows);
-        }
-      } catch (notifErr) {
-        console.warn("Failed to dispatch in-app notifications for inquiry:", notifErr);
-      }
 
       setSubmitted(true);
       toast.success("Inquiry submitted successfully!");
     } catch (err: any) {
       console.error(err);
-      toast.error(err.message || "Failed to submit inquiry. Please try again.");
+      const status = err?.response?.status;
+      toast.error(
+        (typeof err?.response?.data?.detail === "string" ? err.response.data.detail : "") ||
+          (status === 429 ? "Too many attempts. Please wait a minute and send it again." : "") ||
+          "The enquiry could not be sent. Please check your connection and try again.",
+      );
     } finally {
       setBusy(false);
     }
   };
 
-  if (tenant.status === "loading") {
+  if (loadState === "loading") {
     return (
       <div className="min-h-screen bg-background flex flex-col items-center justify-center text-foreground">
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent mb-4" />
-        <p className="text-sm text-muted-foreground font-medium">Loading school portals...</p>
+        <p className="text-sm text-muted-foreground font-medium">Loading the enquiry form…</p>
       </div>
     );
   }
 
-  if (tenant.status === "error" || !schoolId) {
+  if (loadState !== "ready" || !schoolId) {
     return (
       <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6 text-center text-foreground">
-        <h1 className="text-xl font-bold font-display">School Portals Offline</h1>
-        <p className="mt-2 text-sm text-muted-foreground max-w-sm">The school portal slug is invalid or the subdomain configuration could not be resolved.</p>
+        <h1 className="text-xl font-bold font-display">
+          {loadState === "missing" ? "School not found" : "The form could not be loaded"}
+        </h1>
+        <p className="mt-2 text-sm text-muted-foreground max-w-sm">
+          {loadState === "missing"
+            ? "Please check the link the school gave you."
+            : "Please check your connection and reload the page."}
+        </p>
       </div>
     );
   }
-
-  const school = tenant.school;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-secondary/30 text-foreground flex flex-col justify-between selection:bg-primary/30">
