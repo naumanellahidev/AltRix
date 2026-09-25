@@ -14,6 +14,7 @@ and from which tables, so the panel can say when they have changed since).
 """
 import json
 import logging
+import re
 from typing import Any, AsyncGenerator, Dict, List, Optional
 
 from sqlalchemy import text
@@ -21,8 +22,8 @@ from sqlalchemy import text
 from app.utils.copilot import lang as L
 from app.utils.copilot.generic import generic_sources
 from app.utils.copilot.params import has_any, now_label, parse, today
-from app.utils.copilot.registry import FAMILY, GOV, SOURCES, vocabulary
-from app.utils.copilot.resolver import Scope, answer, fmt
+from app.utils.copilot.registry import FAMILY, FINANCE, GOV, SOURCES, STAFF_UNION, vocabulary
+from app.utils.copilot.resolver import Scope, access, answer, fmt
 from app.utils.copilot.router import MIN_SCORE, rank
 
 logger = logging.getLogger("app.copilot")
@@ -33,7 +34,9 @@ RULES = (
     "You are AltRix Copilot inside a school management system. "
     "Reply in the same language as the question (English, Roman Urdu or Urdu script). "
     "Use ONLY the facts given. If they do not answer the question, say so in one sentence "
-    "and suggest how to ask for it. Never invent names, numbers, dates or amounts. "
+    "and suggest how to ask for it. Never invent names, numbers, dates or amounts, "
+    "and never add up or count rows yourself: quote the totals given. "
+    "If the facts do not show a reason, say the records do not show it. "
     "Never show internal ids. Be brief and professional: at most five short sentences "
     "or five bullet points. No greetings, no links, no code."
 )
@@ -72,7 +75,21 @@ GREETINGS = (
 OVERVIEW = (
     "overview", "summary", "dashboard", "school ka haal", "school ki halat", "kaisa chal raha",
     "how is the school", "school status", "stats", "statistics", "khulasa", "at a glance",
+    "analytics", "school analytics", "school performance", "overall performance",
+    "overall school performance", "performance summary", "school report",
 )
+
+#: A finance summary rather than one ledger ("Show finance insights" is one of
+#: the panel's own suggestions, and it used to land on an empty table).
+FINANCE_OVERVIEW = (
+    "finance insights", "finance summary", "finance overview", "financial summary",
+    "financial overview", "financial insights", "revenue summary", "revenue summaries",
+    "finances", "maali haalat", "maali khulasa", "accounts summary", "finance report",
+    "finance dashboard", "money summary", "financial position",
+)
+
+#: Joins two modules in one question ("complaints and notices").
+_AND = re.compile(r"(?:^|\s)(?:and|aur|&|plus)(?:\s|$)", re.I)
 
 #: Example questions per module, shown when someone asks what the Copilot can do.
 EXAMPLES = {
@@ -210,10 +227,15 @@ def help_text(scope: Scope, lang: str) -> str:
     else:
         head = "Main aap ke school ke live record se jawab deta hoon. Aap in ke baare mein pooch sakte hain:"
         foot = "English ya Roman Urdu mein poochein — maslan *“unpaid invoices this month”*."
+    # The common modules with an example each, and the rest on one line: a
+    # thirty-six-line list pushed the question box off a phone's screen.
     lines = [head, ""]
-    for m in modules:
-        ex = EXAMPLES.get(m)
-        lines.append(f"- **{m}**" + (f" — _{ex[0]}_" if ex else ""))
+    featured = [m for m in modules if m in EXAMPLES]
+    others = [m for m in modules if m not in EXAMPLES]
+    for m in featured:
+        lines.append(f"- **{m}** — _{EXAMPLES[m][0]}_")
+    if others:
+        lines += ["", ("Also: " if lang == L.EN else "Aur: ") + ", ".join(others) + "."]
     lines += ["", foot]
     return "\n".join(lines)
 
@@ -225,7 +247,8 @@ async def overview(db, scope: Scope, lang: str) -> Optional[str]:
     b = {"sid": scope.school_id, "today": today()}
     q = {
         "students": "SELECT COUNT(*) FROM students WHERE school_id = CAST(:sid AS uuid) AND status IN ('active','enrolled')",
-        "staff": "SELECT COUNT(*) FROM hr_staff_directory WHERE school_id = CAST(:sid AS uuid) AND is_active = true",
+        # The directory and the staff accounts, as the Staff answer counts them.
+        "staff": f"SELECT COUNT(*) FROM {STAFF_UNION} WHERE t.school_id = CAST(:sid AS uuid) AND t.is_active",
         "absent": ("SELECT COUNT(DISTINCT e.student_id) FROM attendance_entries e JOIN attendance_sessions a "
                    "ON a.id = e.session_id WHERE e.school_id = CAST(:sid AS uuid) AND a.session_date = :today "
                    "AND e.status = 'absent'"),
@@ -267,6 +290,119 @@ async def overview(db, scope: Scope, lang: str) -> Optional[str]:
         lines.append(f"- {label_en if en else label_ur}: **{value}**")
     lines += ["", f"_{L.phrase('as_of', lang, time=now_label())}_"]
     return "\n".join(lines)
+
+
+async def finance_overview(db, scope: Scope, lang: str) -> Optional[str]:
+    """Where the school's money stands, read live: billed, owed, collected, spent."""
+    if not (scope.roles & FINANCE):
+        return None
+    b = {"sid": scope.school_id, "today": today()}
+    q = {
+        "outstanding": ("SELECT COUNT(*), COALESCE(SUM(COALESCE(total_amount, 0) - COALESCE(paid_amount, 0)), 0) "
+                        "FROM fee_invoices WHERE school_id = CAST(:sid AS uuid) "
+                        "AND status IN ('pending','partial','overdue')"),
+        "overdue": ("SELECT COUNT(*), COALESCE(SUM(COALESCE(total_amount, 0) - COALESCE(paid_amount, 0)), 0) "
+                    "FROM fee_invoices WHERE school_id = CAST(:sid AS uuid) "
+                    "AND status IN ('pending','partial','overdue') AND due_date < CAST(:today AS date)"),
+        "defaulters": ("SELECT COUNT(DISTINCT student_id) FROM fee_invoices WHERE school_id = CAST(:sid AS uuid) "
+                       "AND status IN ('pending','partial','overdue') "
+                       "AND COALESCE(total_amount, 0) > COALESCE(paid_amount, 0)"),
+        "today": ("SELECT COALESCE(SUM(amount), 0) FROM fee_payments WHERE school_id = CAST(:sid AS uuid) "
+                  "AND status = 'success' AND ((paid_at AT TIME ZONE 'Asia/Karachi')::date) = CAST(:today AS date)"),
+        "month": ("SELECT COALESCE(SUM(amount), 0) FROM fee_payments WHERE school_id = CAST(:sid AS uuid) "
+                  "AND status = 'success' AND ((paid_at AT TIME ZONE 'Asia/Karachi')::date) "
+                  ">= date_trunc('month', CAST(:today AS date))"),
+        "last_month": ("SELECT COALESCE(SUM(amount), 0) FROM fee_payments WHERE school_id = CAST(:sid AS uuid) "
+                       "AND status = 'success' AND ((paid_at AT TIME ZONE 'Asia/Karachi')::date) "
+                       ">= date_trunc('month', CAST(:today AS date)) - INTERVAL '1 month' "
+                       "AND ((paid_at AT TIME ZONE 'Asia/Karachi')::date) < date_trunc('month', CAST(:today AS date))"),
+        "expenses": ("SELECT COALESCE(SUM(amount), 0) FROM finance_expenses WHERE school_id = CAST(:sid AS uuid) "
+                     "AND expense_date >= date_trunc('month', CAST(:today AS date))"),
+    }
+    vals: Dict[str, Any] = {}
+    for key, sql in q.items():
+        try:
+            vals[key] = (await db.execute(text(sql), b)).first()
+        except Exception as exc:
+            logger.warning("finance figure %s failed: %s", key, exc)
+            await db.rollback()
+            vals[key] = None
+
+    def one(key, idx=0):
+        row = vals.get(key)
+        return row[idx] if row is not None else None
+
+    cur = scope.currency
+    en = lang == L.EN
+    net = None
+    if one("month") is not None and one("expenses") is not None:
+        net = one("month") - one("expenses")
+    items = [
+        ("Outstanding fees", "Baqaya fees",
+         f"{fmt(one('outstanding', 1), 'money', lang, cur)} "
+         f"({fmt(one('outstanding'), 'number', lang, cur)} {'invoices' if en else 'invoices'})"),
+        ("Past due date", "Muddat guzar chuki",
+         f"{fmt(one('overdue', 1), 'money', lang, cur)} ({fmt(one('overdue'), 'number', lang, cur)} invoices)"),
+        ("Students owing", "Baqaya wale talaba", fmt(one("defaulters"), "number", lang, cur)),
+        ("Collected today", "Aaj wusool", fmt(one("today"), "money", lang, cur)),
+        ("Collected this month", "Is mahine wusool", fmt(one("month"), "money", lang, cur)),
+        ("Collected last month", "Pichle mahine wusool", fmt(one("last_month"), "money", lang, cur)),
+        ("Expenses this month", "Is mahine akhrajat", fmt(one("expenses"), "money", lang, cur)),
+        ("Collected less expenses, this month", "Is mahine wusool minus akhrajat", fmt(net, "money", lang, cur)),
+    ]
+    lines = ["**" + ("Finances at a glance" if en else "Maali khulasa") + "**", ""]
+    for label_en, label_ur, value in items:
+        lines.append(f"- {label_en if en else label_ur}: **{value}**")
+    lines += ["", ("Ask *top defaulters* for who owes the most." if en
+                   else "Sab se zyada baqaya kis ka hai — *top defaulters* poochein."),
+              "", f"_{L.phrase('as_of', lang, time=now_label())}_"]
+    return "\n".join(lines)
+
+
+FINANCE_TABLES = ("fee_invoices", "fee_payments", "finance_expenses")
+
+
+# ── What to answer with ─────────────────────────────────────────────────────
+def decide(message: str, ranked, scope: Scope, params):
+    """
+    ("help" | "finance" | "overview" | "source" | "model", best source, second source).
+
+    The screen the user is on only breaks ties (see router.rank); any question
+    about anything in the shell is answered from wherever it is asked, and
+    always within the caller's school and role.
+    """
+    # The best match this caller may read: "my attendance" is staff
+    # attendance for a teacher and the student's own for a student.
+    candidates = [(sc, src) for sc, src in ranked if sc >= MIN_SCORE]
+    allowed = [(sc, src) for sc, src in candidates if access(src, scope, params).allowed]
+    if allowed:
+        best = allowed[0][1]
+    else:
+        best = candidates[0][1] if candidates else None  # answered with a plain refusal
+    # A second module named in the same breath ("complaints and notices",
+    # "homework aur diary"): both are answered.
+    second = None
+    if allowed and _AND.search(message):
+        top = allowed[0][0]
+        second = next((src for sc, src in allowed[1:]
+                       if src.module != best.module and not src.generic
+                       and sc >= max(MIN_SCORE, 0.6 * top)), None)
+
+    # Greeting / what can you do — only when the question names nothing
+    # else: "help me find unpaid invoices" is a question about invoices.
+    if best is None and len(message.split()) <= 6 and has_any(message, GREETINGS):
+        return "help", None, None
+    # Finances at a glance, for those who may see them.
+    if has_any(message, FINANCE_OVERVIEW) and scope.roles & FINANCE:
+        return "finance", None, None
+    # School at a glance — unless a module was named ("fee summary" is about
+    # fees). A table only the generic safety net matched does not outrank
+    # it: "dashboard" is not a question about a table.
+    if has_any(message, OVERVIEW) and (best is None or best.generic) and scope.roles & GOV:
+        return "overview", None, None
+    if best is not None:
+        return "source", best, second
+    return "model", None, None
 
 
 # ── The model, briefly ──────────────────────────────────────────────────────
@@ -327,20 +463,23 @@ async def copilot_stream(
         if scope.roles & GOV:
             sources += list(await generic_sources(db))
         ranked = rank(message, sources, current_module)
-        best = ranked[0][1] if ranked and ranked[0][0] >= MIN_SCORE else None
+        kind, best, second = decide(message, ranked, scope, params)
 
-        # Greeting / what can you do — only when the question names nothing
-        # else: "help me find unpaid invoices" is a question about invoices.
-        words_in = [w for w in message.lower().split() if w]
-        if best is None and len(words_in) <= 6 and has_any(message, GREETINGS):
+        if kind == "help":
             yield _delta(help_text(scope, lang))
             yield "data: [DONE]\n\n"
             return
 
-        # School at a glance — unless a module was named ("fee summary" is
-        # about fees). A table picked up only by the generic safety net does
-        # not outrank it: "dashboard" is not a question about a table.
-        if has_any(message, OVERVIEW) and (best is None or best.generic):
+        if kind == "finance":
+            text_ = await finance_overview(db, scope, lang)
+            if text_:
+                yield _status("Reading the school's finances…" if lang == L.EN else "Maali record parh raha hoon…")
+                yield _sse({"meta": {"as_of": now_label(), "tables": list(FINANCE_TABLES)}})
+                yield _delta(text_)
+                yield "data: [DONE]\n\n"
+                return
+
+        if kind == "overview":
             yield _status("Reading the school's figures…" if lang == L.EN else "School ke figures parh raha hoon…")
             text_ = await overview(db, scope, lang)
             if text_:
@@ -353,8 +492,15 @@ async def copilot_stream(
             title = best.title if lang == L.EN else best.title_ur
             yield _status(f"Reading {title}…" if lang == L.EN else f"{title} parh raha hoon…")
             result = await answer(db, best, params, scope, message, lang)
-            yield _sse({"meta": {"as_of": now_label(), "tables": result.tables, "source": best.key}})
+            other = None
+            if second is not None:
+                other = await answer(db, second, params, scope, message, lang)
+            tables = list(result.tables) + ([t for t in other.tables if t not in result.tables] if other else [])
+            yield _sse({"meta": {"as_of": now_label(), "tables": tables, "source": best.key}})
             yield _delta(result.markdown)
+            if other is not None:
+                heading = second.title.capitalize() if lang == L.EN else second.title_ur.capitalize()
+                yield _delta(f"\n\n---\n\n**{heading}**\n\n" + other.markdown)
 
             if params.explain and result.count and not result.denied:
                 yield _status("Writing a short explanation…" if lang == L.EN else "Mukhtasar wazahat likh raha hoon…")

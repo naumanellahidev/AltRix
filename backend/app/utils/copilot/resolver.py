@@ -18,8 +18,14 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 from sqlalchemy import text
 
 from app.utils.copilot import lang as L
-from app.utils.copilot.params import SCHOOL_TZ, Params, has_any, now_label, today, words
+from app.utils.copilot.params import SCHOOL_TZ, Params, date_range, has_any, now_label, today, words
 from app.utils.copilot.registry import FAMILY, Source
+
+#: Words that ask about a stretch of time rather than today.
+OVER_TIME_WORDS = (
+    "percentage", "percent", "rate", "rates", "trend", "trends", "sharah", "history",
+    "record", "summary", "overall", "average",
+)
 
 LIST_LIMIT = 15
 COUNT_SHAPE_LIMIT = 10
@@ -310,9 +316,14 @@ async def answer(db, source: Source, params: Params, scope: Scope, question: str
         binds["active"] = scope.active_student_id
 
     # The period.
+    before_period = len(where)
     d_from, d_to, d_label = params.date_from, params.date_to, params.date_label
     if d_from is None and not names and not params.everything:
-        if source.default_when == "today":
+        if source.default_when == "today" and (scope.is_family_only or has_any(question, OVER_TIME_WORDS)):
+            # A parent asking for "my child's attendance", or anyone asking
+            # for a rate, means the month so far, not just today.
+            d_from, d_to, d_label = date_range("this month")
+        elif source.default_when == "today":
             d_from = d_to = today()
             d_label = "today"
         elif source.default_when == "upcoming" and not params.past:
@@ -355,11 +366,31 @@ async def answer(db, source: Source, params: Params, scope: Scope, question: str
     # status filter leaves nothing, count the same period without it, so the
     # reply can say which one it is.
     recorded_without_status: Optional[int] = None
+    status_sqls = {f"({st.sql})" for st in statuses}
     if count == 0 and statuses:
-        status_sqls = {f"({st.sql})" for st in statuses}
         loose = " AND ".join(w for w in where if w not in status_sqls)
         row = (await db.execute(text(f"SELECT {source.count_expr} FROM {source.frm} WHERE {loose}"), binds)).first()
         recorded_without_status = int(row[0] or 0) if row else 0
+    period_applied = len(where) > before_period
+    if count == 0 and period_applied and not statuses:
+        # "Today's attendance" with nothing marked today is "not taken yet",
+        # not "no records match".
+        recorded_without_status = 0
+
+    # When nothing was recorded for the period, say when something last was:
+    # "attendance has not been marked today; the last was on 20 Sep 2026".
+    latest_seen: Optional[str] = None
+    latest_col = source.date_col or (source.span[0] if source.span else None)
+    if count == 0 and period_applied and recorded_without_status == 0 and latest_col:
+        undated = " AND ".join(w for w in where[:before_period] if w not in status_sqls)
+        undated_binds = {k: v for k, v in binds.items() if k not in ("dfrom", "dto", "dow")}
+        try:
+            row = (await db.execute(text(
+                f"SELECT MAX({latest_col}) FROM {source.frm} WHERE {undated}"), undated_binds)).first()
+            if row and row[0] is not None:
+                latest_seen = fmt(row[0], "date", lang, scope.currency)
+        except Exception:
+            await db.rollback()
 
     # Rows.
     order = source.order_by
@@ -406,7 +437,12 @@ async def answer(db, source: Source, params: Params, scope: Scope, question: str
         lines.append("")
         if recorded_without_status == 0:
             period = L.period(d_label, lang)
-            lines.append(L.phrase("nothing_recorded", lang, title=title, period=period).replace("  ", " ").strip())
+            if d_label == "upcoming":
+                lines.append(L.phrase("none_upcoming", lang, title=title))
+            else:
+                lines.append(L.phrase("nothing_recorded", lang, title=title, period=period).replace("  ", " ").strip())
+            if latest_seen:
+                lines.append(L.phrase("latest", lang, date=latest_seen))
         elif recorded_without_status:
             lines.append(L.phrase("none_of", lang, n=f"{recorded_without_status:,}", noun=noun))
         else:
@@ -425,11 +461,28 @@ async def answer(db, source: Source, params: Params, scope: Scope, question: str
 
     # The same result, compact, for the model to explain without re-reading
     # the whole table — and without ids, which it never needs.
-    facts_lines = [head.replace("**", "")]
-    if agg_parts:
-        facts_lines.append(" · ".join(p.replace("**", "") for p in agg_parts))
-    for row in rendered_rows[:10]:
-        facts_lines.append("; ".join(f"{headers[i]}: {row[i]}" for i in keep))
+    # Labelled so a small model cannot mistake a sample for the whole: shown
+    # three rows of fourteen, it added the three up and called that the total.
+    # In English whatever the question's language: the facts are for the
+    # model, which read "Kul bill · Wusool" as something missing from them.
+    en_noun = _singular(source.count_noun) if count == 1 else source.count_noun
+    en_tags = [st.label for st in statuses] + sec_labels + [n.capitalize() for n in names]
+    if d_label:
+        en_tags.append(d_label)
+    facts_lines = [f"Result (complete count): {count:,} {en_noun}"
+                   + (" — " + " · ".join(t for t in en_tags if t) if en_tags else "")]
+    if summary and source.aggregates:
+        totals = [f"{a.label}: {fmt(summary.get(f'a{i}'), a.kind, L.EN, scope.currency)}"
+                  for i, a in enumerate(source.aggregates) if summary.get(f"a{i}") is not None]
+        if totals:
+            facts_lines.append(f"Totals over all {count:,} (exact): " + " · ".join(totals))
+    if rendered_rows:
+        shown = min(len(rendered_rows), 10)
+        facts_lines.append(f"Example rows ({shown} of {count:,}; do not add these up or count them):")
+    en_headers = [c.label for c in source.columns]
+    for r in rows[:10]:
+        facts_lines.append("; ".join(
+            f"{en_headers[i]}: {fmt(r[f'c{i}'], source.columns[i].kind, L.EN, scope.currency)}" for i in keep))
     facts = "\n".join(facts_lines)[:1500]
 
     return Answer(

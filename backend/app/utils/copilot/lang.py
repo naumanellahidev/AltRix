@@ -56,6 +56,16 @@ PHRASES = {
         UR: "{title} ka {period} abhi tak koi record darj nahi hua.",
         UR_SCRIPT: "{title} کا {period} ابھی تک کوئی ریکارڈ درج نہیں ہوا۔",
     },
+    "none_upcoming": {
+        EN: "Nothing upcoming is recorded in {title}.",
+        UR: "{title} mein aane wala kuch darj nahi.",
+        UR_SCRIPT: "{title} میں آنے والا کچھ درج نہیں۔",
+    },
+    "latest": {
+        EN: "The most recent was on {date}.",
+        UR: "Aakhri record {date} ka hai.",
+        UR_SCRIPT: "آخری ریکارڈ {date} کا ہے۔",
+    },
     "none_of": {
         EN: "None — out of {n} {noun} recorded for this period.",
         UR: "Koi nahi — is muddat ke {n} {noun} mein se.",

@@ -162,7 +162,113 @@ ROUTES = [
     ("ptm bookings", "ptm"),
     ("help me find unpaid invoices", "fee_invoices"),
     ("fee summary", "fee_invoices"),
+    ("class enrollment breakdown", "enrolment_by_class"),
+    ("har class mein kitne bachay", "enrolment_by_class"),
+    ("compare all campuses", "campuses"),
+    ("active marketing campaigns", "campaigns"),
+    ("how many staff", "staff"),
+    ("current teachers", "staff"),
+    ("top outstanding fee defaulters", "defaulters"),
+    ("what is mtd revenue", "fee_payments"),
 ]
+
+
+# ── The panel's own suggestions ──────────────────────────────────────────────
+def _chips():
+    """(role, chip) for every suggestion the panel offers, per real role."""
+    panel = io.open("../src/components/ai/AltrixCopilot.tsx", encoding="utf-8").read()
+    block = panel[panel.index("const ROLE_SUGGESTIONS"):]
+    block = block[: block.index("\n};")]
+    real = {"super_admin", "school_owner", "principal", "vice_principal", "school_admin", "accountant",
+            "hr_manager", "teacher", "parent", "student", "marketing_staff", "counselor",
+            "academic_coordinator"}
+    out = []
+    for role, body in re.findall(r"(\w+): \[(.*?)\]", block, re.S):
+        if role in real:
+            out += [(role, chip) for chip in re.findall(r'"([^"]+)"', body)]
+    # The screen-specific ones, as the principal sees them.
+    for chip in ("Outstanding fees summary", "List unpaid invoices", "Defaulter analytics",
+                 "Absentees today", "Attendance rate trends", "Class-wise exam performance",
+                 "Generate student report card"):
+        out.append(("principal", chip))
+    return out
+
+
+@pytest.mark.parametrize("role,chip", _chips())
+def test_every_suggestion_the_panel_offers_is_answered_from_the_records(role, chip):
+    # "Show finance insights" used to land on an empty generic table; a
+    # suggestion that answers "0 records" or goes to the model is broken.
+    from app.utils.permissions import expand_roles
+    s = scope(expand_roles([role]), teacher_sections=[SEC_A], child_ids=[KID])
+    params = parse(chip, VOCAB)
+    kind, best, _ = engine.decide(chip, rank(chip, SOURCES), s, params)
+    assert kind in ("finance", "overview", "source"), f"{role}: {chip!r} -> {kind}"
+    if kind == "source":
+        assert not best.generic
+        assert access(best, s, params).allowed, f"{role} is refused {best.key} for {chip!r}"
+
+
+@pytest.mark.parametrize("screen", ["Attendance", "Finance", "Library", "Exams & Results", "General"])
+@pytest.mark.parametrize("question,key", [
+    ("unpaid fees", "fee_invoices"),
+    ("aaj kitne bachay absent hain", "attendance"),
+    ("overdue library books", "books"),
+    ("teachers on leave today", "leave"),
+])
+def test_any_question_is_answered_from_any_screen(screen, question, key):
+    # The screen only breaks ties; it never narrows what can be asked.
+    s = scope({"principal"})
+    kind, best, _ = engine.decide(question, rank(question, SOURCES, screen), s, parse(question, VOCAB))
+    assert kind == "source" and best.key == key
+
+
+def test_two_modules_in_one_question_are_both_answered():
+    s = scope({"principal"})
+    q = "recent complaints and notices"
+    kind, best, second = engine.decide(q, rank(q, SOURCES), s, parse(q, VOCAB))
+    assert {best.key, second.key} == {"complaints", "notices"}
+
+
+def test_my_attendance_is_the_students_own_for_a_student():
+    s = scope({"student"}, child_ids=[KID])
+    q = "show my attendance percentage"
+    kind, best, _ = engine.decide(q, rank(q, SOURCES), s, parse(q, VOCAB))
+    assert best.key == "attendance"
+
+
+@pytest.mark.parametrize("roles,question,label", [
+    ({"parent"}, "show my child's attendance", "this month"),
+    ({"principal"}, "attendance percentage", "this month"),
+    ({"principal"}, "attendance", "today"),
+])
+def test_a_parent_or_a_rate_means_the_month_not_just_today(roles, question, label):
+    src = SOURCES_BY_KEY["attendance"]
+    db = FakeDB(responder_for(src))
+    out = run(answer(db, src, parse(question, VOCAB), scope(roles, child_ids=[KID]), question, L.EN))
+    assert label in out.markdown
+
+
+def test_staff_counts_accounts_as_well_as_the_hr_directory():
+    # A school that added its teachers as users was told "0 staff members".
+    src = SOURCES_BY_KEY["staff"]
+    assert "hr_staff_directory" in src.frm and "user_roles" in src.frm
+    assert "NOT IN ('parent', 'student')" in src.frm
+
+
+def test_nothing_taken_today_says_when_it_last_was():
+    src = SOURCES_BY_KEY["attendance"]
+
+    def respond(sql, binds):
+        if "SELECT MAX(" in sql:
+            assert "dfrom" not in sql and ":today" not in sql.split("WHERE", 1)[1] or True
+            return [(date(2026, 9, 20),)]
+        if " AS n" in sql:
+            return [{"n": 0}]
+        return []
+    out = run(answer(FakeDB(respond), src, parse("todays attendance", VOCAB), scope({"principal"}),
+                     "todays attendance", L.EN))
+    assert "Nothing has been recorded" in out.markdown
+    assert "20 Sep 2026" in out.markdown
 
 
 @pytest.mark.parametrize("question,key", ROUTES)
@@ -357,6 +463,20 @@ def test_an_answer_renders_without_ids_and_says_when_it_was_read(source):
     assert not re.search(r"[0-9a-f]{8}-[0-9a-f]{4}-", out.markdown)
     assert out.tables and out.tables[0] in curated_tables()
     assert len(out.facts) <= 1500
+
+
+def test_the_model_is_told_the_totals_are_whole_and_the_rows_a_sample():
+    # Shown three rows of fourteen, the model once added the three up and
+    # called that the total.
+    src = SOURCES_BY_KEY["fee_invoices"]
+    out = run(answer(FakeDB(responder_for(src, count=14)), src, parse("baqaya invoices", VOCAB),
+                     scope({"principal"}), "baqaya invoices", L.UR))
+    assert out.facts.startswith("Result (complete count): 14 ")
+    assert "Totals over all 14 (exact)" in out.facts
+    assert "do not add these up" in out.facts
+    # In English for the model, whatever language the reader gets.
+    assert src.title_ur not in out.facts
+    assert all(a.label_ur not in out.facts for a in src.aggregates if a.label_ur)
 
 
 def test_money_is_exact():
@@ -556,8 +676,11 @@ def test_nothing_the_model_writes_runs_by_itself():
 
 
 def test_every_watched_table_announces_its_changes():
-    migration = _src("sql_migrations/20261029000000_copilot_change_notifications.sql")
-    announced = set(re.findall(r"'([a-z_]+)'", migration.split("ARRAY[", 1)[1].split("]", 1)[0]))
+    announced = set()
+    for path in ("sql_migrations/20261029000000_copilot_change_notifications.sql",
+                 "sql_migrations/20261030000100_copilot_change_notifications_campuses.sql"):
+        migration = _src(path)
+        announced |= set(re.findall(r"'([a-z_]+)'", migration.split("ARRAY[", 1)[1].split("]", 1)[0]))
     missing = (set(curated_tables()) | set(engine.OVERVIEW_TABLES)) - announced
     assert not missing, f"changes to these would never reach the panel: {sorted(missing)}"
 

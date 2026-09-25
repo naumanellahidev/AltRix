@@ -58,6 +58,27 @@ def section_label(expr: str) -> str:
     )
 
 
+#: Everyone who works at the school: the HR directory, plus every staff
+#: account (any role but parent or student) not already linked to an entry
+#: in it. Named by the directory, or else by the account.
+STAFF_UNION = (
+    "(SELECT d.school_id, d.full_name, d.position, d.department, "
+    "COALESCE(d.phone, d.email) AS contact, d.joining_date, d.is_active, d.linked_user_id AS user_id "
+    "FROM hr_staff_directory d "
+    "UNION ALL "
+    "SELECT ur.school_id, COALESCE(NULLIF(u.display_name, ''), u.email, 'Unnamed account') AS full_name, "
+    "string_agg(DISTINCT initcap(replace(ur.role::text, '_', ' ')), ', ') AS position, "
+    "NULL::text AS department, u.email AS contact, NULL::date AS joining_date, true AS is_active, "
+    "ur.user_id "
+    "FROM user_roles ur LEFT JOIN school_user_directory u "
+    "ON u.user_id = ur.user_id AND u.school_id = ur.school_id "
+    "WHERE ur.role::text NOT IN ('parent', 'student') "
+    "AND NOT EXISTS (SELECT 1 FROM hr_staff_directory d2 "
+    "WHERE d2.linked_user_id = ur.user_id AND d2.school_id = ur.school_id) "
+    "GROUP BY ur.school_id, ur.user_id, u.display_name, u.email) t"
+)
+
+
 def staff_name(uid: str) -> str:
     return (
         "COALESCE("
@@ -185,11 +206,17 @@ SOURCES: Tuple[Source, ...] = (
             Col("Status", "t.status::text"),
             Col("Submitted", "t.created_at", "datetime"),
         ),
-        roles=GOV | {"academic_coordinator"},
+        # Marketing staff work the admissions pipeline (their panel suggests
+        # "New admission applications"), so they may read it.
+        roles=GOV | {"academic_coordinator", "marketing_staff"},
         date_col=pk("t.created_at"),
         statuses=(
             Status(("pending", "waiting", "new", "baqi", "zer e ghor"),
                    "t.status IN ('submitted', 'under_review')", "awaiting a decision", "faisle ke muntazir"),
+            # Compared as text so the query stands whether or not the enum
+            # value has been added yet on a given database.
+            Status(("waitlisted", "waitlist", "waiting list", "wait list", "intezar list"),
+                   "t.status::text = 'waitlisted'", "waitlisted", "waiting list par"),
             Status(("approved", "accepted", "manzoor"), "t.status = 'approved'", "approved", "manzoor"),
             Status(("rejected", "declined", "mustarad"), "t.status = 'rejected'", "rejected", "mustarad"),
         ),
@@ -199,7 +226,8 @@ SOURCES: Tuple[Source, ...] = (
     Source(
         key="attendance", module="Attendance", title="student attendance", title_ur="talaba ki hazri",
         keywords=("attendance", "absent", "absents", "present", "hazri", "haziri", "hazir",
-                  "ghair hazir", "ghairhazir", "late comers", "attend"),
+                  "ghair hazir", "ghairhazir", "late comers", "attend", "attendance percentage",
+                  "attendance rate", "attendance rates", "absentees", "attendance trends", "todays attendance"),
         frm=("attendance_entries t JOIN attendance_sessions a ON a.id = t.session_id "
              "AND a.school_id = t.school_id " + STUDENT_JOIN),
         columns=(
@@ -273,7 +301,8 @@ SOURCES: Tuple[Source, ...] = (
         key="defaulters", module="Fees", title="fee defaulters", title_ur="fee ke nadehandgan",
         keywords=("defaulter", "defaulters", "top defaulters", "who owes", "kis ne fee nahi di",
                   "fee nahi di", "sab se zyada baqaya", "nadehinda", "nadehandgan", "owes", "owing",
-                  "kin bachon ki fee", "kis ki fee baqaya", "students with unpaid fees", "student wise balance"),
+                  "kin bachon ki fee", "kis ki fee baqaya", "students with unpaid fees", "student wise balance",
+                  "fee defaulters", "defaulter analytics", "defaulters list", "defaulter list"),
         # One row per student, the balance summed across every unpaid invoice.
         frm=("(SELECT fi.school_id, fi.student_id, "
              "SUM(COALESCE(fi.total_amount, 0) - COALESCE(fi.paid_amount, 0)) AS balance, "
@@ -303,7 +332,8 @@ SOURCES: Tuple[Source, ...] = (
         key="fee_payments", module="Fees", title="fee payments", title_ur="fee ki adayigiyan",
         keywords=("payment", "payments", "collection", "collections", "collect", "collected",
                   "received", "wusool", "wusooli", "jama", "receipt", "receipts", "deposit", "deposited",
-                  "fee collection", "fee aayi", "fee ai"),
+                  "fee collection", "fee aayi", "fee ai", "revenue", "mtd revenue", "income", "aamdani",
+                  "earnings", "fee payments"),
         frm="fee_payments t " + STUDENT_JOIN,
         columns=(
             Col("Date", "t.paid_at", "datetime", "Tareekh"),
@@ -356,7 +386,9 @@ SOURCES: Tuple[Source, ...] = (
     Source(
         key="exam_results", module="Exams", title="exam results", title_ur="imtihani nataij",
         keywords=("result", "results", "marks", "mark", "grade", "grades", "score", "scores", "natija",
-                  "nataij", "percentage", "position", "fail", "failed", "pass", "passed", "topper", "toppers"),
+                  "nataij", "percentage", "position", "fail", "failed", "pass", "passed", "topper", "toppers",
+                  "exam performance", "weak students", "grade distribution", "grade distributions",
+                  "class wise exam performance"),
         frm=("exam_results t JOIN exams e ON e.id = t.exam_id AND e.school_id = t.school_id "
              "LEFT JOIN subjects sub ON sub.id = t.subject_id " + STUDENT_JOIN),
         columns=(
@@ -511,6 +543,7 @@ SOURCES: Tuple[Source, ...] = (
         keywords=("teaches", "who teaches", "kaun parhata", "kaun parhati", "assigned teacher",
                   "class teacher", "teaching assignment", "my classes", "meri classes", "mere classes",
                   "assigned classes", "kon parhata", "parhata", "parhati", "teacher assignments",
+                  "subject allocations", "subject allocation", "teacher subjects", "allocations",
                   "teacher assignment", "class teachers"),
         frm="teacher_assignments t LEFT JOIN subjects sub ON sub.id = t.subject_id",
         columns=(
@@ -525,15 +558,113 @@ SOURCES: Tuple[Source, ...] = (
         count_noun="assignments", count_noun_ur="taqseemat",
     ),
     Source(
+        key="enrolment_by_class", module="Students", title="enrolment by class", title_ur="class-wise talaba",
+        keywords=("enrollment breakdown", "enrolment breakdown", "class enrollment", "class enrolment",
+                  "class wise", "classwise", "class strength", "students per class", "students by class",
+                  "class vacancy", "vacancy", "vacancies", "class size", "class sizes", "har class",
+                  "class wise students", "section wise"),
+        # One row per section, counting the students enrolled in it now.
+        frm=("(SELECT cs.school_id, cs.id AS section_id, ac.name AS class_name, cs.name AS section_name, "
+             "ac.grade_level, cs.room, "
+             "(SELECT COUNT(*) FROM student_enrollments se JOIN students st ON st.id = se.student_id "
+             "WHERE se.class_section_id = cs.id AND se.end_date IS NULL "
+             "AND st.status::text IN ('active', 'enrolled')) AS students, "
+             "(SELECT COUNT(*) FROM student_enrollments se JOIN students st ON st.id = se.student_id "
+             "WHERE se.class_section_id = cs.id AND se.end_date IS NULL "
+             "AND st.status::text IN ('active', 'enrolled') AND lower(COALESCE(st.gender, '')) IN ('male', 'm', 'boy')) AS boys, "
+             "(SELECT COUNT(*) FROM student_enrollments se JOIN students st ON st.id = se.student_id "
+             "WHERE se.class_section_id = cs.id AND se.end_date IS NULL "
+             "AND st.status::text IN ('active', 'enrolled') AND lower(COALESCE(st.gender, '')) IN ('female', 'f', 'girl')) AS girls "
+             "FROM class_sections cs JOIN academic_classes ac ON ac.id = cs.class_id) t"),
+        table="student_enrollments",
+        columns=(
+            Col("Class", "concat_ws(' ', t.class_name, t.section_name)"),
+            Col("Room", "t.room"),
+            Col("Students", "t.students", "number", "Talaba"),
+            Col("Boys", "t.boys", "number", "Larkay"),
+            Col("Girls", "t.girls", "number", "Larkiyan"),
+        ),
+        roles=ACADEMIC | COUNSEL | FINANCE,
+        order_by="t.grade_level NULLS LAST, t.class_name, t.section_name",
+        top_order="t.students DESC", lowest_order="t.students ASC",
+        name_cols=("t.class_name",), section_expr="t.section_id",
+        count_noun="class sections", count_noun_ur="sections",
+        aggregates=(Agg("Students enrolled", "SUM(t.students)", "number", "Kul talaba"),),
+    ),
+    Source(
+        key="campuses", module="Campuses", title="campuses", title_ur="campus",
+        keywords=("campus", "campuses", "branch", "branches", "compare campuses", "all campuses",
+                  "campus wise", "branch wise"),
+        frm=("(SELECT c.school_id, c.id AS campus_id, c.name, c.code, c.is_active, "
+             "(SELECT COUNT(*) FROM students st WHERE st.campus_id = c.id "
+             "AND st.status::text IN ('active', 'enrolled')) AS students, "
+             "(SELECT COUNT(DISTINCT ur.user_id) FROM user_roles ur WHERE ur.campus_id = c.id "
+             "AND ur.role::text NOT IN ('parent', 'student')) AS staff, "
+             "(SELECT COALESCE(SUM(COALESCE(fi.total_amount, 0) - COALESCE(fi.paid_amount, 0)), 0) "
+             "FROM fee_invoices fi WHERE fi.campus_id = c.id "
+             "AND fi.status IN ('pending', 'partial', 'overdue')) AS outstanding, "
+             "(SELECT COALESCE(SUM(fp.amount), 0) FROM fee_payments fp WHERE fp.campus_id = c.id "
+             "AND fp.status = 'success' AND ((fp.paid_at AT TIME ZONE 'Asia/Karachi')::date) "
+             ">= date_trunc('month', CAST(:today AS date))) AS collected_month "
+             "FROM campuses c) t"),
+        table="campuses",
+        columns=(
+            Col("Campus", "t.name"),
+            Col("Code", "t.code"),
+            Col("Students", "t.students", "number", "Talaba"),
+            Col("Staff", "t.staff", "number"),
+            Col("Outstanding fees", "t.outstanding", "money", "Baqaya fees"),
+            Col("Collected this month", "t.collected_month", "money", "Is mahine wusool"),
+        ),
+        roles=GOV, order_by="t.name ASC", top_order="t.students DESC", lowest_order="t.students ASC",
+        default_where="t.is_active IS NOT FALSE",
+        name_cols=("t.name", "t.code"),
+        count_noun="campuses", count_noun_ur="campus",
+        aggregates=(
+            Agg("Students", "SUM(t.students)", "number", "Talaba"),
+            Agg("Outstanding", "SUM(t.outstanding)", "money", "Baqaya"),
+            Agg("Collected this month", "SUM(t.collected_month)", "money", "Is mahine wusool"),
+        ),
+    ),
+    Source(
+        key="campaigns", module="Marketing", title="marketing campaigns", title_ur="marketing campaigns",
+        keywords=("campaign", "campaigns", "marketing campaigns", "active campaigns", "marketing",
+                  "advertising", "ads", "muhim"),
+        frm="crm_campaigns t",
+        columns=(
+            Col("Campaign", "t.name"),
+            Col("Channel", "t.channel"),
+            Col("Status", "t.status"),
+            Col("Budget", "t.budget", "money"),
+            Col("Starts", "t.start_date", "date"),
+            Col("Ends", "t.end_date", "date"),
+        ),
+        roles=MARKETING, order_by="t.start_date DESC NULLS LAST", top_order="t.budget DESC NULLS LAST",
+        date_col="t.start_date",
+        statuses=(
+            Status(("active", "running", "live", "current"), "lower(COALESCE(t.status, '')) IN ('active', 'running', 'live')",
+                   "active", "jari"),
+            Status(("ended", "completed", "finished", "past"), "lower(COALESCE(t.status, '')) IN ('ended', 'completed', 'finished')",
+                   "ended", "khatam"),
+        ),
+        name_cols=("t.name", "t.channel"),
+        count_noun="campaigns", count_noun_ur="campaigns",
+        aggregates=(Agg("Budget", "SUM(t.budget)", label_ur="Budget"),),
+    ),
+    Source(
         key="staff", module="Staff", title="staff", title_ur="staff",
         keywords=("staff", "teacher", "teachers", "ustad", "ustaad", "asatza", "asatiza", "employee",
-                  "employees", "mulazim", "mulazmeen", "faculty", "team", "principal", "clerk"),
-        frm="hr_staff_directory t",
+                  "employees", "mulazim", "mulazmeen", "faculty", "team", "principal", "clerk",
+                  "staff directory", "active staff", "staff list", "current teachers", "all teachers"),
+        # The HR directory and the staff accounts together. A school that
+        # added its teachers as users and never filled in the HR directory
+        # was told it had "0 staff members".
+        frm=STAFF_UNION, table="hr_staff_directory",
         columns=(
             Col("Name", "t.full_name", label_ur="Naam"),
             Col("Position", "t.position", label_ur="Ohda"),
             Col("Department", "t.department"),
-            Col("Phone", "t.phone"),
+            Col("Contact", "t.contact"),
             Col("Joined", "t.joining_date", "date"),
         ),
         roles=GOV | {"hr_manager", "academic_coordinator"},
@@ -551,7 +682,8 @@ SOURCES: Tuple[Source, ...] = (
         key="staff_attendance", module="Staff Attendance", title="staff attendance", title_ur="staff ki hazri",
         keywords=("staff attendance", "teacher attendance", "teachers attendance", "staff absent",
                   "teacher absent", "teachers absent", "staff hazri", "ustad hazri", "staff late",
-                  "teachers late", "clock in", "check in", "my attendance", "meri hazri"),
+                  "teachers late", "clock in", "check in", "my attendance", "meri hazri",
+                  "staff turnout", "turnout", "staff present"),
         frm="hr_staff_attendance t",
         columns=(
             Col("Staff", staff_name("t.user_id"), label_ur="Naam"),
@@ -793,7 +925,8 @@ SOURCES: Tuple[Source, ...] = (
         key="book_issues", module="Library", title="books issued", title_ur="jari kitabein",
         keywords=("issued", "borrowed", "borrow", "issue", "returned", "return", "library overdue",
                   "library fine", "fine", "fines", "kitab wapas", "book issues", "book issue",
-                  "books issued", "issued books", "library issues"),
+                  "books issued", "issued books", "library issues", "library fines", "pending fines",
+                  "overdue loans", "loans"),
         frm="book_issues t LEFT JOIN library_books b ON b.id = t.book_id "
             "LEFT JOIN students s ON s.id = t.borrower_id AND t.borrower_type = 'student'",
         columns=(
@@ -951,7 +1084,8 @@ SOURCES: Tuple[Source, ...] = (
     ),
     Source(
         key="behavior", module="Behaviour", title="behaviour notes", title_ur="rawaiye ke notes",
-        keywords=("behavior", "behaviour", "discipline", "conduct", "rawaiya", "rawayya", "tameez", "misconduct"),
+        keywords=("behavior", "behaviour", "discipline", "conduct", "rawaiya", "rawayya", "tameez", "misconduct",
+                  "wellbeing", "well being", "behavior logs", "behaviour logs", "student wellbeing"),
         frm="behavior_notes t " + STUDENT_JOIN,
         columns=(
             Col("Student", STUDENT_NAME), Col("Class", student_class("t.student_id")), Col("Note", "t.title"),

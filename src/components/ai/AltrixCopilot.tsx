@@ -365,6 +365,14 @@ const ROLE_SUGGESTIONS: Record<string, string[]> = {
     "Active homework tasks",
     "Upcoming school holidays",
   ],
+  // The role is stored as "marketing_staff"; the key "marketing" alone
+  // never matched it, so marketing staff were offered no suggestions.
+  marketing_staff: [
+    "Recent CRM leads overview",
+    "Leads by stage breakdown",
+    "Active marketing campaigns",
+    "New admission applications",
+  ],
   marketing: [
     "Recent CRM leads overview",
     "Leads by stage breakdown",

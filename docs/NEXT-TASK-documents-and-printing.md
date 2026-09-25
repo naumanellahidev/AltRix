@@ -1527,6 +1527,18 @@ Audit gates cop4 to cop7 were added.
   stay responsive while the model writes. The explanation reads at most 700
   characters of figures, and every prompt says in so many words which
   language to answer in.
+- **Found by the live test after deploy.** "Itni fees baqaya kyun hain" was
+  asked in the school with 14 unpaid invoices (Rs. 84,445.00). gemma2:2b had
+  been shown three sample rows, added them up, and answered "3 invoices,
+  total billed Rs. 16,000". It also read the Urdu labels "Kul bill · Wusool"
+  as information that was missing. The facts sent to the model are now in
+  English whatever the reader's language, and labelled "complete count",
+  "Totals over all 14 (exact)" and "Example rows (3 of 14; do not add these
+  up)". The rules also forbid counting or adding rows, and say "the records
+  do not show a reason" when they don't. After the fix, both languages
+  answered "14 invoices, Rs. 84,445.00, nothing received, the records do not
+  show why". The whole answer took about 35 s, down from 46–60 s; the table
+  still arrives at once.
 - **Fixed on the way:** `choose_local_model` matched the model *family*
   before the exact tag. With `qwen2.5:3b` also installed, a configured
   `qwen2.5:1.5b` was answered by whichever of the two `/api/tags` listed
@@ -1543,3 +1555,51 @@ Audit gates cop4 to cop7 were added.
 7. A review of the nginx edge limit (30 r/s, burst 50 per IP).
 8. The Admissions UI sets a `waitlisted` status that the enum does not have.
 9. Some fee invoices have no student (e.g. INV-2026-000020).
+
+### "Why does it show 0 records?" (25 Sep 2026)
+
+The principal's screenshots showed "0 staff members", "0 students — today"
+and, for the panel's own "Show finance insights" button, "0 owner ai
+insights". None of these was a missing record. Each was the Copilot looking
+in the wrong place or saying too little:
+
+- **Staff.** This school added its teachers, accountant and HR manager as
+  user accounts and never filled in the HR directory, and the Copilot read
+  only the directory. Staff is now the directory plus every staff account
+  (any role but parent or student) that is not linked to a directory entry.
+  "How many staff" now answers 13 and "current teachers" answers 5. The
+  school overview counts staff the same way.
+- **Nothing today versus nothing at all.** Attendance had not been marked on
+  25 Sep; the last was on 20 Sep. When a period has no records, the answer
+  now says so and gives the date of the last one. The same applies to
+  "upcoming exams" ("nothing upcoming; the most recent was on 27 Jun 2026")
+  and to MTD revenue.
+- **A parent's "my child's attendance"**, and any question asking for a
+  rate, percentage or trend, now means the month so far rather than today.
+  The answer includes the present rate.
+- **Every suggestion the panel offers is now answered from the records.** A
+  test walks every chip for every real role. Principal and owner chips used
+  to fall through to the model or to empty generic tables. New answers:
+  - a finance summary (outstanding, past due, students owing, collected
+    today, this month and last month, expenses, and net);
+  - class-wise enrolment (students, boys and girls per section);
+  - a campus comparison (students, staff, outstanding, collected this month);
+  - marketing campaigns;
+  - "fee defaulters" now reaches the student-wise defaulters list;
+  - "MTD revenue" reaches payments this month.
+  The panel had suggestions for a role called "marketing"; the role is stored
+  as `marketing_staff`, so those users saw none. Marketing staff may now read
+  admission applications, as their suggestions assume.
+- **One question, two modules.** "Recent complaints and notices" and
+  "homework aur diary" are answered with both tables.
+- **The right table for the role.** "My attendance" is the staff register
+  for a teacher and the student's own attendance for a student. The first
+  match the caller may read is used, not the first match overall.
+- **From anywhere in the shell.** The screen the Copilot is opened on only
+  breaks ties, such as "pending" on the admissions screen. A test asks four
+  different module questions from five different screens and expects the
+  same answers. Every answer stays within the caller's school and role.
+- **Admissions waiting list.** The Waitlist button set a status that the
+  `admission_status` enum did not have, so every click was refused. The
+  value is now added by migration `20261030000000_admission_waitlist_status.sql`,
+  and the Copilot understands "waitlisted".
