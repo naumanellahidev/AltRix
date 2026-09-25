@@ -22,6 +22,8 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { describeShare, downloadReportCard, printReportCard, shareReportCard } from "@/lib/documents";
+import { useParams } from "react-router-dom";
+import { useTenant } from "@/hooks/useTenant";
 
 interface ParentReportCardModuleProps {
   child: ChildInfo | null;
@@ -71,6 +73,11 @@ interface DetailData {
 }
 
 export default function ParentReportCardModule({ child, schoolId }: ParentReportCardModuleProps) {
+  // The school's own name. The pass and the report card used to print
+  // "ALTRIX ACADEMY" for every school.
+  const { schoolSlug: nameSlug } = useParams();
+  const nameTenant = useTenant(nameSlug);
+  const schoolName = nameTenant.status === "ready" ? nameTenant.school.name : "";
   const [loading, setLoading] = useState(false);
   const [cards, setCards] = useState<ReportCardSummary[]>([]);
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
@@ -227,7 +234,7 @@ export default function ParentReportCardModule({ child, schoolId }: ParentReport
 
                 <div className="flex flex-col md:flex-row justify-between items-center pb-6 border-b border-border/80 gap-4">
                   <div className="text-center md:text-left">
-                    <h2 className="text-xl sm:text-2xl font-bold font-display tracking-tight text-primary">ALTRIX ACADEMY</h2>
+                    <h2 className="text-xl sm:text-2xl font-bold font-display tracking-tight text-primary">{schoolName || "Your school"}</h2>
                     <p className="text-[10px] sm:text-xs tracking-widest text-muted-foreground uppercase font-semibold">
                       Inspiring Excellence, Nurturing Potential
                     </p>

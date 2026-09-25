@@ -18,7 +18,6 @@ import {
   Eye,
   Settings,
   ShieldAlert,
-  Sparkles,
   Search
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -555,33 +554,8 @@ export function AttendanceHeatmap() {
 
   }, [filteredPoints, radarAngle, schoolCenter, zoomRange]);
 
-  // Demo simulator for checking in staff and showing it live on the radar
-  const simulateCheckIn = () => {
-    const firstNames = ["Prof. John", "Sarah", "Michael", "Ayesha", "Bilal", "Dr. Elizabeth", "Robert", "Maria"];
-    const lastNames = ["Doe", "Jenkins", "Chang", "Malik", "Ahmed", "Stone", "Vance", "Garcia"];
-    const randomName = `${firstNames[Math.floor(Math.random() * firstNames.length)]} ${lastNames[Math.floor(Math.random() * lastNames.length)]}`;
-    
-    // 60% chance inside geofence (within 0.0008 deg), 40% chance outside
-    const isInside = Math.random() > 0.4;
-    const latOffset = (Math.random() - 0.5) * (isInside ? 0.0008 : 0.0035);
-    const lngOffset = (Math.random() - 0.5) * (isInside ? 0.0008 : 0.0035);
-    
-    const simRecord = {
-      id: `sim-${Math.random().toString(36).substr(2, 9)}`,
-      user_id: `user-${Math.random().toString(36).substr(2, 9)}`,
-      userName: randomName,
-      status: Math.random() > 0.25 ? "present" : "late",
-      created_at: new Date().toISOString(),
-      attendance_date: new Date().toLocaleDateString("sv-SE"),
-      clock_in: new Date().toISOString(),
-      clock_out: null,
-      latitude: schoolCenter.lat + latOffset,
-      longitude: schoolCenter.lng + lngOffset,
-    };
-    
-    setRecords(prev => [simRecord, ...prev]);
-    toast.success(`[SIMULATOR] Real-time georeferenced check-in received for ${randomName}!`);
-  };
+  // A "SIMULATE LIVE CHECK-IN" button used to put invented staff on this
+  // radar and into the Active Staff count. Only real check-ins are shown.
 
   const activeCheckIns = records.filter(r => r.latitude != null && r.longitude != null).length;
 
@@ -719,7 +693,7 @@ export function AttendanceHeatmap() {
                 </div>
                 <p className="font-display font-bold text-sm text-foreground">NO GEO-REFERENCE LOGS MATCHED</p>
                 <p className="text-xs text-muted-foreground mt-2 max-w-sm leading-relaxed">
-                  No checked-in staff matched the current filter. Click the simulator below or check in staff via GPS coordinates to trigger radar feedback.
+                  No checked-in staff matched the current filter. Staff appear here when they check in from the staff app with location turned on.
                 </p>
               </div>
             ) : null}
@@ -851,16 +825,6 @@ export function AttendanceHeatmap() {
             )}
           </div>
 
-          {/* Simulator Control for Demonstration/Testing */}
-          <div className="border-t border-border pt-3 mt-3">
-            <Button
-              onClick={simulateCheckIn}
-              className="w-full h-8.5 text-[10px] font-mono font-bold tracking-wider rounded-xl bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary text-primary-foreground flex items-center justify-center gap-1.5 border border-primary/20 shadow-md shadow-primary/10"
-            >
-              <Sparkles className="h-3.5 w-3.5 text-primary-foreground animate-pulse" />
-              SIMULATE LIVE CHECK-IN
-            </Button>
-          </div>
         </div>
 
       </div>

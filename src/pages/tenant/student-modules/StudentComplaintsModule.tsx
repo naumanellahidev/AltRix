@@ -31,6 +31,7 @@ import { format } from "date-fns";
 import { toast } from "sonner";
 import { ComplaintThread } from "@/components/complaints/ComplaintThread";
 import { EditComplaintDialog } from "@/components/complaints/EditComplaintDialog";
+import { ComplaintAttachmentChip, ComplaintAttachmentPicker, type ComplaintAttachment } from "@/components/complaints/ComplaintAttachments";
 
 interface Complaint {
   id: string;
@@ -72,7 +73,7 @@ export default function StudentComplaintsModule({ schoolId }: { schoolId: string
   const [category, setCategory] = useState<string>("Other");
   const [priority, setPriority] = useState<string>("medium");
   const [anonymous, setAnonymous] = useState<boolean>(true);
-  const [attachments, setAttachments] = useState<any[]>([]);
+  const [attachments, setAttachments] = useState<ComplaintAttachment[]>([]);
   const [sending, setSending] = useState(false);
 
   // Interaction States
@@ -148,27 +149,6 @@ export default function StudentComplaintsModule({ schoolId }: { schoolId: string
     };
   }, [schoolId, user?.id]);
 
-  const addMockAttachment = () => {
-    const fileOptions = [
-      { name: "Screenshot_Incident_Report.png", size: "840 KB", type: "image/png" },
-      { name: "Witness_Declaration.pdf", size: "1.2 MB", type: "application/pdf" },
-      { name: "Homework_Reference.jpg", size: "430 KB", type: "image/jpeg" },
-      { name: "Facilities_Issues.png", size: "2.1 MB", type: "image/png" }
-    ];
-    // Pick a random one or sequence
-    const randomFile = fileOptions[attachments.length % fileOptions.length];
-    const newAttach = {
-      ...randomFile,
-      id: Math.random().toString(36).substring(7),
-      uploadedAt: new Date().toISOString()
-    };
-    setAttachments([...attachments, newAttach]);
-    toast.success(`Attached ${randomFile.name}`);
-  };
-
-  const removeAttachment = (id: string) => {
-    setAttachments(attachments.filter(a => a.id !== id));
-  };
 
   const submit = async () => {
     if (!schoolId || !user) return;
@@ -355,11 +335,7 @@ export default function StudentComplaintsModule({ schoolId }: { schoolId: string
                   {c.attachments && c.attachments.length > 0 && (
                     <div className="flex flex-wrap gap-2 pt-1">
                       {c.attachments.map((file, idx) => (
-                        <div key={idx} className="flex items-center gap-1.5 bg-slate-50 border rounded-lg py-1 px-2.5 text-xs font-semibold text-slate-700">
-                          <Paperclip className="h-3.5 w-3.5 text-slate-400" />
-                          <span>{file.name}</span>
-                          <span className="text-[10px] text-muted-foreground font-medium">({file.size})</span>
-                        </div>
+                        <ComplaintAttachmentChip key={idx} file={file as ComplaintAttachment} />
                       ))}
                     </div>
                   )}
@@ -563,42 +539,13 @@ export default function StudentComplaintsModule({ schoolId }: { schoolId: string
             {/* Attachments Section */}
             <div className="space-y-2">
               <Label className="text-xs font-bold text-slate-800">Attach Evidence / Screenshot</Label>
-              <div className="flex gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={addMockAttachment}
-                  className="gap-1.5 text-xs font-semibold rounded-lg"
-                >
-                  <FileUp className="h-4 w-4" /> Add mock file
-                </Button>
-                <span className="text-[10px] text-muted-foreground self-center italic">
-                  Simulate scanning files and documents
-                </span>
-              </div>
-
-              {attachments.length > 0 && (
-                <div className="space-y-1.5 pt-1 border border-slate-100 rounded-xl p-2.5 bg-slate-50/50">
-                  {attachments.map((file) => (
-                    <div key={file.id} className="flex items-center justify-between text-xs bg-white border rounded-lg p-2 shadow-sm">
-                      <div className="flex items-center gap-1.5 font-semibold text-slate-700">
-                        <Paperclip className="h-3.5 w-3.5 text-slate-400" />
-                        <span>{file.name}</span>
-                        <span className="text-[10px] text-muted-foreground font-medium">({file.size})</span>
-                      </div>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        className="h-6 w-6 p-0 hover:bg-red-50 hover:text-red-500 rounded-md"
-                        onClick={() => removeAttachment(file.id)}
-                      >
-                        <XCircle className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              )}
+              <ComplaintAttachmentPicker
+                schoolId={schoolId}
+                userId={user?.id}
+                value={attachments}
+                onChange={setAttachments}
+                hint="Screenshots or documents"
+              />
             </div>
           </div>
 

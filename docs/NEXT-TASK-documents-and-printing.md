@@ -1800,3 +1800,23 @@ rolled back:
   and stops whose report card, seating plan, message or route is in the
   caller's school. For Beacon's principal, schools went from 4 to 1 and
   profiles from 23 to 19.
+
+### Screens that made up what they showed (25 Sep 2026)
+
+A search for mock data, simulations and random numbers found screens that
+presented invented figures as real. Each now shows only what is stored or
+measured:
+
+| Screen | What it made up | Now |
+|---|---|---|
+| Platform health | CPU "4.8%", memory, "12 connections", a table list with 1,420 students and 28,400 attendance rows, a "94.2%" cache hit rate, and a "probe" that drew a random latency | `GET /platform/health-metrics` (owner only): Postgres connections, database size, cache hit rate, the largest tables (rows counted exactly unless huge), load, memory, disk and the task queue. Latency is timed from 5 real requests. |
+| Platform database | "114.6 MB", "5.0 GB", "99.9%", the same invented table list, a "93.1 MB" full backup that was never taken, "re-indexed 4 indexes … reclaimed 4.2 MB" with nothing done, and **invented rows ("John Doe", "Automated Record", "Grade 1") put into an empty school's export, which a restore would have written into the school** | The figures come from the server. "Back up the whole database now" starts a real server backup. "Refresh database statistics" runs ANALYZE and reports it (the row estimates had read 0 for 29 invoices). Exports hold only real rows, and a table that could not be read is named. The three seeded fake backups are gone. |
+| Platform search | "Muhammad Ali", "Ayesha Khan", "Dr. Kamran Malik" whenever nothing matched | Nothing matched is shown as nothing matched. |
+| Principal's live attendance radar | "SIMULATE LIVE CHECK-IN" put invented staff on the radar and into the Active Staff count | Removed; only real check-ins appear. |
+| Student and teacher complaints | "Add mock file" attached "Witness_Declaration.pdf" and similar files that never existed, and the principal saw them as evidence | Real uploads (up to 5 files, 10 MB each) to the school's storage, opened through a signed link. Old invented entries show "file not stored". |
+| AI timetable generator | A draft lived only in the tab, and "approve" reported success without saving anything | The draft is saved to `ai_timetable_suggestions` and approval updates that row. A draft that could not be saved says so, and can still be applied. |
+| Parent report card and visitor pass | Headed "ALTRIX ACADEMY" for every school | The school's own name. |
+
+These stay as they are, because they are labelled and are tools rather than
+records: the owner's finance what-if simulator, and the parent bus tracker's
+"Demo GPS" (marked "Simulated position — not live").

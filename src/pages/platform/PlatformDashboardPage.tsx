@@ -257,29 +257,8 @@ export default function PlatformDashboardPage() {
         });
       }
 
-      if (results.length === 0) {
-        const mockData = [
-          { name: "Muhammad Ali", roll: "2026-A-04", type: "Student", schoolIdx: 0 },
-          { name: "Ayesha Khan", roll: "2026-B-12", type: "Student", schoolIdx: 0 },
-          { name: "Dr. Kamran Malik", roll: "kamran@edu.com", type: "Principal / Owner", schoolIdx: 0 },
-        ];
-        
-        mockData.forEach((m) => {
-          if (m.name.toLowerCase().includes(globalSearchQuery.toLowerCase()) || 
-              m.roll.toLowerCase().includes(globalSearchQuery.toLowerCase())) {
-            const sch = schools[m.schoolIdx] || (schools[0] || { name: "Altrix Model School", slug: "model-school" });
-            results.push({
-              id: `mock-${m.name}-${Math.random()}`,
-              name: m.name,
-              subtext: m.type === "Student" ? `Roll #: ${m.roll}` : m.roll,
-              type: m.type,
-              schoolName: sch.name,
-              schoolSlug: sch.slug,
-            });
-          }
-        });
-      }
-
+      // Nothing found is shown as nothing found. This used to add made-up
+      // people ("Muhammad Ali", "Dr. Kamran Malik") to an empty search.
       setGlobalSearchResults(results);
     } catch (err) {
       console.error("Global search error", err);

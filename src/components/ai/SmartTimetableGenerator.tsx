@@ -611,15 +611,50 @@ export function SmartTimetableGenerator({ schoolId }: Props) {
         ]
       };
 
-      return { timetableData };
+      // Saved as a draft suggestion, so it can be approved and found again.
+      // It used to live only in this tab: "approve" then reported success on a
+      // row that did not exist.
+      let saved = false;
+      let saveError: string | null = null;
+      if (!remoteData?.timetableData?.id) {
+        const { data: row, error: saveErr } = await (api as any)
+          .from("ai_timetable_suggestions")
+          .insert({
+            school_id: schoolId,
+            class_section_id: selectedSection || null,
+            suggestion_data: timetableData,
+            optimization_score: timetableData.optimization_score,
+            conflicts_found: timetableData.conflicts_found,
+            status: "draft",
+            version_number: (suggestions?.length ?? 0) + 1,
+          })
+          .select("id")
+          .single();
+        if (saveErr || !row?.id) {
+          saveError = saveErr?.message ?? "no id returned";
+        } else {
+          timetableData.id = row.id;
+          saved = true;
+        }
+      } else {
+        saved = true;
+      }
+
+      return { timetableData, saved, saveError };
     },
     onMutate: () => {
       setGenerating(true);
     },
     onSuccess: (data: any) => {
-      toast.success("Timetable generated successfully!");
+      if (data?.saved) {
+        toast.success("Timetable generated and saved as a draft.");
+      } else {
+        toast.warning("Timetable worked out, but the draft could not be saved.", {
+          description: `${data?.saveError ?? "Unknown error"}. You can still review it and apply it to the timetable.`,
+        });
+      }
       if (data && data.timetableData) {
-        const mockSuggestion: TimetableSuggestion = {
+        const draft: TimetableSuggestion = {
           id: data.timetableData.id || "local-draft",
           class_section_id: selectedSection || null,
           suggestion_data: data.timetableData,
@@ -631,7 +666,7 @@ export function SmartTimetableGenerator({ schoolId }: Props) {
           approved_at: null,
           approved_by: null,
         };
-        setLocalSuggestion(mockSuggestion);
+        setLocalSuggestion(draft);
       }
       qc.invalidateQueries({ queryKey: ["ai_timetable_suggestions", schoolId] });
     },
@@ -650,35 +685,22 @@ export function SmartTimetableGenerator({ schoolId }: Props) {
   // Approve timetable mutation
   const approveMutation = useMutation({
     mutationFn: async (suggestionId: string) => {
-      if (suggestionId === "local-draft" || !suggestionId) {
-        return { mock: true };
+      if (!suggestionId || suggestionId.startsWith("local-draft")) {
+        // Nothing was saved, so there is nothing to approve. This used to
+        // answer "Timetable approved!" all the same.
+        throw new Error("This draft was not saved, so it cannot be approved. Apply it directly, or generate it again.");
       }
-      try {
-        const { data: { user } } = await api.auth.getUser();
-        
-        const { error } = await (api as any)
-          .from("ai_timetable_suggestions")
-          .update({
-            status: "approved",
-            approved_at: new Date().toISOString(),
-            approved_by: user?.id,
-          })
-          .eq("id", suggestionId);
-
-        if (error) {
-          if (error.code === "PGRST205") {
-            console.warn("Table ai_timetable_suggestions is missing, performing mock approval.");
-            return { mock: true };
-          }
-          throw error;
-        }
-        return { mock: false };
-      } catch (err: any) {
-        if (err.code === "PGRST205" || String(err.message).includes("schema cache")) {
-          return { mock: true };
-        }
-        throw err;
-      }
+      const { data: { user } } = await api.auth.getUser();
+      const { error } = await (api as any)
+        .from("ai_timetable_suggestions")
+        .update({
+          status: "approved",
+          approved_at: new Date().toISOString(),
+          approved_by: user?.id,
+        })
+        .eq("id", suggestionId);
+      if (error) throw error;
+      return { approved: true };
     },
     onSuccess: () => {
       toast.success("Timetable approved!");

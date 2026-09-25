@@ -28,6 +28,7 @@ import { toast } from "sonner";
 import { ComplaintThread } from "@/components/complaints/ComplaintThread";
 import { DataExportMenu } from "@/components/documents/DataExportMenu";
 import { ErrorState, LoadingRows } from "@/components/tenant/module-kit";
+import { ComplaintAttachmentChip, type ComplaintAttachment } from "@/components/complaints/ComplaintAttachments";
 
 interface PrincipalComplaint {
   id: string;
@@ -575,11 +576,7 @@ export default function PrincipalComplaintsModule() {
                       <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Attached Worksheets/Evidence</h4>
                       <div className="space-y-1.5">
                         {selectedComplaint.attachments.map((file, idx) => (
-                          <div key={idx} className="flex items-center gap-2 bg-slate-50 border rounded-lg p-2 text-xs font-semibold text-slate-700">
-                            <Paperclip className="h-4 w-4 text-slate-400" />
-                            <span>{file.name}</span>
-                            <span className="text-[10px] text-muted-foreground font-medium ml-auto">({file.size})</span>
-                          </div>
+                          <ComplaintAttachmentChip key={idx} file={file as ComplaintAttachment} className="w-full" />
                         ))}
                       </div>
                     </div>

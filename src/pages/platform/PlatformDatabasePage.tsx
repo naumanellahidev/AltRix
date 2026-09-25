@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
+import { apiClient } from "@/lib/api-client";
 import { SuperAdminShell } from "@/components/super-admin/SuperAdminShell";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -42,29 +43,32 @@ type DbTable = {
   status: string;
 };
 
-const TABLES: DbTable[] = [
-  { name: "schools", rows: 14, size: "128 KB", status: "Healthy" },
-  { name: "campuses", rows: 28, size: "256 KB", status: "Healthy" },
-  { name: "profiles", rows: 412, size: "1.2 MB", status: "Healthy" },
-  { name: "students", rows: 1482, size: "8.4 MB", status: "Healthy" },
-  { name: "academic_classes", rows: 120, size: "512 KB", status: "Healthy" },
-  { name: "class_sections", rows: 240, size: "1.1 MB", status: "Healthy" },
-  { name: "subjects", rows: 180, size: "820 KB", status: "Healthy" },
-  { name: "crm_leads", rows: 4320, size: "9.6 MB", status: "Healthy" },
-  { name: "attendance_sessions", rows: 12400, size: "22.1 MB", status: "Healthy" },
-  { name: "exams", rows: 45, size: "310 KB", status: "Healthy" },
-  { name: "timetable_entries", rows: 3120, size: "4.8 MB", status: "Healthy" },
-  { name: "finance_invoices", rows: 840, size: "2.1 MB", status: "Healthy" },
-  { name: "homework", rows: 1650, size: "3.2 MB", status: "Healthy" },
-  { name: "lesson_plans", rows: 980, size: "5.4 MB", status: "Healthy" },
-  { name: "behavior_notes", rows: 620, size: "1.3 MB", status: "Healthy" },
-  { name: "admin_messages", rows: 4210, size: "8.9 MB", status: "Healthy" },
-  { name: "assignments", rows: 2150, size: "7.1 MB", status: "Healthy" },
-  { name: "assignment_submissions", rows: 9240, size: "18.5 MB", status: "Healthy" },
-  { name: "hr_leave_requests", rows: 280, size: "640 KB", status: "Healthy" },
-  { name: "support_messages", rows: 1100, size: "2.4 MB", status: "Healthy" },
-  { name: "audit_logs", rows: 28410, size: "48.2 MB", status: "Optimal" },
-];
+/**
+ * The figures on this page come from /platform/health-metrics. A table list
+ * with invented counts ("14 schools", "1,482 students", "12,400 attendance
+ * sessions") and a "114.6 MB" database used to be written here.
+ */
+type ServerTable = { table: string; rows: number; rows_exact: boolean; size_bytes: number; indexes: number };
+type ServerMetrics = {
+  status: string;
+  dependencies?: Record<string, { status?: string } | string>;
+  server: { disk_total_bytes: number; disk_free_bytes: number; load_average: number[] | null; cpu_count: number | null };
+  database: { size_bytes: number; connections: number; active: number; max_connections: number; cache_hit_pct: number | null; tables: number } | null;
+  tables: ServerTable[];
+};
+type ServerBackup = { name: string; size_bytes: number; created_at: string; encrypted: boolean };
+
+function fmtBytes(n: number | null | undefined): string {
+  if (n === null || n === undefined) return "—";
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  let v = n;
+  let i = 0;
+  while (v >= 1024 && i < units.length - 1) {
+    v /= 1024;
+    i += 1;
+  }
+  return `${v.toFixed(v >= 10 || i === 0 ? 0 : 1)} ${units[i]}`;
+}
 
 type SchoolRow = {
   id: string;
@@ -167,6 +171,25 @@ const [activeTab, setActiveTab] = useState<"global" | "schedules" | "hub" | "fil
   const [schools, setSchools] = useState<SchoolRow[]>([]);
   const [schedules, setSchedules] = useState<BackupSchedule[]>([]);
   const [backups, setBackups] = useState<BackupLog[]>([]);
+  const [health, setHealth] = useState<ServerMetrics | null>(null);
+  const [healthError, setHealthError] = useState<string | null>(null);
+  const [serverBackups, setServerBackups] = useState<ServerBackup[]>([]);
+
+  const loadServerState = async () => {
+    try {
+      const res = await apiClient.get<ServerMetrics>("/platform/health-metrics");
+      setHealth(res.data);
+      setHealthError(null);
+    } catch (err: any) {
+      setHealthError(err?.response?.data?.detail ?? err?.message ?? "The server's figures could not be read.");
+    }
+    try {
+      const res = await apiClient.get("/super_admin/backups");
+      setServerBackups(res.data?.backups ?? []);
+    } catch {
+      setServerBackups([]);
+    }
+  };
   
   const [searchSchoolQuery, setSearchSchoolQuery] = useState("");
   const [searchBackupQuery, setSearchBackupQuery] = useState("");
@@ -240,34 +263,25 @@ const [activeTab, setActiveTab] = useState<"global" | "schedules" | "hub" | "fil
 
   // Load backups list
   const loadBackups = () => {
-    const savedBackupsRaw = localStorage.getItem("altrix_backups_list");
-    if (savedBackupsRaw) {
-      try {
-        setBackups(JSON.parse(savedBackupsRaw));
-      } catch (e) {
-        console.error("Error parsing backups list:", e);
-        const defaultBackups: BackupLog[] = [
-          { id: "BKP-108241", schoolId: "1", schoolSlug: "beacon", date: "2026-06-03 04:00:00", size: "124 KB", type: "Scheduled", status: "Success" },
-          { id: "BKP-209842", schoolId: "2", schoolSlug: "roots", date: "2026-06-02 04:00:00", size: "320 KB", type: "Scheduled", status: "Success" },
-          { id: "BKP-301293", schoolId: "3", schoolSlug: "smart", date: "2026-06-01 18:24:12", size: "98 KB", type: "Manual", status: "Success" },
-        ];
-        setBackups(defaultBackups);
-      }
-    } else {
-      // Setup some initial mock persistent backups
-      const defaultBackups: BackupLog[] = [
-        { id: "BKP-108241", schoolId: "1", schoolSlug: "beacon", date: "2026-06-03 04:00:00", size: "124 KB", type: "Scheduled", status: "Success" },
-        { id: "BKP-209842", schoolId: "2", schoolSlug: "roots", date: "2026-06-02 04:00:00", size: "320 KB", type: "Scheduled", status: "Success" },
-        { id: "BKP-301293", schoolId: "3", schoolSlug: "smart", date: "2026-06-01 18:24:12", size: "98 KB", type: "Manual", status: "Success" },
-      ];
-      localStorage.setItem("altrix_backups_list", JSON.stringify(defaultBackups));
-      setBackups(defaultBackups);
+    // Exports made from this page are kept in this browser. It used to seed
+    // three invented backups ("BKP-108241 … Success") when there were none.
+    try {
+      const saved = localStorage.getItem("altrix_backups_list");
+      const parsed = saved ? JSON.parse(saved) : [];
+      setBackups(
+        (Array.isArray(parsed) ? parsed : []).filter(
+          (b: BackupLog) => !["BKP-108241", "BKP-209842", "BKP-301293"].includes(b?.id) && !String(b?.id).startsWith("SYS-"),
+        ),
+      );
+    } catch {
+      setBackups([]);
     }
   };
 
   useEffect(() => {
     void loadSchoolsAndConfig();
     loadBackups();
+    void loadServerState();
   }, []);
 
   // Automatic Background Scheduler Effect
@@ -309,25 +323,14 @@ const [activeTab, setActiveTab] = useState<"global" | "schedules" | "hub" | "fil
     
     // Query actual tables
     const tablesData: Record<string, any> = {};
+    const failures: string[] = [];
     for (const table of SCHEMA_TABLES) {
-      const rows = await fetchTableRows(table, sched.schoolId);
-      tablesData[table] = rows;
+      tablesData[table] = await fetchTableRows(table, sched.schoolId, failures);
     }
 
-    // Insert dummy records fallback if no data in DB to ensure backup data exists
-    if (Object.values(tablesData).every(arr => arr.length === 0)) {
-      tablesData["campuses"] = [
-        { school_id: sched.schoolId, name: "Main Campus", slug: `${sched.schoolSlug}-main`, is_active: true }
-      ];
-      tablesData["academic_classes"] = [
-        { school_id: sched.schoolId, name: "Grade 1", grade_level: 1 },
-        { school_id: sched.schoolId, name: "Grade 2", grade_level: 2 }
-      ];
-      tablesData["students"] = [
-        { school_id: sched.schoolId, first_name: "Automated", last_name: "Record", gender: "other" }
-      ];
-    }
-
+    // An empty school is exported empty. Invented rows ("Automated Record",
+    // "Grade 1", "Main Campus") used to be added so the file was not empty —
+    // and a restore would have written them into the school.
     const signature = computeSignature(tablesData);
     const backupPayload = {
       schoolId: sched.schoolId,
@@ -344,7 +347,7 @@ const [activeTab, setActiveTab] = useState<"global" | "schedules" | "hub" | "fil
       date: new Date().toISOString().replace("T", " ").substring(0, 19),
       size: `${(JSON.stringify(backupPayload).length / 1024).toFixed(1)} KB`,
       type: "Scheduled",
-      status: "Success",
+      status: failures.length ? "Failed" : "Success",
       payload: JSON.stringify(backupPayload)
     };
 
@@ -354,61 +357,71 @@ const [activeTab, setActiveTab] = useState<"global" | "schedules" | "hub" | "fil
     localStorage.setItem("altrix_backups_list", JSON.stringify(updatedList));
     setBackups(updatedList);
 
-    toast.success(`[Automatic Backup] Successful for ${sched.schoolName}!`, {
-      description: "Database snapshot created and saved to storage repo."
-    });
+    if (failures.length) {
+      toast.warning(`Scheduled export of ${sched.schoolName} is incomplete`, {
+        description: `These tables could not be read: ${failures.join(", ")}.`,
+      });
+    } else {
+      // Made by this open page and kept in this browser; the server's own
+      // nightly backup of the whole platform is on the Backups page.
+      toast.success(`Scheduled export of ${sched.schoolName} made`, {
+        description: "Kept in this browser. The server backs up the whole platform every night (Backups page).",
+      });
+    }
   };
 
-  const fetchTableRows = async (tableName: string, schoolId: string) => {
+  /** A table's rows for one school; a table that could not be read is named in `failures`. */
+  const fetchTableRows = async (tableName: string, schoolId: string, failures: string[]) => {
     try {
       const col = tableName === "schools" ? "id" : "school_id";
       const { data, error } = await api
         .from(tableName as any)
         .select("*")
         .eq(col, schoolId);
-      
-      if (error) return [];
+      if (error) {
+        failures.push(tableName);
+        return [];
+      }
       return data || [];
     } catch (e) {
+      failures.push(tableName);
       return [];
     }
   };
 
   // Trigger Global Snapshot
-  const handleGlobalBackup = () => {
+  const handleGlobalBackup = async () => {
+    // A real backup of the whole database, taken on the server. This used to
+    // wait two seconds and record an invented "93.1 MB" snapshot in the browser.
     setBusyBackup(true);
-    setTimeout(() => {
-      const newBkp: BackupLog = {
-        id: `SYS-${Math.floor(100000 + Math.random() * 900000)}`,
-        schoolId: "system",
-        schoolSlug: "system_full",
-        date: new Date().toISOString().replace("T", " ").substring(0, 19),
-        size: "93.1 MB",
-        type: "Manual",
-        status: "Success",
-      };
-      const saved = localStorage.getItem("altrix_backups_list");
-      const current = saved ? JSON.parse(saved) : [];
-      const updatedList = [newBkp, ...current];
-      localStorage.setItem("altrix_backups_list", JSON.stringify(updatedList));
-      setBackups(updatedList);
-
-      toast.success("Global Database Backup Generated!", {
-        description: "Full snapshot compiled, signed, and saved to cold storage bucket."
+    try {
+      const res = await apiClient.post("/super_admin/backups/run");
+      toast.success("Backup started on the server", {
+        description: res.data?.message ?? "It will appear in the list in a minute.",
       });
+      setTimeout(() => void loadServerState(), 60_000);
+    } catch (err: any) {
+      toast.error(`The backup could not be started: ${err?.response?.data?.detail ?? err?.message ?? err}`);
+    } finally {
       setBusyBackup(false);
-    }, 2000);
+    }
   };
 
-  // Vacuum Cache
-  const handleClean = () => {
+  const handleClean = async () => {
+    // Refreshes the database's statistics. This used to wait and announce
+    // "re-indexed 4 indexes … reclaimed 4.2 MB" without doing anything.
     setBusyClean(true);
-    setTimeout(() => {
-      toast.success("Database cache optimized successfully!", {
-        description: "Re-indexed 4 indexes, vacuumed dead tuples, and reclaimed 4.2 MB of storage."
+    try {
+      const res = await apiClient.post("/platform/maintenance/analyze");
+      toast.success("Database statistics refreshed", {
+        description: `${res.data?.tables_analyzed ?? "All"} tables analysed in ${res.data?.seconds ?? "?"} s.`,
       });
+      void loadServerState();
+    } catch (err: any) {
+      toast.error(`Maintenance failed: ${err?.response?.data?.detail ?? err?.message ?? err}`);
+    } finally {
       setBusyClean(false);
-    }, 1500);
+    }
   };
 
   // Load configuration for school configuration card
@@ -474,25 +487,12 @@ const [activeTab, setActiveTab] = useState<"global" | "schedules" | "hub" | "fil
     
     setTimeout(async () => {
       const tablesData: Record<string, any> = {};
+      const failures: string[] = [];
       for (const table of SCHEMA_TABLES) {
-        const rows = await fetchTableRows(table, selectedSchool.id);
-        tablesData[table] = rows;
+        tablesData[table] = await fetchTableRows(table, selectedSchool.id, failures);
       }
 
-      // Check if completely empty, inject structure-valid fallbacks
-      if (Object.values(tablesData).every(arr => arr.length === 0)) {
-        tablesData["campuses"] = [
-          { school_id: selectedSchool.id, name: "Main Campus", slug: `${selectedSchool.slug}-main`, is_active: true }
-        ];
-        tablesData["academic_classes"] = [
-          { school_id: selectedSchool.id, name: "Class Grade 1", grade_level: 1 },
-          { school_id: selectedSchool.id, name: "Class Grade 2", grade_level: 2 }
-        ];
-        tablesData["students"] = [
-          { school_id: selectedSchool.id, first_name: "John", last_name: "Doe", gender: "male" }
-        ];
-      }
-
+      // An empty school is exported empty; see triggerAutoBackup.
       const signature = computeSignature(tablesData);
 
       const exportPayload = {
@@ -520,7 +520,7 @@ const [activeTab, setActiveTab] = useState<"global" | "schedules" | "hub" | "fil
         date: new Date().toISOString().replace("T", " ").substring(0, 19),
         size: `${(JSON.stringify(exportPayload).length / 1024).toFixed(1)} KB`,
         type: "Manual",
-        status: "Success",
+        status: failures.length ? "Failed" : "Success",
         payload: JSON.stringify(exportPayload)
       };
 
@@ -530,9 +530,13 @@ const [activeTab, setActiveTab] = useState<"global" | "schedules" | "hub" | "fil
       localStorage.setItem("altrix_backups_list", JSON.stringify(updatedList));
       setBackups(updatedList);
 
-      toast.success("Authentic School Backup Generated!", {
-        description: "Backup data compiled and signed successfully."
-      });
+      if (failures.length) {
+        toast.warning("Export downloaded, but it is incomplete", {
+          description: `These tables could not be read and are empty in the file: ${failures.join(", ")}.`,
+        });
+      } else {
+        toast.success("Export downloaded", { description: `${selectedSchool.name}: ${SCHEMA_TABLES.length} tables.` });
+      }
       setBusyBackup(false);
     }, 1200);
   };
@@ -850,28 +854,32 @@ const [activeTab, setActiveTab] = useState<"global" | "schedules" | "hub" | "fil
               <Card className="bg-white border-slate-200 p-4 flex items-center justify-between shadow-md">
                 <div>
                   <p className="text-xs text-slate-500">Total DB Size</p>
-                  <h3 className="text-2xl font-bold text-blue-700 mt-1">114.6 MB</h3>
+                  <h3 className="text-2xl font-bold text-blue-700 mt-1">{fmtBytes(health?.database?.size_bytes)}</h3>
                 </div>
                 <Database className="h-8 w-8 text-blue-700/20" />
               </Card>
               <Card className="bg-white border-slate-200 p-4 flex items-center justify-between shadow-md">
                 <div>
                   <p className="text-xs text-slate-500">Total Table Count</p>
-                  <h3 className="text-2xl font-bold text-slate-900 mt-1">{TABLES.length} Tables</h3>
+                  <h3 className="text-2xl font-bold text-slate-900 mt-1">{health?.database ? `${health.database.tables} Tables` : "—"}</h3>
                 </div>
                 <LayoutGrid className="h-8 w-8 text-white/20" />
               </Card>
               <Card className="bg-white border-slate-200 p-4 flex items-center justify-between shadow-md">
                 <div>
-                  <p className="text-xs text-slate-500">Disk Space Allocated</p>
-                  <h3 className="text-2xl font-bold text-slate-900 mt-1">5.0 GB</h3>
+                  <p className="text-xs text-slate-500">Disk free</p>
+                  <h3 className="text-2xl font-bold text-slate-900 mt-1">
+                    {health ? `${fmtBytes(health.server.disk_free_bytes)} of ${fmtBytes(health.server.disk_total_bytes)}` : "—"}
+                  </h3>
                 </div>
                 <HardDrive className="h-8 w-8 text-white/20" />
               </Card>
               <Card className="bg-white border-slate-200 p-4 flex items-center justify-between shadow-md">
                 <div>
                   <p className="text-xs text-slate-500">Database Connection</p>
-                  <h3 className="text-2xl font-bold text-emerald-400 mt-1">Active (99.9%)</h3>
+                  <h3 className="text-2xl font-bold text-emerald-400 mt-1 capitalize">
+                    {health?.database ? `${health.database.connections} open` : healthError ? "Unreadable" : "—"}
+                  </h3>
                 </div>
                 <ShieldCheck className="h-8 w-8 text-emerald-400/20" />
               </Card>
@@ -889,7 +897,7 @@ const [activeTab, setActiveTab] = useState<"global" | "schedules" | "hub" | "fil
                   disabled={busyBackup}
                   className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-zinc-950 font-bold border border-0 shadow-md shadow-blue-500/10"
                 >
-                  <Clock className="h-4 w-4 mr-2" /> {busyBackup ? "Compiling Full Snapshot…" : "Generate Full DB Backup"}
+                  <Clock className="h-4 w-4 mr-2" /> {busyBackup ? "Starting backup…" : "Back up the whole database now"}
                 </Button>
                 <Button
                   variant="outline"
@@ -897,7 +905,7 @@ const [activeTab, setActiveTab] = useState<"global" | "schedules" | "hub" | "fil
                   disabled={busyClean}
                   className="border-slate-200 bg-slate-50 text-slate-700 hover:bg-blue-50 hover:text-blue-700 border font-semibold"
                 >
-                  <Trash2 className="h-4 w-4 mr-2" /> {busyClean ? "Optimizing Database Cache…" : "Vacuum & Clean DB Cache"}
+                  <Trash2 className="h-4 w-4 mr-2" /> {busyClean ? "Refreshing statistics…" : "Refresh database statistics"}
                 </Button>
               </CardContent>
             </Card>
@@ -906,7 +914,7 @@ const [activeTab, setActiveTab] = useState<"global" | "schedules" | "hub" | "fil
             <Card className="bg-white border-slate-200 shadow-[0_4px_20px_rgba(0,0,0,0.5)]">
               <CardHeader>
                 <CardTitle className="text-base font-bold text-slate-900">Platform Core Tables</CardTitle>
-                <p className="text-xs text-slate-500">Review estimated row counts and data sizes inside public schemas</p>
+                <p className="text-xs text-slate-500">The largest tables, as the database reports them now</p>
               </CardHeader>
               <CardContent>
                 <div className="overflow-auto rounded-xl border border-slate-200 bg-white">
@@ -920,18 +928,28 @@ const [activeTab, setActiveTab] = useState<"global" | "schedules" | "hub" | "fil
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {TABLES.map((t) => (
-                        <TableRow key={t.name} className="border-b border-slate-100 hover:bg-blue-50/30">
-                          <TableCell className="font-mono text-xs text-slate-900">{t.name}</TableCell>
-                          <TableCell className="text-slate-700 font-semibold">{t.rows.toLocaleString()}</TableCell>
-                          <TableCell className="text-slate-500 text-xs">{t.size}</TableCell>
+                      {(health?.tables ?? []).map((t) => (
+                        <TableRow key={t.table} className="border-b border-slate-100 hover:bg-blue-50/30">
+                          <TableCell className="font-mono text-xs text-slate-900">{t.table}</TableCell>
+                          <TableCell className="text-slate-700 font-semibold">
+                            {t.rows.toLocaleString()}
+                            {t.rows_exact ? "" : " (estimate)"}
+                          </TableCell>
+                          <TableCell className="text-slate-500 text-xs">{fmtBytes(t.size_bytes)}</TableCell>
                           <TableCell>
-                            <Badge variant="outline" className="border-emerald-500/20 text-emerald-400 bg-emerald-500/5 text-[10px]">
-                              {t.status}
+                            <Badge variant="outline" className="border-slate-200 text-slate-600 text-[10px]">
+                              {t.indexes} index{t.indexes === 1 ? "" : "es"}
                             </Badge>
                           </TableCell>
                         </TableRow>
                       ))}
+                      {!health ? (
+                        <TableRow>
+                          <TableCell colSpan={4} className="py-6 text-center text-xs text-slate-500">
+                            {healthError ?? "Reading the database…"}
+                          </TableCell>
+                        </TableRow>
+                      ) : null}
                     </TableBody>
                   </Table>
                 </div>
@@ -1220,7 +1238,17 @@ const [activeTab, setActiveTab] = useState<"global" | "schedules" | "hub" | "fil
           <Card className="bg-white border-slate-200 shadow-[0_4px_20px_rgba(0,0,0,0.5)] p-8 text-center space-y-4">
             <Activity className="h-16 w-16 mx-auto text-blue-700/20" />
             <CardTitle className="text-xl text-slate-900">System Health Monitor</CardTitle>
-            <p className="text-slate-500 max-w-lg mx-auto">Database health monitoring tools and real-time connectivity diagnostics are currently being initialized for your environment.</p>
+            {health?.database ? (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-left max-w-3xl mx-auto">
+                <div className="rounded-xl border p-3"><p className="text-xs text-slate-500">Platform</p><p className="font-bold capitalize">{health.status}</p></div>
+                <div className="rounded-xl border p-3"><p className="text-xs text-slate-500">Connections</p><p className="font-bold">{health.database.connections} of {health.database.max_connections}</p></div>
+                <div className="rounded-xl border p-3"><p className="text-xs text-slate-500">Cache hit rate</p><p className="font-bold">{health.database.cache_hit_pct ?? "—"}%</p></div>
+                <div className="rounded-xl border p-3"><p className="text-xs text-slate-500">Server backups</p><p className="font-bold">{serverBackups.length}</p></div>
+              </div>
+            ) : (
+              <p className="text-slate-500 max-w-lg mx-auto">{healthError ?? "Reading the server's figures…"}</p>
+            )}
+            <p className="text-xs text-slate-500">Full detail is on the System Health page; full-database backups are on the Backups page.</p>
           </Card>
         )}
 

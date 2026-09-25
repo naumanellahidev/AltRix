@@ -28,6 +28,8 @@ import {
 import { visitorPassAction } from "@/lib/visitor-pass-actions";
 import type { VisitorPassInput } from "@/lib/documents/visitor-pass";
 import { toast } from "sonner";
+import { useParams } from "react-router-dom";
+import { useTenant } from "@/hooks/useTenant";
 
 interface ParentVisitorModuleProps {
   child: ChildInfo | null;
@@ -50,6 +52,11 @@ interface VisitorPass {
 }
 
 export default function ParentVisitorModule({ child, schoolId }: ParentVisitorModuleProps) {
+  // The school's own name. The pass and the report card used to print
+  // "ALTRIX ACADEMY" for every school.
+  const { schoolSlug: nameSlug } = useParams();
+  const nameTenant = useTenant(nameSlug);
+  const schoolName = nameTenant.status === "ready" ? nameTenant.school.name : "";
   const [passes, setPasses] = useState<VisitorPass[]>([]);
   const [loading, setLoading] = useState(false);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
@@ -324,7 +331,7 @@ export default function ParentVisitorModule({ child, schoolId }: ParentVisitorMo
           {selectedPass && (
             <div className="space-y-4">
               <div>
-                <h3 className="font-display font-bold text-lg text-primary">ALTRIX ACADEMY</h3>
+                <h3 className="font-display font-bold text-lg text-primary">{schoolName || "Your school"}</h3>
                 <span className="text-[10px] text-muted-foreground uppercase font-semibold block mt-0.5">Visitor Entry Pass</span>
               </div>
 

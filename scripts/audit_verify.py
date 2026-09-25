@@ -623,6 +623,15 @@ def run():
           not broken_lazy and "|| m.default;" in txt("src/pages/tenant/TenantDashboard.tsx"),
           f"broken: {broken_lazy}")
 
+    check(S, "inv1", "no screen invents the figures, people, files or backups it shows",
+          "/platform/health-metrics" in txt("src/pages/platform/PlatformHealthPage.tsx")
+          and "mockData" not in txt("src/pages/platform/PlatformDashboardPage.tsx")
+          and "simulateCheckIn" not in txt("src/components/principal/AttendanceHeatmap.tsx")
+          and "addMockAttachment" not in txt("src/pages/tenant/student-modules/StudentComplaintsModule.tsx")
+          and "addMockAttachment" not in txt("src/pages/tenant/teacher-modules/TeacherComplaintsModule.tsx")
+          and 'first_name: "John"' not in txt("src/pages/platform/PlatformDatabasePage.tsx")
+          and "local_platform_invoices" not in txt("src/pages/platform/PlatformBillingPage.tsx"))
+
     rts = txt("src/hooks/useRealtimeSocket.ts")
     check(S, "rt1", "live updates back off, wait for the network, survive the back-forward cache, and retry a failed ticket",
           all(k in apis for k in ("scheduleReconnect", "pagehide", "pageshow", '"online"'))
