@@ -47,8 +47,9 @@ const STAFF_GOV: EduverseRole[] = [
 const ACADEMIC_GOV: EduverseRole[] = [
   "super_admin","school_owner","principal","vice_principal","school_admin","academic_coordinator",
 ];
+// The school admin runs the fee office; salaries are not part of this.
 const FINANCE_GOV: EduverseRole[] = [
-  "super_admin","school_owner","principal","vice_principal","accountant",
+  "super_admin","school_owner","principal","vice_principal","school_admin","accountant",
 ];
 
 const anyOf = (a: EduverseRole[], roles: EduverseRole[]) => a.some((r) => roles.includes(r));

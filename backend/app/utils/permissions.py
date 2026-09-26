@@ -50,7 +50,9 @@ ROLE_INHERITANCE = {
 # Permission group definitions
 STAFF_GOV = ["super_admin", "school_owner", "principal", "vice_principal", "school_admin", "hr_manager"]
 ACADEMIC_GOV = ["super_admin", "school_owner", "principal", "vice_principal", "school_admin", "academic_coordinator"]
-FINANCE_GOV = ["super_admin", "school_owner", "principal", "vice_principal", "accountant"]
+# The school admin runs the fee office (the owner asked for this on 27 Sep 2026).
+# Salaries stay with SALARY_VIEWERS.
+FINANCE_GOV = ["super_admin", "school_owner", "principal", "vice_principal", "school_admin", "accountant"]
 
 
 def expand_roles(roles: List[str]) -> Set[str]:
