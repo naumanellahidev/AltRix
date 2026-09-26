@@ -169,18 +169,22 @@ def require_ownership_or_admin(user, resource_owner_id: Any):
 
 # ─── Token Blacklist (DB-backed) ───────────────────────────────────────────────
 
-async def blacklist_token(db, jti: str, user_id: _uuid.UUID, expires_at: datetime):
-    """Add a JWT ID to the blacklist table AND Redis cache."""
+async def blacklist_token(db, jti: str, user_id: _uuid.UUID, expires_at: datetime, reason: str = None):
+    """Add a JWT ID to the blacklist table AND Redis cache.
+
+    ``reason='rotated'`` marks a refresh token exchanged for a new one, which
+    the refresh endpoint accepts again for a short grace period."""
     try:
         from sqlalchemy import text
         await db.execute(text("""
-            INSERT INTO token_blacklist (jti, user_id, expires_at)
-            VALUES (:jti, :user_id, :expires_at)
+            INSERT INTO token_blacklist (jti, user_id, expires_at, reason)
+            VALUES (:jti, :user_id, :expires_at, :reason)
             ON CONFLICT (jti) DO NOTHING
         """), {
             "jti": jti,
             "user_id": str(user_id),
             "expires_at": expires_at,
+            "reason": reason,
         })
     except Exception as e:
         logger.warning(f"Failed to blacklist token {jti[:8]}... in DB: {e}")

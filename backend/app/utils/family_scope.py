@@ -95,12 +95,17 @@ READ_RULES: Dict[str, str] = {
 #: update or delete may touch, the columns always set to the caller, and
 #: whether a written student_id must be the family's own child.
 class WriteRule:
-    def __init__(self, actions: Set[str], scope: str, owner_cols=(), child=False, insert_check: Optional[str] = None):
+    def __init__(self, actions: Set[str], scope: str, owner_cols=(), child=False, insert_check: Optional[str] = None,
+                 protected_cols=(), allowed_status=None):
         self.actions = actions
         self.scope = scope
         self.owner_cols = tuple(owner_cols)
         self.child = child
         self.insert_check = insert_check
+        # Columns a family may never set (marks are the teacher's), and the
+        # statuses it may write.
+        self.protected_cols = tuple(protected_cols)
+        self.allowed_status = allowed_status
 
 
 WRITE_RULES: Dict[str, WriteRule] = {
@@ -135,7 +140,13 @@ WRITE_RULES: Dict[str, WriteRule] = {
     "support_messages": WriteRule(
         {"insert"}, "sender_user_id = :__me", ["sender_user_id"],
         insert_check=f"CAST(:__v_conversation_id AS uuid) IN {VISIBLE_CONVERSATIONS}"),
-    "assignment_submissions": WriteRule({"insert", "update"}, OWN_CHILD, child=True),
+    # A student hands work in; the teacher (or the server, for a quiz) marks
+    # it. The browser used to grade quizzes and write the marks itself.
+    "assignment_submissions": WriteRule(
+        {"insert", "update"}, f"{OWN_CHILD} AND status IS DISTINCT FROM 'graded'", child=True,
+        protected_cols=("marks", "marks_obtained", "feedback", "graded_at", "graded_by",
+                        "marks_before_penalty", "penalty_applied"),
+        allowed_status={"draft", "submitted", "late"}),
     "fee_payment_proofs": WriteRule({"insert", "update"}, OWN_CHILD, child=True),
     "parent_behavior_notes": WriteRule({"insert", "delete"}, "parent_user_id = :__me", ["parent_user_id"], child=True),
     "ai_counseling_queue": WriteRule({"insert"}, OWN_CHILD, child=True),
@@ -218,3 +229,22 @@ def row_visible(table: str, row: dict, me: str, kids: Set[str], audiences=("all"
         sid = row.get("student_id")
         return t in _NULL_STUDENT_IS_PUBLIC if sid is None else str(sid) in kids
     return False
+
+
+
+def redact_rows(rows):
+    """Quiz answer keys out of everything a family reads (see app/utils/quiz.py)."""
+    from app.utils import quiz
+
+    def walk(v):
+        if isinstance(v, dict):
+            for k, x in list(v.items()):
+                if k == "description" and isinstance(x, str):
+                    v[k] = quiz.student_view(x)
+                else:
+                    walk(x)
+        elif isinstance(v, list):
+            for x in v:
+                walk(x)
+    walk(rows)
+    return rows

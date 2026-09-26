@@ -344,13 +344,13 @@ export default function ParentReportCardModule({ child, schoolId }: ParentReport
                       <div className="flex justify-between items-center">
                         <span className="text-sm text-muted-foreground">Percentage</span>
                         <span className="text-lg font-bold text-foreground">
-                          {detail.report_card.percentage ? `${detail.report_card.percentage}%` : "N/A"}
+                          {detail.report_card.percentage != null ? `${detail.report_card.percentage}%` : "N/A"}
                         </span>
                       </div>
                       <div className="flex justify-between items-center">
                         <span className="text-sm text-muted-foreground">GPA Equivalency</span>
                         <span className="text-lg font-bold text-primary">
-                          {detail.report_card.gpa ? detail.report_card.gpa.toFixed(2) : "N/A"}
+                          {detail.report_card.gpa != null ? Number(detail.report_card.gpa).toFixed(2) : "N/A"}
                         </span>
                       </div>
                       <div className="flex justify-between items-center">

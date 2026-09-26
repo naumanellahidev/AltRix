@@ -13,6 +13,7 @@ from app.cache import get_redis
 from app.utils.db_proxy_policy import authorize_proxy_request
 from app.utils.permissions import expand_roles
 from app.utils import family_scope
+from app.utils import proxy_embeds
 from app.utils.security import get_allowed_student_ids
 
 logger = logging.getLogger("app.vps_db")
@@ -203,6 +204,16 @@ SUPER_ADMIN_RPC_FUNCTIONS = {
 _TENANT_PARAM_NAMES = ("_school_id", "school_id", "p_school_id", "in_school_id")
 
 
+def _family_guard_values(rule, item: dict) -> None:
+    for col in rule.protected_cols:
+        if col in item:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                                detail="Marks and feedback are given by the teacher.")
+    if rule.allowed_status is not None and "status" in item and item["status"] not in rule.allowed_status:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                            detail=f"You cannot set the status to '{item['status']}'.")
+
+
 async def _family_check_rows(db, rule, items, valid_columns, current_user, kids: set, params: dict) -> None:
     """A family's insert: owner columns are the caller; a student is their own
     child; and the table's own condition holds (e.g. the message replied to
@@ -214,6 +225,7 @@ async def _family_check_rows(db, rule, items, valid_columns, current_user, kids:
         for col in rule.owner_cols:
             if col in valid_columns:
                 item[col] = me
+        _family_guard_values(rule, item)
         if (rule.child and "student_id" in valid_columns and item.get("student_id") is not None
                 and str(item["student_id"]) not in kids):
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
@@ -429,6 +441,19 @@ def build_select_clause(requested: Optional[str], valid_columns: set) -> str:
     return ", ".join(parsed_cols) if parsed_cols else "*"
 
 
+_RELATION_OPS = {"eq": "=", "neq": "<>", "gt": ">", "gte": ">=", "lt": "<", "lte": "<=",
+                 "like": "LIKE", "ilike": "ILIKE", "in": "IN", "is": "IS"}
+
+
+def _pg_type_of(column: str) -> str:
+    """Comparison type for a range filter on a relation's column, by name."""
+    if column.endswith(("_date", "_on")) or column in ("date", "session_date", "due_date"):
+        return "date"
+    if column.endswith(("_at", "_time")):
+        return "timestamptz"
+    return "numeric"
+
+
 @router.post("/query")
 async def execute_query(query: QueryPayload, current_user: CurrentUser, db: DbSession):
     if not is_valid_identifier(query.table):
@@ -582,6 +607,47 @@ async def execute_query(query: QueryPayload, current_user: CurrentUser, db: DbSe
         if family_filter:
             where_clauses.append(f"({family_filter})")
 
+    # Relations in the select (``students(first_name)``) and filters on a
+    # relation's column (``admin_messages.school_id``): see proxy_embeds.py.
+    _column_cache: Dict[str, set] = {query.table: set(valid_columns)}
+
+    async def _columns_of(tbl: str) -> set:
+        if tbl not in _column_cache:
+            if not is_valid_identifier(tbl):
+                return set()
+            res_cols = await db.execute(
+                text("SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = :t"),
+                {"t": tbl},
+            )
+            _column_cache[tbl] = {r[0] for r in res_cols.fetchall()}
+        return _column_cache[tbl]
+
+    _is_family = family_scope.is_family_caller(current_user)
+
+    async def _scope_for(tbl: str, cols: set, alias: str) -> str:
+        # A relation is a read of its table: the same policy, school and family rules.
+        authorize_proxy_request(
+            table=tbl, action="select", roles=expand_roles(current_user.roles or []),
+            is_super_admin=current_user.is_super_admin, has_school_id="school_id" in cols,
+            has_user_filter=True,
+        )
+        parts = []
+        if "school_id" in cols and not current_user.is_super_admin:
+            params["__embed_school"] = await resolve_school_id_val(current_user.school_id)
+            parts.append(f'{alias}."school_id" = :__embed_school')
+        if _is_family:
+            rule = family_scope.read_rule(tbl, cols)
+            if rule is None:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=f"'{tbl}' is not available to parent or student accounts.",
+                )
+            if rule:
+                parts.append(rule)
+        return " AND ".join(parts)
+
+    embeds = proxy_embeds.EmbedBuilder(db, _columns_of, _scope_for)
+
     order_by_clauses = []
     limit_clause = ""
     filters_to_process = []
@@ -676,9 +742,35 @@ async def execute_query(query: QueryPayload, current_user: CurrentUser, db: DbSe
             continue
 
         col = f.args[0]
-        if not is_valid_identifier(col) or col not in valid_columns:
-            logger.debug(f"Skipping filter for column '{col}' not in table '{query.table}'")
+        if isinstance(col, str) and "." in col and f.method in _RELATION_OPS:
+            rel_param = f"rel_{i}"
+            rel_val = f.args[1] if len(f.args) > 1 else None
+
+            def _cond(ref, rcol, rcols, method=f.method, val=rel_val, pname=rel_param):
+                if method == "is" or val is None or (isinstance(val, str) and val.lower() == "null" and method in ("eq", "is")):
+                    if val is None or str(val).lower() == "null":
+                        return f'{ref}."{rcol}" IS NULL'
+                    params[pname] = str(val).lower() == "true"
+                    return f'{ref}."{rcol}" IS {"TRUE" if params[pname] else "FALSE"}'
+                if method == "in":
+                    items = val if isinstance(val, list) else [x.strip() for x in str(val).strip("()").split(",")]
+                    params[pname] = [str(x) for x in items]
+                    return f'{ref}."{rcol}"::text = ANY(:{pname})'
+                params[pname] = str(val)
+                op = _RELATION_OPS[method]
+                return f'{ref}."{rcol}"::text {op} :{pname}' if method in ("eq", "neq", "like", "ilike") \
+                    else f'{ref}."{rcol}" {op} CAST(:{pname} AS {_pg_type_of(rcol)})'
+
+            where_clauses.append(await embeds.filter_condition(
+                query.table, f'"{query.table}"', query.select, col, _cond))
             continue
+        if not is_valid_identifier(col) or col not in valid_columns:
+            # Dropping a filter widens the result: a screen asking for one
+            # sender's messages got the whole school's. Refuse instead.
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Cannot filter '{query.table}' on '{col}': no such column.",
+            )
             
         param_name = f"p_{i}"
         raw_val = f.args[1] if len(f.args) > 1 else None
@@ -760,6 +852,12 @@ async def execute_query(query: QueryPayload, current_user: CurrentUser, db: DbSe
                 where_clauses.append(f'"{col}" != :{param_name}')
                 params[param_name] = cast_value(val_filter, columns_types[col])
 
+    embed_select_sql = None
+    if action == "select" and proxy_embeds.has_embeds(query.select):
+        embed_select_sql, inner_relations = await embeds.columns_sql(query.table, f'"{query.table}"', query.select)
+        for _rel, cond in inner_relations:
+            where_clauses.append(cond)
+
     where_sql = (" WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
 
     if action == "select":
@@ -787,7 +885,7 @@ async def execute_query(query: QueryPayload, current_user: CurrentUser, db: DbSe
                 # The caller only wanted the number.
                 return {"data": [], "count": exact_count, "error": None}
 
-        select_clause = build_select_clause(query.select, valid_columns)
+        select_clause = embed_select_sql or build_select_clause(query.select, valid_columns)
 
         order_sql = (" ORDER BY " + ", ".join(order_by_clauses)) if order_by_clauses else ""
 
@@ -815,6 +913,8 @@ async def execute_query(query: QueryPayload, current_user: CurrentUser, db: DbSe
                     "cap; the caller should paginate."
                 )
 
+            if _is_family:
+                family_scope.redact_rows(rows)
             return {
                 "data": rows,
                 "count": exact_count if exact_count is not None else len(rows),
@@ -904,6 +1004,7 @@ async def execute_query(query: QueryPayload, current_user: CurrentUser, db: DbSe
             if family_write is not None:
                 if k in family_write.owner_cols:
                     continue
+                _family_guard_values(family_write, {k: v})
                 if k == "student_id" and v is not None and str(v) not in family_kids:
                     raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
                                         detail="You can only record this for your own child.")

@@ -58,7 +58,12 @@ def build_engine(database_url: str | None = None):
         
     # Disable prepared statements cache if using pgpooler/pgbouncer (Transaction mode)
     # Supabase Transaction Pooler uses port 6543
-    connect_args = {}
+    # Bounded waits: connecting, and any single statement on the wire. Without
+    # them a query on a connection whose network path had died never returned.
+    connect_args = {
+        "timeout": settings.db_connect_timeout_seconds,
+        "command_timeout": settings.db_command_timeout_seconds,
+    }
     if "6543" in url:
         connect_args["prepared_statement_cache_size"] = 0
         

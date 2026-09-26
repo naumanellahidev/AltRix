@@ -288,7 +288,7 @@ class CentralEmailService:
             import uuid
             sid = uuid.UUID(str(school_id)) if not isinstance(school_id, uuid.UUID) else school_id
             res_s = await db.execute(
-                text("SELECT name, slug, address, phone, email FROM public.schools WHERE id = :sid LIMIT 1"),
+                text("SELECT name, slug, address, phone, email, logo_url, website FROM public.schools WHERE id = :sid LIMIT 1"),
                 {"sid": sid},
             )
             row_s = res_s.fetchone()
@@ -296,16 +296,10 @@ class CentralEmailService:
                 tenant_info["name"] = row_s.name or ""
                 tenant_info["address"] = row_s.address or ""
                 tenant_info["support_email"] = row_s.email or ""
-
-            # Check school_branding for logo_url
-            res_b = await db.execute(
-                text("SELECT logo_url, website FROM public.school_branding WHERE school_id = :sid LIMIT 1"),
-                {"sid": sid},
-            )
-            row_b = res_b.fetchone()
-            if row_b:
-                tenant_info["logo_url"] = row_b.logo_url or ""
-                tenant_info["website"] = row_b.website or ""
+                # The logo and website are on schools (school_branding holds the
+                # colours; reading logo_url from it failed and aborted the request).
+                tenant_info["logo_url"] = row_s.logo_url or ""
+                tenant_info["website"] = row_s.website or ""
         except Exception as e:
             logger.warning(f"Error resolving tenant branding for school {school_id}: {e}")
 

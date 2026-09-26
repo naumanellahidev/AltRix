@@ -231,7 +231,7 @@ async def create_invitation(
                     FROM public.staff_campus_assignments sca
                     JOIN public.campuses c ON sca.campus_id = c.id
                     WHERE sca.user_id = :uid AND c.school_id = :sid
-                    ORDER BY sca.is_primary DESC, sca.assigned_at DESC
+                    ORDER BY sca.created_at DESC NULLS LAST
                     LIMIT 1
                 """),
                 {"uid": actor_uid_check, "sid": school_id},
@@ -548,8 +548,8 @@ async def activate_account(
                 if not res_sca.fetchone():
                     await db.execute(
                         text("""
-                            INSERT INTO public.staff_campus_assignments (id, user_id, campus_id, is_primary, assigned_at)
-                            VALUES (:id, :uid, :cid, TRUE, NOW())
+                            INSERT INTO public.staff_campus_assignments (id, user_id, campus_id)
+                            VALUES (:id, :uid, :cid)
                         """),
                         {"id": uuid.uuid4(), "uid": user_id, "cid": invite.campus_id},
                     )

@@ -56,6 +56,45 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/students", tags=["Students"])
 
 
+
+async def _place_in_section(db, school_id, student_id, section_id) -> None:
+    """
+    Put a student in a section: close their open enrolment and open one in
+    the new section, only if it changed. A school's own sections only.
+
+    This used to insert a `class_id` the enrolment table does not have, and
+    read the section from a model property whose setter does nothing, so a
+    student created with a class was silently left without one. Changing a
+    student's section deleted every enrolment they had ever had, promotion
+    history included.
+    """
+    if not section_id:
+        return
+    owned = await db.execute(
+        text("SELECT 1 FROM class_sections WHERE id = CAST(:sec AS uuid) AND school_id = CAST(:sch AS uuid)"),
+        {"sec": str(section_id), "sch": str(school_id)},
+    )
+    if owned.first() is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="That class section is not in this school.")
+    current = (await db.execute(
+        text("SELECT class_section_id FROM student_enrollments WHERE student_id = CAST(:st AS uuid) AND end_date IS NULL"),
+        {"st": str(student_id)},
+    )).first()
+    if current and str(current[0]) == str(section_id):
+        return
+    await db.execute(
+        text("UPDATE student_enrollments SET end_date = CURRENT_DATE WHERE student_id = CAST(:st AS uuid) AND end_date IS NULL"),
+        {"st": str(student_id)},
+    )
+    await db.execute(
+        text(
+            "INSERT INTO student_enrollments (school_id, student_id, class_section_id, start_date, session_id)"
+            " VALUES (CAST(:sch AS uuid), CAST(:st AS uuid), CAST(:sec AS uuid), CURRENT_DATE,"
+            " (SELECT id FROM academic_sessions WHERE school_id = CAST(:sch AS uuid) AND is_current LIMIT 1))"
+        ),
+        {"sch": str(school_id), "st": str(student_id), "sec": str(section_id)},
+    )
+
 @router.get("", response_model=PaginatedResponse[StudentOut])
 async def list_students(
     current_user: CurrentUser,
@@ -128,30 +167,8 @@ async def create_student(body: StudentCreate, current_user: CurrentUser, db: DbS
     db.add(student)
     await db.flush()
     
-    if student.section_id:
-        try:
-            class_id_res = await db.execute(
-                text("SELECT class_id FROM class_sections WHERE id = :section_id"),
-                {"section_id": student.section_id}
-            )
-            class_id = class_id_res.scalar()
-            
-            await db.execute(
-                text("""
-                    INSERT INTO student_enrollments (school_id, student_id, class_section_id, class_id)
-                    VALUES (:school_id, :student_id, :class_section_id, :class_id)
-                """),
-                {
-                    "school_id": student.school_id,
-                    "student_id": student.id,
-                    "class_section_id": student.section_id,
-                    "class_id": class_id
-                }
-            )
-            await db.flush()
-        except Exception as e:
-            import logging
-            logging.getLogger("app.students").warning(f"Failed to auto-insert student_enrollments: {e}")
+    await _place_in_section(db, current_user.school_id, student.id, body.model_dump().get("section_id"))
+    await db.flush()
 
     await db.refresh(student)
     try:
@@ -170,29 +187,41 @@ async def create_student(body: StudentCreate, current_user: CurrentUser, db: DbS
 @cache_response(ttl=600, key_prefix="students:my-children")
 async def list_parent_children(current_user: CurrentUser, db: DbSession, request: Request):
     """List students associated with the current user as a parent/guardian."""
+    # This read a `guardians` table and student columns (photo_url, section_id)
+    # that do not exist, so it failed on every call and every parent's portal
+    # said "No children linked to your account". The current enrolment gives
+    # the class (a student's past enrolments stay on record).
+    if not current_user.school_id:
+        return []
     sql = """
-        SELECT 
+        SELECT
             s.id AS student_id,
             s.first_name,
             s.last_name,
             c.name AS class_name,
             sec.name AS section_name,
             s.roll_number,
-            s.registration_number AS student_code,
-            s.photo_url AS profile_image_url,
+            COALESCE(s.student_code, s.registration_number) AS student_code,
+            s.profile_image_url,
             s.date_of_birth,
             s.gender,
-            s.section_id AS class_section_id
-        FROM guardians g
-        JOIN students s ON g.student_id = s.id
-        LEFT JOIN student_enrollments se ON s.id = se.student_id AND se.school_id = s.school_id
-        LEFT JOIN class_sections sec ON se.class_section_id = sec.id
-        LEFT JOIN academic_classes c ON se.class_id = c.id
-        WHERE g.user_id = :uid AND g.school_id = :school_id
+            se.class_section_id
+        FROM student_guardians g
+        JOIN students s ON s.id = g.student_id AND s.school_id = CAST(:school_id AS uuid)
+        LEFT JOIN LATERAL (
+            SELECT e.class_section_id FROM student_enrollments e
+            WHERE e.student_id = s.id AND e.end_date IS NULL
+            ORDER BY e.start_date DESC NULLS LAST LIMIT 1
+        ) se ON TRUE
+        LEFT JOIN class_sections sec ON sec.id = se.class_section_id
+        LEFT JOIN academic_classes c ON c.id = sec.class_id
+        WHERE g.user_id = CAST(:uid AS uuid)
+        GROUP BY s.id, c.name, sec.name, se.class_section_id
+        ORDER BY s.first_name
     """
     res = await db.execute(
         text(sql),
-        {"uid": current_user.id, "school_id": current_user.school_id}
+        {"uid": str(current_user.id), "school_id": str(current_user.school_id)}
     )
     rows = res.fetchall()
     return [
@@ -433,34 +462,8 @@ async def update_student(student_id: UUID, body: StudentUpdate, current_user: Cu
     await db.flush()
 
     if "section_id" in body.model_dump(exclude_none=True):
-        try:
-            await db.execute(
-                text("DELETE FROM student_enrollments WHERE student_id = :student_id"),
-                {"student_id": student.id}
-            )
-            if student.section_id:
-                class_id_res = await db.execute(
-                    text("SELECT class_id FROM class_sections WHERE id = :section_id"),
-                    {"section_id": student.section_id}
-                )
-                class_id = class_id_res.scalar()
-                
-                await db.execute(
-                    text("""
-                        INSERT INTO student_enrollments (school_id, student_id, class_section_id, class_id)
-                        VALUES (:school_id, :student_id, :class_section_id, :class_id)
-                    """),
-                    {
-                        "school_id": student.school_id,
-                        "student_id": student.id,
-                        "class_section_id": student.section_id,
-                        "class_id": class_id
-                    }
-                )
-            await db.flush()
-        except Exception as e:
-            import logging
-            logging.getLogger("app.students").warning(f"Failed to auto-update student_enrollments: {e}")
+        await _place_in_section(db, student.school_id, student.id, body.model_dump(exclude_none=True)["section_id"])
+        await db.flush()
 
     await db.refresh(student)
     try:

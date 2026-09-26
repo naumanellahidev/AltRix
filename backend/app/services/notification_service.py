@@ -41,7 +41,7 @@ class CentralNotificationService:
             redis = await get_redis()
             if not redis:
                 # Fallback: No Redis available, send immediately
-                CentralNotificationService._send_immediate(
+                await CentralNotificationService._send_immediate(
                     user_id=user_id,
                     school_id=school_id,
                     title=title,
@@ -94,15 +94,14 @@ class CentralNotificationService:
                 await redis.rpush(batch_key, json.dumps(notif_data))
                 
                 # Queue flush task to execute after the delay window
-                flush_batched_notifications.apply_async(
-                    args=[str(school_id), str(user_id), category],
-                    countdown=delay_seconds
-                )
+                from app.celery_app import enqueue
+                await enqueue(flush_batched_notifications, args=[str(school_id), str(user_id), category],
+                              countdown=delay_seconds)
                 logger.info(f"Started notification batch for user {user_id} in category {category}")
 
         except Exception as e:
             logger.error(f"Error in notify_user: {e}. Falling back to immediate dispatch.")
-            CentralNotificationService._send_immediate(
+            await CentralNotificationService._send_immediate(
                 user_id=user_id,
                 school_id=school_id,
                 title=title,
@@ -118,7 +117,7 @@ class CentralNotificationService:
             )
 
     @staticmethod
-    def _send_immediate(
+    async def _send_immediate(
         user_id: UUID,
         school_id: UUID,
         title: str,
@@ -133,7 +132,8 @@ class CentralNotificationService:
         campus_id: Optional[UUID] = None,
     ) -> None:
         """Helper to enqueue a single notification task directly into Celery."""
-        push_notification.apply_async(
+        from app.celery_app import enqueue
+        await enqueue(push_notification,
             kwargs={
                 "user_id": str(user_id),
                 "school_id": str(school_id),

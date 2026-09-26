@@ -33,7 +33,7 @@ import {
   Award,
   Heart,
   BarChart2,
-  Map,
+  Map as MapIcon,
   Camera,
   Phone,
 } from "lucide-react";
@@ -79,7 +79,8 @@ const ParentHomeModule = ({ child, schoolId }: ParentHomeModuleProps) => {
         const totalDays = attendance?.length || 0;
         const presentDays =
           attendance?.filter((a) => a.status === "present" || a.status === "late").length || 0;
-        const attendanceRate = totalDays > 0 ? Math.round((presentDays / totalDays) * 100) : 100;
+        // No register taken is "no data", not 100%.
+        const attendanceRate = totalDays > 0 ? Math.round((presentDays / totalDays) * 100) : null;
 
         const { count: pendingAssignments } = await api
           .from("assignments")
@@ -221,7 +222,7 @@ const ParentHomeModule = ({ child, schoolId }: ParentHomeModuleProps) => {
     { label: "Attendance", icon: Calendar, to: "attendance", bg: "bg-blue-50/50 hover:bg-blue-50 text-blue-600" },
     { label: "Grades", icon: GraduationCap, to: "grades", bg: "bg-blue-50/50 hover:bg-blue-50 text-blue-600" },
     { label: "Assignments", icon: ScrollText, to: "assignments", bg: "bg-blue-50/50 hover:bg-blue-50 text-blue-600" },
-    { label: "Bus Tracking", icon: Map, to: "transport", bg: "bg-blue-50/50 hover:bg-blue-50 text-blue-600" },
+    { label: "Bus Tracking", icon: MapIcon, to: "transport", bg: "bg-blue-50/50 hover:bg-blue-50 text-blue-600" },
     { label: "Photo Gallery", icon: Camera, to: "gallery", bg: "bg-blue-50/50 hover:bg-blue-50 text-blue-600" },
     { label: "PTM Booking", icon: HeartHandshake, to: "ptm", bg: "bg-blue-50/50 hover:bg-blue-50 text-blue-600" },
     { label: "Teacher Contacts", icon: Phone, to: "quick-contact", bg: "bg-blue-50/50 hover:bg-blue-50 text-blue-600" },
@@ -344,12 +345,13 @@ const ParentHomeModule = ({ child, schoolId }: ParentHomeModuleProps) => {
                       stroke="rgb(37, 99, 235)"
                       strokeWidth={8}
                       strokeLinecap="round"
-                      strokeDasharray={`${2 * Math.PI * 36 * (stats.attendanceRate / 100)} ${2 * Math.PI * 36 * (1 - stats.attendanceRate / 100)}`}
+                      strokeDasharray={`${2 * Math.PI * 36 * ((stats.attendanceRate ?? 0) / 100)} ${2 * Math.PI * 36 * (1 - (stats.attendanceRate ?? 0) / 100)}`}
+                      opacity={stats.attendanceRate == null ? 0 : 1}
                     />
                   </svg>
                   <div className="absolute inset-0 flex flex-col items-center justify-center">
                     <span className="font-display text-xs font-extrabold text-slate-800">
-                      {stats.attendanceRate}%
+                      {stats.attendanceRate != null ? `${stats.attendanceRate}%` : "—"}
                     </span>
                     <span className="text-[8px] font-bold text-slate-400 uppercase tracking-wider">Present</span>
                   </div>
@@ -359,10 +361,11 @@ const ParentHomeModule = ({ child, schoolId }: ParentHomeModuleProps) => {
                     Attendance
                   </p>
                   <p className="font-display text-lg font-extrabold text-slate-800 mt-0.5">
-                    {loading ? "—" : `${stats.attendanceRate}%`}
+                    {loading || stats.attendanceRate == null ? "—" : `${stats.attendanceRate}%`}
                   </p>
                   <p className="text-[10px] text-slate-450 mt-1 font-bold">
-                    {stats.attendanceRate >= 90 ? "Excellent record" : "Needs monitoring"}
+                    {loading ? "" : stats.attendanceRate == null ? "No attendance taken in the last 30 days"
+                      : stats.attendanceRate >= 90 ? "Excellent record" : "Needs monitoring"}
                   </p>
                 </div>
               </div>

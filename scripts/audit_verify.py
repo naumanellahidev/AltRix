@@ -154,6 +154,53 @@ def _declared_keys(src: str, name: str, before: int):
     return _object_keys(src, decl.end() - 1) if decl else None
 
 
+_ACCOUNT_COLUMNS = ("user_id", "profile_id", "sender_user_id", "recipient_user_id", "author_user_id",
+                    "teacher_user_id", "parent_user_id", "created_by")
+
+
+def _embed_problems(table: str, select: str, schema: dict, fks: list) -> list:
+    """Columns and relations in a select with embedded relations
+    (``students(first_name)``), resolved as backend/app/utils/proxy_embeds.py does."""
+    parts, depth, cur = [], 0, ""
+    for ch in select:
+        depth += ch == "("
+        depth -= ch == ")"
+        if ch == "," and depth == 0:
+            parts.append(cur.strip())
+            cur = ""
+        else:
+            cur += ch
+    parts.append(cur.strip())
+    cols = schema.get(table, set())
+    out = []
+    for item in filter(None, parts):
+        if item == "*":
+            continue
+        m = re.match(r"^(?:(\w+)\s*:\s*)?(\w+)(?:\s*!\s*(\w+))?\s*\((.*)\)$", item, re.S)
+        if not m:
+            col = item.split(":")[-1].strip()
+            if col not in cols:
+                out.append(f"{table}.{col}")
+            continue
+        _alias, name, hint, inner = m.groups()
+        hint = hint if hint not in (None, "inner", "left") else None
+        target = None
+        if name in cols:
+            target = next((rt for t, c, rt, rc in fks if t == table and c == name), None)
+            if not target and (name in _ACCOUNT_COLUMNS or name.endswith("_user_id")):
+                target = "profiles"
+        elif any(t == table and rt == name for t, c, rt, rc in fks) or \
+                any(t == name and rt == table for t, c, rt, rc in fks):
+            target = name
+        elif name == "profiles" and any(c in cols for c in ([hint] if hint else _ACCOUNT_COLUMNS)):
+            target = "profiles"
+        if not target:
+            out.append(f"no relation {table} -> {name}")
+            continue
+        out += _embed_problems(target, inner, schema, fks)
+    return out
+
+
 def check(section: str, ident: str, label: str, ok: bool, detail: str = ""):
     results.append((section, ident, bool(ok), label, detail))
 
@@ -406,6 +453,11 @@ def run():
         for m in re.finditer(r"ALTER\s+TABLE\s+(?:IF\s+EXISTS\s+)?(?:ONLY\s+)?" + ident + r"(.*?);", sql, re.S | re.I):
             for c in re.findall(r"ADD\s+COLUMN\s+(?:IF\s+NOT\s+EXISTS\s+)?\"?(\w+)", m.group(2), re.I):
                 schema.setdefault(m.group(1).lower(), set()).add(c.lower())
+    fks = []
+    for line in txt("scripts/db/schema_fks.txt").splitlines():
+        if "|" in line:
+            (t, c), (rt, rc) = (x.split(".", 1) for x in line.strip().split("|", 1))
+            fks.append((t, c, rt, rc))
     # Enum and CHECK columns: the values each accepts (scripts/db/schema_values.txt).
     values = {}
     for line in txt("scripts/db/schema_values.txt").splitlines():
@@ -431,6 +483,11 @@ def run():
             named = []
             if sel and "(" not in sel.group(2) and "${" not in sel.group(2):
                 named += [c.split(":")[-1].strip() for c in sel.group(2).split(",")]
+            elif sel and "${" not in sel.group(2):
+                # Embedded relations: every relation must exist and every
+                # column in it too (profiles(full_name) named a column that
+                # profiles does not have, so every name read as a fallback).
+                unknown.update(f"{p} ({path})" for p in _embed_problems(table, sel.group(2), schema, fks))
             named += re.findall(r"\.(?:eq|neq|in|order|is|gte|lte|gt|lt|ilike|like|not)\(\s*[\"'`](\w+)[\"'`]", chain)
             for c in named:
                 if c and c != "*" and c not in schema[table]:
@@ -817,6 +874,18 @@ def run():
           and not exists("backend/app/budget_store.json")
           and "STAFF_GOV" in code(R + "appraisals.py")
           and "You are not on the staff of that school." in code(R + "misc.py"))
+
+    # Found by opening every screen of the teacher, parent and student shells.
+    check(S, "qa1", "parents see their children, quizzes are graded on the server, relations and sessions hold",
+          "FROM student_guardians g" in code(R + "students.py")
+          and "quizzes_router" in code("backend/app/main.py")
+          and "family_scope.redact_rows(rows)" in vps
+          and "proxy_embeds.EmbedBuilder" in vps
+          and "Cannot filter" in vps
+          and "ROTATION_GRACE_SECONDS" in code(R + "auth.py")
+          and "async def enqueue" in code("backend/app/celery_app.py")
+          and "command_timeout" in code("backend/app/database.py")
+          and exists("scripts/check_backend_sql.py"))
 
     check(S, "inv1", "no screen invents the figures, people, files or backups it shows",
           "/platform/health-metrics" in txt("src/pages/platform/PlatformHealthPage.tsx")

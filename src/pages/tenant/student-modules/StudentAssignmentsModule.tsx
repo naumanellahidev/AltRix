@@ -1,5 +1,6 @@
 import { useEffect, useState, useMemo } from "react";
 import { api } from "@/lib/api";
+import { apiClient } from "@/lib/api-client";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -112,16 +113,13 @@ export function parseRawQuizToJSON(text: string): { questions: any[]; instructio
 
   if (questions.length > 0) {
     questions.forEach((q) => {
-      if (!q.correctAnswer) q.correctAnswer = "A";
+      // No answer is invented: the key (if any) stays on the server.
       const optionList: string[] = [];
       ["A", "B", "C", "D"].forEach((letter) => {
         if (q.options[letter]) {
           optionList.push(q.options[letter]);
         }
       });
-      if (optionList.length === 0) {
-        optionList.push("Option A", "Option B", "Option C", "Option D");
-      }
       q.options = optionList;
     });
 
@@ -143,7 +141,16 @@ export function getAssignmentType(description: string | null, title: string | nu
   const t = title || "";
 
   if (desc.startsWith("[ALTRIX_QUIZ_JSON]:")) {
-    return { type: "mcq", label: "MCQ Quiz", cleanDescription: desc.substring(19) };
+    // A readable summary, not the raw JSON (which was printed on the card).
+    let summary = "MCQ quiz";
+    try {
+      const data = JSON.parse(desc.substring(19));
+      const n = Array.isArray(data?.questions) ? data.questions.length : 0;
+      summary = [data?.instructions, n ? `${n} question${n === 1 ? "" : "s"}` : ""].filter(Boolean).join(" · ") || summary;
+    } catch {
+      /* keep the plain label */
+    }
+    return { type: "mcq", label: "MCQ Quiz", cleanDescription: summary };
   }
   
   if (desc.startsWith("[ALTRIX_TYPE:written_test]:")) {
@@ -278,6 +285,9 @@ export function StudentAssignmentsModule({ myStudent, schoolId }: { myStudent: a
   // View result dialog
   const [viewOpen, setViewOpen] = useState(false);
   const [viewSubmission, setViewSubmission] = useState<Submission | null>(null);
+  // The answers and explanations, from the server once the quiz is handed in
+  // (the description a student can read no longer carries them).
+  const [quizReview, setQuizReview] = useState<{ questions: any[] } | null>(null);
 
   // Search, Filters & Modals
   const [searchTerm, setSearchTerm] = useState("");
@@ -362,7 +372,6 @@ export function StudentAssignmentsModule({ myStudent, schoolId }: { myStudent: a
     
     const quizData = getQuizData(selectedAssignment.description);
     let contentValue = submissionText;
-    let quizMarks: number | null = null;
 
     if (quizData) {
       const totalQuestions = quizData.questions?.length || 0;
@@ -372,16 +381,26 @@ export function StudentAssignmentsModule({ myStudent, schoolId }: { myStudent: a
         return;
       }
 
-      contentValue = `[ALTRIX_QUIZ_SUBMISSION]:${JSON.stringify(quizAnswers)}`;
-      
-      // Calculate score for auto-grading!
-      let correctCount = 0;
-      (quizData.questions || []).forEach((q: any) => {
-        if (quizAnswers[q.questionNumber] === q.correctAnswer) {
-          correctCount++;
-        }
-      });
-      quizMarks = correctCount;
+      // Graded on the server against the answer key, which the browser no
+      // longer sees; it used to grade here and write the marks itself.
+      setSubmitting(true);
+      try {
+        const res = await apiClient.post(`/quizzes/${selectedAssignment.id}/submit`, {
+          student_id: myStudent.studentId,
+          answers: quizAnswers,
+        });
+        const r = res.data;
+        toast.success(r.marks != null
+          ? `Quiz submitted: ${r.correct} of ${r.gradable} correct (${r.marks} / ${selectedAssignment.max_marks}).`
+          : "Quiz submitted. Your teacher will mark it.");
+        setSubmitOpen(false);
+        refreshSubmissions();
+      } catch (err: any) {
+        toast.error(err?.response?.data?.detail || err?.message || "The quiz could not be submitted");
+      } finally {
+        setSubmitting(false);
+      }
+      return;
     } else {
       if (!submissionText.trim() && uploadedFiles.length === 0) {
         toast.error("Please add text or attach files");
@@ -398,13 +417,8 @@ export function StudentAssignmentsModule({ myStudent, schoolId }: { myStudent: a
     const savePayload = {
       content: contentValue,
       attachment_urls: attachmentUrls.length > 0 ? attachmentUrls : null,
-      status: quizData ? (isLate ? "late" : "graded") : (isLate ? "late" : "submitted"),
+      status: isLate ? "late" : "submitted",
       submitted_at: new Date().toISOString(),
-      ...(quizData ? {
-        marks: quizMarks,
-        marks_obtained: quizMarks,
-        feedback: "Auto-graded by AI Quiz Engine."
-      } : {})
     };
 
     if (existing) {
@@ -446,7 +460,13 @@ export function StudentAssignmentsModule({ myStudent, schoolId }: { myStudent: a
     if (sub) {
       setViewSubmission(sub);
       setSelectedAssignment(assignment);
+      setQuizReview(null);
       setViewOpen(true);
+      if (getQuizData(assignment.description)) {
+        apiClient.get(`/quizzes/${assignment.id}`, { params: { student_id: myStudent.studentId } })
+          .then((res) => setQuizReview(res.data))
+          .catch(() => setQuizReview(null));
+      }
     }
   };
 
@@ -994,7 +1014,8 @@ export function StudentAssignmentsModule({ myStudent, schoolId }: { myStudent: a
                     // Quiz Review comparison list
                     <div className="space-y-4 pt-1">
                       <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Quiz Questions & Explanations</h4>
-                      {quizData.questions.map((q: any) => {
+                      {!quizReview && <p className="text-xs text-slate-400">Loading the answers…</p>}
+                      {(quizReview?.questions ?? []).map((q: any) => {
                         const studentChoice = studentQuizAnswers[q.questionNumber] || "";
                         const correctChoice = q.correctAnswer;
                         const isStudentCorrect = studentChoice === correctChoice;

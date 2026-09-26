@@ -125,13 +125,31 @@ function targetPath(n: AppNotification, slug: string, rolePath: string): string 
   return base;
 }
 
+const COLLAPSE_KEY = "altrix:notices-banner-collapsed";
+
 export function DashboardNotificationsBanner({ schoolId, schoolSlug, role, inline }: Props) {
   const navigate = useNavigate();
   const location = useLocation();
   const { data, unreadCount, markRead, markAllRead } = useNotifications(schoolId);
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
   const [dismissedAll, setDismissedAll] = useState(false);
-  const [collapsed, setCollapsed] = useState(false);
+  // Remembered on this device: it opened again on every page, pushing the
+  // screen's own content down, however often it was folded away.
+  const [collapsed, setCollapsedState] = useState<boolean>(() => {
+    try {
+      return window.localStorage.getItem(COLLAPSE_KEY) === "1";
+    } catch {
+      return false;
+    }
+  });
+  const setCollapsed = (value: boolean) => {
+    setCollapsedState(value);
+    try {
+      window.localStorage.setItem(COLLAPSE_KEY, value ? "1" : "0");
+    } catch {
+      /* storage blocked: the choice lasts until the page is reloaded */
+    }
+  };
   const [activeFilter, setActiveFilter] = useState<string>("all");
   const [showCenter, setShowCenter] = useState(false);
 

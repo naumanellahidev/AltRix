@@ -157,10 +157,8 @@ class EnterpriseEventBus:
         for sub_path in subscribers:
             try:
                 # Enqueue to Celery event queue
-                process_event_task.apply_async(
-                    args=[event_dict, sub_path],
-                    queue="default"
-                )
+                from app.celery_app import enqueue
+                await enqueue(process_event_task, args=[event_dict, sub_path], queue="default")
             except Exception as task_err:
                 logger.error(f"Failed to queue task for subscriber {sub_path}: {task_err}")
 

@@ -339,6 +339,34 @@ async def logout(request: Request, response: Response, current_user: CurrentUser
 
         await blacklist_token(db, jti, UUID(current_user.id), expires_at)
 
+        # The refresh token too. Only the cookie was cleared, in the browser,
+        # so a copy of it (30 days' life) went on minting access tokens after
+        # the user had logged out.
+        refresh_raw = request.cookies.get(REFRESH_COOKIE_NAME)
+        if refresh_raw:
+            try:
+                r_payload = await decode_supabase_token(refresh_raw)
+                if r_payload.get("token_type") == "refresh" and str(r_payload.get("sub")) == str(current_user.id):
+                    r_jti = r_payload.get("jti") or hashlib.sha256(refresh_raw.encode("utf-8")).hexdigest()
+                    r_exp = r_payload.get("exp")
+                    await blacklist_token(
+                        db, r_jti, UUID(current_user.id),
+                        datetime.fromtimestamp(r_exp, tz=timezone.utc) if r_exp
+                        else datetime.now(timezone.utc) + timedelta(days=30),
+                        reason="logout",
+                    )
+            except Exception as e:
+                logger.warning(f"Logout: could not revoke the refresh token: {e}")
+        # Nor may a token rotated just before the logout ride on its grace period.
+        try:
+            await db.execute(
+                text("UPDATE token_blacklist SET reason = 'logout' WHERE user_id = CAST(:uid AS uuid)"
+                     " AND reason = 'rotated' AND blacklisted_at > NOW() - INTERVAL '5 minutes'"),
+                {"uid": str(current_user.id)},
+            )
+        except Exception as e:
+            logger.warning(f"Logout: could not end the rotation grace: {e}")
+
         # Close only the session being logged out. Matching on user_id as well
         # signed the user out of every device, so logging out on a phone wiped
         # the desktop session record too.
@@ -372,6 +400,10 @@ async def logout(request: Request, response: Response, current_user: CurrentUser
 
     _clear_refresh_cookie(response)
     return MessageResponse(message="Logged out successfully")
+
+
+#: How long a refresh token just exchanged for a new one is still accepted.
+ROTATION_GRACE_SECONDS = 60
 
 
 @router.post(
@@ -430,9 +462,28 @@ async def refresh_token(body: dict, request: Request, response: Response, db: Db
     user_id_str: str = str(user_id_raw)
     email_str: str = str(email_raw)
 
-    # Revoked at logout?
+    # Revoked at logout? A token retired by rotation moments ago is accepted
+    # once more: the browser may have navigated away before the new cookie
+    # arrived, and signing the user out for it lost their work.
     jti = payload.get("jti") or hashlib.sha256(token.encode("utf-8")).hexdigest()
-    if await is_token_blacklisted(db, jti):
+    retired = None
+    try:
+        retired = (await db.execute(
+            text("SELECT blacklisted_at, reason FROM token_blacklist WHERE jti = :jti"), {"jti": jti}
+        )).first()
+    except Exception as e:
+        logger.warning(f"Refresh: blacklist lookup failed: {e}")
+        raise invalid
+    recently_rotated = False
+    if retired is not None:
+        at = retired.blacklisted_at
+        if at is not None and at.tzinfo is None:
+            at = at.replace(tzinfo=_tz.utc)
+        recently_rotated = (retired.reason == "rotated" and at is not None
+                            and (_dt.now(_tz.utc) - at).total_seconds() <= ROTATION_GRACE_SECONDS)
+        if not recently_rotated:
+            raise invalid
+    elif await is_token_blacklisted(db, jti):
         raise invalid
 
     # Issued before a password change or a "sign out everywhere"?
@@ -472,8 +523,9 @@ async def refresh_token(body: dict, request: Request, response: Response, db: Db
             else _dt.now(_tz.utc) + timedelta(days=settings.refresh_token_expire_days)
         )
         from app.utils.security import blacklist_token
-        await blacklist_token(db, jti, UUID(user_id_str), expires_at)
-        await db.commit()
+        if not recently_rotated:
+            await blacklist_token(db, jti, UUID(user_id_str), expires_at, reason="rotated")
+            await db.commit()
     except Exception as e:
         logger.warning(f"Failed to rotate refresh token for {user_id_str}: {e}")
 

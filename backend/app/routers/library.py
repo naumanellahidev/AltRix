@@ -1,6 +1,7 @@
 import logging
 from typing import List, Optional
 from uuid import UUID
+from decimal import Decimal, ROUND_HALF_UP
 from datetime import date, datetime, timedelta
 from pydantic import BaseModel, ConfigDict
 from fastapi import APIRouter, HTTPException, Query, status
@@ -102,12 +103,46 @@ def _to_uuid(val) -> Optional[UUID]:
     except Exception:
         return None
 
-def _parse_or_generate_uuid(val: str) -> UUID:
+def _strict_uuid(val, what: str) -> UUID:
+    """A real id, or a 400. This used to turn any text (a name, say) into a
+    made-up id, so loans and reservations pointed at students who do not exist."""
     try:
         return UUID(str(val))
     except Exception:
-        import uuid
-        return uuid.uuid5(uuid.NAMESPACE_DNS, str(val))
+        raise HTTPException(status_code=400, detail=f"{what} is not a valid id")
+
+
+def _is_staff(user) -> bool:
+    from app.utils.permissions import expand_roles
+    return bool(user.is_super_admin or set(expand_roles(user.roles or [])) - {"parent", "student"})
+
+
+def _require_staff(user) -> None:
+    # None of the library's writes checked the caller: a parent or a student
+    # could add, change and delete books, and issue and return them.
+    if not _is_staff(user):
+        raise HTTPException(status_code=403, detail="Only the school's staff can manage the library.")
+
+
+async def _family_student_ids(user, db) -> Optional[set]:
+    """None for staff; otherwise the students this family account may see."""
+    if _is_staff(user):
+        return None
+    from app.utils.security import get_allowed_student_ids
+    return {str(x) for x in (await get_allowed_student_ids(user, db) or [])}
+
+
+async def _student_in_school(db, student_id: UUID, school_uuid: UUID) -> None:
+    from sqlalchemy import text as _t
+    found = await db.execute(_t("SELECT 1 FROM students WHERE id = :s AND school_id = :sch"),
+                             {"s": student_id, "sch": school_uuid})
+    if found.first() is None:
+        raise HTTPException(status_code=404, detail="Student not found in this school")
+
+
+def _fine(days_overdue: int, rate) -> Decimal:
+    """Money is exact: days x the daily rate, to the paisa."""
+    return (Decimal(days_overdue) * Decimal(str(rate))).quantize(Decimal("0.01"), ROUND_HALF_UP)
 
 
 # --- Books Catalog Endpoints ---
@@ -144,6 +179,7 @@ async def list_books(
 
 @router.post("/books", response_model=BookOutSchema)
 async def create_book(payload: BookCreateSchema, current_user: CurrentUser, db: DbSession):
+    _require_staff(current_user)
     school_uuid = _to_uuid(current_user.school_id)
     if not school_uuid:
         raise HTTPException(status_code=400, detail="User has no associated school")
@@ -179,6 +215,13 @@ async def list_issues(
         return []
     effective_cid = campus_id if isinstance(campus_id, (UUID, str)) else _to_uuid(current_user.campus_id)
     stmt = select(BookIssue).where(BookIssue.school_id == school_uuid)
+    # Everyone's loans and fines went to any account. A family sees its own.
+    family = await _family_student_ids(current_user, db)
+    if family is not None:
+        if not family:
+            return []
+        stmt = stmt.where(BookIssue.borrower_type == "student",
+                          BookIssue.borrower_id.in_([UUID(x) for x in family]))
     if effective_cid:
         stmt = stmt.where(or_(BookIssue.campus_id == effective_cid, BookIssue.campus_id.is_(None)))
     if status_filter:
@@ -191,27 +234,17 @@ async def list_issues(
         for iss in issues:
             if iss.status != "returned" and iss.due_date and today > iss.due_date:
                 days_overdue = (today - iss.due_date).days
-                rate = float(iss.fine_per_day) if iss.fine_per_day is not None else 20.0
-                iss.fine_amount = round(days_overdue * rate, 2)
+                rate = iss.fine_per_day if iss.fine_per_day is not None else 20
+                iss.fine_amount = _fine(days_overdue, rate)
         return issues
     except Exception as e:
-        err_msg = str(e)
-        if "fine_per_day" in err_msg or "UndefinedColumnError" in err_msg or "campus_id" in err_msg:
-            from sqlalchemy import text
-            await db.execute(text("""
-                ALTER TABLE public.book_issues 
-                    ADD COLUMN IF NOT EXISTS campus_id UUID,
-                    ADD COLUMN IF NOT EXISTS fine_per_day NUMERIC(10, 2) DEFAULT 20.00;
-            """))
-            await db.commit()
-            res = await db.execute(stmt)
-            return list(res.scalars().all())
         logger.warning(f"Error listing book issues: {e}")
-        return []
+        raise HTTPException(status_code=503, detail="The library loans could not be loaded.")
 
 
 @router.post("/issue", response_model=IssueOutSchema)
 async def issue_book(payload: IssueCreateSchema, current_user: CurrentUser, db: DbSession):
+    _require_staff(current_user)
     school_uuid = _to_uuid(current_user.school_id)
     if not school_uuid:
         raise HTTPException(status_code=400, detail="User has no associated school")
@@ -230,7 +263,9 @@ async def issue_book(payload: IssueCreateSchema, current_user: CurrentUser, db: 
     
     today = date.today()
     due_date = today + timedelta(days=payload.due_days or 14)
-    borrower_uuid = _parse_or_generate_uuid(payload.borrower_id)
+    borrower_uuid = _strict_uuid(payload.borrower_id, "borrower_id")
+    if (payload.borrower_type or "student") == "student":
+        await _student_in_school(db, borrower_uuid, school_uuid)
     
     raw_cid = payload.campus_id if getattr(payload, "campus_id", None) else (current_user.campus_id or book.campus_id)
     effective_cid = None
@@ -271,6 +306,7 @@ async def issue_book(payload: IssueCreateSchema, current_user: CurrentUser, db: 
 
 @router.post("/return/{issue_id}", response_model=IssueOutSchema)
 async def return_book(issue_id: UUID, current_user: CurrentUser, db: DbSession):
+    _require_staff(current_user)
     school_uuid = _to_uuid(current_user.school_id)
     if not school_uuid:
         raise HTTPException(status_code=400, detail="User has no associated school")
@@ -289,11 +325,11 @@ async def return_book(issue_id: UUID, current_user: CurrentUser, db: DbSession):
 
     if today > issue.due_date:
         days_overdue = (today - issue.due_date).days
-        rate = float(issue.fine_per_day) if issue.fine_per_day is not None else 20.0
-        issue.fine_amount = round(days_overdue * rate, 2)
+        rate = issue.fine_per_day if issue.fine_per_day is not None else 20
+        issue.fine_amount = _fine(days_overdue, rate)
 
     # Increment available copies
-    stmt_book = select(LibraryBook).where(LibraryBook.id == issue.book_id)
+    stmt_book = select(LibraryBook).where(LibraryBook.id == issue.book_id, LibraryBook.school_id == school_uuid)
     res_book = await db.execute(stmt_book)
     book = res_book.scalar_one_or_none()
     if book and book.available_copies < book.total_copies:
@@ -305,17 +341,6 @@ async def return_book(issue_id: UUID, current_user: CurrentUser, db: DbSession):
         return issue
     except Exception as e:
         await db.rollback()
-        err_msg = str(e)
-        if "fine_per_day" in err_msg or "UndefinedColumnError" in err_msg:
-            try:
-                from sqlalchemy import text
-                await db.execute(text("ALTER TABLE public.book_issues ADD COLUMN IF NOT EXISTS fine_per_day NUMERIC(10, 2) DEFAULT 20.00;"))
-                await db.commit()
-                await db.commit()
-                await db.refresh(issue)
-                return issue
-            except Exception:
-                await db.rollback()
         logger.error(f"Failed to return book: {e}", exc_info=True)
         raise HTTPException(status_code=400, detail=f"Failed to return book: {str(e)}")
 
@@ -332,6 +357,11 @@ async def list_reservations(
         return []
     effective_cid = campus_id if isinstance(campus_id, (UUID, str)) else _to_uuid(current_user.campus_id)
     stmt = select(BookReservation).where(BookReservation.school_id == school_uuid)
+    family = await _family_student_ids(current_user, db)
+    if family is not None:
+        if not family:
+            return []
+        stmt = stmt.where(BookReservation.student_id.in_([UUID(x) for x in family]))
     if effective_cid:
         stmt = stmt.where(or_(BookReservation.campus_id == effective_cid, BookReservation.campus_id.is_(None)))
     try:
@@ -353,7 +383,11 @@ async def reserve_book(payload: ReservationCreateSchema, current_user: CurrentUs
     if not book:
         raise HTTPException(status_code=404, detail="Book not found")
         
-    student_uuid = _parse_or_generate_uuid(payload.student_id)
+    student_uuid = _strict_uuid(payload.student_id, "student_id")
+    family = await _family_student_ids(current_user, db)
+    if family is not None and str(student_uuid) not in family:
+        raise HTTPException(status_code=403, detail="You can only reserve a book for yourself or your own child.")
+    await _student_in_school(db, student_uuid, school_uuid)
     raw_cid = payload.campus_id if getattr(payload, "campus_id", None) else (current_user.campus_id or book.campus_id)
     effective_cid = None
     if raw_cid:
@@ -385,6 +419,7 @@ async def reserve_book(payload: ReservationCreateSchema, current_user: CurrentUs
 
 @router.put("/books/{book_id}", response_model=BookOutSchema)
 async def update_book(book_id: UUID, payload: BookUpdateSchema, current_user: CurrentUser, db: DbSession):
+    _require_staff(current_user)
     school_uuid = _to_uuid(current_user.school_id)
     if not school_uuid:
         raise HTTPException(status_code=400, detail="User has no associated school")
@@ -410,6 +445,7 @@ async def update_book(book_id: UUID, payload: BookUpdateSchema, current_user: Cu
 
 @router.delete("/books/{book_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_book(book_id: UUID, current_user: CurrentUser, db: DbSession):
+    _require_staff(current_user)
     school_uuid = _to_uuid(current_user.school_id)
     if not school_uuid:
         raise HTTPException(status_code=400, detail="User has no associated school")

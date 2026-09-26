@@ -31,7 +31,9 @@ import {
 } from "lucide-react";
 
 interface StudentStats {
-  attendanceRate: number;
+  /** null: no attendance has been taken in the period (not 0%, not 100%). */
+  attendanceRate: number | null;
+  attendanceDays: number;
   totalAssignments: number;
   pendingAssignments: number;
   assessmentCount: number;
@@ -102,18 +104,34 @@ export function StudentHomeModule({ myStudent }: { myStudent: any }) {
         const totalDays = attendance?.length || 0;
         const presentDays =
           attendance?.filter((a) => a.status === "present" || a.status === "late").length || 0;
-        const attendanceRate = totalDays > 0 ? Math.round((presentDays / totalDays) * 100) : 100;
+        // No register taken is "no data", not 100% (or 0%).
+        const attendanceRate = totalDays > 0 ? Math.round((presentDays / totalDays) * 100) : null;
 
-        const { data: assignments } = await api
-          .from("assignments")
-          .select("id, status, due_date")
-          .eq("school_id", student.school_id);
-
-        const totalAssignments = assignments?.length || 0;
-        const pendingAssignments =
-          assignments?.filter(
-            (a) => a.status === "active" && a.due_date && new Date(a.due_date) >= new Date(),
-          ).length || 0;
+        // The student's own class, and what they have not handed in yet. This
+        // counted every assignment in the school.
+        const { data: enrolment } = await api
+          .from("student_enrollments")
+          .select("class_section_id")
+          .eq("student_id", myStudent.studentId)
+          .is("end_date", null)
+          .limit(1)
+          .maybeSingle();
+        let totalAssignments = 0;
+        let pendingAssignments = 0;
+        if (enrolment?.class_section_id) {
+          const [{ data: assignments }, { data: submissions }] = await Promise.all([
+            api.from("assignments").select("id, status, due_date")
+              .eq("school_id", student.school_id)
+              .eq("class_section_id", enrolment.class_section_id),
+            api.from("assignment_submissions").select("assignment_id")
+              .eq("student_id", myStudent.studentId),
+          ]);
+          const submitted = new Set((submissions ?? []).map((x: any) => x.assignment_id));
+          totalAssignments = assignments?.length || 0;
+          pendingAssignments = (assignments ?? []).filter(
+            (a: any) => a.status === "active" && a.due_date && new Date(a.due_date) >= new Date() && !submitted.has(a.id),
+          ).length;
+        }
 
         const { data: marks } = await api
           .from("student_marks")
@@ -122,7 +140,7 @@ export function StudentHomeModule({ myStudent }: { myStudent: any }) {
 
         let averageGrade: number | null = null;
         if (marks && marks.length > 0) {
-          const validMarks = marks.filter((m) => m.marks != null && m.academic_assessments);
+          const validMarks = marks.filter((m) => m.marks != null && Number((m.academic_assessments as any)?.max_marks) > 0);
           if (validMarks.length > 0) {
             const percentages = validMarks.map(
               (m) => (m.marks! / (m.academic_assessments as any).max_marks) * 100,
@@ -134,6 +152,7 @@ export function StudentHomeModule({ myStudent }: { myStudent: any }) {
         if (cancelled) return;
         setStats({
           attendanceRate,
+          attendanceDays: totalDays,
           totalAssignments,
           pendingAssignments,
           assessmentCount: marks?.length || 0,
@@ -332,11 +351,12 @@ export function StudentHomeModule({ myStudent }: { myStudent: any }) {
                       strokeWidth={8}
                       strokeLinecap="round"
                       strokeDasharray={`${2 * Math.PI * 36 * ((stats?.attendanceRate ?? 0) / 100)} ${2 * Math.PI * 36 * (1 - (stats?.attendanceRate ?? 0) / 100)}`}
+                      opacity={stats?.attendanceRate == null ? 0 : 1}
                     />
                   </svg>
                   <div className="absolute inset-0 flex flex-col items-center justify-center">
                     <span className="font-display text-xs font-extrabold text-slate-800">
-                      {stats?.attendanceRate ?? 0}%
+                      {stats?.attendanceRate != null ? `${stats.attendanceRate}%` : "—"}
                     </span>
                     <span className="text-[8px] font-bold text-slate-400 uppercase tracking-wider">Present</span>
                   </div>
@@ -346,10 +366,12 @@ export function StudentHomeModule({ myStudent }: { myStudent: any }) {
                     Attendance
                   </p>
                   <p className="font-display text-lg font-extrabold text-slate-800 mt-0.5">
-                    {loading ? "—" : `${stats?.attendanceRate ?? 0}%`}
+                    {loading || stats?.attendanceRate == null ? "—" : `${stats.attendanceRate}%`}
                   </p>
                   <p className="text-[10px] text-slate-450 mt-1 font-bold">
-                    {(stats?.attendanceRate ?? 0) >= 90 ? "Excellent standing" : "Needs attention"}
+                    {loading ? "" : !stats ? "Could not be loaded"
+                      : stats.attendanceRate == null ? "No attendance taken in the last 30 days"
+                      : stats.attendanceRate >= 90 ? "Excellent standing" : "Needs attention"}
                   </p>
                 </div>
               </div>
@@ -371,7 +393,7 @@ export function StudentHomeModule({ myStudent }: { myStudent: any }) {
                     <ScrollText className="h-4 w-4 text-blue-600" />
                   </div>
                   <p className="font-display text-2xl font-black text-slate-800 mt-2">
-                    {loading ? "—" : stats?.pendingAssignments ?? 0}
+                    {loading || !stats ? "—" : stats.pendingAssignments}
                   </p>
                 </div>
               </div>

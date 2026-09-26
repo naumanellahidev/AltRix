@@ -135,16 +135,13 @@ export function parseRawQuizToJSON(text: string): { questions: any[]; instructio
 
   if (questions.length > 0) {
     questions.forEach((q) => {
-      if (!q.correctAnswer) q.correctAnswer = "A";
+      // A question with no key stays without one (it was counted as "A").
       const optionList: string[] = [];
       ["A", "B", "C", "D"].forEach((letter) => {
         if (q.options[letter]) {
           optionList.push(q.options[letter]);
         }
       });
-      if (optionList.length === 0) {
-        optionList.push("Option A", "Option B", "Option C", "Option D");
-      }
       q.options = optionList;
     });
 

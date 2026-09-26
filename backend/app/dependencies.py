@@ -173,6 +173,12 @@ async def get_current_user_with_roles(
             except Exception as e:
                 import logging
                 logging.getLogger("app.dependencies").warning(f"Error resolving school slug {x_school_id}: {e}")
+                # A lookup that failed is not "no such school": say so, rather
+                # than refusing the user as a non-member of their own school.
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail="Could not check your access to this school just now. Please try again.",
+                )
 
         # Resolve campus parameter
         resolved_campus_id = None
@@ -257,11 +263,18 @@ async def get_current_user_with_roles(
                     elif db_campus_id:
                         user.campus_id = db_campus_id
 
+            except HTTPException:
+                raise
             except Exception as e:
                 import logging
                 logging.getLogger("app.dependencies").warning(f"DB exception loading roles for school {x_school_id}: {e}")
-                user.roles = []
-                user.school_id = sid_str
+                # This used to leave the user with no roles, and so answer
+                # "you are not a member of this school" to a member whose
+                # lookup had merely failed.
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail="Could not check your access to this school just now. Please try again.",
+                )
         else:
             user.roles = []
             user.school_id = sid_str

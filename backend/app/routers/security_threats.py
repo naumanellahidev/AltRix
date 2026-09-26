@@ -23,14 +23,10 @@ class IpBanRequest(BaseModel):
     reason: Optional[str] = "Suspicious traffic burst detected by Super Admin WAF"
 
 async def _ensure_banlist_table(db: AsyncSession):
-    await db.execute(text("""
-        CREATE TABLE IF NOT EXISTS public.ip_banlist (
-            ip_address VARCHAR(100) PRIMARY KEY,
-            reason TEXT,
-            banned_at TIMESTAMPTZ DEFAULT NOW()
-        );
-    """))
-    await db.commit()
+    """The table is created by migration 20261031000800; the app's database
+    role may not run DDL, so creating it here failed and so did every page
+    that called this."""
+    return None
 
 @router.get("/threats")
 async def get_security_threats(db: AsyncSession = Depends(get_db)):

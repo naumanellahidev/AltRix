@@ -2049,3 +2049,78 @@ at the caller's role found these, now fixed:
 
 Tests: `test_guardian_links.py`, `test_attendance_access.py`,
 `test_salary_budget_access.py`.
+
+### Opening every screen of the teacher, parent and student shells (26 Sep 2026)
+
+Each shell was logged into and every route of its dashboard opened in a
+browser (Playwright, Edge), against this working tree's backend on a copy
+of the production database (`altrix_qa`; production untouched), recording
+console errors, crashes, failed API calls, toasts and screenshots. Found
+and fixed on the way:
+
+- **Every parent's portal was empty.** `/students/my-children` read a
+  `guardians` table and student columns that do not exist, failed on every
+  call, and the portal said "No children linked to your account". Rewritten
+  against `student_guardians` and the current enrolment.
+- **Quizzes: answers shown, and students marked themselves.** The quiz
+  preview printed "Correct Answer: C" under each question; the browser
+  graded the quiz and wrote the marks, so a student could submit any mark;
+  a question with no key counted "A" as correct and one with no options got
+  "Option A-D". Now a family reading assignments gets the questions only
+  (the proxy strips the key), grading is on the server (`/quizzes/{id}`
+  and `/quizzes/{id}/submit`, `app/utils/quiz.py`), the answers are shown
+  once the quiz is handed in, a second attempt is refused, and a family
+  cannot write marks, feedback or a "graded" status through the proxy.
+- **Supabase-style relations in the data proxy** (`students(first_name)`,
+  `x!inner(...)`, `alias:fk(...)`, nested): 43 selects came back without the
+  relation (no class or student names, no max marks, no message bodies).
+  They are now built from the database's foreign keys, each relation
+  checked like a read of its table (policy, school, family rules). Filters
+  on a relation's column (`admin_messages.school_id`) were dropped, which
+  widened the result; they are applied, and a filter on a column that does
+  not exist is refused instead of ignored. Gate `col1` now checks the
+  relations and their columns too (`scripts/db/schema_fks.txt`).
+- **Sessions ended mid-use.** A refresh that crossed a reload lost the new
+  cookie, and the next refresh signed the user out: a just-rotated refresh
+  token is now accepted for 60 seconds (migration `...0700`). Logout now
+  also revokes the refresh token; a copy of the 30-day cookie used to keep
+  working after logout.
+- **A slow or missing Redis froze the server.** Queuing a background task
+  was a blocking call inside the request (every request waited with it) and
+  retried for about a minute: logins hung. Now queued from a worker thread
+  with a time limit, failing fast. Database connects and statements now
+  have time limits (a query on a dead connection hung for 71 minutes).
+- **"You are not a member of this school"** was shown when the membership
+  lookup itself failed; it now says the access could not be checked.
+- **Invented figures:** 100% attendance with no register taken (student
+  and parent home, parent KPIs), 0% when loading failed, 100% assignment
+  completion with nothing set, "Tasks due" counting the whole school's
+  assignments; a real 0% or GPA of 0 shown as "N/A" on the report card.
+- **Backend SQL that could never run**, found by EXPLAINing every static
+  statement against the schema (`scripts/check_backend_sql.py`): enrolment
+  on creating or moving a student (and moving a student deleted their whole
+  enrolment history), roles written by invite / set-roles / bulk import,
+  staff campus assignment on accepting an invite, the IP banlist, and the
+  school logo in emails (migration `...0800`).
+- Smaller: an icon named `Map` shadowed the built-in on the parent home
+  (`new Map()` there would throw), the `File` icon shadowed the `File` type
+  in uploads, counsellor names read `profiles.full_name` (no such column).
+- **The library, for students and parents, was invented:** two made-up
+  loans (one "overdue", with a fine warning), a made-up catalogue and a
+  "reservation submitted" message that sent nothing. Both screens now show
+  the child's real loans, due dates and fines, the school's catalogue, and
+  make a real reservation (`components/library/FamilyLibrary.tsx`). The
+  library API checked no one: a parent could add, change or delete books
+  and issue or return them; every loan and fine was listed to any account;
+  any text became a made-up student id; fines were floats. Now staff run
+  it, a family sees and reserves for its own child, ids are real and fines
+  exact.
+- **Parent fees** showed "PKR 0" for pending, paid and overdue until the
+  figures arrived (or when they failed): now "—" until they are known, and
+  amounts are printed exactly (45,445.00, not 45445.00).
+- **Parent KPIs**: "Class Rank #4 (Mock)" shown to parents, "On track" with
+  no attendance, "Mostly Happy Mood" with no notes, an ungraded mark counted
+  as a "B", a real 0% average shown as "—". All now from the data, or say
+  there is none yet.
+- The updates banner at the top of every family screen re-opened on every
+  page; folding it away is now remembered on the device.

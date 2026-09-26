@@ -1,7 +1,7 @@
 import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Upload, X, FileText, Image, File, Loader2 } from "lucide-react";
+import { Upload, X, FileText, Image, File as FileIcon, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 interface FileUploadAreaProps {
@@ -45,7 +45,7 @@ export function FileUploadArea({
     if (["pdf", "doc", "docx", "txt"].includes(ext || "")) {
       return <FileText className="h-4 w-4" />;
     }
-    return <File className="h-4 w-4" />;
+    return <FileIcon className="h-4 w-4" />;
   };
 
   const handleFiles = async (fileList: FileList) => {

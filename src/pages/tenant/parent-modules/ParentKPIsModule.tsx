@@ -147,11 +147,11 @@ export default function ParentKPIsModule({ child, schoolId }: ParentKPIsModulePr
       });
 
       // Grade counts
-      const gr = mark.computedGrade || "B";
-      gradeCounts[gr] = (gradeCounts[gr] || 0) + 1;
+      // An ungraded mark is not a "B".
+      if (mark.computedGrade) gradeCounts[mark.computedGrade] = (gradeCounts[mark.computedGrade] || 0) + 1;
     });
 
-    const average = validMarksCount > 0 ? Math.round(totalPercentSum / validMarksCount) : 0;
+    const average: number | null = validMarksCount > 0 ? Math.round(totalPercentSum / validMarksCount) : null;
     const subjectScores = Object.entries(scoresBySubject).map(([subject, s]) => ({
       subject,
       score: Math.round(s.total / s.count),
@@ -164,6 +164,7 @@ export default function ParentKPIsModule({ child, schoolId }: ParentKPIsModulePr
 
     return {
       average,
+      markedCount: validMarksCount,
       subjectScores,
       history: sortedHistory,
       gradeCounts
@@ -173,7 +174,8 @@ export default function ParentKPIsModule({ child, schoolId }: ParentKPIsModulePr
   // Derived Attendance KPIs
   const attendanceKPIs = useMemo(() => {
     const total = attendance.length;
-    if (total === 0) return { presentRate: 100, lateRate: 0, absentRate: 0, data: [] };
+    // Nothing recorded yet: no rates, rather than a perfect 100%.
+    if (total === 0) return { presentRate: null as number | null, lateRate: null as number | null, absentRate: null as number | null, data: [] };
 
     const present = attendance.filter(a => a.status === "present").length;
     const late = attendance.filter(a => a.status === "late").length;
@@ -198,12 +200,14 @@ export default function ParentKPIsModule({ child, schoolId }: ParentKPIsModulePr
   // Derived Assignment Punctuality KPIs
   const assignmentKPIs = useMemo(() => {
     const allowed = new Set(childSectionIds);
-    const relevantAssignments = cachedAssignments.filter(a => !allowed.size || allowed.has(a.classSectionId));
+    // The child's own class only; with no class known this counted every
+    // assignment in the school.
+    const relevantAssignments = cachedAssignments.filter(a => allowed.has(a.classSectionId));
     
     const total = relevantAssignments.length;
     const submitted = submissionsCount;
     const pending = Math.max(0, total - submitted);
-    const completionRate = total > 0 ? Math.round((submitted / total) * 100) : 100;
+    const completionRate: number | null = total > 0 ? Math.round((submitted / total) * 100) : null;
 
     return {
       total,
@@ -217,17 +221,21 @@ export default function ParentKPIsModule({ child, schoolId }: ParentKPIsModulePr
   const behaviorKPIs = useMemo(() => {
     const moodCounts: Record<string, number> = { happy: 0, neutral: 0, tired: 0, upset: 0 };
     behaviorNotes.forEach(note => {
-      const mood = (note.mood || "neutral").toLowerCase();
+      if (!note.mood) return; // no mood recorded is not "neutral"
+      const mood = note.mood.toLowerCase();
       if (moodCounts[mood] !== undefined) {
         moodCounts[mood]++;
       }
     });
 
     const totalNotes = behaviorNotes.length;
+    const top = Object.entries(moodCounts).sort((a, b) => b[1] - a[1])[0];
+    const topMood = top && top[1] > 0 ? top[0] : null;
     
     return {
       moodCounts,
       totalNotes,
+      topMood,
       data: Object.entries(moodCounts).map(([mood, count]) => ({
         name: mood.charAt(0).toUpperCase() + mood.slice(1),
         count
@@ -299,11 +307,12 @@ export default function ParentKPIsModule({ child, schoolId }: ParentKPIsModulePr
             <div className="space-y-1">
               <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Attendance Rate</span>
               <p className="font-display text-2xl font-black text-slate-800">
-                {attendance.length > 0 ? `${attendanceKPIs.presentRate}%` : "100%"}
+                {attendanceKPIs.presentRate != null ? `${attendanceKPIs.presentRate}%` : "—"}
               </p>
               <div className="flex items-center gap-1 text-[10px] font-semibold text-emerald-600">
                 <CheckCircle className="h-3 w-3" />
-                <span>On track</span>
+                <span>{attendanceKPIs.presentRate == null ? "No attendance taken yet"
+                  : attendanceKPIs.presentRate >= 90 ? "On track" : "Below 90%"}</span>
               </div>
             </div>
             <div className="h-10 w-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
@@ -318,11 +327,13 @@ export default function ParentKPIsModule({ child, schoolId }: ParentKPIsModulePr
             <div className="space-y-1">
               <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Academic Score</span>
               <p className="font-display text-2xl font-black text-slate-800">
-                {academicKPIs.average > 0 ? `${academicKPIs.average}%` : "—"}
+                {academicKPIs.average != null ? `${academicKPIs.average}%` : "—"}
               </p>
               <div className="flex items-center gap-1 text-[10px] font-semibold text-blue-600">
                 <TrendingUp className="h-3 w-3" />
-                <span>Class Rank #4 (Mock)</span>
+                <span>{academicKPIs.markedCount
+                  ? `${academicKPIs.markedCount} marked assessment${academicKPIs.markedCount === 1 ? "" : "s"}`
+                  : "No marks yet"}</span>
               </div>
             </div>
             <div className="h-10 w-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
@@ -337,11 +348,11 @@ export default function ParentKPIsModule({ child, schoolId }: ParentKPIsModulePr
             <div className="space-y-1">
               <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Submission Rate</span>
               <p className="font-display text-2xl font-black text-slate-800">
-                {assignmentKPIs.completionRate}%
+                {assignmentKPIs.completionRate != null ? `${assignmentKPIs.completionRate}%` : "—"}
               </p>
               <div className="flex items-center gap-1 text-[10px] font-semibold text-amber-600">
                 <Clock className="h-3 w-3" />
-                <span>{assignmentKPIs.pending} pending tasks</span>
+                <span>{assignmentKPIs.total === 0 ? "No assignments set" : `${assignmentKPIs.pending} pending tasks`}</span>
               </div>
             </div>
             <div className="h-10 w-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
@@ -360,7 +371,7 @@ export default function ParentKPIsModule({ child, schoolId }: ParentKPIsModulePr
               </p>
               <div className="flex items-center gap-1 text-[10px] font-semibold text-indigo-600">
                 <Smile className="h-3 w-3" />
-                <span>Mostly Happy Mood</span>
+                <span>{behaviorKPIs.topMood ? `Mostly ${behaviorKPIs.topMood}` : "No mood recorded yet"}</span>
               </div>
             </div>
             <div className="h-10 w-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
@@ -461,7 +472,7 @@ export default function ParentKPIsModule({ child, schoolId }: ParentKPIsModulePr
                   
                   {/* Center Text inside Donut chart */}
                   <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none pb-9">
-                    <span className="font-display text-lg font-black text-slate-800">{attendanceKPIs.presentRate}%</span>
+                    <span className="font-display text-lg font-black text-slate-800">{attendanceKPIs.presentRate != null ? `${attendanceKPIs.presentRate}%` : "—"}</span>
                     <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Present</span>
                   </div>
                 </div>
@@ -470,9 +481,9 @@ export default function ParentKPIsModule({ child, schoolId }: ParentKPIsModulePr
                   <div className="space-y-1.5">
                     <div className="flex justify-between items-center text-xs font-bold text-slate-700">
                       <span>Assignment Completion</span>
-                      <span className="text-blue-600">{assignmentKPIs.completionRate}%</span>
+                      <span className="text-blue-600">{assignmentKPIs.completionRate != null ? `${assignmentKPIs.completionRate}%` : "—"}</span>
                     </div>
-                    <Progress value={assignmentKPIs.completionRate} className="h-2 bg-slate-100 [&>div]:bg-blue-600" />
+                    <Progress value={assignmentKPIs.completionRate ?? 0} className="h-2 bg-slate-100 [&>div]:bg-blue-600" />
                     <div className="flex items-center justify-between text-[10px] font-semibold text-slate-400">
                       <span>{assignmentKPIs.submitted} Submitted</span>
                       <span>{assignmentKPIs.pending} Pending</span>

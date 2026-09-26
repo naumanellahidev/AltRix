@@ -276,7 +276,7 @@ const StudentDashboard = () => {
           <Route path="report-card" element={<ReportCardModule schoolId={schoolId} canManage={false} studentIdLocked={myStudent.status === "ready" ? myStudent.studentId : null} />} />
           <Route path="complaints" element={<StudentComplaintsModule schoolId={schoolId} />} />
           <Route path="events" element={<EventsModule />} />
-          <Route path="library" element={<LibraryModule />} />
+          <Route path="library" element={<LibraryModule myStudent={myStudent} schoolId={schoolId} />} />
           <Route path="transport" element={<TransportModule />} />
           <Route path="hostel" element={<HostelModule />} />
           <Route path="seating-plan" element={<ExamSeatingPlanModule />} />

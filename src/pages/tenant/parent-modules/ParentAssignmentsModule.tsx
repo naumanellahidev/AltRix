@@ -1,5 +1,6 @@
 import { useEffect, useState, useMemo } from "react";
 import { api } from "@/lib/api";
+import { apiClient } from "@/lib/api-client";
 import { getVPSFileUrl } from "@/lib/vpsStorage";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -114,16 +115,13 @@ export function parseRawQuizToJSON(text: string): { questions: any[]; instructio
 
   if (questions.length > 0) {
     questions.forEach((q) => {
-      if (!q.correctAnswer) q.correctAnswer = "A";
+      // No answer is invented: the key (if any) stays on the server.
       const optionList: string[] = [];
       ["A", "B", "C", "D"].forEach((letter) => {
         if (q.options[letter]) {
           optionList.push(q.options[letter]);
         }
       });
-      if (optionList.length === 0) {
-        optionList.push("Option A", "Option B", "Option C", "Option D");
-      }
       q.options = optionList;
     });
 
@@ -218,6 +216,8 @@ export default function ParentAssignmentsModule({ child, schoolId }: ParentAssig
   const [viewOpen, setViewOpen] = useState(false);
   const [selectedAssignment, setSelectedAssignment] = useState<Assignment | null>(null);
   const [viewSubmission, setViewSubmission] = useState<Submission | null>(null);
+  // Answers and explanations come from the server once the quiz is handed in.
+  const [quizReview, setQuizReview] = useState<{ questions: any[] } | null>(null);
   
   // Search & Filter state
   const [searchTerm, setSearchTerm] = useState("");
@@ -311,7 +311,13 @@ export default function ParentAssignmentsModule({ child, schoolId }: ParentAssig
     if (sub) {
       setViewSubmission(sub);
       setSelectedAssignment(assignment);
+      setQuizReview(null);
       setViewOpen(true);
+      if (child && getQuizData(assignment.description)) {
+        apiClient.get(`/quizzes/${assignment.id}`, { params: { student_id: child.student_id } })
+          .then((res) => setQuizReview(res.data))
+          .catch(() => setQuizReview(null));
+      }
     }
   };
 
@@ -378,7 +384,6 @@ export default function ParentAssignmentsModule({ child, schoolId }: ParentAssig
     
     const quizData = getQuizData(selectedAssignment.description);
     let contentValue = submissionText;
-    let quizMarks: number | null = null;
 
     if (quizData) {
       const totalQuestions = quizData.questions?.length || 0;
@@ -388,15 +393,26 @@ export default function ParentAssignmentsModule({ child, schoolId }: ParentAssig
         return;
       }
 
-      contentValue = `[ALTRIX_QUIZ_SUBMISSION]:${JSON.stringify(quizAnswers)}`;
-      
-      let correctCount = 0;
-      (quizData.questions || []).forEach((q: any) => {
-        if (quizAnswers[q.questionNumber] === q.correctAnswer) {
-          correctCount++;
-        }
-      });
-      quizMarks = correctCount;
+      // Graded on the server against the answer key, which the browser no
+      // longer sees; it used to grade here and write the marks itself.
+      setSubmitting(true);
+      try {
+        const res = await apiClient.post(`/quizzes/${selectedAssignment.id}/submit`, {
+          student_id: child.student_id,
+          answers: quizAnswers,
+        });
+        const r = res.data;
+        toast.success(r.marks != null
+          ? `Quiz submitted: ${r.correct} of ${r.gradable} correct (${r.marks} / ${selectedAssignment.max_marks}).`
+          : "Quiz submitted. The teacher will mark it.");
+        setSubmitOpen(false);
+        refreshSubmissions();
+      } catch (err: any) {
+        toast.error(err?.response?.data?.detail || err?.message || "The quiz could not be submitted");
+      } finally {
+        setSubmitting(false);
+      }
+      return;
     } else {
       if (!submissionText.trim() && uploadedFiles.length === 0) {
         toast.error("Please add text or attach files");
@@ -413,13 +429,8 @@ export default function ParentAssignmentsModule({ child, schoolId }: ParentAssig
     const savePayload = {
       content: contentValue,
       attachment_urls: attachmentUrls.length > 0 ? attachmentUrls : null,
-      status: quizData ? (isLate ? "late" : "graded") : (isLate ? "late" : "submitted"),
+      status: isLate ? "late" : "submitted",
       submitted_at: new Date().toISOString(),
-      ...(quizData ? {
-        marks: quizMarks,
-        marks_obtained: quizMarks,
-        feedback: "Auto-graded by AI Quiz Engine."
-      } : {})
     };
 
     if (existing) {
@@ -1011,7 +1022,8 @@ export default function ParentAssignmentsModule({ child, schoolId }: ParentAssig
                   <div className="space-y-2">
                     <span className="text-xs font-semibold text-slate-400 block">Quiz Performance</span>
                     <div className="border rounded-lg p-4 space-y-4 max-h-[300px] overflow-y-auto bg-slate-50/50">
-                      {quizData.questions.map((q: any) => {
+                      {!quizReview && <p className="text-xs text-slate-400">Loading the answers…</p>}
+                      {(quizReview?.questions ?? []).map((q: any) => {
                         const childAnswer = studentQuizAnswers[q.questionNumber];
                         const isCorrect = childAnswer === q.correctAnswer;
                         

@@ -44,6 +44,10 @@ class Settings(BaseSettings):
     # Recycle before most proxies and firewalls drop an idle connection,
     # otherwise the first query after a quiet period fails.
     db_pool_recycle_seconds: int = 1800
+    # A dead connection (a dropped network path) left a query waiting forever:
+    # one request was seen to hang for 71 minutes. Fail it instead.
+    db_connect_timeout_seconds: int = 10
+    db_command_timeout_seconds: int = 120
     db_pool_timeout_seconds: int = 30
 
     # JWT Verification Key

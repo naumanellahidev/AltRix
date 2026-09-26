@@ -170,14 +170,18 @@ export function InquiriesModule() {
       // 3. Load active counselors / staff members
       const { data: counselorData } = await api
         .from("user_roles")
-        .select("user_id, profiles(full_name)")
+        .select("user_id, profiles(display_name, email)")
         .eq("school_id", schoolId)
         .in("role", ["counselor", "principal", "vice_principal", "school_admin"]);
 
+      // profiles has display_name (there is no full_name, so every name
+      // read as "Staff Member"); one entry per person, whatever their roles.
+      const seenCounselors = new Set<string>();
       const mappedCounselors: Counselor[] = (counselorData || [])
-        .map(c => ({
+        .filter((c: any) => !seenCounselors.has(c.user_id) && seenCounselors.add(c.user_id))
+        .map((c: any) => ({
           id: c.user_id,
-          display_name: (c.profiles as any)?.full_name || "Staff Member",
+          display_name: c.profiles?.display_name || c.profiles?.email || "Unnamed staff member",
         }));
       setCounselors(mappedCounselors);
 

@@ -22,9 +22,18 @@ celery_app = Celery(
 )
 
 celery_app.conf.update(
-    # Fail-fast settings if Redis is down
+    # Fail-fast settings if Redis is down. Without the transport options the
+    # result backend retried 20 times (about a minute) inside the request that
+    # queued the task, and a login waited that long for Redis to come back.
     broker_connection_retry_on_startup=False,
     broker_connection_max_retries=2,
+    broker_connection_timeout=2,
+    broker_transport_options={"max_retries": 1, "interval_start": 0, "interval_step": 0.5, "interval_max": 1,
+                              "socket_connect_timeout": 2, "socket_timeout": 3},
+    result_backend_transport_options={"retry_policy": {"max_retries": 1, "interval_start": 0,
+                                                       "interval_step": 0.5, "interval_max": 1}},
+    redis_socket_connect_timeout=2,
+    redis_socket_timeout=3,
     task_publish_retry=False,
 
     # Serialization
@@ -92,3 +101,22 @@ celery_app.conf.update(
         "app.tasks.backup_tasks.*": {"queue": "default"},
     },
 )
+
+
+async def enqueue(task, *, timeout: float = 3.0, **options):
+    """
+    Queue a Celery task from async code without holding up the server.
+
+    ``apply_async`` is a blocking network call. Made directly inside a request
+    it froze the event loop, and with it every other request, for as long as
+    Redis took to answer or fail. It now runs in a worker thread, bounded by
+    ``timeout``; a task that cannot be queued is logged and reported as None.
+    """
+    import asyncio
+    import logging
+
+    try:
+        return await asyncio.wait_for(asyncio.to_thread(task.apply_async, **options), timeout)
+    except Exception as e:
+        logging.getLogger("app.celery").warning(f"Could not queue {getattr(task, 'name', task)}: {e!r}")
+        return None

@@ -41,6 +41,7 @@ import { toast } from "sonner";
 import { generateVoucherPdf, prepareVoucherData, type VoucherCopyData, voucherFileName } from "@/lib/fee-voucher-pdf";
 import { lateFeeTerms, loadSchoolVoucherMeta, voucherStatusFor } from "@/lib/voucher-data";
 import { atLeastZero, subtract } from "@/lib/documents/decimal";
+import { money } from "@/lib/documents/format";
 import { ManualProofUploadDialog } from "@/components/fees/ManualProofUploadDialog";
 import {
   type FeeCertificatePayment,
@@ -426,9 +427,12 @@ export default function ParentFeesModule({ child, schoolId }: ParentFeesModulePr
     });
   }, [invoices, invSearch, invStatus]);
 
-  const outstandingVal = dashboardData?.total_due ?? 0;
-  const totalPaidVal = dashboardData?.total_paid ?? 0;
-  const overdueVal = dashboardData?.overdue_amount ?? 0;
+  // Exact amounts from the server; "—" until they have loaded (or if they
+  // could not be), never a zero the family would read as "nothing owed".
+  const currency = dashboardData?.currency || "PKR";
+  const outstandingVal = money(dashboardData?.total_due ?? null, { currency });
+  const totalPaidVal = money(dashboardData?.total_paid ?? null, { currency });
+  const overdueVal = money(dashboardData?.overdue_amount ?? null, { currency });
 
   if (!child) return null;
 
@@ -474,7 +478,7 @@ export default function ParentFeesModule({ child, schoolId }: ParentFeesModulePr
               <div>
                 <p className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-muted-foreground">Total Pending</p>
                 <h3 className="text-xl sm:text-2xl font-bold font-display tracking-tight text-foreground mt-1 sm:mt-2">
-                  PKR {outstandingVal.toLocaleString()}
+                  {outstandingVal}
                 </h3>
               </div>
               <Badge variant="destructive" className="font-semibold text-xs">Pending</Badge>
@@ -487,7 +491,7 @@ export default function ParentFeesModule({ child, schoolId }: ParentFeesModulePr
               <div>
                 <p className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-muted-foreground">Total Paid</p>
                 <h3 className="text-xl sm:text-2xl font-bold font-display tracking-tight text-foreground mt-1 sm:mt-2">
-                  PKR {totalPaidVal.toLocaleString()}
+                  {totalPaidVal}
                 </h3>
               </div>
               <Badge variant="default" className="font-semibold bg-primary text-xs">Completed</Badge>
@@ -500,7 +504,7 @@ export default function ParentFeesModule({ child, schoolId }: ParentFeesModulePr
               <div>
                 <p className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-muted-foreground">Overdue Amount</p>
                 <h3 className="text-xl sm:text-2xl font-bold font-display tracking-tight text-amber-600 mt-1 sm:mt-2">
-                  PKR {overdueVal.toLocaleString()}
+                  {overdueVal}
                 </h3>
               </div>
               <Badge className="font-semibold bg-amber-500 hover:bg-amber-600 text-white text-xs">Overdue</Badge>
@@ -582,7 +586,7 @@ export default function ParentFeesModule({ child, schoolId }: ParentFeesModulePr
                       {format(new Date(inv.due_date), "MMM d, yyyy")}
                     </TableCell>
                     <TableCell className="text-right font-semibold">
-                      PKR {inv.total_amount.toLocaleString()}
+                      {money(inv.total_amount, { currency: "PKR" })}
                     </TableCell>
                     <TableCell className="text-center">
                       <Badge
@@ -712,7 +716,7 @@ export default function ParentFeesModule({ child, schoolId }: ParentFeesModulePr
                 <div className="grid grid-cols-2 gap-4 bg-muted/40 p-4 rounded-xl text-sm">
                   <div>
                     <span className="text-xs text-muted-foreground block">Plan Amount</span>
-                    <span className="font-bold">PKR {selectedPlanDetails.plan.total_amount.toLocaleString()}</span>
+                    <span className="font-bold">{money(selectedPlanDetails.plan.total_amount, { currency: "PKR" })}</span>
                   </div>
                   <div>
                     <span className="text-xs text-muted-foreground block">Splits</span>
@@ -736,7 +740,7 @@ export default function ParentFeesModule({ child, schoolId }: ParentFeesModulePr
                         <TableRow key={inst.id}>
                           <TableCell className="font-medium">#{inst.installment_number}</TableCell>
                           <TableCell className="text-xs">{format(new Date(inst.due_date), "MMM d, yyyy")}</TableCell>
-                          <TableCell className="text-right font-semibold">PKR {inst.amount.toLocaleString()}</TableCell>
+                          <TableCell className="text-right font-semibold">{money(inst.amount, { currency: "PKR" })}</TableCell>
                           <TableCell className="text-center">
                             <Badge
                               variant={inst.status === "paid" ? "default" : "outline"}
