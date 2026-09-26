@@ -15,7 +15,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.dependencies import get_current_user, AuthenticatedUser
+from app.dependencies import get_current_user, AuthenticatedUser, CurrentUser
 
 router = APIRouter(prefix="/functions", tags=["Edge Functions Replacement"])
 logger = logging.getLogger("app.functions")
@@ -126,6 +126,15 @@ async def staff_governance(
         actor_uid = current_user.id
 
     action = body.action.strip()
+
+    # The target must be someone this caller may manage: a member of this
+    # school, below the caller's role, never a platform account, and (for a
+    # password or email) not someone who also belongs to another school. This
+    # checked only the caller, so any principal or HR manager could reset the
+    # password or email of any account on the platform, and grant any role.
+    from app.utils.accounts import check_governance_target
+    if action in ("set_password", "set_roles", "set_email", "deactivate"):
+        await check_governance_target(db, school_id, actor_uid, target_uid, action, body.roles)
 
     if action == "set_password":
         pwd = (body.password or "").strip()
@@ -302,6 +311,11 @@ async def invite_user(
     except ValueError:
         actor_uid = current_user.id
 
+    # The role must be one this caller may give (it was taken as sent: an HR
+    # manager could invite someone as the school's owner).
+    from app.utils.accounts import check_grantable, ensure_account
+    await check_grantable(db, school_id, actor_uid, [body.role])
+
     # Determine the campus_id for the invited user
     target_campus_id = None
     is_owner_or_psa = False
@@ -403,67 +417,10 @@ async def invite_user(
 
         return {"ok": True, "userId": str(invitation_id), "status": "invited", "invitationId": str(invitation_id)}
 
-    # Direct password creation (legacy fallback)
-    if len(pwd) < 8:
-        raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
-
-    # Check if user exists in auth.users
-    res_u = await db.execute(
-        text("SELECT id FROM auth.users WHERE LOWER(TRIM(email)) = :email LIMIT 1"),
-        {"email": invite_email}
-    )
-    existing_user = res_u.fetchone()
-
-    # Securely hash password in Python using bcrypt
-    hashed_pwd = bcrypt.hashpw(pwd.encode("utf-8"), bcrypt.gensalt(10)).decode("utf-8")
-
-    if existing_user:
-        user_id = existing_user.id
-        await db.execute(
-            text("""
-                UPDATE auth.users
-                SET encrypted_password = :hashed_pwd,
-                    email_confirmed_at = COALESCE(email_confirmed_at, NOW()),
-                    updated_at = NOW()
-                WHERE id = :uid
-            """),
-            {"hashed_pwd": hashed_pwd, "uid": user_id}
-        )
-    else:
-        user_id = uuid.uuid4()
-        raw_app_meta = json.dumps({"provider": "email", "providers": ["email"]})
-        raw_user_meta = json.dumps({"full_name": body.displayName or invite_email.split('@')[0], "name": body.displayName or invite_email.split('@')[0]})
-        await db.execute(
-            text("""
-                INSERT INTO auth.users (
-                    id, email, encrypted_password, email_confirmed_at,
-                    raw_app_meta_data, raw_user_meta_data, created_at, updated_at, aud, role
-                ) VALUES (
-                    :uid, :email, :hashed_pwd, NOW(),
-                    CAST(:app_meta AS jsonb), CAST(:user_meta AS jsonb), NOW(), NOW(), 'authenticated', 'authenticated'
-                )
-            """),
-            {
-                "uid": user_id,
-                "email": invite_email,
-                "hashed_pwd": hashed_pwd,
-                "app_meta": raw_app_meta,
-                "user_meta": raw_user_meta,
-            }
-        )
-
-    # Upsert Profile (display_name is the DB column)
-    await db.execute(
-        text("""
-            INSERT INTO public.profiles (id, email, display_name, updated_at)
-            VALUES (:uid, :email, :dname, NOW())
-            ON CONFLICT (id) DO UPDATE SET
-                email = EXCLUDED.email,
-                display_name = COALESCE(EXCLUDED.display_name, profiles.display_name),
-                updated_at = NOW()
-        """),
-        {"uid": user_id, "email": invite_email, "dname": body.displayName or invite_email.split('@')[0]}
-    )
+    # Direct password creation. An account that already exists keeps its
+    # password: this overwrote it, so entering any account's email here took
+    # that account over.
+    user_id, _created = await ensure_account(db, invite_email, pwd, body.displayName)
 
     # Upsert Membership
     await db.execute(
@@ -515,6 +472,7 @@ async def bulk_staff_import(
     school = await _resolve_school_and_authorize(db, body.schoolSlug, current_user.id)
     school_id = school["id"]
     results = []
+    from app.utils.accounts import check_grantable, check_governance_target, ensure_account, is_member
 
     try:
         actor_uid = uuid.UUID(current_user.id) if isinstance(current_user.id, str) else current_user.id
@@ -547,57 +505,31 @@ async def bulk_staff_import(
             })
             continue
 
-        if body.mode == "commit":
-            # Check or create user
-            res_u = await db.execute(
-                text("SELECT id FROM auth.users WHERE LOWER(TRIM(email)) = :email LIMIT 1"),
-                {"email": row_email}
-            )
-            existing = res_u.fetchone()
-            # Securely hash password in Python using bcrypt
-            hashed_pwd = bcrypt.hashpw(pwd.encode("utf-8"), bcrypt.gensalt(10)).decode("utf-8")
-            if existing:
-                uid = existing.id
-                await db.execute(
-                    text("UPDATE auth.users SET encrypted_password = :hashed_pwd, email_confirmed_at = COALESCE(email_confirmed_at, NOW()), updated_at = NOW() WHERE id = :uid"),
-                    {"hashed_pwd": hashed_pwd, "uid": uid}
-                )
-            else:
-                uid = uuid.uuid4()
-                raw_app_meta = json.dumps({"provider": "email", "providers": ["email"]})
-                raw_user_meta = json.dumps({"full_name": dname or row_email.split('@')[0], "name": dname or row_email.split('@')[0]})
-                await db.execute(
-                    text("""
-                        INSERT INTO auth.users (
-                            id, email, encrypted_password, email_confirmed_at,
-                            raw_app_meta_data, raw_user_meta_data, created_at, updated_at, aud, role
-                        ) VALUES (
-                            :uid, :email, :hashed_pwd, NOW(),
-                            CAST(:app_meta AS jsonb), CAST(:user_meta AS jsonb), NOW(), NOW(), 'authenticated', 'authenticated'
-                        )
-                    """),
-                    {
-                        "uid": uid,
-                        "email": row_email,
-                        "hashed_pwd": hashed_pwd,
-                        "app_meta": raw_app_meta,
-                        "user_meta": raw_user_meta,
-                    }
-                )
+        # Only roles this caller may give (any role was taken as sent).
+        try:
+            await check_grantable(db, school_id, actor_uid, roles)
+        except HTTPException as exc:
+            results.append({"rowNumber": row_num, "email": row_email, "ok": False,
+                            "errors": [exc.detail], "normalizedRoles": roles})
+            continue
 
-            # Profile & Phone (display_name is the DB column)
-            await db.execute(
-                text("""
-                    INSERT INTO public.profiles (id, email, display_name, phone, updated_at)
-                    VALUES (:uid, :email, :dname, :phone, NOW())
-                    ON CONFLICT (id) DO UPDATE SET
-                        email = EXCLUDED.email,
-                        display_name = COALESCE(EXCLUDED.display_name, profiles.display_name),
-                        phone = COALESCE(EXCLUDED.phone, profiles.phone),
-                        updated_at = NOW()
-                """),
-                {"uid": uid, "email": row_email, "dname": dname or row_email.split('@')[0], "phone": phone}
-            )
+        if body.mode == "commit":
+            # An existing account keeps its password (this overwrote it: an
+            # import row with anyone's email took their account over), and a
+            # member at or above the caller keeps their roles.
+            try:
+                uid, created = await ensure_account(db, row_email, pwd, dname)
+                if not created and await is_member(db, school_id, uid):
+                    await check_governance_target(db, school_id, actor_uid, uid, "set_roles", roles)
+            except HTTPException as exc:
+                results.append({"rowNumber": row_num, "email": row_email, "ok": False,
+                                "errors": [exc.detail], "normalizedRoles": roles})
+                continue
+            if phone:
+                await db.execute(
+                    text("UPDATE public.profiles SET phone = COALESCE(phone, :phone) WHERE id = :uid"),
+                    {"phone": phone, "uid": uid},
+                )
 
             # Membership
             await db.execute(
@@ -638,6 +570,400 @@ async def bulk_staff_import(
         await db.commit()
 
     return {"ok": True, "results": results}
+
+
+# ── Platform: schools ─────────────────────────────────────────────────────────
+#
+# Ported from supabase/functions. The platform's "Create school" form, and its
+# "unlock bootstrap" button, called functions this server did not have, so a
+# new school could not be created from the platform at all.
+
+
+def _json(data: Dict[str, Any], status_code: int = 200):
+    from fastapi.responses import JSONResponse
+    return JSONResponse({"traceId": str(uuid.uuid4()), **data}, status_code=status_code)
+
+
+async def _require_platform_admin(db: AsyncSession, user_id) -> None:
+    from app.utils.accounts import is_platform_admin
+    if not await is_platform_admin(db, user_id):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the platform administrator can do this.")
+
+
+class CreateSchoolRequest(BaseModel):
+    slug: str
+    name: Optional[str] = None
+    isActive: Optional[bool] = True
+    principalEmail: str
+    principalPassword: Optional[str] = None
+    principalDisplayName: Optional[str] = None
+    ownerUserId: Optional[str] = None
+    ownerEmail: Optional[str] = None
+    ownerPassword: Optional[str] = None
+    ownerDisplayName: Optional[str] = None
+
+
+async def _add_to_school(db: AsyncSession, school_id, user_id, role: str) -> None:
+    await db.execute(
+        text("INSERT INTO public.school_memberships (school_id, user_id, status) VALUES (:s, :u, 'active') "
+             "ON CONFLICT (school_id, user_id) DO UPDATE SET status = 'active'"),
+        {"s": school_id, "u": user_id},
+    )
+    await db.execute(
+        text("INSERT INTO public.user_roles (school_id, user_id, role) VALUES (:s, :u, :r) "
+             "ON CONFLICT (school_id, user_id, role) DO NOTHING"),
+        {"s": school_id, "u": user_id, "r": role},
+    )
+
+
+@router.post("/eduverse-admin-create-school")
+async def admin_create_school(
+    body: CreateSchoolRequest,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Create (or update) a school with its first principal, and optionally its
+    owner. An account that already exists is added to the school with its own
+    password left as it is: the original reset it, so creating a school with
+    someone's email as principal took their account over.
+    """
+    import re as _re
+    from app.utils.accounts import ensure_account
+
+    await _require_platform_admin(db, current_user.id)
+    slug = _re.sub(r"[^a-z0-9-]", "", (body.slug or "").strip().lower())
+    if not slug:
+        return _json({"ok": False, "error": "Invalid slug"}, 400)
+    name = (body.name or slug).strip()
+    principal_email = (body.principalEmail or "").strip().lower()
+    if "@" not in principal_email:
+        return _json({"ok": False, "error": "Invalid principal email"}, 400)
+
+    try:
+        row = (await db.execute(
+            text("INSERT INTO public.schools (id, slug, name, is_active, created_at, updated_at) "
+                 "VALUES (gen_random_uuid(), :slug, :name, :active, NOW(), NOW()) "
+                 "ON CONFLICT (slug) DO UPDATE SET name = EXCLUDED.name, is_active = EXCLUDED.is_active, updated_at = NOW() "
+                 "RETURNING id, slug, name, is_active"),
+            {"slug": slug, "name": name, "active": body.isActive if body.isActive is not None else True},
+        )).mappings().first()
+        school = dict(row)
+        school_id = school["id"]
+        await db.execute(
+            text("INSERT INTO public.school_branding (school_id) VALUES (:s) ON CONFLICT (school_id) DO NOTHING"),
+            {"s": school_id},
+        )
+
+        principal_id, principal_created = await ensure_account(
+            db, principal_email, body.principalPassword, body.principalDisplayName or "Principal")
+        await _add_to_school(db, school_id, principal_id, "principal")
+
+        owner_id = None
+        owner_existed = False
+        if body.ownerUserId:
+            exists = (await db.execute(text("SELECT email FROM auth.users WHERE id = CAST(:u AS uuid)"),
+                                       {"u": body.ownerUserId})).first()
+            if not exists:
+                await db.rollback()
+                return _json({"ok": False, "error": f"Selected owner user does not exist (id={body.ownerUserId})."}, 404)
+            owner_id = body.ownerUserId
+        elif body.ownerEmail:
+            owner_email = body.ownerEmail.strip().lower()
+            if "@" not in owner_email:
+                await db.rollback()
+                return _json({"ok": False, "error": "Invalid owner email."}, 400)
+            found = (await db.execute(text("SELECT id FROM auth.users WHERE LOWER(TRIM(email)) = :e LIMIT 1"),
+                                      {"e": owner_email})).first()
+            if not found and not body.ownerPassword:
+                await db.rollback()
+                return _json({
+                    "ok": False, "code": "owner_email_not_found",
+                    "error": f"No existing user found for {owner_email}. Provide a password to create a new owner "
+                             "account, or pick from the existing owners list.",
+                }, 404)
+            owner_id, _ = await ensure_account(db, owner_email, body.ownerPassword, body.ownerDisplayName or "School Owner")
+
+        if owner_id:
+            owner_existed = (await db.execute(
+                text("SELECT 1 FROM public.school_owner_assignments WHERE school_id = :s AND owner_user_id = CAST(:u AS uuid)"),
+                {"s": school_id, "u": str(owner_id)},
+            )).first() is not None
+            await _add_to_school(db, school_id, owner_id, "school_owner")
+            if not owner_existed:
+                await db.execute(
+                    text("INSERT INTO public.school_owner_assignments (school_id, owner_user_id, created_by) "
+                         "VALUES (:s, CAST(:u AS uuid), CAST(:a AS uuid)) ON CONFLICT DO NOTHING"),
+                    {"s": school_id, "u": str(owner_id), "a": str(current_user.id)},
+                )
+
+        await db.execute(
+            text("INSERT INTO public.school_bootstrap (school_id, locked, bootstrapped_at) VALUES (:s, true, NOW()) "
+                 "ON CONFLICT (school_id) DO UPDATE SET locked = true, bootstrapped_at = COALESCE(school_bootstrap.bootstrapped_at, NOW())"),
+            {"s": school_id},
+        )
+        await db.execute(
+            text("INSERT INTO public.audit_logs (school_id, actor_user_id, action, resource_type, entity_type, resource_id, entity_id, metadata) "
+                 "VALUES (:s, CAST(:a AS uuid), 'school_created_direct', 'school', 'school', :slug, :slug, CAST(:m AS jsonb))"),
+            {"s": school_id, "a": str(current_user.id), "slug": slug,
+             "m": json.dumps({"principalEmail": principal_email, "principalAccountCreated": principal_created,
+                              "ownerUserId": str(owner_id) if owner_id else None, "ownerAssignmentExisted": owner_existed})},
+        )
+        await db.commit()
+    except HTTPException as exc:
+        await db.rollback()
+        return _json({"ok": False, "error": exc.detail}, exc.status_code)
+
+    return _json({
+        "ok": True,
+        "school": {k: (str(v) if k == "id" else v) for k, v in school.items()},
+        "principalUserId": str(principal_id),
+        # An existing account keeps its own password; the form's password
+        # applies only to a newly created one.
+        "principalAccountCreated": principal_created,
+        "ownerUserId": str(owner_id) if owner_id else None,
+        "ownerAssignmentExisted": owner_existed,
+    })
+
+
+class UnlockBootstrapRequest(BaseModel):
+    schoolSlug: str
+
+
+@router.post("/eduverse-admin-unlock-bootstrap")
+async def admin_unlock_bootstrap(
+    body: UnlockBootstrapRequest,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    await _require_platform_admin(db, current_user.id)
+    slug = (body.schoolSlug or "").strip().lower()
+    school = (await db.execute(text("SELECT id, slug, name FROM public.schools WHERE slug = :s"), {"s": slug})).mappings().first()
+    if not school:
+        return _json({"ok": False, "error": "School not found"}, 404)
+    await db.execute(
+        text("INSERT INTO public.school_bootstrap (school_id, locked, bootstrapped_at) VALUES (:s, false, NULL) "
+             "ON CONFLICT (school_id) DO UPDATE SET locked = false, bootstrapped_at = NULL"),
+        {"s": school["id"]},
+    )
+    await db.execute(
+        text("INSERT INTO public.audit_logs (school_id, actor_user_id, action, resource_type, entity_type, resource_id, entity_id, metadata) "
+             "VALUES (:s, CAST(:a AS uuid), 'bootstrap_unlocked', 'school', 'school', :slug, :slug, '{}'::jsonb)"),
+        {"s": school["id"], "a": str(current_user.id), "slug": slug},
+    )
+    await db.commit()
+    return _json({"ok": True, "school": {"id": str(school["id"]), "slug": school["slug"], "name": school["name"]}})
+
+
+#: Functions deliberately not carried over from Supabase, with the reason the
+#: caller shows instead of "not implemented".
+_NOT_OFFERED = {
+    "eduverse-bootstrap": (
+        "Schools are set up by the platform administrator (Platform, Schools, Create school). "
+        "Setting up a school from its own page with a shared secret made the person a platform "
+        "administrator, so it is not offered."
+    ),
+    "eduverse-recover-master": (
+        "The platform account is recovered with a password reset from the sign-in page. Creating a "
+        "new platform administrator with a shared secret is not offered."
+    ),
+    "eduverse-admin-impersonate": (
+        "Signing in as another user is not available. Reset their password or check their screens "
+        "with them instead."
+    ),
+}
+
+
+@router.post("/eduverse-bootstrap")
+@router.post("/eduverse-recover-master")
+@router.post("/eduverse-admin-impersonate")
+async def not_offered(request: Request):
+    name = request.url.path.rstrip("/").rsplit("/", 1)[-1]
+    return _json({"ok": False, "code": "not_offered", "error": _NOT_OFFERED.get(name, "Not available.")}, 410)
+
+
+# ── Early warnings ────────────────────────────────────────────────────────────
+#
+# Ported from supabase/functions/ai-early-warning (rule-based; it never used a
+# model). Nothing on this server wrote ai_early_warnings, so every Early
+# Warning panel said "All Clear!" for every school. Changes from the original:
+# a student with no attendance records is not "100% present" (no dropout
+# check without records); behaviour concerns are the note types this school
+# records (concern, incident); missing work is counted from assignments due
+# for the student's section with no submission (no row says "missing"); all
+# students, not the first 50; and only staff of the caller's own school.
+
+class EarlyWarningRequest(BaseModel):
+    schoolId: Optional[str] = None
+
+
+_EWS_SQL = """
+WITH roll AS (
+    SELECT s.id, trim(concat_ws(' ', s.first_name, s.last_name)) AS name, s.campus_id
+    FROM public.students s
+    WHERE s.school_id = CAST(:sid AS uuid)
+      AND (s.status IS NULL OR s.status NOT IN ('inactive', 'withdrawn', 'graduated', 'deleted'))
+),
+att AS (
+    SELECT a.student_id,
+           COUNT(*) AS total,
+           COUNT(*) FILTER (WHERE a.status IN ('present', 'late')) AS present,
+           COUNT(*) FILTER (WHERE a.status = 'absent') AS absent
+    FROM public.attendance_entries a
+    WHERE a.school_id = CAST(:sid AS uuid) AND a.created_at >= NOW() - INTERVAL '30 days'
+    GROUP BY a.student_id
+),
+marks AS (
+    SELECT student_id, COUNT(*) AS n, AVG(pct) AS avg_pct
+    FROM (
+        SELECT m.student_id, (m.marks / NULLIF(COALESCE(m.max_marks, aa.max_marks), 0)) * 100 AS pct,
+               ROW_NUMBER() OVER (PARTITION BY m.student_id ORDER BY m.created_at DESC) AS rn
+        FROM public.student_marks m
+        LEFT JOIN public.academic_assessments aa ON aa.id = m.assessment_id
+        WHERE m.school_id = CAST(:sid AS uuid) AND m.marks IS NOT NULL
+    ) x
+    WHERE rn <= 10 AND pct IS NOT NULL
+    GROUP BY student_id
+),
+beh AS (
+    SELECT b.student_id, COUNT(*) AS concerns
+    FROM public.behavior_notes b
+    WHERE b.school_id = CAST(:sid AS uuid) AND b.created_at >= NOW() - INTERVAL '30 days'
+      AND lower(b.note_type) IN ('concern', 'incident', 'warning')
+    GROUP BY b.student_id
+),
+missing AS (
+    SELECT e.student_id, COUNT(*) AS n
+    FROM public.student_enrollments e
+    JOIN public.assignments asg ON asg.class_section_id = e.class_section_id
+    WHERE e.school_id = CAST(:sid AS uuid) AND e.end_date IS NULL
+      AND asg.due_date >= NOW() - INTERVAL '30 days' AND asg.due_date < NOW()
+      AND NOT EXISTS (SELECT 1 FROM public.assignment_submissions sub
+                      WHERE sub.assignment_id = asg.id AND sub.student_id = e.student_id)
+    GROUP BY e.student_id
+)
+SELECT r.id, r.name, r.campus_id,
+       att.total AS att_total, att.present AS att_present, att.absent AS att_absent,
+       marks.n AS marks_n, marks.avg_pct,
+       COALESCE(beh.concerns, 0) AS concerns,
+       COALESCE(missing.n, 0) AS missing
+FROM roll r
+LEFT JOIN att ON att.student_id = r.id
+LEFT JOIN marks ON marks.student_id = r.id
+LEFT JOIN beh ON beh.student_id = r.id
+LEFT JOIN missing ON missing.student_id = r.id
+"""
+
+
+def early_warnings_for(row: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """The warnings one student's figures call for (the original rules)."""
+    out: List[Dict[str, Any]] = []
+    name = row["name"] or "Student"
+    total = int(row.get("att_total") or 0)
+    if total:
+        rate = int(row["att_present"] or 0) * 100.0 / total
+        absent = int(row["att_absent"] or 0)
+        # A rate from one or two marked days is not a pattern: one absence out
+        # of one day read as "0%, critical dropout risk".
+        if (total >= 5 and rate < 70) or absent > 10:
+            out.append({
+                "warning_type": "dropout_risk",
+                "severity": "critical" if rate < 50 else "high" if rate < 60 else "medium",
+                "title": f"Dropout Risk: {name}",
+                "description": f"Attendance rate is {rate:.0f}% with {absent} absences in the last 30 days.",
+                "detected_patterns": [f"Attendance rate: {rate:.0f}%", f"Absences: {absent}"],
+                "recommended_actions": ["Schedule parent meeting", "Assign a mentor teacher", "Review home situation"],
+            })
+    n = int(row.get("marks_n") or 0)
+    if n >= 3 and row.get("avg_pct") is not None and float(row["avg_pct"]) < 40:
+        avg = float(row["avg_pct"])
+        out.append({
+            "warning_type": "academic_decline",
+            "severity": "critical" if avg < 30 else "high",
+            "title": f"Academic Decline: {name}",
+            "description": f"Average of the last {n} marks is {avg:.0f}%.",
+            "detected_patterns": [f"Current average: {avg:.0f}%", f"Assessments analysed: {n}"],
+            "recommended_actions": ["Provide remedial classes", "Assign peer tutor", "Review learning style"],
+        })
+    concerns = int(row.get("concerns") or 0)
+    if concerns >= 3:
+        out.append({
+            "warning_type": "emotional_stress",
+            "severity": "high" if concerns >= 5 else "medium",
+            "title": f"Emotional Concern: {name}",
+            "description": f"{concerns} concern or incident notes in the last 30 days.",
+            "detected_patterns": [f"Concern notes: {concerns}"],
+            "recommended_actions": ["Schedule counseling session", "Inform parents", "Monitor closely"],
+        })
+    missing = int(row.get("missing") or 0)
+    if missing >= 3:
+        out.append({
+            "warning_type": "engagement_drop",
+            "severity": "high" if missing >= 5 else "medium",
+            "title": f"Engagement Drop: {name}",
+            "description": f"{missing} assignments due in the last 30 days were not handed in.",
+            "detected_patterns": [f"Missing submissions: {missing}"],
+            "recommended_actions": ["Check with class teacher", "Review workload", "Contact parents"],
+        })
+    return out
+
+
+async def _staff_school(db: AsyncSession, current_user, requested: Optional[str]):
+    """The caller's school, for a member of its staff (never a family account)."""
+    from app.utils.accounts import is_platform_admin
+    school_id = current_user.school_id
+    if requested and str(requested) != str(school_id):
+        if not await is_platform_admin(db, current_user.id):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="That is not your school.")
+        school_id = requested
+    if not school_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No school selected.")
+    roles = set(current_user.roles or [])
+    if not (roles - {"parent", "student"}) and not await is_platform_admin(db, current_user.id):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only staff can do this.")
+    return school_id
+
+
+@router.post("/ai-early-warning")
+async def ai_early_warning(
+    body: EarlyWarningRequest,
+    current_user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+):
+    school_id = await _staff_school(db, current_user, body.schoolId)
+    rows = (await db.execute(text(_EWS_SQL), {"sid": str(school_id)})).mappings().all()
+    active = {
+        (str(r[0]), r[1]) for r in (await db.execute(
+            text("SELECT student_id, warning_type FROM public.ai_early_warnings "
+                 "WHERE school_id = CAST(:sid AS uuid) AND status = 'active'"),
+            {"sid": str(school_id)},
+        )).fetchall()
+    }
+    generated: List[Dict[str, Any]] = []
+    created = 0
+    for row in rows:
+        for w in early_warnings_for(dict(row)):
+            w = {**w, "student_id": str(row["id"]), "student_name": row["name"]}
+            generated.append(w)
+            if (w["student_id"], w["warning_type"]) in active:
+                continue  # already raised and not yet dealt with
+            await db.execute(
+                text("INSERT INTO public.ai_early_warnings (school_id, campus_id, student_id, warning_type, severity, "
+                     "title, description, detected_patterns, recommended_actions, status) VALUES "
+                     "(CAST(:sid AS uuid), :cid, CAST(:stu AS uuid), :wt, :sev, :title, :descr, :pat, :act, 'active')"),
+                {"sid": str(school_id), "cid": row["campus_id"], "stu": w["student_id"], "wt": w["warning_type"],
+                 "sev": w["severity"], "title": w["title"], "descr": w["description"],
+                 "pat": w["detected_patterns"], "act": w["recommended_actions"]},
+            )
+            created += 1
+    await db.commit()
+    return {
+        "success": True,
+        "students_checked": len(rows),
+        "warnings_generated": len(generated),
+        "new_warnings": created,
+        "warnings": generated[:20],
+    }
 
 
 @router.post("/{function_name}")

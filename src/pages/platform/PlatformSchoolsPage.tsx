@@ -243,6 +243,9 @@ export default function PlatformSchoolsPage() {
             ? "School created + principal set (owner was already assigned)"
             : "School created + principal set + owner assigned"
           : "School created + principal set",
+        (data as any)?.principalAccountCreated === false
+          ? { description: "The principal already had an account: it was added to this school and keeps its own password." }
+          : undefined,
       );
       setNewSlug("");
       setNewName("");

@@ -1500,16 +1500,23 @@ function StudentAssignmentRow({
   );
 }
 
+// The server never sends a stored gateway secret back, only whether one is set
+// ("<column>_set"). A blank field on save keeps the stored value.
+const secretHint = (isSet?: boolean) => (isSet ? "Saved. Leave blank to keep it." : "Not set");
+const withoutSetFlags = (row: Record<string, any>) =>
+  Object.fromEntries(Object.entries(row).filter(([k]) => !k.endsWith("_set")));
+
 // ---------------- JazzCash settings ----------------
 function JazzCashSettingsCard({ schoolId }: { schoolId: string }) {
-  const [s, setS] = useState({ is_enabled: false, environment: "sandbox" as "sandbox" | "production", merchant_id: "", merchant_password: "", integrity_salt: "", return_url: "" });
+  const [s, setS] = useState<any>({ is_enabled: false, environment: "sandbox" as "sandbox" | "production", merchant_id: "", merchant_password: "", integrity_salt: "", return_url: "" });
   useEffect(() => {
     if (!schoolId) return;
-    api.from("jazzcash_settings").select("*").eq("school_id", schoolId).maybeSingle().then(({ data }) => { if (data) setS(data as any); });
+    api.from("jazzcash_settings").select("*").eq("school_id", schoolId).maybeSingle().then(({ data }) => { if (data) setS({ ...(data as any), merchant_password: "", integrity_salt: "" }); });
   }, [schoolId]);
   const save = async () => {
-    const { error } = await api.from("jazzcash_settings").upsert({ ...s, school_id: schoolId } as any, { onConflict: "school_id" });
+    const { error } = await api.from("jazzcash_settings").upsert({ ...withoutSetFlags(s), school_id: schoolId } as any, { onConflict: "school_id" });
     if (error) return toast.error(error.message);
+    setS({ ...s, merchant_password_set: s.merchant_password_set || !!s.merchant_password, integrity_salt_set: s.integrity_salt_set || !!s.integrity_salt, merchant_password: "", integrity_salt: "" });
     toast.success("JazzCash settings saved");
   };
   return (
@@ -1524,8 +1531,8 @@ function JazzCashSettingsCard({ schoolId }: { schoolId: string }) {
           </Select>
         </div>
         <div><Label>Merchant ID</Label><Input value={s.merchant_id || ""} onChange={e => setS({ ...s, merchant_id: e.target.value })} /></div>
-        <div><Label>Merchant Password</Label><Input type="password" value={s.merchant_password || ""} onChange={e => setS({ ...s, merchant_password: e.target.value })} /></div>
-        <div><Label>Integrity Salt</Label><Input type="password" value={s.integrity_salt || ""} onChange={e => setS({ ...s, integrity_salt: e.target.value })} /></div>
+        <div><Label>Merchant Password</Label><Input type="password" autoComplete="new-password" placeholder={secretHint(s.merchant_password_set)} value={s.merchant_password || ""} onChange={e => setS({ ...s, merchant_password: e.target.value })} /></div>
+        <div><Label>Integrity Salt</Label><Input type="password" autoComplete="new-password" placeholder={secretHint(s.integrity_salt_set)} value={s.integrity_salt || ""} onChange={e => setS({ ...s, integrity_salt: e.target.value })} /></div>
         <div><Label>Return URL (optional)</Label><Input value={s.return_url || ""} onChange={e => setS({ ...s, return_url: e.target.value })} placeholder="https://your-app/return" /></div>
         <div className="md:col-span-2"><Button onClick={save}>Save JazzCash settings</Button></div>
       </CardContent>
@@ -1535,20 +1542,24 @@ function JazzCashSettingsCard({ schoolId }: { schoolId: string }) {
 
 // ---------------- Easypaisa settings ----------------
 function EasypaisaSettingsCard({ schoolId }: { schoolId: string }) {
-  const [s, setS] = useState({ is_enabled: false, environment: "sandbox" as "sandbox" | "live", store_id: "", hash_key: "", account_number: "", return_url: "" });
+  const [s, setS] = useState<any>({ is_enabled: false, environment: "sandbox" as "sandbox" | "live", store_id: "", hash_key: "", account_number: "", return_url: "" });
   useEffect(() => {
     if (!schoolId) return;
-    api.from("easypaisa_settings").select("*").eq("school_id", schoolId).maybeSingle().then(({ data }) => { if (data) setS(data as any); });
+    api.from("easypaisa_settings").select("*").eq("school_id", schoolId).maybeSingle().then(({ data }) => { if (data) setS({ ...(data as any), hash_key: "" }); });
   }, [schoolId]);
   const save = async () => {
-    const { error } = await api.from("easypaisa_settings").upsert({ ...s, school_id: schoolId } as any, { onConflict: "school_id" });
+    const { error } = await api.from("easypaisa_settings").upsert({ ...withoutSetFlags(s), school_id: schoolId } as any, { onConflict: "school_id" });
     if (error) return toast.error(error.message);
+    setS({ ...s, hash_key_set: s.hash_key_set || !!s.hash_key, hash_key: "" });
     toast.success("Easypaisa settings saved");
   };
   return (
     <Card>
       <CardHeader><CardTitle>Easypaisa (Hosted Checkout)</CardTitle></CardHeader>
       <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <p className="md:col-span-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+          These settings are kept for the school, but online Easypaisa checkout is not available yet: parents cannot pay by Easypaisa until it is. JazzCash is the online option.
+        </p>
         <div className="flex items-center gap-3"><Switch checked={s.is_enabled} onCheckedChange={v => setS({ ...s, is_enabled: v })} /><Label>Enable Easypaisa payments</Label></div>
         <div><Label>Environment</Label>
           <Select value={s.environment} onValueChange={v => setS({ ...s, environment: v as any })}>
@@ -1557,7 +1568,7 @@ function EasypaisaSettingsCard({ schoolId }: { schoolId: string }) {
           </Select>
         </div>
         <div><Label>Store ID</Label><Input value={s.store_id || ""} onChange={e => setS({ ...s, store_id: e.target.value })} placeholder="e.g. 12345" /></div>
-        <div><Label>Hash Key</Label><Input type="password" value={s.hash_key || ""} onChange={e => setS({ ...s, hash_key: e.target.value })} /></div>
+        <div><Label>Hash Key</Label><Input type="password" autoComplete="new-password" placeholder={secretHint(s.hash_key_set)} value={s.hash_key || ""} onChange={e => setS({ ...s, hash_key: e.target.value })} /></div>
         <div><Label>Merchant Mobile Account #</Label><Input value={s.account_number || ""} onChange={e => setS({ ...s, account_number: e.target.value })} placeholder="03xxxxxxxxx" /></div>
         <div><Label>Return URL (optional)</Label><Input value={s.return_url || ""} onChange={e => setS({ ...s, return_url: e.target.value })} placeholder="https://your-app/return" /></div>
         <div className="md:col-span-2"><Button onClick={save}>Save Easypaisa settings</Button></div>

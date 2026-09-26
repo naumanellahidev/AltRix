@@ -157,6 +157,24 @@ export function EarlyWarningSystem({ schoolId, campusId }: Props) {
     },
   });
 
+  // Run the checks over attendance, marks, behaviour notes and missing work.
+  // Nothing ran them on these screens, so the panel said "All Clear!" for
+  // every school whatever its records showed.
+  const [checking, setChecking] = useState(false);
+  const [lastCheck, setLastCheck] = useState<{ at: Date; students: number } | null>(null);
+  const runCheck = async () => {
+    setChecking(true);
+    const { data, error } = await api.functions.invoke("ai-early-warning", { body: { schoolId } });
+    setChecking(false);
+    if (error) {
+      toast.error(`The check could not run: ${error.message}`);
+      return;
+    }
+    setLastCheck({ at: new Date(), students: Number((data as any)?.students_checked ?? 0) });
+    toast.success(`${(data as any)?.students_checked ?? 0} students checked, ${(data as any)?.new_warnings ?? 0} new warning(s)`);
+    qc.invalidateQueries({ queryKey: ["ai_early_warnings", schoolId] });
+  };
+
   if (isLoading) {
     return (
       <div className="space-y-4">
@@ -181,15 +199,21 @@ export function EarlyWarningSystem({ schoolId, campusId }: Props) {
           <div>
             <h2 className="font-display text-xl font-bold">Early Warning System</h2>
             <p className="text-sm text-muted-foreground">
-              AI-powered dropout prevention & intervention
+              Checks attendance, marks, behaviour notes and missing work for every student on the roll
             </p>
           </div>
         </div>
 
-        <Button variant="outline" size="sm" onClick={() => refetch()} className="gap-2">
-          <RefreshCw className="h-4 w-4" />
-          Refresh
-        </Button>
+        <div className="flex gap-2">
+          <Button size="sm" onClick={() => void runCheck()} disabled={checking || !schoolId} className="gap-2">
+            <Shield className="h-4 w-4" />
+            {checking ? "Checking…" : "Run check now"}
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => refetch()} className="gap-2">
+            <RefreshCw className="h-4 w-4" />
+            Refresh
+          </Button>
+        </div>
       </div>
 
       {/* Stats */}
@@ -368,10 +392,21 @@ export function EarlyWarningSystem({ schoolId, campusId }: Props) {
           ) : (
             <div className="py-12 text-center">
               <Shield className="mx-auto h-12 w-12 text-emerald-500/50" />
-              <p className="mt-4 font-medium text-emerald-600">All Clear!</p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                No active warnings at this time
-              </p>
+              {lastCheck ? (
+                <>
+                  <p className="mt-4 font-medium text-emerald-600">No warnings</p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {lastCheck.students} students checked at {format(lastCheck.at, "h:mm a")}: none met a warning rule.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="mt-4 font-medium">No active warnings recorded</p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Run the check to look at every student's attendance, marks, behaviour notes and missing work.
+                  </p>
+                </>
+              )}
             </div>
           )}
         </CardContent>

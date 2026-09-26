@@ -99,8 +99,10 @@ export const NAV_CATALOG: NavItem[] = [
   // Finance
   { key: "finance-dashboard", label: "Finance & Cashflow", icon: BarChart3, group: "finance", path: "finance",
     roles: ["super_admin","school_owner","principal","vice_principal","accountant"] },
+  // Fees follow the finance roles, as the server does (FINANCE_GOV): a school
+  // admin was shown this entry and every figure on it was refused.
   { key: "fees", label: "Fees Center", icon: DollarSign, group: "finance", path: "fees",
-    roles: ["super_admin","school_owner","principal","vice_principal","school_admin","accountant"] },
+    roles: ["super_admin","school_owner","principal","vice_principal","accountant"] },
   { key: "admin-fees", label: "Fee Configurations", icon: Settings, group: "finance", path: "admin-fees",
     roles: ["super_admin","school_owner","principal","vice_principal","accountant"] },
   { key: "invoices", label: "Invoices", icon: FileText, group: "finance", path: "invoices",

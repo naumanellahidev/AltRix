@@ -429,7 +429,7 @@ export function UsersModule() {
       if (typeof raw === "string") {
         try {
           const parsed = JSON.parse(raw);
-          throw new Error(parsed?.error ? String(parsed.error) : error.message);
+          throw new Error(typeof parsed?.detail === "string" ? parsed.detail : parsed?.error ? String(parsed.error) : error.message);
         } catch {
           throw new Error(error.message);
         }
@@ -446,7 +446,7 @@ export function UsersModule() {
       if (typeof raw === "string") {
         try {
           const parsed = JSON.parse(raw);
-          throw new Error(parsed?.error ? String(parsed.error) : error.message);
+          throw new Error(typeof parsed?.detail === "string" ? parsed.detail : parsed?.error ? String(parsed.error) : error.message);
         } catch {
           throw new Error(error.message);
         }

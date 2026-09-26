@@ -2205,3 +2205,40 @@ and fixed on the way:
     funnel stages drew a bar; the notices panel sat open above every screen
     (now a one-line pill until opened); the board packet button was white on
     white.
+- **Security and missing functions** (found following the catalog screens and
+  the 404s behind them, 26 Sep):
+  - Account takeover: staff governance let a principal or HR manager of any
+    school set the password or email of any account on the platform by id
+    (another school's owner, the platform owner) and grant any role, owner
+    included; the bulk staff import and the direct-password invite overwrote
+    the password of any existing account whose email was entered. Now
+    (`backend/app/utils/accounts.py`): only members of the caller's school,
+    below the caller's role, never a platform account; passwords and emails of
+    accounts shared with another school are not a school's to change; roles
+    given must be below the giver's (owner and super admin only from the
+    platform); an existing account is linked, never overwritten. Tried on the
+    sandbox: all four attacks refused, a legitimate reset works.
+  - Payment gateway secrets: every member of staff could read a school's
+    JazzCash merchant password and integrity salt and its Easypaisa hash key
+    through the data proxy (and in the rows a save returned, and in its
+    realtime broadcast). The proxy now returns only whether each is set; a
+    blank field on save keeps the stored value.
+  - JazzCash checkout used one platform-wide merchant from the server config
+    (empty in production, so no school could take a payment) and ignored each
+    school's own merchant; it now uses the school's, and the callback is
+    verified with that school's salt. Fee configuration and the owner's
+    security check said "gateway enabled / parents can pay online" for a
+    school with JazzCash on and no credentials; they now say what works.
+    Easypaisa has no online checkout yet: its settings card says so.
+  - The platform's Create school (and unlock) called functions this server did
+    not have; ported, through the same account helper. Bootstrap and
+    master-recovery (which minted platform administrators from a shared
+    secret) and impersonation are not offered, and say so instead of 404.
+  - Early warnings: nothing wrote them, so every panel said "All Clear!". The
+    rules are ported (all students; no verdict from one or two days; the note
+    types this school records; missing work counted from assignments due), a
+    "Run check now" button is on the panel, and the empty state says whether a
+    check has run.
+  - Screens a role may not open rendered while permissions loaded, fired their
+    requests (403) and then showed "Access denied"; they now wait. The Fees menu
+    entry was shown to school admins, whom the server (rightly) refuses.

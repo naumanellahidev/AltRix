@@ -89,7 +89,50 @@ GLOBAL_TABLES = {
     "ai_providers"
 }
 
+#: Credentials a school keeps for its payment gateways. The proxy never hands
+#: them out: every member of staff could read a school's JazzCash merchant
+#: password and integrity salt and its Easypaisa hash key, in answers, in the
+#: rows a save returns and in the realtime broadcast of that save. A reader
+#: learns only whether each is set ("<column>_set"); a save that leaves one
+#: blank keeps the stored value.
+SECRET_COLUMNS: Dict[str, tuple] = {
+    "jazzcash_settings": ("merchant_password", "integrity_salt"),
+    "easypaisa_settings": ("hash_key",),
+}
+
+
+def hide_secrets(table: Optional[str], data: Any) -> Any:
+    cols = SECRET_COLUMNS.get((table or "").lower())
+    if not cols:
+        return data
+    rows = data if isinstance(data, list) else [data] if isinstance(data, dict) else []
+    for row in rows:
+        if isinstance(row, dict):
+            for c in cols:
+                if c in row:
+                    row[f"{c}_set"] = bool(row[c])
+                    row[c] = None
+    return data
+
+
+def drop_blank_secrets(table: Optional[str], payload: Any) -> None:
+    cols = SECRET_COLUMNS.get((table or "").lower())
+    if not cols:
+        return
+    items = payload if isinstance(payload, list) else [payload] if isinstance(payload, dict) else []
+    for item in items:
+        if isinstance(item, dict):
+            for c in cols:
+                if c in item and (item[c] is None or str(item[c]).strip() == ""):
+                    del item[c]
+            for c in cols:
+                item.pop(f"{c}_set", None)
+
+
 async def broadcast_mutation(table: str, action: str, school_id: Optional[Any], data: Any):
+    if table and table.lower() in SECRET_COLUMNS:
+        import copy
+        data = hide_secrets(table, copy.deepcopy(data))
     try:
         redis = await get_redis()
         if redis:
@@ -458,6 +501,14 @@ def _pg_type_of(column: str) -> str:
 
 
 @router.post("/query")
+async def query_endpoint(query: QueryPayload, current_user: CurrentUser, db: DbSession):
+    drop_blank_secrets(query.table, query.payload)
+    result = await execute_query(query, current_user, db)
+    if isinstance(result, dict) and "data" in result:
+        hide_secrets(query.table, result["data"])
+    return result
+
+
 async def execute_query(query: QueryPayload, current_user: CurrentUser, db: DbSession):
     if not is_valid_identifier(query.table):
         raise HTTPException(status_code=400, detail="Invalid table name")

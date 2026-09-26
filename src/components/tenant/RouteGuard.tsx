@@ -52,6 +52,16 @@ export function RouteGuard({ children, extraAllowedPaths }: RouteGuardProps) {
   const allowed =
     perms.loading || segment === "" || extraSet.has(segment) || perms.canAccess(segment);
 
+  // Nothing renders until the permissions are known. The screen used to render
+  // while they loaded: it fired its requests (refused, 403) and flashed its
+  // content before "Access denied" replaced it.
+  if (perms.loading && segment !== "" && !extraSet.has(segment)) {
+    return (
+      <div className="flex min-h-[40vh] items-center justify-center" aria-busy="true">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+      </div>
+    );
+  }
   if (perms.loading) {
     return <>{children}</>;
   }

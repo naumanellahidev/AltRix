@@ -48,7 +48,7 @@ export default function PlatformRecoverMaster() {
         if (detail && typeof detail === "string") {
           try {
             const parsed = JSON.parse(detail);
-            return setMessage(parsed?.error ?? error.message);
+            return setMessage((typeof parsed?.detail === "string" ? parsed.detail : parsed?.error) ?? error.message);
           } catch {
             return setMessage(error.message);
           }

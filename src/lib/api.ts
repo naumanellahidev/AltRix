@@ -1006,7 +1006,10 @@ export const api = {
 
         return { data: resp.data, error: null };
       } catch (err: any) {
-        const errMsg = err.response?.data?.error || err.response?.data?.detail || err.message || 'Function execution failed';
+        // The readable reason is in "detail"; "error" is a code such as
+        // "forbidden", which is all the screen used to show.
+        const d = err.response?.data;
+        const errMsg = (typeof d?.detail === 'string' && d.detail) || d?.error || err.message || 'Function execution failed';
         return {
           data: null,
           error: {

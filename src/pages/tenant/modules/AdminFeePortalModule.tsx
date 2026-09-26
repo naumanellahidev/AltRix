@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { apiClient } from "@/lib/api-client";
+import { api } from "@/lib/api";
 import { ErrorState, ModuleHeader, StatTiles } from "@/components/tenant/module-kit";
 import { reportLoadFailure } from "@/lib/load-failure";
 import { toast } from "sonner";
@@ -22,11 +23,24 @@ interface SiblingDiscount {
   is_active: boolean;
 }
 
+// As /finance/gateway-configs returns it (it has no provider_name or mode:
+// those columns always rendered empty).
 interface GatewayConfig {
   id: string;
-  provider_name: string;
-  is_active: boolean;
-  mode: string;
+  gateway_name: string;
+  display_name?: string | null;
+  is_active: boolean | null;
+  is_default?: boolean | null;
+}
+
+/** The school's JazzCash and Easypaisa settings, as the parents' checkout sees them. */
+interface WalletGateway {
+  key: "jazzcash" | "easypaisa";
+  name: string;
+  environment: string | null;
+  enabled: boolean;
+  ready: boolean;
+  note: string;
 }
 
 interface Escalation {
@@ -48,6 +62,7 @@ export function AdminFeePortalModule() {
   const [activeTab, setActiveTab] = useState("discounts");
   const [discounts, setDiscounts] = useState<SiblingDiscount[]>([]);
   const [gateways, setGateways] = useState<GatewayConfig[]>([]);
+  const [wallets, setWallets] = useState<WalletGateway[]>([]);
   const [escalations, setEscalations] = useState<Escalation[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<unknown>(null);
@@ -58,20 +73,46 @@ export function AdminFeePortalModule() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [resDisc, resGate, resEsc] = await Promise.all([
+      const [resDisc, resGate, resEsc, jc, ep] = await Promise.all([
         apiClient.get("/finance/sibling-discounts"),
         apiClient.get("/finance/gateway-configs"),
-        apiClient.get("/finance/escalations")
+        apiClient.get("/finance/escalations"),
+        api.from("jazzcash_settings").select("is_enabled, environment, merchant_id, merchant_password, integrity_salt").limit(1).maybeSingle(),
+        api.from("easypaisa_settings").select("is_enabled, environment, store_id, hash_key").limit(1).maybeSingle(),
       ]);
       setDiscounts(resDisc.data ?? []);
       setGateways(resGate.data ?? []);
       setEscalations(resEsc.data ?? []);
+      // JazzCash and Easypaisa live in their own settings, which this screen
+      // never read: with both switched on it said "None configured".
+      const list: WalletGateway[] = [];
+      const j: any = jc.data;
+      if (j) {
+        const ready = !!(j.is_enabled && j.merchant_id && j.merchant_password_set && j.integrity_salt_set);
+        list.push({
+          key: "jazzcash", name: "JazzCash", environment: j.environment ?? null, enabled: !!j.is_enabled, ready,
+          note: !j.is_enabled ? "Switched off"
+            : ready ? "Parents can pay online"
+            : "Switched on, but the merchant ID, password or integrity salt is missing, so parents cannot pay yet",
+        });
+      }
+      const e: any = ep.data;
+      if (e) {
+        list.push({
+          key: "easypaisa", name: "Easypaisa", environment: e.environment ?? null, enabled: !!e.is_enabled, ready: false,
+          note: e.is_enabled
+            ? "Settings saved, but online Easypaisa checkout is not available yet: parents cannot pay by Easypaisa"
+            : "Switched off",
+        });
+      }
+      setWallets(list);
       setLoadError(null);
     } catch (err) {
       // This used to reset all three lists and say nothing, so a permissions
       // error and a school that has configured nothing looked identical.
       setDiscounts([]);
       setGateways([]);
+      setWallets([]);
       setEscalations([]);
       setLoadError(err);
       reportLoadFailure("the fee configuration", err);
@@ -132,9 +173,13 @@ export function AdminFeePortalModule() {
             hint: discounts.length ? "Applied automatically when a voucher is generated" : "None set — no sibling discount is applied",
           },
           {
-            label: "Payment gateways",
-            value: gateways.length,
-            hint: gateways.length ? "Parents can pay online" : "None configured — parents pay at the bank or the office",
+            label: "Online payment",
+            value: gateways.filter((g) => g.is_active).length + wallets.filter((w) => w.ready).length,
+            hint: gateways.some((g) => g.is_active) || wallets.some((w) => w.ready)
+              ? "Parents can pay online"
+              : wallets.some((w) => w.enabled)
+                ? "Switched on but not ready: see Payment Gateways"
+                : "None configured — parents pay at the bank or the office",
           },
           {
             label: "Unresolved escalations",
@@ -220,12 +265,30 @@ export function AdminFeePortalModule() {
                 <TableHeader>
                   <TableRow className="bg-slate-50 dark:bg-slate-800/50">
                     <TableHead>Gateway Provider</TableHead>
-                    <TableHead>Environment Mode</TableHead>
+                    <TableHead>Environment</TableHead>
                     <TableHead>Status</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {!loading && !loadError && gateways.length === 0 && (
+                  {wallets.map((w) => (
+                    <TableRow key={w.key} className="hover:bg-blue-50/50 dark:hover:bg-slate-800/50">
+                      <TableCell className="font-bold uppercase text-slate-900 dark:text-slate-100">{w.name}</TableCell>
+                      <TableCell className="capitalize font-mono">{w.environment ?? "—"}</TableCell>
+                      <TableCell>
+                        <div className="flex flex-col gap-1">
+                          {w.ready ? (
+                            <Badge className="w-fit bg-emerald-100 text-emerald-800 border-emerald-200">Active</Badge>
+                          ) : w.enabled ? (
+                            <Badge className="w-fit bg-amber-100 text-amber-800 border-amber-200">Not ready</Badge>
+                          ) : (
+                            <Badge variant="outline" className="w-fit">Switched off</Badge>
+                          )}
+                          <span className="text-xs text-muted-foreground">{w.note}</span>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {!loading && !loadError && gateways.length === 0 && wallets.length === 0 && (
                     <TableRow>
                       <TableCell colSpan={3} className="py-8 text-center text-sm text-muted-foreground">
                         No payment gateway is set up, so parents pay at the bank or the school office.
@@ -234,8 +297,8 @@ export function AdminFeePortalModule() {
                   )}
                   {gateways.map(g => (
                     <TableRow key={g.id} className="hover:bg-blue-50/50 dark:hover:bg-slate-800/50">
-                      <TableCell className="font-bold uppercase text-slate-900 dark:text-slate-100">{g.provider_name}</TableCell>
-                      <TableCell className="capitalize font-mono">{g.mode}</TableCell>
+                      <TableCell className="font-bold uppercase text-slate-900 dark:text-slate-100">{g.display_name || g.gateway_name}</TableCell>
+                      <TableCell className="capitalize font-mono">{g.is_default ? "Default" : "—"}</TableCell>
                       <TableCell>
                         {g.is_active ? (
                           <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200">Active</Badge>

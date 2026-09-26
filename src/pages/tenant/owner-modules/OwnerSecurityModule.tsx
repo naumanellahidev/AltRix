@@ -32,8 +32,8 @@ export function OwnerSecurityModule({ schoolId }: Props) {
           .eq("school_id", schoolId)
           .order("created_at", { ascending: false })
           .limit(20),
-        api.from("jazzcash_settings").select("is_enabled").eq("school_id", schoolId).maybeSingle(),
-        api.from("easypaisa_settings").select("is_enabled").eq("school_id", schoolId).maybeSingle(),
+        api.from("jazzcash_settings").select("is_enabled, merchant_id, merchant_password, integrity_salt").eq("school_id", schoolId).limit(1).maybeSingle(),
+        api.from("easypaisa_settings").select("is_enabled").eq("school_id", schoolId).limit(1).maybeSingle(),
         api.from("school_branding").select("school_id").eq("school_id", schoolId).maybeSingle(),
         api.from("school_owner_assignments").select("owner_user_id").eq("school_id", schoolId),
       ]);
@@ -43,6 +43,9 @@ export function OwnerSecurityModule({ schoolId }: Props) {
         members: membersRes.data ?? [],
         warnings: warningsRes.data ?? [],
         jzEnabled: jzRes.data?.is_enabled ?? false,
+        // Switched on is not usable: checkout needs the merchant's credentials.
+        jzReady: !!((jzRes.data as any)?.is_enabled && (jzRes.data as any)?.merchant_id
+          && (jzRes.data as any)?.merchant_password_set && (jzRes.data as any)?.integrity_salt_set),
         epEnabled: epRes.data?.is_enabled ?? false,
         brandingConfigured: !!brandingRes.data,
         owners: ownersRes.data ?? [],
@@ -98,9 +101,18 @@ export function OwnerSecurityModule({ schoolId }: Props) {
       detail: data?.brandingConfigured ? "Customised" : "Default theme",
     },
     {
-      label: "Payment gateway enabled",
-      ok: !!(data?.jzEnabled || data?.epEnabled),
-      detail: `${data?.jzEnabled ? "JazzCash" : ""}${data?.jzEnabled && data?.epEnabled ? " + " : ""}${data?.epEnabled ? "EasyPaisa" : ""}` || "None enabled",
+      // Easypaisa has no online checkout yet, and JazzCash takes payments only
+      // with its credentials entered: "enabled" passed this check for a school
+      // where no parent could pay online.
+      label: "Online fee payment works",
+      ok: !!data?.jzReady,
+      detail: data?.jzReady
+        ? "JazzCash ready"
+        : data?.jzEnabled
+          ? "JazzCash on, credentials missing"
+          : data?.epEnabled
+            ? "Easypaisa on, but online Easypaisa checkout is not available yet"
+            : "None enabled",
     },
     {
       label: "Privileged accounts under control",

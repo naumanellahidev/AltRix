@@ -305,7 +305,8 @@ def run():
     # ── P1 ────────────────────────────────────────────────────────────────────
     S = "P1 - money, auth, data integrity"
     check(S, "11", "JazzCash callback verifies its signature",
-          "_verify_callback_signature(raw)" in pay and "if not salt" in pay)
+          # Verified with the salt of the school the payment was made to.
+          "if not _verify_callback_signature(raw, school_salt or None)" in pay and "if not salt" in pay)
     check(S, "11", "callback amount checked against the initiated amount",
           "_AMOUNT_TOLERANCE_PAISA" in pay)
     check(S, "12", "lookup uses the mapped column, not a Python property",
@@ -916,6 +917,17 @@ def run():
           and "Include paid invoices revenue" not in txt("src/pages/tenant/role-homes/PrincipalHome.tsx")
           and "COALESCE(status, 'active') = 'active'" not in code(R + "owner_insights.py")
           and 's.status === "active" || s.is_active' not in txt("src/pages/tenant/owner-modules/OwnerHrModule.tsx"))
+
+    fnc = code(R + "functions.py")
+    check(S, "sec1", "no account taken over by email or id; gateway secrets never leave the server",
+          "check_governance_target(db, school_id, actor_uid, target_uid, action, body.roles)" in fnc
+          and "check_grantable(db, school_id, actor_uid, [body.role])" in fnc
+          and "ensure_account(db, row_email, pwd, dname)" in fnc
+          and fnc.count("SET encrypted_password") == 1
+          and exists(U + "accounts.py")
+          and "drop_blank_secrets(query.table, query.payload)" in vps
+          and "hide_secrets(query.table, result['data'])" in vps
+          and "jazzcash_credentials(db, school_id)" in code(R + "payments.py"))
 
     check(S, "inv1", "no screen invents the figures, people, files or backups it shows",
           "/platform/health-metrics" in txt("src/pages/platform/PlatformHealthPage.tsx")

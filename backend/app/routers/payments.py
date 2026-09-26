@@ -23,7 +23,7 @@ from typing import Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Request, status, HTTPException
-from sqlalchemy import select
+from sqlalchemy import select, text
 
 from app.config import settings
 from app.dependencies import CurrentUser, DbSession
@@ -82,6 +82,55 @@ def _new_txn_ref() -> str:
     return f"T{datetime.now(timezone.utc):%y%m%d}" + "".join(secrets.choice(alphabet) for _ in range(12))
 
 
+JAZZCASH_URLS = {
+    "sandbox": "https://sandbox.jazzcash.com.pk/CustomerPortal/transactionmanagement/merchantform/",
+    "production": "https://payments.jazzcash.com.pk/CustomerPortal/transactionmanagement/merchantform/",
+}
+
+
+async def jazzcash_credentials(db, school_id) -> Optional[dict]:
+    """
+    The JazzCash merchant a school's fees are paid to.
+
+    Each school enters its own merchant ID, password and integrity salt, but
+    checkout used one platform-wide merchant from the server configuration and
+    never read them: a school's fees would have gone to that merchant, and with
+    it unset (as in production) no school could take a payment at all.
+
+    The school's own merchant when it has switched JazzCash on and entered all
+    three; the platform's only for a school that has no JazzCash settings; and
+    none when the school has switched it off or left it incomplete.
+    """
+    row = (await db.execute(
+        text(
+            "SELECT is_enabled, environment, merchant_id, merchant_password, integrity_salt, return_url "
+            "FROM jazzcash_settings WHERE school_id = CAST(:school AS uuid) "
+            "ORDER BY (campus_id IS NULL) DESC, updated_at DESC NULLS LAST LIMIT 1"
+        ),
+        {"school": str(school_id)},
+    )).mappings().first()
+    if row is not None:
+        if row["is_enabled"] and row["merchant_id"] and row["merchant_password"] and row["integrity_salt"]:
+            env = (row["environment"] or "sandbox").lower()
+            return {
+                "merchant_id": row["merchant_id"],
+                "password": row["merchant_password"],
+                "salt": row["integrity_salt"],
+                "return_url": row["return_url"] or settings.jazzcash_return_url,
+                "api_url": JAZZCASH_URLS.get(env, JAZZCASH_URLS["sandbox"]),
+            }
+        return None
+    if settings.jazzcash_merchant_id and settings.jazzcash_integrity_salt:
+        return {
+            "merchant_id": settings.jazzcash_merchant_id,
+            "password": settings.jazzcash_password,
+            "salt": settings.jazzcash_integrity_salt,
+            "return_url": settings.jazzcash_return_url,
+            "api_url": settings.jazzcash_api_url,
+        }
+    return None
+
+
 @router.post("/jazzcash/initiate")
 async def initiate_jazzcash_payment(
     body: JazzCashPaymentRequest,
@@ -91,8 +140,12 @@ async def initiate_jazzcash_payment(
     """Initiate a JazzCash mobile payment (MWALLET)."""
     school_id = safe_school_id(current_user)
 
-    if not settings.jazzcash_merchant_id or not settings.jazzcash_integrity_salt:
-        raise HTTPException(status_code=503, detail="JazzCash is not configured")
+    creds = await jazzcash_credentials(db, school_id)
+    if not creds:
+        raise HTTPException(
+            status_code=503,
+            detail="JazzCash is not set up for this school: its merchant ID, password and integrity salt are needed.",
+        )
 
     # The invoice is mandatory: jazzcash_transactions.invoice_id is NOT NULL, so
     # omitting it used to fail at flush time with a database error.
@@ -142,8 +195,8 @@ async def initiate_jazzcash_payment(
         "pp_Version": "1.1",
         "pp_TxnType": "MWALLET",
         "pp_Language": "EN",
-        "pp_MerchantID": settings.jazzcash_merchant_id,
-        "pp_Password": settings.jazzcash_password,
+        "pp_MerchantID": creds["merchant_id"],
+        "pp_Password": creds["password"],
         "pp_TxnRefNo": txn_ref,
         "pp_Amount": str(_to_paisa(requested)),
         "pp_TxnCurrency": "PKR",
@@ -151,14 +204,12 @@ async def initiate_jazzcash_payment(
         "pp_TxnExpiryDateTime": "",
         "pp_BillReference": str(voucher.invoice_number or voucher.id),
         "pp_Description": body.description or f"Fee payment {voucher.invoice_number}",
-        "pp_ReturnURL": settings.jazzcash_return_url,
+        "pp_ReturnURL": creds["return_url"],
         "pp_MobileNumber": body.mobile_number,
         "pp_CNIC": "",
         "pp_SubMerchantID": "",
     }
-    payload["pp_SecureHash"] = generate_jazzcash_hash(
-        payload, settings.jazzcash_integrity_salt
-    )
+    payload["pp_SecureHash"] = generate_jazzcash_hash(payload, creds["salt"])
 
     txn = PaymentTransaction(
         school_id=UUID(school_id) if isinstance(school_id, str) else school_id,
@@ -186,14 +237,14 @@ async def initiate_jazzcash_payment(
     return {
         "transaction_id": str(txn.id),
         "txn_ref_no": txn_ref,
-        "gateway_url": settings.jazzcash_api_url,
+        "gateway_url": creds["api_url"],
         # pp_Password is a merchant credential and is deliberately not returned:
         # this response is rendered into the payer's browser.
         "payload": {k: v for k, v in payload.items() if k != "pp_Password"},
     }
 
 
-def _verify_callback_signature(raw: dict) -> bool:
+def _verify_callback_signature(raw: dict, salt: Optional[str] = None) -> bool:
     """
     Check the gateway's signature over the callback payload.
 
@@ -201,7 +252,7 @@ def _verify_callback_signature(raw: dict) -> bool:
     is indistinguishable from a forged one, and accepting it would mean anyone
     who can reach this URL can mark invoices paid.
     """
-    salt = settings.jazzcash_integrity_salt
+    salt = salt if salt is not None else settings.jazzcash_integrity_salt
     if not salt:
         logger.error("JAZZCASH_INTEGRITY_SALT is not configured; rejecting callback")
         return False
@@ -228,7 +279,24 @@ async def jazzcash_callback(body: PaymentCallbackData, request: Request, db: DbS
     """
     raw = body.model_dump()
 
-    if not _verify_callback_signature(raw):
+    # Signed with the salt of the merchant the payment was made to: the
+    # school's own, now that checkout uses it.
+    ref = (body.pp_TxnRefNo or "").strip()
+    owner = await db.scalar(
+        select(PaymentTransaction.school_id).where(PaymentTransaction.txn_ref_no == ref)
+    ) if ref else None
+    school_salt = (await db.execute(
+        text(
+            "SELECT integrity_salt FROM jazzcash_settings WHERE school_id = CAST(:school AS uuid) "
+            "AND COALESCE(integrity_salt, '') <> '' "
+            "ORDER BY (campus_id IS NULL) DESC, updated_at DESC NULLS LAST LIMIT 1"
+        ),
+        {"school": str(owner)},
+    )).scalar() if owner else None
+
+    # Still verified with the school's salt if it has since switched JazzCash
+    # off: the payment was made while it was on.
+    if not _verify_callback_signature(raw, school_salt or None):
         logger.warning(
             "Rejected JazzCash callback with an invalid signature: "
             f"txn_ref={raw.get('pp_TxnRefNo')!r} "
