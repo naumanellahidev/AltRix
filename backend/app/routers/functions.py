@@ -966,6 +966,189 @@ async def ai_early_warning(
     }
 
 
+# ── Teacher and student analysis ──────────────────────────────────────────────
+#
+# Ported from supabase/functions/ai-teacher-analyzer and ai-student-analyzer,
+# which sent a few counts to a paid AI gateway (gone) and stored whatever
+# scores it returned: a "feedback sentiment" with no feedback collected, a
+# student's "personality type" and "learning style" from their marks. Here
+# every figure is measured from the school's records and says how; what the
+# records cannot tell is left empty.
+
+_GOVERN_STAFF = {"super_admin", "school_owner", "principal", "vice_principal", "school_admin",
+                 "academic_coordinator", "hr_manager"}
+
+
+def _pct(num, den) -> Optional[float]:
+    return round(float(num) * 100.0 / float(den), 1) if den else None
+
+
+def _clamp(v: float) -> float:
+    return max(0.0, min(100.0, v))
+
+
+class TeacherAnalyzerRequest(BaseModel):
+    schoolId: Optional[str] = None
+    teacherUserId: str
+
+
+@router.post("/ai-teacher-analyzer")
+async def ai_teacher_analyzer(
+    body: TeacherAnalyzerRequest,
+    current_user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+):
+    school_id = await _staff_school(db, current_user, body.schoolId)
+    if str(body.teacherUserId) != str(current_user.id) and not (set(current_user.roles or []) & _GOVERN_STAFF):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You can analyse only your own teaching.")
+    p = {"sid": str(school_id), "tid": str(body.teacherUserId)}
+    att = (await db.execute(text(
+        "SELECT COUNT(DISTINCT s.id) AS sessions, COUNT(e.id) AS entries, "
+        "COUNT(e.id) FILTER (WHERE e.status IN ('present','late')) AS present "
+        "FROM public.attendance_sessions s LEFT JOIN public.attendance_entries e ON e.session_id = s.id "
+        "WHERE s.school_id = CAST(:sid AS uuid) AND s.created_by = CAST(:tid AS uuid) "
+        "AND s.created_at >= NOW() - INTERVAL '30 days'"), p)).mappings().first()
+    res = (await db.execute(text(
+        "SELECT COUNT(*) AS n, AVG(m.marks / NULLIF(COALESCE(m.max_marks, a.max_marks), 0) * 100) AS avg_pct "
+        "FROM public.student_marks m JOIN public.academic_assessments a ON a.id = m.assessment_id "
+        "WHERE m.school_id = CAST(:sid AS uuid) AND a.created_by = CAST(:tid AS uuid) AND m.marks IS NOT NULL"), p)).mappings().first()
+    work = (await db.execute(text(
+        "SELECT COUNT(*) FROM public.assignments WHERE school_id = CAST(:sid AS uuid) "
+        "AND teacher_user_id = CAST(:tid AS uuid) AND created_at >= NOW() - INTERVAL '30 days'"), p)).scalar() or 0
+    notes = (await db.execute(text(
+        "SELECT COUNT(*) AS n, COUNT(*) FILTER (WHERE lower(note_type) = 'positive') AS positive "
+        "FROM public.behavior_notes WHERE school_id = CAST(:sid AS uuid) AND teacher_user_id = CAST(:tid AS uuid) "
+        "AND created_at >= NOW() - INTERVAL '30 days'"), p)).mappings().first()
+
+    attendance_score = _pct(att["present"], att["entries"])
+    results_score = round(float(res["avg_pct"]), 1) if res["n"] and res["avg_pct"] is not None else None
+    parts = [s for s in (attendance_score, results_score) if s is not None]
+    overall = round(sum(parts) / len(parts), 1) if parts else None
+    facts = []
+    if attendance_score is not None:
+        facts.append(f"Attendance in your classes {attendance_score:.0f}% over the last 30 days ({att['sessions']} registers).")
+    if results_score is not None:
+        facts.append(f"Average mark on your assessments {results_score:.0f}% ({res['n']} marks).")
+    facts.append(f"{work} assignments set and {notes['n']} behaviour notes written in the last 30 days"
+                 f" ({notes['positive']} positive).")
+    analysis = {
+        "method": "overall = mean of attendance and results where each exists; engagement is not measured",
+        "sessions_30d": att["sessions"], "attendance_entries": att["entries"], "present": att["present"],
+        "marks_counted": res["n"], "assignments_30d": work, "behavior_notes_30d": notes["n"],
+        "positive_notes_30d": notes["positive"],
+    }
+    values = {
+        "sid": str(school_id), "tid": str(body.teacherUserId), "att": attendance_score, "res": results_score,
+        "overall": overall, "train": (overall is not None and overall < 50),
+        "fb": " ".join(facts), "data": json.dumps(analysis),
+    }
+    updated = await db.execute(text(
+        "UPDATE public.ai_teacher_performance SET attendance_score = :att, results_score = :res, engagement_score = NULL, "
+        "overall_score = :overall, needs_training = :train, feedback = :fb, analysis_data = CAST(:data AS jsonb), "
+        "last_analyzed_at = NOW(), updated_at = NOW() "
+        "WHERE school_id = CAST(:sid AS uuid) AND teacher_user_id = CAST(:tid AS uuid)"), values)
+    if not updated.rowcount:
+        await db.execute(text(
+            "INSERT INTO public.ai_teacher_performance (school_id, teacher_user_id, attendance_score, results_score, "
+            "overall_score, needs_training, feedback, analysis_data, last_analyzed_at) VALUES (CAST(:sid AS uuid), "
+            "CAST(:tid AS uuid), :att, :res, :overall, :train, :fb, CAST(:data AS jsonb), NOW())"), values)
+    await db.commit()
+    return {"success": True, "performanceData": {
+        "overall_score": overall, "attendance_score": attendance_score, "results_score": results_score,
+        "feedback": values["fb"], **analysis}}
+
+
+class StudentAnalyzerRequest(BaseModel):
+    schoolId: Optional[str] = None
+    studentId: str
+    analysisType: Optional[str] = None
+
+
+def student_risk(att_pct: Optional[float], avg_pct: Optional[float], concerns: int) -> Optional[float]:
+    """
+    0 to 100, the worst of three stated risks: attendance (90% or better is 0,
+    50% or worse is 100), marks (60% or better is 0, 20% or worse is 100) and
+    conduct (20 per concern or incident note in 30 days). None with no records.
+    """
+    parts = []
+    if att_pct is not None:
+        parts.append(_clamp((90 - att_pct) * 2.5))
+    if avg_pct is not None:
+        parts.append(_clamp((60 - avg_pct) * 2.5))
+    if concerns:
+        parts.append(_clamp(concerns * 20.0))
+    return round(max(parts), 0) if parts else None
+
+
+@router.post("/ai-student-analyzer")
+async def ai_student_analyzer(
+    body: StudentAnalyzerRequest,
+    current_user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+):
+    school_id = await _staff_school(db, current_user, body.schoolId)
+    p = {"sid": str(school_id), "st": str(body.studentId)}
+    student = (await db.execute(text(
+        "SELECT id, campus_id FROM public.students WHERE id = CAST(:st AS uuid) AND school_id = CAST(:sid AS uuid)"),
+        p)).mappings().first()
+    if not student:
+        raise HTTPException(status_code=404, detail="Student not found in this school.")
+    att = (await db.execute(text(
+        "SELECT COUNT(*) AS n, COUNT(*) FILTER (WHERE status IN ('present','late')) AS present "
+        "FROM public.attendance_entries WHERE student_id = CAST(:st AS uuid) AND school_id = CAST(:sid AS uuid) "
+        "AND created_at >= NOW() - INTERVAL '60 days'"), p)).mappings().first()
+    subjects = (await db.execute(text(
+        "SELECT COALESCE(sub.name, 'Unassigned subject') AS subject, COUNT(*) AS n, "
+        "AVG(m.marks / NULLIF(COALESCE(m.max_marks, a.max_marks), 0) * 100) AS avg_pct "
+        "FROM public.student_marks m JOIN public.academic_assessments a ON a.id = m.assessment_id "
+        "LEFT JOIN public.subjects sub ON sub.id = a.subject_id "
+        "WHERE m.student_id = CAST(:st AS uuid) AND m.school_id = CAST(:sid AS uuid) AND m.marks IS NOT NULL "
+        "GROUP BY 1 ORDER BY 3 DESC NULLS LAST"), p)).mappings().all()
+    concerns = (await db.execute(text(
+        "SELECT COUNT(*) FROM public.behavior_notes WHERE student_id = CAST(:st AS uuid) "
+        "AND school_id = CAST(:sid AS uuid) AND lower(note_type) IN ('concern','incident','warning') "
+        "AND created_at >= NOW() - INTERVAL '30 days'"), p)).scalar() or 0
+
+    # Fewer than five marked days is not enough to judge attendance by.
+    att_pct = _pct(att["present"], att["n"]) if (att["n"] or 0) >= 5 else None
+    scored = [s for s in subjects if s["avg_pct"] is not None]
+    total_marks = sum(int(s["n"]) for s in scored)
+    avg_pct = (round(sum(float(s["avg_pct"]) * int(s["n"]) for s in scored) / total_marks, 1)
+               if total_marks else None)
+    strengths = [f"{s['subject']} ({float(s['avg_pct']):.0f}%)" for s in scored if float(s["avg_pct"]) >= 75]
+    weaknesses = [f"{s['subject']} ({float(s['avg_pct']):.0f}%)" for s in scored if float(s["avg_pct"]) < 50]
+    risk = student_risk(att_pct, avg_pct, int(concerns))
+    level = None if risk is None else "high" if risk >= 70 else "medium" if risk >= 40 else "low"
+    analysis = {
+        "method": student_risk.__doc__.strip().replace("\n    ", " "),
+        "attendance_pct_60d": att_pct, "attendance_days": att["n"], "average_pct": avg_pct,
+        "marks_counted": total_marks, "concern_notes_30d": int(concerns),
+        "subjects": [{"subject": s["subject"], "marks": int(s["n"]),
+                      "average_pct": round(float(s["avg_pct"]), 1)} for s in scored],
+        "not_measured": ["learning style", "personality"],
+    }
+    values = {
+        "sid": str(school_id), "st": str(body.studentId), "cid": student["campus_id"], "risk": risk, "level": level,
+        "strengths": strengths, "weaknesses": weaknesses,
+        "counsel": int(concerns) >= 3, "support": bool(weaknesses) or (avg_pct is not None and avg_pct < 50),
+        "data": json.dumps(analysis),
+    }
+    updated = await db.execute(text(
+        "UPDATE public.ai_student_profiles SET risk_score = :risk, risk_level = :level, strengths = :strengths, "
+        "weaknesses = :weaknesses, needs_counseling = :counsel, needs_extra_support = :support, learning_style = NULL, "
+        "personality_type = NULL, analysis_data = CAST(:data AS jsonb), last_analyzed_at = NOW(), updated_at = NOW() "
+        "WHERE school_id = CAST(:sid AS uuid) AND student_id = CAST(:st AS uuid)"), values)
+    if not updated.rowcount:
+        await db.execute(text(
+            "INSERT INTO public.ai_student_profiles (school_id, campus_id, student_id, risk_score, risk_level, strengths, "
+            "weaknesses, needs_counseling, needs_extra_support, analysis_data, last_analyzed_at) VALUES "
+            "(CAST(:sid AS uuid), :cid, CAST(:st AS uuid), :risk, :level, :strengths, :weaknesses, :counsel, :support, "
+            "CAST(:data AS jsonb), NOW())"), values)
+    await db.commit()
+    return {"success": True, "profile": {"risk_score": risk, "risk_level": level, "strengths": strengths,
+                                         "weaknesses": weaknesses, **analysis}}
+
+
 @router.post("/{function_name}")
 async def generic_function_handler(
     function_name: str,

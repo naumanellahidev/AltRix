@@ -41,7 +41,9 @@ export function OwnerTeacherEffectiveness({ schoolId }: Props) {
           api.functions.invoke("ai-teacher-analyzer", { body: { schoolId, teacherUserId } })
         )
       );
-      const ok = results.filter((r) => r.status === "fulfilled").length;
+      // invoke() reports a failure in its result rather than rejecting, so
+      // every teacher counted as analysed.
+      const ok = results.filter((r) => r.status === "fulfilled" && !(r.value as any)?.error).length;
       toast({ title: "Analysis complete", description: `Generated insights for ${ok}/${teachers.length} teachers.` });
       qc.invalidateQueries({ queryKey: ["ai_teacher_performance", schoolId] });
     } catch (e: any) {

@@ -75,12 +75,13 @@ export function TeacherPerformanceAnalyzer({ schoolId, campusId }: Props) {
   });
 
   const stats = useMemo(() => {
-    if (!performanceData) return { top: 0, needsTraining: 0, avgScore: 0 };
+    if (!performanceData) return { top: 0, needsTraining: 0, avgScore: null as number | null };
     
-    const scores = performanceData.map(p => p.overall_score || 0);
+    // Teachers with nothing measured are not 0: leave them out of the average.
+    const scores = performanceData.map(p => p.overall_score).filter((v): v is number => v != null).map(Number);
     const avgScore = scores.length > 0 
       ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length)
-      : 0;
+      : null;
     
     return {
       top: performanceData.filter(p => (p.overall_score || 0) >= 80).length,
@@ -91,7 +92,7 @@ export function TeacherPerformanceAnalyzer({ schoolId, campusId }: Props) {
 
   const chartData = useMemo(() => {
     if (!performanceData) return [];
-    return performanceData.slice(0, 10).map(p => ({
+    return performanceData.filter(p => p.overall_score != null).slice(0, 10).map(p => ({
       name: (p.profiles as any)?.display_name?.split(' ')[0] || 'Teacher',
       score: p.overall_score || 0,
       tier: (p.overall_score || 0) >= 90 ? 'platinum' : (p.overall_score || 0) >= 75 ? 'gold' : (p.overall_score || 0) >= 60 ? 'silver' : 'bronze',
@@ -168,7 +169,7 @@ export function TeacherPerformanceAnalyzer({ schoolId, campusId }: Props) {
               <div className="flex items-center justify-between">
                 <BarChart3 className="h-5 w-5 text-primary" />
               </div>
-              <p className="mt-3 text-3xl font-bold">{stats.avgScore}%</p>
+              <p className="mt-3 text-3xl font-bold">{stats.avgScore != null ? `${stats.avgScore}%` : "—"}</p>
               <p className="text-xs text-muted-foreground">Average Performance</p>
               <Progress value={stats.avgScore} className="mt-2 h-1.5" />
             </CardContent>
@@ -294,20 +295,20 @@ export function TeacherPerformanceAnalyzer({ schoolId, campusId }: Props) {
                   <div className="mt-4">
                     <div className="flex items-center justify-between text-sm">
                       <span className="text-muted-foreground">Overall Score</span>
-                      <span className="font-semibold">{teacher.overall_score || 0}%</span>
+                      <span className="font-semibold">{teacher.overall_score != null ? `${teacher.overall_score}%` : "—"}</span>
                     </div>
-                    <Progress value={teacher.overall_score || 0} className="mt-1.5 h-2" />
+                    <Progress value={teacher.overall_score ?? 0} className="mt-1.5 h-2" />
                   </div>
 
                   {/* Sub-scores */}
                   <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
                     <div className="rounded-lg bg-surface-2 p-2">
-                      <p className="text-muted-foreground">Engagement</p>
-                      <p className="font-semibold">{teacher.engagement_score || 0}%</p>
+                      <p className="text-muted-foreground">Attendance</p>
+                      <p className="font-semibold">{teacher.attendance_score != null ? `${teacher.attendance_score}%` : "—"}</p>
                     </div>
                     <div className="rounded-lg bg-surface-2 p-2">
                       <p className="text-muted-foreground">Results</p>
-                      <p className="font-semibold">{teacher.results_score || 0}%</p>
+                      <p className="font-semibold">{teacher.results_score != null ? `${teacher.results_score}%` : "—"}</p>
                     </div>
                   </div>
 

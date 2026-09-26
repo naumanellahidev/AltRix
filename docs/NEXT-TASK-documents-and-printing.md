@@ -2242,3 +2242,23 @@ and fixed on the way:
   - Screens a role may not open rendered while permissions loaded, fired their
     requests (403) and then showed "Access denied"; they now wait. The Fees menu
     entry was shown to school admins, whom the server (rightly) refuses.
+  - Teacher and student analysis (ported from Supabase functions that sent a
+    few counts to a paid AI gateway and stored the scores it invented, such as
+    a "feedback sentiment" with no feedback collected and a student's
+    personality and learning style): now measured from the records. Teacher:
+    attendance in their registers (30 days), average mark on their
+    assessments, overall = mean of those; engagement not measured, left empty.
+    Student: attendance (from 5 marked days), subject averages, strengths
+    (75%+) and weak subjects (under 50%), risk = the worst of attendance,
+    marks and conduct risks, the formula stored with the profile; learning
+    style and personality "not measured". Screens show "—" instead of 0% and
+    "low risk" for what was not measured; "Analysis complete" counts only real
+    successes; the timetable generator no longer calls a function that never
+    existed (its own solver builds the timetable).
+  - Not done, for decision: Easypaisa online checkout. The Supabase version
+    trusted any posted "paid" message (anyone could mark any invoice paid for
+    any amount); a safe version needs Easypaisa's transaction-inquiry
+    credentials and a test merchant.
+  - Every shell and role now crawled clean, declared and catalog screens:
+    teacher, parent, student, accountant, HR, marketing, owner, principal,
+    school admin, academic coordinator, counsellor.

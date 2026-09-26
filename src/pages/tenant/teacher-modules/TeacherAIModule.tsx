@@ -1,3 +1,4 @@
+import { toast } from "sonner";
 import { useMemo } from "react";
 import { useParams } from "react-router-dom";
 import { useTenantOptimized } from "@/hooks/useTenantOptimized";
@@ -44,7 +45,7 @@ export function TeacherAIModule() {
             onClick={async () => {
               if (!user?.id) return;
               // Generate latest AI artifacts
-              await Promise.allSettled([
+              const [mine, warnings] = await Promise.all([
                 api.functions.invoke("ai-teacher-analyzer", {
                   body: { schoolId, teacherUserId: user.id },
                 }),
@@ -52,6 +53,10 @@ export function TeacherAIModule() {
                   body: { schoolId },
                 }),
               ]);
+              // Say what happened: failures used to pass in silence.
+              const failed = [mine, warnings].map((r) => r.error?.message).filter(Boolean);
+              if (failed.length) toast.error(`Some insights could not be updated: ${failed.join("; ")}`);
+              else toast.success("Your figures and the early warnings are up to date");
               // Refresh queries
               qc.invalidateQueries({ queryKey: ["ai_teacher_performance", schoolId] });
               qc.invalidateQueries({ queryKey: ["ai_early_warnings", schoolId] });

@@ -203,22 +203,10 @@ export function SmartTimetableGenerator({ schoolId }: Props) {
         subjectPeriodsPerWeek,
       };
 
-      // Call remote Edge Function first to trigger the baseline AI model
-      let remoteData: any = null;
-      try {
-        const { data, error } = await api.functions.invoke("ai-timetable-generator", {
-          body: {
-            schoolId,
-            classSectionId: selectedSection || null,
-            constraints,
-          },
-        });
-        if (!error && data) {
-          remoteData = data;
-        }
-      } catch (err) {
-        console.warn("Remote Edge Function invocation failed, falling back to local solver:", err);
-      }
+      // The timetable is built here, by the solver below. It used to ask a
+      // Supabase function for a first draft; that function called a paid AI
+      // gateway, does not exist on this server, and failed on every run.
+      const remoteData: any = null;
 
       const [
         classSectionSubjectsRes,

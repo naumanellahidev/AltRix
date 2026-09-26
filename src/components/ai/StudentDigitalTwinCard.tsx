@@ -72,14 +72,14 @@ export function StudentDigitalTwinCard({ studentId, schoolId, compact = false, s
 
   const generate = async () => {
     setGenerating(true);
-    const t = toast.loading("Generating heavy AI profile… analyzing attendance, grades, behavior & predictions");
+    const t = toast.loading("Reading attendance, marks and behaviour notes…");
     try {
       const { data, error } = await api.functions.invoke("ai-student-analyzer", {
         body: { schoolId, studentId, analysisType: "digital_twin" },
       });
       if (error) throw error;
       if ((data as any)?.error) throw new Error((data as any).error);
-      toast.success("AI profile generated", { id: t });
+      toast.success("Profile updated from the school's records", { id: t });
     } catch (e: any) {
       toast.error(e?.message || "Failed to generate AI profile", { id: t });
     } finally {
@@ -120,7 +120,8 @@ export function StudentDigitalTwinCard({ studentId, schoolId, compact = false, s
   });
 
   const riskLevel = useMemo(() => {
-    if (!profile?.risk_score) return { level: "low", color: "text-emerald-600 bg-emerald-500/10" };
+    // No records, no verdict (a missing score read as "low risk").
+    if (profile?.risk_score == null) return { level: "unknown", color: "text-muted-foreground bg-muted" };
     if (profile.risk_score >= 70) return { level: "high", color: "text-red-600 bg-red-500/10" };
     if (profile.risk_score >= 40) return { level: "medium", color: "text-amber-600 bg-amber-500/10" };
     return { level: "low", color: "text-emerald-600 bg-emerald-500/10" };
@@ -188,10 +189,10 @@ export function StudentDigitalTwinCard({ studentId, schoolId, compact = false, s
               <div className="mt-2 flex flex-wrap gap-1.5">
                 <Badge variant="outline" className={`text-[10px] ${learningColor}`}>
                   <LearningIcon className="mr-1 h-3 w-3" />
-                  {profile.learning_style || "Unknown"}
+                  {profile.learning_style || "Learning style not measured"}
                 </Badge>
                 <Badge variant="outline" className={`text-[10px] ${riskLevel.color}`}>
-                  Risk: {profile.risk_score || 0}%
+                  Risk: {profile.risk_score != null ? `${profile.risk_score}%` : "not enough records"}
                 </Badge>
               </div>
             </div>
