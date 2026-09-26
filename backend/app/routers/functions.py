@@ -1117,7 +1117,9 @@ async def ai_student_analyzer(
                if total_marks else None)
     strengths = [f"{s['subject']} ({float(s['avg_pct']):.0f}%)" for s in scored if float(s["avg_pct"]) >= 75]
     weaknesses = [f"{s['subject']} ({float(s['avg_pct']):.0f}%)" for s in scored if float(s["avg_pct"]) < 50]
-    risk = student_risk(att_pct, avg_pct, int(concerns))
+    # Two or three marked days say nothing about attendance (as with the early
+    # warnings): the rate counts toward risk from five days on.
+    risk = student_risk(att_pct if int(att["n"] or 0) >= 5 else None, avg_pct, int(concerns))
     level = None if risk is None else "high" if risk >= 70 else "medium" if risk >= 40 else "low"
     analysis = {
         "method": student_risk.__doc__.strip().replace("\n    ", " "),

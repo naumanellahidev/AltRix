@@ -39,3 +39,8 @@ def test_only_staff_and_own_school():
     src = inspect.getsource(f._staff_school)
     assert "That is not your school." in src and "Only staff can do this." in src
     assert "You can analyse only your own teaching." in inspect.getsource(f.ai_teacher_analyzer)
+
+
+def test_a_few_days_of_attendance_are_not_a_verdict():
+    src = inspect.getsource(f.ai_student_analyzer)
+    assert 'att_pct if int(att["n"] or 0) >= 5 else None' in src
