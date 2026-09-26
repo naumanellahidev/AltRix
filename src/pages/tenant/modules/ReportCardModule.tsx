@@ -1,3 +1,4 @@
+import { localDay } from "@/lib/local-date";
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { getVPSFileUrl } from "@/lib/vpsStorage";
 import { useSearchParams } from "react-router-dom";
@@ -305,7 +306,7 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
     if (periodType === "monthly") {
       const start = new Date(monthYear, monthIdx, 1);
       const end = new Date(monthYear, monthIdx + 1, 0);
-      return { start: start.toISOString().slice(0, 10), end: end.toISOString().slice(0, 10) };
+      return { start: localDay(start), end: localDay(end) };
     }
     if (periodType === "annual") {
       const [y1, y2] = annualYear.split("-").map((s) => parseInt(s, 10));
@@ -963,7 +964,7 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
   const [addTitle, setAddTitle] = useState("");
   const [addMax, setAddMax] = useState<number>(10);
   const [addMarks, setAddMarks] = useState<number>(0);
-  const [addDate, setAddDate] = useState<string>(new Date().toISOString().slice(0, 10));
+  const [addDate, setAddDate] = useState<string>(localDay());
 
   const openAddFor = (subjectId: string) => {
     setAddSubjectId(subjectId);
@@ -971,7 +972,7 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
     setAddTitle("");
     setAddMax(10);
     setAddMarks(0);
-    setAddDate(new Date().toISOString().slice(0, 10));
+    setAddDate(localDay());
     setAddOpen(true);
   };
 
@@ -1036,7 +1037,7 @@ export default function ReportCardModule({ schoolId, canManage: canManageProp = 
     setEditType((a.assessment_type || "quiz").toLowerCase());
     setEditMax(Number(a.max_marks || 0));
     setEditMarks(Number(m?.marks ?? 0));
-    setEditDate(a.assessment_date || new Date().toISOString().slice(0, 10));
+    setEditDate(a.assessment_date || localDay());
   };
 
   const submitEditAssessment = async () => {

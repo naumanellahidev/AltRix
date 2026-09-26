@@ -1,3 +1,4 @@
+import { localDay } from "@/lib/local-date";
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -92,7 +93,7 @@ export default function PublicVisitorRegisterPage() {
         cnic: cnic || null,
         purpose: purpose,
         details: details || null,
-        scheduled_date: new Date().toISOString().slice(0, 10),
+        scheduled_date: localDay(),
         student_roll_number: studentRoll || null,
       };
 

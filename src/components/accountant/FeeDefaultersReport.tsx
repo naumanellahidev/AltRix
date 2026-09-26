@@ -1,3 +1,4 @@
+import { localDay } from "@/lib/local-date";
 import { DataExportMenu } from "@/components/documents/DataExportMenu";
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -154,7 +155,7 @@ export function FeeDefaultersReport({ schoolId }: FeeDefaultersReportProps) {
         .select("id, invoice_number, student_id, total_amount, status, created_at, due_date")
         .eq("school_id", schoolId)
         .neq("status", "paid")
-        .lt("due_date", new Date().toISOString().split("T")[0])
+        .lt("due_date", localDay())
         .order("due_date", { ascending: true });
       if (error) throw error;
       return (data || []).map((inv: any) => ({

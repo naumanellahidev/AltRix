@@ -1,3 +1,4 @@
+import { localDay } from "@/lib/local-date";
 import { useEffect, useState, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { api } from "@/lib/api";
@@ -87,7 +88,7 @@ const ParentHomeModule = ({ child, schoolId }: ParentHomeModuleProps) => {
           .select("id", { count: "exact", head: true })
           .eq("school_id", schoolId)
           .eq("status", "active")
-          .gte("due_date", new Date().toISOString().split("T")[0]);
+          .gte("due_date", localDay());
 
         const { count: unpaidFees } = await api
           .from("fee_invoices")

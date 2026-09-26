@@ -45,8 +45,9 @@ export function AcademicCoordinatorHome() {
         attendanceSessions, attendanceEntries,
         exams, timetable, diary, behavior,
       ] = await Promise.all([
+        // On the roll: "active" or "enrolled" (only "active" was counted).
         api.from("students").select("id", { count: "exact", head: true })
-          .eq("school_id", schoolId!).eq("status", "active"),
+          .eq("school_id", schoolId!).in("status", ["active", "enrolled"]),
         api.from("academic_classes").select("id", { count: "exact", head: true })
           .eq("school_id", schoolId!),
         api.from("class_sections").select("id, name, class_id")

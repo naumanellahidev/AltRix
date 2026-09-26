@@ -1,3 +1,4 @@
+import { localDay } from "@/lib/local-date";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -103,8 +104,8 @@ export function TeacherPerformanceReport({ schoolId, teacherUserId, teacherName 
 
   const fetchReport = useCallback(async () => {
     setLoading(true);
-    const from = dateRange.start.toISOString().slice(0, 10);
-    const to = dateRange.end.toISOString().slice(0, 10);
+    const from = localDay(dateRange.start);
+    const to = localDay(dateRange.end);
 
     try {
       // Get teacher's assigned section IDs

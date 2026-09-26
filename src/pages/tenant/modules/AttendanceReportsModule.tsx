@@ -1,3 +1,4 @@
+import { localDay } from "@/lib/local-date";
 import { DataExportMenu } from "@/components/documents/DataExportMenu";
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
@@ -44,8 +45,8 @@ export function AttendanceReportsModule() {
   const schoolId = useMemo(() => (tenant.status === "ready" ? tenant.schoolId : null), [tenant.status, tenant.schoolId]);
   const perms = useSchoolPermissions(schoolId);
 
-  const [from, setFrom] = useState(() => new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10));
-  const [to, setTo] = useState(() => new Date().toISOString().slice(0, 10));
+  const [from, setFrom] = useState(() => localDay(new Date(Date.now() - 7 * 86400000)));
+  const [to, setTo] = useState(() => localDay());
   const [sectionId, setSectionId] = useState<string>("all");
   const [sections, setSections] = useState<Section[]>([]);
   const [classes, setClasses] = useState<ClassRow[]>([]);

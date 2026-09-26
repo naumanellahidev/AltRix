@@ -1,3 +1,4 @@
+import { localDay } from "@/lib/local-date";
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -43,9 +44,9 @@ function statusBadge(s: string) {
 }
 
 function formatDateLabel(d: string) {
-  const today = new Date().toISOString().split("T")[0];
+  const today = localDay();
   if (d === today) return "Today";
-  const y = new Date(Date.now() - 86400000).toISOString().split("T")[0];
+  const y = localDay(new Date(Date.now() - 86400000));
   if (d === y) return "Yesterday";
   return new Date(d).toLocaleDateString(undefined, {
     weekday: "short",
@@ -68,7 +69,7 @@ export function TeacherPresenceHistoryModule() {
     let cancelled = false;
     (async () => {
       setLoading(true);
-      const since = new Date(Date.now() - 7 * 86400000).toISOString().split("T")[0];
+      const since = localDay(new Date(Date.now() - 7 * 86400000));
       const { data: auditData } = await (api as any)
         .from("teacher_presence_audit")
         .select("id, timetable_entry_id, period_date, old_status, new_status, reason, created_at")

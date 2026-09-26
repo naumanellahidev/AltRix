@@ -108,6 +108,7 @@ finance_invoice_items|amount,created_at,description,id,invoice_id,quantity
 finance_invoices|campus_id,created_at,created_by,discount_total,due_date,id,instructions,invoice_no,is_active,issue_date,late_fee_total,notes,school_id,status,student_id,subtotal,total,updated_at
 finance_payment_methods|campus_id,created_at,id,instructions,is_active,name,school_id,type
 finance_payments|amount,campus_id,created_at,created_by,id,invoice_id,method_id,paid_at,reference,school_id,student_id
+finance_tax_settings|created_at,fiscal_start_month,id,rate_pct,school_id,updated_at,updated_by,withholding_pct
 first_aid_incidents|action_taken,campus_id,created_at,id,incident_type,location,parent_notified,school_id,student_id
 grade_boundaries|campus_id,created_at,description,gpa_equivalent,id,is_passing,label,max_percentage,min_percentage,preset_id,school_id,sort_order,subject_id
 grade_scales|campus_id,color,created_at,description,gpa_points,id,is_active,label,max_percentage,min_percentage,school_id,sort_order

@@ -1,3 +1,4 @@
+import { localDay } from "@/lib/local-date";
 import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { useParams } from "react-router-dom";
 import { useTenant } from "@/hooks/useTenant";
@@ -37,7 +38,7 @@ export function HrAttendanceModule() {
   const tenant = useTenant(schoolSlug);
   const schoolId = useMemo(() => (tenant.status === "ready" ? tenant.schoolId : null), [tenant.status, tenant.schoolId]);
   const queryClient = useQueryClient();
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split("T")[0]);
+  const [selectedDate, setSelectedDate] = useState(localDay());
   const [search, setSearch] = useState("");
   const [focusedRow, setFocusedRow] = useState(0);
   const [showHistory, setShowHistory] = useState(false);
@@ -60,11 +61,11 @@ export function HrAttendanceModule() {
   // Monthly summary
   const monthStart = useMemo(() => {
     const d = new Date(selectedDate);
-    return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split("T")[0];
+    return localDay(new Date(d.getFullYear(), d.getMonth(), 1));
   }, [selectedDate]);
   const monthEnd = useMemo(() => {
     const d = new Date(selectedDate);
-    return new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString().split("T")[0];
+    return localDay(new Date(d.getFullYear(), d.getMonth() + 1, 0));
   }, [selectedDate]);
 
   const { data: monthData = [] } = useQuery({

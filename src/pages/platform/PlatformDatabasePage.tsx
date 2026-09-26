@@ -1,3 +1,4 @@
+import { localDay } from "@/lib/local-date";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { apiClient } from "@/lib/api-client";
@@ -505,7 +506,7 @@ const [activeTab, setActiveTab] = useState<"global" | "schedules" | "hub" | "fil
       const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(exportPayload, null, 2));
       const downloadAnchor = document.createElement('a');
       downloadAnchor.setAttribute("href", dataStr);
-      downloadAnchor.setAttribute("download", `${selectedSchool.slug}_backup_${new Date().toISOString().slice(0,10)}.json`);
+      downloadAnchor.setAttribute("download", `${selectedSchool.slug}_backup_${localDay()}.json`);
       document.body.appendChild(downloadAnchor);
       downloadAnchor.click();
       downloadAnchor.remove();

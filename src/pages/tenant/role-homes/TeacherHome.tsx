@@ -1,3 +1,4 @@
+import { localDay } from "@/lib/local-date";
 import { useEffect, useState, useMemo } from "react";
 import { Link, useParams, useNavigate } from "react-router-dom";
 import {
@@ -237,7 +238,7 @@ export function TeacherHome() {
       }
 
       // Get pending homework - only for THIS teacher's sections or created by this teacher
-      const today = new Date().toISOString().split("T")[0];
+      const today = localDay();
       let pendingHomeworkCount = 0;
       if (assignedSectionIds.length > 0) {
         const { count } = await api

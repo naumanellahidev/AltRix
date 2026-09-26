@@ -1696,7 +1696,9 @@ Upcoming Holidays: {holidays}
 
         async def get_hr_salaries():
             return await fetch_rows("""
-                SELECT sd.full_name, sr.base_salary, sr.allowances, sr.deductions, sr.status, sr.month, sr.year, sr.id as salary_id
+                SELECT sd.full_name, sr.base_salary, sr.allowances, sr.deductions,
+                       CASE WHEN COALESCE(sr.is_active, true) THEN 'active' ELSE 'inactive' END AS status,
+                       sr.month, sr.year, sr.id as salary_id
                 FROM hr_salary_records sr
                 LEFT JOIN hr_staff_directory sd ON sr.user_id = sd.linked_user_id
                 WHERE sr.school_id = CAST(:sid AS UUID) ORDER BY sr.year DESC, sr.month DESC LIMIT 30

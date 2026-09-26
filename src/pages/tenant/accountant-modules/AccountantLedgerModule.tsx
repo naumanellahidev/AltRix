@@ -1,3 +1,4 @@
+import { localDay } from "@/lib/local-date";
 import { useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -42,14 +43,20 @@ export function AccountantLedgerModule() {
   const schoolId = tenant.status === "ready" ? tenant.schoolId : null;
 
   const today = new Date();
-  const first = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10);
-  const last = today.toISOString().slice(0, 10);
+  const first = localDay(new Date(today.getFullYear(), today.getMonth(), 1));
+  const last = localDay(today);
 
   const [from, setFrom] = useState(first);
   const [to, setTo] = useState(last);
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<string>("__all");
   const [tab, setTab] = useState("journal");
+
+  // The start and end of the chosen days in the viewer's own time zone. A bare
+  // "2026-09-01T00:00:00" is read by the server as UTC, which in Pakistan
+  // moved five hours of each end of the range onto the neighbouring day.
+  const fromInstant = new Date(`${from}T00:00:00`).toISOString();
+  const toInstant = new Date(`${to}T23:59:59.999`).toISOString();
 
   const paymentsQuery = useQuery({
     queryKey: ["ledger_payments", schoolId, from, to],
@@ -60,8 +67,8 @@ export function AccountantLedgerModule() {
         .select("id, amount, method, status, transaction_ref, paid_at, notes, created_at")
         .eq("school_id", schoolId!)
         .eq("status", "success")
-        .gte("paid_at", `${from}T00:00:00`)
-        .lte("paid_at", `${to}T23:59:59`)
+        .gte("paid_at", fromInstant)
+        .lte("paid_at", toInstant)
         .order("paid_at", { ascending: false });
       if (error) throw error;
       return data ?? [];
@@ -84,21 +91,42 @@ export function AccountantLedgerModule() {
     },
   });
 
+  // Salaries paid. "Every rupee that went out" left them out: the biggest
+  // outflow a school has was missing from its cash ledger.
+  const salariesQuery = useQuery({
+    queryKey: ["ledger_salaries", schoolId, from, to],
+    enabled: !!schoolId,
+    queryFn: async () => {
+      const { data, error } = await api
+        .from("hr_pay_runs")
+        .select("id, user_id, net_amount, period_start, period_end, paid_at, notes")
+        .eq("school_id", schoolId!)
+        .eq("status", "completed")
+        .gte("paid_at", fromInstant)
+        .lte("paid_at", toInstant)
+        .order("paid_at", { ascending: false });
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
   const payments = paymentsQuery.data ?? [];
   const expenses = expensesQuery.data ?? [];
+  const salaries = salariesQuery.data ?? [];
   // Half a ledger is not a ledger: if either side failed to load, the screen
   // says so rather than showing the other side as though it were the whole.
-  const loading = paymentsQuery.isLoading || expensesQuery.isLoading;
-  const failure = paymentsQuery.error ?? expensesQuery.error;
+  const loading = paymentsQuery.isLoading || expensesQuery.isLoading || salariesQuery.isLoading;
+  const failure = paymentsQuery.error ?? expensesQuery.error ?? salariesQuery.error;
   const reload = () => {
     void paymentsQuery.refetch();
     void expensesQuery.refetch();
+    void salariesQuery.refetch();
   };
 
   const entries: Entry[] = useMemo(() => {
     const inflows: Entry[] = (payments as any[]).map((p) => ({
       id: `p-${p.id}`,
-      date: (p.paid_at || p.created_at || "").slice(0, 10),
+      date: p.paid_at || p.created_at ? localDay(new Date(p.paid_at || p.created_at)) : "",
       type: "inflow",
       category: p.method || "payment",
       reference: p.transaction_ref || p.id.slice(0, 8),
@@ -114,8 +142,17 @@ export function AccountantLedgerModule() {
       description: e.description || "Expense",
       amount: Number(e.amount || 0),
     }));
-    return [...inflows, ...outflows].sort((a, b) => (a.date < b.date ? 1 : -1));
-  }, [payments, expenses]);
+    const salaryOut: Entry[] = (salaries as any[]).map((r) => ({
+      id: `s-${r.id}`,
+      date: r.paid_at ? localDay(new Date(r.paid_at)) : r.period_end,
+      type: "outflow",
+      category: "salaries",
+      reference: r.period_start && r.period_end ? `${r.period_start} to ${r.period_end}` : "—",
+      description: r.notes || "Salary paid",
+      amount: Number(r.net_amount || 0),
+    }));
+    return [...inflows, ...outflows, ...salaryOut].sort((a, b) => (a.date < b.date ? 1 : -1));
+  }, [payments, expenses, salaries]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();

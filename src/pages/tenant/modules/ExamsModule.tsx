@@ -1,3 +1,4 @@
+import { localDay } from "@/lib/local-date";
 import { useEffect, useState, useMemo } from "react";
 import { api } from "@/lib/api";
 import { useSession } from "@/hooks/useSession";
@@ -64,7 +65,7 @@ export default function ExamsModule({ schoolId, canManage: canManageProp = false
   const [open, setOpen] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [loadingRole, setLoadingRole] = useState(true);
-  const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const today = useMemo(() => localDay(), []);
   const [form, setForm] = useState({ name: "", term_label: "", start_date: today, end_date: today, status: "scheduled" });
 
   // Evaluation details

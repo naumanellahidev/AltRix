@@ -56,11 +56,15 @@ export function OwnerWellbeingModule({ schoolId }: Props) {
 
       const openComplaints = complaints.filter((c: any) => c.status !== "resolved" && c.status !== "closed").length;
       const resolvedComplaints = complaints.filter((c: any) => c.status === "resolved" || c.status === "closed").length;
-      const resolutionRate = complaints.length ? Math.round((resolvedComplaints / complaints.length) * 100) : 100;
+      // Nothing recorded is not a result: with no complaints the rate read
+      // 100%, and with no behaviour notes the school read "Excellent" and
+      // "Low" dropout risk.
+      const resolutionRate: number | null = complaints.length ? Math.round((resolvedComplaints / complaints.length) * 100) : null;
 
+      const hasNotes = behavior.length > 0;
       const ratio = students.length > 0 ? incidents / students.length : 0;
-      const dropoutRisk = ratio > 0.1 ? "High" : ratio > 0.05 ? "Medium" : "Low";
-      const wellbeing = incidents === 0 ? "Excellent" : incidents < 5 ? "Good" : "Needs Attention";
+      const dropoutRisk = !hasNotes || students.length === 0 ? null : ratio > 0.1 ? "High" : ratio > 0.05 ? "Medium" : "Low";
+      const wellbeing = !hasNotes ? null : incidents === 0 ? "Excellent" : incidents < 5 ? "Good" : "Needs Attention";
 
       // 30-day trend
       const trend = Array.from({ length: 30 }).map((_, idx) => {
@@ -124,10 +128,10 @@ export function OwnerWellbeingModule({ schoolId }: Props) {
       </div>
 
       <div className="grid grid-cols-2 gap-2.5 sm:gap-4 lg:grid-cols-4">
-        <Card><CardContent className="p-3 sm:p-4"><HeartPulse className="h-4 w-4 sm:h-5 sm:w-5 text-pink-600" /><p className="mt-2 font-display text-lg sm:text-2xl font-bold truncate">{data?.wellbeing ?? "—"}</p><p className="text-[10px] sm:text-xs text-muted-foreground truncate">Overall Wellbeing</p></CardContent></Card>
+        <Card><CardContent className="p-3 sm:p-4"><HeartPulse className="h-4 w-4 sm:h-5 sm:w-5 text-pink-600" /><p className="mt-2 font-display text-lg sm:text-2xl font-bold truncate">{data?.wellbeing ?? "No notes yet"}</p><p className="text-[10px] sm:text-xs text-muted-foreground truncate">Overall Wellbeing</p></CardContent></Card>
         <Card><CardContent className="p-3 sm:p-4"><Users className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" /><p className="mt-2 font-display text-lg sm:text-2xl font-bold truncate">{data?.behaviorCount ?? 0}</p><p className="text-[10px] sm:text-xs text-muted-foreground truncate">Notes (90d)</p></CardContent></Card>
         <Card><CardContent className="p-3 sm:p-4"><AlertTriangle className="h-4 w-4 sm:h-5 sm:w-5 text-amber-600" /><p className="mt-2 font-display text-lg sm:text-2xl font-bold truncate">{data?.incidents ?? 0}</p><p className="text-[10px] sm:text-xs text-muted-foreground truncate">Incidents/Concerns</p></CardContent></Card>
-        <Card><CardContent className="p-3 sm:p-4"><Activity className="h-4 w-4 sm:h-5 sm:w-5 text-emerald-600" /><p className="mt-2 font-display text-lg sm:text-2xl font-bold truncate">{data?.dropoutRisk ?? "Low"}</p><p className="text-[10px] sm:text-xs text-muted-foreground truncate">Dropout Risk</p></CardContent></Card>
+        <Card><CardContent className="p-3 sm:p-4"><Activity className="h-4 w-4 sm:h-5 sm:w-5 text-emerald-600" /><p className="mt-2 font-display text-lg sm:text-2xl font-bold truncate">{data?.dropoutRisk ?? "—"}</p><p className="text-[10px] sm:text-xs text-muted-foreground truncate">Dropout Risk</p></CardContent></Card>
       </div>
 
       <Tabs defaultValue="trends" className="w-full space-y-4 sm:space-y-6">
@@ -206,7 +210,7 @@ export function OwnerWellbeingModule({ schoolId }: Props) {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-4">
             <Card><CardContent className="p-3 sm:p-4"><MessageSquare className="h-4 w-4 sm:h-5 sm:w-5 text-primary" /><p className="mt-2 font-display text-lg sm:text-2xl font-bold truncate">{data?.complaints.length || 0}</p><p className="text-[10px] sm:text-xs text-muted-foreground truncate">Total Complaints</p></CardContent></Card>
             <Card><CardContent className="p-3 sm:p-4"><AlertTriangle className="h-4 w-4 sm:h-5 sm:w-5 text-amber-600" /><p className="mt-2 font-display text-lg sm:text-2xl font-bold truncate">{data?.openComplaints || 0}</p><p className="text-[10px] sm:text-xs text-muted-foreground truncate">Open</p></CardContent></Card>
-            <Card><CardContent className="p-3 sm:p-4"><Activity className="h-4 w-4 sm:h-5 sm:w-5 text-emerald-600" /><p className="mt-2 font-display text-lg sm:text-2xl font-bold truncate">{data?.resolutionRate || 0}%</p><p className="text-[10px] sm:text-xs text-muted-foreground truncate">Resolution Rate</p></CardContent></Card>
+            <Card><CardContent className="p-3 sm:p-4"><Activity className="h-4 w-4 sm:h-5 sm:w-5 text-emerald-600" /><p className="mt-2 font-display text-lg sm:text-2xl font-bold truncate">{data?.resolutionRate != null ? `${data.resolutionRate}%` : "—"}</p><p className="text-[10px] sm:text-xs text-muted-foreground truncate">Resolution Rate</p></CardContent></Card>
           </div>
           <Card>
             <CardHeader className="p-4 sm:p-6 pb-2 flex flex-row items-center justify-between gap-2"><CardTitle className="text-sm sm:text-base">Recent complaints</CardTitle><DataExportMenu title="Complaints" rows={(data?.complaints ?? []).map((c: any) => ({ Subject: c.subject ?? "", Category: c.category ?? "", Flow: c.flow ?? "", Status: c.status, Created: c.created_at ? String(c.created_at).slice(0, 10) : "" }))} disabled={!data?.complaints?.length} size="sm" /></CardHeader>

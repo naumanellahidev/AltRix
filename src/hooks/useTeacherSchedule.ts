@@ -1,3 +1,4 @@
+import { localDay } from "@/lib/local-date";
 import { useCallback, useEffect, useState } from "react";
 import { api, USE_FASTAPI, setUseFastAPI } from "@/lib/api";
 import { apiClient, isNetworkOrProxyError } from "@/lib/api-client";
@@ -99,7 +100,7 @@ export function useTeacherSchedule(
       setLoading(true);
       setError(null);
 
-      const dateStr = selectedDate || new Date().toISOString().split("T")[0];
+      const dateStr = selectedDate || localDay();
 
       // Try to load from cache first (for instant display)
       try {

@@ -1332,13 +1332,13 @@ export function MessagesModule({ schoolId, isStudentPortal = false }: Props) {
             <TabsList className="w-full justify-start rounded-none border-0 bg-transparent h-10 p-0 px-3">
               <TabsTrigger 
                 value="inbox" 
-                className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-3"
+                className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-primary data-[state=active]:shadow-none px-3"
               >
                 Inbox
               </TabsTrigger>
               <TabsTrigger 
                 value="scheduled" 
-                className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-3"
+                className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-primary data-[state=active]:shadow-none px-3"
               >
                 <Clock className="mr-1.5 h-3.5 w-3.5" />
                 Scheduled

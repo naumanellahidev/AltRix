@@ -1,3 +1,4 @@
+import { localDay } from "@/lib/local-date";
 import { useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -35,7 +36,7 @@ export function ManualProofUploadDialog({ open, onOpenChange, schoolId, studentI
   const isEdit = !!existingProof;
   const [file, setFile] = useState<File | null>(null);
   const [amount, setAmount] = useState(String(existingProof?.amount ?? amountDue ?? ""));
-  const [paidAt, setPaidAt] = useState(existingProof?.paid_at || new Date().toISOString().slice(0, 10));
+  const [paidAt, setPaidAt] = useState(existingProof?.paid_at || localDay());
   const [method, setMethod] = useState(existingProof?.method || "bank_transfer");
   const [note, setNote] = useState(existingProof?.note || "");
   const [submitting, setSubmitting] = useState(false);
@@ -45,7 +46,7 @@ export function ManualProofUploadDialog({ open, onOpenChange, schoolId, studentI
     if (open) {
       setFile(null);
       setAmount(String(existingProof?.amount ?? amountDue ?? ""));
-      setPaidAt(existingProof?.paid_at || new Date().toISOString().slice(0, 10));
+      setPaidAt(existingProof?.paid_at || localDay());
       setMethod(existingProof?.method || "bank_transfer");
       setNote(existingProof?.note || "");
     }

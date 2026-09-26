@@ -1,3 +1,4 @@
+import { localDay } from "@/lib/local-date";
 import { useState, useMemo } from "react";
 import { Receipt } from "lucide-react";
 import { ModuleHeader } from "@/components/tenant/module-kit";
@@ -90,7 +91,7 @@ export function AccountantExpensesModule() {
   const [formDescription, setFormDescription] = useState("");
   const [formAmount, setFormAmount] = useState("");
   const [formCategory, setFormCategory] = useState("other");
-  const [formDate, setFormDate] = useState(new Date().toISOString().split("T")[0]);
+  const [formDate, setFormDate] = useState(localDay());
   const [formVendor, setFormVendor] = useState("");
   const [formReference, setFormReference] = useState("");
   const [formMethodId, setFormMethodId] = useState("");
@@ -127,7 +128,7 @@ export function AccountantExpensesModule() {
     setFormDescription("");
     setFormAmount("");
     setFormCategory("other");
-    setFormDate(new Date().toISOString().split("T")[0]);
+    setFormDate(localDay());
     setFormVendor("");
     setFormReference("");
     setFormMethodId("");

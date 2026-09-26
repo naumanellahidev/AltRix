@@ -887,6 +887,36 @@ def run():
           and "command_timeout" in code("backend/app/database.py")
           and exists("scripts/check_backend_sql.py"))
 
+    # Found by opening every screen of the accountant, HR, marketing, owner and
+    # principal shells.
+    utc_days = sh(
+        "grep -rlE 'toISOString\\(\\)\\.(slice\\(0, ?10\\)|split\\(\"T\"\\)\\[0\\])' src"
+        " --include=*.ts --include=*.tsx | grep -v '\\.test\\.'"
+        " | grep -v 'lib/admissions/bulk-import.ts' | grep -v 'lib/documents/spreadsheet.ts'"
+        " | grep -v 'lib/voucher-data.ts'"
+    ).strip()
+    acct = txt("src/pages/tenant/accountant-modules/AccountantHomeModule.tsx")
+    check(S, "qa2", "local calendar days, real invoice statuses, campus stages and staff reachable",
+          not utc_days
+          and 'i.status === "sent"' not in acct and "monthlyPayroll * completedPayRuns" not in acct
+          and "'staff_campus_assignments': ('campus_id', 'campuses')" in vps
+          and "byName" in txt("src/pages/tenant/owner-modules/OwnerAdmissionsModule.tsx"),
+          utc_days.replace("\n", ", ")[:200])
+
+    tax = txt("src/pages/tenant/accountant-modules/AccountantTaxModule.tsx")
+    tdash = txt("src/pages/tenant/TenantDashboard.tsx")
+    check(S, "qa3", "salaries reach the books, tax settings are the school's, no stand-in figures",
+          "localStorage" not in tax and '"finance_tax_settings"' in tax and '"hr_pay_runs"' in tax
+          and '"hr_pay_runs"' in txt("src/pages/tenant/accountant-modules/AccountantLedgerModule.tsx")
+          and 'from("hr_pay_runs").insert' in txt("src/pages/tenant/hr-modules/HrPayrollModule.tsx")
+          and exists("backend/sql_migrations/20261031001000_finance_tax_settings.sql")
+          and exists("backend/sql_migrations/20261031001100_datesheet_notifications_once.sql")
+          and exists("backend/sql_migrations/20261031001200_owner_assignments_follow_accounts.sql")
+          and "Check paid fee invoices as fallback" not in tdash and "${revenueMtd" not in tdash
+          and "Include paid invoices revenue" not in txt("src/pages/tenant/role-homes/PrincipalHome.tsx")
+          and "COALESCE(status, 'active') = 'active'" not in code(R + "owner_insights.py")
+          and 's.status === "active" || s.is_active' not in txt("src/pages/tenant/owner-modules/OwnerHrModule.tsx"))
+
     check(S, "inv1", "no screen invents the figures, people, files or backups it shows",
           "/platform/health-metrics" in txt("src/pages/platform/PlatformHealthPage.tsx")
           and "mockData" not in txt("src/pages/platform/PlatformDashboardPage.tsx")

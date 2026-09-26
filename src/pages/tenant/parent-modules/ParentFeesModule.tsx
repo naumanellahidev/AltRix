@@ -1,3 +1,4 @@
+import { localDay } from "@/lib/local-date";
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -362,7 +363,7 @@ export default function ParentFeesModule({ child, schoolId }: ParentFeesModulePr
 
       const base: VoucherCopyData = {
         invoiceNumber: inv.invoice_number,
-        issueDate: new Date().toISOString().slice(0, 10),
+        issueDate: localDay(),
         dueDate,
         periodLabel: inv.period_label,
         school: {

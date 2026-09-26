@@ -30,8 +30,13 @@ type Slip = {
 type Comp = { id: string; name: string; kind: string; calc_type: string; default_value: number };
 type EmpStruct = { id: string; employee_user_id: string; component_id: string; amount: number };
 type Staff = { user_id: string; display_name: string | null; email: string };
+type SalaryRec = { user_id: string; base_salary: number; allowances: number | null; deductions: number | null };
 
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+/** Money in whole paisa, so totals add up exactly. */
+const paisa = (v: unknown) => Math.round(Number(v || 0) * 100);
+const pad2 = (n: number) => String(n).padStart(2, "0");
 
 export function HrPayrollModule() {
   const { schoolSlug } = useParams();
@@ -42,20 +47,23 @@ export function HrPayrollModule() {
   const [slips, setSlips] = useState<Slip[]>([]);
   const [comps, setComps] = useState<Comp[]>([]);
   const [structs, setStructs] = useState<EmpStruct[]>([]);
+  const [salaryRecs, setSalaryRecs] = useState<SalaryRec[]>([]);
   const [staff, setStaff] = useState<Staff[]>([]);
   const [activeRun, setActiveRun] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     if (!schoolId) return;
-    const [r, c, st, s] = await Promise.all([
+    const [r, c, st, s, sr] = await Promise.all([
       (api as any).from("hr_payroll_runs").select("*").eq("school_id", schoolId).order("period_year", { ascending: false }).order("period_month", { ascending: false }),
       (api as any).from("hr_salary_components").select("*").eq("school_id", schoolId).eq("is_active", true).order("sort_order"),
       (api as any).from("hr_employee_salary_structure").select("*").eq("school_id", schoolId),
       (api as any).rpc("get_school_staff_directory", { _school_id: schoolId }),
+      (api as any).from("hr_salary_records").select("user_id, base_salary, allowances, deductions").eq("school_id", schoolId).eq("is_active", true),
     ]);
     if (r.data) setRuns(r.data);
     if (c.data) setComps(c.data);
     if (st.data) setStructs(st.data);
+    if (sr.data) setSalaryRecs(sr.data);
     if (s.data) setStaff(s.data);
   }, [schoolId]);
 
@@ -93,7 +101,7 @@ export function HrPayrollModule() {
         </TabsList>
 
         <TabsContent value="runs" className="mt-4 space-y-4">
-          <RunsTab runs={runs} schoolId={schoolId} staff={staff} structs={structs} comps={comps} onChange={refresh} onSelect={setActiveRun} activeRun={activeRun} slips={slips} reloadSlips={() => activeRun && loadSlips(activeRun)} />
+          <RunsTab runs={runs} schoolId={schoolId} staff={staff} structs={structs} salaryRecs={salaryRecs} comps={comps} onChange={refresh} onSelect={setActiveRun} activeRun={activeRun} slips={slips} reloadSlips={() => activeRun && loadSlips(activeRun)} />
         </TabsContent>
 
         <TabsContent value="components" className="mt-4">
@@ -113,12 +121,22 @@ function KPI({ label, value, icon: Icon, tone }: any) {
   );
 }
 
-function RunsTab({ runs, schoolId, staff, structs, comps, onChange, onSelect, activeRun, slips, reloadSlips }: any) {
+function RunsTab({ runs, schoolId, staff, structs, salaryRecs, comps, onChange, onSelect, activeRun, slips, reloadSlips }: any) {
   const [open, setOpen] = useState(false);
   const today = new Date();
   const [form, setForm] = useState({ year: today.getFullYear(), month: today.getMonth() + 1, label: "" });
 
   const createRun = async () => {
+    // Pay comes from the salary components set for a member of staff, or,
+    // where none are set, from their active salary record (Salaries). Only
+    // components were read, so a school that keeps salaries in Salaries got a
+    // run with no payslips at all, announced as created.
+    const withStructs = new Set(structs.map((s: EmpStruct) => s.employee_user_id));
+    const fromRecords = (salaryRecs as SalaryRec[]).filter((r) => !withStructs.has(r.user_id));
+    if (withStructs.size === 0 && fromRecords.length === 0) {
+      toast.error("No one has a salary yet. Set salaries (or salary components) before running payroll.");
+      return;
+    }
     const { data: run, error } = await (api as any).from("hr_payroll_runs").insert({
       school_id: schoolId, period_year: form.year, period_month: form.month,
       label: form.label || `${MONTHS[form.month - 1]} ${form.year}`, status: "draft",
@@ -127,7 +145,7 @@ function RunsTab({ runs, schoolId, staff, structs, comps, onChange, onSelect, ac
 
     // Generate payslips for every employee that has a salary structure
     const empIds = Array.from(new Set(structs.map((s: EmpStruct) => s.employee_user_id)));
-    let totalGross = 0, totalDed = 0, totalNet = 0;
+    let totalGross = 0, totalDed = 0, totalNet = 0; // paisa
     const payslipRows = empIds.map((empId: any) => {
       const myStructs = structs.filter((s: EmpStruct) => s.employee_user_id === empId);
       let basic = 0, earnings = 0, deductions = 0;
@@ -135,8 +153,8 @@ function RunsTab({ runs, schoolId, staff, structs, comps, onChange, onSelect, ac
       for (const s of myStructs) {
         const c = comps.find((x: Comp) => x.id === s.component_id);
         if (!c) continue;
-        const amt = Number(s.amount);
-        breakdown[c.name] = amt;
+        const amt = paisa(s.amount);
+        breakdown[c.name] = amt / 100;
         if (c.kind === "earning") {
           earnings += amt;
           if (c.name.toLowerCase() === "basic") basic = amt;
@@ -149,14 +167,39 @@ function RunsTab({ runs, schoolId, staff, structs, comps, onChange, onSelect, ac
       totalGross += gross; totalDed += deductions; totalNet += net;
       return {
         school_id: schoolId, run_id: run.id, employee_user_id: empId,
-        basic, earnings, deductions, tax: 0, bonus: 0, gross, net, breakdown,
+        basic: basic / 100, earnings: earnings / 100, deductions: deductions / 100,
+        tax: 0, bonus: 0, gross: gross / 100, net: net / 100, breakdown,
       };
     });
-    if (payslipRows.length) await (api as any).from("hr_payslips").insert(payslipRows);
-    await (api as any).from("hr_payroll_runs").update({
+    for (const rec of fromRecords) {
+      const base = paisa(rec.base_salary);
+      const allow = paisa(rec.allowances);
+      const ded = paisa(rec.deductions);
+      const gross = base + allow;
+      const net = gross - ded;
+      totalGross += gross; totalDed += ded; totalNet += net;
+      payslipRows.push({
+        school_id: schoolId, run_id: run.id, employee_user_id: rec.user_id,
+        basic: base / 100, earnings: gross / 100, deductions: ded / 100,
+        tax: 0, bonus: 0, gross: gross / 100, net: net / 100,
+        breakdown: { Basic: base / 100, Allowances: allow / 100, Deductions: ded / 100 },
+      });
+    }
+    // A run without its payslips is not a run: the failure used to be ignored
+    // and "Run created" shown over a run with no payslips and zero totals.
+    if (payslipRows.length) {
+      const { error: slipErr } = await (api as any).from("hr_payslips").insert(payslipRows);
+      if (slipErr) {
+        await (api as any).from("hr_payroll_runs").delete().eq("id", run.id);
+        toast.error(`The payslips could not be created: ${slipErr.message}`);
+        return;
+      }
+    }
+    const { error: totErr } = await (api as any).from("hr_payroll_runs").update({
       generated_at: new Date().toISOString(),
-      total_gross: totalGross, total_deductions: totalDed, total_net: totalNet,
+      total_gross: totalGross / 100, total_deductions: totalDed / 100, total_net: totalNet / 100,
     }).eq("id", run.id);
+    if (totErr) { toast.error(`The run's totals could not be saved: ${totErr.message}`); onChange(); return; }
 
     toast.success(`Run created with ${payslipRows.length} payslips`);
     setOpen(false); onChange();
@@ -165,7 +208,37 @@ function RunsTab({ runs, schoolId, staff, structs, comps, onChange, onSelect, ac
   const setStatus = async (id: string, status: string) => {
     const upd: any = { status };
     if (status === "locked") upd.approved_at = new Date().toISOString();
-    if (status === "paid") upd.paid_at = new Date().toISOString();
+    if (status === "paid") {
+      upd.paid_at = new Date().toISOString();
+      // The salaries paid are what the accountant's books, the cash ledger
+      // and the owner read (hr_pay_runs). A run marked paid here never
+      // reached them. Staff already paid for the month there are skipped,
+      // so nobody is paid twice on paper.
+      const run = runs.find((r: Run) => r.id === id);
+      if (!run) return;
+      const start = `${run.period_year}-${pad2(run.period_month)}-01`;
+      const endDay = new Date(run.period_year, run.period_month, 0).getDate();
+      const end = `${run.period_year}-${pad2(run.period_month)}-${pad2(endDay)}`;
+      const [{ data: runSlips, error: sErr }, { data: already, error: aErr }] = await Promise.all([
+        (api as any).from("hr_payslips").select("employee_user_id, gross, deductions, net").eq("run_id", id),
+        (api as any).from("hr_pay_runs").select("user_id").eq("school_id", schoolId).eq("period_start", start),
+      ]);
+      if (sErr || aErr) { toast.error((sErr || aErr).message); return; }
+      const paid = new Set((already || []).map((a: any) => a.user_id));
+      const rows = (runSlips || [])
+        .filter((p: any) => !paid.has(p.employee_user_id))
+        .map((p: any) => ({
+          school_id: schoolId, user_id: p.employee_user_id,
+          period_start: start, period_end: end,
+          gross_amount: Number(p.gross || 0), deductions: Number(p.deductions || 0), net_amount: Number(p.net || 0),
+          status: "completed", paid_at: upd.paid_at,
+          notes: `Payroll run: ${run.label || `${MONTHS[run.period_month - 1]} ${run.period_year}`}`,
+        }));
+      if (rows.length) {
+        const { error: pErr } = await api.from("hr_pay_runs").insert(rows);
+        if (pErr) { toast.error(`The salary payments could not be recorded: ${pErr.message}`); return; }
+      }
+    }
     const { error } = await (api as any).from("hr_payroll_runs").update(upd).eq("id", id);
     if (error) toast.error(error.message); else { toast.success(`Run ${status}`); onChange(); }
   };

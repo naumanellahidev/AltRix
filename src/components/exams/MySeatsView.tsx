@@ -1,3 +1,4 @@
+import { localDay } from "@/lib/local-date";
 /**
  * A student's exam seats, for the student or their family.
  *
@@ -61,7 +62,7 @@ export function MySeatsView({ studentId, studentName, audience }: { studentId?: 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [studentId]);
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localDay();
   const upcoming = (plans ?? []).filter((p) => !p.exam_date || p.exam_date >= today);
   const past = (plans ?? []).filter((p) => p.exam_date && p.exam_date < today);
 

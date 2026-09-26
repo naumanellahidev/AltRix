@@ -65,8 +65,9 @@ export function CounselorHome() {
           .eq("school_id", schoolId!)
           .order("created_at", { ascending: false })
           .limit(5),
+        // On the roll: "active" or "enrolled" (only "active" was counted).
         api.from("students").select("id", { count: "exact", head: true })
-          .eq("school_id", schoolId!).eq("status", "active"),
+          .eq("school_id", schoolId!).in("status", ["active", "enrolled"]),
       ]);
       return {
         cases: (queue.data ?? []) as any[],

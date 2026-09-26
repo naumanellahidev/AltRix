@@ -1,3 +1,4 @@
+import { localDay } from "@/lib/local-date";
 import { useEffect, useState } from "react";
 import { Check, Clock, X } from "lucide-react";
 import { api } from "@/lib/api";
@@ -70,7 +71,7 @@ export function PeriodLogDialog({
       school_id: schoolId,
       teacher_user_id: user.user.id,
       timetable_entry_id: entry.id,
-      logged_at: new Date().toISOString().slice(0, 10),
+      logged_at: localDay(),
       status,
       notes: notes.trim() || null,
       topic_covered: topicsCovered.trim() || null,

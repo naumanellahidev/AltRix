@@ -273,8 +273,9 @@ export function AccountantHomeModule() {
       })
       .reduce((sum, p) => sum + p.amount, 0);
     
-    const revenueGrowth = lastMonthRevenue > 0 ? ((thisMonthRevenue - lastMonthRevenue) / lastMonthRevenue) * 100 : 0;
-    const revenueTrend = twoMonthsAgoRevenue > 0 ? ((lastMonthRevenue - twoMonthsAgoRevenue) / twoMonthsAgoRevenue) * 100 : 0;
+    // No base month, no growth figure (it read 0%, "flat").
+    const revenueGrowth: number | null = lastMonthRevenue > 0 ? ((thisMonthRevenue - lastMonthRevenue) / lastMonthRevenue) * 100 : null;
+    const revenueTrend: number | null = twoMonthsAgoRevenue > 0 ? ((lastMonthRevenue - twoMonthsAgoRevenue) / twoMonthsAgoRevenue) * 100 : null;
 
     // Expense calculations
     const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
@@ -287,14 +288,19 @@ export function AccountantHomeModule() {
         return date >= lastMonth && date <= lastMonthEnd;
       })
       .reduce((sum, e) => sum + e.amount, 0);
-    const expenseGrowth = lastMonthExpenses > 0 ? ((thisMonthExpenses - lastMonthExpenses) / lastMonthExpenses) * 100 : 0;
+    const expenseGrowth: number | null = lastMonthExpenses > 0 ? ((thisMonthExpenses - lastMonthExpenses) / lastMonthExpenses) * 100 : null;
 
     // Invoice analytics
-    const totalInvoiced = invoices.reduce((sum, i) => sum + i.total, 0);
+    // Invoice statuses are draft, pending, partial, paid, overdue, cancelled.
+    // This counted "sent" invoices, a status that does not exist, so pending
+    // and overdue were always 0; and cancelled invoices counted as billed.
+    const billedInvoices = invoices.filter((i) => i.status !== "cancelled");
+    const totalInvoiced = billedInvoices.reduce((sum, i) => sum + i.total, 0);
     const paidInvoices = invoices.filter((i) => i.status === "paid");
-    const overdueInvoices = invoices.filter((i) => i.status === "overdue" || (i.status === "sent" && new Date(i.due_date) < now));
-    const pendingInvoices = invoices.filter((i) => i.status === "sent" || i.status === "draft");
-    const collectionRate = totalInvoiced > 0 ? (totalRevenue / totalInvoiced) * 100 : 0;
+    const isOpen = (i: { status: string }) => i.status === "pending" || i.status === "partial";
+    const overdueInvoices = invoices.filter((i) => i.status === "overdue" || (isOpen(i) && !!i.due_date && new Date(i.due_date) < now));
+    const pendingInvoices = invoices.filter((i) => i.status === "draft" || (isOpen(i) && !(i.due_date && new Date(i.due_date) < now)));
+    const collectionRate: number | null = totalInvoiced > 0 ? (totalRevenue / totalInvoiced) * 100 : null;
     const avgInvoiceValue: number | null = invoices.length > 0 ? totalInvoiced / invoices.length : null;
 
     // Payroll analytics
@@ -306,15 +312,19 @@ export function AccountantHomeModule() {
 
     // Profitability
     const grossProfit = totalRevenue - totalExpenses;
-    const netProfit = grossProfit - (monthlyPayroll * completedPayRuns);
-    const profitMargin = totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0;
-    
-    // Cash position estimate
-    const cashPosition = totalRevenue - totalExpenses - payRuns.filter(p => p.status === "completed").reduce((sum, p) => sum + (p.net_amount || 0), 0);
+    // Salaries actually paid (completed pay runs). This subtracted today's
+    // monthly salary bill times the number of pay runs, which is not what was
+    // paid once salaries change.
+    const payrollPaid = payRuns.filter((p) => p.status === "completed").reduce((sum, p) => sum + (Number(p.net_amount) || 0), 0);
+    const netProfit = grossProfit - payrollPaid;
+    const profitMargin: number | null = totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : null;
+
+    // Cash position estimate: collected, less expenses and salaries paid.
+    const cashPosition = totalRevenue - totalExpenses - payrollPaid;
 
     // Student metrics
-    const revenuePerStudent = students.length > 0 ? totalRevenue / students.length : 0;
-    const costPerStudent = students.length > 0 ? (totalExpenses + monthlyPayroll) / students.length : 0;
+    const revenuePerStudent: number | null = students.length > 0 ? totalRevenue / students.length : null;
+    const costPerStudent: number | null = students.length > 0 ? (totalExpenses + monthlyPayroll) / students.length : null;
 
     return {
       totalRevenue,
@@ -350,31 +360,38 @@ export function AccountantHomeModule() {
   }, [payments, expenses, invoices, payRuns, salaryRecords, students]);
 
   // Financial Health Score (0-100)
-  const financialHealth = useMemo(() => {
+  // With nothing billed or collected there is nothing to score: this showed
+  // "40 Fair" for a school with no finance records at all.
+  const financialHealth: number | null = useMemo(() => {
+    if (invoices.length === 0 && payments.length === 0) return null;
     let score = 50; // Base score
-    
+
     // Collection rate impact (0-25 points)
-    score += Math.min(stats.collectionRate * 0.25, 25);
-    
+    if (stats.collectionRate != null) score += Math.min(stats.collectionRate * 0.25, 25);
+
     // Profitability impact (-15 to +15 points)
-    if (stats.profitMargin > 20) score += 15;
-    else if (stats.profitMargin > 10) score += 10;
-    else if (stats.profitMargin > 0) score += 5;
-    else if (stats.profitMargin > -10) score -= 5;
-    else score -= 15;
-    
+    if (stats.profitMargin != null) {
+      if (stats.profitMargin > 20) score += 15;
+      else if (stats.profitMargin > 10) score += 10;
+      else if (stats.profitMargin > 0) score += 5;
+      else if (stats.profitMargin > -10) score -= 5;
+      else score -= 15;
+    }
+
     // Revenue growth impact (-10 to +10 points)
-    if (stats.revenueGrowth > 10) score += 10;
-    else if (stats.revenueGrowth > 0) score += 5;
-    else if (stats.revenueGrowth > -10) score -= 5;
-    else score -= 10;
-    
+    if (stats.revenueGrowth != null) {
+      if (stats.revenueGrowth > 10) score += 10;
+      else if (stats.revenueGrowth > 0) score += 5;
+      else if (stats.revenueGrowth > -10) score -= 5;
+      else score -= 10;
+    }
+
     // Overdue invoices impact (0 to -10 points)
     const overdueRatio = stats.overdueInvoices / Math.max(invoices.length, 1);
     score -= overdueRatio * 10;
-    
+
     return Math.max(0, Math.min(100, Math.round(score)));
-  }, [stats, invoices]);
+  }, [stats, invoices, payments]);
 
   const getHealthColor = (score: number) => {
     if (score >= 80) return "text-blue-600";
@@ -392,31 +409,39 @@ export function AccountantHomeModule() {
 
   // Cash flow trend (last 30 days)
   const cashFlowData = useMemo(() => {
-    const dataMap = new Map<string, { date: string; revenue: number; expenses: number; net: number }>();
+    // Keyed by ISO day: sorting the "Sep 3" labels parsed them into 2001 and
+    // put January before December.
+    const dataMap = new Map<string, { key: string; date: string; revenue: number; expenses: number; net: number }>();
+    const dayKey = (v: string) => {
+      const d = new Date(v);
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    };
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
     payments
       .filter((p) => new Date(p.paid_at) >= thirtyDaysAgo)
       .forEach((p) => {
+        const key = dayKey(p.paid_at);
         const date = new Date(p.paid_at).toLocaleDateString("en-US", { month: "short", day: "numeric" });
-        const existing = dataMap.get(date) || { date, revenue: 0, expenses: 0, net: 0 };
+        const existing = dataMap.get(key) || { key, date, revenue: 0, expenses: 0, net: 0 };
         existing.revenue += p.amount;
         existing.net = existing.revenue - existing.expenses;
-        dataMap.set(date, existing);
+        dataMap.set(key, existing);
       });
 
     expenses
       .filter((e) => new Date(e.expense_date) >= thirtyDaysAgo)
       .forEach((e) => {
+        const key = dayKey(e.expense_date);
         const date = new Date(e.expense_date).toLocaleDateString("en-US", { month: "short", day: "numeric" });
-        const existing = dataMap.get(date) || { date, revenue: 0, expenses: 0, net: 0 };
+        const existing = dataMap.get(key) || { key, date, revenue: 0, expenses: 0, net: 0 };
         existing.expenses += e.amount;
         existing.net = existing.revenue - existing.expenses;
-        dataMap.set(date, existing);
+        dataMap.set(key, existing);
       });
 
-    return Array.from(dataMap.values()).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    return Array.from(dataMap.values()).sort((a, b) => a.key.localeCompare(b.key));
   }, [payments, expenses]);
 
   // Expense breakdown
@@ -504,14 +529,14 @@ export function AccountantHomeModule() {
     const list: { type: "success" | "warning" | "danger" | "info"; title: string; description: string; icon: any }[] = [];
 
     // Collection rate insight
-    if (stats.collectionRate < 70) {
+    if (stats.collectionRate != null && stats.collectionRate < 70) {
       list.push({
         type: "danger",
         title: "Low Collection Rate",
         description: `Only ${stats.collectionRate.toFixed(1)}% of invoiced amount has been collected. Consider sending payment reminders.`,
         icon: AlertTriangle,
       });
-    } else if (stats.collectionRate >= 90) {
+    } else if (stats.collectionRate != null && stats.collectionRate >= 90) {
       list.push({
         type: "success",
         title: "Excellent Collections",
@@ -531,14 +556,14 @@ export function AccountantHomeModule() {
     }
 
     // Revenue trend insight
-    if (stats.revenueGrowth > 10) {
+    if (stats.revenueGrowth != null && stats.revenueGrowth > 10) {
       list.push({
         type: "success",
         title: "Revenue Growing",
         description: `Revenue increased by ${stats.revenueGrowth.toFixed(1)}% compared to last month.`,
         icon: TrendingUp,
       });
-    } else if (stats.revenueGrowth < -10) {
+    } else if (stats.revenueGrowth != null && stats.revenueGrowth < -10) {
       list.push({
         type: "warning",
         title: "Revenue Declining",
@@ -548,7 +573,7 @@ export function AccountantHomeModule() {
     }
 
     // Expense insight
-    if (stats.expenseGrowth > 20) {
+    if (stats.expenseGrowth != null && stats.expenseGrowth > 20) {
       list.push({
         type: "warning",
         title: "Expenses Increasing",
@@ -558,14 +583,14 @@ export function AccountantHomeModule() {
     }
 
     // Profit insight
-    if (stats.profitMargin > 15) {
+    if (stats.profitMargin != null && stats.profitMargin > 15) {
       list.push({
         type: "success",
         title: "Strong Profitability",
         description: `Profit margin of ${stats.profitMargin.toFixed(1)}% indicates healthy financial performance.`,
         icon: Target,
       });
-    } else if (stats.profitMargin < 0) {
+    } else if (stats.profitMargin != null && stats.profitMargin < 0) {
       list.push({
         type: "danger",
         title: "Operating at Loss",
@@ -596,15 +621,18 @@ export function AccountantHomeModule() {
     { label: "Manage Fees", icon: DollarSign, path: `/${schoolSlug}/accountant/fees`, color: "bg-blue-50 text-blue-600 border border-blue-100/50" },
   ];
 
+  const pctText = (v: number | null, digits = 1) => (v == null ? "—" : `${v.toFixed(digits)}%`);
+  const healthScore = financialHealth ?? 0;
+
   const healthChartData = [
     { 
       name: "Health", 
-      value: financialHealth, 
-      fill: financialHealth >= 80 
-        ? "rgb(37, 99, 235)" 
-        : financialHealth >= 60 
-        ? "rgb(96, 165, 250)" 
-        : financialHealth >= 40 
+      value: healthScore,
+      fill: healthScore >= 80
+        ? "rgb(37, 99, 235)"
+        : healthScore >= 60
+        ? "rgb(96, 165, 250)"
+        : healthScore >= 40  
         ? "rgb(245, 158, 11)" 
         : "rgb(239, 68, 68)" 
     }
@@ -680,15 +708,15 @@ export function AccountantHomeModule() {
                           strokeWidth="8"
                           strokeLinecap="round"
                           strokeDasharray="141"
-                          strokeDashoffset={141 - (141 * Math.min(financialHealth, 100)) / 100}
+                          strokeDashoffset={141 - (141 * Math.min(healthScore, 100)) / 100}
                           className="transition-all duration-1000 ease-out"
                         />
                       </svg>
                       <div className="absolute inset-x-0 bottom-2 flex flex-col items-center justify-center">
-                        <span className={`text-2xl sm:text-3xl font-extrabold tracking-tight ${getHealthColor(financialHealth)}`}>
-                          {financialHealth}
+                        <span className={`text-2xl sm:text-3xl font-extrabold tracking-tight ${financialHealth == null ? "text-muted-foreground" : getHealthColor(financialHealth)}`}>
+                          {financialHealth ?? "—"}
                         </span>
-                        <span className="text-[8px] sm:text-[9px] font-bold text-muted-foreground uppercase tracking-widest mt-0.5">{getHealthLabel(financialHealth)}</span>
+                        <span className="text-[8px] sm:text-[9px] font-bold text-muted-foreground uppercase tracking-widest mt-0.5">{financialHealth == null ? "No finance records" : getHealthLabel(financialHealth)}</span>
                       </div>
                     </div>
                   </div>
@@ -700,15 +728,15 @@ export function AccountantHomeModule() {
                       <div className="h-1.5 w-1.5 rounded-full bg-primary" />
                       <span className="text-muted-foreground font-medium truncate">Collection Rate</span>
                     </div>
-                    <span className="font-semibold text-foreground shrink-0">{stats.collectionRate.toFixed(1)}%</span>
+                    <span className="font-semibold text-foreground shrink-0">{pctText(stats.collectionRate)}</span>
                   </div>
                   <div className="flex justify-between items-center gap-2 text-xs border-b pb-1.5">
                     <div className="flex items-center gap-1.5 truncate">
-                      <div className={`h-1.5 w-1.5 rounded-full ${stats.profitMargin >= 0 ? "bg-emerald-500" : "bg-rose-500"}`} />
+                      <div className={`h-1.5 w-1.5 rounded-full ${stats.profitMargin == null ? "bg-muted-foreground" : stats.profitMargin >= 0 ? "bg-emerald-500" : "bg-rose-500"}`} />
                       <span className="text-muted-foreground font-medium truncate">Profit Margin</span>
                     </div>
-                    <span className={`font-semibold shrink-0 ${stats.profitMargin >= 0 ? "text-emerald-600" : "text-rose-500"}`}>
-                      {stats.profitMargin.toFixed(1)}%
+                    <span className={`font-semibold shrink-0 ${stats.profitMargin == null ? "text-muted-foreground" : stats.profitMargin >= 0 ? "text-emerald-600" : "text-rose-500"}`}>
+                      {pctText(stats.profitMargin)}
                     </span>
                   </div>
                   <div className="flex justify-between items-center gap-2 text-xs">
@@ -717,7 +745,7 @@ export function AccountantHomeModule() {
                       <span className="text-muted-foreground font-medium truncate">Overdue Rate</span>
                     </div>
                     <span className={`font-semibold shrink-0 ${stats.overdueInvoices === 0 ? "text-emerald-600" : "text-rose-500"}`}>
-                      {invoices.length > 0 ? ((stats.overdueInvoices / invoices.length) * 100).toFixed(1) : 0}%
+                      {pctText(invoices.length > 0 ? (stats.overdueInvoices / invoices.length) * 100 : null)}
                     </span>
                   </div>
                 </div>
@@ -725,7 +753,7 @@ export function AccountantHomeModule() {
             </Card>
 
             {/* Key Metrics Grid */}
-            <div className="grid auto-rows-fr grid-cols-2 xl:grid-cols-4 gap-2.5 sm:gap-4 min-w-0 w-full">
+            <div className="grid auto-rows-fr grid-cols-2 2xl:grid-cols-4 gap-2.5 sm:gap-4 min-w-0 w-full">
               {/* Card 1: Total Revenue */}
               <Card 
                 className="relative overflow-hidden bg-surface shadow-elevated border hover:shadow-md hover:border-primary/40 cursor-pointer transition-all duration-300 group/kpi flex flex-col justify-between rounded-2xl sm:rounded-3xl"
@@ -741,10 +769,10 @@ export function AccountantHomeModule() {
                     </div>
                     <div className="mt-2.5 sm:mt-4">
                       <h3 className="text-xl sm:text-3xl font-bold tracking-tight font-display text-foreground flex items-baseline gap-1">
-                        <span className="truncate">{formatCompact(stats.totalRevenue)}</span>
+                        <span className="truncate" title={`Rs. ${stats.totalRevenue.toLocaleString()}`}>{formatCompact(stats.totalRevenue)}</span>
                         <ArrowRight className="h-3.5 w-3.5 text-primary opacity-0 -translate-x-1 group-hover/kpi:opacity-100 group-hover/kpi:translate-x-0 transition-all duration-200" />
                       </h3>
-                      {stats.revenueGrowth !== 0 && (
+                      {stats.revenueGrowth != null && stats.revenueGrowth !== 0 && (
                         <p className="mt-0.5 sm:mt-1 text-[10px] sm:text-xs text-muted-foreground flex items-center gap-1 truncate">
                           {stats.revenueGrowth > 0 ? (
                             <ArrowUpRight className="h-3 w-3 text-emerald-500" />
@@ -774,10 +802,10 @@ export function AccountantHomeModule() {
                     </div>
                     <div className="mt-2.5 sm:mt-4">
                       <h3 className="text-xl sm:text-3xl font-bold tracking-tight font-display text-foreground flex items-baseline gap-1">
-                        <span className="truncate">{formatCompact(stats.totalExpenses)}</span>
+                        <span className="truncate" title={`Rs. ${stats.totalExpenses.toLocaleString()}`}>{formatCompact(stats.totalExpenses)}</span>
                         <ArrowRight className="h-3.5 w-3.5 text-rose-500 opacity-0 -translate-x-1 group-hover/kpi:opacity-100 group-hover/kpi:translate-x-0 transition-all duration-200" />
                       </h3>
-                      {stats.expenseGrowth !== 0 && (
+                      {stats.expenseGrowth != null && stats.expenseGrowth !== 0 && (
                         <p className="mt-0.5 sm:mt-1 text-[10px] sm:text-xs text-muted-foreground flex items-center gap-1 truncate">
                           {stats.expenseGrowth > 0 ? (
                             <ArrowUpRight className="h-3 w-3 text-rose-500" />
@@ -807,7 +835,7 @@ export function AccountantHomeModule() {
                     </div>
                     <div className="mt-2.5 sm:mt-4">
                       <h3 className="text-xl sm:text-3xl font-bold tracking-tight font-display text-foreground flex items-baseline gap-1">
-                        <span className="truncate">{formatCompact(stats.monthlyPayroll)}</span>
+                        <span className="truncate" title={`Rs. ${stats.monthlyPayroll.toLocaleString()}`}>{formatCompact(stats.monthlyPayroll)}</span>
                         <ArrowRight className="h-3.5 w-3.5 text-violet-500 opacity-0 -translate-x-1 group-hover/kpi:opacity-100 group-hover/kpi:translate-x-0 transition-all duration-200" />
                       </h3>
                       <p className="mt-0.5 sm:mt-1 text-[10px] sm:text-xs text-muted-foreground truncate">
@@ -837,7 +865,7 @@ export function AccountantHomeModule() {
                         <ArrowRight className="h-3.5 w-3.5 text-emerald-500 opacity-0 -translate-x-1 group-hover/kpi:opacity-100 group-hover/kpi:translate-x-0 transition-all duration-200" />
                       </h3>
                       <p className="mt-0.5 sm:mt-1 text-[10px] sm:text-xs text-muted-foreground truncate">
-                        Margin: {stats.profitMargin.toFixed(1)}%
+                        Margin: {pctText(stats.profitMargin)}
                       </p>
                     </div>
                   </div>
@@ -1095,15 +1123,15 @@ export function AccountantHomeModule() {
                 <div className="space-y-3 px-1">
                   <div className="flex items-center justify-between text-xs border-b pb-2">
                     <span className="text-muted-foreground font-medium">Revenue per Student</span>
-                    <span className="font-semibold text-foreground">Rs. {Math.round(stats.revenuePerStudent).toLocaleString()}</span>
+                    <span className="font-semibold text-foreground">{stats.revenuePerStudent == null ? "—" : `Rs. ${Math.round(stats.revenuePerStudent).toLocaleString()}`}</span>
                   </div>
                   <div className="flex items-center justify-between text-xs border-b pb-2">
                     <span className="text-muted-foreground font-medium">Cost per Student</span>
-                    <span className="font-semibold text-foreground">Rs. {Math.round(stats.costPerStudent).toLocaleString()}</span>
+                    <span className="font-semibold text-foreground">{stats.costPerStudent == null ? "—" : `Rs. ${Math.round(stats.costPerStudent).toLocaleString()}`}</span>
                   </div>
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-muted-foreground font-medium">Estimated Margin</span>
-                    <span className={`font-semibold ${stats.profitMargin >= 0 ? "text-emerald-600" : "text-destructive"}`}>{stats.profitMargin.toFixed(1)}%</span>
+                    <span className={`font-semibold ${stats.profitMargin == null ? "text-muted-foreground" : stats.profitMargin >= 0 ? "text-emerald-600" : "text-destructive"}`}>{pctText(stats.profitMargin)}</span>
                   </div>
                 </div>
               </CardContent>
@@ -1250,18 +1278,18 @@ export function AccountantHomeModule() {
                 <div className="space-y-2">
                   <div className="flex justify-between text-sm">
                     <span>Collection Efficiency</span>
-                    <span className="font-medium">{stats.collectionRate.toFixed(1)}%</span>
+                    <span className="font-medium">{pctText(stats.collectionRate)}</span>
                   </div>
-                  <Progress value={Math.min(stats.collectionRate, 100)} className="h-2" />
+                  <Progress value={Math.min(stats.collectionRate ?? 0, 100)} className="h-2" />
                 </div>
                 <div className="space-y-2">
                   <div className="flex justify-between text-sm">
                     <span>Profit Margin</span>
-                    <span className={`font-medium ${stats.profitMargin >= 0 ? "text-primary" : "text-destructive"}`}>
-                      {stats.profitMargin.toFixed(1)}%
+                    <span className={`font-medium ${stats.profitMargin == null ? "text-muted-foreground" : stats.profitMargin >= 0 ? "text-primary" : "text-destructive"}`}>
+                      {pctText(stats.profitMargin)}
                     </span>
                   </div>
-                  <Progress value={Math.max(0, Math.min(stats.profitMargin + 50, 100))} className="h-2" />
+                  <Progress value={stats.profitMargin == null ? 0 : Math.max(0, Math.min(stats.profitMargin + 50, 100))} className="h-2" />
                 </div>
                 <div className="space-y-2">
                   <div className="flex justify-between text-sm">

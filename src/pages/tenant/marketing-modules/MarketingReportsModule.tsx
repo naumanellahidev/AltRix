@@ -480,12 +480,15 @@ export function MarketingReportsModule() {
                     
                     <div className="relative flex items-center">
                       <div className="h-6 w-full bg-secondary rounded-lg overflow-hidden flex">
-                        <div 
-                          className="h-full bg-gradient-to-r from-primary/80 to-primary rounded-lg transition-all duration-500 flex items-center px-2 text-[10px] text-primary-foreground font-semibold font-mono"
-                          style={{ width: `${percentage}%`, minWidth: stage.count > 0 ? "8%" : "0%" }}
-                        >
-                          {percentage > 12 && `${percentage}%`}
-                        </div>
+                        {/* An empty stage draws no bar: its padding showed a stub that read as a lead. */}
+                        {stage.count > 0 && (
+                          <div
+                            className="h-full bg-gradient-to-r from-primary/80 to-primary rounded-lg transition-all duration-500 flex items-center px-2 text-[10px] text-primary-foreground font-semibold font-mono"
+                            style={{ width: `${percentage}%`, minWidth: "8%" }}
+                          >
+                            {percentage > 12 && `${percentage}%`}
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>

@@ -1,3 +1,4 @@
+import { localDay } from "@/lib/local-date";
 /**
  * Fee invoices.
  *
@@ -49,7 +50,7 @@ function standing(input: InvoiceInput, balance: string): { watermark: Watermark;
   const status = (input.status ?? "").toLowerCase();
   if (status === "cancelled" || status === "void") return { watermark: "cancelled", label: "Cancelled" };
   if (!isPositive(balance) && isPositive(input.total)) return { watermark: "paid", label: "Paid in full" };
-  if (input.dueDate && input.dueDate.slice(0, 10) < new Date().toISOString().slice(0, 10)) {
+  if (input.dueDate && input.dueDate.slice(0, 10) < localDay()) {
     return { watermark: "overdue", label: "Overdue" };
   }
   return { watermark: "none", label: isPositive(sum((input.payments ?? []).map((p) => p.amount))) ? "Partially paid" : "Unpaid" };

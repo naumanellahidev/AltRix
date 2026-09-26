@@ -1,3 +1,4 @@
+import { localDay } from "@/lib/local-date";
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -67,7 +68,7 @@ export default function ParentVisitorModule({ child, schoolId }: ParentVisitorMo
   const [cnic, setCnic] = useState("");
   const [purpose, setPurpose] = useState("meeting");
   const [details, setDetails] = useState("");
-  const [scheduledDate, setScheduledDate] = useState(new Date().toISOString().slice(0, 10));
+  const [scheduledDate, setScheduledDate] = useState(localDay());
   const [mapChild, setMapChild] = useState(true);
 
   // View QR Pass state

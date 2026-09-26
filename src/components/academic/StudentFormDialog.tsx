@@ -1,3 +1,4 @@
+import { localDay } from "@/lib/local-date";
 import { useEffect, useMemo, useState } from "react";
 import { StudentDocumentsPanel } from "@/components/academic/StudentDocumentsPanel";
 import { getVPSFileUrl } from "@/lib/vpsStorage";
@@ -316,7 +317,7 @@ export function StudentFormDialog({
         if (openEnr && openEnr.class_section_id !== form.section_id) {
           await api
             .from("student_enrollments")
-            .update({ end_date: new Date().toISOString().slice(0, 10) })
+            .update({ end_date: localDay() })
             .eq("id", openEnr.id);
         }
         if (!openEnr) {
@@ -324,14 +325,14 @@ export function StudentFormDialog({
             school_id: schoolId,
             student_id: resultStudentId,
             class_section_id: form.section_id,
-            start_date: new Date().toISOString().slice(0, 10),
+            start_date: localDay(),
           });
         } else if (openEnr.class_section_id !== form.section_id) {
           await api.from("student_enrollments").insert({
             school_id: schoolId,
             student_id: resultStudentId,
             class_section_id: form.section_id,
-            start_date: new Date().toISOString().slice(0, 10),
+            start_date: localDay(),
           });
         }
       }

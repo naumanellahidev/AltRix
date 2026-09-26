@@ -1,3 +1,4 @@
+import { localDay } from "@/lib/local-date";
 import { useEffect, useMemo, useState } from "react";
 import JSZip from "jszip";
 import { api } from "@/lib/api";
@@ -122,7 +123,7 @@ Generated: ${new Date().toISOString()}
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `altrix-sql-migrations-${new Date().toISOString().slice(0,10)}.zip`;
+      a.download = `altrix-sql-migrations-${localDay()}.zip`;
       document.body.appendChild(a); a.click(); a.remove();
       URL.revokeObjectURL(url);
       toast.success(`Downloaded ${allMigrations.length} migration files as ZIP`);

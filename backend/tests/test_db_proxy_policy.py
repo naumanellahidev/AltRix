@@ -219,7 +219,8 @@ def test_readable_tables_without_a_school_are_confined_to_the_callers_school():
     block = proxy[proxy.index("CROSS_TENANT_SCOPES = {"):]
     block = block[: block.index("}")]
     for table in ("schools", "profiles", "report_card_subject_entries", "co_curricular_grades",
-                  "exam_seat_assignments", "exam_invigilators", "admin_message_recipients", "bus_stops"):
+                  "exam_seat_assignments", "exam_invigilators", "admin_message_recipients", "bus_stops",
+                  "staff_campus_assignments"):
         assert f'"{table}"' in block, table
     assert "table_key in CROSS_TENANT_SCOPES" in proxy
     assert "psa.user_id = profiles.id" in proxy  # nor the platform owner's profile

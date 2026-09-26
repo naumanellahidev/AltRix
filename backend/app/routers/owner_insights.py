@@ -124,8 +124,10 @@ async def get_owner_insights_summary(current_user: CurrentUser, db: DbSession):
     roll = (
         await db.execute(
             text(
+                # On the roll unless they have left: "enrolled" students were
+                # not counted, so a school of nine showed a roll of one.
                 "SELECT COUNT(*) FROM students WHERE school_id = CAST(:school AS UUID) "
-                "AND COALESCE(status, 'active') = 'active'"
+                "AND (status IS NULL OR status NOT IN ('inactive', 'withdrawn', 'graduated', 'deleted'))"
             ),
             {"school": str(school_id)},
         )

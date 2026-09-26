@@ -1,3 +1,4 @@
+import { localDay } from "@/lib/local-date";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, USE_FASTAPI, setUseFastAPI } from "@/lib/api";
 import { apiClient, isNetworkOrProxyError } from "@/lib/api-client";
@@ -48,7 +49,7 @@ function timeToMin(t: string | null): number | null {
 }
 
 function todayISO() {
-  return new Date().toISOString().split("T")[0];
+  return localDay();
 }
 
 export function useLiveTeacherPresence(schoolId: string | null) {

@@ -1,3 +1,4 @@
+import { localDay } from "@/lib/local-date";
 import { useEffect, useMemo, useState } from "react";
 import { DataExportMenu } from "@/components/documents/DataExportMenu";
 import { ErrorState, LoadingRows } from "@/components/tenant/module-kit";
@@ -51,7 +52,7 @@ export default function HolidaysModule({ schoolId, canManage = false }: Props) {
   const [items, setItems] = useState<Holiday[]>([]);
   const [open, setOpen] = useState(false);
   const today = startOfToday();
-  const todayStr = today.toISOString().slice(0, 10);
+  const todayStr = localDay(today);
   const blank = { title: "", description: "", start_date: todayStr, end_date: todayStr, holiday_type: "public" };
   const [form, setForm] = useState<any>(blank);
   const [editing, setEditing] = useState<Holiday | null>(null);

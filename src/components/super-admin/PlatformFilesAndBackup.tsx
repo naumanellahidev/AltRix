@@ -1,3 +1,4 @@
+import { localDay } from "@/lib/local-date";
 import { useEffect, useState } from "react";
 import JSZip from "jszip";
 import { api } from "@/lib/api";
@@ -162,7 +163,7 @@ export function PlatformFilesAndBackup() {
       const blob = await zip.generateAsync({ type: "blob", compression: "DEFLATE" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
-      a.href = url; a.download = `altrix-files-${new Date().toISOString().slice(0,10)}.zip`;
+      a.href = url; a.download = `altrix-files-${localDay()}.zip`;
       document.body.appendChild(a); a.click(); a.remove();
       URL.revokeObjectURL(url);
       toast.success(`Downloaded ${files.length} files as ZIP`);
@@ -204,7 +205,7 @@ export function PlatformFilesAndBackup() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `altrix-platform-backup-${new Date().toISOString().slice(0,10)}.json`;
+      a.download = `altrix-platform-backup-${localDay()}.json`;
       document.body.appendChild(a); a.click(); a.remove();
       URL.revokeObjectURL(url);
       toast.success(`Backup ready: ${total} rows across ${Object.keys(dump).length} tables`);

@@ -1,3 +1,4 @@
+import { localDay } from "@/lib/local-date";
 import { useMemo, useRef, useState } from "react";
 import { DataExportMenu } from "@/components/documents/DataExportMenu";
 import { useParams } from "react-router-dom";
@@ -29,7 +30,7 @@ import {
 } from "@/lib/documents/appointment-letter";
 import { describeShare } from "@/lib/documents/deliver";
 
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => localDay();
 const daysBetween = (a: string, b: string) =>
   Math.ceil((new Date(a).getTime() - new Date(b).getTime()) / 86400000);
 

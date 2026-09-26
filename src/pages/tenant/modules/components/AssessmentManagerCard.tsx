@@ -1,3 +1,4 @@
+import { localDay } from "@/lib/local-date";
 import { useEffect, useMemo, useState } from "react";
 import { z } from "zod";
 
@@ -95,7 +96,7 @@ export function AssessmentManagerCard({
     subject_id: "",
     title: "",
     term_label: "",
-    assessment_date: new Date().toISOString().slice(0, 10),
+    assessment_date: localDay(),
     max_marks: 100,
     assessment_type: "test" as AssessmentType,
     weightage_percent: "" as string | number,
@@ -247,7 +248,7 @@ export function AssessmentManagerCard({
       subject_id: filterSubjectId || "",
       title: "",
       term_label: filterTerm || "",
-      assessment_date: new Date().toISOString().slice(0, 10),
+      assessment_date: localDay(),
       max_marks: 100,
       assessment_type: (filterType as AssessmentType) || "test",
       weightage_percent: "",

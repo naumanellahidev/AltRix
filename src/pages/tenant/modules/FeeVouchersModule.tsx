@@ -1,3 +1,4 @@
+import { localDay } from "@/lib/local-date";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ModuleHeader } from "@/components/tenant/module-kit";
 import { useParams, useSearchParams } from "react-router-dom";
@@ -490,7 +491,7 @@ function PaymentProofsCard({ schoolId }: { schoolId: string | null }) {
       setViewingUrl(url);
       setReviewingProof(p);
       setReviewAmount((p.amount || 0).toString());
-      setReviewDate(p.paid_at ? p.paid_at.slice(0, 10) : new Date(p.created_at).toISOString().slice(0, 10));
+      setReviewDate(p.paid_at ? p.paid_at.slice(0, 10) : localDay(new Date(p.created_at)));
       setReviewMethod(p.method || "Bank Transfer");
     } catch (e: any) {
       toast.error(e?.message || "Failed to load proof preview");
@@ -1503,7 +1504,7 @@ function GenerateVoucherDialog({
   const [dueDate, setDueDate] = useState<string>(() => {
     const d = new Date();
     d.setDate(d.getDate() + 15);
-    return d.toISOString().slice(0, 10);
+    return localDay(d);
   });
   const [discountPct, setDiscountPct] = useState<string>("0");
   const [discountAmount, setDiscountAmount] = useState<string>("0");
@@ -1738,7 +1739,7 @@ function GenerateVoucherDialog({
     const klass = classes.find((c) => c.id === classId);
     return {
       invoiceNumber: "PREVIEW",
-      issueDate: new Date().toISOString().slice(0, 10),
+      issueDate: localDay(),
       dueDate,
       periodLabel,
       school: {
@@ -1998,7 +1999,7 @@ function GenerateVoucherDialog({
 
           const pdfData: VoucherCopyData = {
             invoiceNumber: invoice.invoice_number,
-            issueDate: new Date().toISOString().slice(0, 10),
+            issueDate: localDay(),
             dueDate,
             periodLabel,
             school: {
@@ -2086,7 +2087,7 @@ function GenerateVoucherDialog({
           savedAs =
             pdfs.length === 1
               ? voucherFileName(pdfs[0].data)
-              : documentFileName(["Fee Vouchers", periodLabel || null, `${pdfs.length} students`, new Date().toISOString().slice(0, 10)], "pdf");
+              : documentFileName(["Fee Vouchers", periodLabel || null, `${pdfs.length} students`, localDay()], "pdf");
           combined.save(savedAs);
         } catch (pdfErr: any) {
           // The invoices exist and parents have been notified; only the file

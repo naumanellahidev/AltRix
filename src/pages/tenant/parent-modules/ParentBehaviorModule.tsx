@@ -1,3 +1,4 @@
+import { localDay } from "@/lib/local-date";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { useSession } from "@/hooks/useSession";
@@ -21,7 +22,7 @@ interface Props { child: ChildInfo | null; schoolId: string | null; }
 export default function ParentBehaviorModule({ child, schoolId }: Props) {
   const { user } = useSession();
   const [items, setItems] = useState<Note[]>([]);
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localDay();
   const [form, setForm] = useState({ note_date: today, behavior: "", routine: "", mood: "happy" });
 
   const load = async () => {

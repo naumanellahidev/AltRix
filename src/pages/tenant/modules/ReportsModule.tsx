@@ -1,3 +1,4 @@
+import { localDay } from "@/lib/local-date";
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { useParams } from "react-router-dom";
 import {
@@ -177,8 +178,8 @@ export function ReportsModule() {
   const [sectionFilter, setSectionFilter] = useState<string>("all");
   const [subjectFilter, setSubjectFilter] = useState<string>("all");
   const [campusFilter, setCampusFilter] = useState<string>("all");
-  const [fromDate, setFromDate] = useState(() => new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10));
-  const [toDate, setToDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [fromDate, setFromDate] = useState(() => localDay(new Date(Date.now() - 30 * 86400000)));
+  const [toDate, setToDate] = useState(() => localDay());
   const [searchQuery, setSearchQuery] = useState("");
   const [rowLimit, setRowLimit] = useState<number>(50);
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");

@@ -51,7 +51,12 @@ export function AttendanceHeatmap() {
   const [filter, setFilter] = useState<"all" | "on_campus" | "off_campus" | "late">("all");
   const [searchQuery, setSearchQuery] = useState("");
 
-  // Compute school center coords
+  // Whether the school has set where its campus is. Without it there is no
+  // "on campus": distances were measured from a fixed point in Lahore, and
+  // staff were counted on or off a campus the school never located.
+  const hasCampusLocation = !!(school?.latitude && school?.longitude);
+
+  // Compute school center coords (for drawing; classification needs the real one)
   const schoolCenter = useMemo(() => {
     if (school?.latitude && school?.longitude) {
       return { lat: school.latitude, lng: school.longitude };
@@ -263,7 +268,9 @@ export function AttendanceHeatmap() {
       .filter(r => r.latitude != null && r.longitude != null)
       .map(r => {
         const { x, y } = latLngToCanvas(r.latitude, r.longitude, 800, 500, zoomRange);
-        const distance = getDistance(schoolCenter.lat, schoolCenter.lng, r.latitude, r.longitude);
+        const distance = hasCampusLocation
+          ? getDistance(schoolCenter.lat, schoolCenter.lng, r.latitude, r.longitude)
+          : null;
         
         return {
           id: r.id || String(Math.random()),
@@ -278,7 +285,7 @@ export function AttendanceHeatmap() {
           distance
         };
       });
-  }, [records, schoolCenter, zoomRange]);
+  }, [records, schoolCenter, zoomRange, hasCampusLocation]);
 
   // Filtered Points based on geofence & status and search text
   const filteredPoints = useMemo(() => {
@@ -543,16 +550,21 @@ export function AttendanceHeatmap() {
     // 9. Telemetry data feeds overlay
     ctx.fillStyle = getThemeColor("--muted-foreground", 0.7);
     ctx.font = "9px monospace";
-    ctx.fillText("GRID RESOLUTION: HIGH-LATENCY", 16, 26);
-    ctx.fillText(`GEO-LOCK: LAT ${schoolCenter.lat.toFixed(6)}`, 16, 39);
-    ctx.fillText(`          LNG ${schoolCenter.lng.toFixed(6)}`, 16, 49);
-    ctx.fillText(`SYS_SCAN_REFRESH: 60.12HZ`, 16, 62);
+    // Only what is known: the campus position (or that it is not set), the
+    // scale and the number of check-ins shown. The overlay used to print a
+    // made-up "HIGH-LATENCY" grid, a "60.12HZ" refresh and a fixed Lahore
+    // position labelled as the campus.
+    if (hasCampusLocation) {
+      ctx.fillText(`CAMPUS: LAT ${schoolCenter.lat.toFixed(6)}`, 16, 26);
+      ctx.fillText(`        LNG ${schoolCenter.lng.toFixed(6)}`, 16, 39);
+    } else {
+      ctx.fillText("CAMPUS LOCATION NOT SET", 16, 26);
+    }
 
-    ctx.fillText(`ZOOM_SCALE: ${zoomRange}M`, width - 128, 26);
-    ctx.fillText(`SCAN_COUNT: ${filteredPoints.length}`, width - 128, 39);
-    ctx.fillText(`WAVE_ANGLE: ${Math.round((radarAngle * 180) / Math.PI)}°`, width - 128, 49);
+    ctx.fillText(`SCALE: ${zoomRange}M`, width - 128, 26);
+    ctx.fillText(`CHECK-INS: ${filteredPoints.length}`, width - 128, 39);
 
-  }, [filteredPoints, radarAngle, schoolCenter, zoomRange]);
+  }, [filteredPoints, radarAngle, schoolCenter, zoomRange, hasCampusLocation]);
 
   // A "SIMULATE LIVE CHECK-IN" button used to put invented staff on this
   // radar and into the Active Staff count. Only real check-ins are shown.
@@ -580,7 +592,7 @@ export function AttendanceHeatmap() {
           <div>
             <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">On-Campus (Safe)</p>
             <p className="text-2xl font-bold tracking-tight mt-0.5 text-foreground">
-              {plottedPoints.filter(p => p.distance !== null && p.distance <= 100).length}
+              {hasCampusLocation ? plottedPoints.filter(p => p.distance !== null && p.distance <= 100).length : "—"}
             </p>
           </div>
         </div>
@@ -592,7 +604,7 @@ export function AttendanceHeatmap() {
           <div>
             <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">Off-Campus Range</p>
             <p className="text-2xl font-bold tracking-tight mt-0.5 text-foreground">
-              {plottedPoints.filter(p => p.distance !== null && p.distance > 100).length}
+              {hasCampusLocation ? plottedPoints.filter(p => p.distance !== null && p.distance > 100).length : "—"}
             </p>
           </div>
         </div>
@@ -712,7 +724,9 @@ export function AttendanceHeatmap() {
           <div className="p-3 border-t border-border bg-card flex justify-between items-center text-[10px] text-muted-foreground font-mono">
             <span className="flex items-center gap-1.5">
               <MapPin className="h-3.5 w-3.5 text-primary" />
-              Center Anchor: {schoolCenter.lat.toFixed(6)}N, {schoolCenter.lng.toFixed(6)}E
+              {hasCampusLocation
+                ? <>Campus: {schoolCenter.lat.toFixed(6)}N, {schoolCenter.lng.toFixed(6)}E</>
+                : <>Campus location not set: set it in School Settings to tell on-campus from off-campus check-ins.</>}
             </span>
             <span className="text-[9px] text-primary/80 animate-pulse uppercase tracking-wider font-semibold">
               ● SCANNING RANGE: {zoomRange} METERS

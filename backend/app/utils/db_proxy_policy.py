@@ -69,7 +69,7 @@ GLOBAL_READABLE: Set[str] = {
     "system_settings", "school_bootstrap", "bus_stops",
     "report_card_subject_entries", "co_curricular_grades",
     "exam_seat_assignments", "exam_invigilators", "admin_message_recipients",
-    "activity_timeline",
+    "activity_timeline", "staff_campus_assignments",
 }
 
 #: Writing any of these changes who can do what. Governance roles only.
@@ -107,6 +107,7 @@ FINANCE_TABLES: Set[str] = {
     "hr_pay_runs", "hr_payroll_runs", "hr_salary_records",
     "hr_salary_components", "hr_employee_salary_structure", "hr_contracts",
     "exam_results", "student_marks", "student_results", "report_cards",
+    "finance_tax_settings",
 }
 
 

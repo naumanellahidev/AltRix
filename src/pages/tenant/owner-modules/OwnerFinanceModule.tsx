@@ -234,11 +234,11 @@ export function OwnerFinanceModule({ schoolId, role = "school_owner" }: Props) {
         0
       );
 
-      // Invoice funnel and collection rate
+      // Invoice funnel and collection rate (cancelled invoices were never owed)
       const totalInvoiced = [
         ...finInvoices.map((i) => ({ total: Number(i.total || 0), status: i.status })),
         ...feeInvoices.map((i) => ({ total: Number(i.total_amount || 0), status: i.status }))
-      ].reduce((sum, i) => sum + i.total, 0);
+      ].filter((i) => i.status !== "cancelled").reduce((sum, i) => sum + i.total, 0);
 
       const paidInvoicesTotal = [
         ...finInvoices.filter((i) => i.status === "paid").map((i) => Number(i.total || 0)),
@@ -355,7 +355,8 @@ export function OwnerFinanceModule({ schoolId, role = "school_owner" }: Props) {
         expensesYtd,
         profitMtd: revenueMtd - expensesMtd,
         profitYtd: revenueYtd - expensesYtd,
-        profitMargin: revenueMtd > 0 ? Math.round(((revenueMtd - expensesMtd) / revenueMtd) * 100) : 0,
+        // No income this month, no margin (it read "0% margin").
+        profitMargin: revenueMtd > 0 ? Math.round(((revenueMtd - expensesMtd) / revenueMtd) * 100) : null,
         monthlyPayrollLiability,
         collectionRate,
         unpaidAmount,
@@ -638,7 +639,7 @@ export function OwnerFinanceModule({ schoolId, role = "school_owner" }: Props) {
                 </p>
                 <div className="flex items-center gap-1 mt-1">
                   <Badge className="bg-blue-50 text-blue-600 border-blue-100/50 text-[8px] sm:text-[9px] px-1 sm:px-1.5 py-0 font-semibold">
-                    {financeData?.profitMargin || 0}% margin
+                    {financeData?.profitMargin != null ? `${financeData.profitMargin}% margin` : "No income this month"}
                   </Badge>
                 </div>
               </div>
@@ -682,7 +683,7 @@ export function OwnerFinanceModule({ schoolId, role = "school_owner" }: Props) {
                 </p>
                 <div className="flex items-center gap-1 mt-1">
                   <Badge variant="outline" className="text-[8px] sm:text-[9px] px-1 sm:px-1.5 py-0 text-muted-foreground border-slate-200">
-                    {financeData?.collectionRate != null ? `${financeData.collectionRate}%` : "—"} Rate
+                    {financeData?.collectionRate != null ? `${financeData.collectionRate}% collected` : "Nothing billed"}
                   </Badge>
                 </div>
               </div>

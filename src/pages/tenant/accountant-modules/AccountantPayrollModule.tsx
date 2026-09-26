@@ -1,3 +1,4 @@
+import { localDay } from "@/lib/local-date";
 import { useState, useCallback, useMemo } from "react";
 import { ModuleHeader } from "@/components/tenant/module-kit";
 import { useParams } from "react-router-dom";
@@ -207,7 +208,7 @@ export function AccountantPayrollModule() {
   const [formCurrency, setFormCurrency] = useState("PKR");
   const [formFrequency, setFormFrequency] = useState("monthly");
   const [formEffectiveFrom, setFormEffectiveFrom] = useState(
-    new Date().toISOString().split("T")[0],
+    localDay(),
   );
   const [formNotes, setFormNotes] = useState("");
 
@@ -224,7 +225,7 @@ export function AccountantPayrollModule() {
   >("raise_pct");
   const [groupOpValue, setGroupOpValue] = useState("");
   const [groupOpEffective, setGroupOpEffective] = useState(
-    new Date().toISOString().split("T")[0],
+    localDay(),
   );
   const [groupOpReason, setGroupOpReason] = useState("");
 
@@ -428,7 +429,7 @@ export function AccountantPayrollModule() {
     setFormDeductions("0");
     setFormCurrency("PKR");
     setFormFrequency("monthly");
-    setFormEffectiveFrom(new Date().toISOString().split("T")[0]);
+    setFormEffectiveFrom(localDay());
     setFormNotes("");
     setEditingSalary(null);
   };
@@ -512,7 +513,7 @@ export function AccountantPayrollModule() {
       .from("hr_salary_records")
       .update({
         is_active: !rec.is_active,
-        effective_to: !rec.is_active ? null : new Date().toISOString().split("T")[0],
+        effective_to: !rec.is_active ? null : localDay(),
       })
       .eq("id", rec.id);
     if (error) return toast.error(error.message);

@@ -1,3 +1,4 @@
+import { localDay } from "@/lib/local-date";
 /**
  * Everything a fee voucher needs to know about the school, loaded once.
  *
@@ -148,7 +149,7 @@ export function voucherStatusFor(status: string | null | undefined, dueDate?: st
     case "pending":
     case "unpaid":
     case "":
-      if (dueDate && dueDate.slice(0, 10) < new Date().toISOString().slice(0, 10)) return "overdue";
+      if (dueDate && dueDate.slice(0, 10) < localDay()) return "overdue";
       return null;
     default:
       return null;

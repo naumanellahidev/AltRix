@@ -1,3 +1,4 @@
+import { localDay } from "@/lib/local-date";
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { Save, Download, Plus, Trash2, BarChart3 } from "lucide-react";
@@ -100,7 +101,7 @@ export function TeacherGradebookModule() {
   const [newAssessment, setNewAssessment] = useState({
     title: "",
     max_marks: 100,
-    assessment_date: new Date().toISOString().slice(0, 10),
+    assessment_date: localDay(),
     subject_id: "",
   });
   const [creatingAssessment, setCreatingAssessment] = useState(false);
@@ -287,7 +288,7 @@ export function TeacherGradebookModule() {
       setNewAssessment({
         title: "",
         max_marks: 100,
-        assessment_date: new Date().toISOString().slice(0, 10),
+        assessment_date: localDay(),
         subject_id: "",
       });
       loadGradebook();

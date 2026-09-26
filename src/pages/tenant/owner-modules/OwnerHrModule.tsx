@@ -111,7 +111,7 @@ export function OwnerHrModule({ schoolId }: Props) {
         return query;
       };
 
-      const [staffRes, rolesRes, salariesRes, leavesRes, payRunsRes, contractsRes, reviewsRes] =
+      const [staffRes, rolesRes, salariesRes, leavesRes, payRunsRes, contractsRes, reviewsRes, exitsRes] =
         await Promise.all([
           applyCampusOrUserFilter(api.from("school_memberships").select("*").eq("school_id", schoolId)),
           applyCampusOrUserFilter(api.from("user_roles").select("*").eq("school_id", schoolId).in("role", STAFF_ROLES)),
@@ -140,6 +140,15 @@ export function OwnerHrModule({ schoolId }: Props) {
               .eq("school_id", schoolId)
               .order("review_date", { ascending: false })
           ),
+          // Departures in the last twelve months, for a real retention figure.
+          applyCampusOrUserFilter(
+            api
+              .from("hr_onboarding_assignments")
+              .select("id")
+              .eq("school_id", schoolId)
+              .eq("kind", "offboarding")
+              .gte("created_at", subMonths(new Date(), 12).toISOString())
+          ),
         ]);
 
       const staff = staffRes.data || [];
@@ -163,7 +172,10 @@ export function OwnerHrModule({ schoolId }: Props) {
         roleDistribution[role] = (roleDistribution[role] || 0) + 1;
       });
 
-      const activeSalaries = salaries.filter((s: any) => s.status === "active" || s.is_active !== false);
+      // is_active is the flag HR and the accountant keep; "status" stays
+      // "active" on a deactivated record, so the payroll here counted every
+      // salary a person had ever been on (197K against a real 104,730).
+      const activeSalaries = salaries.filter((s: any) => s.is_active !== false);
       const totalSalaryBill = activeSalaries.reduce(
         (sum: number, s: any) =>
           sum + Number(s.base_salary || 0) + Number(s.allowances || 0) - Number(s.deductions || 0),
@@ -199,14 +211,18 @@ export function OwnerHrModule({ schoolId }: Props) {
       });
 
       // Average review rating
-      const avgRating =
+      const avgRating: number | null =
         reviews.length > 0
           ? reviews.reduce((s: number, r: any) => s + Number(r.rating || 0), 0) / reviews.length
-          : 0;
+          : null;
 
-      const engagementScore = totalStaff > 0 ? Math.round((activeStaff / totalStaff) * 100) : 0;
-      // Retention = staff still active vs total ever-joined (proxy)
-      const retentionRate = totalStaff > 0 ? Math.round((activeStaff / totalStaff) * 100) : 0;
+      // What these figures are, not what they were called: "Engagement" was
+      // the share of staff marked active, "Retention" was the same division
+      // again, and "Burnout risk" a guess from the pending-leave count.
+      const engagementScore: number | null = totalStaff > 0 ? Math.round((activeStaff / totalStaff) * 100) : null;
+      const exits = (exitsRes.data || []).length;
+      const retentionRate: number | null =
+        totalStaff + exits > 0 ? Math.round((totalStaff / (totalStaff + exits)) * 100) : null;
       const burnoutRisk = pendingLeaves > 5 ? "High" : pendingLeaves > 2 ? "Medium" : "Low";
 
       return {
@@ -309,8 +325,8 @@ export function OwnerHrModule({ schoolId }: Props) {
         <Card><CardContent className="p-3 sm:p-4"><UserCheck className="h-4 w-4 sm:h-5 sm:w-5 text-emerald-600" /><p className="mt-2 font-display text-lg sm:text-2xl font-bold truncate">{hrData?.activeStaff || 0}</p><p className="text-[10px] sm:text-xs text-muted-foreground truncate">Active Staff</p></CardContent></Card>
         <Card><CardContent className="p-3 sm:p-4"><Briefcase className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" /><p className="mt-2 font-display text-lg sm:text-2xl font-bold truncate">{hrData?.teachers || 0}</p><p className="text-[10px] sm:text-xs text-muted-foreground truncate">Teachers</p></CardContent></Card>
         <Card><CardContent className="p-3 sm:p-4"><Wallet className="h-4 w-4 sm:h-5 sm:w-5 text-purple-600" /><p className="mt-2 font-display text-base sm:text-2xl font-bold truncate">{formatCurrency(hrData?.totalSalaryBill || 0)}</p><p className="text-[10px] sm:text-xs text-muted-foreground truncate">Monthly Payroll</p></CardContent></Card>
-        <Card><CardContent className="p-3 sm:p-4"><Heart className="h-4 w-4 sm:h-5 sm:w-5 text-pink-600" /><p className="mt-2 font-display text-lg sm:text-2xl font-bold truncate">{hrData?.engagementScore || 0}%</p><p className="text-[10px] sm:text-xs text-muted-foreground truncate">Engagement</p></CardContent></Card>
-        <Card className={hrData?.burnoutRisk === "High" ? "border-red-500/50" : ""}><CardContent className="p-3 sm:p-4"><AlertTriangle className={`h-4 w-4 sm:h-5 sm:w-5 ${hrData?.burnoutRisk === "High" ? "text-red-600" : hrData?.burnoutRisk === "Medium" ? "text-amber-600" : "text-emerald-600"}`} /><p className="mt-2 font-display text-lg sm:text-2xl font-bold truncate">{hrData?.burnoutRisk || "Low"}</p><p className="text-[10px] sm:text-xs text-muted-foreground truncate">Burnout Risk</p></CardContent></Card>
+        <Card><CardContent className="p-3 sm:p-4"><Heart className="h-4 w-4 sm:h-5 sm:w-5 text-pink-600" /><p className="mt-2 font-display text-lg sm:text-2xl font-bold truncate">{hrData?.engagementScore != null ? `${hrData.engagementScore}%` : "—"}</p><p className="text-[10px] sm:text-xs text-muted-foreground truncate">Staff active</p></CardContent></Card>
+        <Card className={hrData?.burnoutRisk === "High" ? "border-red-500/50" : ""}><CardContent className="p-3 sm:p-4"><AlertTriangle className={`h-4 w-4 sm:h-5 sm:w-5 ${hrData?.burnoutRisk === "High" ? "text-red-600" : hrData?.burnoutRisk === "Medium" ? "text-amber-600" : "text-emerald-600"}`} /><p className="mt-2 font-display text-lg sm:text-2xl font-bold truncate">{hrData?.pendingLeaves ?? 0}</p><p className="text-[10px] sm:text-xs text-muted-foreground truncate">Leave requests pending</p></CardContent></Card>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full space-y-4 sm:space-y-6">
@@ -346,16 +362,16 @@ export function OwnerHrModule({ schoolId }: Props) {
               <CardHeader><CardTitle className="text-base">Key Metrics</CardTitle></CardHeader>
               <CardContent className="space-y-4">
                 <div>
-                  <div className="flex justify-between text-sm"><span>Retention Rate</span><span className="font-medium">{hrData?.retentionRate || 0}%</span></div>
-                  <Progress value={hrData?.retentionRate || 0} className="mt-2 h-2" />
+                  <div className="flex justify-between text-sm"><span>Retention (12 months)</span><span className="font-medium">{hrData?.retentionRate != null ? `${hrData.retentionRate}%` : "—"}</span></div>
+                  <Progress value={hrData?.retentionRate ?? 0} className="mt-2 h-2" />
                 </div>
                 <div>
-                  <div className="flex justify-between text-sm"><span>Engagement</span><span className="font-medium">{hrData?.engagementScore || 0}%</span></div>
-                  <Progress value={hrData?.engagementScore || 0} className="mt-2 h-2" />
+                  <div className="flex justify-between text-sm"><span>Staff marked active</span><span className="font-medium">{hrData?.engagementScore != null ? `${hrData.engagementScore}%` : "—"}</span></div>
+                  <Progress value={hrData?.engagementScore ?? 0} className="mt-2 h-2" />
                 </div>
                 <div className="flex justify-between text-sm"><span>Pending Leave Requests</span><span className="font-medium">{hrData?.pendingLeaves || 0}</span></div>
                 <div className="flex justify-between text-sm"><span>Contracts Expiring (60d)</span><span className="font-medium">{hrData?.expiring.length || 0}</span></div>
-                <div className="flex justify-between text-sm"><span>Avg Performance Rating</span><span className="font-medium flex items-center gap-1"><Star className="h-3.5 w-3.5 text-amber-500" />{(hrData?.avgRating || 0).toFixed(1)}</span></div>
+                <div className="flex justify-between text-sm"><span>Avg Performance Rating</span><span className="font-medium flex items-center gap-1"><Star className="h-3.5 w-3.5 text-amber-500" />{hrData?.avgRating != null ? hrData.avgRating.toFixed(1) : "No reviews"}</span></div>
                 <div className="flex justify-between text-sm"><span>Average Salary</span><span className="font-medium">{hrData?.avgSalary != null ? formatCurrency(hrData.avgSalary) : "—"}</span></div>
               </CardContent>
             </Card>
@@ -496,7 +512,7 @@ export function OwnerHrModule({ schoolId }: Props) {
         <TabsContent value="reviews" className="mt-6">
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Performance reviews — avg {(hrData?.avgRating || 0).toFixed(1)}/5</CardTitle>
+              <CardTitle className="text-base">Performance reviews{hrData?.avgRating != null ? ` — avg ${hrData.avgRating.toFixed(1)}/5` : ""}</CardTitle>
             </CardHeader>
             <CardContent>
               {(hrData?.reviews.length || 0) === 0 ? (

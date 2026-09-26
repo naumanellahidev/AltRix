@@ -3,6 +3,7 @@
 Remaining routers: complaints, assignments, behavior, HR, notifications, audit, AI, reports.
 """
 from datetime import datetime, timezone, timedelta
+from zoneinfo import ZoneInfo
 from decimal import Decimal
 from app.utils.money import money
 from typing import List, Optional, Union, cast
@@ -1146,7 +1147,9 @@ async def dashboard_kpis(
         except (ValueError, TypeError):
             effective_campus_id = None
 
-    now = datetime.now()
+    # The school's month and year, in Pakistan time: the server's clock is UTC,
+    # so the month began five hours late.
+    now = datetime.now(ZoneInfo("Asia/Karachi"))
     mtd_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     ytd_start = now.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
     d7_start = now - timedelta(days=7)
@@ -1156,19 +1159,19 @@ async def dashboard_kpis(
             text("""
                 SELECT
                     (SELECT COUNT(*) FROM students WHERE school_id = :sid AND (CAST(:cid AS uuid) IS NULL OR campus_id = CAST(:cid AS uuid)) AND (status IS NULL OR status NOT IN ('inactive', 'withdrawn', 'graduated', 'deleted'))) as total_students,
-                    (SELECT COUNT(*) FROM user_roles WHERE school_id = :sid AND role = 'teacher' AND (CAST(:cid AS uuid) IS NULL OR campus_id = CAST(:cid AS uuid))) as total_teachers,
+                    (SELECT COUNT(DISTINCT user_id) FROM user_roles WHERE school_id = :sid AND role = 'teacher' AND (CAST(:cid AS uuid) IS NULL OR campus_id = CAST(:cid AS uuid))) as total_teachers,
                     (SELECT COUNT(*) FROM admission_applications WHERE school_id = :sid AND (CAST(:cid AS uuid) IS NULL OR campus_id = CAST(:cid AS uuid)) AND status = 'submitted') as pending_admissions,
                     (SELECT COUNT(*) FROM fee_invoices WHERE school_id = :sid AND (CAST(:cid AS uuid) IS NULL OR campus_id = CAST(:cid AS uuid)) AND status NOT IN ('paid', 'cancelled')) as pending_payments,
-                    (SELECT COALESCE(SUM(amount), 0) FROM fee_payments WHERE school_id = :sid AND (CAST(:cid AS uuid) IS NULL OR campus_id = CAST(:cid AS uuid)) AND (status IS NULL OR status = 'success') AND (paid_at >= :mtd_start OR created_at >= :mtd_start)) as collected_fees,
+                    (SELECT COALESCE(SUM(amount), 0) FROM fee_payments WHERE school_id = :sid AND (CAST(:cid AS uuid) IS NULL OR campus_id = CAST(:cid AS uuid)) AND (status IS NULL OR status = 'success') AND COALESCE(paid_at, created_at) >= :mtd_start) as collected_fees,
                     (SELECT COUNT(*) FROM campuses WHERE school_id = :sid AND is_active = true) as active_campuses,
                     (SELECT COUNT(DISTINCT c.id) FROM academic_classes c LEFT JOIN class_sections cs ON cs.class_id = c.id WHERE c.school_id = :sid AND (CAST(:cid AS uuid) IS NULL OR cs.campus_id = CAST(:cid AS uuid))) as total_classes,
                     (SELECT COUNT(*) FROM class_sections WHERE school_id = :sid AND (CAST(:cid AS uuid) IS NULL OR campus_id = CAST(:cid AS uuid))) as total_sections,
-                    (SELECT COUNT(*) FROM user_roles WHERE school_id = :sid AND role IN ('teacher', 'principal', 'vice_principal', 'accountant', 'academic_coordinator', 'counselor', 'hr_manager', 'school_admin', 'librarian', 'transport_manager', 'receptionist', 'security_guard', 'staff', 'admin', 'school_owner') AND (CAST(:cid AS uuid) IS NULL OR campus_id = CAST(:cid AS uuid))) as total_staff,
+                    (SELECT COUNT(DISTINCT user_id) FROM user_roles WHERE school_id = :sid AND role IN ('teacher', 'principal', 'vice_principal', 'accountant', 'academic_coordinator', 'counselor', 'hr_manager', 'school_admin', 'librarian', 'transport_manager', 'receptionist', 'security_guard', 'staff', 'admin', 'school_owner') AND (CAST(:cid AS uuid) IS NULL OR campus_id = CAST(:cid AS uuid))) as total_staff,
                     (SELECT COUNT(*) FROM crm_leads WHERE school_id = :sid) as total_leads,
-                    (SELECT COUNT(*) FROM crm_leads WHERE school_id = :sid AND (status = 'open' OR stage_id IS NOT NULL)) as open_leads,
-                    (SELECT COALESCE(SUM(amount), 0) FROM finance_expenses WHERE school_id = :sid AND (expense_date >= :mtd_date OR created_at >= :mtd_start)) as mtd_expenses,
-                    (SELECT COALESCE(SUM(amount), 0) FROM fee_payments WHERE school_id = :sid AND (CAST(:cid AS uuid) IS NULL OR campus_id = CAST(:cid AS uuid)) AND (status IS NULL OR status = 'success') AND (paid_at >= :ytd_start OR created_at >= :ytd_start)) as ytd_collected_fees,
-                    (SELECT COALESCE(SUM(amount), 0) FROM finance_expenses WHERE school_id = :sid AND (expense_date >= :ytd_date OR created_at >= :ytd_start)) as ytd_expenses,
+                    (SELECT COUNT(*) FROM crm_leads WHERE school_id = :sid AND COALESCE(status, 'open') NOT IN ('won', 'lost', 'converted', 'closed')) as open_leads,
+                    (SELECT COALESCE(SUM(amount), 0) FROM finance_expenses WHERE school_id = :sid AND COALESCE(expense_date, CAST(created_at AS date)) >= :mtd_date) as mtd_expenses,
+                    (SELECT COALESCE(SUM(amount), 0) FROM fee_payments WHERE school_id = :sid AND (CAST(:cid AS uuid) IS NULL OR campus_id = CAST(:cid AS uuid)) AND (status IS NULL OR status = 'success') AND COALESCE(paid_at, created_at) >= :ytd_start) as ytd_collected_fees,
+                    (SELECT COALESCE(SUM(amount), 0) FROM finance_expenses WHERE school_id = :sid AND COALESCE(expense_date, CAST(created_at AS date)) >= :ytd_date) as ytd_expenses,
                     (SELECT COUNT(*) FROM attendance_entries WHERE school_id = :sid AND (CAST(:cid AS uuid) IS NULL OR campus_id = CAST(:cid AS uuid)) AND created_at >= :d7_start) as total_attendance_d7,
                     (SELECT COUNT(*) FROM attendance_entries WHERE school_id = :sid AND (CAST(:cid AS uuid) IS NULL OR campus_id = CAST(:cid AS uuid)) AND created_at >= :d7_start AND status IN ('present', 'late')) as present_attendance_d7
             """),

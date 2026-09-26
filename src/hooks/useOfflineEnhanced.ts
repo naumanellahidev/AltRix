@@ -1,3 +1,4 @@
+import { localDay } from "@/lib/local-date";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
@@ -541,7 +542,7 @@ export function useOfflineEnhanced(schoolId: string | null, userId: string | nul
         `)
         .eq("school_id", schoolId)
         .eq("teacher_user_id", userId)
-        .gte("due_date", new Date().toISOString().split("T")[0]);
+        .gte("due_date", localDay());
       
       if (!assignments || assignments.length === 0) return;
       

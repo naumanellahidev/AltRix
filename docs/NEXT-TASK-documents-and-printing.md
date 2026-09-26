@@ -2155,3 +2155,53 @@ and fixed on the way:
   "—"; the owner overview's shortcut that filled unknown KPIs with invented
   ones is gone; an enrolled lead is "won" everywhere (the inquiries screen
   wrote "converted", which no report counted; migration `...0900`).
+- **The other shells** (accountant, HR, marketing, owner, principal: every
+  screen opened by a crawler and read, 26 Sep):
+  - Dates: 87 places turned a local date into text through UTC
+    (`toISOString().slice(0, 10)`). In Pakistan that is the day before for
+    every local midnight and before 5 a.m.: "this month" began on the 31st of
+    the month before (fees centre, cash ledger, vendors, HR attendance
+    months), and attendance, expenses, payroll dates and "today" slipped a day
+    at night. One helper, `src/lib/local-date.ts` (`localDay`), now; the
+    audit gate `qa2` keeps the pattern out.
+  - Accountant home: pending and overdue invoices were always 0 (it looked for
+    a status "sent" that does not exist); cancelled invoices counted as
+    billed; net profit subtracted today's salary bill times the number of pay
+    runs instead of what was paid; a school with no records showed "40 Fair"
+    and 0% rates; the figure cards cut "Rs. 102.4K" to "Rs. 10…"; the cash-flow
+    chart put January before December.
+  - Salaries: the cash ledger ("every rupee that went out") and the tax centre
+    left salaries out; both include salaries paid now. A payroll run marked
+    paid in HR reached no book; it now records each salary paid (skipping
+    anyone already paid for the month). A run ignored a failed payslip insert
+    and said "created"; and it read only salary components, so a school that
+    keeps salaries in Salaries got runs with no payslips. HR analytics payroll
+    reads the salaries paid.
+  - Tax settings (rate, withholding, fiscal year) lived in one browser; they
+    are the school's now (`finance_tax_settings`, migration `...1000`).
+  - Headcount counted students and parents (HR home 19, HR analytics, by
+    role); the owner's payroll counted deactivated salaries (197K against
+    104,730; `is_active` is the flag, `status` never changes); the roll on
+    the board insights, coordinator and counsellor homes counted only
+    "active" students, not "enrolled" ones (1 of 9).
+  - Figures standing in for data: principal and dashboard "Revenue (MTD)"
+    showed every paid invoice ever when the month had no payments (and in
+    dollars); the dashboard KPIs counted a payment in the month it was typed
+    in rather than paid, open leads included won and lost ones, staff with two
+    roles counted twice, and the month began at UTC midnight. Owner HR
+    "Engagement", "Retention" and "Burnout risk" were one division and a
+    guess (now: staff active, 12-month retention from departures, pending
+    leaves); wellbeing said "Excellent" and "Low dropout risk" with no notes;
+    compliance scored checks with nothing to check as 100%.
+  - Owner: the campus and HR screens and the staff report could not read
+    which staff work at which campus (refused by the proxy; now scoped
+    through the campus); the admissions funnel showed each stage once per
+    campus, the second empty; the chart axis read "PKR ,000.00"; a deleted
+    account still counted as an owner (migration `...1200` removes such
+    assignments and ties them to accounts); "Datesheet ready" was sent again
+    to everyone each time (four identical notices; migration `...1100`).
+  - Smaller: contract and onboarding lists showed IDs instead of names; the
+    staff directory printed a code comment and its tabs overlapped; empty
+    funnel stages drew a bar; the notices panel sat open above every screen
+    (now a one-line pill until opened); the board packet button was white on
+    white.

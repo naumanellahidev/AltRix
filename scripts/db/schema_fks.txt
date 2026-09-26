@@ -257,6 +257,7 @@ finance_payments.invoice_id|finance_invoices.id
 finance_payments.method_id|finance_payment_methods.id
 finance_payments.school_id|schools.id
 finance_payments.student_id|students.id
+finance_tax_settings.school_id|schools.id
 first_aid_incidents.campus_id|campuses.id
 first_aid_incidents.school_id|schools.id
 grade_boundaries.campus_id|campuses.id

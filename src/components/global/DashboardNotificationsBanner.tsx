@@ -133,13 +133,14 @@ export function DashboardNotificationsBanner({ schoolId, schoolSlug, role, inlin
   const { data, unreadCount, markRead, markAllRead } = useNotifications(schoolId);
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
   const [dismissedAll, setDismissedAll] = useState(false);
-  // Remembered on this device: it opened again on every page, pushing the
-  // screen's own content down, however often it was folded away.
+  // Folded to a one-line pill unless the reader opened it (remembered on this
+  // device). Open by default it sat above every screen, a 400px block pushing
+  // the screen's own content below the fold.
   const [collapsed, setCollapsedState] = useState<boolean>(() => {
     try {
-      return window.localStorage.getItem(COLLAPSE_KEY) === "1";
+      return window.localStorage.getItem(COLLAPSE_KEY) !== "0";
     } catch {
-      return false;
+      return true;
     }
   });
   const setCollapsed = (value: boolean) => {

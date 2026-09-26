@@ -1,3 +1,4 @@
+import { localDay } from "@/lib/local-date";
 import { useMemo, useState } from "react";
 import { DataExportMenu } from "@/components/documents/DataExportMenu";
 import { ClipboardCheck } from "lucide-react";
@@ -27,7 +28,7 @@ export function HrReviewsModule() {
   const [cycleOpen, setCycleOpen] = useState(false);
   const [reviewOpen, setReviewOpen] = useState(false);
   const [cycleForm, setCycleForm] = useState({ name: "", period_start: "", period_end: "", notes: "" });
-  const [reviewForm, setReviewForm] = useState({ user_id: "", review_date: new Date().toISOString().slice(0, 10), rating: "3", comments: "", status: "draft" });
+  const [reviewForm, setReviewForm] = useState({ user_id: "", review_date: localDay(), rating: "3", comments: "", status: "draft" });
 
   const { data: cycles = [] } = useQuery({
     queryKey: ["hr_performance_cycles", schoolId],
@@ -104,7 +105,7 @@ export function HrReviewsModule() {
       toast.success("Review saved");
       qc.invalidateQueries({ queryKey: ["hr_reviews"] });
       setReviewOpen(false);
-      setReviewForm({ user_id: "", review_date: new Date().toISOString().slice(0, 10), rating: "3", comments: "", status: "draft" });
+      setReviewForm({ user_id: "", review_date: localDay(), rating: "3", comments: "", status: "draft" });
     },
     onError: (e: any) => toast.error(e.message),
   });

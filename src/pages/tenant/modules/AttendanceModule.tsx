@@ -1,3 +1,4 @@
+import { localDay } from "@/lib/local-date";
 import { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import { CalendarCheck } from "lucide-react";
 import { ModuleHeader } from "@/components/tenant/module-kit";
@@ -60,7 +61,7 @@ export function AttendanceModule() {
 
   const [sections, setSections] = useState<Section[]>([]);
   const [selectedSection, setSelectedSection] = useState<string>("");
-  const [sessionDate, setSessionDate] = useState<string>(new Date().toISOString().split("T")[0]);
+  const [sessionDate, setSessionDate] = useState<string>(localDay());
   const [periodLabel, setPeriodLabel] = useState<string>("Period 1");
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [rows, setRows] = useState<StudentRow[]>([]);

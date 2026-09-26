@@ -1,3 +1,4 @@
+import { localDay } from "@/lib/local-date";
 import { useEffect, useState, useMemo } from "react";
 import { SuperAdminShell } from "@/components/super-admin/SuperAdminShell";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -288,7 +289,7 @@ export default function PlatformBillingPage() {
     }
     setInvoiceSchoolId(schools[0].id);
     setInvoiceAmount(schools[0].billing_amount);
-    setInvoiceDueDate(new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]);
+    setInvoiceDueDate(localDay(new Date(Date.now() + 10 * 24 * 60 * 60 * 1000)));
     setInvoiceNotes("");
     setIsInvoiceModalOpen(true);
   };
@@ -315,7 +316,7 @@ export default function PlatformBillingPage() {
     const matchedSchool = schools.find((s) => s.id === invoiceSchoolId);
     if (!matchedSchool) return toast.error("Invalid school selected");
 
-    const invoiceNumber = `PLAT-INV-${new Date().toISOString().slice(0, 10).replace(/-/g, "")}-${Math.floor(1000 + Math.random() * 9000)}`;
+    const invoiceNumber = `PLAT-INV-${localDay().replace(/-/g, "")}-${Math.floor(1000 + Math.random() * 9000)}`;
 
     try {
       if (isDbSchemaApplied) {
@@ -325,7 +326,7 @@ export default function PlatformBillingPage() {
             school_id: invoiceSchoolId,
             invoice_number: invoiceNumber,
             amount: invoiceAmount,
-            billing_date: new Date().toISOString().split("T")[0],
+            billing_date: localDay(),
             due_date: invoiceDueDate,
             status: "Unpaid",
           });

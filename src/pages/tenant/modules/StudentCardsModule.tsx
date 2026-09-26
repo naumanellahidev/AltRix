@@ -1,3 +1,4 @@
+import { localDay } from "@/lib/local-date";
 import { useEffect, useMemo, useState, useRef } from "react";
 import { reportLoadFailure } from "@/lib/load-failure";
 import { PdfSamplePreview } from "@/components/documents/PdfSamplePreview";
@@ -881,7 +882,7 @@ export function StudentCardsModule() {
             school_id: schoolId,
             student_id: newStud.id,
             class_section_id: newStudent.class_section_id,
-            start_date: new Date().toISOString().split("T")[0],
+            start_date: localDay(),
           });
         if (enrollErr) {
           console.error("Failed to enroll student in section:", enrollErr);

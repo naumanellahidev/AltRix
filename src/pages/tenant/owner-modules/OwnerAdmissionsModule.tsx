@@ -105,12 +105,20 @@ export function OwnerAdmissionsModule({ schoolId }: Props) {
         sourceBreakdown[source] = (sourceBreakdown[source] || 0) + 1;
       });
 
-      // Funnel data by stage
-      const funnelData = stages.map((stage) => ({
-        name: stage.name,
-        value: leads.filter((l) => l.stage_id === stage.id).length,
-        fill: COLORS[stages.indexOf(stage) % COLORS.length],
-      }));
+      // Funnel data by stage. Each campus keeps its own pipeline, so the same
+      // stage appears once per campus; the school-wide funnel adds them up by
+      // name (it showed every stage twice, the second one empty).
+      const byName = new Map<string, { name: string; value: number; order: number }>();
+      stages.forEach((stage) => {
+        const key = String(stage.name || "").trim().toLowerCase();
+        const row = byName.get(key) ?? { name: stage.name, value: 0, order: stage.sort_order ?? 0 };
+        row.value += leads.filter((l) => l.stage_id === stage.id).length;
+        row.order = Math.min(row.order, stage.sort_order ?? 0);
+        byName.set(key, row);
+      });
+      const funnelData = Array.from(byName.values())
+        .sort((a, b) => a.order - b.order)
+        .map((row, i) => ({ name: row.name, value: row.value, fill: COLORS[i % COLORS.length] }));
 
       // Monthly trend
       const monthlyTrend: { month: string; leads: number; conversions: number }[] = [];

@@ -1,3 +1,4 @@
+import { localDay } from "@/lib/local-date";
 import { useCallback, useMemo, lazy, Suspense } from "react";
 import { Navigate, Route, Routes, useNavigate, useParams, useLocation } from "react-router-dom";
 import { BarChart3, LogOut, UserRound, Coins, UserPlus, ClipboardList, GraduationCap, FileText, Users } from "lucide-react";
@@ -238,65 +239,33 @@ const TenantDashboard = () => {
   });
 
   // Fetch Revenue (MTD payments)
+  // Collected this calendar month. A month with no payments is 0: when the
+  // server said 0 this fell back to every payment on record, then to the
+  // total of every paid invoice, and showed that as "This month".
   const { data: revenueMtd = cachedKPIs?.revenueMtd ?? 0 } = useQuery({
     queryKey: ["dashboard_kpi_revenue", schoolId],
     queryFn: async () => {
-      let rev = 0;
       if (USE_FASTAPI && schoolId) {
         try {
           const resp = await apiClient.get<any>("/reports/dashboard", {
             params: { school_id: schoolId }
           });
-          if (resp?.data?.collected_fees && Number(resp.data.collected_fees) > 0) {
-            rev = Number(resp.data.collected_fees);
-            return rev;
+          if (resp?.data && resp.data.collected_fees != null) {
+            return Number(resp.data.collected_fees) || 0;
           }
         } catch (fastApiErr) {
-          console.warn("FastAPI backend unreachable, using Supabase fallback for TenantDashboard revenue:", fastApiErr);
+          console.warn("Dashboard KPIs unavailable, reading this month's payments directly:", fastApiErr);
         }
       }
 
-      try {
-        const { data, error } = await api
-          .from("fee_payments")
-          .select("amount, paid_at, created_at, status")
-          .eq("school_id", schoolId!)
-          .limit(1000);
-        if (!error && data && data.length > 0) {
-          const mtdMonth = monthStart.getMonth();
-          const mtdYear = monthStart.getFullYear();
-
-          const sum = data.reduce((s, p: any) => {
-            const isPaid = !p.status || p.status === 'success' || p.status === 'completed' || p.status === 'paid';
-            if (!isPaid) return s;
-            const dStr = p.paid_at || p.created_at;
-            if (!dStr) return s + Number(p.amount ?? 0);
-            const d = new Date(dStr);
-            if (d.getMonth() === mtdMonth && d.getFullYear() === mtdYear) {
-              return s + Number(p.amount ?? 0);
-            }
-            return s;
-          }, 0);
-          if (sum > 0) return sum;
-        }
-
-        // Check paid fee invoices as fallback
-        const { data: invData } = await api
-          .from("fee_invoices")
-          .select("paid_amount, total_amount, status, created_at")
-          .eq("school_id", schoolId!)
-          .eq("status", "paid")
-          .limit(1000);
-
-        if (invData && invData.length > 0) {
-          const invSum = invData.reduce((s, inv: any) => s + Number(inv.paid_amount || inv.total_amount || 0), 0);
-          if (invSum > 0) return invSum;
-        }
-      } catch (err) {
-        console.warn("Error fetching revenue in TenantDashboard:", err);
-      }
-
-      return rev || 0;
+      const { data, error } = await api
+        .from("fee_payments")
+        .select("amount, paid_at, created_at, status")
+        .eq("school_id", schoolId!)
+        .eq("status", "success")
+        .gte("paid_at", monthStart.toISOString());
+      if (error) throw error;
+      return (data ?? []).reduce((s, p: any) => s + Math.round(Number(p.amount ?? 0) * 100), 0) / 100;
     },
     enabled: !!schoolId && isOnline,
     staleTime: 5 * 60 * 1000,
@@ -348,7 +317,7 @@ const TenantDashboard = () => {
         try {
           const resp = await apiClient.get<any>("/reports/attendance-summary", {
             params: {
-              from_date: d7Ago.toISOString().split("T")[0],
+              from_date: localDay(d7Ago),
               school_id: schoolId
             }
           });
@@ -607,7 +576,7 @@ const TenantDashboard = () => {
                 <Coins className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-emerald-500 transition-transform group-hover:scale-110 shrink-0" />
               </div>
               <p className="mt-2 sm:mt-3 font-display text-lg sm:text-xl md:text-2xl font-bold tracking-tight text-emerald-600 truncate">
-                ${revenueMtd.toLocaleString()}
+                Rs. {revenueMtd.toLocaleString()}
               </p>
               <p className="mt-0.5 sm:mt-1 text-[10px] sm:text-xs text-muted-foreground truncate">This month</p>
             </div>

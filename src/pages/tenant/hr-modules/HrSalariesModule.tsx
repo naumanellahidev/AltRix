@@ -1,3 +1,4 @@
+import { localDay } from "@/lib/local-date";
 import { useState } from "react";
 import { ModuleHeader } from "@/components/tenant/module-kit";
 import { useParams } from "react-router-dom";
@@ -94,7 +95,7 @@ export function HrSalariesModule() {
   const [formAllowances, setFormAllowances] = useState("0");
   const [formDeductions, setFormDeductions] = useState("0");
   const [formCurrency, setFormCurrency] = useState("PKR");
-  const [formEffectiveFrom, setFormEffectiveFrom] = useState(new Date().toISOString().split("T")[0]);
+  const [formEffectiveFrom, setFormEffectiveFrom] = useState(localDay());
   const [formNotes, setFormNotes] = useState("");
   const [formIsActive, setFormIsActive] = useState(true);
 
@@ -176,7 +177,7 @@ export function HrSalariesModule() {
     setFormAllowances("0");
     setFormDeductions("0");
     setFormCurrency("PKR");
-    setFormEffectiveFrom(new Date().toISOString().split("T")[0]);
+    setFormEffectiveFrom(localDay());
     setFormNotes("");
     setFormIsActive(true);
     setEditingRecord(null);
@@ -222,7 +223,7 @@ export function HrSalariesModule() {
       deductions: Number(formDeductions) || 0,
       currency: formCurrency,
       effective_from: formEffectiveFrom,
-      effective_to: formIsActive ? null : new Date().toISOString().split("T")[0],
+      effective_to: formIsActive ? null : localDay(),
       is_active: formIsActive,
       notes: formNotes.trim() || null,
     };

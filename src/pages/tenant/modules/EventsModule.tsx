@@ -1,3 +1,4 @@
+import { localDay } from "@/lib/local-date";
 import { useEffect, useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -84,7 +85,7 @@ export default function EventsModule() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [eventType, setEventType] = useState("general");
-  const [eventDate, setEventDate] = useState(new Date().toISOString().slice(0, 10));
+  const [eventDate, setEventDate] = useState(localDay());
   const [startTime, setStartTime] = useState("09:00 AM");
   const [endTime, setEndTime] = useState("12:00 PM");
   const [location, setLocation] = useState("Main Campus Auditorium");

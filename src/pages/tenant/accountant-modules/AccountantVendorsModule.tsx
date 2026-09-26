@@ -1,3 +1,4 @@
+import { localDay } from "@/lib/local-date";
 import { useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -32,8 +33,8 @@ export function AccountantVendorsModule() {
   const schoolId = tenant.status === "ready" ? tenant.schoolId : null;
 
   const today = new Date();
-  const ago = new Date(today.getFullYear(), today.getMonth() - 5, 1).toISOString().slice(0, 10);
-  const last = today.toISOString().slice(0, 10);
+  const ago = localDay(new Date(today.getFullYear(), today.getMonth() - 5, 1));
+  const last = localDay(today);
 
   const [from, setFrom] = useState(ago);
   const [to, setTo] = useState(last);

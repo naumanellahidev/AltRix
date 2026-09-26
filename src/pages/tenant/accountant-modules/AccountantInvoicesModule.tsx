@@ -1,3 +1,4 @@
+import { localDay } from "@/lib/local-date";
 import { describeShare, downloadInvoice, printInvoice, shareInvoice, type InvoiceInput } from "@/lib/documents";
 import { ModuleHeader } from "@/components/tenant/module-kit";
 import { useState, useCallback } from "react";
@@ -448,7 +449,7 @@ export function AccountantInvoicesModule() {
       discount_amount: Number(formDiscount) || 0,
       late_fee: Number(formLateFee) || 0,
       total_amount: calculatedTotal,
-      due_date: formDueDate || new Date(Date.now() + 15 * 86400000).toISOString().slice(0, 10),
+      due_date: formDueDate || localDay(new Date(Date.now() + 15 * 86400000)),
       notes: finalNotes || null,
     };
 

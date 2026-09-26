@@ -1,3 +1,4 @@
+import { localDay } from "@/lib/local-date";
 /**
  * The Fees Centre overview: what was billed, what was actually collected, what
  * is still owed and how old that debt is.
@@ -101,7 +102,7 @@ const PERIOD_LABELS: Record<PeriodKey, string> = {
   this_year: "This academic year so far",
 };
 
-const iso = (d: Date) => d.toISOString().slice(0, 10);
+const iso = (d: Date) => localDay(d);
 
 /** Karachi is UTC+5; the board's day should match the school's day. */
 function todayInKarachi(): Date {

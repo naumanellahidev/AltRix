@@ -1,3 +1,4 @@
+import { localDay } from "@/lib/local-date";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -77,6 +78,9 @@ type Kpis = {
 // Amounts keep their paisa: the owner's overview is read against the ledger,
 // and rounded figures do not reconcile with it.
 const formatCurrency = (val: number | string) => money(String(val ?? 0), { currency: "PKR" });
+/** Axis ticks: "PKR 100K". Full amounts with paisa did not fit and were cut to "PKR ,000.00". */
+const axisCompact = new Intl.NumberFormat("en-PK", { notation: "compact", maximumFractionDigits: 1 });
+const formatAxis = (val: number | string) => `PKR ${axisCompact.format(Number(val) || 0)}`;
 
 export function OwnerOverviewModule({ schoolId }: Props) {
   const { schoolSlug } = useParams();
@@ -287,8 +291,8 @@ export function OwnerOverviewModule({ schoolId }: Props) {
             .from("finance_expenses")
             .select("amount")
             .eq("school_id", schoolId)
-            .gte("expense_date", start.toISOString().split("T")[0])
-            .lt("expense_date", end.toISOString().split("T")[0]),
+            .gte("expense_date", localDay(start))
+            .lt("expense_date", localDay(end)),
         ]);
 
         const revenue = (paymentsRes.data || []).reduce((sum, p) => sum + Number(p.amount || 0), 0);
@@ -315,7 +319,7 @@ export function OwnerOverviewModule({ schoolId }: Props) {
     if (kpis.conversionRate != null && kpis.conversionRate < 20) {
       list.push({
         type: "warning",
-        message: `Admission conversion rate is ${kpis.conversionRate}% - below industry average`,
+        message: `Admission conversion rate is ${kpis.conversionRate}%, under 20% of inquiries enrolling`,
         action: "Review CRM funnel",
       });
     }
@@ -452,7 +456,7 @@ export function OwnerOverviewModule({ schoolId }: Props) {
                       </linearGradient>
                     </defs>
                     <XAxis dataKey="month" fontSize={10} tickLine={false} axisLine={false} />
-                    <YAxis fontSize={10} tickLine={false} axisLine={false} tickFormatter={formatCurrency} />
+                    <YAxis fontSize={10} tickLine={false} axisLine={false} tickFormatter={formatAxis} width={64} />
                     <Tooltip contentStyle={{ fontSize: "12px", borderRadius: "0.75rem" }} />
                     <Area type="monotone" dataKey="revenue" stroke="hsl(var(--primary))" fill="url(#revenueGrad)" />
                     <Area type="monotone" dataKey="expenses" stroke="hsl(var(--destructive))" fill="url(#expenseGrad)" />

@@ -76,6 +76,9 @@ CROSS_TENANT_SCOPES = {
     "exam_invigilators": ("seating_plan_id", "exam_seating_plans"),
     "admin_message_recipients": ("message_id", "admin_messages"),
     "bus_stops": ("route_id", "bus_routes"),
+    # Who works at which campus: the owner's campus and HR screens and the
+    # staff report read it, and were refused ("not tenant-scoped").
+    "staff_campus_assignments": ("campus_id", "campuses"),
 }
 
 GLOBAL_TABLES = {

@@ -1,3 +1,4 @@
+import { localDay } from "@/lib/local-date";
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -52,7 +53,7 @@ export function AlumniModule() {
 
   const [showEventModal, setShowEventModal] = useState(false);
   const [newEvent, setNewEvent] = useState({
-    event_title: "", event_date: new Date().toISOString().split("T")[0], location: "Main Auditorium", description: ""
+    event_title: "", event_date: localDay(), location: "Main Auditorium", description: ""
   });
 
   const [showDonationModal, setShowDonationModal] = useState(false);

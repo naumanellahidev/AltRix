@@ -1,3 +1,4 @@
+import { localDay } from "@/lib/local-date";
 import { useEffect, useState } from "react";
 import { DataExportMenu } from "@/components/documents/DataExportMenu";
 import { NotebookPen } from "lucide-react";
@@ -27,7 +28,7 @@ export default function DiaryModule({ schoolId, canManage = false, studentSectio
   const [sections, setSections] = useState<Section[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [open, setOpen] = useState(false);
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localDay();
   const [form, setForm] = useState({ title: "", content: "", category: "homework", entry_date: today, class_section_id: "", subject_id: "" });
 
   const [loading, setLoading] = useState(true);

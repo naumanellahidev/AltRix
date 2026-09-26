@@ -1,3 +1,4 @@
+import { localDay } from "@/lib/local-date";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -85,7 +86,7 @@ export function FamilyLibrary({ studentId, studentName, audience }: {
   }, [load]);
 
   const bookById = useMemo(() => new Map(books.map((b) => [b.id, b])), [books]);
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localDay();
   const current = loans.filter((l) => l.status !== "returned");
   const reservedIds = new Set(reservations.filter((r) => r.status === "pending").map((r) => r.book_id));
 

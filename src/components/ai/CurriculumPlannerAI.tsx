@@ -1,3 +1,4 @@
+import { localDay } from "@/lib/local-date";
 import React, { useState } from "react";
 import { useSession } from "@/hooks/useSession";
 import { api } from "@/lib/api";
@@ -132,7 +133,7 @@ export function CurriculumPlannerAI({
   const [durationMinutes, setDurationMinutes] = useState(45);
   const [selectedBlooms, setSelectedBlooms] = useState<string[]>(["Understand", "Apply"]);
   const [additionalContext, setAdditionalContext] = useState("");
-  const [planDate, setPlanDate] = useState(new Date().toISOString().split("T")[0]);
+  const [planDate, setPlanDate] = useState(localDay());
   const [periodLabel, setPeriodLabel] = useState("Period 1");
   const [quizQuestionCount, setQuizQuestionCount] = useState(5);
 

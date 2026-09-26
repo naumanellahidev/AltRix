@@ -46,14 +46,18 @@ export function HrAnalyticsModule() {
     const sinceISO = subMonths(new Date(), period).toISOString();
 
     const [roles, leaves, postings, payroll, onb, offb] = await Promise.all([
-      (api as any).from("user_roles").select("user_id, role").eq("school_id", schoolId),
+      (api as any).from("user_roles").select("user_id, role").eq("school_id", schoolId).not("role", "in", "(parent,student)"),
       (api as any).from("hr_leave_requests").select("id, status, leave_type_id, created_at").eq("school_id", schoolId).gte("created_at", sinceISO),
       (api as any).from("hr_job_postings").select("status, openings").eq("school_id", schoolId),
-      (api as any).from("hr_payroll_runs").select("period_year, period_month, total_net, status").eq("school_id", schoolId).gte("period_year", new Date().getFullYear()),
+      // Salaries actually paid, the record the accountant's books keep (a run
+      // paid in HR payroll is written there too). This read the HR batch
+      // runs only, so salaries paid through the accountant never showed.
+      (api as any).from("hr_pay_runs").select("net_amount, paid_at, status").eq("school_id", schoolId).eq("status", "completed").gte("paid_at", subMonths(new Date(), Math.max(period, 12)).toISOString()),
       (api as any).from("hr_onboarding_assignments").select("created_at, kind").eq("school_id", schoolId).eq("kind", "onboarding").gte("created_at", sinceISO),
       (api as any).from("hr_onboarding_assignments").select("created_at, kind").eq("school_id", schoolId).eq("kind", "offboarding").gte("created_at", sinceISO),
     ]);
 
+    // Staff roles only: students and parents were counted as headcount.
     const rolesData = roles.data || [];
     const headcount = new Set(rolesData.map((r: any) => r.user_id)).size;
     const byRoleMap = new Map<string, number>();
@@ -70,13 +74,18 @@ export function HrAnalyticsModule() {
     const openPositions = postingData.filter((p: any) => p.status === "open").reduce((s: number, p: any) => s + p.openings, 0);
 
     const payrollData = payroll.data || [];
-    const payrollYTD = payrollData.filter((p: any) => p.status === "paid").reduce((s: number, p: any) => s + Number(p.total_net || 0), 0);
+    const yearStart = new Date(new Date().getFullYear(), 0, 1);
+    const payrollYTD = payrollData
+      .filter((p: any) => p.paid_at && new Date(p.paid_at) >= yearStart)
+      .reduce((s: number, p: any) => s + Math.round(Number(p.net_amount || 0) * 100), 0) / 100;
 
     const salaryTrend = Array.from({ length: period }).map((_, i) => {
       const d = subMonths(new Date(), period - 1 - i);
-      const y = d.getFullYear(); const m = d.getMonth() + 1;
-      const row = payrollData.find((p: any) => p.period_year === y && p.period_month === m);
-      return { month: format(d, "MMM"), net: row ? Number(row.total_net) : 0 };
+      const y = d.getFullYear(); const m = d.getMonth();
+      const paisa = payrollData
+        .filter((p: any) => { const t = new Date(p.paid_at); return t.getFullYear() === y && t.getMonth() === m; })
+        .reduce((s: number, p: any) => s + Math.round(Number(p.net_amount || 0) * 100), 0);
+      return { month: format(d, "MMM"), net: paisa / 100 };
     });
 
     const hireTrendMap = new Map<string, { hires: number; exits: number }>();

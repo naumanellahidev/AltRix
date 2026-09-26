@@ -90,15 +90,19 @@ export function OwnerComplianceModule({ schoolId }: Props) {
       const failedPayments = payments.filter((p: any) => p.status === "failed").length;
       const financeCompliance = payments.length ? Math.max(0, 100 - Math.round((failedPayments / payments.length) * 100)) : 100;
 
-      const overallScore = Math.round((contractCompliance + docCompliance + complaintResolution + leaveCompliance + financeCompliance) / 5);
-
+      // A check with nothing to measure has no result. Each used to count as
+      // 100% (no complaints = "100% resolved"), lifting the overall score.
       const checks = [
         { label: "Staff contracts on file", value: contractCompliance, missing: missingContract.length, total: activeSalaryUsers.size },
         { label: "HR documents on file", value: docCompliance, missing: missingDocs.length, total: activeSalaryUsers.size },
         { label: "Complaint resolution rate", value: complaintResolution, missing: complaints.length - resolved, total: complaints.length },
         { label: "Leave request processing", value: leaveCompliance, missing: pendingLeaves, total: leaves.length },
         { label: "Payment success rate", value: financeCompliance, missing: failedPayments, total: payments.length },
-      ];
+      ].map((c) => ({ ...c, value: c.total > 0 ? c.value : null as number | null }));
+      const measured = checks.filter((c) => c.value != null);
+      const overallScore: number | null = measured.length
+        ? Math.round(measured.reduce((sum, c) => sum + (c.value as number), 0) / measured.length)
+        : null;
 
       return {
         schoolName: schoolRes.data?.name,
@@ -113,8 +117,8 @@ export function OwnerComplianceModule({ schoolId }: Props) {
     return <div className="flex items-center justify-center py-20"><div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" /></div>;
   }
 
-  const score = data?.overallScore ?? 0;
-  const scoreColor = score >= 90 ? "text-emerald-600" : score >= 70 ? "text-amber-600" : "text-red-600";
+  const score = data?.overallScore ?? null;
+  const scoreColor = score == null ? "text-muted-foreground" : score >= 90 ? "text-emerald-600" : score >= 70 ? "text-amber-600" : "text-red-600";
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -125,7 +129,7 @@ export function OwnerComplianceModule({ schoolId }: Props) {
 
       <div className="grid grid-cols-2 gap-2.5 sm:gap-4 lg:grid-cols-4">
         <Card><CardContent className="p-3 sm:p-4"><Scale className="h-4 w-4 sm:h-5 sm:w-5 text-primary" /><p className="mt-2 font-display text-lg sm:text-2xl font-bold truncate">{data?.isActive ? "Active" : "Inactive"}</p><p className="text-[10px] sm:text-xs text-muted-foreground truncate">Institute Status</p></CardContent></Card>
-        <Card><CardContent className="p-3 sm:p-4"><Shield className="h-4 w-4 sm:h-5 sm:w-5 text-emerald-600" /><p className={`mt-2 font-display text-lg sm:text-2xl font-bold truncate ${scoreColor}`}>{score}%</p><p className="text-[10px] sm:text-xs text-muted-foreground truncate">Compliance Score</p></CardContent></Card>
+        <Card><CardContent className="p-3 sm:p-4"><Shield className="h-4 w-4 sm:h-5 sm:w-5 text-emerald-600" /><p className={`mt-2 font-display text-lg sm:text-2xl font-bold truncate ${scoreColor}`}>{score != null ? `${score}%` : "—"}</p><p className="text-[10px] sm:text-xs text-muted-foreground truncate">Compliance Score</p></CardContent></Card>
         <Card><CardContent className="p-3 sm:p-4"><FileWarning className="h-4 w-4 sm:h-5 sm:w-5 text-amber-600" /><p className="mt-2 font-display text-lg sm:text-2xl font-bold truncate">{data?.expiring.length ?? 0}</p><p className="text-[10px] sm:text-xs text-muted-foreground truncate">Expiring Contracts</p></CardContent></Card>
         <Card><CardContent className="p-3 sm:p-4"><AlertTriangle className="h-4 w-4 sm:h-5 sm:w-5 text-red-600" /><p className="mt-2 font-display text-lg sm:text-2xl font-bold truncate">{(data?.missingContract.length ?? 0) + (data?.missingDocs.length ?? 0)}</p><p className="text-[10px] sm:text-xs text-muted-foreground truncate">Open Audit Items</p></CardContent></Card>
       </div>
@@ -147,9 +151,9 @@ export function OwnerComplianceModule({ schoolId }: Props) {
                 <div key={i}>
                   <div className="flex justify-between text-sm">
                     <span className="text-xs sm:text-sm">{c.label}</span>
-                    <span className="font-medium text-xs sm:text-sm">{c.value}% <span className="text-xs text-muted-foreground">({c.total - c.missing}/{c.total})</span></span>
+                    <span className="font-medium text-xs sm:text-sm">{c.value != null ? <>{c.value}% <span className="text-xs text-muted-foreground">({c.total - c.missing}/{c.total})</span></> : <span className="text-xs text-muted-foreground">No records</span>}</span>
                   </div>
-                  <Progress value={c.value} className="mt-2 h-2" />
+                  <Progress value={c.value ?? 0} className="mt-2 h-2" />
                 </div>
               ))}
             </CardContent>

@@ -183,7 +183,7 @@ export default function OwnerInsightsDashboard() {
           <Button onClick={() => setIsPresentationMode(!isPresentationMode)} variant="outline" className="border-white/30 bg-white/10 font-semibold text-white hover:bg-white/20">
             {isPresentationMode ? "Exit Board View" : "Board Presentation Mode"}
           </Button>
-          <DataExportMenu {...packet()} label="Board Packet" disabled={!data} fileNameParts={["Board Packet", todayLabel()]} />
+          <DataExportMenu {...packet()} variant="secondary" label="Board Packet" disabled={!data} fileNameParts={["Board Packet", todayLabel()]} />
         </div>
       </div>
 

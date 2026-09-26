@@ -217,14 +217,14 @@ export function OwnerCampusesModule({ schoolId }: Props) {
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <CardTitle className="text-base truncate">{c.name}</CardTitle>
-                      <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
+                      <div className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
                         {c.code && <Badge variant="outline" className="h-5 text-[10px]">{c.code}</Badge>}
                         {c.address && (
                           <span className="inline-flex items-center gap-1 truncate">
                             <MapPin className="h-3 w-3" /> {c.address}
                           </span>
                         )}
-                      </p>
+                      </div>
                     </div>
                     <Badge variant={c.is_active ? "default" : "outline"} className="h-5 text-[10px]">
                       {c.is_active ? "Active" : "Inactive"}

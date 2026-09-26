@@ -1,3 +1,4 @@
+import { localDay } from "@/lib/local-date";
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -26,8 +27,6 @@ import { toast } from "sonner";
  */
 const fmt = (value: number | string) => money(String(value ?? 0), { currency: "PKR" });
 
-const TAX_STORAGE = "altrix:tax_settings:";
-
 type TaxSettings = {
   ratePct: number; // % applied to taxable revenue
   withholdingPct: number; // % withheld on staff/vendor payments
@@ -43,25 +42,58 @@ export function AccountantTaxModule() {
 
   const [settings, setSettings] = useState<TaxSettings>(DEFAULT_SETTINGS);
   const [draft, setDraft] = useState<TaxSettings>(DEFAULT_SETTINGS);
-  const storageKey = useMemo(() => (schoolId ? `${TAX_STORAGE}${schoolId}` : null), [schoolId]);
+  const [settingsId, setSettingsId] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  // The school's settings, kept in the database. They lived in one browser's
+  // storage, so each accountant (and each computer) had its own tax rate.
+  const settingsQuery = useQuery({
+    queryKey: ["tax_settings", schoolId],
+    enabled: !!schoolId,
+    queryFn: async () => {
+      const { data, error } = await api
+        .from("finance_tax_settings")
+        .select("id, rate_pct, withholding_pct, fiscal_start_month")
+        .eq("school_id", schoolId!)
+        .maybeSingle();
+      if (error) throw error;
+      return data as any;
+    },
+  });
 
   useEffect(() => {
-    if (!storageKey) return;
-    try {
-      const raw = localStorage.getItem(storageKey);
-      if (raw) {
-        const parsed = JSON.parse(raw) as TaxSettings;
-        setSettings({ ...DEFAULT_SETTINGS, ...parsed });
-        setDraft({ ...DEFAULT_SETTINGS, ...parsed });
-      }
-    } catch {}
-  }, [storageKey]);
+    const row = settingsQuery.data;
+    if (!row) return;
+    const loaded: TaxSettings = {
+      ratePct: Number(row.rate_pct ?? 0),
+      withholdingPct: Number(row.withholding_pct ?? 0),
+      fiscalStartMonth: Number(row.fiscal_start_month ?? 7),
+    };
+    setSettingsId(row.id);
+    setSettings(loaded);
+    setDraft(loaded);
+  }, [settingsQuery.data]);
 
-  const saveSettings = () => {
-    if (!storageKey) return;
-    localStorage.setItem(storageKey, JSON.stringify(draft));
+  const saveSettings = async () => {
+    if (!schoolId) return;
+    setSaving(true);
+    const values = {
+      rate_pct: draft.ratePct,
+      withholding_pct: draft.withholdingPct,
+      fiscal_start_month: draft.fiscalStartMonth,
+      updated_at: new Date().toISOString(),
+    };
+    const res = settingsId
+      ? await api.from("finance_tax_settings").update(values).eq("id", settingsId).select("id").single()
+      : await api.from("finance_tax_settings").insert({ school_id: schoolId, ...values }).select("id").single();
+    setSaving(false);
+    if (res.error) {
+      toast.error(`The tax settings could not be saved: ${res.error.message}`);
+      return;
+    }
+    setSettingsId((res.data as any)?.id ?? settingsId);
     setSettings(draft);
-    toast.success("Tax settings saved");
+    toast.success("Tax settings saved for the school");
   };
 
   // Build current fiscal year window
@@ -71,13 +103,16 @@ export function AccountantTaxModule() {
     if (start > now) start.setFullYear(start.getFullYear() - 1);
     const end = new Date(start.getFullYear() + 1, start.getMonth(), 0);
     return {
-      from: start.toISOString().slice(0, 10),
-      to: end.toISOString().slice(0, 10),
+      from: localDay(start),
+      to: localDay(end),
       label: `FY ${start.getFullYear()}-${(start.getFullYear() + 1).toString().slice(-2)}`,
     };
   }, [settings.fiscalStartMonth]);
 
   const [from, setFrom] = useState(fiscal.from);
+  // The day boundaries in the viewer's time zone, not UTC.
+  const fromInstant = (f: string) => new Date(`${f}T00:00:00`).toISOString();
+  const toInstant = (t: string) => new Date(`${t}T23:59:59.999`).toISOString();
   const [to, setTo] = useState(fiscal.to);
 
   useEffect(() => {
@@ -94,8 +129,27 @@ export function AccountantTaxModule() {
         .select("amount, paid_at, status")
         .eq("school_id", schoolId!)
         .eq("status", "success")
-        .gte("paid_at", `${from}T00:00:00`)
-        .lte("paid_at", `${to}T23:59:59`);
+        .gte("paid_at", fromInstant(from))
+        .lte("paid_at", toInstant(to));
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+  // Salaries paid are a cost of the school like any other. The taxable
+  // figure was revenue less recorded expenses only, which left the largest
+  // deductible cost out and overstated the tax.
+  const salariesQuery = useQuery({
+    queryKey: ["tax_salaries", schoolId, from, to],
+    enabled: !!schoolId,
+    queryFn: async () => {
+      const { data, error } = await api
+        .from("hr_pay_runs")
+        .select("gross_amount, paid_at")
+        .eq("school_id", schoolId!)
+        .eq("status", "completed")
+        .gte("paid_at", fromInstant(from))
+        .lte("paid_at", toInstant(to));
       if (error) throw error;
       return data ?? [];
     },
@@ -118,13 +172,16 @@ export function AccountantTaxModule() {
 
   const payments = paymentsQuery.data ?? [];
   const expenses = expensesQuery.data ?? [];
+  const salaries = salariesQuery.data ?? [];
   // Revenue without expenses, or expenses without revenue, is a wrong tax
   // figure rather than a partial one - so either failure stops the screen.
-  const loading = paymentsQuery.isLoading || expensesQuery.isLoading;
-  const failure = paymentsQuery.error ?? expensesQuery.error;
+  const loading = paymentsQuery.isLoading || expensesQuery.isLoading || salariesQuery.isLoading || settingsQuery.isLoading;
+  const failure = paymentsQuery.error ?? expensesQuery.error ?? salariesQuery.error ?? settingsQuery.error;
   const reload = () => {
     void paymentsQuery.refetch();
     void expensesQuery.refetch();
+    void salariesQuery.refetch();
+    void settingsQuery.refetch();
   };
 
   const monthly = useMemo(() => {
@@ -133,7 +190,7 @@ export function AccountantTaxModule() {
       buckets.get(k) || { period: k, revenue: 0, expenses: 0, taxPaid: 0 };
 
     for (const p of payments as any[]) {
-      const k = (p.paid_at || "").slice(0, 7);
+      const k = p.paid_at ? localDay(new Date(p.paid_at)).slice(0, 7) : "";
       if (!k) continue;
       const b = ensure(k);
       b.revenue += Number(p.amount || 0);
@@ -147,8 +204,15 @@ export function AccountantTaxModule() {
       if ((e.category || "").toLowerCase() === "taxes") b.taxPaid += Number(e.amount || 0);
       buckets.set(k, b);
     }
+    for (const r of salaries as any[]) {
+      const k = r.paid_at ? localDay(new Date(r.paid_at)).slice(0, 7) : "";
+      if (!k) continue;
+      const b = ensure(k);
+      b.expenses += Number(r.gross_amount || 0);
+      buckets.set(k, b);
+    }
     return [...buckets.values()].sort((a, b) => (a.period < b.period ? -1 : 1));
-  }, [payments, expenses]);
+  }, [payments, expenses, salaries]);
 
   const totals = useMemo(() => {
     const revenue = monthly.reduce((s, m) => s + m.revenue, 0);
@@ -207,7 +271,7 @@ export function AccountantTaxModule() {
             subtitle: `${from} → ${to}`,
             summary: [
               { label: "Revenue", value: fmt(totals.revenue) },
-              { label: "Deductible Expenses", value: fmt(totals.expenses) },
+              { label: "Deductible Expenses (incl. salaries)", value: fmt(totals.expenses) },
               { label: "Tax Liability", value: fmt(totals.liability) },
               { label: "Outstanding", value: fmt(totals.due) },
             ],
@@ -221,7 +285,7 @@ export function AccountantTaxModule() {
           <CardContent className="p-3.5 sm:p-5">
             <p className="text-[10px] sm:text-xs text-muted-foreground uppercase font-semibold">Taxable Income</p>
             <p className="text-xl sm:text-2xl font-bold tabular-nums mt-0.5 sm:mt-1 truncate">{fmt(totals.taxable)}</p>
-            <p className="mt-0.5 sm:mt-1 text-[10px] sm:text-xs text-muted-foreground truncate">Revenue − Expenses</p>
+            <p className="mt-0.5 sm:mt-1 text-[10px] sm:text-xs text-muted-foreground truncate">Revenue − expenses and salaries</p>
           </CardContent>
         </Card>
         <Card className="rounded-2xl shadow-sm">
@@ -462,7 +526,7 @@ export function AccountantTaxModule() {
                 </div>
               </div>
               <div className="sm:col-span-2">
-                <Button onClick={saveSettings} className="gap-2">
+                <Button onClick={() => void saveSettings()} disabled={saving} className="gap-2">
                   <Save className="h-4 w-4" /> Save settings
                 </Button>
               </div>

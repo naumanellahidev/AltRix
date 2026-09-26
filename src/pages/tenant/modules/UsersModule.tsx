@@ -786,7 +786,7 @@ export function UsersModule() {
 
         <CardContent className="space-y-5">
           {/* Tabs, Search & Filters Bar */}
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between border-b pb-4">
+          <div className="flex flex-col gap-4 2xl:flex-row 2xl:items-center 2xl:justify-between border-b pb-4">
             {/* Category Tabs */}
             <Tabs
               value={activeTab}
@@ -794,9 +794,9 @@ export function UsersModule() {
                 setActiveTab(v as any);
                 setSelectedRoleFilter("all");
               }}
-              className="w-full lg:w-auto"
+              className="w-full 2xl:w-auto"
             >
-              <TabsList className="grid grid-cols-2 sm:grid-cols-4 w-full lg:w-auto p-1 bg-surface-elevated/60 border border-muted/30 rounded-xl">
+              <TabsList className="grid grid-cols-2 sm:flex sm:flex-wrap h-auto w-full 2xl:w-auto p-1 bg-surface-elevated/60 border border-muted/30 rounded-xl">
                 <TabsTrigger value="staff" className="gap-1.5 text-xs px-2.5 py-1.5 rounded-lg">
                   <Briefcase className="h-3.5 w-3.5 shrink-0" />
                   <span>Staff ({userCategories.staff.length})</span>
@@ -1140,7 +1140,7 @@ export function UsersModule() {
                 size="sm"
               />
             </div>
-            /* Responsive Table Wrapper for Users Directory */
+            {/* Responsive table wrapper for the users directory */}
             <div className="w-full overflow-x-auto rounded-2xl border bg-surface scrollbar-thin">
               <div className="min-w-[800px]">
                 <Table>

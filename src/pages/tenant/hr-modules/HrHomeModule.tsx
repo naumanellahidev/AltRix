@@ -37,6 +37,7 @@ export function HrHomeModule() {
   });
   const [recentHires, setRecentHires] = useState<any[]>([]);
   const [expiringList, setExpiringList] = useState<any[]>([]);
+  const [names, setNames] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
@@ -46,7 +47,9 @@ export function HrHomeModule() {
     const in30 = new Date(); in30.setDate(in30.getDate() + 30);
 
     const [roles, leaves, contracts, postings, applicants, payroll, interviews, onboarding, regs] = await Promise.all([
-      (api as any).from("user_roles").select("user_id", { count: "exact", head: true }).eq("school_id", schoolId),
+      // Staff only. This counted every role row in the school, students and
+      // parents included (and a person with two roles twice).
+      (api as any).rpc("get_school_staff_directory", { _school_id: schoolId }),
       (api as any).from("hr_leave_requests").select("id", { count: "exact", head: true }).eq("school_id", schoolId).eq("status", "pending"),
       (api as any).from("hr_contracts").select("id, user_id, end_date, status").eq("school_id", schoolId),
       (api as any).from("hr_job_postings").select("id, openings", { count: "exact" }).eq("school_id", schoolId).eq("status", "open"),
@@ -61,7 +64,7 @@ export function HrHomeModule() {
     const expiring = contractsData.filter((c: any) => c.status === "active" && c.end_date && new Date(c.end_date) <= in30 && new Date(c.end_date) >= now);
 
     setM({
-      headcount: roles.count || 0,
+      headcount: (roles.data || []).length,
       pendingLeaves: leaves.count || 0,
       activeContracts: contractsData.filter((c: any) => c.status === "active").length,
       expiringContracts: expiring.length,
@@ -73,6 +76,7 @@ export function HrHomeModule() {
       activeOnboarding: (onboarding.data || []).filter((o: any) => o.status === "in_progress").length,
       pendingRegularizations: regs.count || 0,
     });
+    setNames(Object.fromEntries((roles.data || []).map((r: any) => [r.user_id, r.display_name || r.email])));
     setRecentHires(onboarding.data || []);
     setExpiringList(expiring.slice(0, 5));
     setLoading(false);
@@ -155,7 +159,7 @@ export function HrHomeModule() {
               <ul className="space-y-2">
                 {expiringList.map((c: any) => (
                   <li key={c.id} className="flex justify-between items-center text-sm">
-                    <span className="font-mono text-xs">{c.user_id.slice(0, 8)}…</span>
+                    <span className="truncate">{names[c.user_id] || "Former staff member"}</span>
                     <Badge variant="destructive">{new Date(c.end_date).toLocaleDateString()}</Badge>
                   </li>
                 ))}
@@ -172,7 +176,7 @@ export function HrHomeModule() {
               <ul className="space-y-2">
                 {recentHires.map((o: any) => (
                   <li key={o.id} className="flex justify-between items-center text-sm">
-                    <span className="font-mono text-xs">{o.employee_user_id.slice(0, 8)}…</span>
+                    <span className="truncate">{names[o.employee_user_id] || "Staff member"}</span>
                     <Badge variant={o.status === "completed" ? "default" : "secondary"}>{o.status.replace("_", " ")}</Badge>
                   </li>
                 ))}

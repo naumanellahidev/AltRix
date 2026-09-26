@@ -1,3 +1,4 @@
+import { localDay } from "@/lib/local-date";
 import { useEffect, useMemo, useState } from "react";
 import { HrLeavesModule } from "@/pages/tenant/hr-modules/HrLeavesModule";
 import { HrAttendanceModule } from "@/pages/tenant/hr-modules/HrAttendanceModule";
@@ -306,7 +307,7 @@ export function PrincipalHome() {
               params: { school_id: schoolId }
             }),
             apiClient.get("/reports/attendance-summary", {
-              params: { from_date: d7.toISOString().split("T")[0], school_id: schoolId }
+              params: { from_date: localDay(d7), school_id: schoolId }
             }),
             apiClient.get("/reports/finance-trend", {
               params: { school_id: schoolId }
@@ -446,28 +447,22 @@ export function PrincipalHome() {
           const isPaid = !p.status || p.status === 'success' || p.status === 'completed' || p.status === 'paid';
           if (!isPaid) return false;
           const dStr = p.paid_at || p.created_at;
-          if (!dStr) return true;
+          if (!dStr) return false; // undated: not known to be this month
           const d = new Date(dStr);
           return d.getMonth() === mtdMonth && d.getFullYear() === mtdYear;
         });
 
         const validExpenses = (expenses.data ?? []).filter((e: any) => {
           const dStr = e.expense_date || e.created_at;
-          if (!dStr) return true;
+          if (!dStr) return false; // undated: not known to be this month
           const d = new Date(dStr);
           return d.getMonth() === mtdMonth && d.getFullYear() === mtdYear;
         });
 
-        let revenueMtd = validPayments.reduce((sum, r: any) => sum + Number(r.amount ?? 0), 0);
+        // A month with no payments collected nothing. This used to fill a zero
+        // with the total of every paid invoice on record, shown as this month.
+        const revenueMtd = validPayments.reduce((sum, r: any) => sum + Number(r.amount ?? 0), 0);
         const expensesMtd = validExpenses.reduce((sum, r: any) => sum + Number(r.amount ?? 0), 0);
-
-        // Include paid invoices revenue if fee_payments contains 0 rows for this school
-        if (revenueMtd === 0 && pendingInvoicesCount.data && pendingInvoicesCount.data.length > 0) {
-          revenueMtd = pendingInvoicesCount.data.reduce((sum: number, inv: any) => {
-            const paidVal = Number(inv.paid_amount ?? (inv.status === 'paid' ? inv.total_amount : 0));
-            return sum + (isNaN(paidVal) ? 0 : paidVal);
-          }, 0);
-        }
 
         const pendingCount = (pendingInvoicesCount.data ?? []).filter((inv: any) => inv.status !== 'paid' && inv.status !== 'cancelled').length;
 
