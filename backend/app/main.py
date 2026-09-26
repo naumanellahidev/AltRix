@@ -215,6 +215,18 @@ async def lifespan(app: FastAPI):
     except Exception as ws_err:
         logger.error(f"Failed to start Redis Pub/Sub WebSocket listener: {ws_err}")
 
+    # The foreign keys the data proxy resolves relations over: read once per
+    # worker at start, not by the first user to ask for a relation (seconds).
+    async def _warm_relations():
+        try:
+            from app.database import AsyncSessionLocal
+            from app.utils import proxy_embeds
+            async with AsyncSessionLocal() as _db:
+                await proxy_embeds.foreign_keys(_db)
+        except Exception as e:
+            logger.warning(f"Could not preload the foreign keys for relations: {e}")
+    asyncio.create_task(_warm_relations())
+
     yield
 
     # Shutdown

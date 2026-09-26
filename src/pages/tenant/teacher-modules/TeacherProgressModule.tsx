@@ -24,12 +24,13 @@ interface Student {
   last_name: string | null;
 }
 
+// null: nothing recorded yet (not 0%, not 100%, not "stable").
 interface StudentStats {
-  attendance_rate: number;
+  attendance_rate: number | null;
   total_sessions: number;
-  avg_grade: number;
-  recent_avg_grade: number;
-  grade_trend: "up" | "down" | "stable";
+  avg_grade: number | null;
+  recent_avg_grade: number | null;
+  grade_trend: "up" | "down" | "stable" | null;
   assessments: { date: string; title: string; percentage: number }[];
 }
 
@@ -145,19 +146,22 @@ export function TeacherProgressModule() {
     ).length;
     const attendance_rate = sectionEntries.length > 0
       ? (presentCount / sectionEntries.length) * 100
-      : 100;
+      : null;
 
     // Get grade stats
     const { data: marksData } = await api
       .from("student_marks")
       .select("marks, assessment_id!inner(id, title, max_marks, assessment_date, class_section_id)")
       .eq("school_id", schoolId!)
-      .eq("student_id", selectedStudent)
-      .order("assessment_id(assessment_date)", { ascending: true });
+      .eq("student_id", selectedStudent);
 
-    const sectionMarks = marksData?.filter(
+    // Oldest first (the proxy cannot order by a relation's column); an
+    // assessment without a maximum cannot give a percentage.
+    const sectionMarks = (marksData?.filter(
       (m: any) => m.assessment_id?.class_section_id === selectedSection
-    ) || [];
+        && m.marks != null && Number(m.assessment_id?.max_marks) > 0
+    ) || []).sort((a: any, b: any) =>
+      String(a.assessment_id.assessment_date ?? "").localeCompare(String(b.assessment_id.assessment_date ?? "")));
 
     const assessments = sectionMarks.map((m: any) => ({
       date: m.assessment_id.assessment_date,
@@ -167,21 +171,23 @@ export function TeacherProgressModule() {
 
     const totalAvg = assessments.length > 0
       ? assessments.reduce((sum, a) => sum + a.percentage, 0) / assessments.length
-      : 0;
+      : null;
 
     const recentAssessments = assessments.slice(-5);
     const recentAvg = recentAssessments.length > 0
       ? recentAssessments.reduce((sum, a) => sum + a.percentage, 0) / recentAssessments.length
-      : 0;
+      : null;
 
+    // A trend needs earlier results to compare with.
     const olderAssessments = assessments.slice(0, -5);
     const olderAvg = olderAssessments.length > 0
       ? olderAssessments.reduce((sum, a) => sum + a.percentage, 0) / olderAssessments.length
-      : recentAvg;
+      : null;
 
-    let grade_trend: "up" | "down" | "stable" = "stable";
-    if (recentAvg > olderAvg + 5) grade_trend = "up";
-    else if (recentAvg < olderAvg - 5) grade_trend = "down";
+    let grade_trend: "up" | "down" | "stable" | null = null;
+    if (recentAvg != null && olderAvg != null) {
+      grade_trend = recentAvg > olderAvg + 5 ? "up" : recentAvg < olderAvg - 5 ? "down" : "stable";
+    }
 
     setStats({
       attendance_rate,
@@ -296,12 +302,12 @@ export function TeacherProgressModule() {
               </CardHeader>
               <CardContent>
                 <div className="flex items-baseline gap-2">
-                  <span className="text-2xl font-bold">{stats.attendance_rate.toFixed(1)}%</span>
+                  <span className="text-2xl font-bold">{stats.attendance_rate != null ? `${stats.attendance_rate.toFixed(1)}%` : "—"}</span>
                   <span className="text-xs text-muted-foreground">
                     of {stats.total_sessions} sessions
                   </span>
                 </div>
-                <Progress value={stats.attendance_rate} className="mt-2" />
+                <Progress value={stats.attendance_rate ?? 0} className="mt-2" />
               </CardContent>
             </Card>
 
@@ -311,9 +317,9 @@ export function TeacherProgressModule() {
               </CardHeader>
               <CardContent>
                 <div className="flex items-baseline gap-2">
-                  <span className="text-2xl font-bold">{stats.avg_grade.toFixed(1)}%</span>
+                  <span className="text-2xl font-bold">{stats.avg_grade != null ? `${stats.avg_grade.toFixed(1)}%` : "—"}</span>
                 </div>
-                <Progress value={stats.avg_grade} className="mt-2" />
+                <Progress value={stats.avg_grade ?? 0} className="mt-2" />
               </CardContent>
             </Card>
 
@@ -323,10 +329,10 @@ export function TeacherProgressModule() {
               </CardHeader>
               <CardContent>
                 <div className="flex items-baseline gap-2">
-                  <span className="text-2xl font-bold">{stats.recent_avg_grade.toFixed(1)}%</span>
+                  <span className="text-2xl font-bold">{stats.recent_avg_grade != null ? `${stats.recent_avg_grade.toFixed(1)}%` : "—"}</span>
                   <span className="text-xs text-muted-foreground">last 5 assessments</span>
                 </div>
-                <Progress value={stats.recent_avg_grade} className="mt-2" />
+                <Progress value={stats.recent_avg_grade ?? 0} className="mt-2" />
               </CardContent>
             </Card>
 
@@ -350,7 +356,9 @@ export function TeacherProgressModule() {
                       ? "Improving"
                       : stats.grade_trend === "down"
                       ? "Declining"
-                      : "Stable"}
+                      : stats.grade_trend === "stable"
+                      ? "Stable"
+                      : "Not enough data"}
                   </Badge>
                 </div>
               </CardContent>

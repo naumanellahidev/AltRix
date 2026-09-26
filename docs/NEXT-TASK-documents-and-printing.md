@@ -2124,3 +2124,34 @@ and fixed on the way:
   there is none yet.
 - The updates banner at the top of every family screen re-opened on every
   page; folding it away is now remembered on the device.
+- **Round 2 of the three shells** (after the fixes above; teacher, student
+  and parent: every screen now loads with no failed call or error):
+  - Student transport and both hostel screens were invented (a driver and a
+    warden with real-looking phone numbers, roommates, a mess menu, a leave
+    pass "submitted" to nobody). They now show the child's real transport
+    assignment and hostel stay (`/hostel/my-stay`), or say there is none.
+  - `/transport/my-bus` matched children only by a student's login or an
+    emergency phone, never by guardian links, and when nothing matched it
+    returned the school's first two students: other families' children.
+    Now the caller's own children only; an unknown stop time stays unknown
+    (it read "07:45 AM"). A bus with no GPS fix no longer appears at fixed
+    coordinates in Lahore marked "in transit"; any school's bus by id is
+    refused.
+  - Results reach a family only once published: the report-card list
+    returned unpublished cards (the detail view already refused them), and
+    the proxy now applies publication to report cards, their subject lines,
+    marks held back by the teacher, and exam results.
+  - Teacher home counted every enrolment ever (closed ones too) and could
+    pick the wrong "current class"; teacher progress showed 0.0% averages
+    and a "Stable" trend for a student with no marks.
+  - Relation filters on dates failed (the student and parent attendance
+    lists); the relation foreign keys are preloaded at start.
+  - Messages: the delete control sat inside the clickable conversation row
+    (a button in a button; deleting also opened the chat).
+  - Smaller: "Available Available Slots", invented teacher "response hours",
+    an empty room form (it was pre-filled with a sample room).
+- **Other shells** (owner, accountant, HR, marketing, inquiries): rates and
+  averages shown as 0% (or 100%, 90%, 92) with nothing to measure now show
+  "—"; the owner overview's shortcut that filled unknown KPIs with invented
+  ones is gone; an enrolled lead is "won" everywhere (the inquiries screen
+  wrote "converted", which no report counted; migration `...0900`).

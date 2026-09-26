@@ -169,7 +169,7 @@ export function OwnerHrModule({ schoolId }: Props) {
           sum + Number(s.base_salary || 0) + Number(s.allowances || 0) - Number(s.deductions || 0),
         0
       );
-      const avgSalary = activeSalaries.length > 0 ? totalSalaryBill / activeSalaries.length : 0;
+      const avgSalary: number | null = activeSalaries.length > 0 ? totalSalaryBill / activeSalaries.length : null;
 
       const pendingLeaves = leaves.filter((l: any) => l.status === "pending").length;
       const approvedLeaves = leaves.filter((l: any) => l.status === "approved").length;
@@ -356,7 +356,7 @@ export function OwnerHrModule({ schoolId }: Props) {
                 <div className="flex justify-between text-sm"><span>Pending Leave Requests</span><span className="font-medium">{hrData?.pendingLeaves || 0}</span></div>
                 <div className="flex justify-between text-sm"><span>Contracts Expiring (60d)</span><span className="font-medium">{hrData?.expiring.length || 0}</span></div>
                 <div className="flex justify-between text-sm"><span>Avg Performance Rating</span><span className="font-medium flex items-center gap-1"><Star className="h-3.5 w-3.5 text-amber-500" />{(hrData?.avgRating || 0).toFixed(1)}</span></div>
-                <div className="flex justify-between text-sm"><span>Average Salary</span><span className="font-medium">{formatCurrency(hrData?.avgSalary || 0)}</span></div>
+                <div className="flex justify-between text-sm"><span>Average Salary</span><span className="font-medium">{hrData?.avgSalary != null ? formatCurrency(hrData.avgSalary) : "—"}</span></div>
               </CardContent>
             </Card>
           </div>
@@ -385,7 +385,7 @@ export function OwnerHrModule({ schoolId }: Props) {
         <TabsContent value="salary" className="mt-6 space-y-6">
           <div className="grid gap-4 sm:grid-cols-3">
             <div className="rounded-xl bg-primary/10 p-6 text-center"><p className="text-3xl font-bold text-primary">{formatCurrency(hrData?.totalSalaryBill || 0)}</p><p className="mt-1 text-sm text-muted-foreground">Total Monthly Payroll</p></div>
-            <div className="rounded-xl bg-blue-500/10 p-6 text-center"><p className="text-3xl font-bold text-blue-600">{formatCurrency(hrData?.avgSalary || 0)}</p><p className="mt-1 text-sm text-muted-foreground">Average Salary</p></div>
+            <div className="rounded-xl bg-blue-500/10 p-6 text-center"><p className="text-3xl font-bold text-blue-600">{hrData?.avgSalary != null ? formatCurrency(hrData.avgSalary) : "—"}</p><p className="mt-1 text-sm text-muted-foreground">Average Salary</p></div>
             <div className="rounded-xl bg-emerald-500/10 p-6 text-center"><p className="text-3xl font-bold text-emerald-600">{hrData?.payrollProcessed || 0}</p><p className="mt-1 text-sm text-muted-foreground">Payrolls Processed</p></div>
           </div>
           <Card>

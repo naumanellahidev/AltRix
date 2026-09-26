@@ -692,18 +692,22 @@ async def get_my_bus_info(current_user: CurrentUser, db: DbSession):
     if not current_user.school_id:
         return []
 
-    stmt_std = select(Student).where(Student.school_id == current_user.school_id)
-    res_std = await db.execute(stmt_std)
-    all_students = res_std.scalars().all()
-
-    students = []
-    for std in all_students:
-        if (std.user_id and str(std.user_id) == str(current_user.id)) or \
-           (std.emergency_contact and current_user.phone and std.emergency_contact == current_user.phone):
-            students.append(std)
-
-    if not students and all_students:
-        students = all_students[:2]
+    # The caller's own children (guardian links) or their own student record.
+    # This matched only a student's own login or an emergency phone number,
+    # never the guardian links, and when nothing matched it returned the
+    # school's first two students: other families' children, their bus, stop
+    # and times, shown as the caller's own.
+    from app.utils.security import get_allowed_student_ids
+    allowed = await get_allowed_student_ids(current_user, db)
+    if not allowed:
+        # Staff (None) have the transport module; a family with no linked
+        # child has no bus to show.
+        return []
+    stmt_std = select(Student).where(
+        Student.school_id == current_user.school_id,
+        Student.id.in_([UUID(str(x)) for x in allowed]),
+    )
+    students = (await db.execute(stmt_std)).scalars().all()
 
     response_data = []
     for std in students:
@@ -789,7 +793,7 @@ async def get_my_bus_info(current_user: CurrentUser, db: DbSession):
                         "latitude": stop.latitude,
                         "longitude": stop.longitude,
                         "stop_order": stop.stop_order,
-                        "estimated_arrival_time": stop.estimated_arrival_time or stop.estimated_morning_time or "07:45 AM",
+                        "estimated_arrival_time": stop.estimated_arrival_time or stop.estimated_morning_time,  # none recorded stays none
                         "address": stop.address or stop.landmark,
                     }
 
@@ -815,24 +819,29 @@ async def get_my_bus_info(current_user: CurrentUser, db: DbSession):
 # --- Live GPS Coordinate Updates & Polling ---
 @router.get("/bus/{bus_id}/live")
 async def get_bus_live_location(bus_id: str, current_user: CurrentUser, db: DbSession):
-    vehicle_uuid = UUID(bus_id)
-    stmt = select(Vehicle).where(Vehicle.id == vehicle_uuid)
-    res = await db.execute(stmt)
-    veh = res.scalar_one_or_none()
-    if veh and veh.last_known_latitude and veh.last_known_longitude:
+    """
+    The bus's last reported position, from its GPS device.
+
+    With no position recorded this answered with fixed coordinates in Lahore
+    marked "in_transit", so a parent's map showed a moving bus that was not
+    there; and it answered for any school's vehicle by id.
+    """
+    try:
+        vehicle_uuid = UUID(bus_id)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Bus not found")
+    stmt = select(Vehicle).where(Vehicle.id == vehicle_uuid, Vehicle.school_id == current_user.school_id)
+    veh = (await db.execute(stmt)).scalar_one_or_none()
+    if not veh:
+        raise HTTPException(status_code=404, detail="Bus not found")
+    if veh.last_known_latitude is not None and veh.last_known_longitude is not None:
         return {
             "latitude": veh.last_known_latitude,
             "longitude": veh.last_known_longitude,
             "status": veh.status or "active",
-            "last_updated": str(veh.last_gps_update) if veh.last_gps_update else str(datetime.now())
+            "last_updated": veh.last_gps_update.isoformat() if veh.last_gps_update else None,
         }
-
-    return {
-        "latitude": 31.5004,
-        "longitude": 74.3487,
-        "status": "in_transit",
-        "last_updated": str(datetime.now())
-    }
+    return {"latitude": None, "longitude": None, "status": "no_signal", "last_updated": None}
 
 @router.post("/bus/{bus_id}/location")
 async def update_bus_location(

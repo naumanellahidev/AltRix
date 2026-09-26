@@ -39,10 +39,10 @@ export function OwnerAdvisorModule({ schoolId }: Props) {
         api.from("finance_expenses").select("amount,expense_date").eq("school_id", schoolId),
         api.from("attendance_entries").select("status").eq("school_id", schoolId).gte("created_at", d7Ago.toISOString()),
         api.from("crm_leads").select("id,status,created_at").eq("school_id", schoolId),
-        api.from("fee_invoices").select("id,status,total:total_amount").eq("school_id", schoolId),
+        api.from("fee_invoices").select("id,status,total:total_amount,paid:paid_amount").eq("school_id", schoolId),
         api.from("school_memberships").select("id").eq("school_id", schoolId),
         api.from("user_roles").select("id").eq("school_id", schoolId).eq("role", "teacher"),
-        api.from("student_marks").select("marks,assessment_id").eq("school_id", schoolId).not("marks", "is", null),
+        api.from("student_marks").select("marks,assessment_id,academic_assessments(max_marks)").eq("school_id", schoolId).not("marks", "is", null),
       ]);
 
       const students = studentsRes.data || [];
@@ -69,26 +69,35 @@ export function OwnerAdvisorModule({ schoolId }: Props) {
       const expensesYtd = ytdExpenses.reduce((sum, e) => sum + Number(e.amount || 0), 0);
 
       const profit = revenueMtd - expensesMtd;
-      const profitMargin = revenueMtd > 0 ? Math.round((profit / revenueMtd) * 100) : 0;
+      const profitMargin = revenueMtd > 0 ? Math.round((profit / revenueMtd) * 100) : null;
 
       const totalAttendance = attendance.length;
       const presentCount = attendance.filter((a) => a.status === "present" || a.status === "late").length;
-      const attendanceRate = totalAttendance > 0 ? Math.round((presentCount / totalAttendance) * 100) : 0;
+      const attendanceRate = totalAttendance > 0 ? Math.round((presentCount / totalAttendance) * 100) : null;
 
-      const avgMark = marks.length > 0 ? marks.reduce((sum, m) => sum + Number(m.marks || 0), 0) / marks.length : 0;
-      const academicIndex = Math.min(100, Math.round(avgMark));
+      // Marks as a percentage of each assessment's maximum (raw marks were
+      // averaged, so a 20-mark quiz and a 100-mark exam counted alike).
+      const pct = marks
+        .map((m: any) => {
+          const max = Number(m.academic_assessments?.max_marks);
+          return max > 0 && m.marks != null ? (Number(m.marks) / max) * 100 : null;
+        })
+        .filter((x: number | null): x is number => x != null);
+      const academicIndex = pct.length ? Math.round(pct.reduce((a, b) => a + b, 0) / pct.length) : null;
 
       const openLeads = leads.filter((l) => l.status === "open" || !l.status).length;
       const wonLeads = leads.filter((l) => l.status === "won").length;
-      const conversionRate = leads.length > 0 ? Math.round((wonLeads / leads.length) * 100) : 0;
+      const conversionRate = leads.length > 0 ? Math.round((wonLeads / leads.length) * 100) : null;
 
       const inactiveStudents = students.filter((s) => s.status === "inactive" || s.status === "withdrawn").length;
-      const dropoutRisk = Math.max(0, Math.round((inactiveStudents / Math.max(1, totalStudents)) * 100));
+      const dropoutRisk = totalStudents > 0 ? Math.round((inactiveStudents / totalStudents) * 100) : null;
 
-      const pendingInvoices = invoices.filter((i) => i.status === "pending" || i.status === "unpaid").length;
-      const paidInvoices = invoices.filter((i) => i.status === "paid").length;
-      const unpaidAmount = invoices.filter((i) => i.status !== "paid").reduce((sum, i) => sum + Number(i.total || 0), 0);
-      const collectionRate = invoices.length > 0 ? Math.round((paidInvoices / invoices.length) * 100) : 0;
+      const billable = invoices.filter((i: any) => i.status !== "draft" && i.status !== "cancelled");
+      const pendingInvoices = billable.filter((i: any) => ["pending", "partial", "overdue"].includes(i.status)).length;
+      const paidInvoices = billable.filter((i) => i.status === "paid").length;
+      const unpaidAmount = billable.filter((i) => i.status !== "paid")
+        .reduce((sum, i: any) => sum + Math.max(0, Number(i.total || 0) - Number(i.paid || 0)), 0);
+      const collectionRate = billable.length > 0 ? Math.round((paidInvoices / billable.length) * 100) : null;
 
       return {
         totalStudents,
@@ -241,15 +250,15 @@ export function OwnerAdvisorModule({ schoolId }: Props) {
           </div>
           <div className="rounded-xl bg-muted/50 p-2.5 sm:p-3">
             <p className="text-[10px] sm:text-xs text-muted-foreground">Profit Margin</p>
-            <p className="font-display text-base sm:text-lg font-bold truncate">{schoolData.profitMargin}%</p>
+            <p className="font-display text-base sm:text-lg font-bold truncate">{schoolData.profitMargin != null ? `${schoolData.profitMargin}%` : "—"}</p>
           </div>
           <div className="rounded-xl bg-muted/50 p-2.5 sm:p-3">
             <p className="text-[10px] sm:text-xs text-muted-foreground">Attendance</p>
-            <p className="font-display text-base sm:text-lg font-bold truncate">{schoolData.attendanceRate}%</p>
+            <p className="font-display text-base sm:text-lg font-bold truncate">{schoolData.attendanceRate != null ? `${schoolData.attendanceRate}%` : "—"}</p>
           </div>
           <div className="rounded-xl bg-muted/50 p-2.5 sm:p-3">
             <p className="text-[10px] sm:text-xs text-muted-foreground">Collection Rate</p>
-            <p className="font-display text-base sm:text-lg font-bold truncate">{schoolData.collectionRate}%</p>
+            <p className="font-display text-base sm:text-lg font-bold truncate">{schoolData.collectionRate != null ? `${schoolData.collectionRate}%` : "—"}</p>
           </div>
         </div>
       )}

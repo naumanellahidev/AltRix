@@ -245,7 +245,7 @@ export function OwnerFinanceModule({ schoolId, role = "school_owner" }: Props) {
         ...feeInvoices.filter((i) => i.status === "paid").map((i) => Number(i.total_amount || 0))
       ].reduce((sum, amt) => sum + amt, 0);
 
-      const collectionRate = totalInvoiced > 0 ? Math.round((paidInvoicesTotal / totalInvoiced) * 100) : 0;
+      const collectionRate: number | null = totalInvoiced > 0 ? Math.round((paidInvoicesTotal / totalInvoiced) * 100) : null;
 
       const unpaidInvoices = [
         ...finInvoices.filter((i) => i.status !== "paid" && i.status !== "cancelled").map((i) => ({
@@ -682,7 +682,7 @@ export function OwnerFinanceModule({ schoolId, role = "school_owner" }: Props) {
                 </p>
                 <div className="flex items-center gap-1 mt-1">
                   <Badge variant="outline" className="text-[8px] sm:text-[9px] px-1 sm:px-1.5 py-0 text-muted-foreground border-slate-200">
-                    {financeData?.collectionRate || 0}% Rate
+                    {financeData?.collectionRate != null ? `${financeData.collectionRate}%` : "—"} Rate
                   </Badge>
                 </div>
               </div>

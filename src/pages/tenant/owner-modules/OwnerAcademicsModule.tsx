@@ -82,7 +82,7 @@ export function OwnerAcademicsModule({ schoolId }: Props) {
       };
 
       const pctMarks = marks.map(pctOf).filter((v): v is number => v !== null);
-      const avgMarks = pctMarks.length > 0 ? pctMarks.reduce((a, b) => a + b, 0) / pctMarks.length : 0;
+      const avgMarks: number | null = pctMarks.length > 0 ? pctMarks.reduce((a, b) => a + b, 0) / pctMarks.length : null;
 
       // Per-student averages (as %)
       const studentPerformance: Record<string, number[]> = {};
@@ -136,7 +136,7 @@ export function OwnerAcademicsModule({ schoolId }: Props) {
         activeStudents: students.filter((s) => s.status === "enrolled" || s.status === "active").length,
         totalTeachers: teachers.length,
         totalSubjects: subjects.length,
-        averageMarks: Math.round(avgMarks),
+        averageMarks: avgMarks != null ? Math.round(avgMarks) : null,
         performanceDistribution,
         atRiskStudents,
         classes,
@@ -221,7 +221,7 @@ export function OwnerAcademicsModule({ schoolId }: Props) {
             <div className="flex items-center justify-between">
               <BarChart3 className="h-4 w-4 sm:h-5 sm:w-5 text-purple-600" />
             </div>
-            <p className="mt-2 font-display text-lg sm:text-2xl font-bold truncate">{academicData?.averageMarks || 0}%</p>
+            <p className="mt-2 font-display text-lg sm:text-2xl font-bold truncate">{academicData?.averageMarks != null ? `${academicData.averageMarks}%` : "—"}</p>
             <p className="text-[10px] sm:text-xs text-muted-foreground truncate">Avg Performance</p>
           </CardContent>
         </Card>

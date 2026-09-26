@@ -168,7 +168,7 @@ export default function ParentPTMModule({ child, schoolId }: ParentPTMModuleProp
               <CardHeader className="py-4 border-b">
                 <CardTitle className="text-sm font-bold text-slate-800 flex items-center gap-1.5">
                   <Calendar className="h-4 w-4 text-blue-600" />
-                  Available Available Slots
+                  Available Slots
                 </CardTitle>
                 <CardDescription className="text-[10px] leading-relaxed">
                   Book a direct 15-minute sync with teachers. Slots are released by teachers or school coordinators automatically.

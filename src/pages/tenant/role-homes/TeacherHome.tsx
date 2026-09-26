@@ -231,7 +231,8 @@ export function TeacherHome() {
           .from("student_enrollments")
           .select("id", { count: "exact", head: true })
           .eq("school_id", schoolId)
-          .in("class_section_id", assignedSectionIds as string[]);
+          .in("class_section_id", assignedSectionIds as string[])
+          .is("end_date", null);
         totalStudents = count || 0;
       }
 
@@ -290,9 +291,10 @@ export function TeacherHome() {
         .select("class_section_id, timetable_periods!inner(label, start_time, end_time, sort_order)", { count: "exact" })
         .eq("school_id", schoolId)
         .eq("teacher_user_id", user.id)
-        .eq("day_of_week", dayOfWeek)
-        .order("timetable_periods(sort_order)", { ascending: true });
+        .eq("day_of_week", dayOfWeek);
       classesToday = classesCount || 0;
+      const periodOf = (e: any) => (Array.isArray(e?.timetable_periods) ? e.timetable_periods[0] : e?.timetable_periods);
+      (timetableData as any[] | null)?.sort((a, b) => (periodOf(a)?.sort_order ?? 0) - (periodOf(b)?.sort_order ?? 0));
 
       // Determine current or next class section from timetable
       const nowTime = new Date().toTimeString().slice(0, 8); // HH:mm:ss

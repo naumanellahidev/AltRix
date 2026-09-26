@@ -295,14 +295,14 @@ export function AccountantHomeModule() {
     const overdueInvoices = invoices.filter((i) => i.status === "overdue" || (i.status === "sent" && new Date(i.due_date) < now));
     const pendingInvoices = invoices.filter((i) => i.status === "sent" || i.status === "draft");
     const collectionRate = totalInvoiced > 0 ? (totalRevenue / totalInvoiced) * 100 : 0;
-    const avgInvoiceValue = invoices.length > 0 ? totalInvoiced / invoices.length : 0;
+    const avgInvoiceValue: number | null = invoices.length > 0 ? totalInvoiced / invoices.length : null;
 
     // Payroll analytics
     const monthlyPayroll = salaryRecords.reduce((sum, s) => sum + s.base_salary + s.allowances - s.deductions, 0);
     const annualPayrollProjection = monthlyPayroll * 12;
     const completedPayRuns = payRuns.filter((p) => p.status === "completed").length;
     const pendingPayRuns = payRuns.filter((p) => p.status === "draft" || p.status === "processing").length;
-    const avgSalary = salaryRecords.length > 0 ? monthlyPayroll / salaryRecords.length : 0;
+    const avgSalary: number | null = salaryRecords.length > 0 ? monthlyPayroll / salaryRecords.length : null;
 
     // Profitability
     const grossProfit = totalRevenue - totalExpenses;
@@ -1066,7 +1066,7 @@ export function AccountantHomeModule() {
                   </div>
                   <div className="flex items-center justify-between text-xs border-b pb-2">
                     <span className="text-muted-foreground font-medium">Average Salary</span>
-                    <span className="font-semibold text-foreground">Rs. {Math.round(stats.avgSalary).toLocaleString()}</span>
+                    <span className="font-semibold text-foreground">{stats.avgSalary != null ? `Rs. ${Math.round(stats.avgSalary).toLocaleString()}` : "—"}</span>
                   </div>
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-muted-foreground font-medium">Pending Pay Runs</span>
@@ -1278,7 +1278,7 @@ export function AccountantHomeModule() {
                 <Separator />
                 <div className="grid grid-cols-2 gap-4 pt-2">
                   <div className="text-center rounded-lg bg-accent p-3">
-                    <p className="text-2xl font-bold">Rs. {stats.avgInvoiceValue.toLocaleString()}</p>
+                    <p className="text-2xl font-bold">{stats.avgInvoiceValue != null ? `Rs. ${Math.round(stats.avgInvoiceValue).toLocaleString()}` : "—"}</p>
                     <p className="text-xs text-muted-foreground">Avg Invoice Value</p>
                   </div>
                   <div className="text-center rounded-lg bg-accent p-3">

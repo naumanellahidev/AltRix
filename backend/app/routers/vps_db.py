@@ -643,7 +643,9 @@ async def execute_query(query: QueryPayload, current_user: CurrentUser, db: DbSe
                     detail=f"'{tbl}' is not available to parent or student accounts.",
                 )
             if rule:
-                parts.append(rule)
+                # Rules name their table ("student_marks.assessment_id");
+                # inside a relation it goes by its alias.
+                parts.append(re.sub(rf'(?<![\w."]){re.escape(tbl)}\.', f"{alias}.", rule))
         return " AND ".join(parts)
 
     embeds = proxy_embeds.EmbedBuilder(db, _columns_of, _scope_for)
@@ -759,7 +761,7 @@ async def execute_query(query: QueryPayload, current_user: CurrentUser, db: DbSe
                 params[pname] = str(val)
                 op = _RELATION_OPS[method]
                 return f'{ref}."{rcol}"::text {op} :{pname}' if method in ("eq", "neq", "like", "ilike") \
-                    else f'{ref}."{rcol}" {op} CAST(:{pname} AS {_pg_type_of(rcol)})'
+                    else f'{ref}."{rcol}" {op} CAST(CAST(:{pname} AS text) AS {_pg_type_of(rcol)})'
 
             where_clauses.append(await embeds.filter_condition(
                 query.table, f'"{query.table}"', query.select, col, _cond))

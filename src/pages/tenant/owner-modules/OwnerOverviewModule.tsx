@@ -59,19 +59,19 @@ type Kpis = {
   expensesMtd: number;
   expensesYtd: number;
   profit: number;
-  profitMargin: number;
-  attendanceRate: number;
-  academicIndex: number;
+  profitMargin: number | null;
+  attendanceRate: number | null;
+  academicIndex: number | null;
   admissionFunnel: number;
   openLeads: number;
-  conversionRate: number;
-  dropoutRisk: number;
-  teacherUtilization: number;
+  conversionRate: number | null;
+  dropoutRisk: number | null;
+  teacherUtilization: number | null;
   totalTeachers: number;
   totalStaff: number;
   pendingInvoices: number;
   unpaidAmount: number;
-  collectionRate: number;
+  collectionRate: number | null;
 };
 
 // Amounts keep their paisa: the owner's overview is read against the ledger,
@@ -140,67 +140,9 @@ export function OwnerOverviewModule({ schoolId }: Props) {
     queryFn: async () => {
       if (!schoolId) return null;
 
-      if (USE_FASTAPI) {
-        try {
-          const dashResp = await apiClient.get("/reports/dashboard", {
-            params: {
-              school_id: schoolId,
-              ...(activeCampusId ? { campus_id: activeCampusId } : {}),
-            },
-          });
-          const dbData = dashResp.data;
-          const hasRealData = dbData && (
-            (Number(dbData.total_students) || 0) > 0 ||
-            (Number(dbData.total_staff) || 0) > 0 ||
-            (Number(dbData.collected_fees) || 0) > 0 ||
-            (Number(dbData.total_classes) || 0) > 0
-          );
-
-          if (hasRealData) {
-            const totalStudents = Number(dbData.total_students) || 0;
-            const activeStudents = totalStudents;
-            const totalStaff = Number(dbData.total_staff) || 0;
-            const totalTeachers = Number(dbData.total_teachers) || 0;
-            const openLeads = Number(dbData.open_leads) || 0;
-            const revenueMtd = Number(dbData.collected_fees) || 0;
-            const revenueYtd = typeof dbData.revenue_ytd === "number" ? dbData.revenue_ytd : revenueMtd;
-            const expensesMtd = Number(dbData.mtd_expenses) || 0;
-            const expensesYtd = typeof dbData.expenses_ytd === "number" ? dbData.expenses_ytd : expensesMtd;
-            const pendingInvoices = Number(dbData.pending_payments) || 0;
-            const profit = revenueMtd - expensesMtd;
-            const profitMargin = revenueMtd > 0 ? Math.round((profit / revenueMtd) * 100) : 0;
-            const attendanceRate = typeof dbData.attendance_rate === "number" ? dbData.attendance_rate : 0;
-
-            return {
-              totalStudents,
-              activeStudents,
-              inactiveStudents: 0,
-              alumniCount: 0,
-              revenueMtd,
-              revenueYtd,
-              expensesMtd,
-              expensesYtd,
-              profit,
-              profitMargin,
-              attendanceRate,
-              academicIndex: 92,
-              admissionFunnel: openLeads,
-              openLeads,
-              conversionRate: openLeads > 0 ? 100 : 0,
-              dropoutRisk: 0,
-              teacherUtilization: totalTeachers > 0 ? 100 : 0,
-              totalTeachers,
-              totalStaff,
-              pendingInvoices,
-              unpaidAmount: 0,
-              collectionRate: 90,
-            };
-          }
-        } catch (fastApiErr) {
-          console.warn("FastAPI owner dashboard report error, using fallback:", fastApiErr);
-        }
-      }
-
+      // Every figure below comes from the school's records. A shortcut here
+      // filled what it did not know with invented ones (an academic index of
+      // 92, 90% collection, 100% conversion and utilisation).
       const [
         studentsRes,
         paymentsRes,
@@ -219,10 +161,10 @@ export function OwnerOverviewModule({ schoolId }: Props) {
         api.from("finance_expenses").select("amount,expense_date").eq("school_id", schoolId),
         campusEq(api.from("attendance_entries").select("status,campus_id").eq("school_id", schoolId).gte("created_at", d7Ago.toISOString())),
         api.from("crm_leads").select("id,status,created_at").eq("school_id", schoolId),
-        campusEq(api.from("fee_invoices").select("id,status,total_amount,campus_id").eq("school_id", schoolId)),
+        campusEq(api.from("fee_invoices").select("id,status,total_amount,paid_amount,campus_id").eq("school_id", schoolId)),
         campusEq(api.from("user_roles").select("id,campus_id,role").eq("school_id", schoolId).in("role", ["teacher", "principal", "vice_principal", "accountant", "academic_coordinator", "counselor", "hr_manager", "school_admin", "librarian", "transport_manager", "receptionist", "security_guard", "staff", "admin", "school_owner"])),
         campusEq(api.from("user_roles").select("id,campus_id,role").eq("school_id", schoolId).eq("role", "teacher")),
-        campusEq(api.from("student_marks").select("marks,assessment_id,campus_id").eq("school_id", schoolId).not("marks", "is", null)),
+        campusEq(api.from("student_marks").select("marks,assessment_id,campus_id,academic_assessments(max_marks)").eq("school_id", schoolId).not("marks", "is", null)),
         api.from("timetable_entries").select("teacher_user_id,teacher_id").eq("school_id", schoolId),
         api.from("teacher_subject_assignments").select("teacher_user_id,teacher_id").eq("school_id", schoolId),
       ]);
@@ -255,31 +197,42 @@ export function OwnerOverviewModule({ schoolId }: Props) {
       const expensesYtd = ytdExpenses.reduce((sum, e) => sum + Number(e.amount || 0), 0);
 
       const profit = revenueMtd - expensesMtd;
-      const profitMargin = revenueMtd > 0 ? Math.round((profit / revenueMtd) * 100) : 0;
+      const profitMargin = revenueMtd > 0 ? Math.round((profit / revenueMtd) * 100) : null;
 
       const totalAttendance = attendance.length;
       const presentCount = attendance.filter((a) => a.status === "present" || a.status === "late").length;
-      const attendanceRate = totalAttendance > 0 ? Math.round((presentCount / totalAttendance) * 100) : 0;
+      const attendanceRate = totalAttendance > 0 ? Math.round((presentCount / totalAttendance) * 100) : null;
 
-      const academicIndex = 92;
-      const openLeads = leads.filter((l) => l.status === "open" || l.status === "contacted").length;
-      const convertedLeads = leads.filter((l) => l.status === "enrolled").length;
-      const conversionRate = leads.length > 0 ? Math.round((convertedLeads / leads.length) * 100) : 0;
+      // The average mark as a percentage of each assessment's maximum.
+      const pct = marks
+        .map((m: any) => {
+          const max = Number(m.academic_assessments?.max_marks);
+          return max > 0 && m.marks != null ? (Number(m.marks) / max) * 100 : null;
+        })
+        .filter((x: number | null): x is number => x != null);
+      const academicIndex = pct.length ? Math.round(pct.reduce((a, b) => a + b, 0) / pct.length) : null;
+      // Leads are open, won or lost ("contacted" and "enrolled" are not statuses).
+      const openLeads = leads.filter((l) => !l.status || l.status === "open").length;
+      const convertedLeads = leads.filter((l) => l.status === "won").length;
+      const conversionRate = leads.length > 0 ? Math.round((convertedLeads / leads.length) * 100) : null;
 
-      const dropoutRisk = Math.max(0, Math.round((inactiveStudents / Math.max(1, totalStudents)) * 100));
+      const dropoutRisk = totalStudents > 0 ? Math.round((inactiveStudents / totalStudents) * 100) : null;
 
-      const pendingInvoices = invoices.filter((i) => i.status === "pending" || i.status === "unpaid").length;
-      const paidInvoices = invoices.filter((i) => i.status === "paid").length;
-      const unpaidAmount = invoices
+      // Invoice statuses are draft, pending, partial, paid, overdue, cancelled
+      // ("unpaid" is not one of them); what is owed is the balance left.
+      const billable = invoices.filter((i: any) => i.status !== "draft" && i.status !== "cancelled");
+      const pendingInvoices = billable.filter((i: any) => ["pending", "partial", "overdue"].includes(i.status)).length;
+      const paidInvoices = billable.filter((i) => i.status === "paid").length;
+      const unpaidAmount = billable
         .filter((i: any) => i.status !== "paid")
-        .reduce((sum: number, i: any) => sum + Number(i.total_amount || 0), 0);
-      const collectionRate = invoices.length > 0 ? Math.round((paidInvoices / invoices.length) * 100) : 0;
+        .reduce((sum: number, i: any) => sum + Math.max(0, Number(i.total_amount || 0) - Number(i.paid_amount || 0)), 0);
+      const collectionRate = billable.length > 0 ? Math.round((paidInvoices / billable.length) * 100) : null;
 
       const scheduledTeacherIds = new Set<string>([
         ...timetable.map((t: any) => t.teacher_user_id || t.teacher_id).filter(Boolean),
         ...teacherAssignments.map((t: any) => t.teacher_user_id || t.teacher_id).filter(Boolean),
       ]);
-      const teacherUtilization = teachers.length > 0 ? Math.round((scheduledTeacherIds.size / teachers.length) * 100) : 0;
+      const teacherUtilization = teachers.length > 0 ? Math.round((scheduledTeacherIds.size / teachers.length) * 100) : null;
 
       return {
         totalStudents,
@@ -359,7 +312,7 @@ export function OwnerOverviewModule({ schoolId }: Props) {
     if (!kpis) return [];
     const list: { type: "warning" | "success" | "info"; message: string; action?: string }[] = [];
 
-    if (kpis.conversionRate < 20) {
+    if (kpis.conversionRate != null && kpis.conversionRate < 20) {
       list.push({
         type: "warning",
         message: `Admission conversion rate is ${kpis.conversionRate}% - below industry average`,
@@ -367,7 +320,7 @@ export function OwnerOverviewModule({ schoolId }: Props) {
       });
     }
 
-    if (kpis.attendanceRate < 85) {
+    if (kpis.attendanceRate != null && kpis.attendanceRate < 85) {
       list.push({
         type: "warning",
         message: `7-day attendance is ${kpis.attendanceRate}% - requires attention`,
@@ -375,14 +328,14 @@ export function OwnerOverviewModule({ schoolId }: Props) {
       });
     }
 
-    if (kpis.profitMargin > 15) {
+    if (kpis.profitMargin != null && kpis.profitMargin > 15) {
       list.push({
         type: "success",
         message: `Profit margin is healthy at ${kpis.profitMargin}%`,
       });
     }
 
-    if (kpis.collectionRate < 80) {
+    if (kpis.collectionRate != null && kpis.collectionRate < 80) {
       list.push({
         type: "warning",
         message: `Fee collection rate at ${kpis.collectionRate}% - ${kpis.pendingInvoices} pending invoices`,
@@ -390,7 +343,7 @@ export function OwnerOverviewModule({ schoolId }: Props) {
       });
     }
 
-    if (kpis.dropoutRisk > 5) {
+    if (kpis.dropoutRisk != null && kpis.dropoutRisk > 5) {
       list.push({
         type: "warning",
         message: `${kpis.dropoutRisk}% dropout risk detected`,
@@ -464,7 +417,7 @@ export function OwnerOverviewModule({ schoolId }: Props) {
           { icon: GraduationCap, label: "Total Students", val: kpis?.totalStudents || 0, color: "text-primary" },
           { icon: Coins, label: "Revenue (MTD)", val: formatCurrency(kpis?.revenueMtd || 0), color: "text-emerald-600" },
           { icon: BarChart3, label: "Profit (MTD)", val: formatCurrency(kpis?.profit || 0), color: "text-blue-600" },
-          { icon: Activity, label: "7d Attendance", val: `${kpis?.attendanceRate || 0}%`, color: "text-purple-600" },
+          { icon: Activity, label: "7d Attendance", val: kpis?.attendanceRate != null ? `${kpis.attendanceRate}%` : "—", color: "text-purple-600" },
           { icon: TrendingUp, label: "Open Leads", val: kpis?.openLeads || 0, color: "text-amber-600" },
           { icon: Users, label: "Total Staff", val: kpis?.totalStaff || 0, color: "text-indigo-600" },
         ].map((item, idx) => (
@@ -526,8 +479,8 @@ export function OwnerOverviewModule({ schoolId }: Props) {
           <Card>
             <CardHeader className="pb-3 border-b border-border/40"><CardTitle className="text-base font-bold">Operational Health</CardTitle></CardHeader>
             <CardContent className="pt-4 space-y-4">
-              {[ { label: "Fee Collection", val: kpis?.collectionRate || 0 }, { label: "Teacher Utilization", val: kpis?.teacherUtilization || 0 }, { label: "Academic Index", val: kpis?.academicIndex || 0 } ].map((m, i) => (
-                <div key={i}><div className="flex justify-between text-xs sm:text-sm"><span className="font-semibold">{m.label}</span><span className="font-bold">{m.val}%</span></div><Progress value={m.val} className="mt-2 h-2 sm:h-2.5" /></div>
+              {[ { label: "Fee Collection", val: kpis?.collectionRate ?? null }, { label: "Teacher Utilization", val: kpis?.teacherUtilization ?? null }, { label: "Academic Index", val: kpis?.academicIndex ?? null } ].map((m, i) => (
+                <div key={i}><div className="flex justify-between text-xs sm:text-sm"><span className="font-semibold">{m.label}</span><span className="font-bold">{m.val != null ? `${m.val}%` : "—"}</span></div><Progress value={m.val ?? 0} className="mt-2 h-2 sm:h-2.5" /></div>
               ))}
             </CardContent>
           </Card>

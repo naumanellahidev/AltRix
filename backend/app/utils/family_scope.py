@@ -47,6 +47,9 @@ SCHOOL_WIDE: Set[str] = {
     "academic_assessments", "attendance_sessions", "exams", "exam_subjects", "grade_thresholds",
     "report_card_settings", "school_branding", "library_books", "vehicles", "fee_settings",
     "finance_payment_methods", "schools", "system_settings",
+    # Which accounts own the school: already visible to families through
+    # user_roles; the staff list reads it to leave owners out.
+    "school_owner_assignments",
 }
 
 #: Rows a family may read, for tables that are neither school-wide nor keyed
@@ -59,6 +62,27 @@ READ_RULES: Dict[str, str] = {
     "exam_datesheet_distributions": f"(student_id IS NULL OR {OWN_CHILD})",
     "exam_result_publications": f"(student_id IS NULL OR {OWN_CHILD})",
     "fee_invoice_items": f"invoice_id IN (SELECT i.id FROM public.fee_invoices i WHERE i.student_id = ANY({KIDS}))",
+    # Results reach a family once the school publishes them: a report card
+    # when it is published, its subject lines with it, marks unless held back,
+    # and exam results that a published card or publication covers.
+    "report_cards": f"({OWN_CHILD} AND is_published IS TRUE)",
+    "report_card_subject_entries": (
+        f"report_card_id IN (SELECT rc.id FROM public.report_cards rc"
+        f" WHERE rc.student_id = ANY({KIDS}) AND rc.is_published IS TRUE)"
+    ),
+    "student_marks": (
+        f"({OWN_CHILD} AND is_published IS DISTINCT FROM FALSE AND NOT EXISTS ("
+        f"SELECT 1 FROM public.academic_assessments aa WHERE aa.id = student_marks.assessment_id"
+        f" AND aa.is_published IS FALSE))"
+    ),
+    "exam_results": (
+        f"({OWN_CHILD} AND (EXISTS (SELECT 1 FROM public.report_cards rc WHERE rc.exam_id = exam_results.exam_id"
+        f" AND rc.student_id = exam_results.student_id AND rc.is_published IS TRUE)"
+        f" OR EXISTS (SELECT 1 FROM public.exam_result_publications p WHERE p.exam_id = exam_results.exam_id"
+        f" AND p.is_published IS TRUE AND (p.scope = 'exam' OR (p.scope = 'student' AND p.student_id = exam_results.student_id)"
+        f" OR (p.scope = 'section' AND p.class_section_id IN (SELECT e.class_section_id FROM public.student_enrollments e"
+        f" WHERE e.student_id = exam_results.student_id AND e.end_date IS NULL))))))"
+    ),
     "complaints": f"(sender_user_id = :__me OR {OWN_CHILD})",
     "complaint_feedbacks": f"complaint_id IN {VISIBLE_COMPLAINTS}",
     "parent_messages": "(sender_user_id = :__me OR recipient_user_id = :__me)",
@@ -223,6 +247,14 @@ def row_visible(table: str, row: dict, me: str, kids: Set[str], audiences=("all"
         return row.get("audience") in audiences
     if t == "students":
         return str(row.get("id")) in kids
+    # Results only once published (see READ_RULES); what cannot be judged from
+    # the row is not pushed.
+    if t == "report_cards" and row.get("is_published") is not True:
+        return False
+    if t == "student_marks" and row.get("is_published") is False:
+        return False
+    if t in ("exam_results", "report_card_subject_entries"):
+        return False
     if any(row.get(c) is not None and str(row.get(c)) == me for c in _OWNER_COLUMNS):
         return True
     if "student_id" in row:

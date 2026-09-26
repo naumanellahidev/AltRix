@@ -400,6 +400,11 @@ async def get_student_report_cards(
         ReportCard.school_id == current_user.school_id,
         ReportCard.student_id == student_id,
     )
+    # A family sees what the school has published. The detail view already
+    # refused an unpublished card; this list handed over every one, marks and
+    # grades included, before the school had released them.
+    if allowed is not None:
+        query = query.where(ReportCard.is_published.is_(True))
     if academic_year:
         query = query.where(ReportCard.academic_year == academic_year)
 

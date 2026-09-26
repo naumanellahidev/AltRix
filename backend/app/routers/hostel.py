@@ -244,3 +244,53 @@ async def update_hostel_mess_menu(
     await db.commit()
     await db.refresh(menu)
     return menu
+
+
+@router.get("/my-stay")
+async def get_my_hostel_stay(student_id: UUID, current_user: CurrentUser, db: DbSession):
+    """
+    A boarder's own stay: room, building, warden and roommates' names.
+
+    The student and parent hostel screens showed an invented hall, room, bed,
+    warden (with a phone number), roommates and mess menu for every child,
+    boarder or not. A child with no active allocation gets ``allocated: false``.
+    """
+    school_id = _school(current_user)
+    from app.utils.security import get_allowed_student_ids
+    allowed = await get_allowed_student_ids(current_user, db)
+    if allowed is not None and str(student_id) not in {str(s) for s in allowed}:
+        raise ForbiddenError("You can only see your own (or your child's) hostel stay.")
+    await _require_student_in_school(db, student_id, school_id)
+
+    row = (await db.execute(text(
+        """
+        SELECT a.room_id, a.check_in_date, r.room_number, r.room_type, r.building_name, r.capacity,
+               b.name AS building, b.warden_name, b.warden_phone
+        FROM hostel_allocations a
+        JOIN hostel_rooms r ON r.id = a.room_id AND r.school_id = a.school_id
+        LEFT JOIN hostel_buildings b ON b.school_id = a.school_id AND b.name = r.building_name
+        WHERE a.school_id = :sid AND a.student_id = :st AND a.status = 'active'
+        ORDER BY a.check_in_date DESC NULLS LAST LIMIT 1
+        """
+    ), {"sid": school_id, "st": student_id})).mappings().first()
+    if not row:
+        return {"allocated": False}
+    mates = (await db.execute(text(
+        """
+        SELECT TRIM(CONCAT(s.first_name, ' ', COALESCE(s.last_name, ''))) AS name
+        FROM hostel_allocations a JOIN students s ON s.id = a.student_id
+        WHERE a.school_id = :sid AND a.room_id = :room AND a.status = 'active' AND a.student_id <> :st
+        ORDER BY 1
+        """
+    ), {"sid": school_id, "room": row["room_id"], "st": student_id})).scalars().all()
+    return {
+        "allocated": True,
+        "building": row["building"] or row["building_name"],
+        "room_number": row["room_number"],
+        "room_type": row["room_type"],
+        "capacity": row["capacity"],
+        "check_in_date": row["check_in_date"].isoformat() if row["check_in_date"] else None,
+        "warden_name": row["warden_name"],
+        "warden_phone": row["warden_phone"],
+        "roommates": list(mates),
+    }

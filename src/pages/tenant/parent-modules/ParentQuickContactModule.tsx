@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { 
   Phone, Mail, MessageSquare, AlertCircle, 
-  User, Users, CheckCircle, ShieldAlert, Sparkles, Send, Clock
+  User, Users, CheckCircle, ShieldAlert, Sparkles, Send
 } from "lucide-react";
 import { toast } from "sonner";
 import { useLiveTeacherPresence } from "@/hooks/useLiveTeacherPresence";
@@ -204,10 +204,6 @@ export default function ParentQuickContactModule({ child, schoolId }: ParentQuic
                         <a href={`mailto:${classTeacher.email}`} className="hover:underline truncate">{classTeacher.email}</a>
                       </div>
                     )}
-                    <div className="flex items-center gap-2.5 text-slate-400">
-                      <Clock className="h-4 w-4 text-blue-500 shrink-0" />
-                      <span>Live Response hours: 08 AM - 02 PM</span>
-                    </div>
                   </div>
 
                   <Button 

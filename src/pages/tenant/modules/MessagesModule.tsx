@@ -1399,10 +1399,22 @@ export function MessagesModule({ schoolId, isStudentPortal = false }: Props) {
             <div className="divide-y">
               {filteredConversations.map((conv) => (
                 <div key={conv.id} className="group relative">
-                  <button
+                  {/* A div with the button role: the delete control inside it is
+                      itself a button, and a button inside a button is invalid
+                      (clicking delete also opened the conversation). */}
+                  <div
+                    role="button"
+                    tabIndex={0}
                     onClick={() => handleSelectConversation(conv)}
+                    onKeyDown={(e) => {
+                      if (e.target !== e.currentTarget) return;
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        handleSelectConversation(conv);
+                      }
+                    }}
                     className={cn(
-                      "flex w-full items-center gap-3 p-3 text-left transition-colors hover:bg-accent/50",
+                      "flex w-full cursor-pointer items-center gap-3 p-3 text-left transition-colors hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                       selectedConversation?.id === conv.id && "bg-accent"
                     )}
                   >
@@ -1422,10 +1434,12 @@ export function MessagesModule({ schoolId, isStudentPortal = false }: Props) {
                       <div className="flex items-center justify-between">
                         <div className="flex min-w-0 items-center gap-1.5">
                           {/* Always-visible delete icon in front of name */}
+                          <span onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
                           <DeleteConversationDialog
                             recipientName={conv.recipientName}
                             onDelete={async (mode) => handleDeleteConversation(conv, mode)}
                           />
+                          </span>
 
                           <p className={cn("truncate font-medium", conv.unreadCount > 0 && "font-semibold")}>
                             {conv.recipientName}
@@ -1453,7 +1467,7 @@ export function MessagesModule({ schoolId, isStudentPortal = false }: Props) {
                         </p>
                       </div>
                     </div>
-                  </button>
+                  </div>
                 </div>
               ))}
             </div>

@@ -58,8 +58,9 @@ export function HostelModule() {
   const [search, setSearch] = useState("");
 
   const [showAddRoomModal, setShowAddRoomModal] = useState(false);
+  // Starts empty: a sample room saved unedited became a real one.
   const [newRoom, setNewRoom] = useState({
-    building_name: "Boys Boarding Block A", room_number: "101", capacity: 2, room_type: "Deluxe AC", fee_per_term: 25000
+    building_name: "", room_number: "", capacity: 2, room_type: "", fee_per_term: 0
   });
 
   const [showAllocateModal, setShowAllocateModal] = useState(false);

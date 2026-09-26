@@ -96,7 +96,7 @@ export function OwnerAdmissionsModule({ schoolId }: Props) {
       const openLeads = leads.filter((l) => l.status === "open" || !l.status).length;
       const wonLeads = leads.filter((l) => l.status === "won").length;
       const lostLeads = leads.filter((l) => l.status === "lost").length;
-      const conversionRate = totalLeads > 0 ? Math.round((wonLeads / totalLeads) * 100) : 0;
+      const conversionRate: number | null = totalLeads > 0 ? Math.round((wonLeads / totalLeads) * 100) : null;
 
       // Source breakdown
       const sourceBreakdown: Record<string, number> = {};
@@ -236,11 +236,11 @@ export function OwnerAdmissionsModule({ schoolId }: Props) {
           <CardContent className="p-3 sm:p-4">
             <div className="flex items-center justify-between">
               <TrendingUp className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
-              <Badge variant={crmData?.conversionRate && crmData.conversionRate >= 20 ? "default" : "destructive"} className="text-[9px] sm:text-[10px] px-1 py-0">
+              <Badge variant={crmData?.conversionRate == null ? "secondary" : crmData.conversionRate >= 20 ? "default" : "destructive"} className="text-[9px] sm:text-[10px] px-1 py-0">
                 20% Target
               </Badge>
             </div>
-            <p className="mt-2 font-display text-lg sm:text-2xl font-bold truncate">{crmData?.conversionRate || 0}%</p>
+            <p className="mt-2 font-display text-lg sm:text-2xl font-bold truncate">{crmData?.conversionRate != null ? `${crmData.conversionRate}%` : "—"}</p>
             <p className="text-[10px] sm:text-xs text-muted-foreground truncate">Conversion Rate</p>
           </CardContent>
         </Card>

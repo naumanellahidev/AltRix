@@ -51,7 +51,7 @@ type Lead = {
   email: string | null;
   phone: string | null;
   source: string | null;
-  status: string; // open, contacted, qualified, converted, lost
+  status: string; // open, contacted, qualified, won (enrolled; 'converted' on older rows), lost
   score: number;
   notes: string | null;
   assigned_to: string | null;
@@ -398,11 +398,13 @@ export function InquiriesModule() {
   const stats = useMemo(() => {
     const total = leads.length;
     const active = leads.filter(l => ["open", "contacted", "qualified"].includes(l.status)).length;
-    const enrolled = leads.filter(l => l.status === "converted").length;
+    // "won" is the enrolled status everywhere else (marketing, owner reports);
+    // "converted" rows written by this screen before are counted too.
+    const enrolled = leads.filter(l => l.status === "won" || l.status === "converted").length;
     const lost = leads.filter(l => l.status === "lost").length;
 
-    const conversionRate = total > 0 ? Math.round((enrolled / total) * 100) : 0;
-    const lostRate = total > 0 ? Math.round((lost / total) * 100) : 0;
+    const conversionRate: number | null = total > 0 ? Math.round((enrolled / total) * 100) : null;
+    const lostRate: number | null = total > 0 ? Math.round((lost / total) * 100) : null;
 
     // Sources breakdown
     const sources: Record<string, number> = {};
@@ -420,7 +422,8 @@ export function InquiriesModule() {
       lost: 0,
     };
     leads.forEach(l => {
-      if (l.status in statusMap) statusMap[l.status]++;
+      const key = l.status === "won" ? "converted" : l.status;
+      if (key in statusMap) statusMap[key]++;
     });
 
     return {
@@ -508,7 +511,7 @@ export function InquiriesModule() {
                       <SelectItem value="open">New / Open</SelectItem>
                       <SelectItem value="contacted">Contacted</SelectItem>
                       <SelectItem value="qualified">Qualified</SelectItem>
-                      <SelectItem value="converted">Enrolled</SelectItem>
+                      <SelectItem value="won">Enrolled</SelectItem>
                       <SelectItem value="lost">Lost / Rejected</SelectItem>
                     </SelectContent>
                   </Select>
@@ -562,6 +565,7 @@ export function InquiriesModule() {
                           contacted: "bg-amber-50 text-amber-700 border-amber-100",
                           qualified: "bg-indigo-50 text-indigo-700 border-indigo-100",
                           converted: "bg-green-50 text-green-700 border-green-100",
+                          won: "bg-green-50 text-green-700 border-green-100",
                           lost: "bg-slate-50 text-slate-600 border-slate-100",
                         };
 
@@ -602,7 +606,7 @@ export function InquiriesModule() {
                             </td>
                             <td className="px-6 py-4">
                               <span className={`px-2.5 py-0.5 rounded-full border text-xs font-semibold uppercase ${statusColors[lead.status] || "bg-slate-100 text-slate-700 border-slate-200"}`}>
-                                {lead.status === "converted" ? "Enrolled" : lead.status === "lost" ? "Lost" : lead.status}
+                                {lead.status === "won" || lead.status === "converted" ? "Enrolled" : lead.status === "lost" ? "Lost" : lead.status}
                               </span>
                             </td>
                             <td className="px-6 py-4 text-right">
@@ -1036,7 +1040,7 @@ export function InquiriesModule() {
                 <CardHeader className="pb-2">
                   <CardDescription className="text-xs font-medium uppercase tracking-wider text-slate-400">Conversion Rate</CardDescription>
                   <CardTitle className="text-3xl font-extrabold text-primary flex items-center gap-1.5">
-                    {stats.conversionRate}%
+                    {stats.conversionRate != null ? `${stats.conversionRate}%` : "—"}
                     <TrendingUp className="h-5 w-5 text-green-500" />
                   </CardTitle>
                 </CardHeader>
@@ -1306,7 +1310,7 @@ export function InquiriesModule() {
                       <SelectItem value="open">Open / New</SelectItem>
                       <SelectItem value="contacted">Contacted</SelectItem>
                       <SelectItem value="qualified">Qualified</SelectItem>
-                      <SelectItem value="converted">Enrolled (Converted)</SelectItem>
+                      <SelectItem value="won">Enrolled (Converted)</SelectItem>
                       <SelectItem value="lost">Lost / Disqualified</SelectItem>
                     </SelectContent>
                   </Select>

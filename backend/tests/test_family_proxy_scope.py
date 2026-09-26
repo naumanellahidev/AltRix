@@ -253,3 +253,24 @@ def test_a_familys_live_view_is_forgotten_when_they_leave():
     m._user_connections["p"].append(ws)
     asyncio.run(m.disconnect(ws, "p", []))
     assert not m._family_views
+
+
+def test_families_see_results_only_once_published():
+    assert "is_published IS TRUE" in fs.READ_RULES["report_cards"]
+    assert "rc.is_published IS TRUE" in fs.READ_RULES["report_card_subject_entries"]
+    assert "is_published IS DISTINCT FROM FALSE" in fs.READ_RULES["student_marks"]
+    assert "exam_result_publications" in fs.READ_RULES["exam_results"]
+    assert not fs.row_visible("report_cards", {"student_id": CHILD, "is_published": False}, "me", {CHILD})
+    assert fs.row_visible("report_cards", {"student_id": CHILD, "is_published": True}, "me", {CHILD})
+    assert not fs.row_visible("exam_results", {"student_id": CHILD}, "me", {CHILD})
+
+
+def test_the_report_card_list_hides_unpublished_cards_from_families():
+    import io as _io
+    src = _io.open("app/routers/report_cards.py", encoding="utf-8").read()
+    assert "ReportCard.is_published.is_(True)" in src
+
+
+def test_a_rule_naming_its_table_is_rewritten_to_the_relation_alias():
+    import io as _io
+    assert "re.sub(rf'(?<![\w.\"]){re.escape(tbl)}\.'" in _io.open("app/routers/vps_db.py", encoding="utf-8").read()

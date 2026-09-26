@@ -53,7 +53,8 @@ interface ChildBusInfo {
   pickup_type: string | null;
 }
 
-export default function ParentBusTrackingModule() {
+export default function ParentBusTrackingModule({ audience = "parent" }: { audience?: "parent" | "student" } = {}) {
+  const forStudent = audience === "student";
   const { schoolSlug } = useParams<{ schoolSlug: string }>();
   const { user } = useSession();
   const [loading, setLoading] = useState(true);
@@ -164,7 +165,7 @@ export default function ParentBusTrackingModule() {
         <AlertCircle className="h-12 w-12 text-slate-300 mb-2" />
         <h3 className="font-display text-base font-bold text-slate-800">No assigned transport</h3>
         <p className="text-xs text-slate-400 mt-1 max-w-sm">
-          Your children are not currently registered for school transport. Contact administration to request a bus route.
+          {forStudent ? "You are not registered for school transport." : "Your children are not currently registered for school transport."} Contact administration to request a bus route.
         </p>
       </div>
     );
@@ -372,7 +373,7 @@ export default function ParentBusTrackingModule() {
                 </CardHeader>
                 <CardContent className="p-4 space-y-3">
                   <div className="space-y-1">
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Your Child's Assigned Stop</p>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{forStudent ? "Your Assigned Stop" : "Your Child's Assigned Stop"}</p>
                     <p className="text-xs font-extrabold text-slate-800 leading-relaxed">{myStop.stop_name}</p>
                     {myStop.address && <p className="text-[10px] text-slate-500">{myStop.address}</p>}
                   </div>

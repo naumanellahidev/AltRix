@@ -438,7 +438,7 @@ export function HrAttendanceModule() {
                   <TableBody>
                     {cachedStaff.map((s) => {
                       const m = monthlyByUser.get(s.userId) || { present: 0, total: 0 };
-                      const pct = m.total > 0 ? Math.round((m.present / m.total) * 100) : 0;
+                      const pct = m.total > 0 ? Math.round((m.present / m.total) * 100) : null;
                       return (
                         <TableRow key={s.id}>
                           <TableCell>
@@ -450,10 +450,10 @@ export function HrAttendanceModule() {
                           <TableCell className="text-center">
                             {m.total > 0 ? (
                               <Badge variant="outline" className={cn(
-                                pct >= 90 ? "border-green-500/50 text-green-700 dark:text-green-400" :
-                                pct >= 75 ? "border-amber-500/50 text-amber-700 dark:text-amber-400" :
+                                pct != null && pct >= 90 ? "border-green-500/50 text-green-700 dark:text-green-400" :
+                                pct != null && pct >= 75 ? "border-amber-500/50 text-amber-700 dark:text-amber-400" :
                                 "border-red-500/50 text-red-700 dark:text-red-400"
-                              )}>{pct}%</Badge>
+                              )}>{pct != null ? `${pct}%` : "—"}</Badge>
                             ) : <span className="text-xs text-muted-foreground">—</span>}
                           </TableCell>
                         </TableRow>
