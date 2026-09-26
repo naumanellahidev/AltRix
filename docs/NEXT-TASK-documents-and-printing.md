@@ -2262,18 +2262,3 @@ and fixed on the way:
   - Every shell and role now crawled clean, declared and catalog screens:
     teacher, parent, student, accountant, HR, marketing, owner, principal,
     school admin, academic coordinator, counsellor.
-- **Analysis functions** (27 Sep): the teacher and student analyzers sent a
-  few counts to a paid AI gateway (gone) and stored the scores it invented,
-  including a "feedback sentiment" with no feedback collected and a student's
-  personality and learning style. Ported so every figure is measured and says
-  how: teacher attendance and results, overall as their mean, engagement not
-  measured; student attendance, subject averages, strengths and weaknesses,
-  and a stated risk formula (no verdict from fewer than five marked days).
-  Screens show "—" for what was not measured, not 0% or "low risk". The
-  timetable generator no longer asks the server for a draft that never came
-  (its own solver builds the timetable). Easypaisa checkout stays off: the
-  original trusted any posted "paid" message without asking Easypaisa, and a
-  safe version needs Easypaisa's status-inquiry credentials.
-- **All roles crawled clean**: teacher, parent, student, accountant, HR,
-  marketing, owner, principal, school admin, academic coordinator and
-  counselor, declared screens and catalog screens alike.
